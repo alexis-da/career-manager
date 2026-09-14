@@ -44,6 +44,24 @@ export function weightedIndex(rng: Rng, weights: readonly number[]): number {
 }
 
 /**
+ * Count drawn from a Poisson distribution of mean lambda (Knuth's multiplication method), for small
+ * means such as goals or cards in a match.
+ */
+export function poisson(rng: Rng, lambda: number): number {
+  if (!(lambda >= 0)) {
+    throw new RangeError(`Poisson mean must be non-negative, got ${lambda}`);
+  }
+  const threshold = Math.exp(-lambda);
+  let count = 0;
+  let product = rng();
+  while (product > threshold) {
+    count++;
+    product *= rng();
+  }
+  return count;
+}
+
+/**
  * Bell-shaped value in [-1, 1]: the mean of three uniform draws. Built from basic arithmetic only
  * (no Math.log or Math.cos) so a replay is bit-for-bit identical on any JavaScript engine.
  */

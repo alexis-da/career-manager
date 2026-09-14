@@ -29,11 +29,15 @@ export type Rng = () => number;
 export const makeRng = (seed: string): Rng => seedrandom(seed);
 ```
 
-La graine d'un match se dérive de la partie et du match, jamais d'un compteur global :
+La graine d'un match se dérive de la partie et de clés stables du match (saison, journée, slugs des
+clubs), jamais d'un compteur global ni de `Fixture.id` : c'est un cuid, différent d'une base à l'autre.
 
 ```ts
-const rng = makeRng(`${save.seed}:${fixture.id}`);
+const rng = makeRng(matchRngSeed(save.seed, season.startYear, fixture.round, homeSlug, awaySlug));
 ```
+
+Même règle pour les joueurs dans le moteur : ils sont identifiés par `slug du club initial#squadSlot`,
+pas par `PlayerSave.id`, pour qu'une égalité de note se départage de la même façon partout.
 
 Conséquence : rejouer une journée donne le même résultat. Si ce n'est pas le cas, c'est qu'une source
 d'aléatoire ou de temps s'est glissée dans le moteur — cherche-la avant toute autre hypothèse.

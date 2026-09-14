@@ -1,5 +1,6 @@
 import type { Curve } from "./curves";
 import type { AttributeName, Position } from "./generation";
+import type { Outcome } from "./match";
 
 // ------------------------------------------------------------------ Attribute generation
 
@@ -136,3 +137,95 @@ export const CONTRACT_MAX_YEARS_BY_AGE: Curve = [
   [33, 2],
   [35, 1],
 ];
+
+// ------------------------------------------------------------------ Match: team strength
+
+/** Weight of each attribute in a player's attacking value, by the slot they play in. */
+export const ATTACK_WEIGHTS: Readonly<Record<Position, Partial<Record<AttributeName, number>>>> = {
+  GK: { passing: 1 },
+  DF: { passing: 0.4, pace: 0.3, physical: 0.3 },
+  MF: { passing: 0.45, dribbling: 0.35, shooting: 0.2 },
+  FW: { shooting: 0.5, dribbling: 0.25, pace: 0.25 },
+};
+
+/** Weight of each attribute in a player's defensive value, by the slot they play in. */
+export const DEFENSE_WEIGHTS: Readonly<Record<Position, Partial<Record<AttributeName, number>>>> = {
+  GK: { goalkeeping: 1 },
+  DF: { defending: 0.6, physical: 0.25, pace: 0.15 },
+  MF: { defending: 0.5, physical: 0.3, passing: 0.2 },
+  FW: { physical: 0.7, defending: 0.3 },
+};
+
+/** Share of each line in the team's attack and defense, split evenly between the slots of the line. */
+export const ATTACK_LINE_WEIGHTS: Readonly<Record<Position, number>> = { GK: 0, DF: 0.15, MF: 0.35, FW: 0.5 };
+export const DEFENSE_LINE_WEIGHTS: Readonly<Record<Position, number>> = { GK: 0.35, DF: 0.45, MF: 0.2, FW: 0 };
+
+/** Form and morale (1–99) at which a player plays exactly at their attribute values. */
+export const CONDITION_NEUTRAL = 50;
+
+/** Strength change per point of form (±10 % at the extremes) and per point of morale (±5 %). */
+export const STRENGTH_PER_FORM_POINT = 0.002;
+export const STRENGTH_PER_MORALE_POINT = 0.001;
+
+// ------------------------------------------------------------------ Match: goals
+
+/** Expected goals of a team facing an equal opponent on neutral ground. */
+export const BASE_GOALS_PER_TEAM = 1.35;
+
+/** How sharply the attack / defense ratio turns into expected goals: ratio ^ exponent. */
+export const STRENGTH_EXPONENT = 2.5;
+
+/** Expected goals are multiplied by this factor at home and divided by it away. */
+export const HOME_ADVANTAGE = 1.15;
+
+/** Upper bound on a team's expected goals, whatever the gap between the teams. */
+export const MAX_EXPECTED_GOALS = 6;
+
+/** Chance that a goal has an assist. */
+export const ASSIST_CHANCE = 0.75;
+
+/** Weight of a slot in the draw of the scorer (multiplied by shooting). */
+export const SCORER_SLOT_WEIGHTS: Readonly<Record<Position, number>> = { GK: 0, DF: 0.12, MF: 0.4, FW: 1 };
+
+/** Weight of a slot in the draw of the assist provider (multiplied by passing). */
+export const ASSIST_SLOT_WEIGHTS: Readonly<Record<Position, number>> = { GK: 0.02, DF: 0.35, MF: 1, FW: 0.6 };
+
+// ------------------------------------------------------------------ Match: time, cards, injuries, substitutions
+
+export const REGULATION_MINUTES = 90;
+
+/** Stoppage time added to a match, drawn from 0 to this many minutes. */
+export const MAX_STOPPAGE_MINUTES = 5;
+
+/** Expected cards per team per match; a second yellow card sends the player off. */
+export const YELLOW_CARDS_PER_TEAM = 1.8;
+export const RED_CARDS_PER_TEAM = 0.05;
+
+/** Weight of a slot in the draw of the booked player; goalkeepers are never booked. */
+export const CARD_SLOT_WEIGHTS: Readonly<Record<Position, number>> = { GK: 0, DF: 1.3, MF: 1.1, FW: 0.7 };
+
+/** Card weight multiplier for a player already booked, who plays carefully to avoid a second yellow card. */
+export const BOOKED_PLAYER_CARD_FACTOR = 0.2;
+
+/** Expected injuries per team per match, and their length in days. */
+export const INJURIES_PER_TEAM = 0.12;
+export const INJURY_DAYS_MIN = 7;
+export const INJURY_DAYS_MAX = 42;
+
+/** Substitutions per team, injuries included; tactical ones happen within this minute range. */
+export const SUBSTITUTIONS_PER_TEAM = 3;
+export const SUBSTITUTION_MINUTE_MIN = 55;
+export const SUBSTITUTION_MINUTE_MAX = 85;
+
+// ------------------------------------------------------------------ Form after a match
+
+/** Form change for a player who took part, by the team's result. */
+export const FORM_BY_OUTCOME: Readonly<Record<Outcome, number>> = { win: 4, draw: 0, loss: -4 };
+
+/** Extra form change per goal and per assist, and when sent off. */
+export const FORM_PER_GOAL = 3;
+export const FORM_PER_ASSIST = 2;
+export const FORM_SENT_OFF = -6;
+
+/** A player who did not take part drifts back toward CONDITION_NEUTRAL by this much per match of the club. */
+export const FORM_REST_DRIFT = 1;

@@ -67,9 +67,10 @@ prisma/
 
 1. Seed OpenFootball (clubs, compétitions, calendriers) → voir la skill `donnees-openfootball`
 2. Génération des attributs joueurs (déterministe, à partir de la graine)
-3. Moteur de match → voir la skill `moteur-de-match`
-4. Boucle de saison (journées, classement, fin de saison)
-5. Transferts et contrats
-6. UI
+3. Création de partie
+4. Moteur de match → voir la skill `moteur-de-match`
+5. Boucle de saison (journées, classement, fin de saison)
+6. Transferts et contrats
+7. UI
 
 Ne pas commencer une étape tant que la précédente n'a pas de test qui passe.

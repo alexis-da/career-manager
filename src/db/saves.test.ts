@@ -33,10 +33,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
     referenceCountsAfter = await countReferenceTables();
   }, 300_000);
 
+  // Deleting three saves cascades to about 12 000 rows: allow more than the 10 s hook default.
   afterAll(async () => {
     await db?.save.deleteMany({ where: { id: { in: saveIds } } });
     await db?.$disconnect();
-  });
+  }, 120_000);
 
   const playerSavesOf = (saveId: string) =>
     database().playerSave.findMany({

@@ -4,6 +4,7 @@ import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engi
 import { generateSchedule, scheduleRngSeed } from "../engine/schedule";
 import { FIRST_MATCHDAY_DATE, seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import { ageInYears } from "../lib/dates";
+import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
 
@@ -20,14 +21,6 @@ export type CreateSaveInput = z.input<typeof createSaveInputSchema>;
 const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 120_000;
 
-function required<K, V>(map: ReadonlyMap<K, V>, key: K, what: string): V {
-  const value = map.get(key);
-  if (value === undefined) {
-    throw new Error(`Missing ${what} for ${String(key)}`);
-  }
-  return value;
-}
-
 const bySlug = (a: { slug: string }, b: { slug: string }): number => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0);
 
 /**
@@ -40,13 +33,14 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
 
   return prisma.$transaction(
     async (tx) => {
-      const [competitions, clubRows, players] = await Promise.all([
-        tx.competition.findMany({ select: { id: true, code: true } }),
-        tx.club.findMany({ select: { id: true, slug: true, initialRank: true, competitionId: true } }),
-        tx.player.findMany({
-          select: { id: true, initialClubId: true, squadSlot: true, birthDate: true, position: true },
-        }),
-      ]);
+      // Sequential on purpose: a transaction runs on a single connection, which takes one query at a time.
+      const competitions = await tx.competition.findMany({ select: { id: true, code: true } });
+      const clubRows = await tx.club.findMany({
+        select: { id: true, slug: true, initialRank: true, competitionId: true },
+      });
+      const players = await tx.player.findMany({
+        select: { id: true, initialClubId: true, squadSlot: true, birthDate: true, position: true },
+      });
 
       const clubs = clubRows.map((club) => {
         if (club.competitionId === null) {
@@ -74,7 +68,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
           saveId: save.id,
           clubId: club.id,
           isManaged: club.id === clubId,
-          ...clubFinances(club.initialRank, required(clubCountByCompetition, club.competitionId, "club count")),
+          ...clubFinances(club.initialRank, getOrThrow(clubCountByCompetition, club.competitionId, "club count")),
         })),
         select: { id: true, clubId: true },
       });
@@ -82,10 +76,10 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
 
       await tx.playerSave.createMany({
         data: players.map((player) => {
-          const club = required(clubById, player.initialClubId, "club");
+          const club = getOrThrow(clubById, player.initialClubId, "club");
           const clubLevel = clubLevelFromRank(
             club.initialRank,
-            required(clubCountByCompetition, club.competitionId, "club count"),
+            getOrThrow(clubCountByCompetition, club.competitionId, "club count"),
           );
           const age = ageInYears(player.birthDate, save.currentDate);
           // One stream per player, keyed by stable identity: attributes first, then the contract length.
@@ -99,7 +93,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
           return {
             saveId: save.id,
             playerId: player.id,
-            clubSaveId: required(clubSaveIdByClubId, club.id, "club save"),
+            clubSaveId: getOrThrow(clubSaveIdByClubId, club.id, "club save"),
             ...attributes,
             ...contract,
           };
@@ -115,10 +109,10 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
 
       await tx.fixture.createMany({
         data: seasons.flatMap((season) => {
-          const competition = required(competitionById, season.competitionId, "competition");
+          const competition = getOrThrow(competitionById, season.competitionId, "competition");
           const competitionClubs = clubs.filter((club) => club.competitionId === competition.id).sort(bySlug);
           const clubSaveIdBySlug = new Map(
-            competitionClubs.map((club) => [club.slug, required(clubSaveIdByClubId, club.id, "club save")]),
+            competitionClubs.map((club) => [club.slug, getOrThrow(clubSaveIdByClubId, club.id, "club save")]),
           );
           const schedule = generateSchedule(
             competitionClubs.map((club) => club.slug),
@@ -130,8 +124,8 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
             seasonId: season.id,
             round: match.round,
             scheduledAt: match.scheduledAt,
-            homeClubSaveId: required(clubSaveIdBySlug, match.home, "club save"),
-            awayClubSaveId: required(clubSaveIdBySlug, match.away, "club save"),
+            homeClubSaveId: getOrThrow(clubSaveIdBySlug, match.home, "club save"),
+            awayClubSaveId: getOrThrow(clubSaveIdBySlug, match.away, "club save"),
           }));
         }),
       });
