@@ -1,3 +1,4 @@
+import type { Curve } from "./curves";
 import type { AttributeName, Position } from "./generation";
 
 // ------------------------------------------------------------------ Attribute generation
@@ -16,7 +17,7 @@ export const ATTRIBUTE_SPREAD = 7;
  * Quality modifier by age, as [age, modifier] points: linear in between, flat outside.
  * Young players are not yet at their level, the peak is 26–29, decline starts after 30.
  */
-export const AGE_QUALITY_CURVE: readonly (readonly [number, number])[] = [
+export const AGE_QUALITY_CURVE: Curve = [
   [17, -13],
   [20, -8],
   [23, -3],
@@ -28,7 +29,7 @@ export const AGE_QUALITY_CURVE: readonly (readonly [number, number])[] = [
 ];
 
 /** Maximum room between overall and potential by age, as [age, room] points: none left from 29. */
-export const AGE_GROWTH_CURVE: readonly (readonly [number, number])[] = [
+export const AGE_GROWTH_CURVE: Curve = [
   [17, 24],
   [21, 16],
   [24, 8],
@@ -54,3 +55,84 @@ export const OVERALL_WEIGHTS: Readonly<Record<Position, Readonly<Record<Attribut
   MF: { pace: 0.1, shooting: 0.1, passing: 0.35, dribbling: 0.2, defending: 0.1, physical: 0.15, goalkeeping: 0 },
   FW: { pace: 0.2, shooting: 0.4, passing: 0.05, dribbling: 0.2, defending: 0, physical: 0.15, goalkeeping: 0 },
 };
+
+// ------------------------------------------------------------------ Club finances at save creation
+// Money follows the square of the rank strength (1 = champion, 0 = last club), so it concentrates at the
+// top of each league; reputation follows the rank strength linearly.
+
+/** Transfer budget in euros of a league's last club and of its champion. */
+export const CLUB_BUDGET_WORST = 5_000_000;
+export const CLUB_BUDGET_BEST = 150_000_000;
+
+/** Wage budget in euros per season of a league's last club and of its champion. */
+export const CLUB_WAGE_BUDGET_WORST = 20_000_000;
+export const CLUB_WAGE_BUDGET_BEST = 200_000_000;
+
+/** Reputation (1–99) of a league's last club and of its champion. */
+export const CLUB_REPUTATION_WORST = 55;
+export const CLUB_REPUTATION_BEST = 90;
+
+/** Budgets are rounded to this step, in euros. */
+export const BUDGET_STEP = 100_000;
+
+// ------------------------------------------------------------------ Player contracts at save creation
+
+/** Market value in euros by overall rating. */
+export const MARKET_VALUE_BY_OVERALL: Curve = [
+  [40, 50_000],
+  [50, 300_000],
+  [60, 1_500_000],
+  [68, 6_000_000],
+  [75, 20_000_000],
+  [82, 50_000_000],
+  [88, 100_000_000],
+  [99, 180_000_000],
+];
+
+/** Market value multiplier by age: young players are priced on their future, veterans lose value fast. */
+export const MARKET_VALUE_AGE_FACTOR: Curve = [
+  [17, 1.2],
+  [21, 1.4],
+  [24, 1.3],
+  [27, 1],
+  [30, 0.7],
+  [33, 0.35],
+  [36, 0.15],
+];
+
+/** Extra market value, as a share, per point of growth room (potential − overall). */
+export const MARKET_VALUE_PER_GROWTH_POINT = 0.02;
+
+/** Market values are rounded to this step, in euros. */
+export const MARKET_VALUE_STEP = 10_000;
+
+/** Wage in euros per season by overall rating. */
+export const WAGE_BY_OVERALL: Curve = [
+  [40, 40_000],
+  [50, 120_000],
+  [60, 400_000],
+  [68, 1_200_000],
+  [75, 3_000_000],
+  [82, 7_000_000],
+  [88, 12_000_000],
+  [99, 20_000_000],
+];
+
+/** Wage multiplier by age: first professional contracts are cheap. */
+export const WAGE_AGE_FACTOR: Curve = [
+  [17, 0.3],
+  [20, 0.6],
+  [23, 0.9],
+  [25, 1],
+];
+
+/** Wages are rounded to this step, in euros. */
+export const WAGE_STEP = 1_000;
+
+/** Longest contract, in seasons, by age (rounded); the actual length is drawn from 1 to this value. */
+export const CONTRACT_MAX_YEARS_BY_AGE: Curve = [
+  [29, 5],
+  [31, 3],
+  [33, 2],
+  [35, 1],
+];

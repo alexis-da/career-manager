@@ -70,7 +70,8 @@ Le seed calcule le classement final de chaque compétition avec `computeStanding
 - Règles : 3/1/0 points, puis différence de buts, buts marqués, slug. Pas de confrontations directes ni
   de pénalités de points : c'est une approximation déterministe, pas le classement officiel.
 - Les matchs sans score `ft` sont ignorés. Un club sans aucun match joué fait échouer le seed.
-- La création de partie lit `Club.initialRank`, **jamais les fichiers JSON**.
+- La création de partie (`createSave`, `src/db/saves.ts`) lit `Club.initialRank`, **jamais les fichiers
+  JSON** : niveau de club, budget, masse salariale et réputation en sont dérivés.
 
 ## Joueurs : identité dans le seed, attributs dans la partie
 

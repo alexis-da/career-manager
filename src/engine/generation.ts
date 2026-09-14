@@ -10,6 +10,7 @@ import {
   PLAYER_QUALITY_SPREAD,
   POSITION_PROFILES,
 } from "./balance";
+import { interpolate, lerp, rankStrength } from "./curves";
 
 export type Position = "GK" | "DF" | "MF" | "FW";
 
@@ -45,14 +46,7 @@ export function clampRating(value: number): number {
 
 /** Level of a club from its final league rank: CLUB_LEVEL_BEST for the champion, CLUB_LEVEL_WORST for the last. */
 export function clubLevelFromRank(rank: number, clubCount: number): number {
-  if (!Number.isInteger(rank) || rank < 1 || rank > clubCount) {
-    throw new RangeError(`Rank must be an integer within 1–${clubCount}, got ${rank}`);
-  }
-  if (clubCount === 1) {
-    return CLUB_LEVEL_BEST;
-  }
-  const share = (rank - 1) / (clubCount - 1);
-  return Math.round(CLUB_LEVEL_BEST - share * (CLUB_LEVEL_BEST - CLUB_LEVEL_WORST));
+  return Math.round(lerp(CLUB_LEVEL_WORST, CLUB_LEVEL_BEST, rankStrength(rank, clubCount)));
 }
 
 /**
@@ -61,21 +55,6 @@ export function clubLevelFromRank(rank: number, clubCount: number): number {
  */
 export function attributeRngSeed(saveSeed: string, clubSlug: string, squadSlot: number): string {
   return `${saveSeed}:attributes:${clubSlug}:${squadSlot}`;
-}
-
-function interpolate(curve: readonly (readonly [number, number])[], x: number): number {
-  const [firstX, firstY] = curve[0];
-  if (x <= firstX) {
-    return firstY;
-  }
-  for (let index = 1; index < curve.length; index++) {
-    const [x1, y1] = curve[index];
-    if (x <= x1) {
-      const [x0, y0] = curve[index - 1];
-      return y0 + ((x - x0) / (x1 - x0)) * (y1 - y0);
-    }
-  }
-  return curve[curve.length - 1][1];
 }
 
 export function generateAttributes(player: PlayerProfile, clubLevel: number, rng: Rng): PlayerAttributes {

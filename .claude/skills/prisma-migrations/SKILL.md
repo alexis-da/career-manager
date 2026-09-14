@@ -35,6 +35,24 @@ npm run test                                        # les tests doivent passer
 Ne jamais éditer un fichier de migration déjà appliqué. Ne jamais utiliser `prisma db push` sur ce projet :
 l'historique des migrations doit rester complet pour pouvoir redéployer proprement.
 
+## Renommage de colonne
+
+Sur un renommage de colonne, Prisma génère DROP + ADD et perd les données. Toujours relire le SQL généré
+et le réécrire en RENAME COLUMN. Vérifier ensuite avec migrate diff.
+
+Renommer aussi la clé étrangère et l'index, pour qu'ils portent les noms que Prisma attend :
+
+```sql
+ALTER TABLE "Player" RENAME COLUMN "clubId" TO "initialClubId";
+ALTER TABLE "Player" RENAME CONSTRAINT "Player_clubId_fkey" TO "Player_initialClubId_fkey";
+ALTER INDEX "Player_clubId_squadSlot_key" RENAME TO "Player_initialClubId_squadSlot_key";
+```
+
+```bash
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+# attendu : « No difference detected », code de sortie 0
+```
+
 ## Conventions
 
 - Modèles en `PascalCase` singulier, champs en `camelCase`.

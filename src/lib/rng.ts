@@ -17,6 +17,16 @@ export function pick<T>(rng: Rng, items: readonly T[]): T {
   return items[Math.floor(rng() * items.length)];
 }
 
+/** New array holding the items in a seeded random order (Fisher–Yates). */
+export function shuffle<T>(rng: Rng, items: readonly T[]): T[] {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index--) {
+    const other = Math.floor(rng() * (index + 1));
+    [result[index], result[other]] = [result[other], result[index]];
+  }
+  return result;
+}
+
 /** Index drawn with a probability proportional to its weight. */
 export function weightedIndex(rng: Rng, weights: readonly number[]): number {
   const total = weights.reduce((sum, weight) => sum + weight, 0);

@@ -1,13 +1,14 @@
 import { readdirSync, readFileSync } from "node:fs";
 import * as z from "zod";
 import type { Position } from "../../src/engine/generation";
+import { WORLD_START_DATE } from "../../src/engine/world";
 import { makeRng, pick, randomInt, weightedIndex, type Rng } from "../../src/lib/rng";
 
 /** Fixed world seed: player identities are the same on every seed run, and shared by every save. */
 export const WORLD_SEED = "world-2024-25";
 
-/** Ages are counted on this fixed date (UTC), the start of the 2024-25 season. Not the clock. */
-export const WORLD_REFERENCE_DATE = new Date(Date.UTC(2024, 6, 1));
+/** Ages are counted on the day every save starts, 1 July 2024. */
+export const WORLD_REFERENCE_DATE = WORLD_START_DATE;
 
 const repeat = (position: Position, count: number): Position[] => Array.from({ length: count }, () => position);
 
