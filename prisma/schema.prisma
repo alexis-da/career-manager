@@ -1,0 +1,227 @@
+// Career Manager — schéma initial
+// Deux familles de tables : référence (monde, issu d'OpenFootball, immuable)
+// et partie (état évolutif d'une carrière, toujours scopé par saveId).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- RÉFÉRENCE
+
+model Competition {
+  id       String   @id @default(cuid())
+  code     String   @unique // code OpenFootball, ex. "en.1"
+  name     String
+  country  String
+  tier     Int      @default(1)
+  clubs    Club[]
+  seasons  Season[]
+}
+
+model Club {
+  id            String       @id @default(cuid())
+  slug          String       @unique // normalisé depuis le nom OpenFootball
+  name          String
+  shortName     String?
+  country       String
+  city          String?
+  stadium       String?
+  founded       Int?
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: Restrict)
+  competitionId String?
+  clubSaves     ClubSave[]
+
+  @@index([competitionId])
+}
+
+model Player {
+  id          String       @id @default(cuid())
+  firstName   String
+  lastName    String
+  birthDate   DateTime
+  nationality String
+  position    Position
+  playerSaves PlayerSave[]
+}
+
+// ------------------------------------------------------------------- PARTIE
+
+model Save {
+  id          String              @id @default(cuid())
+  name        String
+  managerName String
+  seed        String // graine de tout l'aléatoire de la partie
+  currentDate DateTime // date "en jeu", jamais l'horloge système
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  clubSaves   ClubSave[]
+  playerSaves PlayerSave[]
+  seasons     Season[]
+  fixtures    Fixture[]
+  transfers   Transfer[]
+  stats       PlayerSeasonStats[]
+}
+
+model Season {
+  id            String              @id @default(cuid())
+  save          Save                @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId        String
+  competition   Competition         @relation(fields: [competitionId], references: [id], onDelete: Restrict)
+  competitionId String
+  startYear     Int // 2024 pour la saison 2024/25
+  completed     Boolean             @default(false)
+  fixtures      Fixture[]
+  stats         PlayerSeasonStats[]
+
+  @@unique([saveId, competitionId, startYear])
+  @@index([saveId])
+}
+
+model ClubSave {
+  id              String       @id @default(cuid())
+  save            Save         @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId          String
+  club            Club         @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  clubId          String
+  isManaged       Boolean      @default(false) // le club dirigé par le joueur
+  budget          Int          @default(0) // euros
+  wageBudget      Int          @default(0) // euros par saison
+  reputation      Int          @default(50) // 1–99
+  boardConfidence Int          @default(50) // 1–99
+  players         PlayerSave[]
+  homeFixtures    Fixture[]    @relation("HomeFixtures")
+  awayFixtures    Fixture[]    @relation("AwayFixtures")
+
+  @@unique([saveId, clubId])
+  @@index([saveId])
+}
+
+model PlayerSave {
+  id            String              @id @default(cuid())
+  save          Save                @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId        String
+  player        Player              @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  playerId      String
+  clubSave      ClubSave?           @relation(fields: [clubSaveId], references: [id], onDelete: Restrict)
+  clubSaveId    String? // null = joueur libre
+  overall       Int // 1–99, note courante
+  potential     Int // 1–99, plafond estimé
+  pace          Int
+  shooting      Int
+  passing       Int
+  dribbling     Int
+  defending     Int
+  physical      Int
+  goalkeeping   Int                 @default(1)
+  form          Int                 @default(50) // 1–99
+  morale        Int                 @default(50) // 1–99
+  fitness       Int                 @default(100) // 0–100
+  injuredUntil  DateTime?
+  marketValue   Int                 @default(0) // euros
+  wage          Int                 @default(0) // euros par saison
+  contractUntil DateTime?
+  stats         PlayerSeasonStats[]
+  transfers     Transfer[]
+  events        MatchEvent[]
+
+  @@unique([saveId, playerId])
+  @@index([saveId, clubSaveId])
+}
+
+model Fixture {
+  id            String       @id @default(cuid())
+  save          Save         @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId        String
+  season        Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId      String
+  round         Int // numéro de journée
+  scheduledAt   DateTime
+  homeClubSave   ClubSave     @relation("HomeFixtures", fields: [homeClubSaveId], references: [id], onDelete: Cascade)
+  homeClubSaveId String
+  awayClubSave   ClubSave     @relation("AwayFixtures", fields: [awayClubSaveId], references: [id], onDelete: Cascade)
+  awayClubSaveId String
+  played        Boolean      @default(false)
+  homeGoals     Int?
+  awayGoals     Int?
+  events        MatchEvent[]
+
+  @@index([saveId, seasonId, round])
+  @@index([saveId, scheduledAt])
+}
+
+model MatchEvent {
+  id           String         @id @default(cuid())
+  fixture      Fixture        @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  fixtureId    String
+  minute       Int // 1–90 (+ arrêts de jeu)
+  type         MatchEventType
+  playerSave   PlayerSave?    @relation(fields: [playerSaveId], references: [id], onDelete: Restrict)
+  playerSaveId String?
+
+  @@index([fixtureId])
+}
+
+model Transfer {
+  id           String       @id @default(cuid())
+  save         Save         @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId       String
+  playerSave   PlayerSave   @relation(fields: [playerSaveId], references: [id], onDelete: Restrict)
+  playerSaveId String
+  fromClubId   String? // Club.id ; null = joueur libre ou club hors périmètre
+  toClubId     String? // Club.id ; null = fin de carrière
+  fee          Int          @default(0) // euros
+  type         TransferType
+  date         DateTime
+
+  @@index([saveId, date])
+}
+
+model PlayerSeasonStats {
+  id           String     @id @default(cuid())
+  save         Save       @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId       String
+  season       Season     @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId     String
+  playerSave   PlayerSave @relation(fields: [playerSaveId], references: [id], onDelete: Cascade)
+  playerSaveId String
+  appearances  Int        @default(0)
+  minutes      Int        @default(0)
+  goals        Int        @default(0)
+  assists      Int        @default(0)
+  yellowCards  Int        @default(0)
+  redCards     Int        @default(0)
+
+  @@unique([saveId, seasonId, playerSaveId])
+  @@index([saveId, seasonId])
+}
+
+// -------------------------------------------------------------------- ENUMS
+
+enum Position {
+  GK
+  DF
+  MF
+  FW
+}
+
+enum MatchEventType {
+  GOAL
+  ASSIST
+  YELLOW_CARD
+  RED_CARD
+  INJURY
+  SUBSTITUTION
+}
+
+enum TransferType {
+  TRANSFER
+  LOAN
+  FREE
+  RETIREMENT
+}
