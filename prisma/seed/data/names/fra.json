@@ -1,0 +1,14 @@
+{
+  "nationality": "France",
+  "firstNames": [
+    "Lucas", "Hugo", "Théo", "Nathan", "Louis", "Enzo", "Mathis", "Tom", "Baptiste", "Maxime",
+    "Clément", "Antoine", "Alexandre", "Julien", "Romain", "Thomas", "Nicolas", "Quentin", "Florian", "Kévin",
+    "Jérémy", "Adrien", "Valentin", "Mathieu", "Benjamin", "Yanis", "Rayan", "Samuel", "Axel", "Dylan"
+  ],
+  "lastNames": [
+    "Martin", "Bernard", "Dubois", "Robert", "Richard", "Petit", "Durand", "Leroy", "Moreau", "Simon",
+    "Laurent", "Lefebvre", "Michel", "Garcia", "David", "Bertrand", "Roux", "Vincent", "Fournier", "Barbier",
+    "Girard", "Colin", "Lefèvre", "Mercier", "Perrin", "Lambert", "Bonnet", "François", "Martinez", "Legrand",
+    "Garnier", "Faure", "Rousseau", "Blanc", "Guérin", "Muller", "Marchand", "Roussel", "Lemoine", "Chevalier"
+  ]
+}

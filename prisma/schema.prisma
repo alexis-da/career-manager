@@ -31,22 +31,30 @@ model Club {
   country       String
   city          String?
   stadium       String?
-  founded       Int?
-  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: Restrict)
-  competitionId String?
-  clubSaves     ClubSave[]
+  founded        Int?
+  initialRank    Int // classement final 2024-25 dans sa compétition, calculé par le seed depuis les scores
+  competition    Competition? @relation(fields: [competitionId], references: [id], onDelete: Restrict)
+  competitionId  String?
+  initialPlayers Player[]
+  clubSaves      ClubSave[]
 
   @@index([competitionId])
 }
 
+// Identité seule, générée par le seed avec une graine fixe. Les attributs vivent dans PlayerSave.
 model Player {
-  id          String       @id @default(cuid())
-  firstName   String
-  lastName    String
-  birthDate   DateTime
-  nationality String
-  position    Position
-  playerSaves PlayerSave[]
+  id            String       @id @default(cuid())
+  initialClub   Club         @relation(fields: [initialClubId], references: [id], onDelete: Restrict)
+  initialClubId String // club dans le monde 2024-25 ; le club en cours de partie est porté par PlayerSave
+  squadSlot     Int // 1–23 : avec initialClubId, identité stable (clé du seed et des graines d'attributs)
+  firstName     String
+  lastName      String
+  birthDate     DateTime
+  nationality   String
+  position      Position
+  playerSaves   PlayerSave[]
+
+  @@unique([initialClubId, squadSlot])
 }
 
 // ------------------------------------------------------------------- PARTIE

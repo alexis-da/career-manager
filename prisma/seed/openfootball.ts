@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import * as z from "zod";
+import type { MatchScore } from "../../src/engine/standings";
 import { CLUB_ALIASES } from "./aliases";
 
 // 2024-25 fixture files, downloaded once from openfootball/football.json (CC0).
@@ -14,7 +15,7 @@ const matchSchema = z.object({
   time: z.string().optional(),
   team1: z.string().min(1),
   team2: z.string().min(1),
-  // Absent for a match not played yet.
+  // Absent (or without "ft") for a match not played yet.
   score: z.object({ ht: goalsSchema.optional(), ft: goalsSchema.optional() }).optional(),
   status: z.string().optional(),
 });
@@ -92,4 +93,22 @@ export function extractClubs(file: FixtureFile, aliases: ClubAliases = CLUB_ALIA
   return [...namesBySlug]
     .map(([slug, name]) => ({ slug, name }))
     .sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
+}
+
+/** Full-time scores of the played matches, clubs keyed by slug. Matches without a full-time score are skipped. */
+export function extractScores(file: FixtureFile, aliases: ClubAliases = CLUB_ALIASES): MatchScore[] {
+  return file.matches.flatMap((match) => {
+    const fullTime = match.score?.ft;
+    if (fullTime === undefined) {
+      return [];
+    }
+    return [
+      {
+        home: slugify(resolveClubName(match.team1, aliases)),
+        away: slugify(resolveClubName(match.team2, aliases)),
+        homeGoals: fullTime[0],
+        awayGoals: fullTime[1],
+      },
+    ];
+  });
 }

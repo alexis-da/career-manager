@@ -1,0 +1,14 @@
+{
+  "nationality": "Allemagne",
+  "firstNames": [
+    "Lukas", "Leon", "Jonas", "Maximilian", "Felix", "Paul", "Niklas", "Tim", "Jan", "Moritz",
+    "Henrik", "Tobias", "Julian", "Fabian", "Philipp", "Sebastian", "Dominik", "Kevin", "Marcel", "Jonathan",
+    "Patrick", "Stefan", "Timo", "Jannik", "Luca", "Erik", "Nils", "Lennart", "Simon", "Benedikt"
+  ],
+  "lastNames": [
+    "Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Koch",
+    "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Zimmermann", "Braun", "Krüger", "Hartmann",
+    "Lange", "Krause", "Lehmann", "Köhler", "Maier", "König", "Walter", "Mayer", "Huber", "Seidel",
+    "Fuchs", "Peters", "Lang", "Scholz", "Möller", "Weiß", "Vogel", "Friedrich", "Günther", "Berger"
+  ]
+}
