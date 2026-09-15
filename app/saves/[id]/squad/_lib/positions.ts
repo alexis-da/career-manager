@@ -1,9 +1,7 @@
 import type { Position } from "@/src/engine/generation";
 
-/** Positions from the goal outwards: the squad's default grouping. */
+/** Positions from the goal outwards: the squad's default order. */
 export const POSITION_ORDER: readonly Position[] = ["GK", "DF", "MF", "FW"];
-
-export const POSITION_SHORT: Record<Position, string> = { GK: "G", DF: "D", MF: "M", FW: "A" };
 
 export const POSITION_LABEL: Record<Position, string> = {
   GK: "Gardien",
@@ -12,9 +10,10 @@ export const POSITION_LABEL: Record<Position, string> = {
   FW: "Attaquant",
 };
 
-export const POSITION_GROUP: Record<Position, string> = {
-  GK: "Gardiens",
-  DF: "Défenseurs",
-  MF: "Milieux",
-  FW: "Attaquants",
+/** Fixed color of each position, whatever the managed club. */
+export const POSITION_TEXT: Record<Position, string> = {
+  GK: "text-position-gk",
+  DF: "text-position-df",
+  MF: "text-position-mf",
+  FW: "text-position-fw",
 };

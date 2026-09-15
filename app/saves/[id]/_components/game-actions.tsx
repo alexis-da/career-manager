@@ -1,5 +1,6 @@
 "use client";
 
+import { FastForwardIcon, PlayIcon } from "lucide-react";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
@@ -10,6 +11,7 @@ type GameActionsProps = {
   seasonFinished: boolean;
 };
 
+/** The main button of the navigation bar, in the club accent. */
 export function GameActions({ saveId, seasonFinished }: GameActionsProps) {
   const [pending, startTransition] = useTransition();
 
@@ -27,12 +29,16 @@ export function GameActions({ saveId, seasonFinished }: GameActionsProps) {
       }
     });
 
+  const className = "h-9 px-4 font-heading text-base font-semibold";
+
   return seasonFinished ? (
-    <Button variant="club" size="lg" disabled={pending} onClick={() => run(advanceSeasonAction)}>
+    <Button variant="club" className={className} disabled={pending} onClick={() => run(advanceSeasonAction)}>
+      <FastForwardIcon data-icon="inline-start" className="fill-current" />
       {pending ? "Préparation de la saison…" : "Passer à la saison suivante"}
     </Button>
   ) : (
-    <Button variant="club" size="lg" disabled={pending} onClick={() => run(playMatchdayAction)}>
+    <Button variant="club" className={className} disabled={pending} onClick={() => run(playMatchdayAction)}>
+      <PlayIcon data-icon="inline-start" className="fill-current" />
       {pending ? "Simulation…" : "Jouer la journée"}
     </Button>
   );

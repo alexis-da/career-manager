@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
+import { Panel } from "../_components/panel";
 
 export const metadata: Metadata = { title: "Transferts" };
 
 export default function TransfersPage() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Transferts</CardTitle>
-        <CardDescription>Bientôt disponible.</CardDescription>
-      </CardHeader>
-    </Card>
+    <div className="space-y-5">
+      <h1 className="font-heading text-4xl font-bold">Transferts</h1>
+      <Panel>
+        <p className="text-muted-foreground">Bientôt disponible.</p>
+      </Panel>
+    </div>
   );
 }

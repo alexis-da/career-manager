@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
+import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { listClubsByCompetition } from "@/src/db/clubs";
 import { listSaves } from "@/src/db/saves";
 import { formatDate } from "@/src/lib/format";
+import { cn } from "@/src/lib/utils";
 import { CreateSaveForm } from "./_components/create-save-form";
 import { DeleteSaveDialog } from "./_components/delete-save-dialog";
 
@@ -15,72 +16,68 @@ export default async function HomePage() {
   return (
     <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-10">
       <header className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Career Manager</h1>
+        <h1 className="font-heading text-5xl font-bold tracking-wide uppercase">Career Manager</h1>
         <p className="text-muted-foreground">Reprenez une carrière ou commencez-en une nouvelle.</p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Parties</CardTitle>
-            <CardDescription>
+      <div className="grid items-start gap-5 lg:grid-cols-[1fr_22rem]">
+        <section className="space-y-3 rounded-lg border bg-card p-5">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="eyebrow">Parties</h2>
+            <p className="text-xs text-muted-foreground tabular-nums">
               {saves.length === 0 ? "Aucune partie pour l'instant." : `${saves.length} partie${saves.length > 1 ? "s" : ""}`}
-            </CardDescription>
-          </CardHeader>
+            </p>
+          </div>
           {saves.length > 0 && (
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nom</TableHead>
-                    <TableHead>Manager</TableHead>
-                    <TableHead>Club</TableHead>
-                    <TableHead>Date en jeu</TableHead>
-                    <TableHead className="text-right">
-                      <span className="sr-only">Actions</span>
-                    </TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className={TABLE_HEAD}>Nom</TableHead>
+                  <TableHead className={TABLE_HEAD}>Manager</TableHead>
+                  <TableHead className={TABLE_HEAD}>Club</TableHead>
+                  <TableHead className={TABLE_HEAD}>Date en jeu</TableHead>
+                  <TableHead className={cn(TABLE_HEAD, "text-right")}>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {saves.map((save) => (
+                  <TableRow key={save.id} data-save-name={save.name} className={TABLE_ROW}>
+                    <TableCell className={cn(TABLE_CELL, "font-semibold")}>
+                      <Link href={`/saves/${save.id}`} className="hover:underline">
+                        {save.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell className={TABLE_CELL}>{save.managerName}</TableCell>
+                    <TableCell className={TABLE_CELL}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          aria-hidden
+                          className="h-4 w-1 shrink-0 rounded-full"
+                          style={{ background: save.club.primaryColor }}
+                        />
+                        {save.club.name}
+                      </span>
+                    </TableCell>
+                    <TableCell className={cn(TABLE_CELL, "tabular-nums")}>{formatDate(save.currentDate)}</TableCell>
+                    <TableCell className={cn(TABLE_CELL, "text-right")}>
+                      <DeleteSaveDialog saveId={save.id} saveName={save.name} />
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {saves.map((save) => (
-                    <TableRow key={save.id} data-save-name={save.name}>
-                      <TableCell className="font-medium">
-                        <Link href={`/saves/${save.id}`} className="hover:underline">
-                          {save.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{save.managerName}</TableCell>
-                      <TableCell>
-                        <span className="flex items-center gap-2">
-                          <span
-                            aria-hidden
-                            className="size-3 shrink-0 rounded-full ring-1 ring-border"
-                            style={{ background: save.club.primaryColor }}
-                          />
-                          {save.club.name}
-                        </span>
-                      </TableCell>
-                      <TableCell className="tabular-nums">{formatDate(save.currentDate)}</TableCell>
-                      <TableCell className="text-right">
-                        <DeleteSaveDialog saveId={save.id} saveName={save.name} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
+                ))}
+              </TableBody>
+            </Table>
           )}
-        </Card>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Nouvelle partie</CardTitle>
-            <CardDescription>La saison commence le 1er juillet 2024.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CreateSaveForm competitions={competitions} />
-          </CardContent>
-        </Card>
+        <section className="space-y-4 rounded-lg border bg-card p-5">
+          <div className="space-y-1">
+            <h2 className="eyebrow">Nouvelle partie</h2>
+            <p className="text-xs text-muted-foreground">La saison commence le 1er juillet 2024.</p>
+          </div>
+          <CreateSaveForm competitions={competitions} />
+        </section>
       </div>
     </main>
   );

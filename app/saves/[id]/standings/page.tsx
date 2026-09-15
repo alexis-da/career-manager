@@ -1,17 +1,23 @@
 import type { Metadata } from "next";
-import { Badge } from "@/src/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { getLatestSeasonTables } from "@/src/db/standings";
 import { cn } from "@/src/lib/utils";
+import { Panel } from "../_components/panel";
+import { MANAGED_ROW, TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Classement" };
 
-/** Active tab in the managed club's accent. */
-const ACTIVE_TAB =
-  "data-active:bg-(--club) data-active:text-(--club-fg) dark:data-active:border-transparent dark:data-active:bg-(--club) dark:data-active:text-(--club-fg)";
+/** Active tab: the club accent at 18 % with an accent underline. */
+const ACTIVE_TAB = cn(
+  "h-9 flex-none rounded-md px-3 text-sm",
+  "data-active:bg-(--club)/18 data-active:font-semibold data-active:text-foreground",
+  "dark:data-active:bg-(--club)/18 dark:data-active:border-transparent",
+  "group-data-[variant=line]/tabs-list:data-active:bg-(--club)/18 dark:group-data-[variant=line]/tabs-list:data-active:bg-(--club)/18",
+  "after:bg-(--club)",
+);
 
 const COLUMNS = [
   { key: "played", label: "J", title: "Joués" },
@@ -20,7 +26,7 @@ const COLUMNS = [
   { key: "lost", label: "P", title: "Perdus" },
   { key: "goalsFor", label: "BP", title: "Buts pour" },
   { key: "goalsAgainst", label: "BC", title: "Buts contre" },
-  { key: "goalDifference", label: "Diff.", title: "Différence de buts" },
+  { key: "goalDifference", label: "Diff", title: "Différence de buts" },
   { key: "points", label: "Pts", title: "Points" },
 ] as const;
 
@@ -34,16 +40,16 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Classement</h1>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-baseline gap-3">
+        <h1 className="font-heading text-4xl font-bold">Classement</h1>
         <p className="text-sm text-muted-foreground tabular-nums">
           Saison {defaultTable.startYear}-{String(defaultTable.startYear + 1).slice(2)}
         </p>
       </div>
 
-      <Tabs defaultValue={defaultTable.code}>
-        <TabsList className="flex-wrap group-data-horizontal/tabs:h-auto">
+      <Tabs defaultValue={defaultTable.code} className="gap-4">
+        <TabsList variant="line" className="h-auto flex-wrap gap-1 group-data-horizontal/tabs:h-auto">
           {tables.map((table) => (
             <TabsTrigger key={table.code} value={table.code} className={ACTIVE_TAB}>
               {table.name}
@@ -53,41 +59,45 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
 
         {tables.map((table) => (
           <TabsContent key={table.code} value={table.code}>
-            <Table className="tabular-nums">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10 text-right">#</TableHead>
-                  <TableHead>Club</TableHead>
-                  {COLUMNS.map((column) => (
-                    <TableHead key={column.key} className="text-right" title={column.title}>
-                      {column.label}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {table.rows.map((row) => (
-                  <TableRow
-                    key={row.club}
-                    data-managed={row.isManaged || undefined}
-                    className={cn(row.isManaged && "bg-muted/60 font-semibold")}
-                  >
-                    <TableCell className="text-right text-muted-foreground">{row.rank}</TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-2">
-                        {row.clubName}
-                        {row.isManaged && <Badge variant="outline">Votre club</Badge>}
-                      </span>
-                    </TableCell>
+            <Panel className="p-2 sm:p-3">
+              <Table className="tabular-nums">
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className={cn(TABLE_HEAD, "w-12 text-right")}>#</TableHead>
+                    <TableHead className={TABLE_HEAD}>Club</TableHead>
                     {COLUMNS.map((column) => (
-                      <TableCell key={column.key} data-column={column.key} className="text-right">
-                        {column.key === "goalDifference" && row.goalDifference > 0 ? `+${row.goalDifference}` : row[column.key]}
-                      </TableCell>
+                      <TableHead key={column.key} className={cn(TABLE_HEAD, "text-right")} title={column.title}>
+                        {column.label}
+                      </TableHead>
                     ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {table.rows.map((row) => (
+                    <TableRow
+                      key={row.club}
+                      data-managed={row.isManaged || undefined}
+                      className={cn(TABLE_ROW, row.isManaged && MANAGED_ROW)}
+                    >
+                      <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{row.rank}</TableCell>
+                      <TableCell className={TABLE_CELL}>
+                        {row.clubName}
+                        {row.isManaged && <span className="sr-only"> (votre club)</span>}
+                      </TableCell>
+                      {COLUMNS.map((column) => (
+                        <TableCell
+                          key={column.key}
+                          data-column={column.key}
+                          className={cn(TABLE_CELL, "text-right", column.key === "points" && "font-heading text-base font-bold")}
+                        >
+                          {column.key === "goalDifference" && row.goalDifference > 0 ? `+${row.goalDifference}` : row[column.key]}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Panel>
           </TabsContent>
         ))}
       </Tabs>

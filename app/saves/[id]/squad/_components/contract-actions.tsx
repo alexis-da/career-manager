@@ -53,9 +53,10 @@ function useSquadAction() {
 type ActionProps = {
   saveId: string;
   player: SquadPlayerView;
+  triggerClassName?: string;
 };
 
-export function RenewContractDialog({ saveId, player, currentDate }: ActionProps & { currentDate: Date }) {
+export function RenewContractDialog({ saveId, player, currentDate, triggerClassName }: ActionProps & { currentDate: Date }) {
   const [open, setOpen] = useState(false);
   const [years, setYears] = useState<number>(DEFAULT_CONTRACT_LENGTH);
   const [wage, setWage] = useState(String(player.terms.renewalMinimumWage));
@@ -73,7 +74,8 @@ export function RenewContractDialog({ saveId, player, currentDate }: ActionProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={<Button variant="club" />}>Prolonger</DialogTrigger>
+      {/* The main action of the player sheet: in the club accent. */}
+      <DialogTrigger render={<Button variant="club" className={triggerClassName} />}>Prolonger</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Prolonger {name}</DialogTitle>
@@ -92,7 +94,7 @@ export function RenewContractDialog({ saveId, player, currentDate }: ActionProps
                   key={length}
                   type="button"
                   size="sm"
-                  variant={length === years ? "club" : "outline"}
+                  variant={length === years ? "default" : "outline"}
                   aria-pressed={length === years}
                   onClick={() => setYears(length)}
                 >
@@ -126,7 +128,6 @@ export function RenewContractDialog({ saveId, player, currentDate }: ActionProps
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
           <Button
-            variant="club"
             disabled={pending}
             onClick={() =>
               run(
@@ -144,14 +145,14 @@ export function RenewContractDialog({ saveId, player, currentDate }: ActionProps
   );
 }
 
-export function ReleasePlayerDialog({ saveId, player }: ActionProps) {
+export function ReleasePlayerDialog({ saveId, player, triggerClassName }: ActionProps) {
   const [open, setOpen] = useState(false);
   const { pending, run } = useSquadAction();
   const name = fullName(player);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" />}>Libérer</DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" className={triggerClassName} />}>Libérer</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Libérer {name}</DialogTitle>
@@ -175,7 +176,7 @@ export function ReleasePlayerDialog({ saveId, player }: ActionProps) {
   );
 }
 
-export function SellPlayerDialog({ saveId, player }: ActionProps) {
+export function SellPlayerDialog({ saveId, player, triggerClassName }: ActionProps) {
   const [open, setOpen] = useState(false);
   const { pending, run } = useSquadAction();
   const name = fullName(player);
@@ -183,7 +184,7 @@ export function SellPlayerDialog({ saveId, player }: ActionProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" />}>Vendre</DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" className={triggerClassName} />}>Vendre</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Vendre {name}</DialogTitle>
@@ -197,7 +198,6 @@ export function SellPlayerDialog({ saveId, player }: ActionProps) {
           <DialogClose render={<Button variant="outline" />}>{sale.ok ? "Refuser" : "Fermer"}</DialogClose>
           {sale.ok && (
             <Button
-              variant="club"
               disabled={pending}
               onClick={() => run(name, () => sellPlayerAction({ saveId, playerSaveId: player.id }), () => setOpen(false))}
             >

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatMoney, formatShortDate } from "./format";
+import {
+  formatDate,
+  formatDayDate,
+  formatDayMonth,
+  formatDecimal,
+  formatMillions,
+  formatMoney,
+  formatShortDate,
+} from "./format";
 
 // fr-FR separates thousands with a narrow no-break space: normalise it to compare.
 const plain = (text: string): string => text.replace(/[  ]/g, " ");
@@ -19,6 +27,15 @@ describe("formatMoney", () => {
   });
 });
 
+describe("large figures", () => {
+  it("writes millions and averages with exactly one decimal", () => {
+    expect(formatMillions(45_000_000)).toBe("45,0");
+    expect(formatMillions(38_240_000)).toBe("38,2");
+    expect(formatDecimal(68.24)).toBe("68,2");
+    expect(formatDecimal(25)).toBe("25,0");
+  });
+});
+
 describe("formatDate", () => {
   it("writes in-game dates in French, on the stored UTC day", () => {
     const matchday = new Date(Date.UTC(2024, 7, 17));
@@ -26,5 +43,11 @@ describe("formatDate", () => {
     expect(formatDate(matchday)).toBe("17 août 2024");
     expect(formatShortDate(matchday)).toBe("sam. 17 août");
     expect(formatDate(new Date(Date.UTC(2025, 0, 1)))).toBe("1 janvier 2025");
+  });
+
+  it("writes the date of the navigation bar and short day-month dates", () => {
+    expect(formatDayDate(new Date(Date.UTC(2024, 8, 14)))).toBe("sam. 14 sept. 2024");
+    expect(formatDayMonth(new Date(Date.UTC(2025, 0, 1)))).toBe("1er janv.");
+    expect(formatDayMonth(new Date(Date.UTC(2024, 7, 31)))).toBe("31 août");
   });
 });

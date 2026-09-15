@@ -1,28 +1,38 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
-import { Badge } from "@/src/components/ui/badge";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
+import { Button } from "@/src/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import type { SquadPlayerView } from "@/src/db/squad";
-import { formatDate, formatMoney, formatShortDate } from "@/src/lib/format";
+import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { POSITION_GROUP, POSITION_LABEL, POSITION_ORDER, POSITION_SHORT } from "../_lib/positions";
+import { nationalityCode } from "../_lib/nationalities";
+import { POSITION_LABEL, POSITION_ORDER, POSITION_TEXT } from "../_lib/positions";
+import { formBarClass, ratingClasses } from "../_lib/ratings";
+import { PlayerBadges } from "./player-badges";
 import { PlayerSheet } from "./player-sheet";
 
 type SortKey = "position" | "name" | "age" | "overall" | "potential" | "form" | "marketValue" | "wage" | "contractUntil";
 type Direction = "asc" | "desc";
 type Sort = { key: SortKey; direction: Direction };
 
-const COLUMNS: { key: SortKey; label: string; numeric: boolean; firstDirection: Direction }[] = [
-  { key: "position", label: "Poste", numeric: false, firstDirection: "asc" },
-  { key: "name", label: "Nom", numeric: false, firstDirection: "asc" },
-  { key: "age", label: "Âge", numeric: true, firstDirection: "asc" },
-  { key: "overall", label: "Note", numeric: true, firstDirection: "desc" },
-  { key: "potential", label: "Potentiel", numeric: true, firstDirection: "desc" },
-  { key: "form", label: "Forme", numeric: true, firstDirection: "desc" },
-  { key: "marketValue", label: "Valeur", numeric: true, firstDirection: "desc" },
-  { key: "wage", label: "Salaire", numeric: true, firstDirection: "desc" },
-  { key: "contractUntil", label: "Fin de contrat", numeric: true, firstDirection: "asc" },
+const COLUMNS: { key: SortKey; label: string; title?: string; align: "left" | "right"; firstDirection: Direction }[] = [
+  { key: "position", label: "Poste", align: "left", firstDirection: "asc" },
+  { key: "name", label: "Joueur", align: "left", firstDirection: "asc" },
+  { key: "age", label: "Âge", align: "right", firstDirection: "asc" },
+  { key: "overall", label: "Note", align: "right", firstDirection: "desc" },
+  { key: "potential", label: "Pot.", title: "Potentiel", align: "right", firstDirection: "desc" },
+  { key: "form", label: "Forme", align: "left", firstDirection: "desc" },
+  { key: "marketValue", label: "Valeur", align: "right", firstDirection: "desc" },
+  { key: "wage", label: "Salaire", align: "right", firstDirection: "desc" },
+  { key: "contractUntil", label: "Contrat", align: "left", firstDirection: "asc" },
+];
+
+const PRESETS: { label: string; sort: Sort }[] = [
+  { label: "Par poste", sort: { key: "position", direction: "asc" } },
+  { label: "Par note", sort: { key: "overall", direction: "desc" } },
+  { label: "Contrats", sort: { key: "contractUntil", direction: "asc" } },
 ];
 
 const byName = (a: SquadPlayerView, b: SquadPlayerView): number =>
@@ -42,15 +52,28 @@ function compare(key: SortKey, a: SquadPlayerView, b: SquadPlayerView): number {
   }
 }
 
+function FormGauge({ form }: { form: number }) {
+  return (
+    <span title={`Forme ${form}`} className="inline-flex items-center">
+      <span aria-hidden className="block h-1 w-12 rounded-full bg-border">
+        <span className={cn("block h-1 rounded-full", formBarClass(form))} style={{ width: `${form}%` }} />
+      </span>
+      <span className="sr-only">{form}</span>
+    </span>
+  );
+}
+
 type SquadTableProps = {
   saveId: string;
+  header: ReactNode;
+  clubName: string;
   players: SquadPlayerView[];
   currentDate: Date;
   startYear: number;
   windowOpen: boolean;
 };
 
-export function SquadTable({ saveId, players, currentDate, startYear, windowOpen }: SquadTableProps) {
+export function SquadTable({ saveId, header, clubName, players, currentDate, startYear, windowOpen }: SquadTableProps) {
   const [sort, setSort] = useState<Sort>({ key: "position", direction: "asc" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -58,9 +81,22 @@ export function SquadTable({ saveId, players, currentDate, startYear, windowOpen
     const sign = sort.direction === "asc" ? 1 : -1;
     return [...players].sort((a, b) => sign * compare(sort.key, a, b) || byName(a, b));
   }, [players, sort]);
-  // Sorting by position shows one group per position, the default view.
-  const grouped = sort.key === "position";
   const selected = players.find((player) => player.id === selectedId);
+
+  // Escape closes the player panel, unless it is closing one of its dialogs.
+  useEffect(() => {
+    if (selectedId === null) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      const inDialog = event.target instanceof Element && event.target.closest('[role="dialog"]') !== null;
+      if (event.key === "Escape" && !inDialog) {
+        setSelectedId(null);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [selectedId]);
 
   const sortBy = (key: SortKey, firstDirection: Direction) =>
     setSort((current) =>
@@ -70,101 +106,136 @@ export function SquadTable({ saveId, players, currentDate, startYear, windowOpen
     );
 
   return (
-    <>
-      <Table className="tabular-nums">
-        <TableHeader>
-          <TableRow>
-            {COLUMNS.map((column) => {
-              const active = sort.key === column.key;
+    <div className={cn("grid items-start gap-6", selected !== undefined && "lg:grid-cols-[minmax(0,1fr)_400px]")}>
+      <div className="min-w-0 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          {header}
+          <div role="group" aria-label="Tri de l'effectif" className="flex gap-1.5">
+            {PRESETS.map((preset) => {
+              const active = sort.key === preset.sort.key && sort.direction === preset.sort.direction;
               return (
-                <TableHead
-                  key={column.key}
-                  aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
-                  className={cn(column.numeric && "text-right")}
+                <Button
+                  key={preset.label}
+                  size="sm"
+                  variant="outline"
+                  aria-pressed={active}
+                  onClick={() => setSort(preset.sort)}
+                  className={cn("text-muted-foreground", active && "bg-muted text-foreground dark:bg-muted")}
                 >
-                  <button
-                    type="button"
-                    onClick={() => sortBy(column.key, column.firstDirection)}
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-sm px-1 py-0.5 hover:text-foreground",
-                      active && "text-(--club) font-semibold",
-                    )}
-                  >
-                    {column.label}
-                    <span aria-hidden className="text-xs">
-                      {active ? (sort.direction === "asc" ? "▲" : "▼") : ""}
-                    </span>
-                  </button>
-                </TableHead>
+                  {preset.label}
+                </Button>
               );
             })}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sorted.map((player, index) => {
-            const name = `${player.firstName} ${player.lastName}`;
-            const startsGroup = grouped && (index === 0 || sorted[index - 1].position !== player.position);
-            return (
-              <Fragment key={player.id}>
-                {startsGroup && (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={COLUMNS.length} className="pt-4 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                      {POSITION_GROUP[player.position]} ({players.filter((other) => other.position === player.position).length})
-                    </TableCell>
-                  </TableRow>
-                )}
+          </div>
+        </div>
+
+        <Table className="tabular-nums">
+          <TableHeader>
+            <TableRow className="border-border hover:bg-transparent">
+              {COLUMNS.map((column) => {
+                const active = sort.key === column.key;
+                return (
+                  <TableHead
+                    key={column.key}
+                    title={column.title}
+                    aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+                    className={cn(TABLE_HEAD, column.align === "right" && "text-right")}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => sortBy(column.key, column.firstDirection)}
+                      className={cn("inline-flex items-center gap-1 uppercase hover:text-foreground", active && "text-foreground")}
+                    >
+                      {column.label}
+                      <span aria-hidden className="text-[0.5625rem]">
+                        {active ? (sort.direction === "asc" ? "▲" : "▼") : ""}
+                      </span>
+                    </button>
+                  </TableHead>
+                );
+              })}
+              <TableHead className={TABLE_HEAD}>
+                <span className="sr-only">Statut</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sorted.map((player) => {
+              const name = `${player.firstName} ${player.lastName}`;
+              const isSelected = player.id === selectedId;
+              return (
                 <TableRow
+                  key={player.id}
                   data-player-key={player.playerKey}
                   onClick={() => setSelectedId(player.id)}
-                  className="cursor-pointer"
+                  className={cn(TABLE_ROW, "cursor-pointer", isSelected && "bg-muted hover:bg-muted")}
                 >
-                  <TableCell title={POSITION_LABEL[player.position]} className="text-muted-foreground">
-                    {POSITION_SHORT[player.position]}
+                  <TableCell
+                    title={POSITION_LABEL[player.position]}
+                    className={cn(TABLE_CELL, "w-16 font-heading text-sm font-bold", POSITION_TEXT[player.position])}
+                  >
+                    {player.position}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <button
-                        type="button"
-                        aria-label={`Voir la fiche de ${name}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setSelectedId(player.id);
-                        }}
-                        className="font-medium hover:underline"
-                      >
-                        {name}
-                      </button>
-                      {player.injuredUntil !== null && (
-                        <Badge variant="destructive">Blessé jusqu&apos;au {formatShortDate(player.injuredUntil)}</Badge>
+                  <TableCell className={TABLE_CELL}>
+                    <button
+                      type="button"
+                      aria-label={`Voir la fiche de ${name}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedId(player.id);
+                      }}
+                      className="font-semibold hover:underline"
+                    >
+                      {name}
+                    </button>
+                    <span className="ml-1.5 text-xs text-muted-foreground" title={player.nationality}>
+                      {nationalityCode(player.nationality)}
+                    </span>
+                  </TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right")}>{player.age}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right")}>
+                    <span
+                      className={cn(
+                        "inline-grid h-6 min-w-9 place-items-center rounded-sm px-1.5 font-heading text-sm font-bold",
+                        ratingClasses(player.overall),
                       )}
-                      {player.contractExpiring && <Badge variant="outline">Fin de contrat</Badge>}
-                      {player.arrivedThisSeason && <Badge variant="secondary">Jeune</Badge>}
-                    </div>
+                    >
+                      {player.overall}
+                    </span>
                   </TableCell>
-                  <TableCell className="text-right">{player.age}</TableCell>
-                  <TableCell className="text-right font-medium">{player.overall}</TableCell>
-                  <TableCell className="text-right">{player.potential}</TableCell>
-                  <TableCell className="text-right">{player.form}</TableCell>
-                  <TableCell className="text-right">{formatMoney(player.marketValue)}</TableCell>
-                  <TableCell className="text-right">{formatMoney(player.wage)}</TableCell>
-                  <TableCell data-column="contractUntil" className="text-right">
+                  <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{player.potential}</TableCell>
+                  <TableCell className={TABLE_CELL}>
+                    <FormGauge form={player.form} />
+                  </TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right")}>{formatMoney(player.marketValue)}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{formatMoney(player.wage)}</TableCell>
+                  <TableCell data-column="contractUntil" className={cn(TABLE_CELL, player.contractExpiring && "text-warning")}>
                     {player.contractUntil === null ? "—" : formatDate(player.contractUntil)}
                   </TableCell>
+                  <TableCell className={TABLE_CELL}>
+                    <span className="flex gap-1">
+                      <PlayerBadges player={player} />
+                    </span>
+                  </TableCell>
                 </TableRow>
-              </Fragment>
-            );
-          })}
-        </TableBody>
-      </Table>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
 
-      <PlayerSheet
-        saveId={saveId}
-        player={selected}
-        currentDate={currentDate}
-        startYear={startYear}
-        windowOpen={windowOpen}
-        onClose={() => setSelectedId(null)}
-      />
-    </>
+      {selected !== undefined && (
+        <PlayerSheet
+          key={selected.id}
+          saveId={saveId}
+          clubName={clubName}
+          player={selected}
+          currentDate={currentDate}
+          startYear={startYear}
+          windowOpen={windowOpen}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
+    </div>
   );
 }

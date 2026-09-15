@@ -18,6 +18,7 @@ npm run build          # build de production
 npx prisma migrate dev # créer + appliquer une migration
 npx prisma studio      # inspecter la base
 npm run test           # tests unitaires (Vitest)
+npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright
 ```
 

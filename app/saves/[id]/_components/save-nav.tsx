@@ -12,12 +12,13 @@ const SECTIONS = [
   { segment: "/transfers", label: "Transferts" },
 ] as const;
 
+/** Tabs of a save; the active one gets the club accent at 18 % and an accent underline. */
 export function SaveNav({ saveId }: { saveId: string }) {
   const pathname = usePathname();
   const base = `/saves/${saveId}`;
 
   return (
-    <nav aria-label="Navigation de la partie" className="-mx-1 flex gap-1 overflow-x-auto px-1">
+    <nav aria-label="Navigation de la partie" className="flex min-w-0 items-center gap-1 overflow-x-auto">
       {SECTIONS.map(({ segment, label }) => {
         const href = `${base}${segment}`;
         const active = segment === "" ? pathname === base : pathname.startsWith(href);
@@ -27,10 +28,10 @@ export function SaveNav({ saveId }: { saveId: string }) {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+              "relative rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors",
               active
-                ? "bg-(--club-fg) text-(--club)"
-                : "text-(--club-fg)/80 hover:bg-(--club-fg)/10 hover:text-(--club-fg)",
+                ? "bg-(--club)/18 font-semibold text-foreground after:absolute after:inset-x-2 after:-bottom-[3px] after:h-0.5 after:rounded-full after:bg-(--club)"
+                : "font-medium text-muted-foreground hover:text-foreground",
             )}
           >
             {label}

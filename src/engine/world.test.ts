@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   firstMatchdayDate,
   isTransferWindowOpen,
+  nextTransferWindowOpening,
   seasonEndDate,
   seasonStartDate,
   seasonStartYear,
   transferWindowAt,
+  transferWindowCloseDate,
   WORLD_START_DATE,
 } from "./world";
 
@@ -52,5 +54,18 @@ describe("transfer windows", () => {
     expect(isTransferWindowOpen(utc("2025-10-15"))).toBe(false);
     expect(isTransferWindowOpen(utc("2026-04-04"))).toBe(false);
     expect(isTransferWindowOpen(WORLD_START_DATE)).toBe(true);
+  });
+
+  it("tells when the open window closes", () => {
+    expect(transferWindowCloseDate(utc("2024-07-01"))?.toISOString()).toBe("2024-08-31T00:00:00.000Z");
+    expect(transferWindowCloseDate(utc("2025-01-12"))?.toISOString()).toBe("2025-01-31T00:00:00.000Z");
+    expect(transferWindowCloseDate(utc("2024-09-14"))).toBeNull();
+  });
+
+  it("tells when the next window opens", () => {
+    expect(nextTransferWindowOpening(utc("2024-09-14")).toISOString()).toBe("2025-01-01T00:00:00.000Z");
+    expect(nextTransferWindowOpening(utc("2024-07-01")).toISOString()).toBe("2025-01-01T00:00:00.000Z");
+    expect(nextTransferWindowOpening(utc("2025-03-08")).toISOString()).toBe("2025-07-01T00:00:00.000Z");
+    expect(nextTransferWindowOpening(utc("2025-01-12")).toISOString()).toBe("2025-07-01T00:00:00.000Z");
   });
 });

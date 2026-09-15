@@ -15,8 +15,16 @@ export type CompetitionTable = {
   rows: ClubStandingRow[];
 };
 
+export type StandingsOptions = {
+  before?: Date; // only fixtures played strictly before this date: the table as it was then
+};
+
 /** League table of a season from its played fixtures, every club of the competition included. */
-export async function getStandings(saveId: string, seasonId: string): Promise<ClubStandingRow[]> {
+export async function getStandings(
+  saveId: string,
+  seasonId: string,
+  options: StandingsOptions = {},
+): Promise<ClubStandingRow[]> {
   const season = await prisma.season.findFirstOrThrow({
     where: { id: seasonId, saveId },
     select: { competitionId: true },
@@ -27,7 +35,12 @@ export async function getStandings(saveId: string, seasonId: string): Promise<Cl
       select: { isManaged: true, club: { select: { slug: true, name: true } } },
     }),
     prisma.fixture.findMany({
-      where: { saveId, seasonId, played: true },
+      where: {
+        saveId,
+        seasonId,
+        played: true,
+        ...(options.before === undefined ? {} : { scheduledAt: { lt: options.before } }),
+      },
       select: {
         id: true,
         homeGoals: true,
