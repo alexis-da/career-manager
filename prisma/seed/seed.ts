@@ -1,12 +1,14 @@
 import { NAME_BANK } from "../../src/engine/names";
 import { computeStandings } from "../../src/engine/standings";
 import type { PrismaClient } from "../../src/generated/prisma/client";
+import { DEFAULT_CLUB_COLORS, readClubColors, type ClubColors } from "./colors";
 import { COMPETITIONS, type SeedCompetition } from "./competitions";
 import { extractClubs, extractScores, fixtureFilePath, readFixtureFile, type SeedClub } from "./openfootball";
 import { generateSquad, type SeedPlayer } from "./players";
 
 export type ClubPlan = SeedClub & {
   initialRank: number; // final 2024-25 rank within the competition
+  colors: ClubColors;
   players: SeedPlayer[];
 };
 
@@ -38,9 +40,10 @@ function samePlayer(a: PlayerData, b: PlayerData): boolean {
 // Reads and validates every file, ranks every club and generates every squad before touching the
 // database, so a bad file never leaves a partial seed.
 export function buildWorldPlan(): CompetitionPlan[] {
+  const clubColors = readClubColors();
   const competitionBySlug = new Map<string, string>();
 
-  return COMPETITIONS.map((competition) => {
+  const plan = COMPETITIONS.map((competition) => {
     const file = readFixtureFile(fixtureFilePath(competition.code));
     const rankBySlug = new Map(computeStandings(extractScores(file)).map((row) => [row.club, row.rank]));
 
@@ -58,11 +61,18 @@ export function buildWorldPlan(): CompetitionPlan[] {
       return {
         ...club,
         initialRank,
+        colors: clubColors.get(club.slug) ?? DEFAULT_CLUB_COLORS,
         players: generateSquad({ slug: club.slug, country: competition.country }, NAME_BANK),
       };
     });
     return { competition, clubs };
   });
+
+  const unknownClubs = [...clubColors.keys()].filter((slug) => !competitionBySlug.has(slug));
+  if (unknownClubs.length > 0) {
+    throw new Error(`club-colors.json names clubs that do not exist: ${unknownClubs.join(", ")}`);
+  }
+  return plan;
 }
 
 export async function seedWorld(prisma: PrismaClient, plan: CompetitionPlan[] = buildWorldPlan()): Promise<SeedSummary> {
@@ -79,14 +89,17 @@ export async function seedWorld(prisma: PrismaClient, plan: CompetitionPlan[] = 
 
     // Upsert keeps the seed re-runnable; optional metadata (city, stadium…) is left untouched.
     const savedClubs = await prisma.$transaction(
-      clubs.map(({ slug, name: clubName, initialRank }) =>
-        prisma.club.upsert({
-          where: { slug },
-          update: { name: clubName, country, initialRank, competitionId },
-          create: { slug, name: clubName, country, initialRank, competitionId },
-          select: { id: true },
-        }),
-      ),
+      clubs.map(({ slug, name: clubName, initialRank, colors }) => {
+        const data = {
+          name: clubName,
+          country,
+          initialRank,
+          competitionId,
+          primaryColor: colors.primary,
+          secondaryColor: colors.secondary,
+        };
+        return prisma.club.upsert({ where: { slug }, update: data, create: { slug, ...data }, select: { id: true } });
+      }),
     );
 
     clubs.forEach((club, index) => {

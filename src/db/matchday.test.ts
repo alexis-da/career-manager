@@ -1,15 +1,17 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { WORLD_START_DATE } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
+import type { MatchdaySummary } from "./matchday";
 import type { getStandings as getStandingsFunction } from "./standings";
 
-// Plays a whole season on a twin of the demo save, against DATABASE_URL, then deletes it. Skipped when
-// DATABASE_URL is not set. Modules are imported lazily because the client throws without it.
-describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on a twin of the demo save", () => {
+// Plays the first matchday of a throwaway save with the demo seed, then deletes it. The whole-season version
+// lives in matchday.slow.test.ts. Runs against DATABASE_URL and is skipped without it; modules are imported
+// lazily because the client throws without it.
+describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first matchday", () => {
   let db: typeof prismaClient | undefined;
   let getStandings: typeof getStandingsFunction | undefined;
   let saveId = "";
+  let summary: MatchdaySummary | null = null;
 
   const database = (): typeof prismaClient => {
     if (db === undefined) {
@@ -19,101 +21,69 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on a t
   };
 
   beforeAll(async () => {
-    const [{ prisma }, support, standings] = await Promise.all([
+    const [{ prisma }, support, { playNextMatchday }, standings] = await Promise.all([
       import("./client"),
       import("./test-support"),
+      import("./matchday"),
       import("./standings"),
     ]);
     db = prisma;
     getStandings = standings.getStandings;
+    saveId = await support.createDemoTwin("Test première journée");
+    summary = await playNextMatchday(saveId);
+  }, 120_000);
 
-    saveId = await support.createDemoTwin("Test journées");
-    await support.playRemainingMatchdays(saveId);
-  }, 900_000);
-
-  // Deleting a played save cascades to tens of thousands of rows: allow more than the 10 s hook default.
   afterAll(async () => {
     if (saveId !== "") {
       await db?.save.delete({ where: { id: saveId } });
     }
     await db?.$disconnect();
-  }, 120_000);
+  }, 60_000);
 
-  it("plays every fixture of the season, each with a score", async () => {
+  it("plays every fixture of the first date, and only those", async () => {
     const db = database();
-    const [unplayed, played, withoutScore] = await Promise.all([
-      db.fixture.count({ where: { saveId, played: false } }),
-      db.fixture.count({ where: { saveId, played: true } }),
-      db.fixture.count({ where: { saveId, played: true, OR: [{ homeGoals: null }, { awayGoals: null }] } }),
+    const firstMatchday = new Date(Date.UTC(2024, 7, 17));
+    const [playedThatDay, unplayedThatDay, playedElsewhere] = await Promise.all([
+      db.fixture.count({ where: { saveId, scheduledAt: firstMatchday, played: true } }),
+      db.fixture.count({ where: { saveId, scheduledAt: firstMatchday, played: false } }),
+      db.fixture.count({ where: { saveId, scheduledAt: { not: firstMatchday }, played: true } }),
     ]);
 
-    expect(unplayed).toBe(0);
-    expect(played).toBeGreaterThan(0);
-    expect(withoutScore).toBe(0);
+    expect(summary?.date.toISOString()).toBe(firstMatchday.toISOString());
+    expect(playedThatDay).toBe(48);
+    expect(summary?.fixtures).toBe(48);
+    expect([unplayedThatDay, playedElsewhere]).toEqual([0, 0]);
   });
 
-  it("records one goal event per goal, for the scoring side, and counts goals and assists in the stats", async () => {
+  it("records one goal event per goal and counts them in the season stats", async () => {
     const db = database();
-    const fixtures = await db.fixture.findMany({
-      where: { saveId },
-      select: {
-        id: true,
-        homeGoals: true,
-        awayGoals: true,
-        homeClubSaveId: true,
-        awayClubSaveId: true,
-        events: {
-          where: { type: "GOAL" },
-          select: { relatedPlayerSaveId: true, playerSave: { select: { clubSaveId: true } } },
-        },
-      },
-    });
-    const goalsBy = (fixture: (typeof fixtures)[number], clubSaveId: string) =>
-      fixture.events.filter((event) => event.playerSave?.clubSaveId === clubSaveId).length;
-    const mismatches = fixtures
-      .filter(
-        (fixture) =>
-          goalsBy(fixture, fixture.homeClubSaveId) !== fixture.homeGoals ||
-          goalsBy(fixture, fixture.awayClubSaveId) !== fixture.awayGoals,
-      )
-      .map((fixture) => fixture.id);
-    const goalEvents = fixtures.flatMap((fixture) => fixture.events);
-    const totalGoals = fixtures.reduce((sum, fixture) => sum + (fixture.homeGoals ?? 0) + (fixture.awayGoals ?? 0), 0);
-    const stats = await db.playerSeasonStats.aggregate({ where: { saveId }, _sum: { goals: true, assists: true } });
+    const [fixtures, goalEvents, stats] = await Promise.all([
+      db.fixture.aggregate({ where: { saveId, played: true }, _sum: { homeGoals: true, awayGoals: true } }),
+      db.matchEvent.count({ where: { type: "GOAL", fixture: { saveId } } }),
+      db.playerSeasonStats.aggregate({ where: { saveId }, _sum: { goals: true } }),
+    ]);
+    const goals = (fixtures._sum.homeGoals ?? 0) + (fixtures._sum.awayGoals ?? 0);
 
-    expect(mismatches).toEqual([]);
-    expect(stats._sum.goals).toBe(totalGoals);
-    expect(stats._sum.assists).toBe(goalEvents.filter((event) => event.relatedPlayerSaveId !== null).length);
+    expect(summary?.goals).toBe(goals);
+    expect(goalEvents).toBe(goals);
+    expect(stats._sum.goals).toBe(goals);
   });
 
-  it("builds complete standings of 20 or 18 clubs", async () => {
-    const seasons = await database().season.findMany({
-      where: { saveId },
-      select: { id: true, competition: { select: { _count: { select: { clubs: true } } } } },
-    });
+  it("moves currentDate to the matchday and gives every club one played match", async () => {
+    const db = database();
     if (getStandings === undefined) {
       throw new Error("Standings module not loaded");
     }
-
-    expect(seasons.length).toBeGreaterThan(0);
-    for (const season of seasons) {
-      const clubCount = season.competition._count.clubs;
-      const table = await getStandings(saveId, season.id);
-
-      expect([18, 20]).toContain(table.length);
-      expect(table).toHaveLength(clubCount);
-      expect(table.every((row) => row.played === 2 * (clubCount - 1))).toBe(true);
-    }
-  });
-
-  it("moves currentDate forward to the last matchday", async () => {
-    const db = database();
-    const [save, lastFixture] = await Promise.all([
+    const [save, seasons] = await Promise.all([
       db.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
-      db.fixture.findFirstOrThrow({ where: { saveId }, orderBy: { scheduledAt: "desc" }, select: { scheduledAt: true } }),
+      db.season.findMany({ where: { saveId }, select: { id: true, competition: { select: { _count: { select: { clubs: true } } } } } }),
     ]);
 
-    expect(save.currentDate.getTime()).toBeGreaterThan(WORLD_START_DATE.getTime());
-    expect(save.currentDate).toEqual(lastFixture.scheduledAt);
+    expect(save.currentDate.toISOString()).toBe("2024-08-17T00:00:00.000Z");
+    for (const season of seasons) {
+      const table = await getStandings(saveId, season.id);
+      expect(table).toHaveLength(season.competition._count.clubs);
+      expect(table.every((row) => row.played === 1)).toBe(true);
+    }
   });
 });

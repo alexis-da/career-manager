@@ -33,6 +33,8 @@ model Club {
   stadium       String?
   founded        Int?
   initialRank    Int // classement final 2024-25 dans sa compétition, calculé par le seed depuis les scores
+  primaryColor   String       @default("#737373") // couleur traditionnelle principale, #RRGGBB ; gris neutre par défaut
+  secondaryColor String       @default("#D4D4D4") // couleur traditionnelle secondaire, #RRGGBB
   competition    Competition? @relation(fields: [competitionId], references: [id], onDelete: Restrict)
   competitionId  String?
   initialPlayers Player[]

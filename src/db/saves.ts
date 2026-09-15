@@ -142,3 +142,53 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
     { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS },
   );
 }
+
+export type SaveSummary = {
+  id: string;
+  name: string;
+  managerName: string;
+  currentDate: Date;
+  club: { name: string; primaryColor: string; secondaryColor: string };
+};
+
+const SAVE_SUMMARY_SELECT = {
+  id: true,
+  name: true,
+  managerName: true,
+  currentDate: true,
+  clubSaves: {
+    where: { isManaged: true },
+    select: { club: { select: { name: true, primaryColor: true, secondaryColor: true } } },
+  },
+} as const;
+
+function toSaveSummary(save: {
+  id: string;
+  name: string;
+  managerName: string;
+  currentDate: Date;
+  clubSaves: { club: SaveSummary["club"] }[];
+}): SaveSummary {
+  const [managed] = save.clubSaves;
+  if (managed === undefined) {
+    throw new Error(`Save ${save.id} has no managed club`);
+  }
+  return { id: save.id, name: save.name, managerName: save.managerName, currentDate: save.currentDate, club: managed.club };
+}
+
+/** Every save, most recently played first. */
+export async function listSaves(): Promise<SaveSummary[]> {
+  const saves = await prisma.save.findMany({ orderBy: { updatedAt: "desc" }, select: SAVE_SUMMARY_SELECT });
+  return saves.map(toSaveSummary);
+}
+
+/** A save with its managed club, or null when it does not exist. */
+export async function getSaveSummary(saveId: string): Promise<SaveSummary | null> {
+  const save = await prisma.save.findUnique({ where: { id: saveId }, select: SAVE_SUMMARY_SELECT });
+  return save === null ? null : toSaveSummary(save);
+}
+
+/** Deletes a save and, by cascade, everything in it: the only deletion the game allows. */
+export async function deleteSave(saveId: string): Promise<void> {
+  await prisma.save.delete({ where: { id: saveId } });
+}

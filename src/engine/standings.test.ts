@@ -36,4 +36,18 @@ describe("computeStandings", () => {
       "theta", // 0 pts, -2
     ]);
   });
+
+  it("lists every club of the competition, those without a played match with zeros", () => {
+    const table = computeStandings([{ home: "alpha", away: "beta", homeGoals: 0, awayGoals: 2 }], ["alpha", "beta", "gamma"]);
+
+    expect(table.map((row) => [row.club, row.played, row.points])).toEqual([
+      ["beta", 1, 3],
+      ["gamma", 0, 0], // ahead of alpha on goal difference
+      ["alpha", 1, 0],
+    ]);
+    expect(computeStandings([], ["beta", "alpha"]).map((row) => [row.rank, row.club])).toEqual([
+      [1, "alpha"],
+      [2, "beta"],
+    ]);
+  });
 });

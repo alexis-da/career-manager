@@ -35,8 +35,9 @@ function compareRows(a: StandingRow, b: StandingRow): number {
 /**
  * League table from final scores, sorted by points, goal difference, goals scored, then club key.
  * No head-to-head rule and no point deduction: a deterministic approximation of the real table.
+ * `clubs` lists every club of the competition, so that clubs without a played match still appear.
  */
-export function computeStandings(matches: readonly MatchScore[]): StandingRow[] {
+export function computeStandings(matches: readonly MatchScore[], clubs: readonly string[] = []): StandingRow[] {
   const tallies = new Map<string, Tally>();
   const tally = (club: string): Tally => {
     let row = tallies.get(club);
@@ -47,6 +48,9 @@ export function computeStandings(matches: readonly MatchScore[]): StandingRow[] 
     return row;
   };
 
+  for (const club of clubs) {
+    tally(club);
+  }
   for (const match of matches) {
     const home = tally(match.home);
     const away = tally(match.away);
