@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
-import { clubFinances, generateContract } from "./economy";
+import { CONTRACT_YEARS_WEIGHTS } from "./balance";
+import { clubFinances, contractYears, generateContract } from "./economy";
 import { WORLD_START_DATE } from "./world";
 
 const MAX_DATABASE_INT = 2_147_483_647;
@@ -27,6 +28,31 @@ describe("clubFinances", () => {
   });
 });
 
+describe("contractYears", () => {
+  it("draws 1 to 5 seasons with weights 10 / 25 / 30 / 25 / 10 %", () => {
+    const draws = 20_000;
+    const rng = makeRng("contract-weights");
+    const counts = [0, 0, 0, 0, 0];
+    for (let draw = 0; draw < draws; draw++) {
+      counts[contractYears(25, rng) - 1]++;
+    }
+    const total = CONTRACT_YEARS_WEIGHTS.reduce((sum, weight) => sum + weight, 0);
+
+    counts.forEach((count, index) => {
+      expect(Math.abs(count / draws - CONTRACT_YEARS_WEIGHTS[index] / total)).toBeLessThan(0.015);
+    });
+  });
+
+  it("never offers more than 2 seasons after 33, but still does at 33", () => {
+    const rng = makeRng("late-career");
+    const lengths = (age: number) => new Set(Array.from({ length: 2_000 }, () => contractYears(age, rng)));
+
+    expect([...lengths(33)].sort()).toEqual([1, 2, 3, 4, 5]);
+    expect([...lengths(34)].sort()).toEqual([1, 2]);
+    expect([...lengths(38)].sort()).toEqual([1, 2]);
+  });
+});
+
 describe("generateContract", () => {
   it("keeps market value and wage positive database integers for any rating and age", () => {
     const rng = makeRng("contract-bounds");
@@ -50,23 +76,21 @@ describe("generateContract", () => {
     expect(young.marketValue).toBeGreaterThan(veteran.marketValue);
   });
 
-  it("ends contracts on 30 June, within 1–5 seasons, after 1 season for the oldest players", () => {
+  it("ends contracts on 30 June, 1 to 5 seasons after the signing date", () => {
     const rng = makeRng("contract-length");
-    const endDates = (age: number) =>
-      new Set(
-        Array.from({ length: 200 }, () =>
-          generateContract({ age, overall: 70, potential: 70 }, WORLD_START_DATE, rng).contractUntil.toISOString(),
-        ),
-      );
+    const endDates = new Set(
+      Array.from({ length: 500 }, () =>
+        generateContract({ age: 24, overall: 70, potential: 70 }, WORLD_START_DATE, rng).contractUntil.toISOString(),
+      ),
+    );
 
-    expect([...endDates(24)].sort()).toEqual([
+    expect([...endDates].sort()).toEqual([
       "2025-06-30T00:00:00.000Z",
       "2026-06-30T00:00:00.000Z",
       "2027-06-30T00:00:00.000Z",
       "2028-06-30T00:00:00.000Z",
       "2029-06-30T00:00:00.000Z",
     ]);
-    expect([...endDates(36)]).toEqual(["2025-06-30T00:00:00.000Z"]);
   });
 
   it("returns the same contract for the same stream", () => {

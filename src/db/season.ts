@@ -8,8 +8,9 @@ import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
 import { seasonFixtures } from "./fixtures";
+import { runPreseasonInTransaction, type PreseasonSummary } from "./preseason";
 
-// The transition rewrites every player of the save in a handful of bulk statements.
+// The transition rewrites every player of the save, then runs the preseason, in bulk statements.
 const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 120_000;
 
@@ -17,8 +18,9 @@ export type SeasonTransition = {
   completedStartYear: number;
   startYear: number;
   retired: number;
-  freeAgents: number;
+  freeAgents: number; // players of the managed club whose contract ended; AI clubs decide in the preseason
   fixtures: number;
+  preseason: PreseasonSummary;
 };
 
 export class SeasonNotFinishedError extends Error {
@@ -37,8 +39,9 @@ type PlayerUpdate = PlayerAttributes & {
 /**
  * Closes the season in progress and opens the next one, in one transaction. Refused while a fixture of
  * the season is unplayed. Then: every player progresses (retired players excepted), some retire, expired
- * contracts turn players into free agents, form, morale, fitness and injuries are reset, the seasons are
- * marked completed, next season's seasons and fixtures are created, and the save moves to 1 July.
+ * contracts of the managed club turn its players into free agents, form, morale, fitness and injuries are
+ * reset, the seasons are marked completed, the save moves to 1 July, the preseason runs (young players,
+ * AI squads), and next season's seasons and fixtures are created.
  */
 export async function advanceToNextSeason(saveId: string): Promise<SeasonTransition> {
   return prisma.$transaction(
@@ -77,6 +80,9 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         where: { saveId },
         select: {
           id: true,
+          playerKey: true,
+          birthDate: true,
+          position: true,
           clubSaveId: true,
           contractUntil: true,
           overall: true,
@@ -88,8 +94,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
           defending: true,
           physical: true,
           goalkeeping: true,
-          clubSave: { select: { clubId: true } },
-          player: { select: { birthDate: true, position: true, squadSlot: true, initialClub: { select: { slug: true } } } },
+          clubSave: { select: { clubId: true, isManaged: true } },
         },
       });
       const minutes = await tx.playerSeasonStats.groupBy({
@@ -108,25 +113,18 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         if (alreadyRetired.has(row.id)) {
           continue;
         }
-        const { id: playerSaveId, player, clubSave, clubSaveId, contractUntil, ...attributes } = row;
-        const age = ageInYears(player.birthDate, transitionDate);
+        const { id: playerSaveId, playerKey, birthDate, position, clubSave, clubSaveId, contractUntil, ...attributes } = row;
+        const age = ageInYears(birthDate, transitionDate);
         // One stream per player: progression first, then the retirement draw.
-        const rng = makeRng(
-          progressionRngSeed(save.seed, completedStartYear, `${player.initialClub.slug}#${player.squadSlot}`),
-        );
-        const progressed = progressPlayer(
-          { ...attributes, position: player.position },
-          age,
-          minutesByPlayer.get(playerSaveId) ?? 0,
-          rng,
-        );
+        const rng = makeRng(progressionRngSeed(save.seed, completedStartYear, playerKey));
+        const progressed = progressPlayer({ ...attributes, position }, age, minutesByPlayer.get(playerSaveId) ?? 0, rng);
         const fromClubId = clubSave?.clubId ?? null;
 
         if (willRetire(age, rng)) {
           retired++;
           transfers.push({ saveId, playerSaveId, fromClubId, toClubId: null, type: "RETIREMENT", date: transitionDate });
           updates.push({ ...progressed, playerSaveId, clubSaveId: null, contractUntil: null });
-        } else if (clubSaveId !== null && contractUntil !== null && contractUntil <= lastContractDay) {
+        } else if (clubSave?.isManaged === true && contractUntil !== null && contractUntil <= lastContractDay) {
           freeAgents++;
           transfers.push({ saveId, playerSaveId, fromClubId, toClubId: null, type: "FREE", date: transitionDate });
           updates.push({ ...progressed, playerSaveId, clubSaveId: null, contractUntil: null });
@@ -172,6 +170,9 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       }
 
       await tx.season.updateMany({ where: { saveId, id: { in: seasonIds } }, data: { completed: true } });
+      await tx.save.update({ where: { id: saveId }, data: { currentDate: transitionDate } });
+
+      const preseason = await runPreseasonInTransaction(tx, saveId);
 
       const nextSeasons = await tx.season.createManyAndReturn({
         data: seasons.map((season) => ({ saveId, competitionId: season.competitionId, startYear })),
@@ -197,9 +198,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       );
       await tx.fixture.createMany({ data: fixtures });
 
-      await tx.save.update({ where: { id: saveId }, data: { currentDate: transitionDate } });
-
-      return { completedStartYear, startYear, retired, freeAgents, fixtures: fixtures.length };
+      return { completedStartYear, startYear, retired, freeAgents, fixtures: fixtures.length, preseason };
     },
     { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS },
   );

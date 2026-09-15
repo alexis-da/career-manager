@@ -1,4 +1,4 @@
-import { randomInt, type Rng } from "../lib/rng";
+import { weightedIndex, type Rng } from "../lib/rng";
 import {
   BUDGET_STEP,
   CLUB_BUDGET_BEST,
@@ -7,7 +7,9 @@ import {
   CLUB_REPUTATION_WORST,
   CLUB_WAGE_BUDGET_BEST,
   CLUB_WAGE_BUDGET_WORST,
-  CONTRACT_MAX_YEARS_BY_AGE,
+  CONTRACT_YEARS_WEIGHTS,
+  LATE_CAREER_MAX_CONTRACT_YEARS,
+  LONG_CONTRACT_MAX_AGE,
   MARKET_VALUE_AGE_FACTOR,
   MARKET_VALUE_BY_OVERALL,
   MARKET_VALUE_PER_GROWTH_POINT,
@@ -53,24 +55,48 @@ export function clubFinances(initialRank: number, clubCount: number): ClubFinanc
   };
 }
 
-/**
- * Market value and wage are pure functions of rating and age; only the contract length is drawn.
- * Pass the player's own stream, after generateAttributes, so a replay draws the same length.
- */
-export function generateContract(player: ContractProfile, currentDate: Date, rng: Rng): PlayerContract {
+/** Market value in euros: a pure function of rating, age and growth room. */
+export function marketValueFor(player: ContractProfile): number {
   const growthRoom = player.potential - player.overall;
-  const marketValue = roundToStep(
+  return roundToStep(
     interpolate(MARKET_VALUE_BY_OVERALL, player.overall) *
       interpolate(MARKET_VALUE_AGE_FACTOR, player.age) *
       (1 + growthRoom * MARKET_VALUE_PER_GROWTH_POINT),
     MARKET_VALUE_STEP,
   );
-  const wage = roundToStep(
+}
+
+/** Wage in euros per season a player of this rating and age earns: the basis of every contract offer. */
+export function wageFor(player: Pick<ContractProfile, "age" | "overall">): number {
+  return roundToStep(
     interpolate(WAGE_BY_OVERALL, player.overall) * interpolate(WAGE_AGE_FACTOR, player.age),
     WAGE_STEP,
   );
-  const maxYears = Math.max(1, Math.round(interpolate(CONTRACT_MAX_YEARS_BY_AGE, player.age)));
-  const years = randomInt(rng, 1, maxYears);
+}
 
-  return { marketValue, wage, contractUntil: seasonEndDate(seasonStartYear(currentDate) + years - 1) };
+/**
+ * Contract length in seasons, drawn with CONTRACT_YEARS_WEIGHTS; players older than LONG_CONTRACT_MAX_AGE
+ * get at most LATE_CAREER_MAX_CONTRACT_YEARS.
+ */
+export function contractYears(age: number, rng: Rng): number {
+  const weights =
+    age > LONG_CONTRACT_MAX_AGE ? CONTRACT_YEARS_WEIGHTS.slice(0, LATE_CAREER_MAX_CONTRACT_YEARS) : CONTRACT_YEARS_WEIGHTS;
+  return 1 + weightedIndex(rng, weights);
+}
+
+/** End of a contract of `years` seasons signed on `date`: 30 June of the last season. */
+export function contractEndDate(date: Date, years: number): Date {
+  return seasonEndDate(seasonStartYear(date) + years - 1);
+}
+
+/**
+ * Contract of a player at save creation. Market value and wage are pure functions of rating and age; only
+ * the length is drawn. Pass the player's own stream, after generateAttributes, so a replay draws the same.
+ */
+export function generateContract(player: ContractProfile, currentDate: Date, rng: Rng): PlayerContract {
+  return {
+    marketValue: marketValueFor(player),
+    wage: wageFor(player),
+    contractUntil: contractEndDate(currentDate, contractYears(player.age, rng)),
+  };
 }

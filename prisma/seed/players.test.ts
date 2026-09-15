@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../../src/engine/generation";
 import { ageInYears } from "../../src/lib/dates";
 import { makeRng } from "../../src/lib/rng";
+import { NAME_BANK } from "../../src/engine/names";
 import {
   generateSquad,
   HOME_NATIONALITY_SHARE,
   MAX_AGE,
   MIN_AGE,
-  readNameBank,
   SQUAD_TEMPLATE,
   WORLD_REFERENCE_DATE,
 } from "./players";
 import { buildWorldPlan, type ClubPlan } from "./seed";
 
-const names = readNameBank();
+const names = NAME_BANK;
 const plan = buildWorldPlan();
 const clubs = plan.flatMap(({ competition, clubs }) => clubs.map((club) => ({ ...club, country: competition.country })));
 const players = clubs.flatMap((club) => club.players.map((player) => ({ ...player, country: club.country })));

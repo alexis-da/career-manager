@@ -1,12 +1,14 @@
 import * as z from "zod";
 import { clubFinances, generateContract } from "../engine/economy";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engine/generation";
+import { worldPlayerKey } from "../engine/identity";
 import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
 import { seasonFixtures } from "./fixtures";
+import { runPreseasonInTransaction } from "./preseason";
 
 export const createSaveInputSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -23,8 +25,9 @@ const TRANSACTION_TIMEOUT_MS = 120_000;
 
 /**
  * Creates a save and its whole initial state in one transaction: a ClubSave per club, a PlayerSave per
- * player, a Season per competition and its fixtures. Everything random derives from the seed, so the
- * same seed always yields the same save. Reference tables (Competition, Club, Player) are only read.
+ * world player (identity copied from Player), the first preseason (young players), a Season per competition
+ * and its fixtures. Everything random derives from the seed, so the same seed always yields the same save.
+ * Reference tables (Competition, Club, Player) are only read.
  */
 export async function createSave(input: CreateSaveInput): Promise<{ id: string }> {
   const { name, managerName, clubId, seed } = createSaveInputSchema.parse(input);
@@ -37,7 +40,16 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
         select: { id: true, slug: true, initialRank: true, competitionId: true },
       });
       const players = await tx.player.findMany({
-        select: { id: true, initialClubId: true, squadSlot: true, birthDate: true, position: true },
+        select: {
+          id: true,
+          initialClubId: true,
+          squadSlot: true,
+          firstName: true,
+          lastName: true,
+          birthDate: true,
+          nationality: true,
+          position: true,
+        },
       });
 
       const clubs = clubRows.map((club) => {
@@ -73,16 +85,16 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       const clubSaveIdByClubId = new Map(clubSaves.map((clubSave) => [clubSave.clubId, clubSave.id]));
 
       await tx.playerSave.createMany({
-        data: players.map((player) => {
-          const club = getOrThrow(clubById, player.initialClubId, "club");
+        data: players.map(({ id: playerId, initialClubId, squadSlot, ...identity }) => {
+          const club = getOrThrow(clubById, initialClubId, "club");
           const clubLevel = clubLevelFromRank(
             club.initialRank,
             getOrThrow(clubCountByCompetition, club.competitionId, "club count"),
           );
-          const age = ageInYears(player.birthDate, save.currentDate);
+          const age = ageInYears(identity.birthDate, save.currentDate);
           // One stream per player, keyed by stable identity: attributes first, then the contract length.
-          const rng = makeRng(attributeRngSeed(save.seed, club.slug, player.squadSlot));
-          const attributes = generateAttributes({ position: player.position, age }, clubLevel, rng);
+          const rng = makeRng(attributeRngSeed(save.seed, club.slug, squadSlot));
+          const attributes = generateAttributes({ position: identity.position, age }, clubLevel, rng);
           const contract = generateContract(
             { age, overall: attributes.overall, potential: attributes.potential },
             save.currentDate,
@@ -90,13 +102,17 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
           );
           return {
             saveId: save.id,
-            playerId: player.id,
+            playerId,
+            playerKey: worldPlayerKey(club.slug, squadSlot),
+            ...identity,
             clubSaveId: getOrThrow(clubSaveIdByClubId, club.id, "club save"),
             ...attributes,
             ...contract,
           };
         }),
       });
+
+      await runPreseasonInTransaction(tx, save.id);
 
       const startYear = seasonStartYear(save.currentDate);
       const seasons = await tx.season.createManyAndReturn({

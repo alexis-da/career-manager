@@ -1,6 +1,6 @@
 ---
 name: donnees-openfootball
-description: À utiliser pour importer, mettre à jour ou déboguer les données de base du jeu (clubs, compétitions, calendriers) issues d'OpenFootball, et pour générer les joueurs — identité dans le seed (graine fixe), attributs à la création d'une partie (Save.seed). Couvre le format des fichiers, la normalisation des noms, le classement de référence et les règles de licence.
+description: À utiliser pour importer, mettre à jour ou déboguer les données de base du jeu (clubs, compétitions, calendriers) issues d'OpenFootball, et pour générer les joueurs — identité dans le seed (graine fixe), copie dans la partie, attributs à la création d'une partie (Save.seed), jeunes arrivant et joueurs quittant le monde. Couvre le format des fichiers, la normalisation des noms, le classement de référence et les règles de licence.
 ---
 
 # Données OpenFootball
@@ -12,7 +12,7 @@ d'API, pas de quota. Les fichiers sont téléchargés une fois et **commités da
 `prisma/seed/data/`, pour que le seed soit reproductible et fonctionne hors ligne.
 
 Ne jamais appeler OpenFootball au runtime : c'est une source de seed, pas une API de production. Les
-fichiers JSON eux-mêmes ne sont lus **que par le seed** : le jeu lit la base.
+fichiers de calendriers ne sont lus **que par le seed** : le jeu lit la base.
 
 ## Format des calendriers
 
@@ -73,55 +73,81 @@ Le seed calcule le classement final de chaque compétition avec `computeStanding
 - La création de partie (`createSave`, `src/db/saves.ts`) lit `Club.initialRank`, **jamais les fichiers
   JSON** : niveau de club, budget, masse salariale et réputation en sont dérivés.
 
-## Joueurs : identité dans le seed, attributs dans la partie
+## Listes de noms
 
-OpenFootball ne fournit ni effectifs ni notes. Tout est généré, en **deux temps séparés** qui ne
-partagent pas la même graine.
+`src/engine/data/names/<code>.json` = `{ nationality, firstNames, lastNames }`, chargées par **import
+statique** dans `src/engine/names.ts` (`NAME_BANK`) et validées par Zod au chargement (au moins 20 entrées,
+sans doublon). Elles partent avec le code : le seed les utilise pour le monde, la présaison pour les jeunes.
+`nationality` porte **le même libellé que `Club.country`** (`"Angleterre"`, `"Brésil"`…). Ajouter une
+nationalité = ajouter un fichier **et** son import, dans l'ordre alphabétique des fichiers : l'ordre fait
+partie des tirages.
 
-### 1. Identité — table `Player`, créée par le seed
+Aucun nom de joueur réel n'est importé : les noms sont combinés depuis des listes de prénoms et noms
+courants. Quand une combinaison donnerait le nom d'un joueur célèbre, retirer le prénom ou le nom de sa
+liste plutôt que de filtrer à la génération.
+
+## Joueurs du monde : identité dans le seed
 
 Le monde est le même pour toutes les parties : la graine est **fixe**, `WORLD_SEED = "world-2024-25"`
-(`prisma/seed/players.ts`). Relancer le seed produit exactement les mêmes joueurs.
+(`prisma/seed/players.ts`). Relancer le seed produit exactement les mêmes joueurs dans `Player`.
 
 - Un flux aléatoire par club : `makeRng(`${WORLD_SEED}:squad:${club.slug}`)`. Ajouter ou renommer un
   club ne modifie pas l'effectif des autres.
-- Effectif : `SQUAD_TEMPLATE` = 2 GK, 8 DF, 8 MF, 5 FW. L'identité stable d'un joueur est
+- Effectif : `SQUAD_TEMPLATE` = 2 GK, 8 DF, 8 MF, 5 FW. L'identité stable d'un joueur du monde est
   `(initialClubId, squadSlot)` (`@@unique`), `squadSlot` allant de 1 à 23 dans l'ordre du template.
-  `initialClubId` est le club dans le monde 2024-25 ; le club courant d'une partie est porté par `PlayerSave`.
 - Âge : 17 à 36 ans révolus au 1er juillet 2024 (`WORLD_REFERENCE_DATE`), distribution centrée sur 21–29.
 - Nationalité : celle du pays du club à 70 % (`HOME_NATIONALITY_SHARE`), sinon tirée parmi les autres listes.
-- Noms : `prisma/seed/data/names/<code>.json` = `{ nationality, firstNames, lastNames }`, validé par Zod
-  (au moins 20 entrées, sans doublon). `nationality` porte **le même libellé que `Club.country`**
-  (`"Angleterre"`, `"Brésil"`…). Ajouter une nationalité = ajouter un fichier.
+- Tirages d'identité partagés avec les jeunes : `src/engine/identity.ts` (`drawNameList`, `drawUniqueName`,
+  `drawBirthDate`).
 - **Aucun attribut dans `Player`.**
 - Écriture idempotente (`prisma/seed/seed.ts`) : une lecture des joueurs existants, `createMany` pour les
   absents, `update` seulement pour ceux qui diffèrent. Un second passage n'écrit aucun joueur.
 
-Modifier la graine, une liste de noms ou le template change le monde : les joueurs sont mis à jour en
-place (même `id`), donc **renommés dans toutes les parties existantes**. Le test à valeurs figées de
-`players.test.ts` casse volontairement dans ce cas.
+Modifier la graine, une liste de noms ou le template change le monde des **nouvelles** parties. Le test à
+valeurs figées de `players.test.ts` casse volontairement dans ce cas.
 
-### 2. Attributs — table `PlayerSave`, créés à la création d'une partie
+## Création de partie : `PlayerSave` porte l'identité
 
-Les attributs dépendent de `Save.seed` : deux parties ont les mêmes joueurs mais pas les mêmes notes.
-Le seed ne crée **aucun** `PlayerSave`.
+`createSave` copie l'identité de chaque `Player` dans son `PlayerSave` : `firstName`, `lastName`,
+`birthDate`, `nationality`, `position`, tous NOT NULL, plus `playerKey`. À partir de là, **le jeu ne lit
+jamais `Player` pour connaître un joueur** : `PlayerSave.playerId` est optionnel et ne sert qu'à tracer
+l'origine dans le monde 2024-25 (null pour un jeune arrivé en cours de partie).
 
+- `playerKey` (`@@unique([saveId, playerKey])`) est la clé stable du joueur dans la partie :
+  `slug du club initial#squadSlot` pour un joueur du monde (`worldPlayerKey`), `youth:année:club:rang` pour
+  un jeune. Elle sert aux graines (progression, match) et aux départages. **Jamais `PlayerSave.id` ni
+  `Player.id`** : ce sont des cuid, différents d'une base à l'autre, qui casseraient le rejeu.
+- Les attributs dépendent de `Save.seed` : deux parties ont les mêmes joueurs mais pas les mêmes notes. Le
+  seed ne crée **aucun** `PlayerSave`.
 - `generateAttributes(player, clubLevel, rng)` — `src/engine/generation.ts`, fonction pure. Entrée :
   `{ position, age }` (âge révolu à `Save.currentDate`, via `ageInYears` de `src/lib/dates.ts`). Sortie :
   `overall`, `potential`, `pace`, `shooting`, `passing`, `dribbling`, `defending`, `physical`,
   `goalkeeping`, tous entiers bornés à 1–99, `potential ≥ overall`.
 - `clubLevel = clubLevelFromRank(club.initialRank, clubCount)` : 78 pour le champion, 60 pour le dernier,
   linéaire entre les deux, `clubCount` étant le nombre de clubs de la compétition.
-- Graine d'un joueur : `makeRng(attributeRngSeed(save.seed, club.slug, player.squadSlot))`, où `club`
-  est le club initial. **Jamais `Player.id`** : c'est un cuid, différent d'une base à l'autre, qui
-  casserait le rejeu.
+- Graine d'un joueur du monde à la création : `makeRng(attributeRngSeed(save.seed, club.slug, squadSlot))`,
+  attributs puis durée de contrat (1 à 5 saisons pondérées 10/25/30/25/10 %, au plus 2 après 33 ans).
 - Cohérence : profil d'attributs par poste, qualité modulée par l'âge (pic 26–29), marge de potentiel
   décroissante avec l'âge (nulle à partir de 29 ans). Toutes les constantes sont dans
   `src/engine/balance.ts`.
 
-Aucun nom de joueur réel n'est importé : les noms sont combinés depuis des listes de prénoms et noms
-courants. Quand une combinaison donnerait le nom d'un joueur célèbre, retirer le prénom ou le nom de sa
-liste plutôt que de filtrer à la génération.
+## Arrivées et départs du monde
+
+Sans renouvellement, les retraites (~80 par saison) videraient les effectifs. La présaison
+(`runPreseason`, `src/db/preseason.ts`, à la création de partie puis à chaque `advanceToNextSeason`)
+fait entrer et sortir des joueurs :
+
+- **Jeunes** (`src/engine/youth.ts`) : 2 par club, club dirigé compris, à chaque présaison. 16 à 18 ans au
+  1er juillet, note 45 à 60 selon la réputation du club, potentiel note + 15 à 30, nationalité du pays du
+  club à 85 %, noms depuis `NAME_BANK`, contrat de 3 saisons. Si le club a moins de 2 gardiens, son
+  premier jeune est un gardien ; sinon les postes les plus en dessous du gabarit 2-8-8-5. Graine
+  `youthRngSeed(save.seed, startYear, club.slug, rang)`, clé `youth:startYear:club.slug:rang`. Pas
+  d'entraînement ni d'écran : c'est une arrivée, sans `Transfer`.
+- **Départs** : un joueur libre toujours sans club à la présaison qui suit sa libération quitte le monde
+  (`Transfer` RETIREMENT), sauf s'il a plus de 65 de note (`FREE_AGENT_STAY_MIN_OVERALL`). Les retraites
+  liées à l'âge restent tirées en fin de saison (`willRetire`, `src/engine/progression.ts`).
+- Une présaison ne s'exécute qu'une fois par saison : si des jeunes de l'année existent déjà, elle ne fait
+  rien.
 
 ## Licence
 

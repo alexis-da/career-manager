@@ -1,8 +1,9 @@
+import { NAME_BANK } from "../../src/engine/names";
 import { computeStandings } from "../../src/engine/standings";
 import type { PrismaClient } from "../../src/generated/prisma/client";
 import { COMPETITIONS, type SeedCompetition } from "./competitions";
 import { extractClubs, extractScores, fixtureFilePath, readFixtureFile, type SeedClub } from "./openfootball";
-import { generateSquad, readNameBank, type SeedPlayer } from "./players";
+import { generateSquad, type SeedPlayer } from "./players";
 
 export type ClubPlan = SeedClub & {
   initialRank: number; // final 2024-25 rank within the competition
@@ -37,7 +38,6 @@ function samePlayer(a: PlayerData, b: PlayerData): boolean {
 // Reads and validates every file, ranks every club and generates every squad before touching the
 // database, so a bad file never leaves a partial seed.
 export function buildWorldPlan(): CompetitionPlan[] {
-  const names = readNameBank();
   const competitionBySlug = new Map<string, string>();
 
   return COMPETITIONS.map((competition) => {
@@ -58,7 +58,7 @@ export function buildWorldPlan(): CompetitionPlan[] {
       return {
         ...club,
         initialRank,
-        players: generateSquad({ slug: club.slug, country: competition.country }, names),
+        players: generateSquad({ slug: club.slug, country: competition.country }, NAME_BANK),
       };
     });
     return { competition, clubs };

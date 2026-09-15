@@ -41,7 +41,8 @@ model Club {
   @@index([competitionId])
 }
 
-// Identité seule, générée par le seed avec une graine fixe. Les attributs vivent dans PlayerSave.
+// Monde 2024-25, généré par le seed avec une graine fixe. L'identité est copiée dans PlayerSave à la création
+// de partie : le jeu ne lit jamais Player pour connaître un joueur.
 model Player {
   id            String       @id @default(cuid())
   initialClub   Club         @relation(fields: [initialClubId], references: [id], onDelete: Restrict)
@@ -116,8 +117,14 @@ model PlayerSave {
   id            String              @id @default(cuid())
   save          Save                @relation(fields: [saveId], references: [id], onDelete: Cascade)
   saveId        String
-  player        Player              @relation(fields: [playerId], references: [id], onDelete: Restrict)
-  playerId      String
+  player        Player?             @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  playerId      String? // origine dans le monde 2024-25 ; null pour un jeune arrivé en cours de partie
+  playerKey     String // clé stable dans la partie : "olympique-lyonnais#5", "youth:2025:olympique-lyonnais:1"
+  firstName     String // identité copiée depuis Player à la création de partie, ou tirée pour un jeune
+  lastName      String
+  birthDate     DateTime
+  nationality   String
+  position      Position
   clubSave      ClubSave?           @relation(fields: [clubSaveId], references: [id], onDelete: NoAction)
   clubSaveId    String? // null = joueur libre ou retraité
   overall       Int // 1–99, note courante
@@ -142,6 +149,7 @@ model PlayerSave {
   relatedEvents MatchEvent[]        @relation("MatchEventRelatedPlayer")
 
   @@unique([saveId, playerId])
+  @@unique([saveId, playerKey])
   @@index([saveId, clubSaveId])
 }
 

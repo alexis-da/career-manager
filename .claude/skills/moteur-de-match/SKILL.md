@@ -36,7 +36,8 @@ clubs), jamais d'un compteur global ni de `Fixture.id` : c'est un cuid, différe
 const rng = makeRng(matchRngSeed(save.seed, season.startYear, fixture.round, homeSlug, awaySlug));
 ```
 
-Même règle pour les joueurs dans le moteur : ils sont identifiés par `slug du club initial#squadSlot`,
+Même règle pour les joueurs dans le moteur : ils sont identifiés par `PlayerSave.playerKey`
+(`slug du club initial#squadSlot`, ou `youth:année:club:rang` pour un jeune arrivé en cours de partie),
 pas par `PlayerSave.id`, pour qu'une égalité de note se départage de la même façon partout.
 
 Conséquence : rejouer une journée donne le même résultat. Si ce n'est pas le cas, c'est qu'une source

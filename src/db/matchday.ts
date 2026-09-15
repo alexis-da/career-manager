@@ -35,9 +35,6 @@ type SeasonStats = {
   stats: PlayerMatchStats;
 };
 
-/** Player key in the engine: stable across databases, unlike PlayerSave.id, so replays break ties alike. */
-const engineKey = (initialClubSlug: string, squadSlot: number): string => `${initialClubSlug}#${squadSlot}`;
-
 const seasonStatsKey = (seasonId: string, playerSaveId: string): string => `${seasonId}#${playerSaveId}`;
 
 /**
@@ -77,6 +74,8 @@ export async function playNextMatchday(saveId: string): Promise<MatchdaySummary 
         where: { saveId, clubSaveId: { in: fixtures.flatMap((fixture) => [fixture.homeClubSaveId, fixture.awayClubSaveId]) } },
         select: {
           id: true,
+          playerKey: true,
+          position: true,
           clubSaveId: true,
           overall: true,
           pace: true,
@@ -89,24 +88,23 @@ export async function playNextMatchday(saveId: string): Promise<MatchdaySummary 
           form: true,
           morale: true,
           injuredUntil: true,
-          player: { select: { position: true, squadSlot: true, initialClub: { select: { slug: true } } } },
         },
       });
 
+      // Players are keyed by playerKey in the engine: stable across databases, unlike PlayerSave.id.
       const squads = new Map<string, SquadPlayer[]>();
       const stateByKey = new Map<string, PlayerState>();
       for (const row of playerSaves) {
         if (row.clubSaveId === null) {
           continue; // free agents do not play; the query already leaves them out
         }
-        const { player, clubSaveId, id: playerSaveId, injuredUntil, ...ratings } = row;
-        const key = engineKey(player.initialClub.slug, player.squadSlot);
-        stateByKey.set(key, { playerSaveId, injuredUntil });
+        const { playerKey, position, clubSaveId, id: playerSaveId, injuredUntil, ...ratings } = row;
+        stateByKey.set(playerKey, { playerSaveId, injuredUntil });
         const squad = squads.get(clubSaveId) ?? [];
         squad.push({
           ...ratings,
-          id: key,
-          position: player.position,
+          id: playerKey,
+          position,
           injured: injuredUntil !== null && injuredUntil > matchDate,
         });
         squads.set(clubSaveId, squad);

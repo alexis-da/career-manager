@@ -130,13 +130,14 @@ export const WAGE_AGE_FACTOR: Curve = [
 /** Wages are rounded to this step, in euros. */
 export const WAGE_STEP = 1_000;
 
-/** Longest contract, in seasons, by age (rounded); the actual length is drawn from 1 to this value. */
-export const CONTRACT_MAX_YEARS_BY_AGE: Curve = [
-  [29, 5],
-  [31, 3],
-  [33, 2],
-  [35, 1],
-];
+/** Relative weight of each contract length, from 1 to 5 seasons. */
+export const CONTRACT_YEARS_WEIGHTS: readonly number[] = [10, 25, 30, 25, 10];
+
+/** Oldest age still offered a contract longer than LATE_CAREER_MAX_CONTRACT_YEARS. */
+export const LONG_CONTRACT_MAX_AGE = 33;
+
+/** Longest contract, in seasons, offered to a player older than LONG_CONTRACT_MAX_AGE. */
+export const LATE_CAREER_MAX_CONTRACT_YEARS = 2;
 
 // ------------------------------------------------------------------ Match: team strength
 
@@ -290,3 +291,52 @@ export const RETIREMENT_CHANCE_BY_AGE: Curve = [
   [37, 0.9],
   [38, 1],
 ];
+
+// ------------------------------------------------------------------ Squads (AI clubs)
+
+/** Squad size every club aims for, and the goalkeepers it needs. */
+export const SQUAD_SIZE_MIN = 20;
+export const SQUAD_SIZE_MAX = 25;
+export const MIN_GOALKEEPERS = 2;
+
+/** Players per position in a complete squad (23 in all), as in the world squads. */
+export const SQUAD_POSITION_TARGETS: Readonly<Record<Position, number>> = { GK: 2, DF: 8, MF: 8, FW: 5 };
+
+/** Squad standard: mean overall of the club's best players, the bar for keeping a player. */
+export const SQUAD_STANDARD_SIZE = 16;
+
+/** An expiring contract is renewed when the player is rated at least the squad standard minus this. */
+export const RENEWAL_RATING_MARGIN = 5;
+
+/** Oldest age renewed with that margin; older players must reach the squad standard itself. */
+export const RENEWAL_MAX_AGE = 32;
+
+/** Players up to this age are also renewed when their potential reaches the squad standard. */
+export const PROSPECT_MAX_AGE = 23;
+
+// ------------------------------------------------------------------ Youth arrivals and leaving the world
+
+/** Young players joining every club at each preseason. */
+export const YOUTH_PLAYERS_PER_CLUB = 2;
+
+/** Age of a young player on arrival (1 July). */
+export const YOUTH_AGE_MIN = 16;
+export const YOUTH_AGE_MAX = 18;
+
+/** Overall of a young player at the least and at the most reputed club, and the random spread around it. */
+export const YOUTH_OVERALL_MIN = 45;
+export const YOUTH_OVERALL_MAX = 60;
+export const YOUTH_OVERALL_SPREAD = 3;
+
+/** Potential of a young player: overall plus a gap drawn in this range. */
+export const YOUTH_POTENTIAL_GAP_MIN = 15;
+export const YOUTH_POTENTIAL_GAP_MAX = 30;
+
+/** Share of young players holding the nationality of their club's country. */
+export const YOUTH_HOME_NATIONALITY_SHARE = 0.85;
+
+/** First contract of a young player, in seasons. */
+export const YOUTH_CONTRACT_YEARS = 3;
+
+/** A free agent still without a club at the next preseason leaves the world, unless rated above this. */
+export const FREE_AGENT_STAY_MIN_OVERALL = 65;

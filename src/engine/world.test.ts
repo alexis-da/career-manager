@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { firstMatchdayDate, seasonEndDate, seasonStartDate, seasonStartYear, WORLD_START_DATE } from "./world";
+import {
+  firstMatchdayDate,
+  isTransferWindowOpen,
+  seasonEndDate,
+  seasonStartDate,
+  seasonStartYear,
+  transferWindowAt,
+  WORLD_START_DATE,
+} from "./world";
+
+const utc = (iso: string): Date => new Date(`${iso}T00:00:00.000Z`);
 
 describe("world calendar", () => {
   it("plays the first matchday on the third Saturday of August", () => {
@@ -20,5 +30,27 @@ describe("world calendar", () => {
     expect(seasonEndDate(2024).toISOString()).toBe("2025-06-30T00:00:00.000Z");
     expect(seasonStartYear(seasonEndDate(2024))).toBe(2024);
     expect(seasonStartYear(seasonStartDate(2025))).toBe(2025);
+  });
+});
+
+describe("transfer windows", () => {
+  it("opens in summer from 1 July to 31 August", () => {
+    expect(transferWindowAt(utc("2025-07-01"))).toBe("summer");
+    expect(transferWindowAt(utc("2025-08-31"))).toBe("summer");
+    expect(transferWindowAt(utc("2025-06-30"))).toBeNull();
+    expect(transferWindowAt(utc("2025-09-01"))).toBeNull();
+  });
+
+  it("opens in winter from 1 to 31 January", () => {
+    expect(transferWindowAt(utc("2026-01-01"))).toBe("winter");
+    expect(transferWindowAt(utc("2026-01-31"))).toBe("winter");
+    expect(transferWindowAt(utc("2025-12-31"))).toBeNull();
+    expect(transferWindowAt(utc("2026-02-01"))).toBeNull();
+  });
+
+  it("stays closed during the season", () => {
+    expect(isTransferWindowOpen(utc("2025-10-15"))).toBe(false);
+    expect(isTransferWindowOpen(utc("2026-04-04"))).toBe(false);
+    expect(isTransferWindowOpen(WORLD_START_DATE)).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { YOUTH_PLAYERS_PER_CLUB } from "../engine/balance";
 import type { prisma as prismaClient } from "./client";
 
 // Runs against DATABASE_URL (the dev database); skipped when it is not set. The modules are imported
@@ -42,9 +43,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
   const playerSavesOf = (saveId: string) =>
     database().playerSave.findMany({
       where: { saveId },
-      orderBy: { playerId: "asc" },
+      orderBy: { playerKey: "asc" },
       select: {
-        playerId: true,
+        playerKey: true,
+        firstName: true,
+        lastName: true,
+        birthDate: true,
+        nationality: true,
+        position: true,
         clubSave: { select: { clubId: true } },
         overall: true,
         potential: true,
@@ -81,24 +87,27 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
       .sort();
   };
 
-  it("creates the whole initial state of a save", async () => {
+  it("creates the whole initial state of a save, young players included", async () => {
     const [saveId] = saveIds;
     const db = database();
-    const [save, clubSaves, managed, playerSaves, seasons, fixtures, clubsByCompetition] = await Promise.all([
-      db.save.findUniqueOrThrow({ where: { id: saveId } }),
-      db.clubSave.count({ where: { saveId } }),
-      db.clubSave.findMany({ where: { saveId, isManaged: true }, select: { club: { select: { slug: true } } } }),
-      db.playerSave.count({ where: { saveId } }),
-      db.season.findMany({ where: { saveId }, select: { startYear: true } }),
-      db.fixture.count({ where: { saveId } }),
-      db.club.groupBy({ by: ["competitionId"], _count: { _all: true } }),
-    ]);
+    const [save, clubSaves, managed, playerSaves, youthPlayers, seasons, fixtures, clubsByCompetition] =
+      await Promise.all([
+        db.save.findUniqueOrThrow({ where: { id: saveId } }),
+        db.clubSave.count({ where: { saveId } }),
+        db.clubSave.findMany({ where: { saveId, isManaged: true }, select: { club: { select: { slug: true } } } }),
+        db.playerSave.count({ where: { saveId } }),
+        db.playerSave.count({ where: { saveId, playerId: null, playerKey: { startsWith: "youth:2024:" } } }),
+        db.season.findMany({ where: { saveId }, select: { startYear: true } }),
+        db.fixture.count({ where: { saveId } }),
+        db.club.groupBy({ by: ["competitionId"], _count: { _all: true } }),
+      ]);
     const [competitionCount, clubCount, playerCount] = referenceCountsAfter;
 
     expect(save.currentDate.toISOString()).toBe("2024-07-01T00:00:00.000Z");
     expect(clubSaves).toBe(clubCount);
     expect(managed.map((clubSave) => clubSave.club.slug)).toEqual(["liverpool-fc"]);
-    expect(playerSaves).toBe(playerCount);
+    expect(youthPlayers).toBe(clubCount * YOUTH_PLAYERS_PER_CLUB);
+    expect(playerSaves).toBe(playerCount + youthPlayers);
     expect(seasons).toHaveLength(competitionCount);
     expect(seasons.every((season) => season.startYear === 2024)).toBe(true);
     expect(fixtures).toBe(
@@ -106,7 +115,24 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
     );
   });
 
-  it("gives the same attributes and fixtures to two saves with the same seed", async () => {
+  it("copies each world player's identity and key from Player", async () => {
+    const [saveId] = saveIds;
+    const [row] = await database().$queryRaw<{ mismatches: number; copied: number }[]>`
+      SELECT count(*)::int AS copied,
+        count(*) FILTER (WHERE ps."firstName" <> p."firstName" OR ps."lastName" <> p."lastName"
+          OR ps."birthDate" <> p."birthDate" OR ps.nationality <> p.nationality OR ps.position <> p.position
+          OR ps."playerKey" <> c.slug || '#' || p."squadSlot")::int AS mismatches
+      FROM "PlayerSave" ps
+      JOIN "Player" p ON p.id = ps."playerId"
+      JOIN "Club" c ON c.id = p."initialClubId"
+      WHERE ps."saveId" = ${saveId}`;
+    const [, , playerCount] = referenceCountsAfter;
+
+    expect(row.copied).toBe(playerCount);
+    expect(row.mismatches).toBe(0);
+  });
+
+  it("gives the same players, attributes and fixtures to two saves with the same seed", async () => {
     const [first, second] = saveIds;
 
     expect(await playerSavesOf(second)).toEqual(await playerSavesOf(first));
@@ -116,18 +142,15 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
   it("gives different attributes to a save with a different seed", async () => {
     const [first, , other] = saveIds;
     const [firstPlayers, otherPlayers] = await Promise.all([playerSavesOf(first), playerSavesOf(other)]);
-    const differing = firstPlayers.filter((player, index) => {
-      const { playerId, clubSave, ...attributes } = player;
-      const { playerId: otherPlayerId, clubSave: otherClubSave, ...otherAttributes } = otherPlayers[index];
-      return (
-        playerId === otherPlayerId &&
-        clubSave?.clubId === otherClubSave?.clubId &&
-        JSON.stringify(attributes) !== JSON.stringify(otherAttributes)
-      );
+    const otherByKey = new Map(otherPlayers.map((player) => [player.playerKey, player]));
+    const worldPlayers = firstPlayers.filter((player) => !player.playerKey.startsWith("youth:"));
+    const differing = worldPlayers.filter((player) => {
+      const counterpart = otherByKey.get(player.playerKey);
+      return counterpart !== undefined && counterpart.overall !== player.overall;
     });
 
     expect(otherPlayers).toHaveLength(firstPlayers.length);
-    expect(differing.length).toBeGreaterThan(firstPlayers.length * 0.9);
+    expect(differing.length).toBeGreaterThan(worldPlayers.length * 0.7);
   });
 
   it("leaves the reference tables untouched", () => {

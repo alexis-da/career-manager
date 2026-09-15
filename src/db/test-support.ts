@@ -7,8 +7,9 @@ export const DEMO_SEED = "demo-2024-25";
 export const DEMO_CLUB_SLUG = "olympique-lyonnais";
 
 /**
- * Creates a throwaway twin of the demo save: same seed and club, hence the very same save, so database
- * tests can play and advance seasons without touching the demo save itself.
+ * Creates a throwaway save with the demo save's seed and club, so database tests can play and advance seasons
+ * without touching the demo save itself. The demo save was created by an earlier version of createSave, so
+ * the two are no longer identical.
  */
 export async function createDemoTwin(name: string): Promise<string> {
   const club = await prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } });
