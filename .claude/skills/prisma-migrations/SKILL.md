@@ -58,6 +58,13 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prism
 - Modèles en `PascalCase` singulier, champs en `camelCase`.
 - Clés primaires : `id String @id @default(cuid())`.
 - Index explicite sur chaque colonne servant de filtre fréquent, `saveId` en tête.
-- Les suppressions en cascade sont limitées à `Save` : supprimer une sauvegarde efface toute la partie.
+- Les suppressions en cascade partent de `Save` : supprimer une sauvegarde efface toute la partie.
   Partout ailleurs, `onDelete: Restrict` — une suppression silencieuse de données de jeu est un bug.
+- Exception : une table de partie qui référence `PlayerSave` (`MatchEvent`, `Transfer`) est en `Cascade`
+  vers `PlayerSave`. PostgreSQL exécute chaque étape de la cascade depuis `Save` comme une instruction
+  interne et vérifie `Restrict` **et même `NoAction`** à la fin de chacune : dès la suppression des
+  `PlayerSave`, avant que les événements soient atteints par `Fixture`. `NoAction` ne suffit donc pas à
+  rendre une partie jouée supprimable (essayé et refusé sur la partie de démonstration).
+- Toute nouvelle relation entre deux tables de partie se valide en supprimant une partie **jouée** : le
+  test en base de `src/db/season.test.ts` le fait, et `migrate diff` ne détecte rien de ce côté.
 - Les montants (valeurs, salaires, budgets) sont des `Int` en euros. Jamais de flottant sur de l'argent.

@@ -141,6 +141,7 @@ export async function playNextMatchday(saveId: string): Promise<MatchdaySummary 
             minute: event.minute,
             type: event.type,
             playerSaveId: playerSaveIdOf(event.playerId),
+            relatedPlayerSaveId: event.relatedPlayerId === undefined ? null : playerSaveIdOf(event.relatedPlayerId),
           });
         }
 

@@ -229,3 +229,64 @@ export const FORM_SENT_OFF = -6;
 
 /** A player who did not take part drifts back toward CONDITION_NEUTRAL by this much per match of the club. */
 export const FORM_REST_DRIFT = 1;
+
+/** Fitness (0–100) of a fully rested player, as at the start of a season. */
+export const FULL_FITNESS = 100;
+
+// ------------------------------------------------------------------ End-of-season progression
+// Ages below are the player's age at the start of the next season.
+
+/** Share of the growth room (potential − overall) gained over a season, by age: nothing left from 29. */
+export const GROWTH_SHARE_BY_AGE: Curve = [
+  [17, 0.35],
+  [21, 0.3],
+  [24, 0.2],
+  [27, 0.1],
+  [29, 0],
+];
+
+/** Age from which the potential no longer sits above the overall: it follows the overall. */
+export const GROWTH_END_AGE = 29;
+
+/** Multiplier of growth by minutes played over the season: training alone brings a quarter of it. */
+export const GROWTH_BY_MINUTES: Curve = [
+  [0, 0.25],
+  [900, 0.6],
+  [2250, 1],
+];
+
+/** Points lost over a season by age: none up to 30, then faster and faster. */
+export const DECLINE_BY_AGE: Curve = [
+  [30, 0],
+  [31, 1],
+  [33, 2.5],
+  [35, 4],
+  [38, 6],
+];
+
+/** How much faster each attribute falls when a player declines: physical qualities go first. */
+export const DECLINE_ATTRIBUTE_FACTORS: Readonly<Record<AttributeName, number>> = {
+  pace: 1.5,
+  shooting: 1,
+  passing: 0.8,
+  dribbling: 1.1,
+  defending: 1,
+  physical: 1.3,
+  goalkeeping: 1,
+};
+
+/** Maximum random change of a player's season (bell-shaped draw), and of each attribute on top of it. */
+export const PROGRESSION_SPREAD = 2;
+export const ATTRIBUTE_PROGRESSION_SPREAD = 1;
+
+// ------------------------------------------------------------------ Retirement
+
+/** Chance to retire at the end of a season, by age at the start of the next one: likely after 34, certain at 38. */
+export const RETIREMENT_CHANCE_BY_AGE: Curve = [
+  [33, 0],
+  [34, 0.2],
+  [35, 0.55],
+  [36, 0.75],
+  [37, 0.9],
+  [38, 1],
+];

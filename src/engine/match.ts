@@ -39,14 +39,14 @@ export type Side = "home" | "away";
 
 export type Outcome = "win" | "draw" | "loss";
 
-export type MatchEventType = "GOAL" | "ASSIST" | "YELLOW_CARD" | "RED_CARD" | "INJURY" | "SUBSTITUTION";
+export type MatchEventType = "GOAL" | "YELLOW_CARD" | "RED_CARD" | "INJURY" | "SUBSTITUTION";
 
 export type MatchEvent = {
   minute: number; // 1–90, above 90 in stoppage time
   side: Side;
   type: MatchEventType;
-  playerId: string; // SUBSTITUTION: the player coming on
-  replacedPlayerId?: string; // SUBSTITUTION only: the player going off
+  playerId: string; // GOAL: the scorer; SUBSTITUTION: the player coming on
+  relatedPlayerId?: string; // GOAL: the assist provider, if any; SUBSTITUTION: the player going off
 };
 
 export type Appearance = {
@@ -274,7 +274,7 @@ export function simulateMatch(home: Lineup, away: Lineup, rng: Rng): MatchResult
     const [player] = team.bench.splice(replacementIndex(team.bench, leaving.slot), 1);
     team.substitutionsLeft--;
     team.onPitch.push({ player, slot: leaving.slot, from: minute });
-    events.push({ minute, side, type: "SUBSTITUTION", playerId: player.id, replacedPlayerId: leaving.player.id });
+    events.push({ minute, side, type: "SUBSTITUTION", playerId: player.id, relatedPlayerId: leaving.player.id });
   };
 
   for (const { minute, side, kind } of incidents) {
@@ -287,15 +287,18 @@ export function simulateMatch(home: Lineup, away: Lineup, rng: Rng): MatchResult
         }
         const scorer = team.onPitch[scorerIndex];
         team.goals++;
-        events.push({ minute, side, type: "GOAL", playerId: scorer.player.id });
+        let assistProviderId: string | undefined;
         if (rng() < ASSIST_CHANCE) {
           const assistIndex = drawOnPitch(rng, team.onPitch, (entry) =>
             entry === scorer ? 0 : ASSIST_SLOT_WEIGHTS[entry.slot] * entry.player.passing,
           );
-          if (assistIndex !== undefined) {
-            events.push({ minute, side, type: "ASSIST", playerId: team.onPitch[assistIndex].player.id });
-          }
+          assistProviderId = assistIndex === undefined ? undefined : team.onPitch[assistIndex].player.id;
         }
+        events.push(
+          assistProviderId === undefined
+            ? { minute, side, type: "GOAL", playerId: scorer.player.id }
+            : { minute, side, type: "GOAL", playerId: scorer.player.id, relatedPlayerId: assistProviderId },
+        );
         break;
       }
       case "YELLOW_CARD": {
@@ -368,15 +371,20 @@ export function playerMatchStats(result: MatchResult): PlayerMatchStats[] {
   for (const { playerId, side, minutes } of result.appearances) {
     byPlayer.set(playerId, { playerId, side, minutes, goals: 0, assists: 0, yellowCards: 0, redCards: 0 });
   }
+  const statsOf = (playerId: string | undefined): PlayerMatchStats | undefined =>
+    playerId === undefined ? undefined : byPlayer.get(playerId);
+
   for (const event of result.events) {
-    const stats = byPlayer.get(event.playerId);
+    const stats = statsOf(event.playerId);
     if (stats === undefined) {
       continue;
     }
     if (event.type === "GOAL") {
       stats.goals++;
-    } else if (event.type === "ASSIST") {
-      stats.assists++;
+      const assistProvider = statsOf(event.relatedPlayerId);
+      if (assistProvider !== undefined) {
+        assistProvider.assists++;
+      }
     } else if (event.type === "YELLOW_CARD") {
       stats.yellowCards++;
     } else if (event.type === "RED_CARD") {

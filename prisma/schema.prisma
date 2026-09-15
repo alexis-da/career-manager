@@ -58,6 +58,9 @@ model Player {
 }
 
 // ------------------------------------------------------------------- PARTIE
+// Supprimer une partie passe par la cascade depuis Save. PostgreSQL vérifie Restrict et même NoAction à
+// chaque étape interne de cette cascade : MatchEvent et Transfer, qui référencent PlayerSave, sont donc en
+// Cascade vers PlayerSave, sans quoi une partie jouée ne pourrait pas être supprimée.
 
 model Save {
   id          String              @id @default(cuid())
@@ -115,8 +118,8 @@ model PlayerSave {
   saveId        String
   player        Player              @relation(fields: [playerId], references: [id], onDelete: Restrict)
   playerId      String
-  clubSave      ClubSave?           @relation(fields: [clubSaveId], references: [id], onDelete: Restrict)
-  clubSaveId    String? // null = joueur libre
+  clubSave      ClubSave?           @relation(fields: [clubSaveId], references: [id], onDelete: NoAction)
+  clubSaveId    String? // null = joueur libre ou retraité
   overall       Int // 1–99, note courante
   potential     Int // 1–99, plafond estimé
   pace          Int
@@ -135,7 +138,8 @@ model PlayerSave {
   contractUntil DateTime?
   stats         PlayerSeasonStats[]
   transfers     Transfer[]
-  events        MatchEvent[]
+  events        MatchEvent[]        @relation("MatchEventPlayer")
+  relatedEvents MatchEvent[]        @relation("MatchEventRelatedPlayer")
 
   @@unique([saveId, playerId])
   @@index([saveId, clubSaveId])
@@ -163,22 +167,26 @@ model Fixture {
 }
 
 model MatchEvent {
-  id           String         @id @default(cuid())
-  fixture      Fixture        @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
-  fixtureId    String
-  minute       Int // 1–90 (+ arrêts de jeu)
-  type         MatchEventType
-  playerSave   PlayerSave?    @relation(fields: [playerSaveId], references: [id], onDelete: Restrict)
-  playerSaveId String?
+  id                  String         @id @default(cuid())
+  fixture             Fixture        @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  fixtureId           String
+  minute              Int // 1–90 (+ arrêts de jeu)
+  type                MatchEventType
+  playerSave          PlayerSave?    @relation("MatchEventPlayer", fields: [playerSaveId], references: [id], onDelete: Cascade)
+  playerSaveId        String? // buteur, joueur averti ou blessé, entrant d'un remplacement
+  relatedPlayerSave   PlayerSave?    @relation("MatchEventRelatedPlayer", fields: [relatedPlayerSaveId], references: [id], onDelete: Cascade)
+  relatedPlayerSaveId String? // passeur d'un but, sortant d'un remplacement
 
   @@index([fixtureId])
+  @@index([playerSaveId])
+  @@index([relatedPlayerSaveId])
 }
 
 model Transfer {
   id           String       @id @default(cuid())
   save         Save         @relation(fields: [saveId], references: [id], onDelete: Cascade)
   saveId       String
-  playerSave   PlayerSave   @relation(fields: [playerSaveId], references: [id], onDelete: Restrict)
+  playerSave   PlayerSave   @relation(fields: [playerSaveId], references: [id], onDelete: Cascade)
   playerSaveId String
   fromClubId   String? // Club.id ; null = joueur libre ou club hors périmètre
   toClubId     String? // Club.id ; null = fin de carrière
@@ -219,7 +227,6 @@ enum Position {
 
 enum MatchEventType {
   GOAL
-  ASSIST
   YELLOW_CARD
   RED_CARD
   INJURY

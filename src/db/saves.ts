@@ -1,12 +1,12 @@
 import * as z from "zod";
 import { clubFinances, generateContract } from "../engine/economy";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engine/generation";
-import { generateSchedule, scheduleRngSeed } from "../engine/schedule";
-import { FIRST_MATCHDAY_DATE, seasonStartYear, WORLD_START_DATE } from "../engine/world";
+import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { seasonFixtures } from "./fixtures";
 
 export const createSaveInputSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -20,8 +20,6 @@ export type CreateSaveInput = z.input<typeof createSaveInputSchema>;
 // A new save writes about 4 000 rows: allow much more than the 5 s default.
 const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 120_000;
-
-const bySlug = (a: { slug: string }, b: { slug: string }): number => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0);
 
 /**
  * Creates a save and its whole initial state in one transaction: a ClubSave per club, a PlayerSave per
@@ -110,23 +108,16 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       await tx.fixture.createMany({
         data: seasons.flatMap((season) => {
           const competition = getOrThrow(competitionById, season.competitionId, "competition");
-          const competitionClubs = clubs.filter((club) => club.competitionId === competition.id).sort(bySlug);
-          const clubSaveIdBySlug = new Map(
-            competitionClubs.map((club) => [club.slug, getOrThrow(clubSaveIdByClubId, club.id, "club save")]),
-          );
-          const schedule = generateSchedule(
-            competitionClubs.map((club) => club.slug),
-            FIRST_MATCHDAY_DATE,
-            makeRng(scheduleRngSeed(save.seed, competition.code, startYear)),
-          );
-          return schedule.map((match) => ({
+          return seasonFixtures({
             saveId: save.id,
+            saveSeed: save.seed,
             seasonId: season.id,
-            round: match.round,
-            scheduledAt: match.scheduledAt,
-            homeClubSaveId: getOrThrow(clubSaveIdBySlug, match.home, "club save"),
-            awayClubSaveId: getOrThrow(clubSaveIdBySlug, match.away, "club save"),
-          }));
+            competitionCode: competition.code,
+            startYear,
+            clubs: clubs
+              .filter((club) => club.competitionId === competition.id)
+              .map((club) => ({ slug: club.slug, clubSaveId: getOrThrow(clubSaveIdByClubId, club.id, "club save") })),
+          });
         }),
       });
 

@@ -1,11 +1,24 @@
 /** A season runs from 1 July to 30 June. Months are 0-based, as in Date.UTC. */
 export const SEASON_START_MONTH = 6;
 
-/** Every new save starts on 1 July 2024. A fixed date, never the clock. */
-export const WORLD_START_DATE = new Date(Date.UTC(2024, SEASON_START_MONTH, 1));
+const AUGUST = 7;
+const SATURDAY = 6;
+const DAY_MS = 86_400_000;
 
-/** First matchday of the 2024-25 season, Saturday 17 August 2024; matchdays then come one week apart. */
-export const FIRST_MATCHDAY_DATE = new Date(Date.UTC(2024, 7, 17));
+/** First day of the season starting in startYear: 1 July. */
+export function seasonStartDate(startYear: number): Date {
+  return new Date(Date.UTC(startYear, SEASON_START_MONTH, 1));
+}
+
+/** Every new save starts on 1 July 2024. A fixed date, never the clock. */
+export const WORLD_START_DATE = seasonStartDate(2024);
+
+/** First matchday of a season: the third Saturday of August (17 August 2024, 16 August 2025). */
+export function firstMatchdayDate(startYear: number): Date {
+  const firstOfAugust = Date.UTC(startYear, AUGUST, 1);
+  const daysToFirstSaturday = (SATURDAY - new Date(firstOfAugust).getUTCDay() + 7) % 7;
+  return new Date(firstOfAugust + (daysToFirstSaturday + 14) * DAY_MS);
+}
 
 /** Start year of the season a date belongs to: 2024 for any date from 1 July 2024 to 30 June 2025. */
 export function seasonStartYear(date: Date): number {

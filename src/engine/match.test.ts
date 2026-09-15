@@ -126,8 +126,18 @@ describe("simulateMatch", () => {
         if (!Number.isInteger(event.minute) || event.minute < 1 || event.minute > result.fullTime) {
           report(`${event.type} at minute ${event.minute}`);
         }
-        if ((event.type === "GOAL" || event.type === "ASSIST") && !onPitch(event.playerId, event.side, event.minute)) {
-          report(`${event.type} by ${event.playerId} off the pitch at ${event.minute}`);
+        if (event.type === "GOAL") {
+          for (const playerId of [event.playerId, event.relatedPlayerId]) {
+            if (playerId !== undefined && !onPitch(playerId, event.side, event.minute)) {
+              report(`goal involving ${playerId} off the pitch at ${event.minute}`);
+            }
+          }
+          if (event.relatedPlayerId === event.playerId) {
+            report(`${event.playerId} assisted their own goal`);
+          }
+        }
+        if (event.type === "SUBSTITUTION" && event.relatedPlayerId === undefined) {
+          report(`substitution at ${event.minute} without the player going off`);
         }
       }
       for (const appearance of result.appearances) {
@@ -162,11 +172,18 @@ describe("nextForm", () => {
     expect(nextForm(99, { ...stats, goals: 3 }, "win")).toBe(99);
   });
 
-  it("is fed by the stats of the match", () => {
-    const [result] = leagueResults;
+  it("is fed by the stats of the match, assists coming from the goal events", () => {
+    const result = leagueResults.find((candidate) => candidate.homeGoals + candidate.awayGoals >= 3);
+    if (result === undefined) {
+      throw new Error("No match with 3 goals or more");
+    }
     const stats = playerMatchStats(result);
+    const goals = result.events.filter((event) => event.type === "GOAL");
 
     expect(stats).toHaveLength(result.appearances.length);
-    expect(stats.reduce((sum, player) => sum + player.goals, 0)).toBe(result.homeGoals + result.awayGoals);
+    expect(stats.reduce((sum, player) => sum + player.goals, 0)).toBe(goals.length);
+    expect(stats.reduce((sum, player) => sum + player.assists, 0)).toBe(
+      goals.filter((goal) => goal.relatedPlayerId !== undefined).length,
+    );
   });
 });

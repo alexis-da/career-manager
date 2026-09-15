@@ -44,6 +44,12 @@ export function clampRating(value: number): number {
   return Math.min(RATING_MAX, Math.max(RATING_MIN, Math.round(value)));
 }
 
+/** Overall rating of a set of attributes for a position: their weighted mean, rounded. */
+export function overallFor(position: Position, attributes: Readonly<Record<AttributeName, number>>): number {
+  const weights = OVERALL_WEIGHTS[position];
+  return clampRating(ATTRIBUTE_NAMES.reduce((sum, name) => sum + attributes[name] * weights[name], 0));
+}
+
 /** Level of a club from its final league rank: CLUB_LEVEL_BEST for the champion, CLUB_LEVEL_WORST for the last. */
 export function clubLevelFromRank(rank: number, clubCount: number): number {
   return Math.round(lerp(CLUB_LEVEL_WORST, CLUB_LEVEL_BEST, rankStrength(rank, clubCount)));
@@ -63,7 +69,6 @@ export function generateAttributes(player: PlayerProfile, clubLevel: number, rng
   }
 
   const profile = POSITION_PROFILES[player.position];
-  const weights = OVERALL_WEIGHTS[player.position];
   const quality =
     clubLevel + interpolate(AGE_QUALITY_CURVE, player.age) + centeredSpread(rng) * PLAYER_QUALITY_SPREAD;
 
@@ -72,9 +77,7 @@ export function generateAttributes(player: PlayerProfile, clubLevel: number, rng
     attributes[name] = clampRating(quality + profile[name] + centeredSpread(rng) * ATTRIBUTE_SPREAD);
   }
 
-  const overall = clampRating(
-    ATTRIBUTE_NAMES.reduce((sum, name) => sum + attributes[name] * weights[name], 0),
-  );
+  const overall = overallFor(player.position, attributes);
   const growthRoom = interpolate(AGE_GROWTH_CURVE, player.age);
   const potential = clampRating(overall + growthRoom * (GROWTH_MIN_SHARE + (1 - GROWTH_MIN_SHARE) * rng()));
 

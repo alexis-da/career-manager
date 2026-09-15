@@ -4,12 +4,9 @@ import { WORLD_START_DATE } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 import type { getStandings as getStandingsFunction } from "./standings";
 
-const DEMO_SEED = "demo-2024-25";
-const DEMO_CLUB_SLUG = "olympique-lyonnais";
-
-// Plays the demo save (created if missing) to the end of its season, against DATABASE_URL. Skipped when
-// it is not set. Once the season is over, a new run plays nothing and checks the same finished season.
-describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on the demo save", () => {
+// Plays a whole season on a twin of the demo save, against DATABASE_URL, then deletes it. Skipped when
+// DATABASE_URL is not set. Modules are imported lazily because the client throws without it.
+describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on a twin of the demo save", () => {
   let db: typeof prismaClient | undefined;
   let getStandings: typeof getStandingsFunction | undefined;
   let saveId = "";
@@ -22,32 +19,25 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on the
   };
 
   beforeAll(async () => {
-    const [{ prisma }, { createSave }, { playNextMatchday }, standings] = await Promise.all([
+    const [{ prisma }, support, standings] = await Promise.all([
       import("./client"),
-      import("./saves"),
-      import("./matchday"),
+      import("./test-support"),
       import("./standings"),
     ]);
     db = prisma;
     getStandings = standings.getStandings;
 
-    const demo = await prisma.save.findFirst({ where: { seed: DEMO_SEED }, orderBy: { createdAt: "asc" } });
-    if (demo === null) {
-      const club = await prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } });
-      saveId = (await createSave({ name: "Partie de démonstration", managerName: "Démo", clubId: club.id, seed: DEMO_SEED })).id;
-    } else {
-      saveId = demo.id;
-    }
-
-    let playing = true;
-    while (playing) {
-      playing = (await playNextMatchday(saveId)) !== null;
-    }
+    saveId = await support.createDemoTwin("Test journées");
+    await support.playRemainingMatchdays(saveId);
   }, 900_000);
 
+  // Deleting a played save cascades to tens of thousands of rows: allow more than the 10 s hook default.
   afterAll(async () => {
+    if (saveId !== "") {
+      await db?.save.delete({ where: { id: saveId } });
+    }
     await db?.$disconnect();
-  });
+  }, 120_000);
 
   it("plays every fixture of the season, each with a score", async () => {
     const db = database();
@@ -62,7 +52,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on the
     expect(withoutScore).toBe(0);
   });
 
-  it("records one goal event per goal, for the scoring side, and counts them in the season stats", async () => {
+  it("records one goal event per goal, for the scoring side, and counts goals and assists in the stats", async () => {
     const db = database();
     const fixtures = await db.fixture.findMany({
       where: { saveId },
@@ -72,7 +62,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on the
         awayGoals: true,
         homeClubSaveId: true,
         awayClubSaveId: true,
-        events: { where: { type: "GOAL" }, select: { playerSave: { select: { clubSaveId: true } } } },
+        events: {
+          where: { type: "GOAL" },
+          select: { relatedPlayerSaveId: true, playerSave: { select: { clubSaveId: true } } },
+        },
       },
     });
     const goalsBy = (fixture: (typeof fixtures)[number], clubSaveId: string) =>
@@ -84,11 +77,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on the
           goalsBy(fixture, fixture.awayClubSaveId) !== fixture.awayGoals,
       )
       .map((fixture) => fixture.id);
+    const goalEvents = fixtures.flatMap((fixture) => fixture.events);
     const totalGoals = fixtures.reduce((sum, fixture) => sum + (fixture.homeGoals ?? 0) + (fixture.awayGoals ?? 0), 0);
-    const stats = await db.playerSeasonStats.aggregate({ where: { saveId }, _sum: { goals: true } });
+    const stats = await db.playerSeasonStats.aggregate({ where: { saveId }, _sum: { goals: true, assists: true } });
 
     expect(mismatches).toEqual([]);
     expect(stats._sum.goals).toBe(totalGoals);
+    expect(stats._sum.assists).toBe(goalEvents.filter((event) => event.relatedPlayerSaveId !== null).length);
   });
 
   it("builds complete standings of 20 or 18 clubs", async () => {
