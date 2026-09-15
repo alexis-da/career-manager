@@ -69,6 +69,21 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
     expect(stats._sum.goals).toBe(goals);
   });
 
+  it("stores each goal on the side that scored it", async () => {
+    const fixtures = await database().fixture.findMany({
+      where: { saveId, played: true },
+      select: { id: true, homeGoals: true, awayGoals: true, events: { where: { type: "GOAL" }, select: { side: true } } },
+    });
+    const mismatches = fixtures.filter(
+      (fixture) =>
+        fixture.events.filter((event) => event.side === "HOME").length !== fixture.homeGoals ||
+        fixture.events.filter((event) => event.side === "AWAY").length !== fixture.awayGoals,
+    );
+
+    expect(fixtures).toHaveLength(48);
+    expect(mismatches.map((fixture) => fixture.id)).toEqual([]);
+  });
+
   it("moves currentDate to the matchday and gives every club one played match", async () => {
     const db = database();
     if (getStandings === undefined) {

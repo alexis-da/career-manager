@@ -138,6 +138,7 @@ export async function playNextMatchday(saveId: string): Promise<MatchdaySummary 
             fixtureId: fixture.id,
             minute: event.minute,
             type: event.type,
+            side: event.side === "home" ? "HOME" : "AWAY",
             playerSaveId: playerSaveIdOf(event.playerId),
             relatedPlayerSaveId: event.relatedPlayerId === undefined ? null : playerSaveIdOf(event.relatedPlayerId),
           });

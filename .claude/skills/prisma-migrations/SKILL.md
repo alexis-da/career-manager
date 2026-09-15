@@ -68,5 +68,6 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prism
   `PlayerSave`, avant que les événements soient atteints par `Fixture`. `NoAction` ne suffit donc pas à
   rendre une partie jouée supprimable (essayé et refusé sur la partie de démonstration).
 - Toute nouvelle relation entre deux tables de partie se valide en supprimant une partie **jouée** : le
-  test en base de `src/db/season.test.ts` le fait, et `migrate diff` ne détecte rien de ce côté.
+  test en base de `src/db/season.slow.test.ts` (`npm run test:slow`) le fait, et `migrate diff` ne détecte
+  rien de ce côté.
 - Les montants (valeurs, salaires, budgets) sont des `Int` en euros. Jamais de flottant sur de l'argent.

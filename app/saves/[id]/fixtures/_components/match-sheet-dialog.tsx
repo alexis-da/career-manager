@@ -50,8 +50,7 @@ function describe(event: MatchEventView): string {
 
 export function MatchSheetDialog({ fixture }: { fixture: FixtureWithEvents }) {
   const score = `${fixture.homeGoals} – ${fixture.awayGoals}`;
-  const teamName = (side: MatchEventView["side"]): string =>
-    side === "home" ? fixture.home.name : side === "away" ? fixture.away.name : "";
+  const teamName = (side: MatchEventView["side"]): string => (side === "home" ? fixture.home.name : fixture.away.name);
 
   return (
     <Dialog>
@@ -83,11 +82,9 @@ export function MatchSheetDialog({ fixture }: { fixture: FixtureWithEvents }) {
                 <span className="min-w-0">
                   <span className="sr-only">{EVENT_LABELS[event.type]} : </span>
                   <span className={cn(event.type === "GOAL" && "font-medium")}>{describe(event)}</span>
-                  {event.side !== null && (
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {EVENT_LABELS[event.type]} · {teamName(event.side)}
-                    </span>
-                  )}
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {EVENT_LABELS[event.type]} · {teamName(event.side)}
+                  </span>
                 </span>
               </li>
             ))}

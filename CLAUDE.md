@@ -53,14 +53,23 @@ licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (C
 ## Structure
 
 ```
+app/                  # routes App Router, à la racine ; UI en français
+  _components/        # composants de la page d'accueil (liste et création de parties)
+  saves/[id]/         # une partie : tableau de bord, effectif, calendrier, classement, transferts
+                      # actions.ts (Server Actions) à côté des pages qui les utilisent
+e2e/                  # tests Playwright (npm run test:e2e)
 src/
-  app/            # routes App Router, UI en français
-  engine/         # simulation pure : match, progression, transferts, IA des clubs
-  db/             # accès Prisma, toujours scopé par saveId
-  lib/            # utilitaires partagés (rng, dates, formatage)
+  components/ui/      # composants shadcn/ui (Base UI), générés par la CLI
+  engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes
+    data/names/       # listes de noms, importées statiquement
+  db/                 # accès Prisma, toujours scopé par saveId ; *.slow.test.ts via npm run test:slow
+  lib/                # utilitaires partagés (rng, dates, couleurs, formatage)
+  generated/prisma/   # client Prisma généré, ignoré par git
 prisma/
   schema.prisma
-  seed/           # import OpenFootball + génération des attributs
+  migrations/
+  seed/               # import OpenFootball, couleurs des clubs, génération du monde
+    data/             # calendriers OpenFootball et club-colors.json
 ```
 
 ## Ordre de construction

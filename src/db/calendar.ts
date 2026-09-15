@@ -1,4 +1,4 @@
-import type { MatchEventType } from "../engine/match";
+import type { MatchEventType, Side } from "../engine/match";
 import type { Prisma } from "../generated/prisma/client";
 import { prisma } from "./client";
 
@@ -24,7 +24,7 @@ export type MatchEventView = {
   id: string;
   minute: number;
   type: MatchEventType;
-  side: "home" | "away" | null; // null when the player has since left both clubs
+  side: Side; // stored with the event: the player's club may have changed since
   playerName: string;
   relatedPlayerName: string | null; // assist provider of a goal, player going off in a substitution
 };
@@ -100,7 +100,8 @@ export async function getManagedClubCalendar(saveId: string): Promise<ClubCalend
           id: true,
           minute: true,
           type: true,
-          playerSave: { select: { firstName: true, lastName: true, clubSaveId: true } },
+          side: true,
+          playerSave: { select: { firstName: true, lastName: true } },
           relatedPlayerSave: { select: { firstName: true, lastName: true } },
         },
       },
@@ -109,23 +110,17 @@ export async function getManagedClubCalendar(saveId: string): Promise<ClubCalend
 
   return {
     startYear: latest.startYear,
-    fixtures: rows.map(({ events, ...row }) => {
-      const fixture = toFixtureView(row);
-      return {
-        ...fixture,
-        events: events.map((event) => {
-          const clubSaveId = event.playerSave?.clubSaveId;
-          return {
-            id: event.id,
-            minute: event.minute,
-            type: event.type,
-            side: clubSaveId === fixture.home.clubSaveId ? "home" : clubSaveId === fixture.away.clubSaveId ? "away" : null,
-            playerName: event.playerSave === null ? "Joueur inconnu" : fullName(event.playerSave),
-            relatedPlayerName: event.relatedPlayerSave === null ? null : fullName(event.relatedPlayerSave),
-          };
-        }),
-      };
-    }),
+    fixtures: rows.map(({ events, ...row }) => ({
+      ...toFixtureView(row),
+      events: events.map((event) => ({
+        id: event.id,
+        minute: event.minute,
+        type: event.type,
+        side: event.side === "HOME" ? "home" : "away",
+        playerName: event.playerSave === null ? "Joueur inconnu" : fullName(event.playerSave),
+        relatedPlayerName: event.relatedPlayerSave === null ? null : fullName(event.relatedPlayerSave),
+      })),
+    })),
   };
 }
 

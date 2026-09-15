@@ -182,6 +182,7 @@ model MatchEvent {
   fixtureId           String
   minute              Int // 1–90 (+ arrêts de jeu)
   type                MatchEventType
+  side                MatchSide // équipe de l'événement, fixée au match : le club du joueur peut changer ensuite
   playerSave          PlayerSave?    @relation("MatchEventPlayer", fields: [playerSaveId], references: [id], onDelete: Cascade)
   playerSaveId        String? // buteur, joueur averti ou blessé, entrant d'un remplacement
   relatedPlayerSave   PlayerSave?    @relation("MatchEventRelatedPlayer", fields: [relatedPlayerSaveId], references: [id], onDelete: Cascade)
@@ -241,6 +242,11 @@ enum MatchEventType {
   RED_CARD
   INJURY
   SUBSTITUTION
+}
+
+enum MatchSide {
+  HOME
+  AWAY
 }
 
 enum TransferType {
