@@ -60,6 +60,8 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prism
 - Index explicite sur chaque colonne servant de filtre fréquent, `saveId` en tête.
 - Les suppressions en cascade partent de `Save` : supprimer une sauvegarde efface toute la partie.
   Partout ailleurs, `onDelete: Restrict` — une suppression silencieuse de données de jeu est un bug.
+- Aucun code ne supprime un PlayerSave, un ClubSave ou une Season directement.
+  La seule suppression autorisée est celle d'un Save, qui cascade.
 - Exception : une table de partie qui référence `PlayerSave` (`MatchEvent`, `Transfer`) est en `Cascade`
   vers `PlayerSave`. PostgreSQL exécute chaque étape de la cascade depuis `Save` comme une instruction
   interne et vérifie `Restrict` **et même `NoAction`** à la fin de chacune : dès la suppression des
