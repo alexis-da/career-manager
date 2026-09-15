@@ -340,3 +340,33 @@ export const YOUTH_CONTRACT_YEARS = 3;
 
 /** A free agent still without a club at the next preseason leaves the world, unless rated above this. */
 export const FREE_AGENT_STAY_MIN_OVERALL = 65;
+
+// ------------------------------------------------------------------ Transfer market
+
+/** Share of the market value a club asks for a player, by seasons left on his contract, this one included. */
+export const ASKING_PRICE_BY_SEASONS_LEFT: Curve = [
+  [1, 0.6],
+  [2, 0.9],
+  [3, 1.1],
+  [4, 1.3],
+];
+
+/** Raise over his current wage a player under contract wants before changing clubs. */
+export const TRANSFER_MIN_WAGE_RAISE = 0.1;
+
+/** Share of his market wage a free agent accepts. */
+export const FREE_AGENT_MIN_WAGE_SHARE = 0.9;
+
+/** A player joins no club whose reputation is more than this below his own overall… */
+export const PLAYER_REPUTATION_MARGIN = 15;
+
+/** …nor more than this below the reputation of the club he leaves. */
+export const REPUTATION_STEP_DOWN = 10;
+
+/** Share of the wages left on his contract a released player receives from the club. */
+export const RELEASE_COMPENSATION_SHARE = 0.5;
+
+/** Bids for a player put on sale: at most this many AI clubs, each offering a drawn share of his market value. */
+export const SALE_MAX_BIDDERS = 5;
+export const SALE_BID_SHARE_MIN = 0.8;
+export const SALE_BID_SHARE_MAX = 1.2;
