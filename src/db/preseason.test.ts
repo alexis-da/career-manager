@@ -6,8 +6,9 @@ import type { PreseasonSummary } from "./preseason";
 
 type SquadRow = { isManaged: boolean; players: number; goalkeepers: number };
 
-// Runs the 2025 preseason of the demo save itself (the first run applies it, later runs find it done), against
-// DATABASE_URL. Skipped without it. Modules are imported lazily because the client throws without it.
+// Checks the 2025 preseason of the demo save, against DATABASE_URL. Skipped without it. The demo save is created
+// on the first run when missing (a whole season to play, hence the long hook timeout) and kept for later runs.
+// Modules are imported lazily because the client throws without DATABASE_URL.
 describe.skipIf(process.env.DATABASE_URL === undefined)("runPreseason on the demo save", () => {
   let db: typeof prismaClient | undefined;
   let saveId = "";
@@ -21,22 +22,18 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("runPreseason on the dem
   };
 
   beforeAll(async () => {
-    const [{ prisma }, { runPreseason }, { DEMO_SEED }] = await Promise.all([
+    const [{ prisma }, { runPreseason }, { ensureDemoSave }] = await Promise.all([
       import("./client"),
       import("./preseason"),
       import("./test-support"),
     ]);
     db = prisma;
-    const demo = await prisma.save.findFirstOrThrow({
-      where: { seed: DEMO_SEED },
-      orderBy: { createdAt: "asc" },
-      select: { id: true },
-    });
-    saveId = demo.id;
+    saveId = await ensureDemoSave();
 
+    // The season transition already ran this preseason: both calls must find it done.
     await runPreseason(saveId);
     secondRun = await runPreseason(saveId);
-  }, 300_000);
+  }, 900_000);
 
   afterAll(async () => {
     await db?.$disconnect();

@@ -13,10 +13,14 @@ export async function createSave(page: Page, name: string, clubName: string): Pr
   await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 }
 
-/** Deletes a save from the home page, through its confirmation dialog. */
+/** Deletes a save from the home page, through its confirmation dialog; does nothing when there is no such save. */
 export async function deleteSave(page: Page, name: string): Promise<void> {
   await page.goto("/");
   const row = page.getByRole("row").filter({ hasText: name });
+  // Called on failure too: the test may have stopped before its save was created.
+  if ((await row.count()) === 0) {
+    return;
+  }
   await row.getByRole("button", { name: "Supprimer" }).click();
   await page.getByRole("button", { name: "Supprimer la partie" }).click();
   await expect(page.getByRole("row").filter({ hasText: name })).toHaveCount(0);
