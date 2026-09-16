@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { SquadPlayerView } from "@/src/db/squad";
+import type { PlayerProfile } from "@/src/db/players";
 import { formatDate, formatDayMonth } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 
@@ -23,7 +23,7 @@ function StatusBadge({ tone, title, children }: { tone: Tone; title: string; chi
 }
 
 type PlayerBadgesProps = {
-  player: Pick<SquadPlayerView, "injuredUntil" | "contractExpiring" | "arrivedThisSeason">;
+  player: Pick<PlayerProfile, "injuredUntil" | "contractExpiring" | "arrivedThisSeason">;
 };
 
 /** Injury, expiring contract and young arrival, in their fixed colors. */

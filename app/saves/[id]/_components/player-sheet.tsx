@@ -1,14 +1,14 @@
 "use client";
 
 import { XIcon } from "lucide-react";
+import { useEffect, type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
-import type { SquadPlayerView, TransferHistoryItem } from "@/src/db/squad";
+import type { PlayerProfile, TransferHistoryItem } from "@/src/db/players";
 import type { AttributeName } from "@/src/engine/generation";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { POSITION_LABEL } from "../_lib/positions";
 import { ratingClasses } from "../_lib/ratings";
-import { ReleasePlayerDialog, RenewContractDialog, SellPlayerDialog } from "./contract-actions";
 import { PlayerBadges } from "./player-badges";
 
 const OUTFIELD_ATTRIBUTES: { name: AttributeName; label: string }[] = [
@@ -65,22 +65,32 @@ function AttributeBar({ label, value }: { label: string; value: number }) {
 }
 
 type PlayerSheetProps = {
-  saveId: string;
-  clubName: string;
-  player: SquadPlayerView;
-  currentDate: Date;
+  profile: PlayerProfile;
   startYear: number;
-  windowOpen: boolean;
+  footer: ReactNode; // the actions, which depend on where the player plays
   onClose: () => void;
 };
 
-/** The selected player's sheet, in a 400 px side panel next to the squad table. */
-export function PlayerSheet({ saveId, clubName, player, currentDate, startYear, windowOpen, onClose }: PlayerSheetProps) {
-  const name = `${player.firstName} ${player.lastName}`;
-  const attributes = player.position === "GK" ? [GOALKEEPING, ...OUTFIELD_ATTRIBUTES] : OUTFIELD_ATTRIBUTES;
-  const arrival = player.transfers.find((transfer) => transfer.toClubName === clubName);
-  const arrivalYear = arrival !== undefined ? arrival.date.getUTCFullYear() : player.arrivedThisSeason ? startYear : null;
-  const { seasonStats } = player;
+/** A player's sheet, in a 400 px side panel next to the list it was opened from. */
+export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheetProps) {
+  // Escape closes the sheet, unless it is closing one of the dialogs opened from it.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const inDialog = event.target instanceof Element && event.target.closest('[role="dialog"]') !== null;
+      if (event.key === "Escape" && !inDialog) {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  const name = `${profile.firstName} ${profile.lastName}`;
+  const attributes = profile.position === "GK" ? [GOALKEEPING, ...OUTFIELD_ATTRIBUTES] : OUTFIELD_ATTRIBUTES;
+  const arrival =
+    profile.clubName === null ? undefined : profile.transfers.find((transfer) => transfer.toClubName === profile.clubName);
+  const arrivalYear = arrival !== undefined ? arrival.date.getUTCFullYear() : profile.arrivedThisSeason ? startYear : null;
+  const { seasonStats } = profile;
 
   return (
     <aside
@@ -92,21 +102,22 @@ export function PlayerSheet({ saveId, clubName, player, currentDate, startYear, 
     >
       <div className="flex items-start gap-3 p-5 pb-4">
         <div className="min-w-0 flex-1 space-y-1">
+          <p className="eyebrow truncate">{profile.clubName ?? "Sans club"}</p>
           <h2 className="font-heading text-3xl leading-none font-bold">{name}</h2>
           <p className="text-sm text-muted-foreground">
-            {POSITION_LABEL[player.position]} · {player.age} ans · {player.nationality}
+            {POSITION_LABEL[profile.position]} · {profile.age} ans · {profile.nationality}
             {arrivalYear !== null && ` · Arrivé en ${arrivalYear}`}
           </p>
           <p className="flex flex-wrap gap-1 pt-1">
-            <PlayerBadges player={player} />
+            <PlayerBadges player={profile} />
           </p>
         </div>
-        <div className={cn("rounded-md px-3 py-1.5 text-center", ratingClasses(player.overall))}>
+        <div className={cn("rounded-md px-3 py-1.5 text-center", ratingClasses(profile.overall))}>
           <p className="font-heading text-4xl leading-none font-bold tabular-nums" title="Note">
-            {player.overall}
+            {profile.overall}
           </p>
           <p className="mt-1 text-[0.625rem] font-semibold tracking-[0.12em] uppercase tabular-nums" title="Potentiel">
-            Pot. {player.potential}
+            Pot. {profile.potential}
           </p>
         </div>
         <Button variant="ghost" size="icon-sm" aria-label="Fermer la fiche" onClick={onClose} className="-mt-1 -mr-2">
@@ -117,7 +128,7 @@ export function PlayerSheet({ saveId, clubName, player, currentDate, startYear, 
       <div className="flex-1 space-y-5 overflow-y-auto px-5 pb-5 text-sm">
         <section aria-label="Attributs" className="space-y-2.5">
           {attributes.map((attribute) => (
-            <AttributeBar key={attribute.name} label={attribute.label} value={player.attributes[attribute.name]} />
+            <AttributeBar key={attribute.name} label={attribute.label} value={profile.attributes[attribute.name]} />
           ))}
         </section>
 
@@ -129,32 +140,32 @@ export function PlayerSheet({ saveId, clubName, player, currentDate, startYear, 
             <StatTile label="Minutes" value={seasonStats.minutes} />
           </dl>
           <p className="text-xs text-muted-foreground tabular-nums">
-            Forme {player.form} · Moral {player.morale} · Condition {player.fitness} · Cartons {seasonStats.yellowCards} J,{" "}
+            Forme {profile.form} · Moral {profile.morale} · Condition {profile.fitness} · Cartons {seasonStats.yellowCards} J,{" "}
             {seasonStats.redCards} R
           </p>
         </section>
 
         <section
           aria-label="Contrat"
-          className={cn("space-y-1.5 rounded-md border p-3.5", player.contractExpiring && "border-warning/30 bg-warning/5")}
+          className={cn("space-y-1.5 rounded-md border p-3.5", profile.contractExpiring && "border-warning/30 bg-warning/5")}
         >
           <p className="flex flex-wrap items-baseline justify-between gap-x-3 tabular-nums">
-            <span className={cn("font-semibold", player.contractExpiring && "text-warning")}>
-              {player.contractUntil === null ? "Sans contrat" : `Contrat jusqu'au ${formatDate(player.contractUntil)}`}
+            <span className={cn("font-semibold", profile.contractExpiring && "text-warning")}>
+              {profile.contractUntil === null ? "Sans contrat" : `Contrat jusqu'au ${formatDate(profile.contractUntil)}`}
             </span>
-            <span className="text-muted-foreground">{formatMoney(player.wage)} / an</span>
+            {profile.contractUntil !== null && <span className="text-muted-foreground">{formatMoney(profile.wage)} / an</span>}
           </p>
           <p className="text-xs text-muted-foreground">
-            Valeur marchande {formatMoney(player.marketValue)}.
-            {player.contractExpiring && " Sans prolongation, il partira libre en fin de saison."}
+            Valeur marchande {formatMoney(profile.marketValue)}.
+            {profile.contractExpiring && " Sans prolongation, il partira libre en fin de saison."}
           </p>
         </section>
 
-        {player.transfers.length > 0 && (
+        {profile.transfers.length > 0 && (
           <section className="space-y-1.5">
             <h3 className="eyebrow">Transferts</h3>
             <ol className="space-y-1 text-xs">
-              {player.transfers.map((transfer) => (
+              {profile.transfers.map((transfer) => (
                 <li key={transfer.id} className="grid grid-cols-[5.5rem_1fr] gap-2">
                   <span className="text-muted-foreground tabular-nums">{formatDate(transfer.date)}</span>
                   <span>{transferLabel(transfer)}</span>
@@ -165,21 +176,7 @@ export function PlayerSheet({ saveId, clubName, player, currentDate, startYear, 
         )}
       </div>
 
-      <div className="space-y-2 border-t p-5">
-        {!windowOpen && (
-          <p className="text-xs text-muted-foreground">Mercato fermé : ces actions seront refusées jusqu&apos;à sa réouverture.</p>
-        )}
-        <RenewContractDialog
-          saveId={saveId}
-          player={player}
-          currentDate={currentDate}
-          triggerClassName="h-10 w-full font-heading text-base font-semibold"
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <SellPlayerDialog saveId={saveId} player={player} triggerClassName="h-10 w-full" />
-          <ReleasePlayerDialog saveId={saveId} player={player} triggerClassName="h-10 w-full text-loss hover:text-loss" />
-        </div>
-      </div>
+      <div className="space-y-2 border-t p-5">{footer}</div>
     </aside>
   );
 }

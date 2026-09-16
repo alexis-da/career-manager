@@ -42,11 +42,11 @@ export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad
     <SquadTable
       saveId={id}
       header={header}
-      clubName={squad.club.name}
       players={squad.players}
       currentDate={squad.currentDate}
       startYear={squad.startYear}
       windowOpen={squad.windowOpen}
+      nextWindowOpensOn={squad.nextWindowOpensOn}
     />
   );
 }

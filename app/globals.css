@@ -116,6 +116,8 @@
   }
   html {
     @apply font-sans;
+    /* Native controls (select lists, number spinners) follow the dark palette. */
+    color-scheme: dark;
   }
 }
 

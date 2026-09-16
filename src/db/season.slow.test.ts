@@ -1,7 +1,9 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MIN_GOALKEEPERS, SQUAD_SIZE_MAX, SQUAD_SIZE_MIN } from "../engine/balance";
+import { marketValueFor } from "../engine/economy";
 import { ATTRIBUTE_NAMES, RATING_MAX, RATING_MIN } from "../engine/generation";
+import { ageInYears } from "../lib/dates";
 import type { prisma as prismaClient } from "./client";
 import type { SeasonTransition } from "./season";
 
@@ -26,6 +28,7 @@ type AfterFirstAdvance = {
   outOfBounds: number;
   belowPotential: number;
   notReset: number;
+  wrongMarketValues: number;
   retirements: number;
   managedReleases: number;
   expiredContractsInClubs: number;
@@ -113,6 +116,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       retirements,
       managedReleases,
       expiredContractsInClubs,
+      marketValues,
     ] = await Promise.all([
       fixturesOfYear(FIRST_YEAR),
       db.fixture.count({ where: { saveId, season: { startYear: nextYear } } }),
@@ -138,7 +142,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       db.playerSave.count({
         where: { saveId, clubSaveId: { not: null }, contractUntil: { lte: new Date(Date.UTC(nextYear, 5, 30)) } },
       }),
+      db.playerSave.findMany({ where: { saveId }, select: { birthDate: true, overall: true, potential: true, marketValue: true } }),
     ]);
+    const kickoffDate = new Date(Date.UTC(nextYear, 6, 1));
     return {
       transition,
       completedFixturesBefore,
@@ -154,6 +160,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       retirements,
       managedReleases,
       expiredContractsInClubs,
+      wrongMarketValues: marketValues.filter(
+        (player) =>
+          player.marketValue !==
+          marketValueFor({ age: ageInYears(player.birthDate, kickoffDate), overall: player.overall, potential: player.potential }),
+      ).length,
     };
   };
 
@@ -226,6 +237,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
     expect(state.outOfBounds).toBe(0);
     expect(state.belowPotential).toBe(0);
     expect(state.notReset).toBe(0);
+  });
+
+  it("recomputes every market value from the new rating and age", () => {
+    expect(afterFirstAdvance().wrongMarketValues).toBe(0);
   });
 
   it("retires players, runs the preseason and leaves no expired contract in a squad", () => {

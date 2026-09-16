@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Button } from "@/src/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import type { SquadPlayerView } from "@/src/db/squad";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { nationalityCode } from "../_lib/nationalities";
-import { POSITION_LABEL, POSITION_ORDER, POSITION_TEXT } from "../_lib/positions";
-import { formBarClass, ratingClasses } from "../_lib/ratings";
-import { PlayerBadges } from "./player-badges";
-import { PlayerSheet } from "./player-sheet";
+import { SquadPlayerActions } from "../../_components/contract-actions";
+import { PlayerBadges } from "../../_components/player-badges";
+import { PlayerSheet } from "../../_components/player-sheet";
+import { nationalityCode } from "../../_lib/nationalities";
+import { POSITION_LABEL, POSITION_ORDER, POSITION_TEXT } from "../../_lib/positions";
+import { formBarClass, ratingClasses } from "../../_lib/ratings";
 
 type SortKey = "position" | "name" | "age" | "overall" | "potential" | "form" | "marketValue" | "wage" | "contractUntil";
 type Direction = "asc" | "desc";
@@ -66,14 +67,14 @@ function FormGauge({ form }: { form: number }) {
 type SquadTableProps = {
   saveId: string;
   header: ReactNode;
-  clubName: string;
   players: SquadPlayerView[];
   currentDate: Date;
   startYear: number;
   windowOpen: boolean;
+  nextWindowOpensOn: Date;
 };
 
-export function SquadTable({ saveId, header, clubName, players, currentDate, startYear, windowOpen }: SquadTableProps) {
+export function SquadTable({ saveId, header, players, currentDate, startYear, windowOpen, nextWindowOpensOn }: SquadTableProps) {
   const [sort, setSort] = useState<Sort>({ key: "position", direction: "asc" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -82,21 +83,6 @@ export function SquadTable({ saveId, header, clubName, players, currentDate, sta
     return [...players].sort((a, b) => sign * compare(sort.key, a, b) || byName(a, b));
   }, [players, sort]);
   const selected = players.find((player) => player.id === selectedId);
-
-  // Escape closes the player panel, unless it is closing one of its dialogs.
-  useEffect(() => {
-    if (selectedId === null) {
-      return;
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      const inDialog = event.target instanceof Element && event.target.closest('[role="dialog"]') !== null;
-      if (event.key === "Escape" && !inDialog) {
-        setSelectedId(null);
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [selectedId]);
 
   const sortBy = (key: SortKey, firstDirection: Direction) =>
     setSort((current) =>
@@ -227,13 +213,19 @@ export function SquadTable({ saveId, header, clubName, players, currentDate, sta
       {selected !== undefined && (
         <PlayerSheet
           key={selected.id}
-          saveId={saveId}
-          clubName={clubName}
-          player={selected}
-          currentDate={currentDate}
+          profile={selected}
           startYear={startYear}
-          windowOpen={windowOpen}
           onClose={() => setSelectedId(null)}
+          footer={
+            <SquadPlayerActions
+              saveId={saveId}
+              player={selected}
+              terms={selected.terms}
+              currentDate={currentDate}
+              windowOpen={windowOpen}
+              nextWindowOpensOn={nextWindowOpensOn}
+            />
+          }
         />
       )}
     </div>

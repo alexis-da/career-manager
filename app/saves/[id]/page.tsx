@@ -247,7 +247,11 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
 
         <Panel className="space-y-3 lg:col-span-3">
           <PanelTitle>Masse salariale</PanelTitle>
-          <p className="font-heading text-5xl leading-none font-bold tabular-nums">
+          <p
+            data-summary="payroll"
+            data-value={club.payroll}
+            className="font-heading text-5xl leading-none font-bold tabular-nums"
+          >
             {formatMillions(club.payroll)}
             <span className="ml-1.5 text-2xl font-semibold text-muted-foreground">/ {formatMillions(club.wageBudget)} M€</span>
           </p>

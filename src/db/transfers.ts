@@ -99,6 +99,9 @@ type PlayerRow = {
   contractUntil: Date | null;
 };
 
+/** What the terms of a move depend on: the player's rating, age, wage and contract. */
+type QuotedPlayer = Omit<PlayerRow, "playerKey">;
+
 type SaleMarket = {
   bidders: BidderClub[];
   clubBySlug: Map<string, { id: string; clubId: string; club: { slug: string; name: string } }>;
@@ -110,7 +113,11 @@ const refused = (reason: TransferRefusal, refusals: OfferRefusal[] = []): Transf
   refusals,
 });
 
-function offerPlayer(player: PlayerRow, date: Date): OfferPlayer {
+/** Free agents of a save: without a club and not retired. */
+export const freeAgentWhere = (saveId: string) =>
+  ({ saveId, clubSaveId: null, transfers: { none: { saveId, type: "RETIREMENT" } } }) satisfies Prisma.PlayerSaveWhereInput;
+
+function offerPlayer(player: QuotedPlayer, date: Date): OfferPlayer {
   return {
     age: ageInYears(player.birthDate, date),
     overall: player.overall,
@@ -174,6 +181,26 @@ function bestSaleBid(
   return best;
 }
 
+/**
+ * Terms of a player on a date, from his club: nothing to pay and his free-agent wage without a club, his renewal
+ * wage at the managed club, his club's asking price and his raise elsewhere. Pure: the market lists and
+ * quoteTransfer share it.
+ */
+export function quoteFor(
+  player: QuotedPlayer,
+  club: { isManaged: boolean; reputation: number } | null,
+  date: Date,
+): TransferQuote {
+  const terms = offerPlayer(player, date);
+  if (club === null) {
+    return { askingPrice: 0, minimumWage: minimumWage(terms, null) };
+  }
+  if (club.isManaged) {
+    return { askingPrice: 0, minimumWage: evaluateRenewal(terms, 0).minimumWage };
+  }
+  return { askingPrice: askingPrice(terms), minimumWage: minimumWage(terms, { reputation: club.reputation }) };
+}
+
 /** Terms a player would accept today: the asking price of his club and his minimum wage. Read only. */
 export async function quoteTransfer(input: PlayerActionInput): Promise<TransferQuote> {
   const { saveId, playerSaveId } = playerActionSchema.parse(input);
@@ -184,14 +211,7 @@ export async function quoteTransfer(input: PlayerActionInput): Promise<TransferQ
       select: { ...PLAYER_SELECT, clubSave: { select: { isManaged: true, reputation: true } } },
     }),
   ]);
-  const terms = offerPlayer(player, save.currentDate);
-  if (player.clubSave === null) {
-    return { askingPrice: 0, minimumWage: minimumWage(terms, null) };
-  }
-  if (player.clubSave.isManaged) {
-    return { askingPrice: 0, minimumWage: evaluateRenewal(terms, 0).minimumWage };
-  }
-  return { askingPrice: askingPrice(terms), minimumWage: minimumWage(terms, { reputation: player.clubSave.reputation }) };
+  return quoteFor(player, player.clubSave, save.currentDate);
 }
 
 /**
@@ -294,7 +314,7 @@ export async function signFreeAgent(input: SignFreeAgentInput): Promise<Transfer
       return refused("window_closed");
     }
     const player = await tx.playerSave.findFirst({
-      where: { id: playerSaveId, saveId, clubSaveId: null, transfers: { none: { saveId, type: "RETIREMENT" } } },
+      where: { ...freeAgentWhere(saveId), id: playerSaveId },
       select: PLAYER_SELECT,
     });
     if (player === null) {
