@@ -124,7 +124,9 @@ Le monde compte aussi 120 joueurs **sans club** au 1er juillet 2024 (`generateFr
   (`shiftToOverall`, partagé avec les jeunes).
 - La présaison de création ne les fait pas signer : chaque club IA a déjà 25 joueurs (`SQUAD_SIZE_MAX`) une fois
   ses jeunes arrivés, et `planSquad` ne signe au-delà que pour un gardien manquant.
-- Ils n'ont pas de libération enregistrée (`Transfer` FREE) : la règle de départ du monde ne s'applique pas à eux.
+- Ils suivent la règle commune de départ : sans libération enregistrée, la date de création de la partie
+  (`WORLD_START_DATE`) vaut date de libération. Ceux encore libres au 1er juillet 2025 quittent le monde, sauf
+  note > 65.
 
 ## Création de partie : `PlayerSave` porte l'identité
 
@@ -164,7 +166,8 @@ fait entrer et sortir des joueurs :
   `youthRngSeed(save.seed, startYear, club.slug, rang)`, clé `youth:startYear:club.slug:rang`. Pas
   d'entraînement ni d'écran : c'est une arrivée, sans `Transfer`.
 - **Départs** : un joueur libre toujours sans club à la présaison qui suit sa libération quitte le monde
-  (`Transfer` RETIREMENT), sauf s'il a plus de 65 de note (`FREE_AGENT_STAY_MIN_OVERALL`). Les retraites
+  (`Transfer` RETIREMENT), sauf s'il a plus de 65 de note (`FREE_AGENT_STAY_MIN_OVERALL`). Pour le vivier
+  initial, jamais libéré, la date de création de la partie vaut date de libération. Les retraites
   liées à l'âge restent tirées en fin de saison (`willRetire`, `src/engine/progression.ts`).
 - Une présaison ne s'exécute qu'une fois par saison : si des jeunes de l'année existent déjà, elle ne fait
   rien.

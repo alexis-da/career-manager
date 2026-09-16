@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { MIN_GOALKEEPERS, SQUAD_SIZE_MAX, SQUAD_SIZE_MIN } from "../engine/balance";
+import { FREE_AGENT_STAY_MIN_OVERALL, MIN_GOALKEEPERS, SQUAD_SIZE_MAX, SQUAD_SIZE_MIN } from "../engine/balance";
 import { marketValueFor } from "../engine/economy";
+import { FREE_AGENT_POOL_SLUG } from "../engine/free-agents";
 import { ATTRIBUTE_NAMES, RATING_MAX, RATING_MIN } from "../engine/generation";
 import { ageInYears } from "../lib/dates";
 import type { prisma as prismaClient } from "./client";
@@ -32,6 +33,8 @@ type AfterFirstAdvance = {
   retirements: number;
   managedReleases: number;
   expiredContractsInClubs: number;
+  poolStillFree: number; // free agents of the initial pool rated FREE_AGENT_STAY_MIN_OVERALL or less, still in the world
+  poolLeft: number;
 };
 
 // Plays three seasons in a row on a save with the demo seed, advancing after each one, then deletes it. Runs
@@ -117,6 +120,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       managedReleases,
       expiredContractsInClubs,
       marketValues,
+      poolStillFree,
+      poolLeft,
     ] = await Promise.all([
       fixturesOfYear(FIRST_YEAR),
       db.fixture.count({ where: { saveId, season: { startYear: nextYear } } }),
@@ -144,6 +149,24 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
         where: { saveId, clubSaveId: { not: null }, contractUntil: { lte: new Date(Date.UTC(nextYear, 5, 30)) } },
       }),
       db.playerSave.findMany({ where: { saveId }, select: { birthDate: true, overall: true, potential: true, marketValue: true } }),
+      db.playerSave.count({
+        where: {
+          saveId,
+          playerKey: { startsWith: `${FREE_AGENT_POOL_SLUG}#` },
+          clubSaveId: null,
+          overall: { lte: FREE_AGENT_STAY_MIN_OVERALL },
+          transfers: { none: { saveId, type: "RETIREMENT" } },
+        },
+      }),
+      db.transfer.count({
+        where: {
+          saveId,
+          type: "RETIREMENT",
+          fromClubId: null,
+          date: new Date(Date.UTC(nextYear, 6, 1)),
+          playerSave: { playerKey: { startsWith: `${FREE_AGENT_POOL_SLUG}#` } },
+        },
+      }),
     ]);
     const kickoffDate = new Date(Date.UTC(nextYear, 6, 1));
     return {
@@ -161,6 +184,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       retirements,
       managedReleases,
       expiredContractsInClubs,
+      poolStillFree,
+      poolLeft,
       wrongMarketValues: marketValues.filter(
         (player) =>
           player.marketValue !==
@@ -252,6 +277,15 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
     expect(state.transition.preseason.skipped).toBe(false);
     expect(state.transition.preseason.youthPlayers).toBe(192);
     expect(state.expiredContractsInClubs).toBe(0);
+  });
+
+  it("makes the free agents of the initial pool still unsigned on 1 July 2025 leave the world, unless rated above 65", () => {
+    const state = afterFirstAdvance();
+
+    // Age retirements of pool players share the date and the shape of departures: only the outcome is compared.
+    expect(state.transition.preseason.departures).toBeGreaterThan(0);
+    expect(state.poolLeft).toBeGreaterThan(0);
+    expect(state.poolStillFree).toBe(0);
   });
 
   it("keeps the number of active players within 10 % over three seasons", () => {

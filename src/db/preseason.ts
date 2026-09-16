@@ -3,7 +3,7 @@ import { contractEndDate } from "../engine/economy";
 import type { Position } from "../engine/generation";
 import { NAME_BANK } from "../engine/names";
 import { planSquad, squadPlanRngSeed, type RosterPlayer } from "../engine/squad-ai";
-import { seasonEndDate, seasonStartYear } from "../engine/world";
+import { seasonEndDate, seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import { generateYouthPlayer, youthKeyPrefix, youthPositions, youthRngSeed } from "../engine/youth";
 import { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
@@ -67,7 +67,7 @@ export async function runPreseason(saveId: string): Promise<PreseasonSummary> {
 /**
  * Preseason on the save's current date, inside the caller's transaction, once per season:
  * 1. free agents released before this preseason and rated FREE_AGENT_STAY_MIN_OVERALL or less leave the
- *    world (RETIREMENT transfer);
+ *    world (RETIREMENT transfer); the initial pool, never released, counts as released when the save started;
  * 2. every club, the managed one included, receives its young players;
  * 3. AI clubs, most reputed first, renew or release their expiring contracts and sign free agents, sharing
  *    one market; signings and releases write FREE transfers, renewals update contract and wage.
@@ -135,8 +135,9 @@ export async function runPreseasonInTransaction(
       getOrThrow(squads, player.clubSaveId, "squad").push(player);
       continue;
     }
-    const releaseDate = releasedOn.get(player.id);
-    if (releaseDate !== undefined && releaseDate !== null && releaseDate < date && player.overall <= FREE_AGENT_STAY_MIN_OVERALL) {
+    // Without a recorded release, the player belongs to the initial pool: free since the save started.
+    const releaseDate = releasedOn.get(player.id) ?? WORLD_START_DATE;
+    if (releaseDate < date && player.overall <= FREE_AGENT_STAY_MIN_OVERALL) {
       transfers.push({ saveId, playerSaveId: player.id, fromClubId: null, toClubId: null, type: "RETIREMENT", date });
       summary.departures++;
     } else {
