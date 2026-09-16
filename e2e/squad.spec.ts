@@ -1,11 +1,23 @@
 import { expect, test } from "@playwright/test";
 import { createSave, deleteSave } from "./helpers";
 
+// Name of the save the running test created, until it is deleted.
+let saveName: string | undefined;
+
+// Also runs when the test exceeds its timeout: Playwright then abandons the test body, finally block included.
+test.afterEach(async ({ page }) => {
+  if (saveName !== undefined) {
+    await deleteSave(page, saveName);
+    saveName = undefined;
+  }
+});
+
 test("renews a contract and releases a player from the squad page", async ({ page }) => {
   // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
-  const saveName = `E2E effectif ${Date.now()}`;
+  const name = `E2E effectif ${Date.now()}`;
+  saveName = name;
   try {
-    await createSave(page, saveName, "Olympique Lyonnais");
+    await createSave(page, name, "Olympique Lyonnais");
 
     await page.getByRole("link", { name: "Effectif" }).click();
     await expect(page.getByRole("heading", { name: "Effectif" })).toBeVisible();
@@ -41,6 +53,7 @@ test("renews a contract and releases a player from the squad page", async ({ pag
     await expect(page.locator(`tr[data-player-key="${releasedKey}"]`)).toHaveCount(0);
   } finally {
     // Even when a step failed: a leftover save would pollute the database.
-    await deleteSave(page, saveName);
+    await deleteSave(page, name);
+    saveName = undefined;
   }
 });
