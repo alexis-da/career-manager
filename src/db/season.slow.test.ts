@@ -135,7 +135,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
           OR: [{ form: { not: 50 } }, { morale: { not: 50 } }, { fitness: { not: 100 } }, { injuredUntil: { not: null } }],
         },
       }),
-      db.transfer.count({ where: { saveId, type: "RETIREMENT", date: new Date(Date.UTC(nextYear, 6, 1)), fromClubId: { not: null } } }),
+      // Age retirements and preseason departures share the date; free agents of the pool retire without a club.
+      db.transfer.count({ where: { saveId, type: "RETIREMENT", date: new Date(Date.UTC(nextYear, 6, 1)) } }),
       db.transfer.count({
         where: { saveId, type: "FREE", toClubId: null, playerSave: { transfers: { some: { saveId } } }, date: new Date(Date.UTC(nextYear, 6, 1)) },
       }),
@@ -247,7 +248,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
     const state = afterFirstAdvance();
 
     expect(state.transition.retired).toBeGreaterThan(0);
-    expect(state.retirements).toBe(state.transition.retired);
+    expect(state.retirements).toBe(state.transition.retired + state.transition.preseason.departures);
     expect(state.transition.preseason.skipped).toBe(false);
     expect(state.transition.preseason.youthPlayers).toBe(192);
     expect(state.expiredContractsInClubs).toBe(0);

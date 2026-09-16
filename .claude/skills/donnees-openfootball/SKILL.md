@@ -106,6 +106,26 @@ Le monde est le même pour toutes les parties : la graine est **fixe**, `WORLD_S
 Modifier la graine, une liste de noms ou le template change le monde des **nouvelles** parties. Le test à
 valeurs figées de `players.test.ts` casse volontairement dans ce cas.
 
+## Vivier de joueurs libres
+
+Le monde compte aussi 120 joueurs **sans club** au 1er juillet 2024 (`generateFreeAgentPool`,
+`prisma/seed/players.ts`), pour qu'une partie neuve ait un marché de joueurs libres.
+
+- `Player.initialClubId` null, `squadSlot` de 1 à 120. PostgreSQL ne compare pas les NULL dans
+  `@@unique([initialClubId, squadSlot])` : c'est le seed qui garantit l'unicité du vivier (clé
+  `free-agents#slot`, mise à jour par `updateMany`, faute de clé unique adressable).
+- Flux fixe `world-2024-25:free-agents`, indépendant des effectifs. Postes dans les proportions du template
+  (`FREE_AGENT_POOL_TEMPLATE` : 10 GK, 42 DF, 42 MF, 26 FW), 24 à 34 ans, nationalité tirée parmi toutes les
+  listes, noms distincts dans le vivier.
+- À la création de partie : `PlayerSave` sans club ni contrat (`clubSaveId` et `contractUntil` null, salaire 0),
+  clé `free-agents#slot` (`freeAgentPlayerKey`). Attributs par `generateFreeAgentAttributes`
+  (`src/engine/free-agents.ts`), graine `attributeRngSeed(save.seed, "free-agents", slot)` : note cible de 50 à
+  66, 10 % entre 67 et 70, **quelle que soit la graine de la partie**, puis profil du poste ramené à cette note
+  (`shiftToOverall`, partagé avec les jeunes).
+- La présaison de création ne les fait pas signer : chaque club IA a déjà 25 joueurs (`SQUAD_SIZE_MAX`) une fois
+  ses jeunes arrivés, et `planSquad` ne signe au-delà que pour un gardien manquant.
+- Ils n'ont pas de libération enregistrée (`Transfer` FREE) : la règle de départ du monde ne s'applique pas à eux.
+
 ## Création de partie : `PlayerSave` porte l'identité
 
 `createSave` copie l'identité de chaque `Player` dans son `PlayerSave` : `firstName`, `lastName`,

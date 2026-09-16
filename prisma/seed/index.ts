@@ -15,6 +15,7 @@ async function main(): Promise<void> {
     for (const competition of summary.competitions) {
       console.log(`${competition.code} — ${competition.name}: ${competition.clubs} clubs, ${competition.players} players`);
     }
+    console.log(`free agent pool: ${summary.freeAgents} players`);
     const { created, updated, unchanged } = summary.players;
     console.log(`players: ${created} created, ${updated} updated, ${unchanged} unchanged`);
   } finally {

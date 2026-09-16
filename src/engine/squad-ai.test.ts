@@ -104,6 +104,18 @@ describe("planSquad", () => {
     }
   });
 
+  it("signs nobody when the squad is full, however good the free agents", () => {
+    // A squad at save creation: the 23 world players and 2 young players.
+    const squad = roster("regular", { GK: 2, DF: 9, MF: 9, FW: 5 }, 60);
+    const market = roster("free", { GK: 3, DF: 5, MF: 5, FW: 5 }, 70);
+
+    const decisions = planSquad(RICH_CLUB, squad, market, makeRng("full-squad"));
+
+    expect(squad).toHaveLength(SQUAD_SIZE_MAX);
+    expect(idsOf(decisions, "sign")).toEqual([]);
+    expect(apply(squad, market, decisions).players).toHaveLength(SQUAD_SIZE_MAX);
+  });
+
   it("signs nobody once the wage budget is used up", () => {
     const squad = roster("regular", { GK: 1, DF: 6, MF: 6, FW: 3 }, 68);
     const payroll = squad.reduce((sum, member) => sum + member.wage, 0);

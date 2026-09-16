@@ -1,8 +1,10 @@
 import * as z from "zod";
-import { clubFinances, generateContract } from "../engine/economy";
+import { clubFinances, generateContract, marketValueFor } from "../engine/economy";
+import { FREE_AGENT_POOL_SLUG, freeAgentPlayerKey, generateFreeAgentAttributes } from "../engine/free-agents";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engine/generation";
 import { worldPlayerKey } from "../engine/identity";
 import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
+import type { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
@@ -25,9 +27,9 @@ const TRANSACTION_TIMEOUT_MS = 120_000;
 
 /**
  * Creates a save and its whole initial state in one transaction: a ClubSave per club, a PlayerSave per
- * world player (identity copied from Player), the first preseason (young players), a Season per competition
- * and its fixtures. Everything random derives from the seed, so the same seed always yields the same save.
- * Reference tables (Competition, Club, Player) are only read.
+ * world player (identity copied from Player; the free agent pool without a club or a contract), the first
+ * preseason (young players), a Season per competition and its fixtures. Everything random derives from the
+ * seed, so the same seed always yields the same save. Reference tables (Competition, Club, Player) are only read.
  */
 export async function createSave(input: CreateSaveInput): Promise<{ id: string }> {
   const { name, managerName, clubId, seed } = createSaveInputSchema.parse(input);
@@ -85,13 +87,31 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       const clubSaveIdByClubId = new Map(clubSaves.map((clubSave) => [clubSave.clubId, clubSave.id]));
 
       await tx.playerSave.createMany({
-        data: players.map(({ id: playerId, initialClubId, squadSlot, ...identity }) => {
+        data: players.map(({ id: playerId, initialClubId, squadSlot, ...identity }): Prisma.PlayerSaveCreateManyInput => {
+          const age = ageInYears(identity.birthDate, save.currentDate);
+
+          if (initialClubId === null) {
+            // The free agent pool: rated within its own range whatever the club levels, no club, no contract.
+            const rng = makeRng(attributeRngSeed(save.seed, FREE_AGENT_POOL_SLUG, squadSlot));
+            const attributes = generateFreeAgentAttributes({ position: identity.position, age }, rng);
+            return {
+              saveId: save.id,
+              playerId,
+              playerKey: freeAgentPlayerKey(squadSlot),
+              ...identity,
+              clubSaveId: null,
+              ...attributes,
+              marketValue: marketValueFor({ age, overall: attributes.overall, potential: attributes.potential }),
+              wage: 0,
+              contractUntil: null,
+            };
+          }
+
           const club = getOrThrow(clubById, initialClubId, "club");
           const clubLevel = clubLevelFromRank(
             club.initialRank,
             getOrThrow(clubCountByCompetition, club.competitionId, "club count"),
           );
-          const age = ageInYears(identity.birthDate, save.currentDate);
           // One stream per player, keyed by stable identity: attributes first, then the contract length.
           const rng = makeRng(attributeRngSeed(save.seed, club.slug, squadSlot));
           const attributes = generateAttributes({ position: identity.position, age }, clubLevel, rng);
@@ -112,6 +132,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
         }),
       });
 
+      // AI squads are full (SQUAD_SIZE_MAX) once the young players arrive: the pool stays on the market.
       await runPreseasonInTransaction(tx, save.id);
 
       const startYear = seasonStartYear(save.currentDate);

@@ -341,6 +341,14 @@ export const YOUTH_CONTRACT_YEARS = 3;
 /** A free agent still without a club at the next preseason leaves the world, unless rated above this. */
 export const FREE_AGENT_STAY_MIN_OVERALL = 65;
 
+/** Free agents of the initial pool, without a club on 1 July 2024, are rated from this… */
+export const FREE_AGENT_POOL_OVERALL_MIN = 50;
+/** …to this, in every save… */
+export const FREE_AGENT_POOL_OVERALL_MAX = 66;
+/** …except this share of them, rated above, up to FREE_AGENT_POOL_TOP_OVERALL_MAX. */
+export const FREE_AGENT_POOL_TOP_SHARE = 0.1;
+export const FREE_AGENT_POOL_TOP_OVERALL_MAX = 70;
+
 // ------------------------------------------------------------------ Transfer market
 
 /** Share of the market value a club asks for a player, by seasons left on his contract, this one included. */

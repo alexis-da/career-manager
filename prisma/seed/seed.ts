@@ -4,7 +4,7 @@ import type { PrismaClient } from "../../src/generated/prisma/client";
 import { DEFAULT_CLUB_COLORS, readClubColors, type ClubColors } from "./colors";
 import { COMPETITIONS, type SeedCompetition } from "./competitions";
 import { extractClubs, extractScores, fixtureFilePath, readFixtureFile, type SeedClub } from "./openfootball";
-import { generateSquad, type SeedPlayer } from "./players";
+import { generateFreeAgentPool, generateSquad, type SeedPlayer } from "./players";
 
 export type ClubPlan = SeedClub & {
   initialRank: number; // final 2024-25 rank within the competition
@@ -19,13 +19,15 @@ export type CompetitionPlan = {
 
 export type SeedSummary = {
   competitions: { code: string; name: string; clubs: number; players: number }[];
+  freeAgents: number;
   players: { created: number; updated: number; unchanged: number };
 };
 
-type PlayerData = SeedPlayer & { initialClubId: string };
+type PlayerData = SeedPlayer & { initialClubId: string | null }; // null: the free agent pool
 
-const playerKey = (player: { initialClubId: string; squadSlot: number }): string =>
-  `${player.initialClubId}#${player.squadSlot}`;
+// PostgreSQL does not compare NULLs in the unique (initialClubId, squadSlot): this key keeps the pool unique.
+const playerKey = (player: { initialClubId: string | null; squadSlot: number }): string =>
+  `${player.initialClubId ?? "free-agents"}#${player.squadSlot}`;
 
 function samePlayer(a: PlayerData, b: PlayerData): boolean {
   return (
@@ -75,7 +77,11 @@ export function buildWorldPlan(): CompetitionPlan[] {
   return plan;
 }
 
-export async function seedWorld(prisma: PrismaClient, plan: CompetitionPlan[] = buildWorldPlan()): Promise<SeedSummary> {
+export async function seedWorld(
+  prisma: PrismaClient,
+  plan: CompetitionPlan[] = buildWorldPlan(),
+  freeAgents: SeedPlayer[] = generateFreeAgentPool(NAME_BANK),
+): Promise<SeedSummary> {
   const competitions: SeedSummary["competitions"] = [];
   const plannedPlayers: PlayerData[] = [];
 
@@ -111,9 +117,16 @@ export async function seedWorld(prisma: PrismaClient, plan: CompetitionPlan[] = 
     competitions.push({ code, name, clubs: clubs.length, players: playerCount });
   }
 
+  for (const player of freeAgents) {
+    plannedPlayers.push({ ...player, initialClubId: null });
+  }
+
   // Players: one read, then only the missing or changed rows are written.
+  const clubIds = [
+    ...new Set(plannedPlayers.flatMap((player) => (player.initialClubId === null ? [] : [player.initialClubId]))),
+  ];
   const existing = await prisma.player.findMany({
-    where: { initialClubId: { in: [...new Set(plannedPlayers.map((player) => player.initialClubId))] } },
+    where: { OR: [{ initialClubId: { in: clubIds } }, { initialClubId: null }] },
     select: {
       initialClubId: true,
       squadSlot: true,
@@ -142,17 +155,16 @@ export async function seedWorld(prisma: PrismaClient, plan: CompetitionPlan[] = 
   }
   if (toUpdate.length > 0) {
     await prisma.$transaction(
+      // updateMany: a pool player has no unique key Prisma can address, his initialClubId being null.
       toUpdate.map(({ initialClubId, squadSlot, ...identity }) =>
-        prisma.player.update({
-          where: { initialClubId_squadSlot: { initialClubId, squadSlot } },
-          data: identity,
-        }),
+        prisma.player.updateMany({ where: { initialClubId, squadSlot }, data: identity }),
       ),
     );
   }
 
   return {
     competitions,
+    freeAgents: freeAgents.length,
     players: {
       created: toCreate.length,
       updated: toUpdate.length,

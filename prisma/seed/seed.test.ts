@@ -2,7 +2,7 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "../../src/generated/prisma/client";
-import { SQUAD_TEMPLATE } from "./players";
+import { FREE_AGENT_POOL_TEMPLATE, SQUAD_TEMPLATE } from "./players";
 import { buildWorldPlan, seedWorld } from "./seed";
 
 const connectionString = process.env.DATABASE_URL;
@@ -31,7 +31,7 @@ describe.skipIf(connectionString === undefined)("seedWorld", () => {
   it("is idempotent: a second run changes nothing", async () => {
     const plan = buildWorldPlan();
     const planClubs = plan.flatMap((competition) => competition.clubs);
-    const playerCount = planClubs.length * SQUAD_TEMPLATE.length;
+    const playerCount = planClubs.length * SQUAD_TEMPLATE.length + FREE_AGENT_POOL_TEMPLATE.length;
 
     await seedWorld(prisma, plan);
     const afterFirstRun = await readWorld();
@@ -41,6 +41,9 @@ describe.skipIf(connectionString === undefined)("seedWorld", () => {
     expect(afterSecondRun).toEqual(afterFirstRun);
     expect(afterSecondRun.players).toHaveLength(playerCount);
     expect(summary.players).toEqual({ created: 0, updated: 0, unchanged: playerCount });
+    expect(afterSecondRun.players.filter((player) => player.initialClubId === null)).toHaveLength(
+      FREE_AGENT_POOL_TEMPLATE.length,
+    );
 
     const rankBySlug = new Map(afterSecondRun.clubs.map((club) => [club.slug, club.initialRank]));
     for (const club of planClubs) {

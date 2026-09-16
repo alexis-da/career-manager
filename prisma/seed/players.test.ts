@@ -4,6 +4,10 @@ import { ageInYears } from "../../src/lib/dates";
 import { makeRng } from "../../src/lib/rng";
 import { NAME_BANK } from "../../src/engine/names";
 import {
+  FREE_AGENT_MAX_AGE,
+  FREE_AGENT_MIN_AGE,
+  FREE_AGENT_POOL_TEMPLATE,
+  generateFreeAgentPool,
   generateSquad,
   HOME_NATIONALITY_SHARE,
   MAX_AGE,
@@ -77,6 +81,60 @@ describe("world players", () => {
       expect(list?.firstNames).toContain(player.firstName);
       expect(list?.lastNames).toContain(player.lastName);
     }
+  });
+});
+
+describe("free agent pool", () => {
+  const pool = generateFreeAgentPool(names);
+  const countOf = (position: string) => pool.filter((player) => player.position === position).length;
+
+  it("is identical on every run", () => {
+    expect(generateFreeAgentPool(names)).toEqual(pool);
+  });
+
+  // Pinned values: a failure here means the fixed pool changed (generator, name lists or template).
+  it("keeps the same identities for the fixed seed world-2024-25:free-agents", () => {
+    expect(pool.slice(0, 2)).toMatchInlineSnapshot(`
+      [
+        {
+          "birthDate": 1996-08-21T00:00:00.000Z,
+          "firstName": "Leonardo",
+          "lastName": "Batista",
+          "nationality": "Brésil",
+          "position": "GK",
+          "squadSlot": 1,
+        },
+        {
+          "birthDate": 2000-02-07T00:00:00.000Z,
+          "firstName": "Archie",
+          "lastName": "Hughes",
+          "nationality": "Angleterre",
+          "position": "GK",
+          "squadSlot": 2,
+        },
+      ]
+    `);
+  });
+
+  it("holds 120 players in the squad's position shares, numbered from 1, under distinct names", () => {
+    expect(pool).toHaveLength(FREE_AGENT_POOL_TEMPLATE.length);
+    expect(pool).toHaveLength(120);
+    expect([countOf("GK"), countOf("DF"), countOf("MF"), countOf("FW")]).toEqual([10, 42, 42, 26]);
+    expect(pool.map((player) => player.squadSlot)).toEqual(pool.map((_, index) => index + 1));
+    expect(new Set(pool.map((player) => `${player.firstName} ${player.lastName}`)).size).toBe(pool.length);
+  });
+
+  it("are 24 to 34 years old on 1 July 2024, with names from their nationality", () => {
+    const ages = pool.map((player) => ageInYears(player.birthDate, WORLD_REFERENCE_DATE));
+
+    expect(Math.min(...ages)).toBe(FREE_AGENT_MIN_AGE);
+    expect(Math.max(...ages)).toBe(FREE_AGENT_MAX_AGE);
+    for (const player of pool) {
+      const list = names.get(player.nationality);
+      expect(list?.firstNames).toContain(player.firstName);
+      expect(list?.lastNames).toContain(player.lastName);
+    }
+    expect(new Set(pool.map((player) => player.nationality)).size).toBeGreaterThan(8);
   });
 });
 

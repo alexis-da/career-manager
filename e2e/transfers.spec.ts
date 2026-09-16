@@ -24,34 +24,30 @@ test("signs a free agent, then shows why an offer above the budget is refused", 
   const name = `E2E transferts ${Date.now()}`;
   saveName = name;
   try {
-    // The save starts on 1 July 2024, window open.
+    // The save starts on 1 July 2024, window open, with the free agent pool on the market.
     await createSave(page, name, "Olympique Lyonnais");
+    const payrollBefore = await dashboardPayroll(page);
 
-    // A new save has no free agent yet: release the last player of the squad to put one on the market.
     await page.getByRole("link", { name: "Effectif" }).click();
     const rows = page.locator("tbody tr[data-player-key]");
     await expect(rows.first()).toBeVisible();
     const squadSize = await rows.count();
-    const lastPlayer = rows.last().getByRole("button", { name: /^Voir la fiche de / });
-    const playerName = ((await lastPlayer.getAttribute("aria-label")) ?? "").replace("Voir la fiche de ", "");
-    await lastPlayer.click();
-    await page.getByRole("button", { name: "Libérer", exact: true }).click();
-    await page.getByRole("dialog", { name: /^Libérer / }).getByRole("button", { name: "Libérer le joueur" }).click();
-    await expect(page.getByText("Joueur libéré", { exact: false })).toBeVisible();
-    await expect(rows).toHaveCount(squadSize - 1);
 
-    const payrollBefore = await dashboardPayroll(page);
-
-    // Sign him from the free agents, at the prefilled minimum wage.
+    // Sign the best free agent, at the prefilled minimum wage.
     await page.getByRole("link", { name: "Transferts" }).click();
     await page.getByRole("link", { name: /^Joueurs libres/ }).click();
-    await page.getByRole("row").filter({ hasText: playerName }).getByRole("button", { name: "Signer", exact: true }).click();
+    const freeAgent = page.locator("tbody tr").first();
+    const playerName = ((await freeAgent.getByRole("link", { name: /^Voir la fiche de / }).getAttribute("aria-label")) ?? "").replace(
+      "Voir la fiche de ",
+      "",
+    );
+    await freeAgent.getByRole("button", { name: "Signer", exact: true }).click();
     await page.getByRole("dialog", { name: `Signer ${playerName}` }).getByRole("button", { name: "Confirmer la signature" }).click();
     await expect(page.getByText(`${playerName} : Contrat signé`, { exact: false })).toBeVisible();
 
     await page.getByRole("link", { name: "Effectif" }).click();
-    await expect(rows).toHaveCount(squadSize);
-    await expect(page.locator('[data-summary="players"]')).toHaveText(String(squadSize));
+    await expect(rows).toHaveCount(squadSize + 1);
+    await expect(page.locator('[data-summary="players"]')).toHaveText(String(squadSize + 1));
     expect(await dashboardPayroll(page)).toBeGreaterThan(payrollBefore);
 
     // The most expensive player of the AI clubs costs more than the whole budget: the refusal says so.

@@ -44,12 +44,13 @@ model Club {
 }
 
 // Monde 2024-25, généré par le seed avec une graine fixe. L'identité est copiée dans PlayerSave à la création
-// de partie : le jeu ne lit jamais Player pour connaître un joueur.
+// de partie : le jeu ne lit jamais Player pour connaître un joueur. Sans club initial, le joueur fait partie du
+// vivier de joueurs libres ; PostgreSQL ne compare pas les NULL dans l'unicité : le seed garantit celle du vivier.
 model Player {
   id            String       @id @default(cuid())
-  initialClub   Club         @relation(fields: [initialClubId], references: [id], onDelete: Restrict)
-  initialClubId String // club dans le monde 2024-25 ; le club en cours de partie est porté par PlayerSave
-  squadSlot     Int // 1–23 : avec initialClubId, identité stable (clé du seed et des graines d'attributs)
+  initialClub   Club?        @relation(fields: [initialClubId], references: [id], onDelete: Restrict)
+  initialClubId String? // club dans le monde 2024-25, null = vivier de joueurs libres ; le club en cours de partie est porté par PlayerSave
+  squadSlot     Int // 1–23 dans un club, 1–120 dans le vivier : avec initialClubId, identité stable (clé du seed et des graines d'attributs)
   firstName     String
   lastName      String
   birthDate     DateTime

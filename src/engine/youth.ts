@@ -3,7 +3,6 @@ import {
   CLUB_REPUTATION_BEST,
   CLUB_REPUTATION_WORST,
   MIN_GOALKEEPERS,
-  OVERALL_WEIGHTS,
   SQUAD_POSITION_TARGETS,
   YOUTH_AGE_MAX,
   YOUTH_AGE_MIN,
@@ -18,15 +17,7 @@ import {
 } from "./balance";
 import { lerp } from "./curves";
 import { contractEndDate, marketValueFor, wageFor } from "./economy";
-import {
-  ATTRIBUTE_NAMES,
-  clampRating,
-  generateAttributes,
-  overallFor,
-  type AttributeName,
-  type PlayerAttributes,
-  type Position,
-} from "./generation";
+import { clampRating, generateAttributes, shiftToOverall, type PlayerAttributes, type Position } from "./generation";
 import { drawBirthDate, drawNameList, drawUniqueName, type PlayerIdentity } from "./identity";
 import type { NameBank } from "./names";
 import { seasonStartDate } from "./world";
@@ -56,8 +47,6 @@ export type YouthPlayer = PlayerIdentity &
 
 /** When no position is short, the next young player comes to the positions with the most players. */
 const TIE_ORDER: readonly Position[] = ["DF", "MF", "FW", "GK"];
-
-const MAX_SHIFT_PASSES = 6;
 
 /** Prefix of the keys of every young player arriving in a season. */
 export function youthKeyPrefix(startYear: number): string {
@@ -96,40 +85,6 @@ export function youthPositions(squadPositions: readonly Position[]): Position[] 
     counts[position]++;
   }
   return positions;
-}
-
-/**
- * Moves the attributes until the overall reaches `overall`. The first pass shifts every attribute by the
- * gap. The overall is a rounded weighted mean: when it sits on a .5, whole shifts keep it there and rounding
- * can miss the target, so later passes move only the attribute weighing most for the position.
- */
-function shiftToOverall(
-  position: Position,
-  attributes: Readonly<Record<AttributeName, number>>,
-  overall: number,
-): Record<AttributeName, number> & { overall: number } {
-  const weights = OVERALL_WEIGHTS[position];
-  const heaviest = ATTRIBUTE_NAMES.reduce((best, name) => (weights[name] > weights[best] ? name : best));
-  let shifted = {} as Record<AttributeName, number>; // every key is filled by the loop below
-  for (const name of ATTRIBUTE_NAMES) {
-    shifted[name] = attributes[name];
-  }
-  let current = overallFor(position, shifted);
-
-  for (let pass = 0; pass < MAX_SHIFT_PASSES && current !== overall; pass++) {
-    const gap = overall - current;
-    const next = { ...shifted };
-    if (pass === 0) {
-      for (const name of ATTRIBUTE_NAMES) {
-        next[name] = clampRating(shifted[name] + gap);
-      }
-    } else {
-      next[heaviest] = clampRating(shifted[heaviest] + Math.sign(gap));
-    }
-    shifted = next;
-    current = overallFor(position, shifted);
-  }
-  return { ...shifted, overall: current };
 }
 
 /**

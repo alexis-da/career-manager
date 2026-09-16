@@ -1,6 +1,11 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { YOUTH_PLAYERS_PER_CLUB } from "../engine/balance";
+import {
+  FREE_AGENT_POOL_OVERALL_MIN,
+  FREE_AGENT_POOL_TOP_OVERALL_MAX,
+  SQUAD_SIZE_MAX,
+  YOUTH_PLAYERS_PER_CLUB,
+} from "../engine/balance";
 import type { prisma as prismaClient } from "./client";
 
 // Runs against DATABASE_URL (the dev database); skipped when it is not set. The modules are imported
@@ -115,21 +120,47 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
     );
   });
 
-  it("copies each world player's identity and key from Player", async () => {
+  it("copies each world player's identity and key from Player, the free agent pool included", async () => {
     const [saveId] = saveIds;
     const [row] = await database().$queryRaw<{ mismatches: number; copied: number }[]>`
       SELECT count(*)::int AS copied,
         count(*) FILTER (WHERE ps."firstName" <> p."firstName" OR ps."lastName" <> p."lastName"
           OR ps."birthDate" <> p."birthDate" OR ps.nationality <> p.nationality OR ps.position <> p.position
-          OR ps."playerKey" <> c.slug || '#' || p."squadSlot")::int AS mismatches
+          OR ps."playerKey" <> coalesce(c.slug, 'free-agents') || '#' || p."squadSlot")::int AS mismatches
       FROM "PlayerSave" ps
       JOIN "Player" p ON p.id = ps."playerId"
-      JOIN "Club" c ON c.id = p."initialClubId"
+      LEFT JOIN "Club" c ON c.id = p."initialClubId"
       WHERE ps."saveId" = ${saveId}`;
     const [, , playerCount] = referenceCountsAfter;
 
     expect(row.copied).toBe(playerCount);
     expect(row.mismatches).toBe(0);
+  });
+
+  it("puts 100 to 120 free agents on the market, 8 goalkeepers or more, none signed by the full AI squads", async () => {
+    const [saveId] = saveIds;
+    const db = database();
+    const [freeAgents, signings, squadSizes] = await Promise.all([
+      db.playerSave.findMany({
+        where: { saveId, clubSaveId: null, transfers: { none: { saveId, type: "RETIREMENT" } } },
+        select: { playerKey: true, position: true, overall: true, potential: true, wage: true, contractUntil: true },
+      }),
+      db.transfer.count({ where: { saveId, type: "FREE", toClubId: { not: null } } }),
+      db.playerSave.groupBy({ by: ["clubSaveId"], where: { saveId, clubSaveId: { not: null } }, _count: { _all: true } }),
+    ]);
+
+    expect(freeAgents.length).toBeGreaterThanOrEqual(100);
+    expect(freeAgents.length).toBeLessThanOrEqual(120);
+    expect(freeAgents.filter((player) => player.position === "GK").length).toBeGreaterThanOrEqual(8);
+    for (const player of freeAgents) {
+      expect(player.playerKey).toMatch(/^free-agents#\d+$/);
+      expect(player.overall).toBeGreaterThanOrEqual(FREE_AGENT_POOL_OVERALL_MIN);
+      expect(player.overall).toBeLessThanOrEqual(FREE_AGENT_POOL_TOP_OVERALL_MAX);
+      expect(player.potential).toBeGreaterThanOrEqual(player.overall);
+      expect(player.contractUntil).toBeNull();
+    }
+    expect(signings).toBe(0);
+    expect(squadSizes.every((squad) => squad._count._all === SQUAD_SIZE_MAX)).toBe(true);
   });
 
   it("gives the same players, attributes and fixtures to two saves with the same seed", async () => {
