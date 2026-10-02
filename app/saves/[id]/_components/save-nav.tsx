@@ -18,7 +18,8 @@ export function SaveNav({ saveId }: { saveId: string }) {
   const base = `/saves/${saveId}`;
 
   return (
-    <nav aria-label="Navigation de la partie" className="flex min-w-0 items-center gap-1 overflow-x-auto">
+    // Full bar height: the active tab's underline hangs below the tab and must stay inside the nav, which never scrolls.
+    <nav aria-label="Navigation de la partie" className="flex min-w-0 items-center gap-1 self-stretch overflow-hidden">
       {SECTIONS.map(({ segment, label }) => {
         const href = `${base}${segment}`;
         const active = segment === "" ? pathname === base : pathname.startsWith(href);

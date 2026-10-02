@@ -1,6 +1,7 @@
 "use client";
 
 import { FastForwardIcon, PlayIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
@@ -14,12 +15,15 @@ type GameActionsProps = {
 /** The main button of the navigation bar, in the club accent. */
 export function GameActions({ saveId, seasonFinished }: GameActionsProps) {
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   const run = (action: (saveId: string) => Promise<GameActionResult>) =>
     startTransition(async () => {
       try {
         const result = await action(saveId);
-        if (result.ok) {
+        if (result.redirectTo !== undefined) {
+          router.push(result.redirectTo);
+        } else if (result.ok) {
           toast.success(result.message);
         } else {
           toast.error(result.message);

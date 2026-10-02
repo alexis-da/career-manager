@@ -76,6 +76,30 @@ const fullName = (player: { firstName: string; lastName: string }): string => `$
 
 const involving = (clubSaveId: string) => ({ OR: [{ homeClubSaveId: clubSaveId }, { awayClubSaveId: clubSaveId }] });
 
+const EVENTS_SELECT = {
+  // Events are written in match order, so the id breaks ties within a minute.
+  orderBy: [{ minute: "asc" }, { id: "asc" }],
+  select: {
+    id: true,
+    minute: true,
+    type: true,
+    side: true,
+    playerSave: { select: { firstName: true, lastName: true } },
+    relatedPlayerSave: { select: { firstName: true, lastName: true } },
+  },
+} as const satisfies Prisma.Fixture$eventsArgs;
+
+type EventRow = Prisma.MatchEventGetPayload<{ select: (typeof EVENTS_SELECT)["select"] }>;
+
+const toEventView = (event: EventRow): MatchEventView => ({
+  id: event.id,
+  minute: event.minute,
+  type: event.type,
+  side: event.side === "HOME" ? "home" : "away",
+  playerName: event.playerSave === null ? "Joueur inconnu" : fullName(event.playerSave),
+  relatedPlayerName: event.relatedPlayerSave === null ? null : fullName(event.relatedPlayerSave),
+});
+
 /** Fixtures of the managed club in the save's latest season, by date, with the events of played matches. */
 export async function getManagedClubCalendar(saveId: string): Promise<ClubCalendar> {
   const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
@@ -91,36 +115,12 @@ export async function getManagedClubCalendar(saveId: string): Promise<ClubCalend
   const rows = await prisma.fixture.findMany({
     where: { saveId, season: { startYear: latest.startYear }, ...involving(managed.id) },
     orderBy: [{ scheduledAt: "asc" }, { round: "asc" }],
-    select: {
-      ...FIXTURE_SELECT,
-      events: {
-        // Events are written in match order, so the id breaks ties within a minute.
-        orderBy: [{ minute: "asc" }, { id: "asc" }],
-        select: {
-          id: true,
-          minute: true,
-          type: true,
-          side: true,
-          playerSave: { select: { firstName: true, lastName: true } },
-          relatedPlayerSave: { select: { firstName: true, lastName: true } },
-        },
-      },
-    },
+    select: { ...FIXTURE_SELECT, events: EVENTS_SELECT },
   });
 
   return {
     startYear: latest.startYear,
-    fixtures: rows.map(({ events, ...row }) => ({
-      ...toFixtureView(row),
-      events: events.map((event) => ({
-        id: event.id,
-        minute: event.minute,
-        type: event.type,
-        side: event.side === "HOME" ? "home" : "away",
-        playerName: event.playerSave === null ? "Joueur inconnu" : fullName(event.playerSave),
-        relatedPlayerName: event.relatedPlayerSave === null ? null : fullName(event.relatedPlayerSave),
-      })),
-    })),
+    fixtures: rows.map(({ events, ...row }) => ({ ...toFixtureView(row), events: events.map(toEventView) })),
   };
 }
 
@@ -132,4 +132,46 @@ export async function getManagedClubFixtureOn(saveId: string, date: Date): Promi
     select: FIXTURE_SELECT,
   });
   return row === null ? null : toFixtureView(row);
+}
+
+/** A match of the same competition and day, with the minute and side of its goals to replay its score. */
+export type ScoreTimeline = FixtureView & { goals: { id: string; minute: number; side: Side }[] };
+
+export type LiveMatchday = {
+  match: FixtureWithEvents;
+  others: ScoreTimeline[];
+};
+
+/**
+ * The managed club's match of the save's current date with all its events, and the other matches its competition
+ * played that day; null when the managed club did not play on the current date.
+ */
+export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | null> {
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
+  const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
+  const row = await prisma.fixture.findFirst({
+    where: { saveId, scheduledAt: save.currentDate, played: true, ...involving(managed.id) },
+    select: { ...FIXTURE_SELECT, seasonId: true, events: EVENTS_SELECT },
+  });
+  if (row === null) {
+    return null;
+  }
+
+  const others = await prisma.fixture.findMany({
+    where: { saveId, seasonId: row.seasonId, scheduledAt: save.currentDate, played: true, id: { not: row.id } },
+    orderBy: { homeClubSave: { club: { name: "asc" } } },
+    select: {
+      ...FIXTURE_SELECT,
+      events: { where: { type: "GOAL" }, orderBy: EVENTS_SELECT.orderBy, select: { id: true, minute: true, side: true } },
+    },
+  });
+
+  const { events, ...fixture } = row;
+  return {
+    match: { ...toFixtureView(fixture), events: events.map(toEventView) },
+    others: others.map(({ events: goals, ...other }) => ({
+      ...toFixtureView(other),
+      goals: goals.map((goal) => ({ id: goal.id, minute: goal.minute, side: goal.side === "HOME" ? "home" : "away" })),
+    })),
+  };
 }

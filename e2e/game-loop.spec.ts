@@ -16,7 +16,7 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-test("creates a save with Lyon, plays a matchday, and shows one played match for every fr.1 club", async ({ page }) => {
+test("creates a save with Lyon, plays a matchday, replays its match, and shows one played match for every fr.1 club", async ({ page }) => {
   // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
   const name = `E2E ${Date.now()}`;
   saveName = name;
@@ -24,7 +24,11 @@ test("creates a save with Lyon, plays a matchday, and shows one played match for
     await createSave(page, name, LYON);
 
     await page.getByRole("button", { name: "Jouer la journée" }).click();
-    await expect(page.getByText(/^Journée du 17 août 2024/)).toBeVisible();
+    await expect(page).toHaveURL(/\/saves\/[^/]+\/live$/);
+    await expect(page.getByText(/Journée 1 · 17 août 2024$/)).toBeVisible();
+    await page.getByRole("button", { name: "Passer" }).click();
+    await page.getByRole("link", { name: "Continuer" }).click();
+    await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 
     await page.getByRole("link", { name: "Classement" }).click();
     await page.getByRole("tab", { name: FRANCE }).click();

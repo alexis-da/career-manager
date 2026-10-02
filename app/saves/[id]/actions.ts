@@ -10,6 +10,8 @@ import { formatDate } from "@/src/lib/format";
 export type GameActionResult = {
   ok: boolean;
   message: string;
+  // Page to open instead of showing the message: the replay of the managed club's match.
+  redirectTo?: string;
 };
 
 const saveIdSchema = z.string().min(1);
@@ -30,6 +32,7 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
   return {
     ok: true,
     message: `${day} : ${fixture.home.name} ${fixture.homeGoals} – ${fixture.awayGoals} ${fixture.away.name}`,
+    redirectTo: `/saves/${id}/live`,
   };
 }
 
