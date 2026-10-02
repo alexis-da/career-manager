@@ -1,5 +1,5 @@
 import * as z from "zod";
-import type { Position } from "../engine/generation";
+import { POSITIONS, type Position } from "../engine/positions";
 import { nextTransferWindowOpening, transferWindowAt, transferWindowCloseDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
@@ -152,8 +152,6 @@ export async function listFreeAgents(saveId: string, page: number): Promise<Pagi
 }
 
 // ----------------------------------------------------- players of AI clubs
-
-const POSITIONS = ["GK", "DF", "MF", "FW"] as const;
 
 /**
  * Filters of the list of AI clubs' players, read from the page's search params. An invalid or empty value is

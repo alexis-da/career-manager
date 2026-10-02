@@ -1,6 +1,7 @@
 import type { Curve } from "./curves";
-import type { AttributeName, Position } from "./generation";
+import type { AttributeName } from "./generation";
 import type { Outcome } from "./match";
+import type { Position, PositionGroup } from "./positions";
 
 // ------------------------------------------------------------------ Attribute generation
 
@@ -41,20 +42,59 @@ export const AGE_GROWTH_CURVE: Curve = [
 /** Share of the growth room a player always gets; the rest is drawn. */
 export const GROWTH_MIN_SHARE = 0.4;
 
-/** Offset of each attribute from the player's quality, by position. */
+/**
+ * Offset of each attribute from the player's quality, by position: centre-backs defend and win duels, full-backs
+ * run and defend, holding midfielders defend and pass, playmakers pass and dribble, wingers run and dribble,
+ * strikers shoot and run. Weighted by OVERALL_WEIGHTS, each profile lands one to two points above the quality.
+ */
 export const POSITION_PROFILES: Readonly<Record<Position, Readonly<Record<AttributeName, number>>>> = {
   GK: { pace: -25, shooting: -35, passing: -15, dribbling: -25, defending: -20, physical: -5, goalkeeping: 3 },
-  DF: { pace: -2, shooting: -22, passing: -6, dribbling: -12, defending: 6, physical: 4, goalkeeping: -60 },
-  MF: { pace: -2, shooting: -2, passing: 6, dribbling: 2, defending: -6, physical: -2, goalkeeping: -60 },
-  FW: { pace: 2, shooting: 4, passing: -6, dribbling: 2, defending: -30, physical: -1, goalkeeping: -60 },
+  RB: { pace: 5, shooting: -20, passing: -4, dribbling: -6, defending: 2, physical: -2, goalkeeping: -60 },
+  CB: { pace: -6, shooting: -25, passing: -8, dribbling: -15, defending: 4, physical: 3, goalkeeping: -60 },
+  LB: { pace: 5, shooting: -20, passing: -4, dribbling: -6, defending: 2, physical: -2, goalkeeping: -60 },
+  CDM: { pace: -6, shooting: -12, passing: 3, dribbling: -6, defending: 2, physical: 0, goalkeeping: -60 },
+  CM: { pace: -3, shooting: -3, passing: 5, dribbling: 2, defending: -3, physical: 0, goalkeeping: -60 },
+  CAM: { pace: -1, shooting: 0, passing: 2, dribbling: 2, defending: -22, physical: -6, goalkeeping: -60 },
+  RM: { pace: 4, shooting: -6, passing: 3, dribbling: 1, defending: -10, physical: -5, goalkeeping: -60 },
+  LM: { pace: 4, shooting: -6, passing: 3, dribbling: 1, defending: -10, physical: -5, goalkeeping: -60 },
+  RW: { pace: 3, shooting: 0, passing: -6, dribbling: 3, defending: -30, physical: -6, goalkeeping: -60 },
+  LW: { pace: 3, shooting: 0, passing: -6, dribbling: 3, defending: -30, physical: -6, goalkeeping: -60 },
+  ST: { pace: 2, shooting: 3, passing: -8, dribbling: 0, defending: -30, physical: 0, goalkeeping: -60 },
 };
 
 /** Weight of each attribute in the overall rating, by position. Each row sums to 1. */
 export const OVERALL_WEIGHTS: Readonly<Record<Position, Readonly<Record<AttributeName, number>>>> = {
   GK: { pace: 0, shooting: 0, passing: 0.1, dribbling: 0, defending: 0, physical: 0.1, goalkeeping: 0.8 },
-  DF: { pace: 0.15, shooting: 0, passing: 0.15, dribbling: 0.1, defending: 0.4, physical: 0.2, goalkeeping: 0 },
-  MF: { pace: 0.1, shooting: 0.1, passing: 0.35, dribbling: 0.2, defending: 0.1, physical: 0.15, goalkeeping: 0 },
-  FW: { pace: 0.2, shooting: 0.4, passing: 0.05, dribbling: 0.2, defending: 0, physical: 0.15, goalkeeping: 0 },
+  RB: { pace: 0.3, shooting: 0, passing: 0.15, dribbling: 0.1, defending: 0.35, physical: 0.1, goalkeeping: 0 },
+  CB: { pace: 0.1, shooting: 0, passing: 0.1, dribbling: 0, defending: 0.5, physical: 0.3, goalkeeping: 0 },
+  LB: { pace: 0.3, shooting: 0, passing: 0.15, dribbling: 0.1, defending: 0.35, physical: 0.1, goalkeeping: 0 },
+  CDM: { pace: 0.05, shooting: 0, passing: 0.35, dribbling: 0.05, defending: 0.35, physical: 0.2, goalkeeping: 0 },
+  CM: { pace: 0.1, shooting: 0.1, passing: 0.3, dribbling: 0.2, defending: 0.15, physical: 0.15, goalkeeping: 0 },
+  CAM: { pace: 0.1, shooting: 0.2, passing: 0.35, dribbling: 0.35, defending: 0, physical: 0, goalkeeping: 0 },
+  RM: { pace: 0.3, shooting: 0.05, passing: 0.25, dribbling: 0.3, defending: 0.05, physical: 0.05, goalkeeping: 0 },
+  LM: { pace: 0.3, shooting: 0.05, passing: 0.25, dribbling: 0.3, defending: 0.05, physical: 0.05, goalkeeping: 0 },
+  RW: { pace: 0.35, shooting: 0.2, passing: 0.1, dribbling: 0.35, defending: 0, physical: 0, goalkeeping: 0 },
+  LW: { pace: 0.35, shooting: 0.2, passing: 0.1, dribbling: 0.35, defending: 0, physical: 0, goalkeeping: 0 },
+  ST: { pace: 0.25, shooting: 0.45, passing: 0, dribbling: 0.15, defending: 0, physical: 0.15, goalkeeping: 0 },
+};
+
+// ------------------------------------------------------------------ Positions: familiarity with a slot
+
+/** A player at their own position plays at their overall. */
+export const SAME_POSITION_FAMILIARITY = 1;
+
+/** Share of the overall a player keeps in a slot of another position, by their group and the slot's group. */
+export const SAME_GROUP_FAMILIARITY = 0.92; // a centre-back at right-back, a winger up front
+export const NEIGHBOUR_GROUP_FAMILIARITY = 0.8; // the next line: defence and midfield, midfield and attack
+export const DISTANT_GROUP_FAMILIARITY = 0.6; // two lines apart: a defender up front, a forward at the back
+export const GOAL_SWAP_FAMILIARITY = 0.4; // a goalkeeper outfield, an outfield player in goal
+
+/** Familiarity between groups (the player's, then the slot's); a group's own entry applies to its other positions. */
+export const GROUP_FAMILIARITY: Readonly<Record<PositionGroup, Readonly<Record<PositionGroup, number>>>> = {
+  GK: { GK: SAME_POSITION_FAMILIARITY, DF: GOAL_SWAP_FAMILIARITY, MF: GOAL_SWAP_FAMILIARITY, FW: GOAL_SWAP_FAMILIARITY },
+  DF: { GK: GOAL_SWAP_FAMILIARITY, DF: SAME_GROUP_FAMILIARITY, MF: NEIGHBOUR_GROUP_FAMILIARITY, FW: DISTANT_GROUP_FAMILIARITY },
+  MF: { GK: GOAL_SWAP_FAMILIARITY, DF: NEIGHBOUR_GROUP_FAMILIARITY, MF: SAME_GROUP_FAMILIARITY, FW: NEIGHBOUR_GROUP_FAMILIARITY },
+  FW: { GK: GOAL_SWAP_FAMILIARITY, DF: DISTANT_GROUP_FAMILIARITY, MF: NEIGHBOUR_GROUP_FAMILIARITY, FW: SAME_GROUP_FAMILIARITY },
 };
 
 // ------------------------------------------------------------------ Club finances at save creation
@@ -141,25 +181,25 @@ export const LATE_CAREER_MAX_CONTRACT_YEARS = 2;
 
 // ------------------------------------------------------------------ Match: team strength
 
-/** Weight of each attribute in a player's attacking value, by the slot they play in. */
-export const ATTACK_WEIGHTS: Readonly<Record<Position, Partial<Record<AttributeName, number>>>> = {
+/** Weight of each attribute in a player's attacking value, by the group of the slot they play in. */
+export const ATTACK_WEIGHTS: Readonly<Record<PositionGroup, Partial<Record<AttributeName, number>>>> = {
   GK: { passing: 1 },
   DF: { passing: 0.4, pace: 0.3, physical: 0.3 },
   MF: { passing: 0.45, dribbling: 0.35, shooting: 0.2 },
   FW: { shooting: 0.5, dribbling: 0.25, pace: 0.25 },
 };
 
-/** Weight of each attribute in a player's defensive value, by the slot they play in. */
-export const DEFENSE_WEIGHTS: Readonly<Record<Position, Partial<Record<AttributeName, number>>>> = {
+/** Weight of each attribute in a player's defensive value, by the group of the slot they play in. */
+export const DEFENSE_WEIGHTS: Readonly<Record<PositionGroup, Partial<Record<AttributeName, number>>>> = {
   GK: { goalkeeping: 1 },
   DF: { defending: 0.6, physical: 0.25, pace: 0.15 },
   MF: { defending: 0.5, physical: 0.3, passing: 0.2 },
   FW: { physical: 0.7, defending: 0.3 },
 };
 
-/** Share of each line in the team's attack and defense, split evenly between the slots of the line. */
-export const ATTACK_LINE_WEIGHTS: Readonly<Record<Position, number>> = { GK: 0, DF: 0.15, MF: 0.35, FW: 0.5 };
-export const DEFENSE_LINE_WEIGHTS: Readonly<Record<Position, number>> = { GK: 0.35, DF: 0.45, MF: 0.2, FW: 0 };
+/** Share of each line in the team's attack and defense, split evenly between the starters of the line. */
+export const ATTACK_LINE_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK: 0, DF: 0.15, MF: 0.35, FW: 0.5 };
+export const DEFENSE_LINE_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK: 0.35, DF: 0.45, MF: 0.2, FW: 0 };
 
 /** Form and morale (1–99) at which a player plays exactly at their attribute values. */
 export const CONDITION_NEUTRAL = 50;
@@ -171,7 +211,7 @@ export const STRENGTH_PER_MORALE_POINT = 0.001;
 // ------------------------------------------------------------------ Match: goals
 
 /** Expected goals of a team facing an equal opponent on neutral ground. */
-export const BASE_GOALS_PER_TEAM = 1.35;
+export const BASE_GOALS_PER_TEAM = 1.42;
 
 /** How sharply the attack / defense ratio turns into expected goals: ratio ^ exponent. */
 export const STRENGTH_EXPONENT = 2.5;
@@ -185,11 +225,11 @@ export const MAX_EXPECTED_GOALS = 6;
 /** Chance that a goal has an assist. */
 export const ASSIST_CHANCE = 0.75;
 
-/** Weight of a slot in the draw of the scorer (multiplied by shooting). */
-export const SCORER_SLOT_WEIGHTS: Readonly<Record<Position, number>> = { GK: 0, DF: 0.12, MF: 0.4, FW: 1 };
+/** Weight of a slot's group in the draw of the scorer (multiplied by shooting). */
+export const SCORER_SLOT_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK: 0, DF: 0.12, MF: 0.4, FW: 1 };
 
-/** Weight of a slot in the draw of the assist provider (multiplied by passing). */
-export const ASSIST_SLOT_WEIGHTS: Readonly<Record<Position, number>> = { GK: 0.02, DF: 0.35, MF: 1, FW: 0.6 };
+/** Weight of a slot's group in the draw of the assist provider (multiplied by passing). */
+export const ASSIST_SLOT_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK: 0.02, DF: 0.35, MF: 1, FW: 0.6 };
 
 // ------------------------------------------------------------------ Match: time, cards, injuries, substitutions
 
@@ -202,8 +242,8 @@ export const MAX_STOPPAGE_MINUTES = 5;
 export const YELLOW_CARDS_PER_TEAM = 1.8;
 export const RED_CARDS_PER_TEAM = 0.05;
 
-/** Weight of a slot in the draw of the booked player; goalkeepers are never booked. */
-export const CARD_SLOT_WEIGHTS: Readonly<Record<Position, number>> = { GK: 0, DF: 1.3, MF: 1.1, FW: 0.7 };
+/** Weight of a slot's group in the draw of the booked player; goalkeepers are never booked. */
+export const CARD_SLOT_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK: 0, DF: 1.3, MF: 1.1, FW: 0.7 };
 
 /** Card weight multiplier for a player already booked, who plays carefully to avoid a second yellow card. */
 export const BOOKED_PLAYER_CARD_FACTOR = 0.2;
@@ -299,8 +339,26 @@ export const SQUAD_SIZE_MIN = 20;
 export const SQUAD_SIZE_MAX = 25;
 export const MIN_GOALKEEPERS = 2;
 
-/** Players per position in a complete squad (23 in all), as in the world squads. */
-export const SQUAD_POSITION_TARGETS: Readonly<Record<Position, number>> = { GK: 2, DF: 8, MF: 8, FW: 5 };
+/** A line of the squad template: positions that stand in for each other, and the players they need together. */
+export type SquadRole = { positions: readonly Position[]; count: number };
+
+/**
+ * Players per role in a complete squad (23 in all), as in the world squads: world squads, young players and the
+ * free agent pool follow these proportions, and AI clubs sign to fill them. Never reorder: it is the order of the
+ * world squads' slots.
+ */
+export const SQUAD_ROLES: readonly SquadRole[] = [
+  { positions: ["GK"], count: 2 },
+  { positions: ["RB"], count: 2 },
+  { positions: ["CB"], count: 4 },
+  { positions: ["LB"], count: 2 },
+  { positions: ["CDM"], count: 2 },
+  { positions: ["CM"], count: 3 },
+  { positions: ["CAM"], count: 2 },
+  { positions: ["RM", "RW"], count: 2 },
+  { positions: ["LM", "LW"], count: 2 },
+  { positions: ["ST"], count: 2 },
+];
 
 /** Squad standard: mean overall of the club's best players, the bar for keeping a player. */
 export const SQUAD_STANDARD_SIZE = 16;

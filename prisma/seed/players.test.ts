@@ -3,6 +3,7 @@ import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../../s
 import { ageInYears } from "../../src/lib/dates";
 import { makeRng } from "../../src/lib/rng";
 import { NAME_BANK } from "../../src/engine/names";
+import type { Position } from "../../src/engine/positions";
 import {
   FREE_AGENT_MAX_AGE,
   FREE_AGENT_MIN_AGE,
@@ -53,9 +54,25 @@ describe("world players", () => {
     `);
   });
 
-  it("fill every squad with 2 GK, 8 DF, 8 MF and 5 FW under distinct names", () => {
+  it("fill every squad with the 23 of the template under distinct names", () => {
+    const count = (positions: Position[], ...wanted: Position[]) =>
+      positions.filter((position) => wanted.includes(position)).length;
+
     expect(clubs).toHaveLength(96);
     for (const club of clubs) {
+      const positions = club.players.map((player) => player.position);
+      expect([
+        count(positions, "GK"),
+        count(positions, "RB"),
+        count(positions, "CB"),
+        count(positions, "LB"),
+        count(positions, "CDM"),
+        count(positions, "CM"),
+        count(positions, "CAM"),
+        count(positions, "RM", "RW"),
+        count(positions, "LM", "LW"),
+        count(positions, "ST"),
+      ]).toEqual([2, 2, 4, 2, 2, 3, 2, 2, 2, 2]);
       expect(club.players.map((player) => player.position)).toEqual(SQUAD_TEMPLATE);
       expect(club.players.map((player) => player.squadSlot)).toEqual(SQUAD_TEMPLATE.map((_, index) => index + 1));
       expect(new Set(club.players.map((player) => `${player.firstName} ${player.lastName}`)).size).toBe(
@@ -119,7 +136,18 @@ describe("free agent pool", () => {
   it("holds 120 players in the squad's position shares, numbered from 1, under distinct names", () => {
     expect(pool).toHaveLength(FREE_AGENT_POOL_TEMPLATE.length);
     expect(pool).toHaveLength(120);
-    expect([countOf("GK"), countOf("DF"), countOf("MF"), countOf("FW")]).toEqual([10, 42, 42, 26]);
+    expect([
+      countOf("GK"),
+      countOf("RB"),
+      countOf("CB"),
+      countOf("LB"),
+      countOf("CDM"),
+      countOf("CM"),
+      countOf("CAM"),
+      countOf("RM") + countOf("RW"),
+      countOf("LM") + countOf("LW"),
+      countOf("ST"),
+    ]).toEqual([11, 11, 21, 11, 10, 16, 10, 10, 10, 10]);
     expect(pool.map((player) => player.squadSlot)).toEqual(pool.map((_, index) => index + 1));
     expect(new Set(pool.map((player) => `${player.firstName} ${player.lastName}`)).size).toBe(pool.length);
   });

@@ -32,8 +32,9 @@ import {
   SUBSTITUTIONS_PER_TEAM,
   YELLOW_CARDS_PER_TEAM,
 } from "./balance";
-import { ATTRIBUTE_NAMES, clampRating, type AttributeName, type Position } from "./generation";
-import { FORMATION, type Lineup, type SquadPlayer } from "./lineup";
+import { ATTRIBUTE_NAMES, clampRating, type AttributeName } from "./generation";
+import type { Lineup, SquadPlayer } from "./lineup";
+import { familiarity, positionGroup, ratingAt, type Position, type PositionGroup } from "./positions";
 
 export type Side = "home" | "away";
 
@@ -139,14 +140,22 @@ function weightedValue(player: SquadPlayer, weights: Partial<Record<AttributeNam
   return ATTRIBUTE_NAMES.reduce((sum, name) => sum + player[name] * (weights[name] ?? 0), 0);
 }
 
-/** Attack and defense of the starting eleven, weighted by slot and adjusted for form and morale. */
+/**
+ * Attack and defense of the starting eleven: each starter's attributes weighted for the group of their slot,
+ * reduced by their familiarity with the slot (as ratingAt reduces the overall), adjusted for form and morale.
+ */
 export function teamStrength(lineup: Lineup): TeamStrength {
+  const lineSizes: Record<PositionGroup, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
+  for (const { slot } of lineup.starters) {
+    lineSizes[positionGroup(slot)]++;
+  }
   let attack = 0;
   let defense = 0;
   for (const { player, slot } of lineup.starters) {
-    const share = condition(player) / FORMATION[slot];
-    attack += ATTACK_LINE_WEIGHTS[slot] * share * weightedValue(player, ATTACK_WEIGHTS[slot]);
-    defense += DEFENSE_LINE_WEIGHTS[slot] * share * weightedValue(player, DEFENSE_WEIGHTS[slot]);
+    const group = positionGroup(slot);
+    const share = (condition(player) * familiarity(player.position, slot)) / lineSizes[group];
+    attack += ATTACK_LINE_WEIGHTS[group] * share * weightedValue(player, ATTACK_WEIGHTS[group]);
+    defense += DEFENSE_LINE_WEIGHTS[group] * share * weightedValue(player, DEFENSE_WEIGHTS[group]);
   }
   return { attack, defense };
 }
@@ -184,33 +193,38 @@ function drawOnPitch(rng: Rng, onPitch: readonly OnPitch[], weight: (entry: OnPi
   return weights.some((value) => value > 0) ? weightedIndex(rng, weights) : undefined;
 }
 
-/** The weakest outfield starter still on the pitch: the one making way for a tactical substitution. */
+/** The outfield starter still on the pitch rated lowest in their slot: the one making way for a tactical substitution. */
 function weakestStarterIndex(onPitch: readonly OnPitch[]): number | undefined {
   let weakest: number | undefined;
   onPitch.forEach((entry, index) => {
     if (entry.slot === "GK" || entry.from !== 0) {
       return;
     }
-    const current = weakest === undefined ? undefined : onPitch[weakest].player;
-    if (
-      current === undefined ||
-      entry.player.overall < current.overall ||
-      (entry.player.overall === current.overall && entry.player.id < current.id)
-    ) {
+    if (weakest === undefined) {
+      weakest = index;
+      return;
+    }
+    const current = onPitch[weakest];
+    const rating = ratingAt(entry.player, entry.slot);
+    const currentRating = ratingAt(current.player, current.slot);
+    if (rating < currentRating || (rating === currentRating && entry.player.id < current.player.id)) {
       weakest = index;
     }
   });
   return weakest;
 }
 
-/** Bench player replacing someone in a slot: same position first, else an outfield player, else anyone. */
+/** Bench player replacing someone in a slot: the one rated best in that slot, ties broken by id. */
 function replacementIndex(bench: readonly SquadPlayer[], slot: Position): number {
-  const samePosition = bench.findIndex((player) => player.position === slot);
-  if (samePosition !== -1) {
-    return samePosition;
-  }
-  const outfield = bench.findIndex((player) => player.position !== "GK");
-  return slot !== "GK" && outfield !== -1 ? outfield : 0;
+  let best = 0;
+  bench.forEach((player, index) => {
+    const rating = ratingAt(player, slot);
+    const bestRating = ratingAt(bench[best], slot);
+    if (rating > bestRating || (rating === bestRating && player.id < bench[best].id)) {
+      best = index;
+    }
+  });
+  return best;
 }
 
 function toAppearance(entry: OnPitch, side: Side, to: number): Appearance {
@@ -281,7 +295,7 @@ export function simulateMatch(home: Lineup, away: Lineup, rng: Rng): MatchResult
     const team = teams[side];
     switch (kind) {
       case "GOAL": {
-        const scorerIndex = drawOnPitch(rng, team.onPitch, ({ player, slot }) => SCORER_SLOT_WEIGHTS[slot] * player.shooting);
+        const scorerIndex = drawOnPitch(rng, team.onPitch, ({ player, slot }) => SCORER_SLOT_WEIGHTS[positionGroup(slot)] * player.shooting);
         if (scorerIndex === undefined) {
           break;
         }
@@ -290,7 +304,7 @@ export function simulateMatch(home: Lineup, away: Lineup, rng: Rng): MatchResult
         let assistProviderId: string | undefined;
         if (rng() < ASSIST_CHANCE) {
           const assistIndex = drawOnPitch(rng, team.onPitch, (entry) =>
-            entry === scorer ? 0 : ASSIST_SLOT_WEIGHTS[entry.slot] * entry.player.passing,
+            entry === scorer ? 0 : ASSIST_SLOT_WEIGHTS[positionGroup(entry.slot)] * entry.player.passing,
           );
           assistProviderId = assistIndex === undefined ? undefined : team.onPitch[assistIndex].player.id;
         }
@@ -305,7 +319,7 @@ export function simulateMatch(home: Lineup, away: Lineup, rng: Rng): MatchResult
         const index = drawOnPitch(
           rng,
           team.onPitch,
-          ({ player, slot }) => CARD_SLOT_WEIGHTS[slot] * (team.booked.has(player.id) ? BOOKED_PLAYER_CARD_FACTOR : 1),
+          ({ player, slot }) => CARD_SLOT_WEIGHTS[positionGroup(slot)] * (team.booked.has(player.id) ? BOOKED_PLAYER_CARD_FACTOR : 1),
         );
         if (index === undefined) {
           break;
@@ -321,7 +335,7 @@ export function simulateMatch(home: Lineup, away: Lineup, rng: Rng): MatchResult
         break;
       }
       case "RED_CARD": {
-        const index = drawOnPitch(rng, team.onPitch, ({ slot }) => CARD_SLOT_WEIGHTS[slot]);
+        const index = drawOnPitch(rng, team.onPitch, ({ slot }) => CARD_SLOT_WEIGHTS[positionGroup(slot)]);
         if (index === undefined) {
           break;
         }

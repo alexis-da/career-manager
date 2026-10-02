@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeRng, shuffle } from "../lib/rng";
 import { MIN_GOALKEEPERS, SQUAD_SIZE_MAX, SQUAD_SIZE_MIN } from "./balance";
 import { wageFor } from "./economy";
-import type { Position } from "./generation";
+import { squadTemplate, type Position } from "./positions";
 import { planSquad, type RosterClub, type RosterPlayer, type SquadDecision } from "./squad-ai";
 
 const RICH_CLUB: RosterClub = { id: "club", wageBudget: 500_000_000 };
@@ -49,13 +49,13 @@ const idsOf = (decisions: readonly SquadDecision[], type: SquadDecision["type"])
 describe("planSquad", () => {
   it("renews the expiring players worth keeping and releases the others", () => {
     const squad = [
-      ...roster("regular", { GK: 2, DF: 7, MF: 7, FW: 4 }, 70),
-      player("solid", "DF", 69, { contractExpiring: true }),
-      player("weak", "MF", 58, { contractExpiring: true }),
-      player("prospect", "FW", 55, { age: 20, potential: 74, contractExpiring: true }),
-      player("veteran", "MF", 67, { age: 34, contractExpiring: true }),
+      ...roster("regular", { GK: 2, CB: 7, CM: 7, ST: 4 }, 70),
+      player("solid", "CB", 69, { contractExpiring: true }),
+      player("weak", "CM", 58, { contractExpiring: true }),
+      player("prospect", "ST", 55, { age: 20, potential: 74, contractExpiring: true }),
+      player("veteran", "CM", 67, { age: 34, contractExpiring: true }),
     ];
-    const market = roster("free", { MF: 3 }, 64);
+    const market = roster("free", { CM: 3 }, 64);
 
     const decisions = planSquad(RICH_CLUB, squad, market, makeRng("renewals"));
 
@@ -72,22 +72,22 @@ describe("planSquad", () => {
 
   it("keeps an expiring goalkeeper the free agent market cannot replace", () => {
     const squad = [
-      ...roster("regular", { DF: 8, MF: 8, FW: 5 }, 70),
+      ...roster("regular", { CB: 8, CM: 8, ST: 5 }, 70),
       player("first-keeper", "GK", 72),
       player("backup-keeper", "GK", 50, { contractExpiring: true }),
     ];
 
-    const decisions = planSquad(RICH_CLUB, squad, roster("free", { DF: 2 }, 60), makeRng("keeper"));
+    const decisions = planSquad(RICH_CLUB, squad, roster("free", { CB: 2 }, 60), makeRng("keeper"));
 
     expect(idsOf(decisions, "renew")).toEqual(["backup-keeper"]);
     expect(idsOf(decisions, "release")).toEqual([]);
   });
 
   it("signs free agents up to 20–25 players with 2 goalkeepers, within the wage budget", () => {
-    const squad = roster("regular", { DF: 6, MF: 6, FW: 3 }, 68);
+    const squad = roster("regular", { CB: 6, CM: 6, ST: 3 }, 68);
     const market = [
-      ...roster("free-a", { GK: 3, DF: 4, MF: 4, FW: 3 }, 66),
-      ...roster("free-b", { GK: 1, DF: 3, MF: 3, FW: 3 }, 58),
+      ...roster("free-a", { GK: 3, CB: 4, CM: 4, ST: 3 }, 66),
+      ...roster("free-b", { GK: 1, CB: 3, CM: 3, ST: 3 }, 58),
     ];
     const club = { id: "club", wageBudget: 60_000_000 };
 
@@ -106,8 +106,8 @@ describe("planSquad", () => {
 
   it("signs nobody when the squad is full, however good the free agents", () => {
     // A squad at save creation: the 23 world players and 2 young players.
-    const squad = roster("regular", { GK: 2, DF: 9, MF: 9, FW: 5 }, 60);
-    const market = roster("free", { GK: 3, DF: 5, MF: 5, FW: 5 }, 70);
+    const squad = roster("regular", { GK: 2, CB: 9, CM: 9, ST: 5 }, 60);
+    const market = roster("free", { GK: 3, CB: 5, CM: 5, ST: 5 }, 70);
 
     const decisions = planSquad(RICH_CLUB, squad, market, makeRng("full-squad"));
 
@@ -117,36 +117,36 @@ describe("planSquad", () => {
   });
 
   it("signs nobody once the wage budget is used up", () => {
-    const squad = roster("regular", { GK: 1, DF: 6, MF: 6, FW: 3 }, 68);
+    const squad = roster("regular", { GK: 1, CB: 6, CM: 6, ST: 3 }, 68);
     const payroll = squad.reduce((sum, member) => sum + member.wage, 0);
 
-    const decisions = planSquad({ id: "club", wageBudget: payroll }, squad, roster("free", { GK: 2, DF: 3 }, 60), makeRng("broke"));
+    const decisions = planSquad({ id: "club", wageBudget: payroll }, squad, roster("free", { GK: 2, CB: 3 }, 60), makeRng("broke"));
 
     expect(idsOf(decisions, "sign")).toEqual([]);
   });
 
   it("releases the weakest players under contract above 25, keeping 2 goalkeepers", () => {
     const squad = [
-      ...roster("regular", { GK: 2, DF: 9, MF: 9, FW: 5 }, 70),
-      player("weakest-df", "DF", 55),
-      player("weakest-mf", "MF", 56),
+      ...roster("regular", { GK: 2, CB: 9, CM: 9, ST: 5 }, 70),
+      player("weakest-cb", "CB", 55),
+      player("weakest-cm", "CM", 56),
     ];
 
     const decisions = planSquad(RICH_CLUB, squad, [], makeRng("surplus"));
     const after = apply(squad, [], decisions);
 
-    expect(idsOf(decisions, "release")).toEqual(["weakest-df", "weakest-mf"]);
+    expect(idsOf(decisions, "release")).toEqual(["weakest-cb", "weakest-cm"]);
     expect(after.players).toHaveLength(SQUAD_SIZE_MAX);
     expect(after.goalkeepers).toBe(2);
   });
 
   it("is deterministic and does not depend on the order of the players", () => {
     const squad = [
-      ...roster("regular", { GK: 1, DF: 6, MF: 7, FW: 4 }, 67),
-      player("expiring-1", "DF", 66, { contractExpiring: true }),
-      player("expiring-2", "FW", 52, { age: 31, contractExpiring: true }),
+      ...roster("regular", { GK: 1, CB: 6, CM: 7, ST: 4 }, 67),
+      player("expiring-1", "CB", 66, { contractExpiring: true }),
+      player("expiring-2", "ST", 52, { age: 31, contractExpiring: true }),
     ];
-    const market = roster("free", { GK: 2, DF: 3, MF: 2, FW: 2 }, 63);
+    const market = roster("free", { GK: 2, CB: 3, CM: 2, ST: 2 }, 63);
     const plan = (seed: string, order: string) =>
       planSquad(RICH_CLUB, shuffle(makeRng(order), squad), shuffle(makeRng(`${order}-market`), market), makeRng(seed));
 
@@ -158,8 +158,8 @@ describe("planSquad", () => {
     const squad = [
       player("keeper", "GK", 70),
       player("expiring-keeper", "GK", 52, { contractExpiring: true }),
-      ...roster("regular", { DF: 9, MF: 9, FW: 5 }, 70),
-      player("weakest-fw", "FW", 55),
+      ...roster("regular", { CB: 9, CM: 9, ST: 5 }, 70),
+      player("weakest-fw", "ST", 55),
     ];
     const market = roster("free", { GK: 1 }, 68);
 
@@ -170,5 +170,20 @@ describe("planSquad", () => {
     expect(idsOf(decisions, "release")).toEqual(["expiring-keeper", "weakest-fw"]);
     expect(after.goalkeepers).toBe(MIN_GOALKEEPERS);
     expect(after.players).toHaveLength(SQUAD_SIZE_MAX);
+  });
+});
+
+describe("planSquad by role", () => {
+  it("signs the missing full-backs before better centre-backs, a right winger standing in for a right midfielder", () => {
+    // The squad template with no right-back, and a second right winger instead of the right midfielder.
+    const positions = squadTemplate(23)
+      .filter((position) => position !== "RB")
+      .map((position) => (position === "RM" ? "RW" : position));
+    const squad = positions.map((position, index) => player(`regular-${index + 1}`, position, 68));
+    const market = [...roster("free-good", { CB: 3, RM: 1 }, 75), ...roster("free-rb", { RB: 2 }, 60)];
+
+    const decisions = planSquad(RICH_CLUB, squad, market, makeRng("roles"));
+
+    expect(idsOf(decisions, "sign")).toEqual(["free-rb-RB-1", "free-rb-RB-2"]);
   });
 });

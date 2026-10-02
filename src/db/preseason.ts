@@ -1,6 +1,6 @@
 import { FREE_AGENT_STAY_MIN_OVERALL } from "../engine/balance";
 import { contractEndDate } from "../engine/economy";
-import type { Position } from "../engine/generation";
+import type { Position } from "../engine/positions";
 import { NAME_BANK } from "../engine/names";
 import { planSquad, squadPlanRngSeed, type RosterPlayer } from "../engine/squad-ai";
 import { seasonEndDate, seasonStartYear, WORLD_START_DATE } from "../engine/world";

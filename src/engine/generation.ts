@@ -11,8 +11,7 @@ import {
   POSITION_PROFILES,
 } from "./balance";
 import { interpolate, lerp, rankStrength } from "./curves";
-
-export type Position = "GK" | "DF" | "MF" | "FW";
+import type { Position } from "./positions";
 
 /** Draw order matters for replays: never reorder this list. */
 export const ATTRIBUTE_NAMES = [

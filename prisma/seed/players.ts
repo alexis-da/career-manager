@@ -1,6 +1,6 @@
-import type { Position } from "../../src/engine/generation";
 import { drawBirthDate, drawNameList, drawUniqueName } from "../../src/engine/identity";
 import type { NameBank } from "../../src/engine/names";
+import { squadTemplate, type Position } from "../../src/engine/positions";
 import { WORLD_START_DATE } from "../../src/engine/world";
 import { makeRng, pick, randomInt, weightedIndex } from "../../src/lib/rng";
 
@@ -10,23 +10,20 @@ export const WORLD_SEED = "world-2024-25";
 /** Ages are counted on the day every save starts, 1 July 2024. */
 export const WORLD_REFERENCE_DATE = WORLD_START_DATE;
 
-const repeat = (position: Position, count: number): Position[] => Array.from({ length: count }, () => position);
+/** Players in a world squad. */
+export const SQUAD_SIZE = 23;
 
-/** Squad slots in order. A player's slot (1-based index) is their stable identity within the club. */
-export const SQUAD_TEMPLATE: readonly Position[] = [
-  ...repeat("GK", 2),
-  ...repeat("DF", 8),
-  ...repeat("MF", 8),
-  ...repeat("FW", 5),
-];
+/**
+ * Squad slots in order, the roles of SQUAD_ROLES one after the other (RM then RW, LM then LW). A player's slot
+ * (1-based index) is their stable identity within the club.
+ */
+export const SQUAD_TEMPLATE: readonly Position[] = squadTemplate(SQUAD_SIZE);
 
-/** The free agent pool, 120 players without a club: the squad template's 2/8/8/5 position shares. */
-export const FREE_AGENT_POOL_TEMPLATE: readonly Position[] = [
-  ...repeat("GK", 10),
-  ...repeat("DF", 42),
-  ...repeat("MF", 42),
-  ...repeat("FW", 26),
-];
+/** Players in the free agent pool. */
+export const FREE_AGENT_POOL_SIZE = 120;
+
+/** The free agent pool, 120 players without a club, in the proportions of the squad template. */
+export const FREE_AGENT_POOL_TEMPLATE: readonly Position[] = squadTemplate(FREE_AGENT_POOL_SIZE);
 
 export const FREE_AGENT_MIN_AGE = 24;
 export const FREE_AGENT_MAX_AGE = 34;

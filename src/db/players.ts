@@ -1,4 +1,5 @@
-import type { AttributeName, Position } from "../engine/generation";
+import type { AttributeName } from "../engine/generation";
+import type { Position } from "../engine/positions";
 import { seasonEndDate, seasonStartYear } from "../engine/world";
 import { youthKeyPrefix } from "../engine/youth";
 import type { Prisma } from "../generated/prisma/client";

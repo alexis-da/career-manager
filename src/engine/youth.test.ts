@@ -2,14 +2,15 @@ import { describe, expect, it } from "vitest";
 import { ageInYears } from "../lib/dates";
 import { makeRng } from "../lib/rng";
 import { YOUTH_OVERALL_MAX, YOUTH_OVERALL_MIN, YOUTH_POTENTIAL_GAP_MIN } from "./balance";
-import { ATTRIBUTE_NAMES, RATING_MAX, RATING_MIN, type Position } from "./generation";
+import { ATTRIBUTE_NAMES, RATING_MAX, RATING_MIN } from "./generation";
+import { squadTemplate, type Position } from "./positions";
 import { NAME_BANK } from "./names";
 import { generateYouthPlayer, youthPlayerKey, youthPositions, youthRngSeed } from "./youth";
 import { seasonStartDate } from "./world";
 
 const START_YEAR = 2025;
 
-const youngster = (reputation: number, index: number, position: Position = "MF") =>
+const youngster = (reputation: number, index: number, position: Position = "CM") =>
   generateYouthPlayer(
     {
       club: { slug: `club-${reputation}`, country: "France", reputation },
@@ -81,19 +82,30 @@ describe("generateYouthPlayer", () => {
 });
 
 describe("youthPositions", () => {
-  const squad = (counts: Record<Position, number>): Position[] =>
-    (Object.entries(counts) as [Position, number][]).flatMap(([position, count]) =>
-      Array.from({ length: count }, () => position),
-    );
+  const TEMPLATE = squadTemplate(23);
+
+  /** The squad template without the given players (one entry per player removed). */
+  const without = (...removed: Position[]): Position[] => {
+    const squad = [...TEMPLATE];
+    for (const position of removed) {
+      squad.splice(squad.indexOf(position), 1);
+    }
+    return squad;
+  };
 
   it("makes the first young player a goalkeeper when the squad has fewer than 2", () => {
-    expect(youthPositions(squad({ GK: 1, DF: 8, MF: 8, FW: 5 }))[0]).toBe("GK");
-    expect(youthPositions(squad({ GK: 0, DF: 8, MF: 8, FW: 5 }))).toEqual(["GK", "GK"]);
+    expect(youthPositions(without("GK"))[0]).toBe("GK");
+    expect(youthPositions(without("GK", "GK"))).toEqual(["GK", "GK"]);
   });
 
-  it("otherwise fills the positions furthest below the template", () => {
-    expect(youthPositions(squad({ GK: 2, DF: 8, MF: 6, FW: 5 }))).toEqual(["MF", "MF"]);
-    expect(youthPositions(squad({ GK: 2, DF: 7, MF: 8, FW: 4 }))).toEqual(["DF", "FW"]);
-    expect(youthPositions(squad({ GK: 2, DF: 8, MF: 8, FW: 5 }))).toEqual(["DF", "MF"]);
+  it("otherwise fills the roles furthest below the template, at their least filled position", () => {
+    expect(youthPositions(without("CM", "CM"))).toEqual(["CM", "CM"]);
+    expect(youthPositions(without("LB", "ST"))).toEqual(["LB", "ST"]);
+    // RM and RW share a role: the missing winger comes back, then the largest role takes the next one.
+    expect(youthPositions(without("RW"))).toEqual(["RW", "CB"]);
+  });
+
+  it("sends young players to the largest roles when the squad is complete", () => {
+    expect(youthPositions(TEMPLATE)).toEqual(["CB", "CM"]);
   });
 });

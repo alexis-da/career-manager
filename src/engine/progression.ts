@@ -16,8 +16,8 @@ import {
   overallFor,
   type AttributeName,
   type PlayerAttributes,
-  type Position,
 } from "./generation";
+import type { Position } from "./positions";
 
 export type ProgressingPlayer = PlayerAttributes & { position: Position };
 

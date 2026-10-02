@@ -11,7 +11,7 @@ import { SquadPlayerActions } from "../../_components/contract-actions";
 import { PlayerBadges } from "../../_components/player-badges";
 import { PlayerSheet } from "../../_components/player-sheet";
 import { nationalityCode } from "../../_lib/nationalities";
-import { POSITION_LABEL, POSITION_ORDER, POSITION_TEXT } from "../../_lib/positions";
+import { POSITION_LABEL, POSITION_ORDER, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
 import { formBarClass, ratingClasses } from "../../_lib/ratings";
 
 type SortKey = "position" | "name" | "age" | "overall" | "potential" | "form" | "marketValue" | "wage" | "contractUntil";
@@ -42,6 +42,7 @@ const byName = (a: SquadPlayerView, b: SquadPlayerView): number =>
 function compare(key: SortKey, a: SquadPlayerView, b: SquadPlayerView): number {
   switch (key) {
     case "position":
+      // Line by line (GK, DF, MF, FW), each position of the line in turn.
       return POSITION_ORDER.indexOf(a.position) - POSITION_ORDER.indexOf(b.position) || b.overall - a.overall;
     case "name":
       return byName(a, b);
@@ -158,9 +159,9 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                 >
                   <TableCell
                     title={POSITION_LABEL[player.position]}
-                    className={cn(TABLE_CELL, "w-16 font-heading text-sm font-bold", POSITION_TEXT[player.position])}
+                    className={cn(TABLE_CELL, "w-16 font-heading text-sm font-bold", positionTextClass(player.position))}
                   >
-                    {player.position}
+                    {POSITION_SHORT[player.position]}
                   </TableCell>
                   <TableCell className={TABLE_CELL}>
                     <button

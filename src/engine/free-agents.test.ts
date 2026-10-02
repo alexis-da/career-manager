@@ -7,9 +7,8 @@ import {
   FREE_AGENT_POOL_TOP_SHARE,
 } from "./balance";
 import { FREE_AGENT_POOL_SLUG, freeAgentPlayerKey, generateFreeAgentAttributes } from "./free-agents";
-import { ATTRIBUTE_NAMES, attributeRngSeed, RATING_MAX, RATING_MIN, type Position } from "./generation";
-
-const POSITIONS: Position[] = ["GK", "DF", "MF", "FW"];
+import { ATTRIBUTE_NAMES, attributeRngSeed, RATING_MAX, RATING_MIN } from "./generation";
+import { POSITIONS } from "./positions";
 
 /** Every position and age of the pool, over many save seeds. */
 const sample = Array.from({ length: 2_000 }, (_, index) => {
@@ -24,7 +23,7 @@ const sample = Array.from({ length: 2_000 }, (_, index) => {
 
 describe("generateFreeAgentAttributes", () => {
   it("is deterministic for the same stream", () => {
-    const generate = () => generateFreeAgentAttributes({ position: "MF", age: 28 }, makeRng("save:attributes:free-agents:7"));
+    const generate = () => generateFreeAgentAttributes({ position: "CM", age: 28 }, makeRng("save:attributes:free-agents:7"));
     expect(generate()).toEqual(generate());
   });
 

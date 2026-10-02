@@ -93,8 +93,15 @@ Le monde est le même pour toutes les parties : la graine est **fixe**, `WORLD_S
 
 - Un flux aléatoire par club : `makeRng(`${WORLD_SEED}:squad:${club.slug}`)`. Ajouter ou renommer un
   club ne modifie pas l'effectif des autres.
-- Effectif : `SQUAD_TEMPLATE` = 2 GK, 8 DF, 8 MF, 5 FW. L'identité stable d'un joueur du monde est
-  `(initialClubId, squadSlot)` (`@@unique`), `squadSlot` allant de 1 à 23 dans l'ordre du template.
+- Postes : enum `Position` à 12 valeurs (`src/engine/positions.ts`) — GK, RB, CB, LB, CDM, CM, CAM, RM, LM,
+  RW, LW, ST ; libellés courts dans l'UI : G, DD, DC, DG, MDC, MC, MOC, MD, MG, AD, AG, BU
+  (`app/saves/[id]/_lib/positions.ts`). `positionGroup(position)` → GK | DF | MF | FW donne la ligne, qui porte
+  les couleurs, le groupement de l'effectif et les pondérations du moteur de match.
+- Effectif : `SQUAD_ROLES` (`balance.ts`) = GK 2, RB 2, CB 4, LB 2, CDM 2, CM 3, CAM 2, RM/RW 2, LM/LW 2, ST 2 ;
+  `SQUAD_TEMPLATE = squadTemplate(23)`, rôle après rôle, un rôle à deux postes les alternant (RM puis RW) :
+  chaque club a donc un RM, un RW, un LM et un LW. **Aucun tirage pour le poste** : le flux d'identité ne change
+  pas quand le gabarit change. L'identité stable d'un joueur du monde est `(initialClubId, squadSlot)`
+  (`@@unique`), `squadSlot` allant de 1 à 23 dans l'ordre du template.
 - Âge : 17 à 36 ans révolus au 1er juillet 2024 (`WORLD_REFERENCE_DATE`), distribution centrée sur 21–29.
 - Nationalité : celle du pays du club à 70 % (`HOME_NATIONALITY_SHARE`), sinon tirée parmi les autres listes.
 - Tirages d'identité partagés avec les jeunes : `src/engine/identity.ts` (`drawNameList`, `drawUniqueName`,
@@ -115,7 +122,8 @@ Le monde compte aussi 120 joueurs **sans club** au 1er juillet 2024 (`generateFr
   `@@unique([initialClubId, squadSlot])` : c'est le seed qui garantit l'unicité du vivier (clé
   `free-agents#slot`, mise à jour par `updateMany`, faute de clé unique adressable).
 - Flux fixe `world-2024-25:free-agents`, indépendant des effectifs. Postes dans les proportions du template
-  (`FREE_AGENT_POOL_TEMPLATE` : 10 GK, 42 DF, 42 MF, 26 FW), 24 à 34 ans, nationalité tirée parmi toutes les
+  (`FREE_AGENT_POOL_TEMPLATE = squadTemplate(120)`, plus forts restes : GK 11, RB 11, CB 21, LB 11, CDM 10,
+  CM 16, CAM 10, RM/RW 10, LM/LW 10, ST 10), 24 à 34 ans, nationalité tirée parmi toutes les
   listes, noms distincts dans le vivier.
 - À la création de partie : `PlayerSave` sans club ni contrat (`clubSaveId` et `contractUntil` null, salaire 0),
   clé `free-agents#slot` (`freeAgentPlayerKey`). Attributs par `generateFreeAgentAttributes`
@@ -149,9 +157,14 @@ l'origine dans le monde 2024-25 (null pour un jeune arrivé en cours de partie).
   linéaire entre les deux, `clubCount` étant le nombre de clubs de la compétition.
 - Graine d'un joueur du monde à la création : `makeRng(attributeRngSeed(save.seed, club.slug, squadSlot))`,
   attributs puis durée de contrat (1 à 5 saisons pondérées 10/25/30/25/10 %, au plus 2 après 33 ans).
-- Cohérence : profil d'attributs par poste, qualité modulée par l'âge (pic 26–29), marge de potentiel
-  décroissante avec l'âge (nulle à partir de 29 ans). Toutes les constantes sont dans
-  `src/engine/balance.ts`.
+- Cohérence : profil d'attributs par poste (`POSITION_PROFILES`) — DC défense + physique, latéraux vitesse +
+  défense, MDC passe + défense, MC équilibré, MOC passe + dribble, milieux de côté vitesse + passe, ailiers
+  vitesse + dribble, BU tir + vitesse — et note `overall` pondérée propre au poste (`OVERALL_WEIGHTS`, chaque
+  ligne somme à 1) : un joueur est mieux noté à son poste qu'à celui d'une autre ligne. Qualité modulée par
+  l'âge (pic 26–29), marge de potentiel décroissante avec l'âge (nulle à partir de 29 ans). Toutes les
+  constantes sont dans `src/engine/balance.ts`.
+- Changer un profil ou une pondération change les notes des **nouvelles** parties, pas le monde du seed
+  (aucun attribut dans `Player`).
 
 ## Arrivées et départs du monde
 
@@ -162,7 +175,8 @@ fait entrer et sortir des joueurs :
 - **Jeunes** (`src/engine/youth.ts`) : 2 par club, club dirigé compris, à chaque présaison. 16 à 18 ans au
   1er juillet, note 45 à 60 selon la réputation du club, potentiel note + 15 à 30, nationalité du pays du
   club à 85 %, noms depuis `NAME_BANK`, contrat de 3 saisons. Si le club a moins de 2 gardiens, son
-  premier jeune est un gardien ; sinon les postes les plus en dessous du gabarit 2-8-8-5. Graine
+  premier jeune est un gardien ; sinon le rôle de `SQUAD_ROLES` le plus en dessous de son effectif cible
+  (égalité : les rôles les plus nombreux d'abord, gardiens en dernier), au poste le moins pourvu du rôle. Graine
   `youthRngSeed(save.seed, startYear, club.slug, rang)`, clé `youth:startYear:club.slug:rang`. Pas
   d'entraînement ni d'écran : c'est une arrivée, sans `Transfer`.
 - **Départs** : un joueur libre toujours sans club à la présaison qui suit sa libération quitte le monde

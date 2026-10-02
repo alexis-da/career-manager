@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Position } from "./generation";
-import { BENCH_SIZE, selectLineup, type SquadPlayer } from "./lineup";
+import { BENCH_SIZE, DEFAULT_FORMATION, selectLineup, type Lineup, type SquadPlayer } from "./lineup";
+import type { Position } from "./positions";
 
 function player(id: string, position: Position, overall: number, overrides: Partial<SquadPlayer> = {}): SquadPlayer {
   return {
@@ -24,24 +24,52 @@ function player(id: string, position: Position, overall: number, overrides: Part
 const range = (prefix: string, position: Position, overalls: number[]): SquadPlayer[] =>
   overalls.map((overall, index) => player(`${prefix}-${index + 1}`, position, overall));
 
+// The 23 of the squad template: 2 GK, 2 RB, 4 CB, 2 LB, 2 CDM, 3 CM, 2 CAM, RM + RW, LM + LW, 2 ST.
 const squad: SquadPlayer[] = [
   ...range("gk", "GK", [70, 75]),
-  ...range("df", "DF", [60, 68, 62, 71, 65, 66, 59, 70]),
-  ...range("mf", "MF", [64, 72, 61, 69, 67, 58, 73, 60]),
-  ...range("fw", "FW", [74, 63, 70, 66, 71]),
+  ...range("rb", "RB", [66, 62]),
+  ...range("cb", "CB", [71, 68, 65, 60]),
+  ...range("lb", "LB", [64, 59]),
+  ...range("cdm", "CDM", [69, 61]),
+  ...range("cm", "CM", [72, 67, 58]),
+  ...range("cam", "CAM", [73, 63]),
+  player("rm-1", "RM", 65),
+  player("rw-1", "RW", 70),
+  player("lm-1", "LM", 64),
+  player("lw-1", "LW", 68),
+  ...range("st", "ST", [74, 66]),
 ];
 
-const idsInSlot = (lineup: ReturnType<typeof selectLineup>, slot: Position): string[] =>
-  lineup.starters.filter((starter) => starter.slot === slot).map((starter) => starter.player.id);
+const startersOf = (lineup: Lineup): [Position, string][] =>
+  lineup.starters.map(({ slot, player: starter }) => [slot, starter.id]);
 
 describe("selectLineup", () => {
-  it("picks 1 GK, 4 DF, 3 MF and 3 FW, the best by overall at each position", () => {
+  it("fills the 11 slots of the 4-3-3 in order, the best rated player in each, nobody twice", () => {
     const lineup = selectLineup(squad);
+    const ids = lineup.starters.map((starter) => starter.player.id);
 
-    expect(idsInSlot(lineup, "GK")).toEqual(["gk-2"]);
-    expect(idsInSlot(lineup, "DF")).toEqual(["df-4", "df-8", "df-2", "df-6"]);
-    expect(idsInSlot(lineup, "MF")).toEqual(["mf-7", "mf-2", "mf-4"]);
-    expect(idsInSlot(lineup, "FW")).toEqual(["fw-1", "fw-5", "fw-3"]);
+    expect(lineup.starters.map((starter) => starter.slot)).toEqual(DEFAULT_FORMATION);
+    expect(new Set(ids).size).toBe(11);
+    expect(startersOf(lineup)).toEqual([
+      ["GK", "gk-2"],
+      ["RB", "rb-1"],
+      ["CB", "cb-1"],
+      ["CB", "cb-2"],
+      ["LB", "lb-1"],
+      ["CDM", "cdm-1"],
+      ["CM", "cm-1"],
+      // cam-1 (73 × 0.92 = 67.16) edges cm-2 (67): another midfield position, still the better player here.
+      ["CM", "cam-1"],
+      ["RW", "rw-1"],
+      ["ST", "st-1"],
+      ["LW", "lw-1"],
+    ]);
+  });
+
+  it("prefers a right-back rated 70 to a centre-back rated 74 at right-back", () => {
+    const lineup = selectLineup([player("dc", "CB", 74), player("dd", "RB", 70)], ["RB"]);
+
+    expect(startersOf(lineup)).toEqual([["RB", "dd"]]);
   });
 
   it("names 7 substitutes, the backup goalkeeper first, none of them starting", () => {
@@ -54,31 +82,29 @@ describe("selectLineup", () => {
   });
 
   it("leaves injured players out of the lineup and the bench", () => {
-    const injured = new Set(["gk-2", "fw-1", "df-4"]);
+    const injured = new Set(["gk-2", "st-1", "rb-1"]);
     const lineup = selectLineup(squad.map((member) => ({ ...member, injured: injured.has(member.id) })));
     const selected = [...lineup.starters.map((starter) => starter.player.id), ...lineup.bench.map((sub) => sub.id)];
 
     expect(selected.some((id) => injured.has(id))).toBe(false);
-    expect(idsInSlot(lineup, "GK")).toEqual(["gk-1"]);
-    expect(idsInSlot(lineup, "FW")).toEqual(["fw-5", "fw-3", "fw-4"]);
+    expect(startersOf(lineup)).toContainEqual(["GK", "gk-1"]);
+    // At right-back, the best centre-back (71 × 0.92 = 65.32) beats the other right-back (62).
+    expect(startersOf(lineup)[1]).toEqual(["RB", "cb-1"]);
+    expect(startersOf(lineup)).toContainEqual(["ST", "st-2"]);
   });
 
-  it("fills a slot left empty by injuries with the best remaining player for it", () => {
-    const lineup = selectLineup(
-      squad.map((member) =>
-        member.position === "GK"
-          ? { ...member, injured: true }
-          : member.id === "df-7"
-            ? { ...member, goalkeeping: 40 }
-            : member,
-      ),
-    );
+  it("puts the best rated outfield player in goal when every goalkeeper is injured", () => {
+    const lineup = selectLineup(squad.map((member) => (member.position === "GK" ? { ...member, injured: true } : member)));
 
     expect(lineup.starters).toHaveLength(11);
-    expect(idsInSlot(lineup, "GK")).toEqual(["df-7"]);
+    expect(startersOf(lineup)[0]).toEqual(["GK", "st-1"]);
   });
 
-  it("does not depend on the order of the squad", () => {
+  it("breaks rating ties by id and does not depend on the order of the squad", () => {
+    const twins = [player("b", "ST", 70), player("a", "ST", 70)];
+
+    expect(startersOf(selectLineup(twins, ["ST"]))).toEqual([["ST", "a"]]);
     expect(selectLineup([...squad].reverse())).toEqual(selectLineup(squad));
+    expect(selectLineup(squad)).toEqual(selectLineup(squad));
   });
 });

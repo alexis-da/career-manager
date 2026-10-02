@@ -3,7 +3,7 @@ import {
   CLUB_REPUTATION_BEST,
   CLUB_REPUTATION_WORST,
   MIN_GOALKEEPERS,
-  SQUAD_POSITION_TARGETS,
+  SQUAD_ROLES,
   YOUTH_AGE_MAX,
   YOUTH_AGE_MIN,
   YOUTH_CONTRACT_YEARS,
@@ -17,9 +17,10 @@ import {
 } from "./balance";
 import { lerp } from "./curves";
 import { contractEndDate, marketValueFor, wageFor } from "./economy";
-import { clampRating, generateAttributes, shiftToOverall, type PlayerAttributes, type Position } from "./generation";
+import { clampRating, generateAttributes, shiftToOverall, type PlayerAttributes } from "./generation";
 import { drawBirthDate, drawNameList, drawUniqueName, type PlayerIdentity } from "./identity";
 import type { NameBank } from "./names";
+import { roleOf, type Position } from "./positions";
 import { seasonStartDate } from "./world";
 
 export type YouthClub = {
@@ -45,8 +46,16 @@ export type YouthPlayer = PlayerIdentity &
     contractUntil: Date;
   };
 
-/** When no position is short, the next young player comes to the positions with the most players. */
-const TIE_ORDER: readonly Position[] = ["DF", "MF", "FW", "GK"];
+/**
+ * Roles in the order they win a tie on shortfall: the roles needing the most players first, goalkeepers last,
+ * otherwise in the order of SQUAD_ROLES.
+ */
+const TIE_ORDER: readonly number[] = SQUAD_ROLES.map((_, index) => index).sort(
+  (a, b) =>
+    Number(SQUAD_ROLES[a].positions.includes("GK")) - Number(SQUAD_ROLES[b].positions.includes("GK")) ||
+    SQUAD_ROLES[b].count - SQUAD_ROLES[a].count ||
+    a - b,
+);
 
 /** Prefix of the keys of every young player arriving in a season. */
 export function youthKeyPrefix(startYear: number): string {
@@ -63,26 +72,28 @@ export function youthRngSeed(saveSeed: string, startYear: number, clubSlug: stri
 }
 
 /**
- * Positions of the club's young players this season: a goalkeeper first when the squad has fewer than
- * MIN_GOALKEEPERS, otherwise the position furthest below SQUAD_POSITION_TARGETS, one player at a time.
+ * Positions of the club's young players this season, one player at a time: a goalkeeper first when the squad has
+ * fewer than MIN_GOALKEEPERS, otherwise the role furthest below its count in SQUAD_ROLES, at the position of that
+ * role with the fewest players (the first one on a tie).
  */
 export function youthPositions(squadPositions: readonly Position[]): Position[] {
-  const counts: Record<Position, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
+  const counts = new Map<Position, number>();
   for (const position of squadPositions) {
-    counts[position]++;
+    counts.set(position, (counts.get(position) ?? 0) + 1);
   }
+  const countOf = (position: Position): number => counts.get(position) ?? 0;
+  const shortfall = (role: number): number =>
+    SQUAD_ROLES[role].count - SQUAD_ROLES[role].positions.reduce((sum, position) => sum + countOf(position), 0);
+
   const positions: Position[] = [];
   for (let index = 0; index < YOUTH_PLAYERS_PER_CLUB; index++) {
-    const position =
-      index === 0 && counts.GK < MIN_GOALKEEPERS
-        ? "GK"
-        : TIE_ORDER.reduce((best, candidate) =>
-            SQUAD_POSITION_TARGETS[candidate] - counts[candidate] > SQUAD_POSITION_TARGETS[best] - counts[best]
-              ? candidate
-              : best,
-          );
+    const role =
+      index === 0 && countOf("GK") < MIN_GOALKEEPERS
+        ? roleOf("GK")
+        : SQUAD_ROLES[TIE_ORDER.reduce((best, candidate) => (shortfall(candidate) > shortfall(best) ? candidate : best))];
+    const position = role.positions.reduce((best, candidate) => (countOf(candidate) < countOf(best) ? candidate : best));
     positions.push(position);
-    counts[position]++;
+    counts.set(position, countOf(position) + 1);
   }
   return positions;
 }

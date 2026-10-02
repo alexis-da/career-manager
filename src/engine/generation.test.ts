@@ -4,12 +4,13 @@ import {
   ATTRIBUTE_NAMES,
   clubLevelFromRank,
   generateAttributes,
+  overallFor,
+  type AttributeName,
   type PlayerAttributes,
-  type Position,
 } from "./generation";
-
-const POSITIONS: Position[] = ["GK", "DF", "MF", "FW"];
+import { POSITIONS, positionGroup, type Position } from "./positions";
 const RATINGS = [...ATTRIBUTE_NAMES, "overall", "potential"] as const;
+const OUTFIELD_ATTRIBUTES = ATTRIBUTE_NAMES.filter((name) => name !== "goalkeeping");
 
 function sample(position: Position, age: number, clubLevel: number, count: number, seed: string): PlayerAttributes[] {
   const rng = makeRng(seed);
@@ -20,8 +21,8 @@ const mean = (values: number[]): number => values.reduce((sum, value) => sum + v
 
 describe("generateAttributes", () => {
   it("returns the same attributes for the same seed", () => {
-    expect(sample("MF", 24, 70, 50, "save-a")).toEqual(sample("MF", 24, 70, 50, "save-a"));
-    expect(sample("MF", 24, 70, 50, "save-a")).not.toEqual(sample("MF", 24, 70, 50, "save-b"));
+    expect(sample("CM", 24, 70, 50, "save-a")).toEqual(sample("CM", 24, 70, 50, "save-a"));
+    expect(sample("CM", 24, 70, 50, "save-a")).not.toEqual(sample("CM", 24, 70, 50, "save-b"));
   });
 
   it("keeps every rating an integer within 1–99, potential never below overall", () => {
@@ -49,12 +50,12 @@ describe("generateAttributes", () => {
   });
 
   it("rejects a club level outside 1–99", () => {
-    expect(() => generateAttributes({ position: "FW", age: 25 }, 0, makeRng("x"))).toThrow(RangeError);
-    expect(() => generateAttributes({ position: "FW", age: 25 }, 100, makeRng("x"))).toThrow(RangeError);
+    expect(() => generateAttributes({ position: "ST", age: 25 }, 0, makeRng("x"))).toThrow(RangeError);
+    expect(() => generateAttributes({ position: "ST", age: 25 }, 100, makeRng("x"))).toThrow(RangeError);
   });
 
   it("shapes attributes by position", () => {
-    const [goalkeepers, defenders, forwards] = (["GK", "DF", "FW"] as const).map((position) =>
+    const [goalkeepers, defenders, forwards] = (["GK", "CB", "ST"] as const).map((position) =>
       sample(position, 27, 70, 300, `position:${position}`),
     );
     const average = (players: PlayerAttributes[], name: (typeof RATINGS)[number]) =>
@@ -63,6 +64,51 @@ describe("generateAttributes", () => {
     expect(average(goalkeepers, "goalkeeping")).toBeGreaterThan(average(forwards, "goalkeeping") + 40);
     expect(average(defenders, "defending")).toBeGreaterThan(average(forwards, "defending") + 20);
     expect(average(forwards, "shooting")).toBeGreaterThan(average(defenders, "shooting") + 15);
+  });
+
+  it("gives each outfield position its strengths: the two attributes it is known for come first", () => {
+    const strengths: Partial<Record<Position, [AttributeName, AttributeName]>> = {
+      CB: ["defending", "physical"],
+      RB: ["pace", "defending"],
+      LB: ["pace", "defending"],
+      CDM: ["passing", "defending"],
+      CAM: ["passing", "dribbling"],
+      RM: ["pace", "passing"],
+      LM: ["pace", "passing"],
+      RW: ["pace", "dribbling"],
+      LW: ["pace", "dribbling"],
+      ST: ["shooting", "pace"],
+    };
+    for (const [position, expected] of Object.entries(strengths) as [Position, [AttributeName, AttributeName]][]) {
+      const players = sample(position, 27, 70, 300, `strengths:${position}`);
+      const top = OUTFIELD_ATTRIBUTES.map((name) => ({ name, value: mean(players.map((player) => player[name])) }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 2)
+        .map(({ name }) => name);
+      expect([position, [...top].sort()]).toEqual([position, [...expected].sort()]);
+    }
+  });
+
+  it("keeps the central midfielder the most balanced outfield profile", () => {
+    const spread = (position: Position): number => {
+      const players = sample(position, 27, 70, 300, `balance:${position}`);
+      const means = OUTFIELD_ATTRIBUTES.map((name) => mean(players.map((player) => player[name])));
+      return Math.max(...means) - Math.min(...means);
+    };
+    for (const position of POSITIONS.filter((candidate) => candidate !== "GK" && candidate !== "CM")) {
+      expect(spread("CM")).toBeLessThan(spread(position));
+    }
+  });
+
+  it("rates a player with their position's weights, which suit them better than another line's", () => {
+    for (const position of POSITIONS) {
+      const players = sample(position, 27, 70, 300, `fit:${position}`);
+      expect(players.every((player) => player.overall === overallFor(position, player))).toBe(true);
+      const own = mean(players.map((player) => player.overall));
+      for (const other of POSITIONS.filter((candidate) => positionGroup(candidate) !== positionGroup(position))) {
+        expect([position, other, mean(players.map((player) => overallFor(other, player))) < own]).toEqual([position, other, true]);
+      }
+    }
   });
 
   it("gives every position an overall close to the club level at peak age", () => {
@@ -74,7 +120,7 @@ describe("generateAttributes", () => {
   });
 
   it("follows age: lower overall and more growth room when young, no growth room when old", () => {
-    const [young, prime, veteran] = [18, 27, 34].map((age) => sample("MF", age, 70, 300, `age:${age}`));
+    const [young, prime, veteran] = [18, 27, 34].map((age) => sample("CM", age, 70, 300, `age:${age}`));
     const averageOverall = (players: PlayerAttributes[]) => mean(players.map((player) => player.overall));
 
     expect(averageOverall(young)).toBeLessThan(averageOverall(prime));

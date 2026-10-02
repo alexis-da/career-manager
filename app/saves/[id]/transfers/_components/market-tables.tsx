@@ -11,12 +11,12 @@ import type {
   MovementRow,
   Paginated,
 } from "@/src/db/market";
-import type { Position } from "@/src/engine/generation";
+import type { Position } from "@/src/engine/positions";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../../_components/panel";
 import { nationalityCode } from "../../_lib/nationalities";
-import { POSITION_LABEL, POSITION_TEXT } from "../../_lib/positions";
+import { POSITION_LABEL, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
 import { ratingClasses } from "../../_lib/ratings";
 import { marketHref, type SearchValues } from "../_lib/market-url";
 import { MakeOfferDialog, SignFreeAgentDialog } from "./market-dialogs";
@@ -59,8 +59,8 @@ function PlayerCell({
 
 function PositionCell({ position }: { position: Position }) {
   return (
-    <TableCell title={POSITION_LABEL[position]} className={cn(TABLE_CELL, "font-heading text-sm font-bold", POSITION_TEXT[position])}>
-      {position}
+    <TableCell title={POSITION_LABEL[position]} className={cn(TABLE_CELL, "font-heading text-sm font-bold", positionTextClass(position))}>
+      {POSITION_SHORT[position]}
     </TableCell>
   );
 }

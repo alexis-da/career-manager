@@ -230,11 +230,20 @@ model PlayerSeasonStats {
 
 // -------------------------------------------------------------------- ENUMS
 
+// Postes précis ; le groupe (GK, DF, MF, FW) se déduit du poste : positionGroup, src/engine/positions.ts.
 enum Position {
   GK
-  DF
-  MF
-  FW
+  RB
+  CB
+  LB
+  CDM
+  CM
+  CAM
+  RM
+  LM
+  RW
+  LW
+  ST
 }
 
 enum MatchEventType {
