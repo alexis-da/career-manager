@@ -189,19 +189,28 @@ fait entrer et sortir des joueurs :
 ## Visages des joueurs
 
 Aucune image stockée ni bibliothèque : le visage est dessiné en SVG inline (`src/components/player-face.tsx`) à
-partir de `faceParams(playerKey, age)` (`src/engine/face.ts`, pur) : carnation (6), coiffure (8 dont chauve),
-couleur de cheveux (6 dont gris), pilosité (4 dont aucune), yeux (3), sourcils (3), forme du visage (3).
+partir de `faceParams(playerKey, age)` (`src/engine/face.ts`, pur) : carnation (6), coiffure (12 dont chauve),
+couleur de cheveux (6 dont gris), pilosité (4 dont aucune), yeux (3), sourcils (3), forme du visage (3), puis,
+ajoutés en fin de séquence : ligne de front (3), nez (3), bouche (3), mâchoire (3), couleur des yeux (3),
+épaisseur des sourcils (2), et les traits rares — lunettes 4 %, bandeau 3 %, cicatrice de sourcil 2 %
+(`balance.ts`). Chaque carnation et chaque couleur de cheveux a une seconde teinte plate (ombre du cou, mèche) :
+du relief sans dégradé.
 
 - Graine `face:${playerKey}` — **ni `Save.seed` ni un id** : un joueur a le même visage dans toutes les parties
   et toutes les saisons. Rien n'est écrit en base ; un jeune a sa clé, donc son visage, dès son arrivée.
 - **La carnation est tirée uniformément depuis la graine, indépendamment de la nationalité.** Ne jamais la
   dériver de `nationality` ni du pays du club : ce serait un stéréotype, et la nationalité d'un joueur ne dit
   rien de son apparence.
-- L'âge ne change que les cheveux : gris possible au-delà de 33 ans, calvitie de plus en plus probable
-  (`GRAY_HAIR_CHANCE_BY_AGE`, `BALD_CHANCE_BY_AGE`, `balance.ts`). Chaque joueur tire une seule fois sa place sur
-  ces courbes croissantes : il peut grisonner ou devenir chauve en vieillissant, jamais l'inverse.
-- L'ordre des tirages de `faceParams` fait partie du visage : ne pas le réordonner, ajouter un tirage à la fin.
-  Le snapshot de `player-face.test.tsx` casse volontairement si le dessin change.
+- L'âge ne change que les cheveux et les rides : gris possible au-delà de 33 ans, calvitie de plus en plus
+  probable, deux fines rides aux coins des yeux possibles au-delà de 30 ans (`GRAY_HAIR_CHANCE_BY_AGE`,
+  `BALD_CHANCE_BY_AGE`, `WRINKLES_CHANCE_BY_AGE`, `balance.ts`). Chaque joueur tire une seule fois sa place sur
+  ces courbes croissantes : il peut grisonner, se dégarnir ou se rider en vieillissant, jamais l'inverse.
+- L'ordre des tirages de `faceParams` fait partie du visage : ne pas le réordonner, **ajouter les tirages à la
+  fin**, et faire chaque tirage quel que soit son résultat pour ne pas décaler les suivants. Une nouvelle
+  variante d'un paramètre existant se tire aussi à la fin : les 4 coiffures ajoutées (bouclés, afro court, longs
+  attachés, rasé avec dégradé) remplacent la première coiffure tirée avec une probabilité 4/11. Un test épingle
+  les tirages de la première séquence pour 5 clés ; le snapshot de `player-face.test.tsx` casse volontairement
+  si le dessin change.
 - Col du maillot aux couleurs du club actuel (`Club.primaryColor` / `secondaryColor`), gris pour un joueur libre.
 
 ## Licence

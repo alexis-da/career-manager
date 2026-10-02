@@ -463,3 +463,24 @@ export const BALD_CHANCE_BY_AGE: Curve = [
   [33, 0.15],
   [38, 0.35],
 ];
+
+/** Share of players whose hair is one of the styles added later (wavy, short afro, tied back, fade). */
+export const LATER_HAIR_STYLE_SHARE = 4 / 11;
+
+/** Relative weight of each eye color (brown, blue, green). */
+export const EYE_COLOR_WEIGHTS: readonly number[] = [60, 22, 18];
+
+/** Rare features: glasses, a headband, a scar through an eyebrow. */
+export const GLASSES_CHANCE = 0.04;
+export const HEADBAND_CHANCE = 0.03;
+export const BROW_SCAR_CHANCE = 0.02;
+
+/** Wrinkles at the corners of the eyes are only possible above this age. */
+export const WRINKLES_MIN_AGE = 30;
+
+/** Chance of wrinkles at the corners of the eyes by age, above WRINKLES_MIN_AGE. */
+export const WRINKLES_CHANCE_BY_AGE: Curve = [
+  [30, 0],
+  [34, 0.35],
+  [38, 0.7],
+];
