@@ -20,9 +20,12 @@ export const savedLineupSchema = z.object({
   benchOrder: z.array(z.string().min(1).max(100)).max(BENCH_SIZE),
 });
 
-/** A lineup sent by the manager: the stored shape, with each slot and each player at most once. */
+/** A lineup sent by the manager: the stored shape, all 11 slots filled, each slot and each player once. */
 export const lineupInputSchema = z
   .object({ formation: formationSchema, lineup: savedLineupSchema })
+  .refine(({ lineup }) => lineup.starters.length === SLOT_COUNT, {
+    message: "Onze incomplet : placez un joueur sur chacun des 11 postes avant d'enregistrer.",
+  })
   .refine(({ lineup }) => new Set(lineup.starters.map((starter) => starter.slot)).size === lineup.starters.length, {
     message: "Un poste est attribué deux fois.",
   })

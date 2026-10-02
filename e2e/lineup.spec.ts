@@ -59,3 +59,54 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
     saveName = undefined;
   }
 });
+
+test("drags a substitute onto a slot and a starter to the bench, refuses an incomplete eleven, then saves", async ({ page }) => {
+  // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
+  const name = `E2E ${Date.now()}`;
+  saveName = name;
+  try {
+    await createSave(page, name, LYON);
+    await page.getByRole("navigation", { name: "Navigation de la partie" }).getByRole("link", { name: "Composition" }).click();
+    await expect(page.getByLabel("Dispositif")).toHaveValue("4-3-3");
+
+    // 4-3-3 slots: GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW.
+    const striker = page.locator('[data-slot-index="9"]');
+    const centreBack = page.locator('[data-slot-index="3"]');
+    const bench = page.getByRole("region", { name: "Banc" });
+
+    // A substitute dragged onto the striker's slot takes it; the striker goes to the bench.
+    const substitute = page.locator('[data-bench="true"]').first();
+    const substituteKey = (await substitute.getAttribute("data-player-key")) ?? "";
+    const strikerKey = (await striker.getAttribute("data-slot-player-key")) ?? "";
+    await substitute.dragTo(striker);
+    await expect(striker).toHaveAttribute("data-slot-player-key", substituteKey);
+    await expect(page.locator(`[data-player-key="${strikerKey}"]`)).toHaveAttribute("data-bench", "true");
+
+    // A starter dragged onto the bench leaves the eleven: his slot stays empty.
+    const centreBackKey = (await centreBack.getAttribute("data-slot-player-key")) ?? "";
+    await centreBack.dragTo(bench);
+    await expect(centreBack.locator("[data-slot-player]")).toHaveText("Vide");
+    await expect(page.locator(`[data-player-key="${centreBackKey}"]`)).toHaveAttribute("data-bench", "true");
+
+    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(page.getByText(/^Onze incomplet : 1 poste est vide/)).toBeVisible();
+
+    // A reserve dragged onto the empty slot completes the eleven.
+    const reserve = page.locator('[data-bench="false"]').first();
+    const reserveKey = (await reserve.getAttribute("data-player-key")) ?? "";
+    await reserve.dragTo(centreBack);
+    await expect(centreBack).toHaveAttribute("data-slot-player-key", reserveKey);
+
+    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(page.getByText("Composition en 4-3-3 enregistrée.")).toBeVisible();
+
+    await page.reload();
+    await expect(page.locator('[data-slot-index="9"]')).toHaveAttribute("data-slot-player-key", substituteKey);
+    await expect(page.locator('[data-slot-index="3"]')).toHaveAttribute("data-slot-player-key", reserveKey);
+    await expect(page.locator(`[data-player-key="${strikerKey}"]`)).toHaveAttribute("data-bench", "true");
+    await expect(page.locator(`[data-player-key="${centreBackKey}"]`)).toHaveAttribute("data-bench", "true");
+  } finally {
+    await deleteSave(page, name);
+    saveName = undefined;
+  }
+});

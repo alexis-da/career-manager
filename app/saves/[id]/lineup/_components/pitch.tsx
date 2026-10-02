@@ -5,6 +5,7 @@ import { ratingAt } from "@/src/engine/positions";
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
 import { POSITION_LABEL, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
+import { slotTarget, type DragSourceProps } from "./use-pointer-drag";
 
 /** Pitch markings in metres, on a 68 × 105 pitch. */
 const WIDTH = 68;
@@ -48,13 +49,29 @@ type PitchProps = {
   clubColors: ClubColors;
   selected: number | null;
   onSelect: (index: number) => void;
+  dragged: LineupPlayer | null; // the player being dragged, whose rating every slot then shows
+  draggedFrom: number | null; // his slot, when he is a starter
+  over: number | null; // the slot under the pointer during a drag
+  dragProps: (index: number, key: string) => DragSourceProps;
 };
 
 /**
  * The formation on a vertical pitch, attacking upwards: each slot shows its player's face, his rating there (yellow
- * out of position, red when injured), the slot's position and his name.
+ * out of position, red when injured), the slot's position and his name. During a drag, every slot shows the rating
+ * the dragged player would have there instead, and the slot under the pointer is highlighted.
  */
-export function Pitch({ slots, starters, players, clubColors, selected, onSelect }: PitchProps) {
+export function Pitch({
+  slots,
+  starters,
+  players,
+  clubColors,
+  selected,
+  onSelect,
+  dragged,
+  draggedFrom,
+  over,
+  dragProps,
+}: PitchProps) {
   return (
     <div
       className="relative aspect-[68/105] w-full overflow-hidden rounded-lg border bg-pitch"
@@ -68,6 +85,9 @@ export function Pitch({ slots, starters, players, clubColors, selected, onSelect
         const player = key === null ? undefined : players.get(key);
         const rating = player === undefined ? null : ratingAt(player, slot.position);
         const outOfPosition = player !== undefined && rating !== null && rating < player.overall;
+        const draggedRating = dragged === null ? null : ratingAt(dragged, slot.position);
+        const badge = draggedRating ?? rating;
+        const badgeOutOfPosition = dragged === null ? outOfPosition : draggedRating !== null && draggedRating < dragged.overall;
         const label =
           player === undefined
             ? `${POSITION_LABEL[slot.position]} : poste vide`
@@ -78,11 +98,18 @@ export function Pitch({ slots, starters, players, clubColors, selected, onSelect
             key={index}
             type="button"
             data-slot-index={index}
+            data-slot-player-key={key ?? undefined}
+            data-drop-target={slotTarget(index)}
+            {...(key === null ? {} : dragProps(index, key))}
             aria-label={label}
             aria-pressed={selected === index}
             onClick={() => onSelect(index)}
             style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
-            className="group absolute flex w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 outline-none"
+            className={cn(
+              "group absolute flex w-24 -translate-x-1/2 -translate-y-1/2 touch-none flex-col items-center gap-1 outline-none select-none",
+              key !== null && "cursor-grab",
+              draggedFrom === index && "opacity-50",
+            )}
           >
             <span
               className={cn(
@@ -96,17 +123,20 @@ export function Pitch({ slots, starters, players, clubColors, selected, onSelect
                       ? "border-warning text-warning"
                       : "border-white/70 text-foreground",
                 selected === index && "ring-4 ring-(--club) ring-offset-2 ring-offset-pitch",
+                over === index && "scale-110 ring-4 ring-white/80 ring-offset-2 ring-offset-pitch",
               )}
             >
-              {player === undefined || rating === null ? (
-                "+"
-              ) : (
-                <>
-                  <PlayerFace playerKey={player.id} age={player.age} clubColors={clubColors} size={32} />
-                  <span className="absolute -top-1.5 -right-3 min-w-6 rounded-sm border border-current bg-background px-0.5 text-center text-xs leading-4">
-                    {Math.round(rating)}
-                  </span>
-                </>
+              {player === undefined ? "+" : <PlayerFace playerKey={player.id} age={player.age} clubColors={clubColors} size={32} />}
+              {badge !== null && (
+                <span
+                  data-slot-rating
+                  className={cn(
+                    "absolute -top-1.5 -right-3 min-w-6 rounded-sm border bg-background px-0.5 text-center text-xs leading-4",
+                    dragged === null ? "border-current" : badgeOutOfPosition ? "border-warning text-warning" : "border-white/70 text-foreground",
+                  )}
+                >
+                  {Math.round(badge)}
+                </span>
               )}
             </span>
             <span
