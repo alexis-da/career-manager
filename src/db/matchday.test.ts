@@ -12,6 +12,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
   let getStandings: typeof getStandingsFunction | undefined;
   let saveId = "";
   let summary: MatchdaySummary | null = null;
+  // The managed club's weakest outfield player, saved up front in a 4-4-2: the automatic lineup never picks him.
+  let pickedKey = "";
 
   const database = (): typeof prismaClient => {
     if (db === undefined) {
@@ -21,15 +23,26 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
   };
 
   beforeAll(async () => {
-    const [{ prisma }, support, { playNextMatchday }, standings] = await Promise.all([
+    const [{ prisma }, support, { playNextMatchday }, standings, { saveManagedLineup }] = await Promise.all([
       import("./client"),
       import("./test-support"),
       import("./matchday"),
       import("./standings"),
+      import("./lineup"),
     ]);
     db = prisma;
     getStandings = standings.getStandings;
     saveId = await support.createDemoTwin("Test première journée");
+    const weakest = await prisma.playerSave.findFirstOrThrow({
+      where: { saveId, clubSave: { isManaged: true }, position: { not: "GK" } },
+      orderBy: [{ overall: "asc" }, { playerKey: "asc" }],
+      select: { playerKey: true },
+    });
+    pickedKey = weakest.playerKey;
+    await saveManagedLineup(saveId, {
+      formation: "4-4-2",
+      lineup: { starters: [{ slot: 9, playerKey: pickedKey }], benchOrder: [] },
+    });
     summary = await playNextMatchday(saveId);
   }, 120_000);
 
@@ -53,6 +66,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
     expect(playedThatDay).toBe(48);
     expect(summary?.fixtures).toBe(48);
     expect([unplayedThatDay, playedElsewhere]).toEqual([0, 0]);
+  });
+
+  it("plays the managed club's saved lineup", async () => {
+    const stats = await database().playerSeasonStats.findFirst({
+      where: { saveId, playerSave: { saveId, playerKey: pickedKey } },
+      select: { appearances: true, minutes: true },
+    });
+
+    expect(stats?.appearances).toBe(1);
+    expect(stats?.minutes).toBeGreaterThan(0);
   });
 
   it("records one goal event per goal and counts them in the season stats", async () => {

@@ -56,7 +56,7 @@ licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (C
 ```
 app/                  # routes App Router, à la racine ; UI en français
   _components/        # composants de la page d'accueil (liste et création de parties)
-  saves/[id]/         # une partie : tableau de bord, effectif, calendrier, classement, transferts
+  saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e)
 src/

@@ -108,6 +108,8 @@ model ClubSave {
   wageBudget      Int          @default(0) // euros par saison
   reputation      Int          @default(50) // 1–99
   boardConfidence Int          @default(50) // 1–99
+  formation       String       @default("4-3-3") // dispositif, l'un de FORMATION_NAMES (src/engine/formations.ts)
+  lineup          Json? // composition enregistrée du club dirigé : { starters: [{ slot, playerKey }], benchOrder }
   players         PlayerSave[]
   homeFixtures    Fixture[]    @relation("HomeFixtures")
   awayFixtures    Fixture[]    @relation("AwayFixtures")

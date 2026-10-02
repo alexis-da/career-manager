@@ -53,6 +53,8 @@
   --position-df: #60a5fa;
   --position-mf: #4ade80;
   --position-fw: #f87171;
+  /* The lineup pitch: dark grass under white markings. */
+  --pitch: #11281b;
 }
 
 @theme inline {
@@ -98,6 +100,7 @@
   --color-position-df: var(--position-df);
   --color-position-mf: var(--position-mf);
   --color-position-fw: var(--position-fw);
+  --color-pitch: var(--pitch);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

@@ -1,4 +1,4 @@
-import { selectLineup, type SquadPlayer } from "../engine/lineup";
+import { resolveLineup, selectLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import {
   matchRngSeed,
   nextForm,
@@ -11,6 +11,7 @@ import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { parseFormation, parseSavedLineup } from "./lineup";
 
 // A matchday writes a few thousand rows, in a handful of bulk statements.
 const TRANSACTION_MAX_WAIT_MS = 10_000;
@@ -34,6 +35,14 @@ type SeasonStats = {
   playerSaveId: string;
   stats: PlayerMatchStats;
 };
+
+const TEAM_SELECT = { isManaged: true, formation: true, lineup: true, club: { select: { slug: true } } } as const;
+
+type Team = { isManaged: boolean; formation: string; lineup: unknown };
+
+/** The managed club plays its saved lineup, completed automatically; AI clubs pick their 4-3-3 automatically. */
+const lineupOf = (team: Team, squad: readonly SquadPlayer[]): Lineup =>
+  team.isManaged ? resolveLineup(parseFormation(team.formation), parseSavedLineup(team.lineup), squad) : selectLineup(squad);
 
 const seasonStatsKey = (seasonId: string, playerSaveId: string): string => `${seasonId}#${playerSaveId}`;
 
@@ -65,8 +74,8 @@ export async function playNextMatchday(saveId: string): Promise<MatchdaySummary 
           homeClubSaveId: true,
           awayClubSaveId: true,
           season: { select: { startYear: true } },
-          homeClubSave: { select: { club: { select: { slug: true } } } },
-          awayClubSave: { select: { club: { select: { slug: true } } } },
+          homeClubSave: { select: TEAM_SELECT },
+          awayClubSave: { select: TEAM_SELECT },
         },
       });
 
@@ -130,7 +139,11 @@ export async function playNextMatchday(saveId: string): Promise<MatchdaySummary 
             fixture.awayClubSave.club.slug,
           ),
         );
-        const result = simulateMatch(selectLineup(squadsBySide.home), selectLineup(squadsBySide.away), rng);
+        const result = simulateMatch(
+          lineupOf(fixture.homeClubSave, squadsBySide.home),
+          lineupOf(fixture.awayClubSave, squadsBySide.away),
+          rng,
+        );
 
         scores.push({ fixtureId: fixture.id, homeGoals: result.homeGoals, awayGoals: result.awayGoals });
         for (const event of result.events) {

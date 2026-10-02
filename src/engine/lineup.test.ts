@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { BENCH_SIZE, DEFAULT_FORMATION, selectLineup, type Lineup, type SquadPlayer } from "./lineup";
+import { formationPositions } from "./formations";
+import {
+  BENCH_SIZE,
+  changeFormation,
+  DEFAULT_FORMATION,
+  resolveLineup,
+  selectLineup,
+  type Lineup,
+  type SavedLineup,
+  type SquadPlayer,
+} from "./lineup";
 import type { Position } from "./positions";
 
 function player(id: string, position: Position, overall: number, overrides: Partial<SquadPlayer> = {}): SquadPlayer {
@@ -106,5 +116,106 @@ describe("selectLineup", () => {
     expect(startersOf(selectLineup(twins, ["ST"]))).toEqual([["ST", "a"]]);
     expect(selectLineup([...squad].reverse())).toEqual(selectLineup(squad));
     expect(selectLineup(squad)).toEqual(selectLineup(squad));
+  });
+});
+
+describe("resolveLineup", () => {
+  // A 4-4-2 picked by the manager: the backup goalkeeper, second choices, a playmaker up front.
+  const saved: SavedLineup = {
+    starters: ["gk-1", "rb-2", "cb-3", "cb-4", "lb-2", "rm-1", "cm-2", "cm-3", "lm-1", "st-2", "cam-2"].map(
+      (playerKey, slot) => ({ slot, playerKey }),
+    ),
+    benchOrder: ["st-1", "gk-2"],
+  };
+  const savedKeys = saved.starters.map((starter) => starter.playerKey);
+  const keysOf = (lineup: Lineup): string[] => lineup.starters.map((starter) => starter.player.id);
+  const withSlots = (changes: Record<number, string>): SavedLineup => ({
+    ...saved,
+    starters: saved.starters.map((starter) => ({ ...starter, playerKey: changes[starter.slot] ?? starter.playerKey })),
+  });
+
+  it("plays a complete saved lineup as saved, with the saved substitutes first on the bench", () => {
+    const lineup = resolveLineup("4-4-2", saved, squad);
+
+    expect(keysOf(lineup)).toEqual(savedKeys);
+    expect(lineup.starters.map((starter) => starter.slot)).toEqual(formationPositions("4-4-2"));
+    expect(lineup.starters.map((starter) => starter.index)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(lineup.bench.slice(0, 2).map((player) => player.id)).toEqual(["st-1", "gk-2"]);
+    expect(lineup.bench).toHaveLength(BENCH_SIZE);
+  });
+
+  it("refills only the slot of an injured starter, with the best rated available player", () => {
+    const lineup = resolveLineup(
+      "4-4-2",
+      saved,
+      squad.map((member) => (member.id === "cb-3" ? { ...member, injured: true } : member)),
+    );
+
+    // cb-1 (71) is the best centre-back left; every other slot keeps its saved player.
+    expect(keysOf(lineup)).toEqual(savedKeys.map((key) => (key === "cb-3" ? "cb-1" : key)));
+  });
+
+  it("refills the slot of a player who left the squad", () => {
+    const lineup = resolveLineup(
+      "4-4-2",
+      saved,
+      squad.filter((member) => member.id !== "st-2"),
+    );
+
+    expect(keysOf(lineup)).toEqual(savedKeys.map((key) => (key === "st-2" ? "st-1" : key)));
+    expect(lineup.bench.map((player) => player.id)).not.toContain("st-1");
+  });
+
+  it("keeps a player saved twice in his first slot only and refills the other", () => {
+    const lineup = resolveLineup("4-4-2", withSlots({ 10: "st-2" }), squad);
+
+    expect(keysOf(lineup)).toEqual([...savedKeys.slice(0, 10), "st-1"]);
+    expect(new Set(keysOf(lineup)).size).toBe(11);
+  });
+
+  it("picks everything automatically without a saved lineup, as selectLineup does", () => {
+    expect(resolveLineup("4-3-3", null, squad)).toEqual(selectLineup(squad));
+    expect(resolveLineup("4-4-2", null, squad)).toEqual(selectLineup(squad, formationPositions("4-4-2")));
+    expect(resolveLineup("3-5-2", { starters: [], benchOrder: [] }, squad)).toEqual(
+      selectLineup(squad, formationPositions("3-5-2")),
+    );
+  });
+
+  it("ignores saved slots outside the formation and substitutes who start or left", () => {
+    const lineup = resolveLineup(
+      "4-4-2",
+      { starters: [...saved.starters, { slot: 11, playerKey: "st-1" }], benchOrder: ["cam-2", "gone", "st-1"] },
+      squad,
+    );
+
+    expect(keysOf(lineup)).toEqual(savedKeys);
+    expect(lineup.bench[0].id).toBe("st-1");
+  });
+
+  it("is deterministic and does not depend on the order of the squad", () => {
+    const injured = squad.map((member) => (member.id === "rm-1" ? { ...member, injured: true } : member));
+
+    expect(resolveLineup("4-4-2", saved, injured)).toEqual(resolveLineup("4-4-2", saved, injured));
+    expect(resolveLineup("4-4-2", saved, [...injured].reverse())).toEqual(resolveLineup("4-4-2", saved, injured));
+  });
+});
+
+describe("changeFormation", () => {
+  const starters = selectLineup(squad).starters.map((starter) => starter.player.id);
+
+  it("keeps the starters whose position or line still has a slot, and fills the rest automatically", () => {
+    const next = changeFormation("4-3-3", "4-4-2", starters, squad);
+
+    // GK, back four and the two central midfielders keep their position; the striker stays up front.
+    expect(next.slice(0, 5)).toEqual(starters.slice(0, 5));
+    expect(next.slice(6, 8)).toEqual([starters[6], starters[7]]);
+    expect(next[9]).toBe(starters[9]);
+    expect(new Set(next).size).toBe(11);
+    expect(next.every((key) => key !== null)).toBe(true);
+  });
+
+  it("is deterministic and leaves the starters unchanged when the formation stays", () => {
+    expect(changeFormation("4-3-3", "4-3-3", starters, squad)).toEqual(starters);
+    expect(changeFormation("4-3-3", "3-5-2", starters, squad)).toEqual(changeFormation("4-3-3", "3-5-2", starters, squad));
   });
 });

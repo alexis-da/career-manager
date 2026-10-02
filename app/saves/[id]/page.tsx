@@ -3,11 +3,13 @@ import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import type { ClubPreview, Dashboard } from "@/src/db/dashboard";
 import { getDashboard } from "@/src/db/dashboard";
+import { getManagedLineup, type ManagedLineup } from "@/src/db/lineup";
 import { nextTransferWindowOpening, transferWindowCloseDate } from "@/src/engine/world";
 import { formatDayMonth, formatDecimal, formatMillions, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "./_components/panel";
 import { ResultPill } from "./_components/result-pill";
+import { POSITION_SHORT, positionTextClass } from "./_lib/positions";
 import { RESULT_CLASSES, resultFor } from "./_lib/results";
 import { MANAGED_ROW, TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 
@@ -42,9 +44,19 @@ const plural = (count: number, singular: string, pluralForm: string): string =>
 
 const seasonOf = (startYear: number): string => `${startYear}-${String(startYear + 1).slice(2)}`;
 
-function alertsOf(dashboard: Dashboard, squadHref: string): Alert[] {
+function alertsOf(dashboard: Dashboard, lineup: ManagedLineup, squadHref: string, lineupHref: string): Alert[] {
   const { club } = dashboard;
   const alerts: Alert[] = [];
+
+  const injuredStarters = lineup.injuredStarters;
+  if (injuredStarters.length > 0) {
+    alerts.push({
+      severity: "danger",
+      title: injuredStarters.length === 1 ? "Un titulaire est blessé" : `${injuredStarters.length} titulaires sont blessés`,
+      detail: `${injuredStarters.map((player) => `${player.firstName.charAt(0)}. ${player.lastName}`).join(", ")} : remplacement automatique au prochain match.`,
+      action: { label: "Composition", href: lineupHref },
+    });
+  }
 
   const expiring = dashboard.expiringContracts;
   if (expiring.length > 0) {
@@ -113,10 +125,10 @@ function BigFigure({ value, unit }: { value: string; unit?: string }) {
 
 export default async function DashboardPage({ params }: PageProps<"/saves/[id]">) {
   const { id } = await params;
-  const dashboard = await getDashboard(id);
+  const [dashboard, lineup] = await Promise.all([getDashboard(id), getManagedLineup(id)]);
   const { club, nextMatch, lastResult, position } = dashboard;
   const base = `/saves/${id}`;
-  const alerts = alertsOf(dashboard, `${base}/squad`);
+  const alerts = alertsOf(dashboard, lineup, `${base}/squad`, `${base}/lineup`);
 
   const windowClose = transferWindowCloseDate(dashboard.currentDate);
   const payrollShare = club.wageBudget === 0 ? 0 : Math.min(1, club.payroll / club.wageBudget);
@@ -151,14 +163,31 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                 </div>
                 <TeamBlock team={nextMatch.away} align="left" />
               </div>
-              <p className="border-t pt-4 text-xs text-muted-foreground">
-                Onze probable : 4-3-3 ·{" "}
-                {dashboard.injured.length === 0
-                  ? "aucun blessé"
-                  : `${plural(dashboard.injured.length, "blessé", "blessés")} (${dashboard.injured
-                      .map((player) => `${player.name}, retour ${formatDayMonth(player.until)}`)
-                      .join(" ; ")})`}
-              </p>
+              <div className="space-y-1.5 border-t pt-4 text-xs text-muted-foreground">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p>
+                    Onze en <span className="font-heading text-sm font-bold text-foreground">{lineup.formation}</span>
+                  </p>
+                  <Link href={`${base}/lineup`} className="font-medium text-info hover:underline">
+                    Composition →
+                  </Link>
+                </div>
+                <ol aria-label="Onze du prochain match" className="flex flex-wrap gap-x-3 gap-y-1 text-foreground">
+                  {lineup.lineup.starters.map(({ player, slot, index }) => (
+                    <li key={index}>
+                      <span className={cn("font-heading font-bold", positionTextClass(slot))}>{POSITION_SHORT[slot]}</span>{" "}
+                      {player.lastName}
+                    </li>
+                  ))}
+                </ol>
+                <p>
+                  {dashboard.injured.length === 0
+                    ? "Aucun blessé"
+                    : `${plural(dashboard.injured.length, "blessé", "blessés")} (${dashboard.injured
+                        .map((player) => `${player.name}, retour ${formatDayMonth(player.until)}`)
+                        .join(" ; ")})`}
+                </p>
+              </div>
             </>
           )}
         </Panel>

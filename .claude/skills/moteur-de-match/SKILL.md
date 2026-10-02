@@ -80,6 +80,17 @@ Affectation gloutonne : pour chaque slot dans l'ordre, le meilleur `ratingAt` pa
 exclus, égalités départagées par `playerKey`. Un DD à 70 passe donc devant un DC à 74 (68,08) au slot RB.
 Banc : le gardien remplaçant d'abord, puis les meilleures notes.
 
+**Dispositifs et composition enregistrée.** `src/engine/formations.ts` : 7 dispositifs (`FORMATION_NAMES`), chacun
+11 slots ordonnés avec leur `Position` et leurs coordonnées (x, y en %, attaque vers le haut). Une partie stocke
+la composition par **index de slot** : ne jamais réordonner les slots d'un dispositif (le 4-3-3 garde l'ordre
+historique, celui des clubs IA). Le club dirigé a `ClubSave.formation` et `ClubSave.lineup`
+(`{ starters: [{ slot, playerKey }], benchOrder }`, validé par Zod dans `src/db/lineup.ts`, en lecture comme en
+écriture). `resolveLineup(formation, saved, squad)` part de la composition enregistrée : un slot dont le joueur
+est blessé, absent de l'effectif ou déjà titulaire plus tôt est recomplété par l'affectation gloutonne ; sans
+composition, c'est `selectLineup` dans le dispositif. `playNextMatchday` l'utilise pour le club dirigé ; les
+clubs IA restent en 4-3-3 automatique. `changeFormation` réaffecte un onze d'un dispositif à l'autre (même
+poste, puis même ligne, puis automatique).
+
 **Le moteur utilise `ratingAt` du slot occupé, jamais `overall` seul :**
 
 - force d'équipe (`teamStrength`, `match.ts`) : la valeur de chaque titulaire — ses attributs pondérés par

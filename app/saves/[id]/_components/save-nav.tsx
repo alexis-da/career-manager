@@ -7,6 +7,7 @@ import { cn } from "@/src/lib/utils";
 const SECTIONS = [
   { segment: "", label: "Tableau de bord" },
   { segment: "/squad", label: "Effectif" },
+  { segment: "/lineup", label: "Composition" },
   { segment: "/fixtures", label: "Calendrier" },
   { segment: "/standings", label: "Classement" },
   { segment: "/transfers", label: "Transferts" },

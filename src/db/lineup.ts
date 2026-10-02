@@ -1,0 +1,138 @@
+import * as z from "zod";
+import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, type FormationName } from "../engine/formations";
+import { BENCH_SIZE, resolveLineup, type Lineup, type LineupCandidate, type SavedLineup } from "../engine/lineup";
+import { prisma } from "./client";
+
+export const formationSchema = z.enum(FORMATION_NAMES);
+
+const SLOT_COUNT = 11;
+
+/**
+ * Shape of ClubSave.lineup. On read, a player saved twice is left to resolveLineup, which keeps the first slot;
+ * anything else malformed counts as no saved lineup.
+ */
+export const savedLineupSchema = z.object({
+  starters: z
+    .array(z.object({ slot: z.number().int().min(0).max(SLOT_COUNT - 1), playerKey: z.string().min(1).max(100) }))
+    .max(SLOT_COUNT),
+  benchOrder: z.array(z.string().min(1).max(100)).max(BENCH_SIZE),
+});
+
+/** A lineup sent by the manager: the stored shape, with each slot and each player at most once. */
+export const lineupInputSchema = z
+  .object({ formation: formationSchema, lineup: savedLineupSchema })
+  .refine(({ lineup }) => new Set(lineup.starters.map((starter) => starter.slot)).size === lineup.starters.length, {
+    message: "Un poste est attribué deux fois.",
+  })
+  .refine(
+    ({ lineup }) => {
+      const keys = [...lineup.starters.map((starter) => starter.playerKey), ...lineup.benchOrder];
+      return new Set(keys).size === keys.length;
+    },
+    { message: "Un joueur figure deux fois dans la composition." },
+  );
+
+export type LineupInput = z.output<typeof lineupInputSchema>;
+
+export function parseFormation(value: string): FormationName {
+  const parsed = formationSchema.safeParse(value);
+  return parsed.success ? parsed.data : DEFAULT_FORMATION_NAME;
+}
+
+export function parseSavedLineup(value: unknown): SavedLineup | null {
+  const parsed = savedLineupSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export type LineupPlayer = LineupCandidate & {
+  firstName: string;
+  lastName: string;
+  injuredUntil: Date | null;
+};
+
+export type LineupEditor = {
+  formation: FormationName;
+  saved: SavedLineup | null;
+  matchDate: Date; // the next match of the managed club, or the current date: injuries are judged on that day
+  players: LineupPlayer[];
+};
+
+export type ManagedLineup = {
+  formation: FormationName;
+  lineup: Lineup<LineupPlayer>;
+  injuredStarters: LineupPlayer[]; // saved starters who will miss the next match
+};
+
+const managedClub = (saveId: string) =>
+  prisma.clubSave.findFirstOrThrow({
+    where: { saveId, isManaged: true },
+    select: { id: true, formation: true, lineup: true },
+  });
+
+/** Everything the lineup page needs: formation, saved lineup, and the squad with injuries on the next match day. */
+export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
+  const club = await managedClub(saveId);
+  const next = await prisma.fixture.findFirst({
+    where: { saveId, played: false, OR: [{ homeClubSaveId: club.id }, { awayClubSaveId: club.id }] },
+    orderBy: { scheduledAt: "asc" },
+    select: { scheduledAt: true },
+  });
+  const matchDate = next?.scheduledAt ?? save.currentDate;
+  const rows = await prisma.playerSave.findMany({
+    where: { saveId, clubSaveId: club.id },
+    orderBy: { playerKey: "asc" },
+    select: { playerKey: true, firstName: true, lastName: true, position: true, overall: true, injuredUntil: true },
+  });
+
+  return {
+    formation: parseFormation(club.formation),
+    saved: parseSavedLineup(club.lineup),
+    matchDate,
+    players: rows.map(({ playerKey, ...row }) => ({
+      ...row,
+      id: playerKey,
+      // Same rule as the matchday: a player is out while his injury runs past the match day.
+      injured: row.injuredUntil !== null && row.injuredUntil > matchDate,
+    })),
+  };
+}
+
+/** The lineup the managed club will field in its next match, and the saved starters it has to do without. */
+export async function getManagedLineup(saveId: string): Promise<ManagedLineup> {
+  const editor = await getLineupEditor(saveId);
+  const byKey = new Map(editor.players.map((player) => [player.id, player]));
+  return {
+    formation: editor.formation,
+    lineup: resolveLineup(editor.formation, editor.saved, editor.players),
+    injuredStarters: (editor.saved?.starters ?? []).flatMap(({ playerKey }) => {
+      const player = byKey.get(playerKey);
+      return player?.injured === true ? [player] : [];
+    }),
+  };
+}
+
+export class LineupPlayerNotInSquadError extends Error {
+  constructor(playerKey: string) {
+    super(`Player ${playerKey} is not in the managed club's squad`);
+  }
+}
+
+/** Saves the managed club's formation and lineup; every player must belong to its squad. */
+export async function saveManagedLineup(saveId: string, input: LineupInput): Promise<void> {
+  const club = await managedClub(saveId);
+  const squad = await prisma.playerSave.findMany({
+    where: { saveId, clubSaveId: club.id },
+    select: { playerKey: true },
+  });
+  const keys = new Set(squad.map((player) => player.playerKey));
+  for (const playerKey of [...input.lineup.starters.map((starter) => starter.playerKey), ...input.lineup.benchOrder]) {
+    if (!keys.has(playerKey)) {
+      throw new LineupPlayerNotInSquadError(playerKey);
+    }
+  }
+  await prisma.clubSave.updateMany({
+    where: { id: club.id, saveId },
+    data: { formation: input.formation, lineup: input.lineup },
+  });
+}
