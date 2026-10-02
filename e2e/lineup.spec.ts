@@ -110,3 +110,38 @@ test("drags a substitute onto a slot and a starter to the bench, refuses an inco
     saveName = undefined;
   }
 });
+
+test("shows a centre-back dragged up front with his DC badge outlined in red, and lists him as off position", async ({ page }) => {
+  // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
+  const name = `E2E ${Date.now()}`;
+  saveName = name;
+  try {
+    await createSave(page, name, LYON);
+    await page.getByRole("navigation", { name: "Navigation de la partie" }).getByRole("link", { name: "Composition" }).click();
+    await expect(page.getByLabel("Dispositif")).toHaveValue("4-3-3");
+
+    // 4-3-3 slots: GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW. Take a centre-back slot held by a real centre-back.
+    const centreBackSlots = [page.locator('[data-slot-index="2"]'), page.locator('[data-slot-index="3"]')];
+    const badges = await Promise.all(centreBackSlots.map((slot) => slot.locator("[data-position]").getAttribute("data-position")));
+    const centreBack = centreBackSlots[badges.indexOf("CB")];
+    await expect(centreBack.locator("[data-position]")).toHaveAttribute("data-fit", "exact");
+    const lastName = (await centreBack.locator("[data-slot-player]").textContent()) ?? "";
+
+    const striker = page.locator('[data-slot-index="9"]');
+    await centreBack.dragTo(striker);
+
+    await expect(striker.locator("[data-slot-position]")).toHaveText("BU");
+    await expect(striker.locator("[data-slot-player]")).toHaveText(lastName);
+    const badge = striker.locator("[data-position]");
+    await expect(badge).toHaveText("DC");
+    await expect(badge).toHaveAttribute("data-fit", "other-line");
+    await expect(badge).toHaveClass(/ring-loss/);
+
+    const summary = page.locator("[data-lineup-summary]");
+    await expect(summary).toContainText("hors poste");
+    await expect(summary).toContainText(`${lastName} (DC en BU)`);
+  } finally {
+    await deleteSave(page, name);
+    saveName = undefined;
+  }
+});

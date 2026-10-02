@@ -4,7 +4,8 @@ import type { FormationSlot } from "@/src/engine/formations";
 import { ratingAt } from "@/src/engine/positions";
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
-import { POSITION_LABEL, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
+import { PositionBadge } from "../../_components/position-badge";
+import { POSITION_LABEL, POSITION_SHORT, positionFit } from "../../_lib/positions";
 import { slotTarget, type DragSourceProps } from "./use-pointer-drag";
 
 /** Pitch markings in metres, on a 68 × 105 pitch. */
@@ -88,11 +89,17 @@ export function Pitch({
         const draggedRating = dragged === null ? null : ratingAt(dragged, slot.position);
         const badge = draggedRating ?? rating;
         const badgeOutOfPosition = dragged === null ? outOfPosition : draggedRating !== null && draggedRating < dragged.overall;
+        const fit = player === undefined ? undefined : positionFit(player.position, slot.position);
+        // « DC 74 · joue AD : 59 »: the player's own position and rating, then his rating in this slot.
+        const detail =
+          player === undefined || rating === null
+            ? null
+            : `${POSITION_SHORT[player.position]} ${player.overall} · joue ${POSITION_SHORT[slot.position]} : ${Math.round(rating)}`;
         const label =
           player === undefined
             ? `${POSITION_LABEL[slot.position]} : poste vide`
-            : `${POSITION_LABEL[slot.position]} : ${player.firstName} ${player.lastName}, note ${Math.round(rating ?? 0)} au poste` +
-              (player.injured ? ", blessé" : outOfPosition ? ", hors poste" : "");
+            : `${POSITION_LABEL[slot.position]} : ${player.firstName} ${player.lastName}, ${detail ?? ""}` +
+              (player.injured ? ", blessé" : fit === "other-line" ? ", hors de sa ligne" : fit === "line" ? ", hors poste" : "");
         return (
           <button
             key={index}
@@ -106,11 +113,15 @@ export function Pitch({
             onClick={() => onSelect(index)}
             style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
             className={cn(
-              "group absolute flex w-24 -translate-x-1/2 -translate-y-1/2 touch-none flex-col items-center gap-1 outline-none select-none",
+              "group absolute flex w-28 -translate-x-1/2 -translate-y-1/2 touch-none flex-col items-center gap-0.5 outline-none select-none",
               key !== null && "cursor-grab",
               draggedFrom === index && "opacity-50",
             )}
           >
+            {/* The role to fill, in gray: the player's own position is the badge next to his name. */}
+            <span data-slot-position className="text-[0.625rem] leading-3 font-semibold tracking-wide text-white/55 uppercase">
+              {POSITION_SHORT[slot.position]}
+            </span>
             <span
               className={cn(
                 "relative grid size-10 place-items-center rounded-full border-2 bg-background/85 font-heading text-lg font-bold tabular-nums transition-shadow",
@@ -141,15 +152,28 @@ export function Pitch({
             </span>
             <span
               className={cn(
-                "max-w-full truncate rounded-sm px-1.5 text-[0.6875rem] leading-4 font-semibold",
+                "mt-0.5 flex max-w-full items-center gap-1 rounded-sm py-px pr-1.5 pl-px text-[0.6875rem] leading-4 font-semibold",
+                player === undefined && "pl-1.5",
                 selected === index ? "bg-(--club) text-(--club-fg)" : "bg-background/85",
               )}
             >
-              <span className={cn("font-heading font-bold", selected !== index && positionTextClass(slot.position))}>
-                {POSITION_SHORT[slot.position]}
-              </span>{" "}
-              <span data-slot-player>{player === undefined ? "Vide" : player.lastName}</span>
+              {player !== undefined && <PositionBadge position={player.position} fit={fit} />}
+              <span data-slot-player className="truncate">
+                {player === undefined ? "Vide" : player.lastName}
+              </span>
             </span>
+            {detail !== null && dragged === null && (
+              <span
+                aria-hidden
+                data-slot-detail
+                className={cn(
+                  "pointer-events-none absolute bottom-full mb-1 rounded-md border bg-popover px-2 py-0.5 text-xs whitespace-nowrap text-popover-foreground shadow-md",
+                  selected === index ? "block" : "hidden group-hover:block group-focus-visible:block",
+                )}
+              >
+                {detail}
+              </span>
+            )}
           </button>
         );
       })}

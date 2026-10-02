@@ -46,3 +46,10 @@ const GROUP_TEXT: Record<PositionGroup, string> = {
 export function positionTextClass(position: Position): string {
   return GROUP_TEXT[positionGroup(position)];
 }
+
+/** How a player fits a slot: his own position, another position of his line, or another line. */
+export type PositionFit = "exact" | "line" | "other-line";
+
+export function positionFit(position: Position, slot: Position): PositionFit {
+  return position === slot ? "exact" : positionGroup(position) === positionGroup(slot) ? "line" : "other-line";
+}

@@ -12,6 +12,7 @@ import { POSITION_GROUPS, positionGroup, ratingAt, type Position, type PositionG
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "../../_components/panel";
+import { PositionBadge } from "../../_components/position-badge";
 import { POSITION_LABEL, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
 import { saveLineupAction } from "../actions";
 import {
@@ -195,6 +196,14 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
   const selectedPlayer = selected === null ? undefined : byKey.get(state.starters[selected] ?? "");
   const overBench = drag?.over?.kind === "bench";
 
+  // Is the eleven clean? Starters at their own position, and the others with the position they play.
+  const placed = state.starters.flatMap((key, index) => {
+    const player = key === null ? undefined : byKey.get(key);
+    return player === undefined ? [] : [{ player, slot: slots[index].position }];
+  });
+  const offPosition = placed.filter(({ player, slot }) => player.position !== slot);
+  const atPosition = placed.length - offPosition.length;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">
@@ -246,18 +255,34 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
       )}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(320px,460px)_minmax(0,1fr)]">
-        <Pitch
-          slots={slots}
-          starters={state.starters}
-          players={byKey}
-          clubColors={clubColors}
-          selected={selected}
-          onSelect={clickSlot}
-          dragged={dragged}
-          draggedFrom={drag?.source.kind === "slot" ? drag.source.index : null}
-          over={drag?.over?.kind === "slot" ? drag.over.index : null}
-          dragProps={(index, key) => sourceProps({ kind: "slot", index, key })}
-        />
+        <div className="space-y-2">
+          <Pitch
+            slots={slots}
+            starters={state.starters}
+            players={byKey}
+            clubColors={clubColors}
+            selected={selected}
+            onSelect={clickSlot}
+            dragged={dragged}
+            draggedFrom={drag?.source.kind === "slot" ? drag.source.index : null}
+            over={drag?.over?.kind === "slot" ? drag.over.index : null}
+            dragProps={(index, key) => sourceProps({ kind: "slot", index, key })}
+          />
+          <p data-lineup-summary className="text-sm text-muted-foreground">
+            <span className="text-foreground">
+              {atPosition === 1 ? "1 titulaire à son poste" : `${atPosition} titulaires à leur poste`}
+            </span>
+            {" · "}
+            <span className={cn(offPosition.length > 0 ? "text-warning" : "text-foreground")}>
+              {offPosition.length} hors poste
+            </span>
+            {offPosition.length > 0 &&
+              ` : ${offPosition
+                .map(({ player, slot }) => `${player.lastName} (${POSITION_SHORT[player.position]} en ${POSITION_SHORT[slot]})`)
+                .join(", ")}`}
+            {emptySlots > 0 && ` · ${emptySlots === 1 ? "1 poste vide" : `${emptySlots} postes vides`}`}
+          </p>
+        </div>
 
         <div className="space-y-4">
           <section
@@ -277,14 +302,29 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
             <ol className="mt-2 flex flex-wrap gap-1.5">
               {state.bench.map((key, index) => {
                 const player = byKey.get(key);
-                return player === undefined ? null : (
+                if (player === undefined) {
+                  return null;
+                }
+                const rating = ratingFor(player);
+                return (
                   <li
                     key={key}
+                    data-bench-player-key={key}
                     title={`Remplaçant ${index + 1} : ${player.firstName} ${player.lastName}`}
                     className="flex items-center gap-1.5 rounded-md bg-muted py-0.5 pr-2 pl-0.5 text-xs"
                   >
                     <PlayerFace playerKey={key} age={player.age} clubColors={clubColors} size={20} />
+                    <PositionBadge position={player.position} />
                     {player.lastName}
+                    <span
+                      title={selectedPosition === null ? "Note" : `Note au poste ${POSITION_SHORT[selectedPosition]}`}
+                      className={cn(
+                        "font-heading font-bold tabular-nums",
+                        selectedPosition === null ? "text-muted-foreground" : rating < player.overall && "text-warning",
+                      )}
+                    >
+                      {Math.round(rating)}
+                    </span>
                   </li>
                 );
               })}
@@ -346,9 +386,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                               drag?.source.key === player.id && "opacity-50",
                             )}
                           >
-                            <span className={cn("font-heading font-bold", positionTextClass(player.position))}>
-                              {POSITION_SHORT[player.position]}
-                            </span>
+                            <PositionBadge position={player.position} className="justify-self-start" />
                             <PlayerFace playerKey={player.id} age={player.age} clubColors={clubColors} size={32} />
                             <span className="truncate font-medium">
                               {player.firstName} {player.lastName}
@@ -396,6 +434,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
           style={{ left: drag.x + GHOST_OFFSET_PX, top: drag.y + GHOST_OFFSET_PX }}
         >
           <PlayerFace playerKey={dragged.id} age={dragged.age} clubColors={clubColors} size={28} />
+          <PositionBadge position={dragged.position} />
           {dragged.lastName}
         </div>
       )}
