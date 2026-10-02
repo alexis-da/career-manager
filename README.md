@@ -29,8 +29,13 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Déployer
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Importer le dépôt dans Vercel (Node.js 24.x, réglé par `engines` dans `package.json`).
+2. Créer les variables d'environnement du projet (voir `.env.example`) :
+   - `DATABASE_URL` : connexion PostgreSQL *poolée*, utilisée par l'application ;
+   - `DIRECT_URL` : connexion *directe* à la même base, utilisée par les migrations et le seed ;
+   - `APP_PASSWORD` : mot de passe d'accès au site (sans lui, le site est ouvert à tous).
+3. Déployer : `npm run build` génère le client Prisma, applique les migrations puis construit l'application.
+4. Première fois seulement, remplir la base depuis un poste local : `DIRECT_URL=… npm run db:seed`.
+5. Les tests E2E ne tournent jamais au build : en local, ils écrivent dans la base de `DATABASE_URL_TEST` (`.env.test`).

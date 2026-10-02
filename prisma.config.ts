@@ -7,7 +7,9 @@ export default defineConfig({
     path: "prisma/migrations",
     seed: "tsx prisma/seed/index.ts",
   },
+  // The CLI (migrations, seed) uses the direct connection; the app's Prisma client uses the pooled DATABASE_URL
+  // (src/db/client.ts). Locally, both may point to the same database.
   datasource: {
-    url: env("DATABASE_URL"),
+    url: env("DIRECT_URL"),
   },
 });

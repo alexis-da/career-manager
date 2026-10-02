@@ -37,6 +37,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# The end-to-end tests' database (playwright.config.ts): never committed.
+.env.test
+# Documents the variables, without values.
+!.env.example
 
 # vercel
 .vercel

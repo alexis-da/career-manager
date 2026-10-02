@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Build output of the end-to-end tests' server (playwright.config.ts) and the generated Prisma client.
+    ".next-e2e/**",
+    "src/generated/**",
   ]),
 ]);
 
