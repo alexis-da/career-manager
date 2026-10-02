@@ -3,6 +3,7 @@ import type { Position } from "../engine/positions";
 import { seasonEndDate, seasonStartYear } from "../engine/world";
 import { youthKeyPrefix } from "../engine/youth";
 import type { Prisma } from "../generated/prisma/client";
+import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
 
@@ -37,6 +38,7 @@ export type PlayerProfile = {
   age: number;
   position: Position;
   clubName: string | null; // current club; null for a free agent or a retired player
+  clubColors: ClubColors | null; // colors of the current club, for the shirt of his face
   overall: number;
   potential: number;
   form: number;
@@ -89,7 +91,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       wage: true,
       contractUntil: true,
       injuredUntil: true,
-      clubSave: { select: { club: { select: { name: true } } } },
+      clubSave: { select: { club: { select: { name: true, primaryColor: true, secondaryColor: true } } } },
     },
   });
   const playerIds = players.map((player) => player.id);
@@ -128,6 +130,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       age: ageInYears(player.birthDate, save.currentDate),
       position: player.position,
       clubName: player.clubSave?.club.name ?? null,
+      clubColors: player.clubSave === null ? null : clubColorsOf(player.clubSave.club),
       overall: player.overall,
       potential: player.potential,
       form: player.form,

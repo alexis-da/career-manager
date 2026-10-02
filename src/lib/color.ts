@@ -1,6 +1,13 @@
 export const WHITE = "#FFFFFF";
 export const BLACK = "#000000";
 
+/** A club's traditional colors, #RRGGBB, as stored on Club. */
+export type ClubColors = { primary: string; secondary: string };
+
+export function clubColorsOf(club: { primaryColor: string; secondaryColor: string }): ClubColors {
+  return { primary: club.primaryColor, secondary: club.secondaryColor };
+}
+
 /** Contrast ratio an accent must reach on its background: WCAG's minimum for large text and UI parts. */
 export const MIN_ACCENT_CONTRAST = 3;
 

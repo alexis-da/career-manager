@@ -124,7 +124,7 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
       : prisma.fixture.findFirst({
           where: { saveId, seasonId: season.id, played: false, ...involving(club.id) },
           orderBy: { scheduledAt: "asc" },
-          select: { ...FIXTURE_SELECT, homeClubSave: { select: { ...FIXTURE_SELECT.homeClubSave.select, club: { select: { name: true, stadium: true } } } } },
+          select: { ...FIXTURE_SELECT, homeClubSave: { select: { ...FIXTURE_SELECT.homeClubSave.select, club: { select: { name: true, primaryColor: true, secondaryColor: true, stadium: true } } } } },
         }),
     season === null
       ? null

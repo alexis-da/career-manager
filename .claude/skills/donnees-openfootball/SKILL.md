@@ -186,6 +186,24 @@ fait entrer et sortir des joueurs :
 - Une présaison ne s'exécute qu'une fois par saison : si des jeunes de l'année existent déjà, elle ne fait
   rien.
 
+## Visages des joueurs
+
+Aucune image stockée ni bibliothèque : le visage est dessiné en SVG inline (`src/components/player-face.tsx`) à
+partir de `faceParams(playerKey, age)` (`src/engine/face.ts`, pur) : carnation (6), coiffure (8 dont chauve),
+couleur de cheveux (6 dont gris), pilosité (4 dont aucune), yeux (3), sourcils (3), forme du visage (3).
+
+- Graine `face:${playerKey}` — **ni `Save.seed` ni un id** : un joueur a le même visage dans toutes les parties
+  et toutes les saisons. Rien n'est écrit en base ; un jeune a sa clé, donc son visage, dès son arrivée.
+- **La carnation est tirée uniformément depuis la graine, indépendamment de la nationalité.** Ne jamais la
+  dériver de `nationality` ni du pays du club : ce serait un stéréotype, et la nationalité d'un joueur ne dit
+  rien de son apparence.
+- L'âge ne change que les cheveux : gris possible au-delà de 33 ans, calvitie de plus en plus probable
+  (`GRAY_HAIR_CHANCE_BY_AGE`, `BALD_CHANCE_BY_AGE`, `balance.ts`). Chaque joueur tire une seule fois sa place sur
+  ces courbes croissantes : il peut grisonner ou devenir chauve en vieillissant, jamais l'inverse.
+- L'ordre des tirages de `faceParams` fait partie du visage : ne pas le réordonner, ajouter un tirage à la fin.
+  Le snapshot de `player-face.test.tsx` casse volontairement si le dessin change.
+- Col du maillot aux couleurs du club actuel (`Club.primaryColor` / `secondaryColor`), gris pour un joueur libre.
+
 ## Licence
 
 Les données OpenFootball sont CC0 : utilisables et redistribuables librement. En revanche, ne jamais

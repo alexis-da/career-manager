@@ -2,6 +2,7 @@ import * as z from "zod";
 import { POSITIONS, type Position } from "../engine/positions";
 import { nextTransferWindowOpening, transferWindowAt, transferWindowCloseDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
+import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
 import { getPlayerProfiles, type PlayerProfile, type TransferKind } from "./players";
@@ -90,6 +91,7 @@ export async function getMarketOverview(saveId: string): Promise<MarketOverview>
 
 export type FreeAgentRow = {
   id: string;
+  playerKey: string;
   firstName: string;
   lastName: string;
   nationality: string;
@@ -113,6 +115,7 @@ export async function listFreeAgents(saveId: string, page: number): Promise<Pagi
     take: MARKET_PAGE_SIZE,
     select: {
       id: true,
+      playerKey: true,
       firstName: true,
       lastName: true,
       nationality: true,
@@ -138,6 +141,7 @@ export async function listFreeAgents(saveId: string, page: number): Promise<Pagi
     pageCount: pageCountOf(total),
     rows: players.map((player) => ({
       id: player.id,
+      playerKey: player.playerKey,
       firstName: player.firstName,
       lastName: player.lastName,
       nationality: player.nationality,
@@ -173,10 +177,12 @@ export type MarketFilters = z.output<typeof marketFiltersSchema>;
 
 export type ClubPlayerRow = {
   id: string;
+  playerKey: string;
   firstName: string;
   lastName: string;
   nationality: string;
   clubName: string;
+  clubColors: ClubColors;
   position: Position;
   age: number;
   overall: number;
@@ -227,7 +233,13 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
       potential: true,
       wage: true,
       contractUntil: true,
-      clubSave: { select: { isManaged: true, reputation: true, club: { select: { name: true } } } },
+      clubSave: {
+        select: {
+          isManaged: true,
+          reputation: true,
+          club: { select: { name: true, primaryColor: true, secondaryColor: true } },
+        },
+      },
     },
   });
 
@@ -244,10 +256,12 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
     }
     const row: ClubPlayerRow = {
       id: player.id,
+      playerKey: player.playerKey,
       firstName: player.firstName,
       lastName: player.lastName,
       nationality: player.nationality,
       clubName: player.clubSave.club.name,
+      clubColors: clubColorsOf(player.clubSave.club),
       position: player.position,
       age,
       overall: player.overall,

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { PlayerFace } from "@/src/components/player-face";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { buttonVariants } from "@/src/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
@@ -12,6 +13,7 @@ import type {
   Paginated,
 } from "@/src/db/market";
 import type { Position } from "@/src/engine/positions";
+import type { ClubColors } from "@/src/lib/color";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../../_components/panel";
@@ -32,14 +34,18 @@ function Head({ children, className }: { children: ReactNode; className?: string
   return <TableHead className={cn(TABLE_HEAD, className)}>{children}</TableHead>;
 }
 
+type FaceProps = { playerKey: string; age: number; clubColors: ClubColors | null };
+
 function PlayerCell({
   saveId,
   values,
   player,
-}: ListProps & { player: { id: string; firstName: string; lastName: string; nationality?: string } }) {
+  face,
+}: ListProps & { player: { id: string; firstName: string; lastName: string; nationality?: string }; face?: FaceProps }) {
   const name = `${player.firstName} ${player.lastName}`;
   return (
     <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+      {face !== undefined && <PlayerFace {...face} size={28} className="mr-2 inline-block align-middle" />}
       <Link
         href={marketHref(saveId, values, { player: player.id })}
         scroll={false}
@@ -151,7 +157,12 @@ export function FreeAgentsTable({
         <TableBody>
           {list.rows.map((player) => (
             <TableRow key={player.id} data-player-id={player.id} className={TABLE_ROW}>
-              <PlayerCell saveId={saveId} values={values} player={player} />
+              <PlayerCell
+                saveId={saveId}
+                values={values}
+                player={player}
+                face={{ playerKey: player.playerKey, age: player.age, clubColors: null }}
+              />
               <PositionCell position={player.position} />
               <TableCell className={cn(TABLE_CELL, "text-right")}>{player.age}</TableCell>
               <RatingCell overall={player.overall} />
@@ -247,7 +258,12 @@ export function ClubPlayersTable({
         <TableBody>
           {list.rows.map((player) => (
             <TableRow key={player.id} data-player-id={player.id} className={TABLE_ROW}>
-              <PlayerCell saveId={saveId} values={values} player={player} />
+              <PlayerCell
+                saveId={saveId}
+                values={values}
+                player={player}
+                face={{ playerKey: player.playerKey, age: player.age, clubColors: player.clubColors }}
+              />
               <TableCell className={cn(TABLE_CELL, "max-w-44 truncate text-muted-foreground")} title={player.clubName}>
                 {player.clubName}
               </TableCell>

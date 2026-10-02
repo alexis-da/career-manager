@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { PlayerFace } from "@/src/components/player-face";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Button } from "@/src/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
@@ -163,7 +164,14 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                   >
                     {POSITION_SHORT[player.position]}
                   </TableCell>
-                  <TableCell className={TABLE_CELL}>
+                  <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+                    <PlayerFace
+                      playerKey={player.playerKey}
+                      age={player.age}
+                      clubColors={player.clubColors}
+                      size={28}
+                      className="mr-2 inline-block align-middle"
+                    />
                     <button
                       type="button"
                       aria-label={`Voir la fiche de ${name}`}

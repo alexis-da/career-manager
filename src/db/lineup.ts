@@ -1,6 +1,8 @@
 import * as z from "zod";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, type FormationName } from "../engine/formations";
 import { BENCH_SIZE, resolveLineup, type Lineup, type LineupCandidate, type SavedLineup } from "../engine/lineup";
+import { clubColorsOf, type ClubColors } from "../lib/color";
+import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
 
 export const formationSchema = z.enum(FORMATION_NAMES);
@@ -47,6 +49,7 @@ export function parseSavedLineup(value: unknown): SavedLineup | null {
 export type LineupPlayer = LineupCandidate & {
   firstName: string;
   lastName: string;
+  age: number; // at the save's current date
   injuredUntil: Date | null;
 };
 
@@ -54,6 +57,7 @@ export type LineupEditor = {
   formation: FormationName;
   saved: SavedLineup | null;
   matchDate: Date; // the next match of the managed club, or the current date: injuries are judged on that day
+  clubColors: ClubColors;
   players: LineupPlayer[];
 };
 
@@ -66,7 +70,12 @@ export type ManagedLineup = {
 const managedClub = (saveId: string) =>
   prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
-    select: { id: true, formation: true, lineup: true },
+    select: {
+      id: true,
+      formation: true,
+      lineup: true,
+      club: { select: { primaryColor: true, secondaryColor: true } },
+    },
   });
 
 /** Everything the lineup page needs: formation, saved lineup, and the squad with injuries on the next match day. */
@@ -82,16 +91,26 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
   const rows = await prisma.playerSave.findMany({
     where: { saveId, clubSaveId: club.id },
     orderBy: { playerKey: "asc" },
-    select: { playerKey: true, firstName: true, lastName: true, position: true, overall: true, injuredUntil: true },
+    select: {
+      playerKey: true,
+      firstName: true,
+      lastName: true,
+      birthDate: true,
+      position: true,
+      overall: true,
+      injuredUntil: true,
+    },
   });
 
   return {
     formation: parseFormation(club.formation),
     saved: parseSavedLineup(club.lineup),
     matchDate,
-    players: rows.map(({ playerKey, ...row }) => ({
+    clubColors: clubColorsOf(club.club),
+    players: rows.map(({ playerKey, birthDate, ...row }) => ({
       ...row,
       id: playerKey,
+      age: ageInYears(birthDate, save.currentDate),
       // Same rule as the matchday: a player is out while his injury runs past the match day.
       injured: row.injuredUntil !== null && row.injuredUntil > matchDate,
     })),

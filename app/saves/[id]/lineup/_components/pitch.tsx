@@ -1,6 +1,8 @@
+import { PlayerFace } from "@/src/components/player-face";
 import type { LineupPlayer } from "@/src/db/lineup";
 import type { FormationSlot } from "@/src/engine/formations";
 import { ratingAt } from "@/src/engine/positions";
+import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
 import { POSITION_LABEL, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
 
@@ -43,12 +45,16 @@ type PitchProps = {
   slots: readonly FormationSlot[];
   starters: readonly (string | null)[];
   players: ReadonlyMap<string, LineupPlayer>;
+  clubColors: ClubColors;
   selected: number | null;
   onSelect: (index: number) => void;
 };
 
-/** The formation on a vertical pitch, attacking upwards: each slot shows its position, its player and his rating there. */
-export function Pitch({ slots, starters, players, selected, onSelect }: PitchProps) {
+/**
+ * The formation on a vertical pitch, attacking upwards: each slot shows its player's face, his rating there (yellow
+ * out of position, red when injured), the slot's position and his name.
+ */
+export function Pitch({ slots, starters, players, clubColors, selected, onSelect }: PitchProps) {
   return (
     <div
       className="relative aspect-[68/105] w-full overflow-hidden rounded-lg border bg-pitch"
@@ -80,7 +86,7 @@ export function Pitch({ slots, starters, players, selected, onSelect }: PitchPro
           >
             <span
               className={cn(
-                "grid size-11 place-items-center rounded-full border-2 bg-background/85 font-heading text-lg font-bold tabular-nums transition-shadow",
+                "relative grid size-10 place-items-center rounded-full border-2 bg-background/85 font-heading text-lg font-bold tabular-nums transition-shadow",
                 "group-focus-visible:ring-3 group-focus-visible:ring-ring/60",
                 player === undefined
                   ? "border-dashed border-white/40 text-white/60"
@@ -92,7 +98,16 @@ export function Pitch({ slots, starters, players, selected, onSelect }: PitchPro
                 selected === index && "ring-4 ring-(--club) ring-offset-2 ring-offset-pitch",
               )}
             >
-              {rating === null ? "+" : Math.round(rating)}
+              {player === undefined || rating === null ? (
+                "+"
+              ) : (
+                <>
+                  <PlayerFace playerKey={player.id} age={player.age} clubColors={clubColors} size={32} />
+                  <span className="absolute -top-1.5 -right-3 min-w-6 rounded-sm border border-current bg-background px-0.5 text-center text-xs leading-4">
+                    {Math.round(rating)}
+                  </span>
+                </>
+              )}
             </span>
             <span
               className={cn(

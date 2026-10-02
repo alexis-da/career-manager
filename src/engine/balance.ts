@@ -436,3 +436,30 @@ export const RELEASE_COMPENSATION_SHARE = 0.5;
 export const SALE_MAX_BIDDERS = 5;
 export const SALE_BID_SHARE_MIN = 0.8;
 export const SALE_BID_SHARE_MAX = 1.2;
+
+// ------------------------------------------------------------------ Faces (src/engine/face.ts)
+// A face is drawn once from the player's key; only the hair changes with age, and never back.
+
+/** Relative weight of each hair color but gray (black, dark brown, brown, auburn, blond). */
+export const HAIR_COLOR_WEIGHTS: readonly number[] = [35, 25, 20, 8, 12];
+
+/** Relative weight of each kind of facial hair (none, stubble, moustache, beard). */
+export const FACIAL_HAIR_WEIGHTS: readonly number[] = [45, 25, 10, 20];
+
+/** Gray hair is only possible above this age. */
+export const GRAY_HAIR_MIN_AGE = 33;
+
+/** Chance of gray hair by age, above GRAY_HAIR_MIN_AGE. */
+export const GRAY_HAIR_CHANCE_BY_AGE: Curve = [
+  [33, 0],
+  [36, 0.25],
+  [40, 0.6],
+];
+
+/** Chance of being bald by age: a few shaved heads among the young, more and more after 30. */
+export const BALD_CHANCE_BY_AGE: Curve = [
+  [17, 0.03],
+  [27, 0.06],
+  [33, 0.15],
+  [38, 0.35],
+];

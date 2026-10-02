@@ -25,6 +25,7 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
         saveId={id}
         formation={editor.formation}
         saved={editor.saved}
+        clubColors={editor.clubColors}
         players={editor.players}
       />
     </div>

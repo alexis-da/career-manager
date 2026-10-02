@@ -3,6 +3,7 @@
 import { FastForwardIcon, SkipForwardIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { PlayerFace } from "@/src/components/player-face";
 import { Button, buttonVariants } from "@/src/components/ui/button";
 import type { FixtureWithEvents, MatchEventView, ScoreTimeline, TeamView } from "@/src/db/calendar";
 import type { Side } from "@/src/engine/match";
@@ -161,9 +162,9 @@ export function LiveMatch({ dashboardHref, caption, match, others }: LiveMatchPr
                   event.type === "GOAL" && "bg-muted",
                 )}
               >
-                <span className="text-right">{event.side === "home" && <EventText event={event} team={match.home.name} align="right" />}</span>
+                <span className="text-right">{event.side === "home" && <EventText event={event} team={match.home} align="right" />}</span>
                 <span className="text-center text-muted-foreground tabular-nums">{formatMinute(event.minute)}</span>
-                <span>{event.side === "away" && <EventText event={event} team={match.away.name} align="left" />}</span>
+                <span>{event.side === "away" && <EventText event={event} team={match.away} align="left" />}</span>
               </li>
             ))}
           </ol>
@@ -222,13 +223,17 @@ function Goals({ value }: { value: number }) {
   );
 }
 
-function EventText({ event, team, align }: { event: MatchEventView; team: string; align: "left" | "right" }) {
+/** An event of one side; a goal shows the scorer's face, in his club's colors. */
+function EventText({ event, team, align }: { event: MatchEventView; team: TeamView; align: "left" | "right" }) {
   return (
-    <span className={cn("inline-flex items-baseline gap-2", align === "right" && "flex-row-reverse")}>
+    <span className={cn("inline-flex items-center gap-2", align === "right" && "flex-row-reverse")}>
       <span aria-hidden>{EVENT_MARKS[event.type]}</span>
+      {event.type === "GOAL" && event.playerKey !== null && event.playerAge !== null && (
+        <PlayerFace playerKey={event.playerKey} age={event.playerAge} clubColors={team.colors} size={20} className="shrink-0" />
+      )}
       <span>
         <span className="sr-only">
-          {EVENT_LABELS[event.type]}, {team} :{" "}
+          {EVENT_LABELS[event.type]}, {team.name} :{" "}
         </span>
         <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event)}</span>
       </span>

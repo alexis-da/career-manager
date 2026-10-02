@@ -3,11 +3,13 @@
 import { ArmchairIcon, SaveIcon, SparklesIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
 import type { LineupPlayer } from "@/src/db/lineup";
 import { FORMATION_NAMES, FORMATIONS, isFormationName, type FormationName } from "@/src/engine/formations";
 import { BENCH_SIZE, changeFormation, resolveLineup, type SavedLineup } from "@/src/engine/lineup";
 import { POSITION_GROUPS, positionGroup, ratingAt, type Position, type PositionGroup } from "@/src/engine/positions";
+import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "../../_components/panel";
 import { POSITION_LABEL, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
@@ -60,10 +62,11 @@ type LineupEditorProps = {
   saveId: string;
   formation: FormationName;
   saved: SavedLineup | null;
+  clubColors: ClubColors;
   players: LineupPlayer[];
 };
 
-export function LineupEditor({ saveId, formation, saved, players }: LineupEditorProps) {
+export function LineupEditor({ saveId, formation, saved, clubColors, players }: LineupEditorProps) {
   const [initial] = useState(() => initialState(formation, saved, players));
   const [state, setState] = useState(initial);
   const [selected, setSelected] = useState<number | null>(null);
@@ -211,7 +214,14 @@ export function LineupEditor({ saveId, formation, saved, players }: LineupEditor
       )}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(320px,460px)_minmax(0,1fr)]">
-        <Pitch slots={slots} starters={state.starters} players={byKey} selected={selected} onSelect={clickSlot} />
+        <Pitch
+          slots={slots}
+          starters={state.starters}
+          players={byKey}
+          clubColors={clubColors}
+          selected={selected}
+          onSelect={clickSlot}
+        />
 
         <Panel className="space-y-4">
           <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
@@ -261,11 +271,12 @@ export function LineupEditor({ saveId, formation, saved, players }: LineupEditor
                           data-bench={benchIndex !== -1}
                           disabled={selected === null}
                           onClick={() => placePlayer(player.id)}
-                          className="grid w-full grid-cols-[3rem_minmax(0,1fr)_auto_3rem_3rem] items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm enabled:hover:bg-muted disabled:cursor-default"
+                          className="grid w-full grid-cols-[3rem_2rem_minmax(0,1fr)_auto_3rem_3rem] items-center gap-3 rounded-md px-2 py-1 text-left text-sm enabled:hover:bg-muted disabled:cursor-default"
                         >
                           <span className={cn("font-heading font-bold", positionTextClass(player.position))}>
                             {POSITION_SHORT[player.position]}
                           </span>
+                          <PlayerFace playerKey={player.id} age={player.age} clubColors={clubColors} size={32} />
                           <span className="truncate font-medium">
                             {player.firstName} {player.lastName}
                           </span>

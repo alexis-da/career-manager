@@ -1,11 +1,14 @@
 import type { MatchEventType, Side } from "../engine/match";
 import type { Prisma } from "../generated/prisma/client";
+import { clubColorsOf, type ClubColors } from "../lib/color";
+import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
 
 export type TeamView = {
   clubSaveId: string;
   name: string;
   isManaged: boolean;
+  colors: ClubColors;
 };
 
 export type FixtureView = {
@@ -26,6 +29,8 @@ export type MatchEventView = {
   type: MatchEventType;
   side: Side; // stored with the event: the player's club may have changed since
   playerName: string;
+  playerKey: string | null; // with his age on the match day, to draw his face
+  playerAge: number | null;
   relatedPlayerName: string | null; // assist provider of a goal, player going off in a substitution
 };
 
@@ -36,7 +41,9 @@ export type ClubCalendar = {
   fixtures: FixtureWithEvents[];
 };
 
-const TEAM_SELECT = { select: { id: true, isManaged: true, club: { select: { name: true } } } } as const;
+const TEAM_SELECT = {
+  select: { id: true, isManaged: true, club: { select: { name: true, primaryColor: true, secondaryColor: true } } },
+} as const;
 
 export const FIXTURE_SELECT = {
   id: true,
@@ -56,6 +63,7 @@ const toTeamView = (clubSave: FixtureRow["homeClubSave"]): TeamView => ({
   clubSaveId: clubSave.id,
   name: clubSave.club.name,
   isManaged: clubSave.isManaged,
+  colors: clubColorsOf(clubSave.club),
 });
 
 export function toFixtureView(row: FixtureRow): FixtureView {
@@ -84,21 +92,25 @@ const EVENTS_SELECT = {
     minute: true,
     type: true,
     side: true,
-    playerSave: { select: { firstName: true, lastName: true } },
+    playerSave: { select: { firstName: true, lastName: true, playerKey: true, birthDate: true } },
     relatedPlayerSave: { select: { firstName: true, lastName: true } },
   },
 } as const satisfies Prisma.Fixture$eventsArgs;
 
 type EventRow = Prisma.MatchEventGetPayload<{ select: (typeof EVENTS_SELECT)["select"] }>;
 
-const toEventView = (event: EventRow): MatchEventView => ({
-  id: event.id,
-  minute: event.minute,
-  type: event.type,
-  side: event.side === "HOME" ? "home" : "away",
-  playerName: event.playerSave === null ? "Joueur inconnu" : fullName(event.playerSave),
-  relatedPlayerName: event.relatedPlayerSave === null ? null : fullName(event.relatedPlayerSave),
-});
+const toEventView =
+  (matchDate: Date) =>
+  (event: EventRow): MatchEventView => ({
+    id: event.id,
+    minute: event.minute,
+    type: event.type,
+    side: event.side === "HOME" ? "home" : "away",
+    playerName: event.playerSave === null ? "Joueur inconnu" : fullName(event.playerSave),
+    playerKey: event.playerSave?.playerKey ?? null,
+    playerAge: event.playerSave === null ? null : ageInYears(event.playerSave.birthDate, matchDate),
+    relatedPlayerName: event.relatedPlayerSave === null ? null : fullName(event.relatedPlayerSave),
+  });
 
 /** Fixtures of the managed club in the save's latest season, by date, with the events of played matches. */
 export async function getManagedClubCalendar(saveId: string): Promise<ClubCalendar> {
@@ -120,7 +132,10 @@ export async function getManagedClubCalendar(saveId: string): Promise<ClubCalend
 
   return {
     startYear: latest.startYear,
-    fixtures: rows.map(({ events, ...row }) => ({ ...toFixtureView(row), events: events.map(toEventView) })),
+    fixtures: rows.map(({ events, ...row }) => ({
+      ...toFixtureView(row),
+      events: events.map(toEventView(row.scheduledAt)),
+    })),
   };
 }
 
@@ -168,7 +183,7 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
 
   const { events, ...fixture } = row;
   return {
-    match: { ...toFixtureView(fixture), events: events.map(toEventView) },
+    match: { ...toFixtureView(fixture), events: events.map(toEventView(fixture.scheduledAt)) },
     others: others.map(({ events: goals, ...other }) => ({
       ...toFixtureView(other),
       goals: goals.map((goal) => ({ id: goal.id, minute: goal.minute, side: goal.side === "HOME" ? "home" : "away" })),

@@ -2,6 +2,7 @@
 
 import { XIcon } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
+import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
 import type { PlayerProfile, TransferHistoryItem } from "@/src/db/players";
 import type { AttributeName } from "@/src/engine/generation";
@@ -100,8 +101,29 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
         "lg:sticky lg:top-20 lg:z-auto lg:h-[calc(100dvh-6.5rem)] lg:rounded-lg lg:border lg:shadow-none",
       )}
     >
-      <div className="flex items-start gap-3 p-5 pb-4">
-        <div className="min-w-0 flex-1 space-y-1">
+      <div className="space-y-3 p-5 pb-4">
+        <div className="flex items-start gap-3">
+          <PlayerFace
+            playerKey={profile.playerKey}
+            age={profile.age}
+            clubColors={profile.clubColors}
+            size={96}
+            className="shrink-0"
+          />
+          <div className="flex-1" />
+          <div className={cn("rounded-md px-3 py-1.5 text-center", ratingClasses(profile.overall))}>
+            <p className="font-heading text-4xl leading-none font-bold tabular-nums" title="Note">
+              {profile.overall}
+            </p>
+            <p className="mt-1 text-[0.625rem] font-semibold tracking-[0.12em] uppercase tabular-nums" title="Potentiel">
+              Pot. {profile.potential}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon-sm" aria-label="Fermer la fiche" onClick={onClose} className="-mt-1 -mr-2">
+            <XIcon />
+          </Button>
+        </div>
+        <div className="min-w-0 space-y-1">
           <p className="eyebrow truncate">{profile.clubName ?? "Sans club"}</p>
           <h2 className="font-heading text-3xl leading-none font-bold">{name}</h2>
           <p className="text-sm text-muted-foreground">
@@ -112,17 +134,6 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
             <PlayerBadges player={profile} />
           </p>
         </div>
-        <div className={cn("rounded-md px-3 py-1.5 text-center", ratingClasses(profile.overall))}>
-          <p className="font-heading text-4xl leading-none font-bold tabular-nums" title="Note">
-            {profile.overall}
-          </p>
-          <p className="mt-1 text-[0.625rem] font-semibold tracking-[0.12em] uppercase tabular-nums" title="Potentiel">
-            Pot. {profile.potential}
-          </p>
-        </div>
-        <Button variant="ghost" size="icon-sm" aria-label="Fermer la fiche" onClick={onClose} className="-mt-1 -mr-2">
-          <XIcon />
-        </Button>
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto px-5 pb-5 text-sm">
