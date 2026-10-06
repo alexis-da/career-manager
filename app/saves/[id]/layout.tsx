@@ -1,17 +1,13 @@
-import type { CSSProperties } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSaveHeader } from "@/src/db/header";
 import { seasonLabel } from "@/src/engine/world";
-import { contrastText, ensureContrast } from "@/src/lib/color";
 import { formatDayDate } from "@/src/lib/format";
 import { GameActions } from "./_components/game-actions";
 import { SaveNav } from "./_components/save-nav";
+import { clubAccentStyle } from "./_lib/club-accent";
 
 export const dynamic = "force-dynamic";
-
-/** The theme's --background in hex: the surface the club accent must stand out on. */
-const BACKGROUND = "#0B0D10";
 
 export default async function SaveLayout({ children, params }: LayoutProps<"/saves/[id]">) {
   const { id } = await params;
@@ -20,9 +16,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
     notFound();
   }
 
-  // The accent marks the club name, the main button, active tabs, the club's row in tables and attribute bars.
-  const club = ensureContrast(header.club.primaryColor, BACKGROUND);
-  const accent = { "--club": club, "--club-fg": contrastText(club) } as CSSProperties;
+  const accent = clubAccentStyle(header.club.primaryColor);
   const season = seasonLabel(header.startYear);
 
   return (

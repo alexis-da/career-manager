@@ -5,27 +5,13 @@ import { useEffect, type ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
 import type { PlayerProfile, TransferHistoryItem } from "@/src/db/players";
-import type { AttributeName } from "@/src/engine/generation";
 import { seasonLabel } from "@/src/engine/world";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { POSITION_LABEL } from "../_lib/positions";
 import { ratingClasses } from "../_lib/ratings";
+import { AttributeBars } from "./attribute-bars";
 import { PlayerBadges } from "./player-badges";
-
-const OUTFIELD_ATTRIBUTES: { name: AttributeName; label: string }[] = [
-  { name: "pace", label: "Vitesse" },
-  { name: "shooting", label: "Tir" },
-  { name: "passing", label: "Passe" },
-  { name: "dribbling", label: "Dribble" },
-  { name: "defending", label: "Défense" },
-  { name: "physical", label: "Physique" },
-];
-
-const GOALKEEPING: { name: AttributeName; label: string } = { name: "goalkeeping", label: "Gardien" };
-
-/** Below this value an attribute bar is greyed: it is not a strength of the player. */
-const WEAK_ATTRIBUTE = 40;
 
 function transferLabel(transfer: TransferHistoryItem): string {
   switch (transfer.type) {
@@ -47,21 +33,6 @@ function StatTile({ label, value }: { label: string; value: number }) {
     <div className="rounded-md border px-2.5 py-2">
       <dt className="text-[0.625rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">{label}</dt>
       <dd className="font-heading text-2xl leading-tight font-bold tabular-nums">{value}</dd>
-    </div>
-  );
-}
-
-function AttributeBar({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="grid grid-cols-[5rem_1fr_2rem] items-center gap-3 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="h-1.5 rounded-full bg-border" aria-hidden>
-        <span
-          className={cn("block h-1.5 rounded-full", value >= WEAK_ATTRIBUTE ? "bg-(--club)" : "bg-muted-foreground/50")}
-          style={{ width: `${value}%` }}
-        />
-      </span>
-      <span className="text-right font-semibold tabular-nums">{value}</span>
     </div>
   );
 }
@@ -88,7 +59,6 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
   }, [onClose]);
 
   const name = `${profile.firstName} ${profile.lastName}`;
-  const attributes = profile.position === "GK" ? [GOALKEEPING, ...OUTFIELD_ATTRIBUTES] : OUTFIELD_ATTRIBUTES;
   const arrival =
     profile.clubName === null ? undefined : profile.transfers.find((transfer) => transfer.toClubName === profile.clubName);
   const arrivalYear = arrival !== undefined ? arrival.date.getUTCFullYear() : profile.arrivedThisSeason ? startYear : null;
@@ -138,11 +108,7 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto px-5 pb-5 text-sm">
-        <section aria-label="Attributs" className="space-y-2.5">
-          {attributes.map((attribute) => (
-            <AttributeBar key={attribute.name} label={attribute.label} value={profile.attributes[attribute.name]} />
-          ))}
-        </section>
+        <AttributeBars position={profile.position} attributes={profile.attributes} />
 
         <section aria-label={`Saison ${seasonLabel(startYear)}`} className="space-y-2">
           <dl className="grid grid-cols-4 gap-2">

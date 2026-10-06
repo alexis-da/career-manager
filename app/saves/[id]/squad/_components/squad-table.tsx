@@ -4,8 +4,10 @@ import { useMemo, useState, type ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Button } from "@/src/components/ui/button";
+import { HoverCardTrigger } from "@/src/components/ui/hover-card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import type { SquadPlayerView } from "@/src/db/squad";
+import { HOVER_POINTER_QUERY, useMediaQuery } from "@/src/hooks/use-media-query";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../../_components/contract-actions";
@@ -14,6 +16,7 @@ import { PlayerSheet } from "../../_components/player-sheet";
 import { nationalityCode } from "../../_lib/nationalities";
 import { POSITION_LABEL, POSITION_ORDER, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
 import { formBarClass, ratingClasses } from "../../_lib/ratings";
+import { PLAYER_CARD_DELAY_MS, playerCardHandle, PlayerHoverCard } from "./player-hover-card";
 
 type SortKey = "position" | "name" | "age" | "overall" | "potential" | "form" | "marketValue" | "wage" | "contractUntil";
 type Direction = "asc" | "desc";
@@ -66,6 +69,28 @@ function FormGauge({ form }: { form: number }) {
   );
 }
 
+type SquadRowProps = {
+  player: SquadPlayerView;
+  canHover: boolean;
+  onSelect: () => void;
+  className: string;
+  children: ReactNode;
+};
+
+/** A row of the squad: a click opens the sheet; with a mouse, hovering or focusing it also shows the player's card. */
+function SquadRow({ player, canHover, onSelect, className, children }: SquadRowProps) {
+  const row = (
+    <TableRow data-player-key={player.playerKey} onClick={onSelect} className={className}>
+      {children}
+    </TableRow>
+  );
+  return canHover ? (
+    <HoverCardTrigger handle={playerCardHandle} payload={player} delay={PLAYER_CARD_DELAY_MS} render={row} />
+  ) : (
+    row
+  );
+}
+
 type SquadTableProps = {
   saveId: string;
   header: ReactNode;
@@ -79,6 +104,8 @@ type SquadTableProps = {
 export function SquadTable({ saveId, header, players, currentDate, startYear, windowOpen, nextWindowOpensOn }: SquadTableProps) {
   const [sort, setSort] = useState<Sort>({ key: "position", direction: "asc" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // No card on a touch screen: a tap opens the sheet, nothing else.
+  const canHover = useMediaQuery(HOVER_POINTER_QUERY);
 
   const sorted = useMemo(() => {
     const sign = sort.direction === "asc" ? 1 : -1;
@@ -152,10 +179,11 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
               const name = `${player.firstName} ${player.lastName}`;
               const isSelected = player.id === selectedId;
               return (
-                <TableRow
+                <SquadRow
                   key={player.id}
-                  data-player-key={player.playerKey}
-                  onClick={() => setSelectedId(player.id)}
+                  player={player}
+                  canHover={canHover}
+                  onSelect={() => setSelectedId(player.id)}
                   className={cn(TABLE_ROW, "cursor-pointer", isSelected && "bg-muted hover:bg-muted")}
                 >
                   <TableCell
@@ -212,11 +240,12 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                       <PlayerBadges player={player} />
                     </span>
                   </TableCell>
-                </TableRow>
+                </SquadRow>
               );
             })}
           </TableBody>
         </Table>
+        {canHover && <PlayerHoverCard />}
       </div>
 
       {selected !== undefined && (

@@ -12,7 +12,7 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-test("starts a save on 1 July 2026", async ({ page }) => {
+test("starts a save on 1 July 2026 and shows a squad player's card on hover", async ({ page }) => {
   // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
   const name = `E2E saison ${Date.now()}`;
   saveName = name;
@@ -24,6 +24,21 @@ test("starts a save on 1 July 2026", async ({ page }) => {
 
     await page.goto("/");
     await expect(page.getByRole("row").filter({ hasText: name })).toContainText("1er juillet 2026");
+    await page.getByRole("link", { name }).click();
+    await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
+
+    // The squad: hovering a row shows the player's card after a short delay; a click still opens the full sheet.
+    await page.getByRole("link", { name: "Effectif" }).click();
+    const goalkeeper = page.locator("tbody tr[data-player-key]").first();
+    const playerKey = (await goalkeeper.getAttribute("data-player-key")) ?? "";
+    await goalkeeper.hover();
+    const card = page.locator(`[data-player-card="${playerKey}"]`);
+    await expect(card).toBeVisible();
+    await expect(card.locator("[data-attribute]")).toHaveCount(7); // a goalkeeper: six attributes and goalkeeping
+    await expect(card).toContainText("Forme");
+    await expect(card).toContainText("Salaire");
+    await goalkeeper.getByRole("button", { name: /^Voir la fiche de / }).click();
+    await expect(page.getByRole("complementary", { name: /^Fiche de / })).toBeVisible();
   } finally {
     // Even when a step failed: a leftover save would pollute the database.
     await deleteSave(page, name);
