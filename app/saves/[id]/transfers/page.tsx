@@ -165,7 +165,9 @@ export default async function TransfersPage({ params, searchParams }: PageProps<
     const players = await listClubPlayers(id, filters);
     list = (
       <>
-        <MarketFiltersForm saveId={id} filters={filters} competitions={overview.competitions} />
+        {/* Its fields are uncontrolled: remount on every change of the filters, or a client navigation such as
+            « Réinitialiser » keeps the old values on screen and the next submit applies them again. */}
+        <MarketFiltersForm key={JSON.stringify(filters)} saveId={id} filters={filters} competitions={overview.competitions} />
         <ClubPlayersTable saveId={id} values={values} filters={filters} list={players} overview={overview} />
       </>
     );
