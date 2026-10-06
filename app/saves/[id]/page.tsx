@@ -4,9 +4,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { ClubPreview, Dashboard } from "@/src/db/dashboard";
 import { getDashboard } from "@/src/db/dashboard";
 import { getManagedLineup, type ManagedLineup } from "@/src/db/lineup";
+import { getOpponentPreview } from "@/src/db/opponent";
 import { nextTransferWindowOpening, transferWindowCloseDate } from "@/src/engine/world";
 import { formatDayMonth, formatDecimal, formatMillions, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { OpponentSheet } from "./_components/opponent-sheet";
 import { Panel, PanelTitle } from "./_components/panel";
 import { ResultPill } from "./_components/result-pill";
 import { POSITION_SHORT, positionTextClass } from "./_lib/positions";
@@ -125,7 +127,7 @@ function BigFigure({ value, unit }: { value: string; unit?: string }) {
 
 export default async function DashboardPage({ params }: PageProps<"/saves/[id]">) {
   const { id } = await params;
-  const [dashboard, lineup] = await Promise.all([getDashboard(id), getManagedLineup(id)]);
+  const [dashboard, lineup, opponent] = await Promise.all([getDashboard(id), getManagedLineup(id), getOpponentPreview(id)]);
   const { club, nextMatch, lastResult, position } = dashboard;
   const base = `/saves/${id}`;
   const alerts = alertsOf(dashboard, lineup, `${base}/squad`, `${base}/lineup`);
@@ -168,9 +170,12 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                   <p>
                     Onze en <span className="font-heading text-sm font-bold text-foreground">{lineup.formation}</span>
                   </p>
-                  <Link href={`${base}/lineup`} className="font-medium text-info hover:underline">
-                    Composition →
-                  </Link>
+                  <span className="flex items-center gap-3">
+                    {opponent !== null && <OpponentSheet preview={opponent} />}
+                    <Link href={`${base}/lineup`} className="font-medium text-info hover:underline">
+                      Composition →
+                    </Link>
+                  </span>
                 </div>
                 <ol aria-label="Onze du prochain match" className="flex flex-wrap gap-x-3 gap-y-1 text-foreground">
                   {lineup.lineup.starters.map(({ player, slot, index }) => (

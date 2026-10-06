@@ -12,6 +12,7 @@ import { POSITION_GROUPS, positionGroup, ratingAt, type Position, type PositionG
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "../../_components/panel";
+import { Pitch } from "../../_components/pitch";
 import { PositionBadge } from "../../_components/position-badge";
 import { POSITION_LABEL, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
 import { saveLineupAction } from "../actions";
@@ -22,8 +23,7 @@ import {
   swapSlots,
   type EditorState,
 } from "../_lib/editor-moves";
-import { Pitch } from "./pitch";
-import { BENCH_TARGET, usePointerDrag, type DragSource, type DropTarget } from "./use-pointer-drag";
+import { BENCH_TARGET, slotTarget, usePointerDrag, type DragSource, type DropTarget } from "./use-pointer-drag";
 
 const GROUP_LABEL: Record<PositionGroup, string> = {
   GK: "Gardiens",
@@ -261,12 +261,16 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
             starters={state.starters}
             players={byKey}
             clubColors={clubColors}
-            selected={selected}
-            onSelect={clickSlot}
-            dragged={dragged}
-            draggedFrom={drag?.source.kind === "slot" ? drag.source.index : null}
-            over={drag?.over?.kind === "slot" ? drag.over.index : null}
-            dragProps={(index, key) => sourceProps({ kind: "slot", index, key })}
+            label="Mon onze"
+            editing={{
+              selected,
+              onSelect: clickSlot,
+              dragged,
+              draggedFrom: drag?.source.kind === "slot" ? drag.source.index : null,
+              over: drag?.over?.kind === "slot" ? drag.over.index : null,
+              dragProps: (index, key) => sourceProps({ kind: "slot", index, key }),
+              dropTarget: slotTarget,
+            }}
           />
           <p data-lineup-summary className="text-sm text-muted-foreground">
             <span className="text-foreground">

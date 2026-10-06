@@ -1,12 +1,12 @@
+import type { DOMAttributes, ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import type { LineupPlayer } from "@/src/db/lineup";
 import type { FormationSlot } from "@/src/engine/formations";
 import { ratingAt } from "@/src/engine/positions";
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
-import { PositionBadge } from "../../_components/position-badge";
-import { POSITION_LABEL, POSITION_SHORT, positionFit } from "../../_lib/positions";
-import { slotTarget, type DragSourceProps } from "./use-pointer-drag";
+import { POSITION_LABEL, POSITION_SHORT, positionFit } from "../_lib/positions";
+import { PositionBadge } from "./position-badge";
 
 /** Pitch markings in metres, on a 68 × 105 pitch. */
 const WIDTH = 68;
@@ -43,38 +43,56 @@ function Markings() {
   );
 }
 
-type PitchProps = {
-  slots: readonly FormationSlot[];
-  starters: readonly (string | null)[];
-  players: ReadonlyMap<string, LineupPlayer>;
-  clubColors: ClubColors;
+/** What the lineup editor adds to the pitch: selecting a slot, and dragging players between slots. */
+export type PitchEditing = {
   selected: number | null;
   onSelect: (index: number) => void;
   dragged: LineupPlayer | null; // the player being dragged, whose rating every slot then shows
   draggedFrom: number | null; // his slot, when he is a starter
   over: number | null; // the slot under the pointer during a drag
-  dragProps: (index: number, key: string) => DragSourceProps;
+  dragProps: (index: number, key: string) => DOMAttributes<HTMLElement>;
+  dropTarget: (index: number) => string; // value of the slot's data-drop-target
+};
+
+type SlotElementProps = DOMAttributes<HTMLElement> & {
+  editing: PitchEditing | undefined;
+  className: string;
+  children: ReactNode;
+  "aria-label": string;
+  "aria-pressed": boolean | undefined;
+  "data-slot-index": number;
+  "data-slot-player-key": string | undefined;
+  "data-drop-target": string | undefined;
+};
+
+/** A button in the editor; a plain element on a read-only pitch, which nothing can select or drag. */
+function SlotElement({ editing, ...props }: SlotElementProps) {
+  return editing === undefined ? <div {...props} /> : <button type="button" {...props} />;
+}
+
+type PitchProps = {
+  slots: readonly FormationSlot[];
+  starters: readonly (string | null)[];
+  players: ReadonlyMap<string, LineupPlayer>;
+  clubColors: ClubColors;
+  label: string; // names the eleven for assistive technologies: « Onze de Lyon »
+  editing?: PitchEditing; // without it, the pitch is read-only: an opponent's probable eleven
 };
 
 /**
  * The formation on a vertical pitch, attacking upwards: each slot shows its player's face, his rating there (yellow
  * out of position, red when injured), the slot's position and his name. During a drag, every slot shows the rating
- * the dragged player would have there instead, and the slot under the pointer is highlighted.
+ * the dragged player would have there instead, and the slot under the pointer is highlighted. Shared by the lineup
+ * editor and, read-only, by the opponent's preview.
  */
-export function Pitch({
-  slots,
-  starters,
-  players,
-  clubColors,
-  selected,
-  onSelect,
-  dragged,
-  draggedFrom,
-  over,
-  dragProps,
-}: PitchProps) {
+export function Pitch({ slots, starters, players, clubColors, label, editing }: PitchProps) {
+  const selected = editing?.selected ?? null;
+  const dragged = editing?.dragged ?? null;
   return (
     <div
+      role="list"
+      aria-label={label}
+      data-pitch={editing === undefined ? "read-only" : "editable"}
       className="relative aspect-[68/105] w-full overflow-hidden rounded-lg border bg-pitch"
       style={{
         backgroundImage: "repeating-linear-gradient(to bottom, transparent 0 10%, rgb(255 255 255 / 0.025) 10% 20%)",
@@ -95,27 +113,27 @@ export function Pitch({
           player === undefined || rating === null
             ? null
             : `${POSITION_SHORT[player.position]} ${player.overall} · joue ${POSITION_SHORT[slot.position]} : ${Math.round(rating)}`;
-        const label =
+        const slotLabel =
           player === undefined
             ? `${POSITION_LABEL[slot.position]} : poste vide`
             : `${POSITION_LABEL[slot.position]} : ${player.firstName} ${player.lastName}, ${detail ?? ""}` +
               (player.injured ? ", blessé" : fit === "other-line" ? ", hors de sa ligne" : fit === "line" ? ", hors poste" : "");
         return (
-          <button
-            key={index}
-            type="button"
+          <div key={index} role="listitem" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} className="absolute -translate-x-1/2 -translate-y-1/2">
+          <SlotElement
+            editing={editing}
             data-slot-index={index}
             data-slot-player-key={key ?? undefined}
-            data-drop-target={slotTarget(index)}
-            {...(key === null ? {} : dragProps(index, key))}
-            aria-label={label}
-            aria-pressed={selected === index}
-            onClick={() => onSelect(index)}
-            style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+            data-drop-target={editing?.dropTarget(index)}
+            {...(editing === undefined || key === null ? {} : editing.dragProps(index, key))}
+            aria-label={slotLabel}
+            aria-pressed={editing === undefined ? undefined : selected === index}
+            onClick={editing === undefined ? undefined : () => editing.onSelect(index)}
             className={cn(
-              "group absolute flex w-28 -translate-x-1/2 -translate-y-1/2 touch-none flex-col items-center gap-0.5 outline-none select-none",
-              key !== null && "cursor-grab",
-              draggedFrom === index && "opacity-50",
+              "group flex w-28 flex-col items-center gap-0.5 outline-none select-none",
+              editing !== undefined && "touch-none",
+              editing !== undefined && key !== null && "cursor-grab",
+              editing?.draggedFrom === index && "opacity-50",
             )}
           >
             {/* The role to fill, in gray: the player's own position is the badge next to his name. */}
@@ -134,7 +152,7 @@ export function Pitch({
                       ? "border-warning text-warning"
                       : "border-white/70 text-foreground",
                 selected === index && "ring-4 ring-(--club) ring-offset-2 ring-offset-pitch",
-                over === index && "scale-110 ring-4 ring-white/80 ring-offset-2 ring-offset-pitch",
+                editing?.over === index && "scale-110 ring-4 ring-white/80 ring-offset-2 ring-offset-pitch",
               )}
             >
               {player === undefined ? "+" : <PlayerFace playerKey={player.id} age={player.age} clubColors={clubColors} size={32} />}
@@ -174,7 +192,8 @@ export function Pitch({
                 {detail}
               </span>
             )}
-          </button>
+          </SlotElement>
+          </div>
         );
       })}
     </div>

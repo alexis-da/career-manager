@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formationPositions } from "./formations";
 import {
+  averageStarterRating,
   BENCH_SIZE,
   changeFormation,
   DEFAULT_FORMATION,
@@ -10,7 +11,7 @@ import {
   type SavedLineup,
   type SquadPlayer,
 } from "./lineup";
-import type { Position } from "./positions";
+import { ratingAt, type Position } from "./positions";
 
 function player(id: string, position: Position, overall: number, overrides: Partial<SquadPlayer> = {}): SquadPlayer {
   return {
@@ -217,5 +218,21 @@ describe("changeFormation", () => {
   it("is deterministic and leaves the starters unchanged when the formation stays", () => {
     expect(changeFormation("4-3-3", "4-3-3", starters, squad)).toEqual(starters);
     expect(changeFormation("4-3-3", "3-5-2", starters, squad)).toEqual(changeFormation("4-3-3", "3-5-2", starters, squad));
+  });
+});
+
+describe("averageStarterRating", () => {
+  it("averages the starters' ratings in the slots they play, out of position included", () => {
+    const lineup = selectLineup(squad);
+    const expected = lineup.starters.reduce((sum, { player: starter, slot }) => sum + ratingAt(starter, slot), 0) / 11;
+
+    expect(averageStarterRating(lineup)).toBeCloseTo(expected, 10);
+    // A centre-back moved to the right-back slot counts at 92 % of his rating.
+    const moved: Lineup = { ...lineup, starters: [{ ...lineup.starters[0], player: player("cb", "CB", 80), slot: "RB" }] };
+    expect(averageStarterRating(moved)).toBeCloseTo(80 * 0.92, 10);
+  });
+
+  it("is 0 for an empty eleven", () => {
+    expect(averageStarterRating({ starters: [], bench: [] })).toBe(0);
   });
 });

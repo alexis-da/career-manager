@@ -12,7 +12,7 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-test("starts a save on 1 July 2026 and shows a squad player's card on hover", async ({ page }) => {
+test("starts a save on 1 July 2026, shows a squad player's card on hover and the next opponent's eleven", async ({ page }) => {
   // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
   const name = `E2E saison ${Date.now()}`;
   saveName = name;
@@ -39,6 +39,15 @@ test("starts a save on 1 July 2026 and shows a squad player's card on hover", as
     await expect(card).toContainText("Salaire");
     await goalkeeper.getByRole("button", { name: /^Voir la fiche de / }).click();
     await expect(page.getByRole("complementary", { name: /^Fiche de / })).toBeVisible();
+
+    // The dashboard: the next opponent's probable eleven, on the read-only pitch.
+    await page.getByRole("link", { name: "Tableau de bord" }).click();
+    await page.getByRole("button", { name: "Voir l'adversaire" }).click();
+    const panel = page.getByRole("dialog");
+    await expect(panel.getByRole("list", { name: /^Onze probable de / })).toBeVisible();
+    await expect(panel.locator("[data-slot-player-key]")).toHaveCount(11);
+    await expect(panel.getByText("Note moyenne des titulaires")).toBeVisible();
+    await expect(panel.getByText("Aucun match joué.")).toBeVisible();
   } finally {
     // Even when a step failed: a leftover save would pollute the database.
     await deleteSave(page, name);

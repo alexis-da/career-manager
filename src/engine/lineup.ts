@@ -204,3 +204,9 @@ export function changeFormation<P extends LineupCandidate>(
   );
   return assigned.map((player) => player?.id ?? null);
 }
+
+/** Mean rating of a lineup's starters in the slots they play, the rating the match engine uses. */
+export function averageStarterRating<P extends LineupCandidate>(lineup: Lineup<P>): number {
+  const { starters } = lineup;
+  return starters.length === 0 ? 0 : starters.reduce((sum, { player, slot }) => sum + ratingAt(player, slot), 0) / starters.length;
+}
