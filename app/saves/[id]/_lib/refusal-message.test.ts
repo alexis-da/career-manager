@@ -23,7 +23,7 @@ describe("refusalMessage", () => {
   it("explains a closed window with its dates, or with the next opening when known", () => {
     expect(refusalMessage("window_closed")).toContain("1er juillet au 31 août");
     expect(refusalMessage("window_closed", [], { nextWindowOpensOn: new Date(Date.UTC(2025, 0, 1)) })).toBe(
-      "Mercato fermé : la prochaine fenêtre ouvre le 1 janvier 2025.",
+      "Mercato fermé : la prochaine fenêtre ouvre le 1er janvier 2025.",
     );
   });
 

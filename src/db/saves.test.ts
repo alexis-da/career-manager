@@ -6,6 +6,7 @@ import {
   SQUAD_SIZE_MAX,
   YOUTH_PLAYERS_PER_CLUB,
 } from "../engine/balance";
+import { WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 
 // Runs against DATABASE_URL (the dev database); skipped when it is not set. The modules are imported
@@ -101,20 +102,21 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
         db.clubSave.count({ where: { saveId } }),
         db.clubSave.findMany({ where: { saveId, isManaged: true }, select: { club: { select: { slug: true } } } }),
         db.playerSave.count({ where: { saveId } }),
-        db.playerSave.count({ where: { saveId, playerId: null, playerKey: { startsWith: "youth:2024:" } } }),
+        db.playerSave.count({ where: { saveId, playerId: null, playerKey: { startsWith: `youth:${WORLD_START_YEAR}:` } } }),
         db.season.findMany({ where: { saveId }, select: { startYear: true } }),
         db.fixture.count({ where: { saveId } }),
         db.club.groupBy({ by: ["competitionId"], _count: { _all: true } }),
       ]);
     const [competitionCount, clubCount, playerCount] = referenceCountsAfter;
 
-    expect(save.currentDate.toISOString()).toBe("2024-07-01T00:00:00.000Z");
+    // A new save starts on 1 July of the game's first season, 2026-27.
+    expect(save.currentDate.toISOString()).toBe("2026-07-01T00:00:00.000Z");
     expect(clubSaves).toBe(clubCount);
     expect(managed.map((clubSave) => clubSave.club.slug)).toEqual(["liverpool-fc"]);
     expect(youthPlayers).toBe(clubCount * YOUTH_PLAYERS_PER_CLUB);
     expect(playerSaves).toBe(playerCount + youthPlayers);
     expect(seasons).toHaveLength(competitionCount);
-    expect(seasons.every((season) => season.startYear === 2024)).toBe(true);
+    expect(seasons.every((season) => season.startYear === WORLD_START_YEAR)).toBe(true);
     expect(fixtures).toBe(
       clubsByCompetition.reduce((sum, group) => sum + group._count._all * (group._count._all - 1), 0),
     );

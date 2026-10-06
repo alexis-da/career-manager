@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { firstMatchdayDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 import type { MatchdaySummary } from "./matchday";
 import type { getStandings as getStandingsFunction } from "./standings";
@@ -55,7 +56,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
 
   it("plays every fixture of the first date, and only those", async () => {
     const db = database();
-    const firstMatchday = new Date(Date.UTC(2024, 7, 17));
+    const firstMatchday = firstMatchdayDate(WORLD_START_YEAR);
     const [playedThatDay, unplayedThatDay, playedElsewhere] = await Promise.all([
       db.fixture.count({ where: { saveId, scheduledAt: firstMatchday, played: true } }),
       db.fixture.count({ where: { saveId, scheduledAt: firstMatchday, played: false } }),
@@ -117,7 +118,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
       db.season.findMany({ where: { saveId }, select: { id: true, competition: { select: { _count: { select: { clubs: true } } } } } }),
     ]);
 
-    expect(save.currentDate.toISOString()).toBe("2024-08-17T00:00:00.000Z");
+    expect(save.currentDate.toISOString()).toBe("2026-08-15T00:00:00.000Z");
     for (const season of seasons) {
       const table = await getStandings(saveId, season.id);
       expect(table).toHaveLength(season.competition._count.clubs);

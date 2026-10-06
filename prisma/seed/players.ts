@@ -1,14 +1,29 @@
 import { drawBirthDate, drawNameList, drawUniqueName } from "../../src/engine/identity";
 import type { NameBank } from "../../src/engine/names";
 import { squadTemplate, type Position } from "../../src/engine/positions";
-import { WORLD_START_DATE } from "../../src/engine/world";
-import { makeRng, pick, randomInt, weightedIndex } from "../../src/lib/rng";
+import { seasonLabel, seasonStartDate, WORLD_START_DATE, WORLD_START_YEAR } from "../../src/engine/world";
+import { addYears } from "../../src/lib/dates";
+import { makeRng, pick, randomInt, weightedIndex, type Rng } from "../../src/lib/rng";
+import { SOURCE_SEASON_START_YEAR } from "./openfootball";
 
-/** Fixed world seed: player identities are the same on every seed run, and shared by every save. */
-export const WORLD_SEED = "world-2024-25";
+/**
+ * Fixed world seed, named after the source season: player identities are the same on every seed run, and shared
+ * by every save. It never follows WORLD_START_YEAR, which would draw other names.
+ */
+export const WORLD_SEED = `world-${seasonLabel(SOURCE_SEASON_START_YEAR)}`;
 
-/** Ages are counted on the day every save starts, 1 July 2024. */
+/** Ages are counted on the day every save starts, 1 July of WORLD_START_YEAR. */
 export const WORLD_REFERENCE_DATE = WORLD_START_DATE;
+
+/**
+ * Birth dates are drawn against 1 July of the source season, then moved to the game's year by whole calendar years.
+ * Moving WORLD_START_YEAR thus keeps every age and every draw, and gives the dates a migration shifting birthDate
+ * by the same number of years gives (29 February becomes 28 February in both).
+ */
+function worldBirthDate(rng: Rng, age: number): Date {
+  const drawn = drawBirthDate(rng, seasonStartDate(SOURCE_SEASON_START_YEAR), age);
+  return addYears(drawn, WORLD_START_YEAR - SOURCE_SEASON_START_YEAR);
+}
 
 /** Players in a world squad. */
 export const SQUAD_SIZE = 23;
@@ -63,7 +78,7 @@ export function generateSquad(
       squadSlot: index + 1,
       firstName,
       lastName,
-      birthDate: drawBirthDate(rng, WORLD_REFERENCE_DATE, age),
+      birthDate: worldBirthDate(rng, age),
       nationality: list.nationality,
       position,
     };
@@ -71,8 +86,8 @@ export function generateSquad(
 }
 
 /**
- * The free agent pool: world players without a club on 1 July 2024, aged 24 to 34, of any nationality. Its own
- * stream, "world-2024-25:free-agents": the pool and the squads never change each other. squadSlot numbers the
+ * The free agent pool: world players without a club when every save starts, aged 24 to 34, of any nationality.
+ * Its own stream, WORLD_SEED + ":free-agents": the pool and the squads never change each other. squadSlot numbers the
  * pool from 1; names are distinct within it.
  */
 export function generateFreeAgentPool(names: NameBank, worldSeed: string = WORLD_SEED): SeedPlayer[] {
@@ -88,7 +103,7 @@ export function generateFreeAgentPool(names: NameBank, worldSeed: string = WORLD
       squadSlot: index + 1,
       firstName,
       lastName,
-      birthDate: drawBirthDate(rng, WORLD_REFERENCE_DATE, age),
+      birthDate: worldBirthDate(rng, age),
       nationality: list.nationality,
       position,
     };

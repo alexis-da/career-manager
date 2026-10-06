@@ -14,6 +14,7 @@ const dayDate = new Intl.DateTimeFormat("fr-FR", {
   timeZone: TIME_ZONE,
 });
 const shortMonth = new Intl.DateTimeFormat("fr-FR", { month: "short", timeZone: TIME_ZONE });
+const monthYear = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: TIME_ZONE });
 
 /** Amount in euros: « 12,5 M€ », « 850 k€ », « 900 € ». */
 export function formatMoney(euros: number): string {
@@ -37,9 +38,9 @@ export function formatDecimal(value: number): string {
   return oneDecimal.format(value);
 }
 
-/** « 17 août 2024 ». */
+/** « 17 août 2026 », « 1er juillet 2026 »: the French ordinal for the first, as formatDayMonth. */
 export function formatDate(date: Date): string {
-  return longDate.format(date);
+  return date.getUTCDate() === 1 ? `1er ${monthYear.format(date)}` : longDate.format(date);
 }
 
 /** « sam. 17 août ». */

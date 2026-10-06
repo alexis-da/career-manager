@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { getLatestSeasonTables } from "@/src/db/standings";
+import { seasonLabel } from "@/src/engine/world";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../_components/panel";
 import { MANAGED_ROW, TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
@@ -44,7 +45,7 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
       <div className="flex flex-wrap items-baseline gap-3">
         <h1 className="font-heading text-4xl font-bold">Classement</h1>
         <p className="text-sm text-muted-foreground tabular-nums">
-          Saison {defaultTable.startYear}-{String(defaultTable.startYear + 1).slice(2)}
+          Saison {seasonLabel(defaultTable.startYear)}
         </p>
       </div>
 

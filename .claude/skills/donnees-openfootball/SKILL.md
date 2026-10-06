@@ -14,6 +14,23 @@ d'API, pas de quota. Les fichiers sont téléchargés une fois et **commités da
 Ne jamais appeler OpenFootball au runtime : c'est une source de seed, pas une API de production. Les
 fichiers de calendriers ne sont lus **que par le seed** : le jeu lit la base.
 
+## Saison source et saison de jeu
+
+Deux années, à ne pas confondre :
+
+- **Saison source : 2024-25** (`SOURCE_SEASON_START_YEAR`, `prisma/seed/openfootball.ts`). Les fichiers OpenFootball
+  commités sont ceux de 2024-25 et **restent la source** des clubs, des compétitions et du classement initial
+  (`Club.initialRank`). Les graines du monde portent son nom (`world-2024-25`) : elles ne la suivent pas.
+- **Saison de jeu : 2026-27** (`WORLD_START_YEAR`, `src/engine/world.ts`), **seul endroit qui fixe l'année du
+  jeu**. En dérivent la date de départ d'une partie (`WORLD_START_DATE`, 1er juillet 2026), l'âge de référence du
+  seed et du vivier, le premier samedi du calendrier (`firstMatchdayDate`) et les libellés « Saison 2026-27 »
+  (`seasonLabel`). `src/engine/world-year.test.ts` refuse toute autre année littérale dans le code.
+
+Changer `WORLD_START_YEAR` de N ans demande une migration qui décale `birthDate` de N ans sur `Player` **et**
+`PlayerSave` (`+ interval 'N years'`) : les âges ne changent pas, et un seed relancé ensuite n'écrit aucun joueur.
+Les parties créées avant deviennent incohérentes : elles se suppriment par l'application (cascade depuis `Save`),
+jamais dans la migration.
+
 ## Format des calendriers
 
 `https://raw.githubusercontent.com/openfootball/football.json/master/<saison>/<code>.json`
@@ -61,7 +78,7 @@ Arsenal FC, 1886, @ Emirates Stadium, London
 C'est un enrichissement **optionnel** : le seed doit fonctionner sans, avec les seuls noms issus des
 calendriers. Ne pas bloquer l'import parce qu'un club n'a pas de stade renseigné.
 
-## Classement de référence 2024-25 — `Club.initialRank`
+## Classement de référence de la saison source (2024-25) — `Club.initialRank`
 
 Le seed calcule le classement final de chaque compétition avec `computeStandings`
 (`src/engine/standings.ts`) appliqué aux scores des calendriers (`extractScores` dans
@@ -102,7 +119,10 @@ Le monde est le même pour toutes les parties : la graine est **fixe**, `WORLD_S
   chaque club a donc un RM, un RW, un LM et un LW. **Aucun tirage pour le poste** : le flux d'identité ne change
   pas quand le gabarit change. L'identité stable d'un joueur du monde est `(initialClubId, squadSlot)`
   (`@@unique`), `squadSlot` allant de 1 à 23 dans l'ordre du template.
-- Âge : 17 à 36 ans révolus au 1er juillet 2024 (`WORLD_REFERENCE_DATE`), distribution centrée sur 21–29.
+- Âge : 17 à 36 ans révolus au 1er juillet 2026 (`WORLD_REFERENCE_DATE` = `WORLD_START_DATE`), distribution
+  centrée sur 21–29. La date est tirée par rapport au 1er juillet de la saison source, puis avancée d'autant d'années
+  civiles (`addYears`, `src/lib/dates.ts` : le 29 février devient le 28, comme dans PostgreSQL) : changer
+  l'année du jeu ne change ni les tirages ni les âges (empreinte épinglée dans `players.test.ts`).
 - Nationalité : celle du pays du club à 70 % (`HOME_NATIONALITY_SHARE`), sinon tirée parmi les autres listes.
 - Tirages d'identité partagés avec les jeunes : `src/engine/identity.ts` (`drawNameList`, `drawUniqueName`,
   `drawBirthDate`).
@@ -115,7 +135,7 @@ valeurs figées de `players.test.ts` casse volontairement dans ce cas.
 
 ## Vivier de joueurs libres
 
-Le monde compte aussi 120 joueurs **sans club** au 1er juillet 2024 (`generateFreeAgentPool`,
+Le monde compte aussi 120 joueurs **sans club** au 1er juillet 2026 (`generateFreeAgentPool`,
 `prisma/seed/players.ts`), pour qu'une partie neuve ait un marché de joueurs libres.
 
 - `Player.initialClubId` null, `squadSlot` de 1 à 120. PostgreSQL ne compare pas les NULL dans
@@ -133,7 +153,7 @@ Le monde compte aussi 120 joueurs **sans club** au 1er juillet 2024 (`generateFr
 - La présaison de création ne les fait pas signer : chaque club IA a déjà 25 joueurs (`SQUAD_SIZE_MAX`) une fois
   ses jeunes arrivés, et `planSquad` ne signe au-delà que pour un gardien manquant.
 - Ils suivent la règle commune de départ : sans libération enregistrée, la date de création de la partie
-  (`WORLD_START_DATE`) vaut date de libération. Ceux encore libres au 1er juillet 2025 quittent le monde, sauf
+  (`WORLD_START_DATE`) vaut date de libération. Ceux encore libres à la présaison suivante (1er juillet 2027) quittent le monde, sauf
   note > 65.
 
 ## Création de partie : `PlayerSave` porte l'identité
@@ -141,7 +161,7 @@ Le monde compte aussi 120 joueurs **sans club** au 1er juillet 2024 (`generateFr
 `createSave` copie l'identité de chaque `Player` dans son `PlayerSave` : `firstName`, `lastName`,
 `birthDate`, `nationality`, `position`, tous NOT NULL, plus `playerKey`. À partir de là, **le jeu ne lit
 jamais `Player` pour connaître un joueur** : `PlayerSave.playerId` est optionnel et ne sert qu'à tracer
-l'origine dans le monde 2024-25 (null pour un jeune arrivé en cours de partie).
+l'origine dans le monde du seed (null pour un jeune arrivé en cours de partie).
 
 - `playerKey` (`@@unique([saveId, playerKey])`) est la clé stable du joueur dans la partie :
   `slug du club initial#squadSlot` pour un joueur du monde (`worldPlayerKey`), `youth:année:club:rang` pour

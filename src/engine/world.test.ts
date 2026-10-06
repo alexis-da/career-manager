@@ -4,11 +4,13 @@ import {
   isTransferWindowOpen,
   nextTransferWindowOpening,
   seasonEndDate,
+  seasonLabel,
   seasonStartDate,
   seasonStartYear,
   transferWindowAt,
   transferWindowCloseDate,
   WORLD_START_DATE,
+  WORLD_START_YEAR,
 } from "./world";
 
 const utc = (iso: string): Date => new Date(`${iso}T00:00:00.000Z`);
@@ -17,6 +19,8 @@ describe("world calendar", () => {
   it("plays the first matchday on the third Saturday of August", () => {
     expect(firstMatchdayDate(2024).toISOString()).toBe("2024-08-17T00:00:00.000Z");
     expect(firstMatchdayDate(2025).toISOString()).toBe("2025-08-16T00:00:00.000Z");
+    expect(firstMatchdayDate(WORLD_START_YEAR).toISOString()).toBe("2026-08-15T00:00:00.000Z");
+    expect(firstMatchdayDate(WORLD_START_YEAR + 1).toISOString()).toBe("2027-08-21T00:00:00.000Z");
     for (let year = 2024; year < 2050; year++) {
       const date = firstMatchdayDate(year);
       expect(date.getUTCDay()).toBe(6);
@@ -27,7 +31,8 @@ describe("world calendar", () => {
   });
 
   it("runs seasons from 1 July to 30 June", () => {
-    expect(WORLD_START_DATE.toISOString()).toBe("2024-07-01T00:00:00.000Z");
+    expect(WORLD_START_DATE.toISOString()).toBe("2026-07-01T00:00:00.000Z");
+    expect(seasonLabel(WORLD_START_YEAR)).toBe("2026-27");
     expect(seasonStartDate(2025).toISOString()).toBe("2025-07-01T00:00:00.000Z");
     expect(seasonEndDate(2024).toISOString()).toBe("2025-06-30T00:00:00.000Z");
     expect(seasonStartYear(seasonEndDate(2024))).toBe(2024);

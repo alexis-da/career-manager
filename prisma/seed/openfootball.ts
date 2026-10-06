@@ -4,7 +4,13 @@ import * as z from "zod";
 import type { MatchScore } from "../../src/engine/standings";
 import { CLUB_ALIASES } from "./aliases";
 
-// 2024-25 fixture files, downloaded once from openfootball/football.json (CC0).
+/**
+ * Start year of the season the committed fixture files cover (2024-25): the source of the clubs, of their initial
+ * rank and of the world draws. It stays when the game moves to a later season (WORLD_START_YEAR).
+ */
+export const SOURCE_SEASON_START_YEAR = 2024;
+
+// The fixture files of that season, downloaded once from openfootball/football.json (CC0).
 const DATA_DIR = new URL("./data/", import.meta.url);
 
 const goalsSchema = z.tuple([z.number().int(), z.number().int()]);

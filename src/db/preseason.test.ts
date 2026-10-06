@@ -1,12 +1,13 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MIN_GOALKEEPERS, SQUAD_SIZE_MAX, SQUAD_SIZE_MIN } from "../engine/balance";
+import { WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 import type { PreseasonSummary } from "./preseason";
 
 type SquadRow = { isManaged: boolean; players: number; goalkeepers: number };
 
-// Checks the 2025 preseason of the demo save, against DATABASE_URL. Skipped without it. The demo save is created
+// Checks the second preseason of the demo save, against DATABASE_URL. Skipped without it. The demo save is created
 // on the first run when missing (a whole season to play, hence the long hook timeout) and kept for later runs.
 // Modules are imported lazily because the client throws without DATABASE_URL.
 describe.skipIf(process.env.DATABASE_URL === undefined)("runPreseason on the demo save", () => {
@@ -77,6 +78,6 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("runPreseason on the dem
 
   it("runs once per season: a second call changes nothing", () => {
     expect(secondRun?.skipped).toBe(true);
-    expect(secondRun?.startYear).toBe(2025);
+    expect(secondRun?.startYear).toBe(WORLD_START_YEAR + 1);
   });
 });

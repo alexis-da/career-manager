@@ -8,22 +8,30 @@ const DAY_MS = 86_400_000;
 
 export type TransferWindow = "summer" | "winter";
 
+/** Start year of every new save's first season: the one place that sets the game's year. */
+export const WORLD_START_YEAR = 2026;
+
 /** First day of the season starting in startYear: 1 July. */
 export function seasonStartDate(startYear: number): Date {
   return new Date(Date.UTC(startYear, SEASON_START_MONTH, 1));
 }
 
-/** Every new save starts on 1 July 2024. A fixed date, never the clock. */
-export const WORLD_START_DATE = seasonStartDate(2024);
+/** Every new save starts on 1 July of WORLD_START_YEAR. A fixed date, never the clock. */
+export const WORLD_START_DATE = seasonStartDate(WORLD_START_YEAR);
 
-/** First matchday of a season: the third Saturday of August (17 August 2024, 16 August 2025). */
+/** Short name of the season starting in startYear: « 2026-27 ». */
+export function seasonLabel(startYear: number): string {
+  return `${startYear}-${String(startYear + 1).slice(2)}`;
+}
+
+/** First matchday of a season: the third Saturday of August (15 August 2026, 21 August 2027). */
 export function firstMatchdayDate(startYear: number): Date {
   const firstOfAugust = Date.UTC(startYear, AUGUST, 1);
   const daysToFirstSaturday = (SATURDAY - new Date(firstOfAugust).getUTCDay() + 7) % 7;
   return new Date(firstOfAugust + (daysToFirstSaturday + 14) * DAY_MS);
 }
 
-/** Start year of the season a date belongs to: 2024 for any date from 1 July 2024 to 30 June 2025. */
+/** Start year of the season a date belongs to: 2026 for any date from 1 July 2026 to 30 June 2027. */
 export function seasonStartYear(date: Date): number {
   return date.getUTCMonth() >= SEASON_START_MONTH ? date.getUTCFullYear() : date.getUTCFullYear() - 1;
 }

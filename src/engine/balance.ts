@@ -399,7 +399,7 @@ export const YOUTH_CONTRACT_YEARS = 3;
 /** A free agent still without a club at the next preseason leaves the world, unless rated above this. */
 export const FREE_AGENT_STAY_MIN_OVERALL = 65;
 
-/** Free agents of the initial pool, without a club on 1 July 2024, are rated from this… */
+/** Free agents of the initial pool, without a club when the save starts, are rated from this… */
 export const FREE_AGENT_POOL_OVERALL_MIN = 50;
 /** …to this, in every save… */
 export const FREE_AGENT_POOL_OVERALL_MAX = 66;

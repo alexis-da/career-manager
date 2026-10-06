@@ -1,13 +1,21 @@
 import { NAME_BANK } from "../../src/engine/names";
 import { computeStandings } from "../../src/engine/standings";
+import { seasonLabel } from "../../src/engine/world";
 import type { PrismaClient } from "../../src/generated/prisma/client";
 import { DEFAULT_CLUB_COLORS, readClubColors, type ClubColors } from "./colors";
 import { COMPETITIONS, type SeedCompetition } from "./competitions";
-import { extractClubs, extractScores, fixtureFilePath, readFixtureFile, type SeedClub } from "./openfootball";
+import {
+  extractClubs,
+  extractScores,
+  fixtureFilePath,
+  readFixtureFile,
+  SOURCE_SEASON_START_YEAR,
+  type SeedClub,
+} from "./openfootball";
 import { generateFreeAgentPool, generateSquad, type SeedPlayer } from "./players";
 
 export type ClubPlan = SeedClub & {
-  initialRank: number; // final 2024-25 rank within the competition
+  initialRank: number; // final rank of the source season within the competition
   colors: ClubColors;
   players: SeedPlayer[];
 };
@@ -58,7 +66,7 @@ export function buildWorldPlan(): CompetitionPlan[] {
 
       const initialRank = rankBySlug.get(club.slug);
       if (initialRank === undefined) {
-        throw new Error(`Club "${club.slug}" has no played match in ${competition.code}, so no 2024-25 rank`);
+        throw new Error(`Club "${club.slug}" has no played match in ${competition.code}, so no ${seasonLabel(SOURCE_SEASON_START_YEAR)} rank`);
       }
       return {
         ...club,

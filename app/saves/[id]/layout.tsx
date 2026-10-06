@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSaveHeader } from "@/src/db/header";
+import { seasonLabel } from "@/src/engine/world";
 import { contrastText, ensureContrast } from "@/src/lib/color";
 import { formatDayDate } from "@/src/lib/format";
 import { GameActions } from "./_components/game-actions";
@@ -22,7 +23,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
   // The accent marks the club name, the main button, active tabs, the club's row in tables and attribute bars.
   const club = ensureContrast(header.club.primaryColor, BACKGROUND);
   const accent = { "--club": club, "--club-fg": contrastText(club) } as CSSProperties;
-  const season = `${header.startYear}-${String(header.startYear + 1).slice(2)}`;
+  const season = seasonLabel(header.startYear);
 
   return (
     <div style={accent} className="flex min-h-full flex-1 flex-col">

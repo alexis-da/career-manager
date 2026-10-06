@@ -32,7 +32,7 @@ model Club {
   city          String?
   stadium       String?
   founded        Int?
-  initialRank    Int // classement final 2024-25 dans sa compétition, calculé par le seed depuis les scores
+  initialRank    Int // classement final de la saison source (2024-25) dans sa compétition, calculé par le seed depuis les scores
   primaryColor   String       @default("#737373") // couleur traditionnelle principale, #RRGGBB ; gris neutre par défaut
   secondaryColor String       @default("#D4D4D4") // couleur traditionnelle secondaire, #RRGGBB
   competition    Competition? @relation(fields: [competitionId], references: [id], onDelete: Restrict)
@@ -43,13 +43,13 @@ model Club {
   @@index([competitionId])
 }
 
-// Monde 2024-25, généré par le seed avec une graine fixe. L'identité est copiée dans PlayerSave à la création
-// de partie : le jeu ne lit jamais Player pour connaître un joueur. Sans club initial, le joueur fait partie du
-// vivier de joueurs libres ; PostgreSQL ne compare pas les NULL dans l'unicité : le seed garantit celle du vivier.
+// Monde du seed (clubs de la saison source 2024-25, âges comptés au départ des parties, en 2026-27), généré par le
+// seed avec une graine fixe. L'identité est copiée dans PlayerSave à la création de partie : le jeu ne lit jamais
+// Player pour connaître un joueur. Sans club initial, le joueur fait partie du vivier de joueurs libres ; PostgreSQL ne compare pas les NULL dans l'unicité : le seed garantit celle du vivier.
 model Player {
   id            String       @id @default(cuid())
   initialClub   Club?        @relation(fields: [initialClubId], references: [id], onDelete: Restrict)
-  initialClubId String? // club dans le monde 2024-25, null = vivier de joueurs libres ; le club en cours de partie est porté par PlayerSave
+  initialClubId String? // club dans le monde du seed, null = vivier de joueurs libres ; le club en cours de partie est porté par PlayerSave
   squadSlot     Int // 1–23 dans un club, 1–120 dans le vivier : avec initialClubId, identité stable (clé du seed et des graines d'attributs)
   firstName     String
   lastName      String
@@ -88,7 +88,7 @@ model Season {
   saveId        String
   competition   Competition         @relation(fields: [competitionId], references: [id], onDelete: Restrict)
   competitionId String
-  startYear     Int // 2024 pour la saison 2024/25
+  startYear     Int // 2026 pour la saison 2026/27
   completed     Boolean             @default(false)
   fixtures      Fixture[]
   stats         PlayerSeasonStats[]
@@ -123,8 +123,8 @@ model PlayerSave {
   save          Save                @relation(fields: [saveId], references: [id], onDelete: Cascade)
   saveId        String
   player        Player?             @relation(fields: [playerId], references: [id], onDelete: Restrict)
-  playerId      String? // origine dans le monde 2024-25 ; null pour un jeune arrivé en cours de partie
-  playerKey     String // clé stable dans la partie : "olympique-lyonnais#5", "youth:2025:olympique-lyonnais:1"
+  playerId      String? // origine dans le monde du seed ; null pour un jeune arrivé en cours de partie
+  playerKey     String // clé stable dans la partie : "olympique-lyonnais#5", "youth:2027:olympique-lyonnais:1"
   firstName     String // identité copiée depuis Player à la création de partie, ou tirée pour un jeune
   lastName      String
   birthDate     DateTime

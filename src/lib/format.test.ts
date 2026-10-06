@@ -42,7 +42,7 @@ describe("formatDate", () => {
 
     expect(formatDate(matchday)).toBe("17 août 2024");
     expect(formatShortDate(matchday)).toBe("sam. 17 août");
-    expect(formatDate(new Date(Date.UTC(2025, 0, 1)))).toBe("1 janvier 2025");
+    expect(formatDate(new Date(Date.UTC(2025, 0, 1)))).toBe("1er janvier 2025");
   });
 
   it("writes the date of the navigation bar and short day-month dates", () => {

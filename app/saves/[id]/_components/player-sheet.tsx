@@ -6,6 +6,7 @@ import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
 import type { PlayerProfile, TransferHistoryItem } from "@/src/db/players";
 import type { AttributeName } from "@/src/engine/generation";
+import { seasonLabel } from "@/src/engine/world";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { POSITION_LABEL } from "../_lib/positions";
@@ -143,7 +144,7 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
           ))}
         </section>
 
-        <section aria-label={`Saison ${startYear}-${String(startYear + 1).slice(2)}`} className="space-y-2">
+        <section aria-label={`Saison ${seasonLabel(startYear)}`} className="space-y-2">
           <dl className="grid grid-cols-4 gap-2">
             <StatTile label="Matchs" value={seasonStats.appearances} />
             <StatTile label="Buts" value={seasonStats.goals} />

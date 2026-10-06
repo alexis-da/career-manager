@@ -1,18 +1,18 @@
-import { seasonStartYear } from "../engine/world";
+import { seasonLabel, seasonStartYear, WORLD_START_YEAR } from "../engine/world";
 import { prisma } from "./client";
 import { playNextMatchday } from "./matchday";
 import { createSave } from "./saves";
 import { advanceToNextSeason } from "./season";
 
 /** Seed and managed club of the demo save. */
-export const DEMO_SEED = "demo-2024-25";
+export const DEMO_SEED = `demo-${seasonLabel(WORLD_START_YEAR)}`;
 export const DEMO_CLUB_SLUG = "olympique-lyonnais";
 
 /** With the seed, the name tells the demo save apart from the throwaway twins other tests create in parallel. */
-export const DEMO_SAVE_NAME = "Partie de démo 2024-25";
+export const DEMO_SAVE_NAME = `Partie de démo ${seasonLabel(WORLD_START_YEAR)}`;
 
 /** The demo save stands at the kickoff of this season: its first season played, then advanced. */
-export const DEMO_START_YEAR = 2025;
+export const DEMO_START_YEAR = WORLD_START_YEAR + 1;
 
 /**
  * Creates a throwaway save with the demo save's seed and club, so database tests can play and advance seasons
@@ -34,8 +34,8 @@ export async function playRemainingMatchdays(saveId: string): Promise<number> {
 }
 
 /**
- * Returns the demo save, creating it when it is missing: the demo seed and club, the 2024-25 season played, then
- * advanced to 1 July 2025. Everything is deterministic, so every recreation gives the same save. It is kept for
+ * Returns the demo save, creating it when it is missing: the demo seed and club, its first season played, then
+ * advanced to 1 July of the next one. Everything is deterministic, so every recreation gives the same save. It is kept for
  * later runs; a creation interrupted halfway resumes where it stopped.
  */
 export async function ensureDemoSave(): Promise<string> {

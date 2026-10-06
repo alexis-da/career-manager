@@ -24,7 +24,7 @@ test("signs a free agent, then shows why an offer above the budget is refused", 
   const name = `E2E transferts ${Date.now()}`;
   saveName = name;
   try {
-    // The save starts on 1 July 2024, window open, with the free agent pool on the market.
+    // The save starts on 1 July 2026, window open, with the free agent pool on the market.
     await createSave(page, name, "Olympique Lyonnais");
     const payrollBefore = await dashboardPayroll(page);
 

@@ -4,11 +4,12 @@ import { FREE_AGENT_STAY_MIN_OVERALL, MIN_GOALKEEPERS, SQUAD_SIZE_MAX, SQUAD_SIZ
 import { marketValueFor } from "../engine/economy";
 import { FREE_AGENT_POOL_SLUG } from "../engine/free-agents";
 import { ATTRIBUTE_NAMES, RATING_MAX, RATING_MIN } from "../engine/generation";
+import { seasonStartDate, WORLD_START_YEAR } from "../engine/world";
 import { ageInYears } from "../lib/dates";
 import type { prisma as prismaClient } from "./client";
 import type { SeasonTransition } from "./season";
 
-const FIRST_YEAR = 2024;
+const FIRST_YEAR = WORLD_START_YEAR;
 const SEASONS_PLAYED = 3;
 
 type Kickoff = {
@@ -254,7 +255,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
   });
 
   it("moves currentDate to 1 July", () => {
-    expect(afterFirstAdvance().currentDate).toBe("2025-07-01T00:00:00.000Z");
+    expect(afterFirstAdvance().currentDate).toBe(seasonStartDate(FIRST_YEAR + 1).toISOString());
   });
 
   it("keeps every attribute within 1–99 and resets form, morale, fitness and injuries", () => {
@@ -279,7 +280,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
     expect(state.expiredContractsInClubs).toBe(0);
   });
 
-  it("makes the free agents of the initial pool still unsigned on 1 July 2025 leave the world, unless rated above 65", () => {
+  it("makes the free agents of the initial pool still unsigned at the next preseason leave the world, unless rated above 65", () => {
     const state = afterFirstAdvance();
 
     // Age retirements of pool players share the date and the shape of departures: only the outcome is compared.
@@ -289,7 +290,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
   });
 
   it("keeps the number of active players within 10 % over three seasons", () => {
-    expect(kickoffs.map((kickoff) => kickoff.startYear)).toEqual([2024, 2025, 2026, 2027]);
+    expect(kickoffs.map((kickoff) => kickoff.startYear)).toEqual([FIRST_YEAR, FIRST_YEAR + 1, FIRST_YEAR + 2, FIRST_YEAR + 3]);
     const [reference] = kickoffs;
     for (const kickoff of kickoffs) {
       expect(Math.abs(kickoff.activePlayers - reference.activePlayers) / reference.activePlayers).toBeLessThanOrEqual(0.1);

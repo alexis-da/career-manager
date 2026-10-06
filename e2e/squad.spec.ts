@@ -27,11 +27,11 @@ test("renews a contract and releases a player from the squad page", async ({ pag
     const summary = page.locator('[data-summary="players"]');
     await expect(summary).toHaveText(String(initialCount));
 
-    // Renew the first player for five seasons, or four when his contract already runs to 2029.
+    // Renew the first player for five seasons from 2026-27, or four when his contract already runs to 2031.
     const renewedKey = await rows.first().getAttribute("data-player-key");
     const contractCell = page.locator(`tr[data-player-key="${renewedKey}"] td[data-column="contractUntil"]`);
     const contractBefore = (await contractCell.textContent()) ?? "";
-    const [length, expectedEnd] = contractBefore.includes("2029") ? ["4 saisons", "30 juin 2028"] : ["5 saisons", "30 juin 2029"];
+    const [length, expectedEnd] = contractBefore.includes("2031") ? ["4 saisons", "30 juin 2030"] : ["5 saisons", "30 juin 2031"];
 
     await rows.first().getByRole("button", { name: /^Voir la fiche de / }).click();
     await page.getByRole("button", { name: "Prolonger", exact: true }).click();

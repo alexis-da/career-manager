@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { getManagedClubCalendar } from "@/src/db/calendar";
+import { seasonLabel } from "@/src/engine/world";
 import { formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../_components/panel";
@@ -23,7 +24,7 @@ export default async function FixturesPage({ params }: PageProps<"/saves/[id]/fi
         <h1 className="font-heading text-4xl font-bold">Calendrier</h1>
         {calendar.startYear !== null && (
           <p className="text-sm text-muted-foreground tabular-nums">
-            Saison {calendar.startYear}-{String(calendar.startYear + 1).slice(2)} · cliquez sur un score pour la feuille de
+            Saison {seasonLabel(calendar.startYear)} · cliquez sur un score pour la feuille de
             match
           </p>
         )}

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 import type * as TransfersModule from "./transfers";
 
@@ -7,8 +8,8 @@ const SEED = "transfers-test";
 const MANAGED_SLUG = "liverpool-fc";
 const SELLER_SLUG = "fc-barcelona";
 
-// Runs against DATABASE_URL on two throwaway saves with the same seed, managing Liverpool on 1 July 2024 (summer
-// window). Skipped without DATABASE_URL. Modules are imported lazily because the client throws without it.
+// Runs against DATABASE_URL on two throwaway saves with the same seed, managing Liverpool on the day saves start
+// (summer window). Skipped without DATABASE_URL. Modules are imported lazily because the client throws without it.
 describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the managed club", () => {
   let db: typeof prismaClient | undefined;
   let transfers: typeof TransfersModule | undefined;
@@ -122,7 +123,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
     expect(managedAfter.payroll - managedBefore.payroll).toBe(quote.minimumWage);
     expect(sellerAfter.payroll - sellerBefore.payroll).toBe(-player.wage);
     expect(transfer.fee).toBe(quote.askingPrice);
-    expect(outcome.ok && outcome.contractUntil?.toISOString()).toBe("2027-06-30T00:00:00.000Z");
+    expect(outcome.ok && outcome.contractUntil?.toISOString()).toBe("2029-06-30T00:00:00.000Z");
   });
 
   it("refuses an offer above the budget and changes nothing", async () => {
@@ -214,13 +215,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
 
     expect(refusedRenewal).toEqual({ ok: false, reason: "player_refused", refusals: ["wage_too_low"] });
     expect(renewal).toMatchObject({ ok: true, budgetChange: 0, payrollChange: renewalQuote.minimumWage + 100_000 - renewed.wage });
-    expect(renewal.ok && renewal.contractUntil?.toISOString()).toBe("2028-06-30T00:00:00.000Z");
+    expect(renewal.ok && renewal.contractUntil?.toISOString()).toBe("2030-06-30T00:00:00.000Z");
     expect(afterRenewal.payroll - afterSigning.payroll).toBe(renewalQuote.minimumWage + 100_000 - renewed.wage);
   });
 
   it("refuses every operation outside a transfer window", async () => {
     const [saveId] = saveIds;
-    await database().save.update({ where: { id: saveId }, data: { currentDate: new Date(Date.UTC(2024, 9, 1)) } });
+    await database().save.update({ where: { id: saveId }, data: { currentDate: new Date(Date.UTC(WORLD_START_YEAR, 9, 1)) } });
     const own = await rankedPlayer(saveId, MANAGED_SLUG, 5);
     const target = await rankedPlayer(saveId, SELLER_SLUG, 12);
     const before = await clubState(saveId, MANAGED_SLUG);

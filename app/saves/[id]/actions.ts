@@ -5,6 +5,7 @@ import * as z from "zod";
 import { getManagedClubFixtureOn } from "@/src/db/calendar";
 import { playNextMatchday } from "@/src/db/matchday";
 import { advanceToNextSeason, SeasonNotFinishedError } from "@/src/db/season";
+import { seasonLabel } from "@/src/engine/world";
 import { formatDate } from "@/src/lib/format";
 
 export type GameActionResult = {
@@ -41,7 +42,7 @@ export async function advanceSeasonAction(saveId: string): Promise<GameActionRes
   try {
     const transition = await advanceToNextSeason(id);
     revalidatePath(`/saves/${id}`, "layout");
-    const season = `${transition.startYear}-${String(transition.startYear + 1).slice(2)}`;
+    const season = seasonLabel(transition.startYear);
     return {
       ok: true,
       message: `Saison ${season} lancée : ${transition.retired} retraites, ${transition.preseason.youthPlayers} jeunes arrivés.`,

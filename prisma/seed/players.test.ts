@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../../src/engine/generation";
 import { ageInYears } from "../../src/lib/dates";
@@ -35,7 +36,7 @@ describe("world players", () => {
     expect(generateSquad({ slug: "arsenal-fc", country: "Angleterre" }, names).slice(0, 2)).toMatchInlineSnapshot(`
       [
         {
-          "birthDate": 1995-02-25T00:00:00.000Z,
+          "birthDate": 1997-02-25T00:00:00.000Z,
           "firstName": "Kieran",
           "lastName": "Williams",
           "nationality": "Angleterre",
@@ -43,7 +44,7 @@ describe("world players", () => {
           "squadSlot": 1,
         },
         {
-          "birthDate": 1998-07-29T00:00:00.000Z,
+          "birthDate": 2000-07-29T00:00:00.000Z,
           "firstName": "Thiago",
           "lastName": "Pereyra",
           "nationality": "Argentine",
@@ -81,11 +82,26 @@ describe("world players", () => {
     }
   });
 
-  it("are 17 to 36 years old on 1 July 2024", () => {
+  it("are 17 to 36 years old on the day every save starts", () => {
     const ages = players.map((player) => ageInYears(player.birthDate, WORLD_REFERENCE_DATE));
 
     expect(Math.min(...ages)).toBe(MIN_AGE);
     expect(Math.max(...ages)).toBe(MAX_AGE);
+  });
+
+  // Pinned digest of every world player's age on the day saves start, taken when the game moved from 2024-25 to
+  // 2026-27: a change of WORLD_START_YEAR moves birth dates, never ages.
+  it("keep the ages they had before the game moved to a later season", () => {
+    const pool = generateFreeAgentPool(names);
+    const ages = [
+      ...clubs.flatMap((club) => club.players.map((player) => `${club.slug}#${player.squadSlot}:${ageInYears(player.birthDate, WORLD_REFERENCE_DATE)}`)),
+      ...pool.map((player) => `free-agents#${player.squadSlot}:${ageInYears(player.birthDate, WORLD_REFERENCE_DATE)}`),
+    ];
+
+    expect(ages).toHaveLength(2328);
+    expect(createHash("sha256").update(ages.join("\n")).digest("hex")).toBe(
+      "881a3a27b522b716476ea405437d4f65c8f69403dc1eb76111bab81bc834153e",
+    );
   });
 
   it("hold their club's nationality about 70 % of the time, with names from that nationality", () => {
@@ -114,7 +130,7 @@ describe("free agent pool", () => {
     expect(pool.slice(0, 2)).toMatchInlineSnapshot(`
       [
         {
-          "birthDate": 1996-08-21T00:00:00.000Z,
+          "birthDate": 1998-08-21T00:00:00.000Z,
           "firstName": "Leonardo",
           "lastName": "Batista",
           "nationality": "Brésil",
@@ -122,7 +138,7 @@ describe("free agent pool", () => {
           "squadSlot": 1,
         },
         {
-          "birthDate": 2000-02-07T00:00:00.000Z,
+          "birthDate": 2002-02-07T00:00:00.000Z,
           "firstName": "Archie",
           "lastName": "Hughes",
           "nationality": "Angleterre",
@@ -152,7 +168,7 @@ describe("free agent pool", () => {
     expect(new Set(pool.map((player) => `${player.firstName} ${player.lastName}`)).size).toBe(pool.length);
   });
 
-  it("are 24 to 34 years old on 1 July 2024, with names from their nationality", () => {
+  it("are 24 to 34 years old on the day every save starts, with names from their nationality", () => {
     const ages = pool.map((player) => ageInYears(player.birthDate, WORLD_REFERENCE_DATE));
 
     expect(Math.min(...ages)).toBe(FREE_AGENT_MIN_AGE);
@@ -166,7 +182,7 @@ describe("free agent pool", () => {
   });
 });
 
-describe("club level from the 2024-25 rank", () => {
+describe("club level from the source season rank", () => {
   it("gives every club its final rank, computed from the fixture scores", () => {
     for (const competition of plan) {
       const ranks = competition.clubs.map((club) => club.initialRank).sort((a, b) => a - b);
