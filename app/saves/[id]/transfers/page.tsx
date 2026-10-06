@@ -189,7 +189,9 @@ export default async function TransfersPage({ params, searchParams }: PageProps<
             return (
               <Link
                 key={tab.key}
-                href={marketHref(id, {}, { tab: tab.key === "free" ? undefined : tab.key })}
+                // Keeps the other params, filters included, so that coming back to a tab finds its search again;
+                // the page and the open sheet belong to the list being left.
+                href={marketHref(id, values, { tab: tab.key === "free" ? undefined : tab.key, page: undefined, player: undefined })}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors",

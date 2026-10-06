@@ -176,6 +176,24 @@ test("filters the AI clubs' players one filter at a time, then three together wi
     await expect(field.position(page)).toHaveValue("CB");
     await expect(field.maxAge(page)).toHaveValue("28");
     await expect(field.minOverall(page)).toHaveValue("60");
+
+    // Other tabs keep the filters in the URL: coming back finds the same search, from its first page.
+    await page.getByRole("link", { name: /^Joueurs libres/ }).click();
+    await expect(page).not.toHaveURL(/tab=/);
+    await expect(page).toHaveURL(/position=CB/);
+    await expect(page).not.toHaveURL(/page=/);
+    await page.getByRole("link", { name: "Mouvements" }).click();
+    await expect(page).toHaveURL(/tab=moves/);
+    await expect(page).toHaveURL(/position=CB/);
+    await page.getByRole("link", { name: "Autres clubs" }).click();
+    await expect(page).toHaveURL(/tab=clubs/);
+    await expect(page).toHaveURL(/sort=price/);
+    await expect(page).not.toHaveURL(/page=/);
+    await expect(page.getByText(/page 1 sur/)).toBeVisible();
+    await expectCombined();
+    await expect(field.position(page)).toHaveValue("CB");
+    await expect(field.maxAge(page)).toHaveValue("28");
+    await expect(field.minOverall(page)).toHaveValue("60");
   } finally {
     // Even when a step failed: a leftover save would pollute the database.
     await deleteSave(page, name);
