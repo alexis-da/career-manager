@@ -39,3 +39,5 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 3. Déployer : `npm run build` génère le client Prisma, applique les migrations puis construit l'application.
 4. Première fois seulement, remplir la base depuis un poste local : `DIRECT_URL=… npm run db:seed`.
 5. Les tests E2E ne tournent jamais au build : en local, ils écrivent dans la base de `DATABASE_URL_TEST` (`.env.test`).
+
+Le poste local travaille sur la branche Neon test ; la branche production n'est touchée que par Vercel.
