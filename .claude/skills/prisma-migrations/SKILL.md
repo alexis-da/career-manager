@@ -25,6 +25,9 @@ déjà suffisant. Concentrer les accès dans `src/db/`, avec une fonction par in
 
 ## Procédure de modification
 
+Avant toute migration ou seed depuis le poste local, afficher l'hôte de DIRECT_URL et vérifier qu'il contient
+sparkling-darkness (branche test), jamais damp-rain (production).
+
 ```bash
 # 1. modifier prisma/schema.prisma
 npx prisma migrate dev --name description_courte   # crée la migration + régénère le client
