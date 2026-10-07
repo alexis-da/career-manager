@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { POSITIONS, type Position } from "../engine/positions";
+import { POSITIONS, primariesWithSecondary, secondaryPositions, type Position } from "../engine/positions";
 import { nextTransferWindowOpening, transferWindowAt, transferWindowCloseDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
@@ -163,6 +163,7 @@ export async function listFreeAgents(saveId: string, page: number): Promise<Pagi
  */
 export const marketFiltersSchema = z.object({
   position: z.enum(POSITIONS).optional().catch(undefined),
+  withSecondary: z.literal("1").optional().catch(undefined), // the position filter also matches secondary positions
   competition: z.string().trim().min(1).max(20).optional().catch(undefined), // Competition.code
   minOverall: z.coerce.number().int().min(1).max(99).optional().catch(undefined),
   maxAge: z.coerce.number().int().min(15).max(50).optional().catch(undefined),
@@ -209,7 +210,16 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
       isManaged: false,
       ...(filters.competition === undefined ? {} : { club: { competition: { code: filters.competition } } }),
     },
-    ...(filters.position === undefined ? {} : { position: filters.position }),
+    ...(filters.position === undefined
+      ? {}
+      : {
+          // Secondary positions are not stored: SQL keeps the primary positions that may have the wanted one, the
+          // check below the players who do have it.
+          position:
+            filters.withSecondary === undefined
+              ? filters.position
+              : { in: [filters.position, ...primariesWithSecondary(filters.position)] },
+        }),
     ...(filters.minOverall === undefined ? {} : { overall: { gte: filters.minOverall } }),
     // Every word of the search must appear in the first or the last name: « kevin mor » finds Kevin Morel.
     AND: words.map((word) => ({
@@ -247,6 +257,13 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
   const entries = players.flatMap((player) => {
     // Always set: the filter requires a club. The check narrows the type.
     if (player.clubSave === null) {
+      return [];
+    }
+    if (
+      filters.position !== undefined &&
+      player.position !== filters.position &&
+      !secondaryPositions(player.playerKey, player.position).includes(filters.position)
+    ) {
       return [];
     }
     const age = ageInYears(player.birthDate, currentDate);

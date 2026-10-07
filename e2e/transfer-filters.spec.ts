@@ -21,10 +21,16 @@ function rows(page: Page): Locator {
 /** Text of one column for every row of the current page of the list. */
 async function column(page: Page, index: number): Promise<string[]> {
   await expect(rows(page).first()).toBeVisible();
-  // The player cell also holds the nationality code: its link alone gives the name.
+  // The player cell also holds the nationality code: its link alone gives the name. The position cell also holds
+  // the secondary positions: its primary one alone is the position.
   return rows(page).evaluateAll(
-    (trs, i) => trs.map((tr) => (i === 0 ? tr.querySelector("td a") : tr.querySelectorAll("td")[i])?.textContent?.trim() ?? ""),
-    index,
+    (trs, [i, positionIndex]) =>
+      trs.map((tr) => {
+        const cell = tr.querySelectorAll("td")[i];
+        const text = i === 0 ? tr.querySelector("td a") : i === positionIndex ? cell?.querySelector("[data-primary-position]") : cell;
+        return text?.textContent?.trim() ?? "";
+      }),
+    [index, COLUMN.position] as const,
   );
 }
 

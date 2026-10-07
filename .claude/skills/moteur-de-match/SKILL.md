@@ -59,20 +59,32 @@ Ne pas simuler 90 minutes action par action au début. Partir d'un modèle simpl
 Un joueur a un poste précis (12 valeurs, `src/engine/positions.ts`) et `positionGroup(position)` donne sa
 ligne : GK, DF (RB, CB, LB), MF (CDM, CM, CAM, RM, LM), FW (RW, LW, ST).
 
-**Familiarité.** `ratingAt(player, slot) = overall × familiarity(player.position, slot)`, fonction pure, non
-arrondie. Le facteur vient de `GROUP_FAMILIARITY` (`balance.ts`), table explicite par ligne du joueur et ligne
-du slot :
+**Familiarité.** `ratingAt(player, slot) = overall × familiarity(player.position, slot, postes secondaires)`,
+fonction pure, non arrondie (`player.id` est la `playerKey`, d'où viennent les postes secondaires). Hors poste
+principal et secondaire, le facteur vient de `GROUP_FAMILIARITY` (`balance.ts`), table explicite par ligne du
+joueur et ligne du slot :
 
-| Joueur ↓ / slot → | GK  | DF   | MF   | FW   |
-| ----------------- | --- | ---- | ---- | ---- |
-| GK                | 1   | 0,4  | 0,4  | 0,4  |
-| DF                | 0,4 | 0,92 | 0,8  | 0,6  |
-| MF                | 0,4 | 0,8  | 0,92 | 0,8  |
-| FW                | 0,4 | 0,6  | 0,8  | 0,92 |
+| Joueur ↓ / slot →            | GK  | DF   | MF   | FW   |
+| ---------------------------- | --- | ---- | ---- | ---- |
+| GK                           | 1   | 0,4  | 0,4  | 0,4  |
+| DF                           | 0,4 | 0,92 | 0,8  | 0,6  |
+| MF                           | 0,4 | 0,8  | 0,92 | 0,8  |
+| FW                           | 0,4 | 0,6  | 0,8  | 0,92 |
+| poste secondaire (toute ligne) | –   | 0,97 | 0,97 | 0,97 |
 
-Même poste : 1 (`SAME_POSITION_FAMILIARITY`), qui l'emporte sur la diagonale ; autre poste de la même ligne :
-0,92 ; ligne voisine : 0,8 ; ligne opposée (défense ↔ attaque) : 0,6 ; gardien hors des buts ou joueur de champ
-dans les buts : 0,4. La table est symétrique ; `positions.test.ts` en couvre chaque case.
+Même poste : 1 (`SAME_POSITION_FAMILIARITY`), qui l'emporte sur la diagonale ; poste secondaire : 0,97
+(`SECONDARY_POSITION_FAMILIARITY`), qui l'emporte sur la table, même vers une autre ligne (un DC dont un poste
+secondaire est MDC y vaut 0,97, pas 0,8) ; autre poste de la même ligne : 0,92 ; ligne voisine : 0,8 ; ligne
+opposée (défense ↔ attaque) : 0,6 ; gardien hors des buts ou joueur de champ dans les buts : 0,4. La table est
+symétrique ; `positions.test.ts` en couvre chaque case.
+
+**Postes secondaires.** `secondaryPositions(playerKey, primary)` (`positions.ts`), pure, rien en base : 0, 1 ou 2
+postes (25 / 55 / 20 %, `SECONDARY_POSITION_COUNT_WEIGHTS`), graine `secondary:playerKey`, tirés parmi les voisins
+plausibles du poste principal (`SECONDARY_POSITION_NEIGHBOURS`, `balance.ts`), le second parmi les voisins restants.
+Un gardien n'en a jamais. Un joueur a donc les mêmes postes secondaires dans toutes les parties. Ils profitent à
+`selectLineup`, `resolveLineup`, aux remplacements et à `teamStrength` (via `playerFamiliarity`) ; l'IA des clubs
+(`planSquad`) compte toujours ses rôles sur le poste principal seul. Toucher à la table ou au facteur déplace la
+calibration : sur 10 000 matchs, 2,81 → 2,85 buts par match et Bayern-Monza 78,6 → 82,9 % à leur introduction.
 
 **Composition.** `selectLineup(squad, formation = DEFAULT_FORMATION)` (`src/engine/lineup.ts`) : un dispositif
 est une liste de 11 slots (`Position`), par défaut le 4-3-3 GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW.

@@ -15,6 +15,7 @@ import { PlayerBadges } from "../../_components/player-badges";
 import { PlayerSheet } from "../../_components/player-sheet";
 import { nationalityCode } from "../../_lib/nationalities";
 import { POSITION_LABEL, POSITION_ORDER, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
+import { SecondaryPositionBadges } from "../../_components/position-badge";
 import { formBarClass, ratingClasses } from "../../_lib/ratings";
 import { PLAYER_CARD_DELAY_MS, playerCardHandle, PlayerHoverCard } from "./player-hover-card";
 
@@ -188,9 +189,12 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                 >
                   <TableCell
                     title={POSITION_LABEL[player.position]}
-                    className={cn(TABLE_CELL, "w-16 font-heading text-sm font-bold", positionTextClass(player.position))}
+                    className={cn(TABLE_CELL, "w-28 font-heading text-sm font-bold", positionTextClass(player.position))}
                   >
-                    {POSITION_SHORT[player.position]}
+                    <span className="inline-flex items-center gap-1.5">
+                      <span data-primary-position>{POSITION_SHORT[player.position]}</span>
+                      <SecondaryPositionBadges playerKey={player.playerKey} position={player.position} />
+                    </span>
                   </TableCell>
                   <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
                     <PlayerFace

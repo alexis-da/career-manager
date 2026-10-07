@@ -34,7 +34,7 @@ import {
 } from "./balance";
 import { ATTRIBUTE_NAMES, clampRating, type AttributeName } from "./generation";
 import type { Lineup, SquadPlayer } from "./lineup";
-import { familiarity, positionGroup, ratingAt, type Position, type PositionGroup } from "./positions";
+import { playerFamiliarity, positionGroup, ratingAt, type Position, type PositionGroup } from "./positions";
 
 export type Side = "home" | "away";
 
@@ -153,7 +153,7 @@ export function teamStrength(lineup: Lineup): TeamStrength {
   let defense = 0;
   for (const { player, slot } of lineup.starters) {
     const group = positionGroup(slot);
-    const share = (condition(player) * familiarity(player.position, slot)) / lineSizes[group];
+    const share = (condition(player) * playerFamiliarity(player, slot)) / lineSizes[group];
     attack += ATTACK_LINE_WEIGHTS[group] * share * weightedValue(player, ATTACK_WEIGHTS[group]);
     defense += DEFENSE_LINE_WEIGHTS[group] * share * weightedValue(player, DEFENSE_WEIGHTS[group]);
   }

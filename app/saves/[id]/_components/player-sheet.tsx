@@ -9,6 +9,7 @@ import { seasonLabel } from "@/src/engine/world";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { POSITION_LABEL } from "../_lib/positions";
+import { PositionBadges } from "./position-badge";
 import { ratingClasses } from "../_lib/ratings";
 import { AttributeBars } from "./attribute-bars";
 import { PlayerBadges } from "./player-badges";
@@ -98,6 +99,7 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
           <p className="eyebrow truncate">{profile.clubName ?? "Sans club"}</p>
           <h2 className="font-heading text-3xl leading-none font-bold">{name}</h2>
           <p className="text-sm text-muted-foreground">
+            <PositionBadges playerKey={profile.playerKey} position={profile.position} className="mr-1.5 align-[1px]" />
             {POSITION_LABEL[profile.position]} · {profile.age} ans · {profile.nationality}
             {arrivalYear !== null && ` · Arrivé en ${arrivalYear}`}
           </p>

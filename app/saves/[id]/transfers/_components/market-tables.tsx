@@ -19,6 +19,7 @@ import { cn } from "@/src/lib/utils";
 import { Panel } from "../../_components/panel";
 import { nationalityCode } from "../../_lib/nationalities";
 import { POSITION_LABEL, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
+import { SecondaryPositionBadges } from "../../_components/position-badge";
 import { ratingClasses } from "../../_lib/ratings";
 import { marketHref, type SearchValues } from "../_lib/market-url";
 import { MakeOfferDialog, SignFreeAgentDialog } from "./market-dialogs";
@@ -63,10 +64,13 @@ function PlayerCell({
   );
 }
 
-function PositionCell({ position }: { position: Position }) {
+function PositionCell({ position, playerKey }: { position: Position; playerKey: string }) {
   return (
     <TableCell title={POSITION_LABEL[position]} className={cn(TABLE_CELL, "font-heading text-sm font-bold", positionTextClass(position))}>
-      {POSITION_SHORT[position]}
+      <span className="inline-flex items-center gap-1.5">
+        <span data-primary-position>{POSITION_SHORT[position]}</span>
+        <SecondaryPositionBadges playerKey={playerKey} position={position} />
+      </span>
     </TableCell>
   );
 }
@@ -163,7 +167,7 @@ export function FreeAgentsTable({
                 player={player}
                 face={{ playerKey: player.playerKey, age: player.age, clubColors: null }}
               />
-              <PositionCell position={player.position} />
+              <PositionCell position={player.position} playerKey={player.playerKey} />
               <TableCell className={cn(TABLE_CELL, "text-right")}>{player.age}</TableCell>
               <RatingCell overall={player.overall} />
               <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{player.potential}</TableCell>
@@ -267,7 +271,7 @@ export function ClubPlayersTable({
               <TableCell className={cn(TABLE_CELL, "max-w-44 truncate text-muted-foreground")} title={player.clubName}>
                 {player.clubName}
               </TableCell>
-              <PositionCell position={player.position} />
+              <PositionCell position={player.position} playerKey={player.playerKey} />
               <TableCell className={cn(TABLE_CELL, "text-right")}>{player.age}</TableCell>
               <RatingCell overall={player.overall} />
               <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{player.potential}</TableCell>

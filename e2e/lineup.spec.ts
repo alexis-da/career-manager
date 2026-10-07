@@ -37,7 +37,7 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
     await slot.click();
     const substitute = page.locator('[data-bench="true"]').first();
     const substituteKey = (await substitute.getAttribute("data-player-key")) ?? "";
-    const substituteName = (await substitute.locator("span").nth(1).textContent()) ?? "";
+    const substituteName = (await substitute.locator("[data-reserve-name]").textContent()) ?? "";
     const substituteLastName = substituteName.trim().split(" ").slice(1).join(" ");
     await substitute.click();
 

@@ -13,8 +13,8 @@ import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "../../_components/panel";
 import { Pitch } from "../../_components/pitch";
-import { PositionBadge } from "../../_components/position-badge";
-import { POSITION_LABEL, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
+import { PositionBadges } from "../../_components/position-badge";
+import { isOffPosition, POSITION_LABEL, POSITION_SHORT, positionFit, positionTextClass } from "../../_lib/positions";
 import { saveLineupAction } from "../actions";
 import {
   moveToBenchFront,
@@ -192,16 +192,19 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
   const reserves = players.filter((player) => !state.starters.includes(player.id));
   const ratingFor = (player: LineupPlayer): number =>
     selectedPosition === null ? player.overall : ratingAt(player, selectedPosition);
+  // Warned only off position: at a secondary position (0.97) a player is not.
+  const offAtSelected = (player: LineupPlayer): boolean =>
+    selectedPosition !== null && isOffPosition(positionFit(player, selectedPosition));
   const injuredStarters = state.starters.filter((key) => key !== null && byKey.get(key)?.injured === true).length;
   const selectedPlayer = selected === null ? undefined : byKey.get(state.starters[selected] ?? "");
   const overBench = drag?.over?.kind === "bench";
 
-  // Is the eleven clean? Starters at their own position, and the others with the position they play.
+  // Is the eleven clean? Starters at their own or a secondary position, and the others with the position they play.
   const placed = state.starters.flatMap((key, index) => {
     const player = key === null ? undefined : byKey.get(key);
     return player === undefined ? [] : [{ player, slot: slots[index].position }];
   });
-  const offPosition = placed.filter(({ player, slot }) => player.position !== slot);
+  const offPosition = placed.filter(({ player, slot }) => isOffPosition(positionFit(player, slot)));
   const atPosition = placed.length - offPosition.length;
 
   return (
@@ -318,13 +321,13 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                     className="flex items-center gap-1.5 rounded-md bg-muted py-0.5 pr-2 pl-0.5 text-xs"
                   >
                     <PlayerFace playerKey={key} age={player.age} clubColors={clubColors} size={20} />
-                    <PositionBadge position={player.position} />
+                    <PositionBadges playerKey={key} position={player.position} />
                     {player.lastName}
                     <span
                       title={selectedPosition === null ? "Note" : `Note au poste ${POSITION_SHORT[selectedPosition]}`}
                       className={cn(
                         "font-heading font-bold tabular-nums",
-                        selectedPosition === null ? "text-muted-foreground" : rating < player.overall && "text-warning",
+                        selectedPosition === null ? "text-muted-foreground" : offAtSelected(player) && "text-warning",
                       )}
                     >
                       {Math.round(rating)}
@@ -385,14 +388,14 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                             onClick={() => placePlayer(player.id)}
                             {...sourceProps({ kind: "reserve", key: player.id })}
                             className={cn(
-                              "grid w-full cursor-grab touch-none grid-cols-[3rem_2rem_minmax(0,1fr)_auto_3rem_3rem] items-center gap-3 rounded-md px-2 py-1 text-left text-sm select-none",
+                              "grid w-full cursor-grab touch-none grid-cols-[5.5rem_2rem_minmax(0,1fr)_auto_3rem_3rem] items-center gap-3 rounded-md px-2 py-1 text-left text-sm select-none",
                               selected !== null && "hover:bg-muted",
                               drag?.source.key === player.id && "opacity-50",
                             )}
                           >
-                            <PositionBadge position={player.position} className="justify-self-start" />
+                            <PositionBadges playerKey={player.id} position={player.position} className="justify-self-start" />
                             <PlayerFace playerKey={player.id} age={player.age} clubColors={clubColors} size={32} />
-                            <span className="truncate font-medium">
+                            <span data-reserve-name className="truncate font-medium">
                               {player.firstName} {player.lastName}
                             </span>
                             <span className="flex gap-1">
@@ -412,7 +415,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                               title={selectedPosition === null ? "Note" : `Note au poste ${POSITION_SHORT[selectedPosition]}`}
                               className={cn(
                                 "text-right font-heading font-bold tabular-nums",
-                                rating < player.overall && "text-warning",
+                                offAtSelected(player) && "text-warning",
                               )}
                             >
                               {selectedPosition === null ? "—" : Math.round(rating)}
@@ -438,7 +441,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
           style={{ left: drag.x + GHOST_OFFSET_PX, top: drag.y + GHOST_OFFSET_PX }}
         >
           <PlayerFace playerKey={dragged.id} age={dragged.age} clubColors={clubColors} size={28} />
-          <PositionBadge position={dragged.position} />
+          <PositionBadges playerKey={dragged.id} position={dragged.position} />
           {dragged.lastName}
         </div>
       )}

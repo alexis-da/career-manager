@@ -7,7 +7,7 @@ import type { SquadPlayerView } from "@/src/db/squad";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { AttributeBars } from "../../_components/attribute-bars";
-import { PositionBadge } from "../../_components/position-badge";
+import { PositionBadges } from "../../_components/position-badge";
 import { clubAccentStyle } from "../../_lib/club-accent";
 import { formBarClass, ratingClasses } from "../../_lib/ratings";
 
@@ -41,7 +41,7 @@ function PlayerCardBody({ player }: { player: SquadPlayerView }) {
             {player.firstName} {player.lastName}
           </p>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <PositionBadge position={player.position} />
+            <PositionBadges playerKey={player.playerKey} position={player.position} />
             {player.age} ans
           </p>
         </div>

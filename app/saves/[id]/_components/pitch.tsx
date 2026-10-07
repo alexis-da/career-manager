@@ -5,8 +5,8 @@ import type { FormationSlot } from "@/src/engine/formations";
 import { ratingAt } from "@/src/engine/positions";
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
-import { POSITION_LABEL, POSITION_SHORT, positionFit } from "../_lib/positions";
-import { PositionBadge } from "./position-badge";
+import { isOffPosition, POSITION_LABEL, POSITION_SHORT, positionFit } from "../_lib/positions";
+import { PositionBadge, SecondaryPositionBadges } from "./position-badge";
 
 /** Pitch markings in metres, on a 68 × 105 pitch. */
 const WIDTH = 68;
@@ -103,11 +103,12 @@ export function Pitch({ slots, starters, players, clubColors, label, editing }: 
         const key = starters[index] ?? null;
         const player = key === null ? undefined : players.get(key);
         const rating = player === undefined ? null : ratingAt(player, slot.position);
-        const outOfPosition = player !== undefined && rating !== null && rating < player.overall;
+        const fit = player === undefined ? undefined : positionFit(player, slot.position);
+        // Off position is a matter of fit, not of rating: a secondary position rates 0.97 and is not off position.
+        const outOfPosition = fit !== undefined && isOffPosition(fit);
         const draggedRating = dragged === null ? null : ratingAt(dragged, slot.position);
         const badge = draggedRating ?? rating;
-        const badgeOutOfPosition = dragged === null ? outOfPosition : draggedRating !== null && draggedRating < dragged.overall;
-        const fit = player === undefined ? undefined : positionFit(player.position, slot.position);
+        const badgeOutOfPosition = dragged === null ? outOfPosition : isOffPosition(positionFit(dragged, slot.position));
         // « DC 74 · joue AD : 59 »: the player's own position and rating, then his rating in this slot.
         const detail =
           player === undefined || rating === null
@@ -117,7 +118,15 @@ export function Pitch({ slots, starters, players, clubColors, label, editing }: 
           player === undefined
             ? `${POSITION_LABEL[slot.position]} : poste vide`
             : `${POSITION_LABEL[slot.position]} : ${player.firstName} ${player.lastName}, ${detail ?? ""}` +
-              (player.injured ? ", blessé" : fit === "other-line" ? ", hors de sa ligne" : fit === "line" ? ", hors poste" : "");
+              (player.injured
+                ? ", blessé"
+                : fit === "other-line"
+                  ? ", hors de sa ligne"
+                  : fit === "line"
+                    ? ", hors poste"
+                    : fit === "secondary"
+                      ? ", poste secondaire"
+                      : "");
         return (
           <div key={index} role="listitem" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} className="absolute -translate-x-1/2 -translate-y-1/2">
           <SlotElement
@@ -180,6 +189,8 @@ export function Pitch({ slots, starters, players, clubColors, label, editing }: 
                 {player === undefined ? "Vide" : player.lastName}
               </span>
             </span>
+            {/* Under the name, which keeps the width of the slot. */}
+            {player !== undefined && <SecondaryPositionBadges playerKey={player.id} position={player.position} className="rounded-sm bg-background/85 p-px" />}
             {detail !== null && dragged === null && (
               <span
                 aria-hidden

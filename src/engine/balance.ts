@@ -83,6 +83,31 @@ export const OVERALL_WEIGHTS: Readonly<Record<Position, Readonly<Record<Attribut
 /** A player at their own position plays at their overall. */
 export const SAME_POSITION_FAMILIARITY = 1;
 
+/** A player at one of their secondary positions: almost their own, better than another position of the line. */
+export const SECONDARY_POSITION_FAMILIARITY = 0.97;
+
+/** Chances of a player having no, one or two secondary positions (a goalkeeper never has any). */
+export const SECONDARY_POSITION_COUNT_WEIGHTS = [0.25, 0.55, 0.2] as const;
+
+/**
+ * Plausible secondary positions of each outfield position, the closest first. A player's secondary positions are
+ * drawn from his primary position's list only.
+ */
+export const SECONDARY_POSITION_NEIGHBOURS: Readonly<Record<Position, readonly Position[]>> = {
+  GK: [],
+  RB: ["RM", "CB"],
+  LB: ["LM", "CB"],
+  CB: ["CDM", "RB", "LB"],
+  CDM: ["CM", "CB"],
+  CM: ["CDM", "CAM"],
+  CAM: ["CM", "RW", "LW", "ST"],
+  RM: ["RW", "RB"],
+  LM: ["LW", "LB"],
+  RW: ["RM", "ST", "LW"],
+  LW: ["LM", "ST", "RW"],
+  ST: ["CAM", "RW", "LW"],
+};
+
 /** Share of the overall a player keeps in a slot of another position, by their group and the slot's group. */
 export const SAME_GROUP_FAMILIARITY = 0.92; // a centre-back at right-back, a winger up front
 export const NEIGHBOUR_GROUP_FAMILIARITY = 0.8; // the next line: defence and midfield, midfield and attack

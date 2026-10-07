@@ -1,4 +1,13 @@
-import { GROUP_FAMILIARITY, SAME_POSITION_FAMILIARITY, SQUAD_ROLES, type SquadRole } from "./balance";
+import { makeRng } from "../lib/rng";
+import {
+  GROUP_FAMILIARITY,
+  SAME_POSITION_FAMILIARITY,
+  SECONDARY_POSITION_COUNT_WEIGHTS,
+  SECONDARY_POSITION_FAMILIARITY,
+  SECONDARY_POSITION_NEIGHBOURS,
+  SQUAD_ROLES,
+  type SquadRole,
+} from "./balance";
 
 /** Positions from the goal outwards, right before left. Same values as the Prisma enum Position. */
 export const POSITIONS = ["GK", "RB", "CB", "LB", "CDM", "CM", "CAM", "RM", "LM", "RW", "LW", "ST"] as const;
@@ -29,14 +38,66 @@ export function positionGroup(position: Position): PositionGroup {
   return GROUP_OF[position];
 }
 
-/** How well a player of `position` plays in `slot`: 1 at their own position, less the further the slot. */
-export function familiarity(position: Position, slot: Position): number {
-  return position === slot ? SAME_POSITION_FAMILIARITY : GROUP_FAMILIARITY[positionGroup(position)][positionGroup(slot)];
+/** What placing a player in a slot needs to know: his identity (playerKey) and his primary position. */
+export type PositionedPlayer = { id: string; position: Position };
+
+/** Secondary positions already drawn, by primary position and player key: drawing them is pure, so is caching. */
+const secondaryCache = new Map<string, readonly Position[]>();
+
+/**
+ * A player's secondary positions: none, one or two, drawn from his own stream (« secondary:playerKey ») among the
+ * plausible neighbours of his primary position, the first among all of them, the second among those left. A
+ * goalkeeper has none. Nothing is stored: the same key always gives the same positions, in every save.
+ */
+export function secondaryPositions(playerKey: string, primary: Position): readonly Position[] {
+  const cacheKey = `${primary}|${playerKey}`;
+  const cached = secondaryCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const neighbours = [...SECONDARY_POSITION_NEIGHBOURS[primary]];
+  const drawn: Position[] = [];
+  if (neighbours.length > 0) {
+    const rng = makeRng(`secondary:${playerKey}`);
+    const roll = rng();
+    const [none, one] = SECONDARY_POSITION_COUNT_WEIGHTS;
+    const count = roll < none ? 0 : roll < none + one ? 1 : 2;
+    for (let index = 0; index < count && neighbours.length > 0; index++) {
+      const [position] = neighbours.splice(Math.floor(rng() * neighbours.length), 1);
+      drawn.push(position);
+    }
+  }
+  secondaryCache.set(cacheKey, drawn);
+  return drawn;
+}
+
+/** Primary positions whose players may have `position` among their secondary ones. */
+export function primariesWithSecondary(position: Position): Position[] {
+  return POSITIONS.filter((primary) => SECONDARY_POSITION_NEIGHBOURS[primary].includes(position));
+}
+
+/**
+ * How well a player of `position` plays in `slot`: 1 at their own position, 0.97 at one of their secondary
+ * positions, less the further the slot.
+ */
+export function familiarity(position: Position, slot: Position, secondary: readonly Position[] = []): number {
+  if (position === slot) {
+    return SAME_POSITION_FAMILIARITY;
+  }
+  if (secondary.includes(slot)) {
+    return SECONDARY_POSITION_FAMILIARITY;
+  }
+  return GROUP_FAMILIARITY[positionGroup(position)][positionGroup(slot)];
+}
+
+/** A player's familiarity with a slot, his secondary positions included. */
+export function playerFamiliarity(player: PositionedPlayer, slot: Position): number {
+  return familiarity(player.position, slot, secondaryPositions(player.id, player.position));
 }
 
 /** Rating of a player in a slot: their overall, reduced by their familiarity with the slot. */
-export function ratingAt(player: { position: Position; overall: number }, slot: Position): number {
-  return player.overall * familiarity(player.position, slot);
+export function ratingAt(player: PositionedPlayer & { overall: number }, slot: Position): number {
+  return player.overall * playerFamiliarity(player, slot);
 }
 
 /** The squad role a position belongs to (every position is in exactly one role of SQUAD_ROLES). */

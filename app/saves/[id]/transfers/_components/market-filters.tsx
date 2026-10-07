@@ -8,12 +8,15 @@ import { POSITION_LABEL, POSITION_ORDER, POSITION_SHORT } from "../../_lib/posit
 const SELECT_CLASS =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
 
-function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+function Field({ id, label, aside, children }: { id: string; label: string; aside?: ReactNode; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="eyebrow">
-        {label}
-      </label>
+      <div className="flex items-baseline justify-between gap-2">
+        <label htmlFor={id} className="eyebrow">
+          {label}
+        </label>
+        {aside}
+      </div>
       {children}
     </div>
   );
@@ -42,7 +45,24 @@ export function MarketFiltersForm({ saveId, filters, competitions }: MarketFilte
       <Field id="market-q" label="Nom">
         <Input id="market-q" name="q" type="search" defaultValue={filters.q} placeholder="Prénom ou nom" />
       </Field>
-      <Field id="market-position" label="Poste">
+      <Field
+        id="market-position"
+        label="Poste"
+        aside={
+          // On the label's line, so the select stays aligned with the other fields.
+          <label title="Inclure les postes secondaires" className="flex items-center gap-1 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              name="withSecondary"
+              value="1"
+              aria-label="Inclure les postes secondaires"
+              defaultChecked={filters.withSecondary !== undefined}
+              className="size-3.5 accent-(--club)"
+            />
+            Secondaires
+          </label>
+        }
+      >
         <select id="market-position" name="position" defaultValue={filters.position ?? ""} className={SELECT_CLASS}>
           <option value="">Tous</option>
           {POSITION_ORDER.map((position) => (

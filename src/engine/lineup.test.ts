@@ -12,7 +12,7 @@ import {
   type SavedLineup,
   type SquadPlayer,
 } from "./lineup";
-import { ratingAt, type Position } from "./positions";
+import { ratingAt, secondaryPositions, type Position } from "./positions";
 
 function player(id: string, position: Position, overall: number, overrides: Partial<SquadPlayer> = {}): SquadPlayer {
   return {
@@ -72,10 +72,12 @@ describe("selectLineup", () => {
       ["CM", "cm-1"],
       // cam-1 (73 × 0.92 = 67.16) edges cm-2 (67): another midfield position, still the better player here.
       ["CM", "cam-1"],
-      ["RW", "rw-1"],
-      ["ST", "st-1"],
+      // st-1 has right wing among his secondary positions: 74 × 0.97 = 71.78 edges rw-1 (70), and st-2 plays up front.
+      ["RW", "st-1"],
+      ["ST", "st-2"],
       ["LW", "lw-1"],
     ]);
+    expect(secondaryPositions("st-1", "ST")).toContain("RW");
   });
 
   it("prefers a right-back rated 70 to a centre-back rated 74 at right-back", () => {
