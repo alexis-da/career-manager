@@ -46,12 +46,10 @@ function RatingComparison({ preview }: { preview: OpponentPreview }) {
 }
 
 /**
- * The « Voir l'adversaire » button and the panel it opens: the next opponent's probable eleven on a read-only
- * pitch, his starters' rating against the managed club's, his last results and his top scorer. Beside the page (on
- * the lineup editor), the panel is not modal: the page stays usable, so the manager adjusts his eleven while
- * looking at the opponent's, and only the close button or Escape closes it.
+ * What the « Voir l'adversaire » panel shows: the opponent's probable eleven on a read-only pitch, his starters'
+ * rating against the managed club's, his last results and his top scorer.
  */
-export function OpponentSheet({ preview, besidePage = false }: { preview: OpponentPreview; besidePage?: boolean }) {
+export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
   const slots = FORMATIONS[preview.formation];
   const { starters, players } = useMemo(() => {
     const keys: (string | null)[] = slots.map(() => null);
@@ -64,70 +62,83 @@ export function OpponentSheet({ preview, besidePage = false }: { preview: Oppone
   }, [preview.lineup, slots]);
 
   return (
+    <>
+      <SheetHeader>
+        <SheetTitle className="font-heading text-2xl">{preview.clubName}</SheetTitle>
+        <SheetDescription className="first-letter:uppercase">
+          {formatShortDate(preview.matchDate)} · {preview.atHome ? "à domicile" : "à l'extérieur"} · onze probable en{" "}
+          {preview.formation}
+        </SheetDescription>
+      </SheetHeader>
+
+      <div className="space-y-6 px-4 pb-6">
+        <Pitch
+          slots={slots}
+          starters={starters}
+          players={players}
+          clubColors={preview.clubColors}
+          label={`Onze probable de ${preview.clubName}`}
+        />
+
+        <section className="space-y-2">
+          <SectionTitle>Note moyenne des titulaires</SectionTitle>
+          <RatingComparison preview={preview} />
+        </section>
+
+        <section className="space-y-2">
+          <SectionTitle>Derniers résultats</SectionTitle>
+          {preview.recent.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun match joué.</p>
+          ) : (
+            <ol className="space-y-1.5" data-opponent="recent">
+              {preview.recent.map((match) => (
+                <li key={match.date.toISOString()} className="flex items-center gap-2.5 text-sm">
+                  <ResultPill result={resultFor(match.scored, match.conceded, true)} />
+                  <span className="w-10 font-heading font-bold tabular-nums">
+                    {match.scored}-{match.conceded}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {match.atHome ? "contre" : "à"} {match.againstName}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{formatShortDate(match.date)}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+
+        <section className="space-y-2">
+          <SectionTitle>Meilleur buteur de la saison</SectionTitle>
+          <p className="text-sm" data-opponent="top-scorer">
+            {preview.topScorer === null ? (
+              <span className="text-muted-foreground">Aucun but cette saison.</span>
+            ) : (
+              <>
+                <span className="font-semibold">{preview.topScorer.name}</span> ·{" "}
+                {preview.topScorer.goals} but{preview.topScorer.goals > 1 ? "s" : ""}
+              </>
+            )}
+          </p>
+        </section>
+      </div>
+    </>
+  );
+}
+
+/**
+ * The « Voir l'adversaire » button and the panel it opens on the next opponent. Beside the page (on the lineup
+ * editor), the panel is not modal: the page stays usable, so the manager adjusts his eleven while looking at the
+ * opponent's, and only the close button or Escape closes it.
+ */
+export function OpponentSheet({ preview, besidePage = false }: { preview: OpponentPreview; besidePage?: boolean }) {
+  return (
     <Sheet modal={!besidePage} disablePointerDismissal={besidePage}>
       <SheetTrigger render={<Button size="sm" variant="outline" />}>
         <EyeIcon />
         Voir l&apos;adversaire
       </SheetTrigger>
       <SheetContent showOverlay={!besidePage} className="w-full overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle className="font-heading text-2xl">{preview.clubName}</SheetTitle>
-          <SheetDescription className="first-letter:uppercase">
-            {formatShortDate(preview.matchDate)} · {preview.atHome ? "à domicile" : "à l'extérieur"} · onze probable en{" "}
-            {preview.formation}
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="space-y-6 px-4 pb-6">
-          <Pitch
-            slots={slots}
-            starters={starters}
-            players={players}
-            clubColors={preview.clubColors}
-            label={`Onze probable de ${preview.clubName}`}
-          />
-
-          <section className="space-y-2">
-            <SectionTitle>Note moyenne des titulaires</SectionTitle>
-            <RatingComparison preview={preview} />
-          </section>
-
-          <section className="space-y-2">
-            <SectionTitle>Derniers résultats</SectionTitle>
-            {preview.recent.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun match joué.</p>
-            ) : (
-              <ol className="space-y-1.5" data-opponent="recent">
-                {preview.recent.map((match) => (
-                  <li key={match.date.toISOString()} className="flex items-center gap-2.5 text-sm">
-                    <ResultPill result={resultFor(match.scored, match.conceded, true)} />
-                    <span className="w-10 font-heading font-bold tabular-nums">
-                      {match.scored}-{match.conceded}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">
-                      {match.atHome ? "contre" : "à"} {match.againstName}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{formatShortDate(match.date)}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-
-          <section className="space-y-2">
-            <SectionTitle>Meilleur buteur de la saison</SectionTitle>
-            <p className="text-sm" data-opponent="top-scorer">
-              {preview.topScorer === null ? (
-                <span className="text-muted-foreground">Aucun but cette saison.</span>
-              ) : (
-                <>
-                  <span className="font-semibold">{preview.topScorer.name}</span> ·{" "}
-                  {preview.topScorer.goals} but{preview.topScorer.goals > 1 ? "s" : ""}
-                </>
-              )}
-            </p>
-          </section>
-        </div>
+        <OpponentPanel preview={preview} />
       </SheetContent>
     </Sheet>
   );

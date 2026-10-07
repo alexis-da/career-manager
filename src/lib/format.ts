@@ -58,3 +58,8 @@ export function formatDayMonth(date: Date): string {
   const day = date.getUTCDate();
   return `${day === 1 ? "1er" : day} ${shortMonth.format(date)}`;
 }
+
+/** « septembre 2026 ». */
+export function formatMonth(date: Date): string {
+  return monthYear.format(date);
+}

@@ -152,6 +152,19 @@ export function resolveLineup<P extends LineupCandidate>(
 }
 
 /**
+ * How many starters of a lineup resolved from a saved one were picked automatically: slots whose saved player
+ * was injured, gone or saved twice, and slots the manager left empty. Zero without a saved lineup, which is an
+ * automatic eleven by choice rather than one completed.
+ */
+export function autoFilledSlots<P extends LineupCandidate>(saved: SavedLineup | null, lineup: Lineup<P>): number {
+  if (saved === null || saved.starters.length === 0) {
+    return 0;
+  }
+  const savedBySlot = new Map(saved.starters.map((starter) => [starter.slot, starter.playerKey]));
+  return lineup.starters.filter((starter) => savedBySlot.get(starter.index) !== starter.player.id).length;
+}
+
+/**
  * The starters (player key per slot, null for an empty slot) after switching formation: a starter keeps playing
  * where a slot of the new formation has the position of their old slot, else where a slot of the same line is
  * left; the slots still empty are filled automatically from every available player, the other former starters

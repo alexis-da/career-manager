@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/src/components/ui/dialog";
 import type { FixtureWithEvents, MatchEventView } from "@/src/db/calendar";
@@ -35,7 +36,14 @@ function EventColumn({ events, align }: { events: MatchEventView[]; align: "left
   );
 }
 
-export function MatchSheetDialog({ fixture }: { fixture: FixtureWithEvents }) {
+type MatchSheetDialogProps = {
+  fixture: FixtureWithEvents;
+  // What opens the sheet, in place of the score button: a calendar cell's match.
+  children?: ReactNode;
+  triggerClassName?: string;
+};
+
+export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchSheetDialogProps) {
   const homeGoals = fixture.homeGoals ?? 0;
   const awayGoals = fixture.awayGoals ?? 0;
   const score = `${homeGoals} – ${awayGoals}`;
@@ -43,17 +51,21 @@ export function MatchSheetDialog({ fixture }: { fixture: FixtureWithEvents }) {
 
   return (
     <Dialog>
-      <DialogTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn("font-heading text-base font-bold tabular-nums", RESULT_CLASSES[result])}
-          />
-        }
-      >
-        {score}
-      </DialogTrigger>
+      {children === undefined ? (
+        <DialogTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn("font-heading text-base font-bold tabular-nums", RESULT_CLASSES[result])}
+            />
+          }
+        >
+          {score}
+        </DialogTrigger>
+      ) : (
+        <DialogTrigger className={triggerClassName}>{children}</DialogTrigger>
+      )}
       <DialogContent className="gap-5 p-6 sm:max-w-2xl">
         <DialogTitle className="sr-only">
           {fixture.home.name} {score} {fixture.away.name}

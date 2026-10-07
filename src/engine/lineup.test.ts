@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formationPositions } from "./formations";
 import {
+  autoFilledSlots,
   averageStarterRating,
   BENCH_SIZE,
   changeFormation,
@@ -191,6 +192,23 @@ describe("resolveLineup", () => {
 
     expect(keysOf(lineup)).toEqual(savedKeys);
     expect(lineup.bench[0].id).toBe("st-1");
+  });
+
+  it("counts the starters picked automatically in place of the saved ones", () => {
+    const injuredCentreBack = squad.map((member) => (member.id === "cb-3" ? { ...member, injured: true } : member));
+    const withoutStriker = injuredCentreBack.filter((member) => member.id !== "st-2");
+
+    expect(autoFilledSlots(saved, resolveLineup("4-4-2", saved, squad))).toBe(0);
+    expect(autoFilledSlots(saved, resolveLineup("4-4-2", saved, injuredCentreBack))).toBe(1);
+    expect(autoFilledSlots(saved, resolveLineup("4-4-2", saved, withoutStriker))).toBe(2);
+    expect(autoFilledSlots(withSlots({ 10: "st-2" }), resolveLineup("4-4-2", withSlots({ 10: "st-2" }), squad))).toBe(1);
+    const nineSaved = { ...saved, starters: saved.starters.slice(0, 9) };
+    expect(autoFilledSlots(nineSaved, resolveLineup("4-4-2", nineSaved, squad))).toBe(2);
+  });
+
+  it("counts nothing for an eleven picked automatically by choice", () => {
+    expect(autoFilledSlots(null, resolveLineup("4-3-3", null, squad))).toBe(0);
+    expect(autoFilledSlots({ starters: [], benchOrder: [] }, selectLineup(squad))).toBe(0);
   });
 
   it("is deterministic and does not depend on the order of the squad", () => {

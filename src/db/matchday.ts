@@ -1,4 +1,4 @@
-import { resolveLineup, selectLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
+import { autoFilledSlots, resolveLineup, selectLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import {
   matchRngSeed,
   nextForm,
@@ -23,6 +23,9 @@ export type MatchdaySummary = {
   date: Date;
   fixtures: number;
   goals: number;
+  // The managed club's match that day, with how many of its starters were picked automatically in place of the
+  // saved ones; null when it did not play.
+  managed: { fixtureId: string; autoFilledSlots: number } | null;
 };
 
 type PlayerState = {
@@ -40,9 +43,17 @@ const TEAM_SELECT = { isManaged: true, formation: true, lineup: true, club: { se
 
 type Team = { isManaged: boolean; formation: string; lineup: unknown };
 
+type TeamLineup = { lineup: Lineup; autoFilledSlots: number };
+
 /** The managed club plays its saved lineup, completed automatically; AI clubs pick their 4-3-3 automatically. */
-const lineupOf = (team: Team, squad: readonly SquadPlayer[]): Lineup =>
-  team.isManaged ? resolveLineup(parseFormation(team.formation), parseSavedLineup(team.lineup), squad) : selectLineup(squad);
+function lineupOf(team: Team, squad: readonly SquadPlayer[]): TeamLineup {
+  if (!team.isManaged) {
+    return { lineup: selectLineup(squad), autoFilledSlots: 0 };
+  }
+  const saved = parseSavedLineup(team.lineup);
+  const lineup = resolveLineup(parseFormation(team.formation), saved, squad);
+  return { lineup, autoFilledSlots: autoFilledSlots(saved, lineup) };
+}
 
 const seasonStatsKey = (seasonId: string, playerSaveId: string): string => `${seasonId}#${playerSaveId}`;
 
@@ -124,6 +135,7 @@ export async function playNextMatchday(saveId: string): Promise<MatchdaySummary 
       const events: Prisma.MatchEventCreateManyInput[] = [];
       const seasonStats: SeasonStats[] = [];
       const playerUpdates: { playerSaveId: string; form: number; injuredUntil: Date | null }[] = [];
+      let managed: MatchdaySummary["managed"] = null;
 
       for (const fixture of fixtures) {
         const squadsBySide = {
@@ -139,11 +151,13 @@ export async function playNextMatchday(saveId: string): Promise<MatchdaySummary 
             fixture.awayClubSave.club.slug,
           ),
         );
-        const result = simulateMatch(
-          lineupOf(fixture.homeClubSave, squadsBySide.home),
-          lineupOf(fixture.awayClubSave, squadsBySide.away),
-          rng,
-        );
+        const home = lineupOf(fixture.homeClubSave, squadsBySide.home);
+        const away = lineupOf(fixture.awayClubSave, squadsBySide.away);
+        const result = simulateMatch(home.lineup, away.lineup, rng);
+        if (fixture.homeClubSave.isManaged || fixture.awayClubSave.isManaged) {
+          const side = fixture.homeClubSave.isManaged ? home : away;
+          managed = { fixtureId: fixture.id, autoFilledSlots: side.autoFilledSlots };
+        }
 
         scores.push({ fixtureId: fixture.id, homeGoals: result.homeGoals, awayGoals: result.awayGoals });
         for (const event of result.events) {
@@ -255,6 +269,7 @@ export async function playNextMatchday(saveId: string): Promise<MatchdaySummary 
         date: matchDate,
         fixtures: fixtures.length,
         goals: scores.reduce((sum, score) => sum + score.homeGoals + score.awayGoals, 0),
+        managed,
       };
     },
     { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS },

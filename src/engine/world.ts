@@ -71,3 +71,38 @@ export function nextTransferWindowOpening(date: Date): Date {
     ? new Date(Date.UTC(year + 1, JANUARY, 1))
     : new Date(Date.UTC(year, SEASON_START_MONTH, 1));
 }
+
+/** Last day of the transfer window open on a date, or else of the next one to open: 31 August or 31 January. */
+export function upcomingWindowCloseDate(date: Date): Date {
+  const open = transferWindowCloseDate(date);
+  if (open !== null) {
+    return open;
+  }
+  const nextOpening = nextTransferWindowOpening(date);
+  const close = transferWindowCloseDate(nextOpening);
+  if (close === null) {
+    throw new Error(`No transfer window opens on ${nextOpening.toISOString()}`);
+  }
+  return close;
+}
+
+/** Last day of the month a date falls in. */
+export function monthEndDate(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
+}
+
+export type TransferWindowBound = {
+  date: Date;
+  window: TransferWindow;
+  bound: "open" | "close";
+};
+
+/** Opening and closing days of the two transfer windows of the season starting in startYear, in date order. */
+export function transferWindowBounds(startYear: number): TransferWindowBound[] {
+  return [
+    { date: seasonStartDate(startYear), window: "summer", bound: "open" },
+    { date: new Date(Date.UTC(startYear, AUGUST, 31)), window: "summer", bound: "close" },
+    { date: new Date(Date.UTC(startYear + 1, JANUARY, 1)), window: "winter", bound: "open" },
+    { date: new Date(Date.UTC(startYear + 1, JANUARY, 31)), window: "winter", bound: "close" },
+  ];
+}

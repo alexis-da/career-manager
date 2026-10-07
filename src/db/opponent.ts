@@ -30,17 +30,23 @@ export type OpponentPreview = {
 };
 
 /**
- * The managed club's next opponent as he will likely line up: his formation and saved lineup completed
- * automatically (an AI club has neither, so this is the automatic 4-3-3 the matchday plays), his recent results
- * and his top scorer. Null when the managed club has no match left.
+ * The managed club's next opponent, or the opponent of one of its unplayed fixtures, as he will likely line up: his
+ * formation and saved lineup completed automatically (an AI club has neither, so this is the automatic 4-3-3 the
+ * matchday plays), his recent results and his top scorer. Null when the managed club has no match left, or when
+ * fixtureId is not an unplayed fixture of the managed club.
  */
-export async function getOpponentPreview(saveId: string): Promise<OpponentPreview | null> {
+export async function getOpponentPreview(saveId: string, fixtureId?: string): Promise<OpponentPreview | null> {
   const [save, managed] = await Promise.all([
     prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
     prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } }),
   ]);
   const next = await prisma.fixture.findFirst({
-    where: { saveId, played: false, OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }] },
+    where: {
+      saveId,
+      played: false,
+      ...(fixtureId === undefined ? {} : { id: fixtureId }),
+      OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }],
+    },
     orderBy: { scheduledAt: "asc" },
     select: { scheduledAt: true, seasonId: true, homeClubSaveId: true, awayClubSaveId: true },
   });

@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   firstMatchdayDate,
   isTransferWindowOpen,
+  monthEndDate,
   nextTransferWindowOpening,
   seasonEndDate,
   seasonLabel,
   seasonStartDate,
   seasonStartYear,
   transferWindowAt,
+  transferWindowBounds,
   transferWindowCloseDate,
+  upcomingWindowCloseDate,
   WORLD_START_DATE,
   WORLD_START_YEAR,
 } from "./world";
@@ -28,6 +31,13 @@ describe("world calendar", () => {
       expect(date.getUTCDate()).toBeGreaterThanOrEqual(15);
       expect(date.getUTCDate()).toBeLessThanOrEqual(21);
     }
+  });
+
+  it("tells the last day of a month, leap years included", () => {
+    expect(monthEndDate(utc("2026-08-15")).toISOString()).toBe("2026-08-31T00:00:00.000Z");
+    expect(monthEndDate(utc("2027-02-01")).toISOString()).toBe("2027-02-28T00:00:00.000Z");
+    expect(monthEndDate(utc("2028-02-29")).toISOString()).toBe("2028-02-29T00:00:00.000Z");
+    expect(monthEndDate(utc("2026-12-31")).toISOString()).toBe("2026-12-31T00:00:00.000Z");
   });
 
   it("runs seasons from 1 July to 30 June", () => {
@@ -72,5 +82,23 @@ describe("transfer windows", () => {
     expect(nextTransferWindowOpening(utc("2024-07-01")).toISOString()).toBe("2025-01-01T00:00:00.000Z");
     expect(nextTransferWindowOpening(utc("2025-03-08")).toISOString()).toBe("2025-07-01T00:00:00.000Z");
     expect(nextTransferWindowOpening(utc("2025-01-12")).toISOString()).toBe("2025-07-01T00:00:00.000Z");
+  });
+
+  it("closes the open window, or else the next one to open", () => {
+    expect(upcomingWindowCloseDate(utc("2026-07-01")).toISOString()).toBe("2026-08-31T00:00:00.000Z");
+    expect(upcomingWindowCloseDate(utc("2026-08-31")).toISOString()).toBe("2026-08-31T00:00:00.000Z");
+    expect(upcomingWindowCloseDate(utc("2026-09-05")).toISOString()).toBe("2027-01-31T00:00:00.000Z");
+    expect(upcomingWindowCloseDate(utc("2027-01-16")).toISOString()).toBe("2027-01-31T00:00:00.000Z");
+    expect(upcomingWindowCloseDate(utc("2027-03-06")).toISOString()).toBe("2027-08-31T00:00:00.000Z");
+  });
+
+  it("lists the opening and closing days of a season's two windows, in date order", () => {
+    const bounds = transferWindowBounds(2026).map(({ date, window, bound }) => [date.toISOString().slice(0, 10), window, bound]);
+    expect(bounds).toEqual([
+      ["2026-07-01", "summer", "open"],
+      ["2026-08-31", "summer", "close"],
+      ["2027-01-01", "winter", "open"],
+      ["2027-01-31", "winter", "close"],
+    ]);
   });
 });
