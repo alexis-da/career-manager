@@ -7,9 +7,13 @@ import {
   type HalfTimeChoice,
   type MatchResult,
 } from "../engine/match";
+import { formationPositions, type FormationName } from "../engine/formations";
+import { clubColorsOf, type ClubColors } from "../lib/color";
+import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import type { LineupPlayer } from "./lineup";
 import { parseLiveState } from "./live-state";
 import {
   fixtureMatchSeed,
@@ -25,6 +29,79 @@ export class NoMatchInProgressError extends Error {
     super(`Save ${saveId} has no match paused at half-time`);
     this.name = "NoMatchInProgressError";
   }
+}
+
+/** The managed club at half-time, as the half-time screen shows it. */
+export type HalfTimeTeam = {
+  formation: FormationName;
+  starters: (string | null)[]; // player key per slot: on the pitch, or injured in the first half and still in his slot
+  injured: string[]; // injured in the first half: off the pitch, to replace
+  sentOff: { slot: number; playerKey: string }[]; // their slots stay empty
+  bench: string[]; // substitutes who can still come on
+  substitutions: number; // already made in the match
+  players: LineupPlayer[]; // every player above, rated as the engine plays him
+  clubColors: ClubColors;
+};
+
+/** The managed club's side of its match paused at half-time, or null when no match waits. */
+export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | null> {
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, currentDate: true } });
+  if (save.liveFixtureId === null) {
+    return null;
+  }
+  const fixture = await prisma.fixture.findFirst({
+    where: { id: save.liveFixtureId, saveId, status: "HALF_TIME" },
+    select: { id: true, liveState: true },
+  });
+  if (fixture === null) {
+    return null;
+  }
+  const { managedSide, state } = parseLiveState(fixture.id, fixture.liveState);
+  const team = state[managedSide];
+  const club = await prisma.clubSave.findFirstOrThrow({
+    where: { saveId, isManaged: true },
+    select: { club: { select: { primaryColor: true, secondaryColor: true } } },
+  });
+
+  const squad = [...team.pitch.map((entry) => entry.player), ...team.bench];
+  const identities = await prisma.playerSave.findMany({
+    where: { saveId, playerKey: { in: squad.map((player) => player.id) } },
+    select: { playerKey: true, firstName: true, lastName: true, birthDate: true },
+  });
+  const identityOf = new Map(identities.map((row) => [row.playerKey, row]));
+  const injured = new Set(team.pitch.filter((entry) => entry.status === "INJURED").map((entry) => entry.player.id));
+
+  const starters: (string | null)[] = formationPositions(team.formation).map(() => null);
+  for (const entry of team.pitch) {
+    if (entry.status !== "SENT_OFF") {
+      starters[entry.index] = entry.player.id;
+    }
+  }
+  return {
+    formation: team.formation,
+    starters,
+    injured: [...injured],
+    sentOff: team.pitch
+      .filter((entry) => entry.status === "SENT_OFF")
+      .map((entry) => ({ slot: entry.index, playerKey: entry.player.id })),
+    bench: team.bench.map((player) => player.id),
+    substitutions: team.substitutions,
+    // The ratings of the snapshot the engine plays, not today's: nothing changes them until the final whistle.
+    players: squad.map((player) => {
+      const identity = getOrThrow(identityOf, player.id, "player");
+      return {
+        id: player.id,
+        position: player.position,
+        overall: player.overall,
+        injured: injured.has(player.id),
+        injuredUntil: null,
+        firstName: identity.firstName,
+        lastName: identity.lastName,
+        age: ageInYears(identity.birthDate, save.currentDate),
+      };
+    }),
+    clubColors: clubColorsOf(club.club),
+  };
 }
 
 export type ResumedMatch = {

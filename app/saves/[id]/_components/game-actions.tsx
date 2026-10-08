@@ -1,10 +1,11 @@
 "use client";
 
 import { CalendarDaysIcon, ChevronDownIcon, FastForwardIcon, PlayIcon } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { Button } from "@/src/components/ui/button";
+import { Button, buttonVariants } from "@/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,10 +55,11 @@ function SimulateMenu({ disabled }: { disabled: boolean }) {
 type GameActionsProps = {
   saveId: string;
   seasonFinished: boolean;
+  liveMatch: boolean; // the managed club's match waits at half-time: nothing moves on before it ends
 };
 
 /** The main button of the navigation bar, in the club accent, with the quick simulation menu during a season. */
-export function GameActions({ saveId, seasonFinished }: GameActionsProps) {
+export function GameActions({ saveId, seasonFinished, liveMatch }: GameActionsProps) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -78,6 +80,15 @@ export function GameActions({ saveId, seasonFinished }: GameActionsProps) {
     });
 
   const className = "h-9 px-4 font-heading text-base font-semibold";
+
+  if (liveMatch) {
+    return (
+      <Link href={`/saves/${saveId}/live`} className={buttonVariants({ variant: "club", className })}>
+        <PlayIcon data-icon="inline-start" className="fill-current" />
+        Match en cours — reprendre
+      </Link>
+    );
+  }
 
   return seasonFinished ? (
     <Button variant="club" className={className} disabled={pending} onClick={() => run(advanceSeasonAction)}>

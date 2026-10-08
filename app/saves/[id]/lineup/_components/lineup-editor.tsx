@@ -12,6 +12,7 @@ import { POSITION_GROUPS, positionGroup, ratingAt, type Position, type PositionG
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "../../_components/panel";
+import { LineupSummary } from "../../_components/lineup-summary";
 import { Pitch } from "../../_components/pitch";
 import { PositionBadges } from "../../_components/position-badge";
 import { isOffPosition, POSITION_LABEL, POSITION_SHORT, positionFit, positionTextClass } from "../../_lib/positions";
@@ -199,14 +200,6 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
   const selectedPlayer = selected === null ? undefined : byKey.get(state.starters[selected] ?? "");
   const overBench = drag?.over?.kind === "bench";
 
-  // Is the eleven clean? Starters at their own or a secondary position, and the others with the position they play.
-  const placed = state.starters.flatMap((key, index) => {
-    const player = key === null ? undefined : byKey.get(key);
-    return player === undefined ? [] : [{ player, slot: slots[index].position }];
-  });
-  const offPosition = placed.filter(({ player, slot }) => isOffPosition(positionFit(player, slot)));
-  const atPosition = placed.length - offPosition.length;
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">
@@ -275,20 +268,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
               dropTarget: slotTarget,
             }}
           />
-          <p data-lineup-summary className="text-sm text-muted-foreground">
-            <span className="text-foreground">
-              {atPosition === 1 ? "1 titulaire à son poste" : `${atPosition} titulaires à leur poste`}
-            </span>
-            {" · "}
-            <span className={cn(offPosition.length > 0 ? "text-warning" : "text-foreground")}>
-              {offPosition.length} hors poste
-            </span>
-            {offPosition.length > 0 &&
-              ` : ${offPosition
-                .map(({ player, slot }) => `${player.lastName} (${POSITION_SHORT[player.position]} en ${POSITION_SHORT[slot]})`)
-                .join(", ")}`}
-            {emptySlots > 0 && ` · ${emptySlots === 1 ? "1 poste vide" : `${emptySlots} postes vides`}`}
-          </p>
+          <LineupSummary slots={slots} starters={state.starters} players={byKey} />
         </div>
 
         <div className="space-y-4">

@@ -122,5 +122,6 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
     } else {
       expect(result?.topScorer?.goals).toBe(best);
     }
-  });
+    // A whole matchday, about 4 s alone: more than the 5 s default while every database suite runs at once.
+  }, 60_000);
 });

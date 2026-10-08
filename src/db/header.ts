@@ -7,6 +7,7 @@ export type SaveHeader = SaveSummary & {
   nextRound: number | null; // matchday of the managed club's next fixture; null once its season is over
   seasonFinished: boolean; // every fixture of the seasons in progress is played
   windowOpen: boolean;
+  liveMatch: boolean; // the managed club's match waits at half-time
 };
 
 /** What the navigation bar of a save shows, or null when the save does not exist. */
@@ -16,7 +17,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     return null;
   }
   const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
-  const [nextFixture, unplayed, seasonsInProgress] = await Promise.all([
+  const [nextFixture, unplayed, seasonsInProgress, save] = await Promise.all([
     prisma.fixture.findFirst({
       where: {
         saveId,
@@ -29,6 +30,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     }),
     prisma.fixture.count({ where: { saveId, played: false, season: { completed: false } } }),
     prisma.season.count({ where: { saveId, completed: false } }),
+    prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true } }),
   ]);
 
   return {
@@ -37,5 +39,6 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     nextRound: nextFixture?.round ?? null,
     seasonFinished: seasonsInProgress > 0 && unplayed === 0,
     windowOpen: transferWindowAt(summary.currentDate) !== null,
+    liveMatch: save.liveFixtureId !== null,
   };
 }

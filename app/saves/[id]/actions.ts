@@ -36,7 +36,8 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
   const id = saveIdSchema.parse(saveId);
   let matchday;
   try {
-    matchday = await playNextMatchday(id);
+    // The managed club's match stops at half-time, for the manager's changes on the replay page.
+    matchday = await playNextMatchday(id, { pauseManagedMatch: true });
   } catch (error) {
     if (error instanceof MatchInProgressError) {
       return { ok: false, message: MATCH_IN_PROGRESS_MESSAGE };
@@ -50,6 +51,13 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
   revalidatePath(`/saves/${id}`, "layout");
 
   const day = `Journée du ${formatDate(matchday.date)}`;
+  if (matchday.managed?.halfTime === true && fixture !== null) {
+    return {
+      ok: true,
+      message: `${day} : mi-temps, ${fixture.home.name} ${fixture.homeHalfTimeGoals ?? 0} – ${fixture.awayHalfTimeGoals ?? 0} ${fixture.away.name}`,
+      redirectTo: `/saves/${id}/live?rejouer=1`,
+    };
+  }
   if (fixture === null || fixture.homeGoals === null || fixture.awayGoals === null) {
     return { ok: true, message: `${day} : votre club ne jouait pas.` };
   }
@@ -114,7 +122,7 @@ export async function resumeMatch(saveId: string, choice: HalfTimeChoiceInput): 
         : { formation: parsed.data.formation, starters: parsed.data.lineup, substitutions: parsed.data.substitutions },
     );
     revalidatePath(`/saves/${id}`, "layout");
-    return { ok: true, message: `Score final : ${result.homeGoals} – ${result.awayGoals}`, redirectTo: `/saves/${id}/live` };
+    return { ok: true, message: `Score final : ${result.homeGoals} – ${result.awayGoals}`, redirectTo: `/saves/${id}/live?reprise=1` };
   } catch (error) {
     if (error instanceof HalfTimeChoiceError) {
       return { ok: false, message: halfTimeRefusalMessage(error.issue) };

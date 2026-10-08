@@ -77,15 +77,16 @@ type PitchProps = {
   clubColors: ClubColors;
   label: string; // names the eleven for assistive technologies: « Onze de Lyon »
   editing?: PitchEditing; // without it, the pitch is read-only: an opponent's probable eleven
+  sentOff?: ReadonlyMap<number, LineupPlayer>; // at half-time, the slots of sent-off players: crossed out, never filled
 };
 
 /**
  * The formation on a vertical pitch, attacking upwards: each slot shows its player's face, his rating there (yellow
  * out of position, red when injured), the slot's position and his name. During a drag, every slot shows the rating
  * the dragged player would have there instead, and the slot under the pointer is highlighted. Shared by the lineup
- * editor and, read-only, by the opponent's preview.
+ * editor, the half-time screen and, read-only, the opponent's preview.
  */
-export function Pitch({ slots, starters, players, clubColors, label, editing }: PitchProps) {
+export function Pitch({ slots, starters, players, clubColors, label, editing, sentOff }: PitchProps) {
   const selected = editing?.selected ?? null;
   const dragged = editing?.dragged ?? null;
   return (
@@ -100,6 +101,29 @@ export function Pitch({ slots, starters, players, clubColors, label, editing }: 
     >
       <Markings />
       {slots.map((slot, index) => {
+        const sentOffPlayer = sentOff?.get(index);
+        if (sentOffPlayer !== undefined) {
+          return (
+            <div key={index} role="listitem" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} className="absolute -translate-x-1/2 -translate-y-1/2">
+              <div
+                data-slot-index={index}
+                data-slot-sent-off={sentOffPlayer.id}
+                aria-label={`${POSITION_LABEL[slot.position]} : poste vide, ${sentOffPlayer.firstName} ${sentOffPlayer.lastName} exclu`}
+                className="flex w-28 flex-col items-center gap-0.5 select-none"
+              >
+                <span className="text-[0.625rem] leading-3 font-semibold tracking-wide text-white/55 uppercase">
+                  {POSITION_SHORT[slot.position]}
+                </span>
+                <span aria-hidden className="grid size-10 place-items-center rounded-full border-2 border-dashed border-loss bg-background/60 text-lg font-bold text-loss">
+                  ✕
+                </span>
+                <span className="mt-0.5 rounded-sm bg-background/85 px-1.5 py-px text-[0.6875rem] leading-4 font-semibold text-loss">
+                  <span className="line-through">{sentOffPlayer.lastName}</span> · exclu
+                </span>
+              </div>
+            </div>
+          );
+        }
         const key = starters[index] ?? null;
         const player = key === null ? undefined : players.get(key);
         const rating = player === undefined ? null : ratingAt(player, slot.position);

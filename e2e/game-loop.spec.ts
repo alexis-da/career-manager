@@ -24,8 +24,11 @@ test("creates a save with Lyon, plays a matchday, replays its match, and shows o
     await createSave(page, name, LYON);
 
     await page.getByRole("button", { name: "Jouer la journée" }).click();
-    await expect(page).toHaveURL(/\/saves\/[^/]+\/live$/);
+    await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
     await expect(page.getByText(/Journée 1 · 15 août 2026$/)).toBeVisible();
+    // To the break, on through the second half without a change, to the final whistle.
+    await page.getByRole("button", { name: "Passer" }).click();
+    await page.getByRole("button", { name: "Reprendre sans changement" }).click();
     await page.getByRole("button", { name: "Passer" }).click();
     await page.getByRole("link", { name: "Continuer" }).click();
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();

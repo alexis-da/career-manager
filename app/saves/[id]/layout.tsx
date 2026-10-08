@@ -49,7 +49,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                   {header.windowOpen ? "ouvert" : "fermé"}
                 </p>
               </div>
-              <GameActions saveId={header.id} seasonFinished={header.seasonFinished} />
+              <GameActions saveId={header.id} seasonFinished={header.seasonFinished} liveMatch={header.liveMatch} />
             </div>
           </div>
         </header>

@@ -160,19 +160,20 @@ export type ScoreTimeline = FixtureView & { goals: { id: string; minute: number;
 
 export type LiveMatchday = {
   match: FixtureWithEvents;
+  halfTime: boolean; // the match waits at half-time: its events stop at 45' and its score is the half-time one
   others: ScoreTimeline[];
 };
 
 /**
- * The managed club's match of the save's current date with all its events, and the other matches its competition
- * played that day; null when the managed club did not play on the current date.
+ * The managed club's match of the save's current date with all its events, played or paused at half-time, and the
+ * other matches its competition played that day; null when the managed club did not play on the current date.
  */
 export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | null> {
   const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
   const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
   const row = await prisma.fixture.findFirst({
-    where: { saveId, scheduledAt: save.currentDate, played: true, ...involving(managed.id) },
-    select: { ...FIXTURE_SELECT, seasonId: true, events: EVENTS_SELECT },
+    where: { saveId, scheduledAt: save.currentDate, status: { in: ["PLAYED", "HALF_TIME"] }, ...involving(managed.id) },
+    select: { ...FIXTURE_SELECT, seasonId: true, status: true, events: EVENTS_SELECT },
   });
   if (row === null) {
     return null;
@@ -187,9 +188,10 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
     },
   });
 
-  const { events, ...fixture } = row;
+  const { events, status, ...fixture } = row;
   return {
     match: { ...toFixtureView(fixture), events: events.map(toEventView(fixture.scheduledAt)) },
+    halfTime: status === "HALF_TIME",
     others: others.map(({ events: goals, ...other }) => ({
       ...toFixtureView(other),
       goals: goals.map((goal) => ({ id: goal.id, minute: goal.minute, side: goal.side === "HOME" ? "home" : "away" })),

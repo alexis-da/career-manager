@@ -2,15 +2,19 @@
 
 import { FastForwardIcon, SkipForwardIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import { Button, buttonVariants } from "@/src/components/ui/button";
 import type { FixtureWithEvents, MatchEventView, ScoreTimeline, TeamView } from "@/src/db/calendar";
+import type { HalfTimeTeam } from "@/src/db/live-match";
+import { HALF_TIME_MINUTE } from "@/src/engine/balance";
 import type { Side } from "@/src/engine/match";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "../../_components/panel";
 import { describeEvent, EVENT_LABELS, EVENT_MARKS, formatMinute, REGULATION_MINUTES } from "../../_lib/match-events";
 import { RESULT_CLASSES, resultFor } from "../../_lib/results";
+import { HalfTime } from "./half-time";
 
 /** Real duration of the replay from kick-off to the 90th minute, at normal speed. */
 const REPLAY_SECONDS = 45;
@@ -34,27 +38,35 @@ const goalsOf = (goals: { minute: number; side: Side }[], side: Side): number =>
   goals.filter((goal) => goal.side === side).length;
 
 type LiveMatchProps = {
+  saveId: string;
   dashboardHref: string;
   caption: string;
   match: FixtureWithEvents;
   others: ScoreTimeline[];
+  // The match waits at half-time: the replay stops at 45' on the half-time screen.
+  halfTime: HalfTimeTeam | null;
+  startMinute: number; // 0 from kick-off; HALF_TIME_MINUTE to land on the break, or to replay the second half only
 };
 
 /**
- * Replays an already simulated match: a clock runs from 0' to 90' and the saved events appear as it passes their
- * minute. Nothing is drawn here; with reduced motion, the match is shown at once at the final whistle.
+ * Replays an already simulated match: a clock runs to 90' and the saved events appear as it passes their minute.
+ * Nothing is drawn here. A match paused at half-time stops at 45' on the half-time screen; once the second half is
+ * played, its replay starts again from 45', the other matches' scores going on. With reduced motion, the break or
+ * the final whistle is shown at once.
  */
-export function LiveMatch({ dashboardHref, caption, match, others }: LiveMatchProps) {
+export function LiveMatch({ saveId, dashboardHref, caption, match, others, halfTime, startMinute }: LiveMatchProps) {
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
-  const [clock, setClock] = useState(0); // match minutes, fractional
+  const router = useRouter();
+  const [clock, setClock] = useState(startMinute); // match minutes, fractional
   const [fast, setFast] = useState(false);
   const skipped = useRef(false);
   const continueRef = useRef<HTMLAnchorElement>(null);
 
-  const finished = reducedMotion || clock >= REGULATION_MINUTES;
-  const minute = finished ? REGULATION_MINUTES : Math.floor(clock);
-  // Stoppage-time events come with the final whistle.
-  const isShown = (event: { minute: number }): boolean => finished || event.minute <= minute;
+  const endMinute = halfTime === null ? REGULATION_MINUTES : HALF_TIME_MINUTE;
+  const finished = reducedMotion || clock >= endMinute;
+  const minute = finished ? endMinute : Math.floor(clock);
+  // Stoppage-time events come with the final whistle; at the break, the other matches stop at 45' too.
+  const isShown = (event: { minute: number }): boolean => (finished && halfTime === null) || event.minute <= minute;
 
   useEffect(() => {
     if (finished) {
@@ -62,11 +74,11 @@ export function LiveMatch({ dashboardHref, caption, match, others }: LiveMatchPr
     }
     const speed = fast ? FAST_FORWARD_FACTOR : 1;
     const timer = window.setInterval(
-      () => setClock((current) => Math.min(REGULATION_MINUTES, current + MINUTES_PER_TICK * speed)),
+      () => setClock((current) => Math.min(endMinute, current + MINUTES_PER_TICK * speed)),
       TICK_MS,
     );
     return () => window.clearInterval(timer);
-  }, [finished, fast]);
+  }, [finished, fast, endMinute]);
 
   // « Passer » disappears with the final whistle: keep the keyboard focus on the next step.
   useEffect(() => {
@@ -77,7 +89,7 @@ export function LiveMatch({ dashboardHref, caption, match, others }: LiveMatchPr
 
   const skip = () => {
     skipped.current = true;
-    setClock(REGULATION_MINUTES);
+    setClock(endMinute);
   };
 
   const events = match.events.filter(isShown);
@@ -98,7 +110,7 @@ export function LiveMatch({ dashboardHref, caption, match, others }: LiveMatchPr
           <p
             className={cn(
               "rounded-md px-5 py-1 font-heading text-5xl leading-tight font-bold tabular-nums sm:text-6xl",
-              finished && RESULT_CLASSES[result],
+              finished && halfTime === null && RESULT_CLASSES[result],
             )}
           >
             <Goals value={homeGoals} /> – <Goals value={awayGoals} />
@@ -110,7 +122,7 @@ export function LiveMatch({ dashboardHref, caption, match, others }: LiveMatchPr
           <div className="flex items-center gap-3">
             <span className="font-heading text-3xl font-bold tabular-nums">{minute}&apos;</span>
             {finished ? (
-              <span className="eyebrow">Terminé</span>
+              <span className="eyebrow">{halfTime === null ? "Terminé" : "Mi-temps"}</span>
             ) : (
               <span className="eyebrow flex items-center gap-1.5 text-loss">
                 <span aria-hidden className="size-2 rounded-full bg-loss motion-safe:animate-pulse" />
@@ -124,7 +136,7 @@ export function LiveMatch({ dashboardHref, caption, match, others }: LiveMatchPr
         </div>
 
         <div className="flex justify-center gap-2">
-          {finished ? (
+          {finished && halfTime !== null ? null : finished ? (
             <Link
               ref={continueRef}
               href={dashboardHref}
@@ -146,6 +158,10 @@ export function LiveMatch({ dashboardHref, caption, match, others }: LiveMatchPr
           )}
         </div>
       </Panel>
+
+      {finished && halfTime !== null && (
+        <HalfTime saveId={saveId} team={halfTime} onResumed={() => router.replace(`/saves/${saveId}/live?reprise=1`)} />
+      )}
 
       <Panel>
         <PanelTitle>Fil du match</PanelTitle>
