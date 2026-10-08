@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSaveHeader } from "@/src/db/header";
@@ -22,9 +23,13 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
 
   return (
     <SimulationProvider saveId={header.id} accent={accent}>
-      <div style={accent} className="flex min-h-full flex-1 flex-col">
+      <div lang="fr" style={accent} className="flex min-h-full flex-1 flex-col">
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
           <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-6 px-4 lg:px-7">
+            {/* The game's mark, the only one in a save: the rest is in the club's colours. */}
+            <Link href="/" title="Late Winner · toutes les parties" className="-mr-3 shrink-0 rounded-md">
+              <Image src="/brand/late-winner-icone.svg" alt="Late Winner" width={28} height={28} unoptimized />
+            </Link>
             <Link href="/" title="Toutes les parties" className="flex min-w-0 shrink-0 items-center gap-3">
               <span aria-hidden className="h-8 w-1 shrink-0 rounded-full bg-(--club)" />
               <span className="min-w-0 leading-tight">

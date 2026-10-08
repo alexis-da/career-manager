@@ -21,6 +21,7 @@ export default function proxy(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  // Everything but the login page, Next's assets and the static files of /public.
-  matcher: ["/((?!login|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt)$).*)"],
+  // Everything but the login page, Next's assets, the static files of /public and the share image, which link
+  // previews fetch without a session.
+  matcher: ["/((?!login|opengraph-image|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt)$).*)"],
 };
