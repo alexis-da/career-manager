@@ -1,3 +1,4 @@
+import { displayClubName } from "../engine/club-name";
 import { seasonEndDate, transferWindowAt } from "../engine/world";
 import { ageInYears } from "../lib/dates";
 import { FIXTURE_SELECT, toFixtureView, type FixtureView } from "./calendar";
@@ -101,7 +102,7 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
       id: true,
       budget: true,
       wageBudget: true,
-      club: { select: { name: true, competitionId: true, competition: { select: { name: true } } } },
+      club: { select: { slug: true, name: true, competitionId: true, competition: { select: { name: true } } } },
     },
   });
   const season =
@@ -124,7 +125,7 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
       : prisma.fixture.findFirst({
           where: { saveId, seasonId: season.id, played: false, ...involving(club.id) },
           orderBy: { scheduledAt: "asc" },
-          select: { ...FIXTURE_SELECT, homeClubSave: { select: { ...FIXTURE_SELECT.homeClubSave.select, club: { select: { name: true, primaryColor: true, secondaryColor: true, stadium: true } } } } },
+          select: { ...FIXTURE_SELECT, homeClubSave: { select: { ...FIXTURE_SELECT.homeClubSave.select, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true, stadium: true } } } } },
         }),
     season === null
       ? null
@@ -175,7 +176,7 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
     competitionName: club.club.competition?.name ?? null,
     windowOpen: transferWindowAt(save.currentDate) !== null,
     club: {
-      name: club.club.name,
+      name: displayClubName(club.club),
       budget: club.budget,
       wageBudget: club.wageBudget,
       payroll: payroll._sum.wage ?? 0,

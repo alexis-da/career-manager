@@ -1,3 +1,4 @@
+import { displayClubName } from "../engine/club-name";
 import type { FormationName } from "../engine/formations";
 import { averageStarterRating, resolveLineup, type Lineup } from "../engine/lineup";
 import { clubColorsOf, type ClubColors } from "../lib/color";
@@ -60,7 +61,7 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
   const [opponent, rows, recentRows, scorer, managedLineup] = await Promise.all([
     prisma.clubSave.findFirstOrThrow({
       where: { id: opponentId, saveId },
-      select: { formation: true, lineup: true, club: { select: { name: true, primaryColor: true, secondaryColor: true } } },
+      select: { formation: true, lineup: true, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
     }),
     prisma.playerSave.findMany({
       where: { saveId, clubSaveId: opponentId },
@@ -76,8 +77,8 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
         homeClubSaveId: true,
         homeGoals: true,
         awayGoals: true,
-        homeClubSave: { select: { club: { select: { name: true } } } },
-        awayClubSave: { select: { club: { select: { name: true } } } },
+        homeClubSave: { select: { club: { select: { slug: true, name: true } } } },
+        awayClubSave: { select: { club: { select: { slug: true, name: true } } } },
       },
     }),
     prisma.playerSeasonStats.findFirst({
@@ -101,7 +102,7 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
   return {
     matchDate,
     atHome,
-    clubName: opponent.club.name,
+    clubName: displayClubName(opponent.club),
     clubColors: clubColorsOf(opponent.club),
     formation,
     lineup,
@@ -111,7 +112,7 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
       const home = fixture.homeClubSaveId === opponentId;
       return {
         date: fixture.scheduledAt,
-        againstName: (home ? fixture.awayClubSave : fixture.homeClubSave).club.name,
+        againstName: displayClubName((home ? fixture.awayClubSave : fixture.homeClubSave).club),
         atHome: home,
         scored: (home ? fixture.homeGoals : fixture.awayGoals) ?? 0,
         conceded: (home ? fixture.awayGoals : fixture.homeGoals) ?? 0,

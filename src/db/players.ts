@@ -1,3 +1,4 @@
+import { displayClubName } from "../engine/club-name";
 import type { AttributeName } from "../engine/generation";
 import type { Position } from "../engine/positions";
 import { seasonEndDate, seasonStartYear } from "../engine/world";
@@ -91,7 +92,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       wage: true,
       contractUntil: true,
       injuredUntil: true,
-      clubSave: { select: { club: { select: { name: true, primaryColor: true, secondaryColor: true } } } },
+      clubSave: { select: { club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } } },
     },
   });
   const playerIds = players.map((player) => player.id);
@@ -112,8 +113,8 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
   const clubIds = [...new Set(transfers.flatMap((transfer) => [transfer.fromClubId, transfer.toClubId]))].filter(
     (id): id is string => id !== null,
   );
-  const clubs = await prisma.club.findMany({ where: { id: { in: clubIds } }, select: { id: true, name: true } });
-  const clubName = new Map(clubs.map((row) => [row.id, row.name]));
+  const clubs = await prisma.club.findMany({ where: { id: { in: clubIds } }, select: { id: true, slug: true, name: true } });
+  const clubName = new Map(clubs.map((row) => [row.id, displayClubName(row)]));
   const statsByPlayer = new Map(stats.map((row) => [row.playerSaveId, row._sum]));
   const lastContractDay = seasonEndDate(startYear);
   const youthPrefix = youthKeyPrefix(startYear);
@@ -129,7 +130,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       birthDate: player.birthDate,
       age: ageInYears(player.birthDate, save.currentDate),
       position: player.position,
-      clubName: player.clubSave?.club.name ?? null,
+      clubName: player.clubSave === null ? null : displayClubName(player.clubSave.club),
       clubColors: player.clubSave === null ? null : clubColorsOf(player.clubSave.club),
       overall: player.overall,
       potential: player.potential,

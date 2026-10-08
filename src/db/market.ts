@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { displayClubName } from "../engine/club-name";
 import { POSITIONS, primariesWithSecondary, secondaryPositions, type Position } from "../engine/positions";
 import { nextTransferWindowOpening, transferWindowAt, transferWindowCloseDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
@@ -38,8 +39,8 @@ async function clubNames(ids: readonly (string | null)[]): Promise<Map<string, s
   if (unique.length === 0) {
     return new Map();
   }
-  const clubs = await prisma.club.findMany({ where: { id: { in: unique } }, select: { id: true, name: true } });
-  return new Map(clubs.map((club) => [club.id, club.name]));
+  const clubs = await prisma.club.findMany({ where: { id: { in: unique } }, select: { id: true, slug: true, name: true } });
+  return new Map(clubs.map((club) => [club.id, displayClubName(club)]));
 }
 
 const nameOf = (names: ReadonlyMap<string, string>, id: string | null | undefined): string | null =>
@@ -247,7 +248,7 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
         select: {
           isManaged: true,
           reputation: true,
-          club: { select: { name: true, primaryColor: true, secondaryColor: true } },
+          club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } },
         },
       },
     },
@@ -277,7 +278,7 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
       firstName: player.firstName,
       lastName: player.lastName,
       nationality: player.nationality,
-      clubName: player.clubSave.club.name,
+      clubName: displayClubName(player.clubSave.club),
       clubColors: clubColorsOf(player.clubSave.club),
       position: player.position,
       age,
@@ -400,7 +401,7 @@ export async function getPlayerSheet(saveId: string, playerSaveId: string): Prom
         potential: true,
         wage: true,
         contractUntil: true,
-        clubSave: { select: { isManaged: true, reputation: true, club: { select: { name: true } } } },
+        clubSave: { select: { isManaged: true, reputation: true, club: { select: { slug: true, name: true } } } },
         _count: { select: { transfers: { where: { saveId, type: "RETIREMENT" } } } },
       },
     }),
@@ -421,7 +422,7 @@ export async function getPlayerSheet(saveId: string, playerSaveId: string): Prom
   }
   return {
     profile,
-    status: { kind: "club", clubName: player.clubSave.club.name, quote: quoteFor(player, player.clubSave, currentDate) },
+    status: { kind: "club", clubName: displayClubName(player.clubSave.club), quote: quoteFor(player, player.clubSave, currentDate) },
   };
 }
 
@@ -447,7 +448,7 @@ export async function getOfferFacts(saveId: string, playerSaveId: string): Promi
         potential: true,
         wage: true,
         contractUntil: true,
-        clubSave: { select: { isManaged: true, reputation: true, club: { select: { name: true } } } },
+        clubSave: { select: { isManaged: true, reputation: true, club: { select: { slug: true, name: true } } } },
       },
     }),
   ]);
@@ -455,7 +456,7 @@ export async function getOfferFacts(saveId: string, playerSaveId: string): Promi
     budget: overview.budget,
     wageRoom: overview.wageRoom,
     nextWindowOpensOn: overview.nextWindowOpensOn,
-    clubName: player.clubSave?.club.name ?? null,
+    clubName: player.clubSave === null ? null : displayClubName(player.clubSave.club),
     quote: quoteFor(player, player.clubSave, overview.currentDate),
   };
 }

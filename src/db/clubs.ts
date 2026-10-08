@@ -1,3 +1,4 @@
+import { displayClubName } from "../engine/club-name";
 import { prisma } from "./client";
 
 export type ClubOption = {
@@ -11,10 +12,16 @@ export type CompetitionClubs = {
   clubs: ClubOption[];
 };
 
-/** Clubs of the world grouped by competition, both in alphabetical order. Reference tables only. */
+/** Clubs of the world grouped by competition, both in alphabetical order of the names shown. Reference tables only. */
 export async function listClubsByCompetition(): Promise<CompetitionClubs[]> {
-  return prisma.competition.findMany({
+  const competitions = await prisma.competition.findMany({
     orderBy: { name: "asc" },
-    select: { code: true, name: true, clubs: { orderBy: { name: "asc" }, select: { id: true, name: true } } },
+    select: { code: true, name: true, clubs: { select: { id: true, slug: true, name: true } } },
   });
+  return competitions.map((competition) => ({
+    ...competition,
+    clubs: competition.clubs
+      .map((club) => ({ id: club.id, name: displayClubName(club) }))
+      .sort((a, b) => a.name.localeCompare(b.name, "fr")),
+  }));
 }

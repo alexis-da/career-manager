@@ -1,3 +1,4 @@
+import { displayClubName } from "../engine/club-name";
 import { nextTransferWindowOpening, seasonStartYear, transferWindowAt } from "../engine/world";
 import { prisma } from "./client";
 import { getPlayerProfiles, type PlayerProfile } from "./players";
@@ -21,7 +22,7 @@ export async function getSquadView(saveId: string): Promise<SquadView> {
   const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
   const club = await prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
-    select: { id: true, budget: true, wageBudget: true, club: { select: { name: true } } },
+    select: { id: true, budget: true, wageBudget: true, club: { select: { slug: true, name: true } } },
   });
 
   const [players, terms, payroll] = await Promise.all([
@@ -35,7 +36,7 @@ export async function getSquadView(saveId: string): Promise<SquadView> {
     startYear: seasonStartYear(save.currentDate),
     windowOpen: transferWindowAt(save.currentDate) !== null,
     nextWindowOpensOn: nextTransferWindowOpening(save.currentDate),
-    club: { name: club.club.name, budget: club.budget, wageBudget: club.wageBudget, payroll: payroll._sum.wage ?? 0 },
+    club: { name: displayClubName(club.club), budget: club.budget, wageBudget: club.wageBudget, payroll: payroll._sum.wage ?? 0 },
     players: players.map((player) => {
       const playerTerms = terms.get(player.id);
       if (playerTerms === undefined) {

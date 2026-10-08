@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { RELEASE_COMPENSATION_SHARE } from "../engine/balance";
+import { displayClubName } from "../engine/club-name";
 import { contractEndDate } from "../engine/economy";
 import {
   askingPrice,
@@ -236,7 +237,7 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
                 fee: best.fee,
                 wage: best.wage,
                 years: best.years,
-                buyerName: getOrThrow(market.clubBySlug, best.clubSlug, "bidding club").club.name,
+                buyerName: displayClubName(getOrThrow(market.clubBySlug, best.clubSlug, "bidding club").club),
               };
       }
       return [

@@ -1,3 +1,4 @@
+import { displayClubName } from "../engine/club-name";
 import { computeStandings, type StandingRow } from "../engine/standings";
 import { prisma } from "./client";
 
@@ -51,7 +52,7 @@ export async function getStandings(
     }),
   ]);
 
-  const clubBySlug = new Map(clubSaves.map(({ isManaged, club }) => [club.slug, { name: club.name, isManaged }]));
+  const clubBySlug = new Map(clubSaves.map(({ isManaged, club }) => [club.slug, { name: displayClubName(club), isManaged }]));
   const scores = fixtures.map(({ id, homeGoals, awayGoals, homeClubSave, awayClubSave }) => {
     if (homeGoals === null || awayGoals === null) {
       throw new Error(`Fixture ${id} is played but has no score`);

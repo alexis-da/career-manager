@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { displayClubName } from "../engine/club-name";
 import { clubFinances, generateContract, marketValueFor } from "../engine/economy";
 import { FREE_AGENT_POOL_SLUG, freeAgentPlayerKey, generateFreeAgentAttributes } from "../engine/free-agents";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engine/generation";
@@ -179,7 +180,7 @@ const SAVE_SUMMARY_SELECT = {
   currentDate: true,
   clubSaves: {
     where: { isManaged: true },
-    select: { club: { select: { name: true, primaryColor: true, secondaryColor: true } } },
+    select: { club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
   },
 } as const;
 
@@ -188,13 +189,20 @@ function toSaveSummary(save: {
   name: string;
   managerName: string;
   currentDate: Date;
-  clubSaves: { club: SaveSummary["club"] }[];
+  clubSaves: { club: SaveSummary["club"] & { slug: string } }[];
 }): SaveSummary {
   const [managed] = save.clubSaves;
   if (managed === undefined) {
     throw new Error(`Save ${save.id} has no managed club`);
   }
-  return { id: save.id, name: save.name, managerName: save.managerName, currentDate: save.currentDate, club: managed.club };
+  const { primaryColor, secondaryColor } = managed.club;
+  return {
+    id: save.id,
+    name: save.name,
+    managerName: save.managerName,
+    currentDate: save.currentDate,
+    club: { name: displayClubName(managed.club), primaryColor, secondaryColor },
+  };
 }
 
 /** Every save, most recently played first. */

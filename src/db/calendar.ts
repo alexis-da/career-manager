@@ -1,3 +1,4 @@
+import { displayClubName } from "../engine/club-name";
 import type { MatchEventType, Side } from "../engine/match";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
@@ -44,7 +45,7 @@ export type ClubCalendar = {
 };
 
 const TEAM_SELECT = {
-  select: { id: true, isManaged: true, club: { select: { name: true, primaryColor: true, secondaryColor: true } } },
+  select: { id: true, isManaged: true, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
 } as const;
 
 export const FIXTURE_SELECT = {
@@ -65,7 +66,7 @@ type FixtureRow = Prisma.FixtureGetPayload<{ select: typeof FIXTURE_SELECT }>;
 
 const toTeamView = (clubSave: FixtureRow["homeClubSave"]): TeamView => ({
   clubSaveId: clubSave.id,
-  name: clubSave.club.name,
+  name: displayClubName(clubSave.club),
   isManaged: clubSave.isManaged,
   colors: clubColorsOf(clubSave.club),
 });
@@ -181,7 +182,6 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
 
   const others = await prisma.fixture.findMany({
     where: { saveId, seasonId: row.seasonId, scheduledAt: save.currentDate, played: true, id: { not: row.id } },
-    orderBy: { homeClubSave: { club: { name: "asc" } } },
     select: {
       ...FIXTURE_SELECT,
       events: { where: { type: "GOAL" }, orderBy: EVENTS_SELECT.orderBy, select: { id: true, minute: true, side: true } },
@@ -192,9 +192,12 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
   return {
     match: { ...toFixtureView(fixture), events: events.map(toEventView(fixture.scheduledAt)) },
     halfTime: status === "HALF_TIME",
-    others: others.map(({ events: goals, ...other }) => ({
-      ...toFixtureView(other),
-      goals: goals.map((goal) => ({ id: goal.id, minute: goal.minute, side: goal.side === "HOME" ? "home" : "away" })),
-    })),
+    // By home club, in the names shown: the database only knows the real ones.
+    others: others
+      .map(({ events: goals, ...other }): ScoreTimeline => ({
+        ...toFixtureView(other),
+        goals: goals.map((goal) => ({ id: goal.id, minute: goal.minute, side: goal.side === "HOME" ? "home" : "away" })),
+      }))
+      .sort((a, b) => a.home.name.localeCompare(b.home.name, "fr")),
   };
 }
