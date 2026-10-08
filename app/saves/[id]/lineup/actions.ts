@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import * as z from "zod";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { lineupInputSchema, LineupPlayerNotInSquadError, saveManagedLineup } from "@/src/db/lineup";
 import type { ActionResult } from "../_lib/action-result";
 
 const saveIdSchema = z.string().min(1);
 
 export async function saveLineupAction(saveId: string, input: unknown): Promise<ActionResult> {
-  const id = saveIdSchema.parse(saveId);
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   const parsed = lineupInputSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Composition invalide." };

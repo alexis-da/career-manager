@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as z from "zod";
+import { requireCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { createSave, deleteSave } from "@/src/db/saves";
 
 export type CreateSaveField = "name" | "managerName" | "clubId" | "seed";
@@ -44,7 +45,9 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
   try {
     // An empty seed gets a random one: the seed feeds the simulation, it is never drawn inside it.
     const seed = parsed.data.seed === "" ? randomUUID() : parsed.data.seed;
-    ({ id: saveId } = await createSave({ ...parsed.data, seed }));
+    // The player gets an anonymous identity, and its cookie, with their first save.
+    const owner = await requireCurrentUser();
+    ({ id: saveId } = await createSave({ ...parsed.data, seed, ownerId: owner.id }));
   } catch (error) {
     console.error(error);
     return { values, errors: {}, message: "La partie n'a pas pu être créée. Réessayez." };
@@ -55,6 +58,7 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
 }
 
 export async function deleteSaveAction(saveId: string): Promise<void> {
-  await deleteSave(saveIdSchema.parse(saveId));
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
+  await deleteSave(id);
   revalidatePath("/");
 }

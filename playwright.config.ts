@@ -10,9 +10,15 @@ if (!existsSync(ENV_TEST)) {
     `End-to-end tests need ${ENV_TEST} with DATABASE_URL_TEST, the database they write to (see .env.example). Refusing to start.`,
   );
 }
-const DATABASE_URL_TEST = parse(readFileSync(ENV_TEST)).DATABASE_URL_TEST;
+const testEnv = parse(readFileSync(ENV_TEST));
+const DATABASE_URL_TEST = testEnv.DATABASE_URL_TEST;
 if (DATABASE_URL_TEST === undefined || DATABASE_URL_TEST === "") {
   throw new Error(`${ENV_TEST} has no DATABASE_URL_TEST: set the database the end-to-end tests write to. Refusing to start.`);
+}
+// The test server signs players' cookies with a secret of its own, never the development one.
+const AUTH_SECRET_TEST = testEnv.AUTH_SECRET;
+if (AUTH_SECRET_TEST === undefined || AUTH_SECRET_TEST === "") {
+  throw new Error(`${ENV_TEST} has no AUTH_SECRET: the test server needs one to sign players' cookies. Refusing to start.`);
 }
 
 // A port and a build directory of their own, so the tests never run against a development server started by
@@ -39,7 +45,13 @@ export default defineConfig({
   webServer: {
     command: `npm run dev -- --port ${PORT}`,
     // Variables set here win over .env: the server uses the test database, and the app is not password-protected.
-    env: { NEXT_DIST_DIR: ".next-e2e", DATABASE_URL: DATABASE_URL_TEST, DIRECT_URL: DATABASE_URL_TEST, APP_PASSWORD: "" },
+    env: {
+      NEXT_DIST_DIR: ".next-e2e",
+      DATABASE_URL: DATABASE_URL_TEST,
+      DIRECT_URL: DATABASE_URL_TEST,
+      APP_PASSWORD: "",
+      AUTH_SECRET: AUTH_SECRET_TEST,
+    },
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

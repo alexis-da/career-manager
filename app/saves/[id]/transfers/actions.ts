@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { getOfferFacts } from "@/src/db/market";
 import {
   makeTransferOffer,
@@ -52,6 +53,7 @@ export async function signFreeAgentAction(input: SignFreeAgentInput): Promise<Ac
   if (!parsed.success) {
     return INVALID_INPUT;
   }
+  await requireOwnedSave(parsed.data.saveId);
   const outcome = await signFreeAgent(parsed.data);
   if (!outcome.ok) {
     return explainRefusal(outcome, parsed.data);
@@ -68,6 +70,7 @@ export async function makeTransferOfferAction(input: MakeTransferOfferInput): Pr
   if (!parsed.success) {
     return INVALID_INPUT;
   }
+  await requireOwnedSave(parsed.data.saveId);
   const outcome = await makeTransferOffer(parsed.data);
   if (!outcome.ok) {
     return explainRefusal(outcome, parsed.data);

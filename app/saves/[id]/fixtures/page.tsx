@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { getManagedClubCalendar, type FixtureWithEvents } from "@/src/db/calendar";
 import { getSaveSummary } from "@/src/db/saves";
@@ -260,6 +261,8 @@ function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
 
 export default async function FixturesPage({ params, searchParams }: PageProps<"/saves/[id]/fixtures">) {
   const { id } = await params;
+  // Another player's save, or one that does not exist: 404, before anything is read.
+  await requireOwnedSave(id);
   const query = await searchParams;
   const [save, calendar] = await Promise.all([getSaveSummary(id), getManagedClubCalendar(id)]);
   if (save === null) {

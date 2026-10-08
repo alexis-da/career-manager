@@ -28,13 +28,18 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
     Promise.all([database().competition.count(), database().club.count(), database().player.count()]);
 
   beforeAll(async () => {
-    const [{ prisma }, { createSave }] = await Promise.all([import("./client"), import("./saves")]);
+    const [{ prisma }, { createSave }, { ensureDemoUser }] = await Promise.all([
+      import("./client"),
+      import("./saves"),
+      import("./test-support"),
+    ]);
     db = prisma;
 
     referenceCountsBefore = await countReferenceTables();
     const { id: clubId } = await prisma.club.findUniqueOrThrow({ where: { slug: "liverpool-fc" }, select: { id: true } });
+    const ownerId = await ensureDemoUser();
     for (const seed of ["test-seed-1", "test-seed-1", "test-seed-2"]) {
-      const save = await createSave({ name: `Test ${seed}`, managerName: "Test", clubId, seed });
+      const save = await createSave({ name: `Test ${seed}`, managerName: "Test", clubId, seed, ownerId });
       saveIds.push(save.id);
     }
     referenceCountsAfter = await countReferenceTables();

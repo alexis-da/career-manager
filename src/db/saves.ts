@@ -9,6 +9,7 @@ import type { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
+import { visibleSavesWhere, type SaveViewer } from "./access";
 import { prisma } from "./client";
 import { seasonFixtures } from "./fixtures";
 import { runPreseasonInTransaction } from "./preseason";
@@ -18,6 +19,7 @@ export const createSaveInputSchema = z.object({
   managerName: z.string().trim().min(1).max(100),
   clubId: z.string().min(1),
   seed: z.string().min(1).max(200),
+  ownerId: z.string().min(1), // every new save has an owner: only inherited saves, from before owners, have none
 });
 
 export type CreateSaveInput = z.input<typeof createSaveInputSchema>;
@@ -33,7 +35,7 @@ const TRANSACTION_TIMEOUT_MS = 120_000;
  * seed, so the same seed always yields the same save. Reference tables (Competition, Club, Player) are only read.
  */
 export async function createSave(input: CreateSaveInput): Promise<{ id: string }> {
-  const { name, managerName, clubId, seed } = createSaveInputSchema.parse(input);
+  const { name, managerName, clubId, seed, ownerId } = createSaveInputSchema.parse(input);
 
   return prisma.$transaction(
     async (tx) => {
@@ -72,7 +74,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       }
 
       const save = await tx.save.create({
-        data: { name, managerName, seed, currentDate: WORLD_START_DATE },
+        data: { name, managerName, seed, ownerId, currentDate: WORLD_START_DATE },
         select: { id: true, seed: true, currentDate: true },
       });
 
@@ -205,9 +207,13 @@ function toSaveSummary(save: {
   };
 }
 
-/** Every save, most recently played first. */
-export async function listSaves(): Promise<SaveSummary[]> {
-  const saves = await prisma.save.findMany({ orderBy: { updatedAt: "desc" }, select: SAVE_SUMMARY_SELECT });
+/** The saves a viewer may open (their own and the inherited ones, src/db/access.ts), most recently played first. */
+export async function listSaves(viewer: SaveViewer): Promise<SaveSummary[]> {
+  const saves = await prisma.save.findMany({
+    where: visibleSavesWhere(viewer),
+    orderBy: { updatedAt: "desc" },
+    select: SAVE_SUMMARY_SELECT,
+  });
   return saves.map(toSaveSummary);
 }
 

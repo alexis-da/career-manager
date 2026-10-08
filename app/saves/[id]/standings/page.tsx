@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { getLatestSeasonTables } from "@/src/db/standings";
@@ -33,6 +34,8 @@ const COLUMNS = [
 
 export default async function StandingsPage({ params }: PageProps<"/saves/[id]/standings">) {
   const { id } = await params;
+  // Another player's save, or one that does not exist: 404, before anything is read.
+  await requireOwnedSave(id);
   const tables = await getLatestSeasonTables(id);
   const defaultTable = tables.find((table) => table.hasManagedClub) ?? tables[0];
 

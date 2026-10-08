@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getCurrentUser } from "@/src/auth/current-user";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { listClubsByCompetition } from "@/src/db/clubs";
@@ -13,7 +14,9 @@ import { DeleteSaveDialog } from "./_components/delete-save-dialog";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [saves, competitions] = await Promise.all([listSaves(), listClubsByCompetition()]);
+  // The player's saves and the inherited ones; without the lw_uid cookie, the inherited ones only.
+  const user = await getCurrentUser();
+  const [saves, competitions] = await Promise.all([listSaves(user), listClubsByCompetition()]);
 
   return (
     <main className="brand flex-1 bg-background text-foreground">

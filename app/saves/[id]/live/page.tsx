@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { getLiveMatchday } from "@/src/db/calendar";
 import { getHalfTimeTeam } from "@/src/db/live-match";
 import { HALF_TIME_MINUTE } from "@/src/engine/balance";
@@ -17,6 +18,8 @@ export const metadata: Metadata = { title: "Match en direct" };
  */
 export default async function LivePage({ params, searchParams }: PageProps<"/saves/[id]/live">) {
   const { id } = await params;
+  // Another player's save, or one that does not exist: 404, before anything is read.
+  await requireOwnedSave(id);
   const query = await searchParams;
   const [matchday, halfTime] = await Promise.all([getLiveMatchday(id), getHalfTimeTeam(id)]);
   if (matchday === null) {

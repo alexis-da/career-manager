@@ -14,13 +14,33 @@ export const DEMO_SAVE_NAME = `Partie de démo ${seasonLabel(WORLD_START_YEAR)}`
 /** The demo save stands at the kickoff of this season: its first season played, then advanced. */
 export const DEMO_START_YEAR = WORLD_START_YEAR + 1;
 
+/** The owner of the demo save and of the database tests' saves: a fixed id, the same in every test database. */
+export const DEMO_USER_ID = "demo-user";
+
 /**
- * Creates a throwaway save with the demo save's seed and club, so database tests can play and advance seasons
- * without touching the demo save itself.
+ * The demo user, created when missing; reused as it is otherwise. INSERT … ON CONFLICT DO NOTHING rather than an
+ * upsert, which Prisma runs as a read then a write: the database test files run in parallel, and on a fresh database
+ * several of them create the demo user at once. Another id is for tests of this function only.
+ */
+export async function ensureDemoUser(id: string = DEMO_USER_ID): Promise<string> {
+  await prisma.user.createMany({
+    // Not simulation code: lastSeenAt is real time.
+    data: [{ id, kind: "ANONYMOUS", lastSeenAt: new Date() }],
+    skipDuplicates: true,
+  });
+  return id;
+}
+
+/**
+ * Creates a throwaway save with the demo save's seed and club, owned by the demo user, so database tests can play
+ * and advance seasons without touching the demo save itself.
  */
 export async function createDemoTwin(name: string): Promise<string> {
-  const club = await prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } });
-  const { id } = await createSave({ name, managerName: "Test", clubId: club.id, seed: DEMO_SEED });
+  const [club, ownerId] = await Promise.all([
+    prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } }),
+    ensureDemoUser(),
+  ]);
+  const { id } = await createSave({ name, managerName: "Test", clubId: club.id, seed: DEMO_SEED, ownerId });
   return id;
 }
 
@@ -35,8 +55,8 @@ export async function playRemainingMatchdays(saveId: string): Promise<number> {
 
 /**
  * Returns the demo save, creating it when it is missing: the demo seed and club, its first season played, then
- * advanced to 1 July of the next one. Everything is deterministic, so every recreation gives the same save. It is kept for
- * later runs; a creation interrupted halfway resumes where it stopped.
+ * advanced to 1 July of the next one, owned by the demo user. Everything is deterministic, so every recreation gives
+ * the same save. It is kept for later runs; a creation interrupted halfway resumes where it stopped.
  */
 export async function ensureDemoSave(): Promise<string> {
   const existing = await prisma.save.findFirst({
@@ -45,6 +65,8 @@ export async function ensureDemoSave(): Promise<string> {
     select: { id: true },
   });
   const saveId = existing?.id ?? (await createDemoTwin(DEMO_SAVE_NAME));
+  // A demo save created before owners is attached to the demo user; one already owned stays with its owner.
+  await prisma.save.updateMany({ where: { id: saveId, ownerId: null }, data: { ownerId: await ensureDemoUser() } });
 
   const currentStartYear = async (): Promise<number> => {
     const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });

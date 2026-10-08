@@ -41,10 +41,18 @@ la purge et les tests suppriment des `User`. Les parties d'avant les propriétai
 les parties **héritées**, rattachées plus tard au compte administrateur. Toute nouvelle partie a un propriétaire ;
 le code n'en crée jamais sans.
 
-**Toute requête est scopée par le propriétaire de la partie, puis par `saveId`.** Une requête Prisma sur une
-table de partie sans `saveId` dans le `where` est un bug : elle mélangerait deux parties du même utilisateur.
-La propriété (une partie appartient à un compte) arrive avec le chantier comptes : d'ici là, le `saveId` reste
-le seul filtre, et toute nouvelle fonction d'accès doit pouvoir recevoir le propriétaire sans être réécrite.
+**Toute requête sur une partie est scopée par propriétaire ET `saveId`.** Le propriétaire est vérifié une fois, à
+l'entrée : toute page sous `app/saves/[id]` et toute Server Action qui reçoit un `saveId` appellent d'abord
+`requireOwnedSave(saveId)` (`src/auth/current-user.ts`, qui passe par `loadOwnedSave`, `src/db/access.ts`, point
+unique du contrôle) ; une partie d'un autre joueur répond 404, comme une partie inexistante. Le layout ne protège pas
+les Server Actions : chacune fait son contrôle. Ensuite, une requête Prisma sur une table de partie sans `saveId`
+dans le `where` est un bug : elle mélangerait deux parties. Les listes de parties passent par `visibleSavesWhere`.
+Règle transitoire : les parties héritées (`ownerId` NULL) restent visibles de tous, jusqu'à la session 3 du
+chantier « ouverture de l'accès ».
+
+**Identité.** Le joueur est reconnu par le cookie `lw_uid` (id d'utilisateur signé HMAC-SHA256 avec `AUTH_SECRET`,
+obligatoire). `getCurrentUser()` lit sans rien créer ; `requireCurrentUser()` crée un utilisateur anonyme et pose le
+cookie, seulement depuis la création de partie.
 
 **Pas de marques sous licence.** Aucune mention de FIFA, EA, ou des noms de compétitions officiels sous
 licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (CC0).

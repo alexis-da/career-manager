@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import type { ClubPreview, Dashboard } from "@/src/db/dashboard";
 import { getDashboard } from "@/src/db/dashboard";
@@ -127,6 +128,8 @@ function BigFigure({ value, unit }: { value: string; unit?: string }) {
 
 export default async function DashboardPage({ params }: PageProps<"/saves/[id]">) {
   const { id } = await params;
+  // Another player's save, or one that does not exist: 404, before anything is read.
+  await requireOwnedSave(id);
   const [dashboard, lineup, opponent] = await Promise.all([getDashboard(id), getManagedLineup(id), getOpponentPreview(id)]);
   const { club, nextMatch, lastResult, position } = dashboard;
   const base = `/saves/${id}`;

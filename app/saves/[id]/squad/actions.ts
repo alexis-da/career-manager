@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import {
   quoteTransfer,
   releasePlayer,
@@ -26,6 +27,7 @@ export async function renewContractAction(input: RenewContractInput): Promise<Ac
   if (!parsed.success) {
     return INVALID_INPUT;
   }
+  await requireOwnedSave(parsed.data.saveId);
   const outcome = await renewContract(parsed.data);
   if (!outcome.ok) {
     const minimumWage =
@@ -42,6 +44,7 @@ export async function releasePlayerAction(input: PlayerActionInput): Promise<Act
   if (!parsed.success) {
     return INVALID_INPUT;
   }
+  await requireOwnedSave(parsed.data.saveId);
   const outcome = await releasePlayer(parsed.data);
   if (!outcome.ok) {
     return { ok: false, message: refusalMessage(outcome.reason, outcome.refusals, { target: "squad" }) };
@@ -55,6 +58,7 @@ export async function sellPlayerAction(input: PlayerActionInput): Promise<Action
   if (!parsed.success) {
     return INVALID_INPUT;
   }
+  await requireOwnedSave(parsed.data.saveId);
   const outcome = await sellPlayer(parsed.data);
   if (!outcome.ok) {
     return { ok: false, message: refusalMessage(outcome.reason, outcome.refusals, { target: "squad" }) };

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { getSaveHeader } from "@/src/db/header";
 import { seasonLabel } from "@/src/engine/world";
 import { formatDayDate } from "@/src/lib/format";
@@ -13,6 +14,8 @@ export const dynamic = "force-dynamic";
 
 export default async function SaveLayout({ children, params }: LayoutProps<"/saves/[id]">) {
   const { id } = await params;
+  // Another player's save, or one that does not exist: 404, before anything is read.
+  await requireOwnedSave(id);
   const header = await getSaveHeader(id);
   if (header === null) {
     notFound();

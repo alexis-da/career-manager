@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { getSquadView } from "@/src/db/squad";
 import { formatMillions } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
@@ -13,6 +14,8 @@ const PAYROLL_WARNING_SHARE = 0.9;
 
 export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad">) {
   const { id } = await params;
+  // Another player's save, or one that does not exist: 404, before anything is read.
+  await requireOwnedSave(id);
   const squad = await getSquadView(id);
   const players = squad.players.length;
   const goalkeepers = squad.players.filter((player) => player.position === "GK").length;

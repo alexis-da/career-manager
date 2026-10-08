@@ -12,6 +12,7 @@ import {
   type MarketOverview,
   type PlayerSheet,
 } from "@/src/db/market";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { seasonStartYear } from "@/src/engine/world";
 import { formatDate, formatMillions, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
@@ -149,6 +150,8 @@ function sheetFooter(saveId: string, sheet: PlayerSheet, overview: MarketOvervie
 
 export default async function TransfersPage({ params, searchParams }: PageProps<"/saves/[id]/transfers">) {
   const { id } = await params;
+  // Another player's save, or one that does not exist: 404, before anything is read.
+  await requireOwnedSave(id);
   const values = singleValues(await searchParams);
   const query = querySchema.parse(values);
   const [overview, sheet] = await Promise.all([

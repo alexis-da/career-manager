@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { getLineupEditor } from "@/src/db/lineup";
 import { getOpponentPreview } from "@/src/db/opponent";
 import { formatShortDate } from "@/src/lib/format";
@@ -11,6 +12,8 @@ export const metadata: Metadata = { title: "Composition" };
 
 export default async function LineupPage({ params }: PageProps<"/saves/[id]/lineup">) {
   const { id } = await params;
+  // Another player's save, or one that does not exist: 404, before anything is read.
+  await requireOwnedSave(id);
   const [editor, opponent] = await Promise.all([getLineupEditor(id), getOpponentPreview(id)]);
 
   return (

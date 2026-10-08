@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import * as z from "zod";
+import { requireOwnedSave } from "@/src/auth/current-user";
 import { getManagedClubFixtureOn } from "@/src/db/calendar";
 import { NoMatchInProgressError, resumeLiveMatch } from "@/src/db/live-match";
 import { formationSchema } from "@/src/db/lineup";
@@ -33,7 +34,7 @@ export type GameActionResult = {
 const saveIdSchema = z.string().min(1);
 
 export async function playMatchdayAction(saveId: string): Promise<GameActionResult> {
-  const id = saveIdSchema.parse(saveId);
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   let matchday;
   try {
     // The managed club's match stops at half-time, for the manager's changes on the replay page.
@@ -69,7 +70,7 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
 }
 
 export async function advanceSeasonAction(saveId: string): Promise<GameActionResult> {
-  const id = saveIdSchema.parse(saveId);
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   try {
     const transition = await advanceToNextSeason(id);
     revalidatePath(`/saves/${id}`, "layout");
@@ -109,7 +110,7 @@ export type HalfTimeChoiceInput = z.input<typeof halfTimeChoiceSchema>;
 
 /** Plays the second half of the managed club's match paused at half-time, with the manager's changes. */
 export async function resumeMatch(saveId: string, choice: HalfTimeChoiceInput): Promise<GameActionResult> {
-  const id = saveIdSchema.parse(saveId);
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   const parsed = halfTimeChoiceSchema.safeParse(choice);
   if (!parsed.success) {
     return { ok: false, message: `Changements invalides : ${MAX_SUBSTITUTIONS} remplacements au maximum, 11 postes.` };
@@ -149,7 +150,8 @@ export type SimulationTargetInput = z.input<typeof simulationTargetSchema>;
 
 /** Where a simulation toward a target stops and how many matchdays it plays, before playing anything. */
 export async function planSimulationAction(saveId: string, target: SimulationTargetInput): Promise<SimulationPlan> {
-  return planSimulation(saveIdSchema.parse(saveId), simulationTargetSchema.parse(target));
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
+  return planSimulation(id, simulationTargetSchema.parse(target));
 }
 
 /**
@@ -161,8 +163,9 @@ export async function simulateMatchdays(
   untilDate: string,
   maxMatchdays: number = SIMULATION_MAX_MATCHDAYS,
 ): Promise<SimulationBatch> {
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   return simulateMatchdaysOfSave(
-    saveIdSchema.parse(saveId),
+    id,
     daySchema.parse(untilDate),
     z.number().int().min(1).max(SIMULATION_MAX_MATCHDAYS).parse(maxMatchdays),
   );
@@ -170,7 +173,7 @@ export async function simulateMatchdays(
 
 /** The managed club's rank, injuries and ended contracts since fromDate (« 2026-08-15 »), the date before a simulation. */
 export async function simulationSummaryAction(saveId: string, fromDate: string): Promise<SimulationSummary> {
-  const id = saveIdSchema.parse(saveId);
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   const summary = await getSimulationSummary(id, daySchema.parse(fromDate));
   // The simulation is over: every page of the save shows the new date, results and table.
   revalidatePath(`/saves/${id}`, "layout");
@@ -179,5 +182,6 @@ export async function simulationSummaryAction(saveId: string, fromDate: string):
 
 /** The opponent of an unplayed fixture of the managed club, for the calendar's « Voir l'adversaire » panel. */
 export async function opponentPreviewAction(saveId: string, fixtureId: string): Promise<OpponentPreview | null> {
-  return getOpponentPreview(saveIdSchema.parse(saveId), z.string().min(1).parse(fixtureId));
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
+  return getOpponentPreview(id, z.string().min(1).parse(fixtureId));
 }
