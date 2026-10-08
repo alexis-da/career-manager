@@ -23,5 +23,8 @@ export async function deleteSave(page: Page, name: string): Promise<void> {
   }
   await row.getByRole("button", { name: "Supprimer" }).click();
   await page.getByRole("button", { name: "Supprimer la partie" }).click();
+  // The toast comes once the server has deleted the save. The rows alone would not tell: the open dialog hides the
+  // rest of the page from the accessibility tree, so they vanish as soon as it opens, before anything is deleted.
+  await expect(page.getByText(`Partie « ${name} » supprimée.`)).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: name })).toHaveCount(0);
 }

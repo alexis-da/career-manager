@@ -29,6 +29,8 @@ const BASE_URL = `http://localhost:${PORT}`;
 // One browser, one worker: the tests write to the test database. No screenshot, video or trace.
 export default defineConfig({
   testDir: "./e2e",
+  // Deletes the anonymous users the run leaves without a save (e2e/global-setup.ts).
+  globalSetup: "./e2e/global-setup.ts",
   timeout: 180_000,
   expect: { timeout: 60_000 },
   fullyParallel: false,
