@@ -36,11 +36,31 @@ rend le moteur testable et rejouable.
 d'OpenFootball et ne changent jamais pendant une partie. Tout ce qui évolue est suffixé `Save`
 (`PlayerSave`, `ClubSave`) et porte un `saveId`. Ne jamais muter une table de référence depuis le jeu.
 
-**Toute requête est scopée par `saveId`.** Une requête Prisma sur une table de partie sans `saveId` dans
-le `where` est un bug : elle mélangerait deux parties du même utilisateur.
+**Toute requête est scopée par le propriétaire de la partie, puis par `saveId`.** Une requête Prisma sur une
+table de partie sans `saveId` dans le `where` est un bug : elle mélangerait deux parties du même utilisateur.
+La propriété (une partie appartient à un compte) arrive avec le chantier comptes : d'ici là, le `saveId` reste
+le seul filtre, et toute nouvelle fonction d'accès doit pouvoir recevoir le propriétaire sans être réécrite.
 
 **Pas de marques sous licence.** Aucune mention de FIFA, EA, ou des noms de compétitions officiels sous
 licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (CC0).
+
+## Marque et règles produit
+
+**Nom.** Le jeu s'appelle **Late Winner**. Le nom interne du dépôt (`career-manager`) ne change pas.
+Adresse canonique : https://www.latewinner.app.
+
+**Communication sortante.** Titres de page, descriptions, images de partage et cartes partageables ne
+contiennent aucun nom de club, ni « FIFA », ni « EA FC », ni le nom d'un jeu concurrent.
+
+**Noms de clubs.** Le nom affiché d'un club passe toujours par une fonction unique de résolution (à créer) ;
+aucun composant ne lit `Club.name` pour l'afficher directement. Jamais de logo ni d'écusson.
+
+**Hébergement.** Aucun service propre à Vercel (Blob, KV, Cron, Analytics) : le jeu doit rester déplaçable
+chez un autre hébergeur.
+
+**Budget base de données.** Le plan gratuit Neon donne, par mois, 100 CU-h de calcul, 1 Go de stockage et
+5 Go de transfert, **partagés par la production et la branche de test**. Limiter le volume des tests lourds
+(`npm run test:slow`, saisons complètes, E2E) : ne les lancer que quand le changement le justifie.
 
 ## Conventions
 
