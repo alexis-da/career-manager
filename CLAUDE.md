@@ -46,14 +46,26 @@ licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (C
 
 ## Marque et règles produit
 
-**Nom.** Le jeu s'appelle **Late Winner**. Le nom interne du dépôt (`career-manager`) ne change pas.
-Adresse canonique : https://www.latewinner.app.
+**Nom.** Le jeu s'appelle **Late Winner**. Slogan : « The football career game ». Accroche : « Take your club
+to the top ». Adresse canonique : https://www.latewinner.app. « Career Manager » reste le nom interne (dépôt,
+`package.json`, projet Vercel) : seul ce que voit le joueur change. Métadonnées, slogan et accroche en anglais ;
+le jeu lui-même est en français. Fichiers de marque dans `public/brand/` (logo clair, logo pour fond sombre,
+icône), icônes du site dans `app/` (`favicon.ico`, `icon.svg`, `apple-icon.png`) et `public/icons/`.
 
-**Communication sortante.** Titres de page, descriptions, images de partage et cartes partageables ne
-contiennent aucun nom de club, ni « FIFA », ni « EA FC », ni le nom d'un jeu concurrent.
+**Couleurs.** Bleu vif `#1F3BFF`, bleu nuit `#0B1340`, orange `#FF9F1C`, blanc, fond clair `#EEF1F7`. Elles
+habillent les pages hors partie (connexion, accueil) via la classe `.brand` (`app/globals.css`). Dans une partie,
+rien ne change : le club garde son accent, seule l'icône Late Winner est en tête de la barre de navigation.
 
-**Noms de clubs.** Le nom affiché d'un club passe toujours par une fonction unique de résolution (à créer) ;
-aucun composant ne lit `Club.name` pour l'afficher directement. Jamais de logo ni d'écusson.
+**Communication sortante.** Titres de page, descriptions, images de partage (`app/opengraph-image.tsx`) et
+cartes partageables ne contiennent aucun nom de club, ni « FIFA », ni « EA FC », ni le nom d'un jeu concurrent.
+
+**Noms de clubs.** Le nom affiché d'un club passe toujours par `displayClubName` (ou `displayClubShortName`),
+point unique de résolution dans `src/engine/club-name.ts`. Il s'appelle dans `src/db`, là où les lignes Prisma
+deviennent des vues, jamais dans un composant client : `CLUB_NAMES` est une variable serveur. Aucun composant ne
+lit `Club.name` pour l'afficher. `CLUB_NAMES` (lu une fois au démarrage) : `real` par défaut, `fictional` pour
+les noms neutres de `prisma/seed/data/club-aliases-fallback.json` (clé = slug ; ville ou région + mot neutre,
+jamais le mot distinctif du vrai club). Un club ajouté au seed doit y avoir son entrée : un test le vérifie.
+Jamais de logo ni d'écusson de club.
 
 **Hébergement.** Aucun service propre à Vercel (Blob, KV, Cron, Analytics) : le jeu doit rester déplaçable
 chez un autre hébergeur.
@@ -81,7 +93,8 @@ app/                  # routes App Router, à la racine ; UI en français
 e2e/                  # tests Playwright (npm run test:e2e)
 src/
   components/ui/      # composants shadcn/ui (Base UI), générés par la CLI
-  engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes
+  engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes ;
+                      # club-name.ts : nom affiché des clubs (CLUB_NAMES)
     data/names/       # listes de noms, importées statiquement
   db/                 # accès Prisma, toujours scopé par saveId ; *.slow.test.ts via npm run test:slow
   lib/                # utilitaires partagés (rng, dates, couleurs, formatage)
@@ -90,7 +103,7 @@ prisma/
   schema.prisma
   migrations/
   seed/               # import OpenFootball, couleurs des clubs, génération du monde
-    data/             # calendriers OpenFootball et club-colors.json
+    data/             # calendriers OpenFootball, club-colors.json, club-aliases-fallback.json
 ```
 
 ## Ordre de construction

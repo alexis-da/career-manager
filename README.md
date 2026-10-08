@@ -35,7 +35,8 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 2. Créer les variables d'environnement du projet (voir `.env.example`) :
    - `DATABASE_URL` : connexion PostgreSQL *poolée*, utilisée par l'application ;
    - `DIRECT_URL` : connexion *directe* à la même base, utilisée par les migrations et le seed ;
-   - `APP_PASSWORD` : mot de passe d'accès au site (sans lui, le site est ouvert à tous).
+   - `APP_PASSWORD` : mot de passe d'accès au site (sans lui, le site est ouvert à tous) ;
+   - `CLUB_NAMES` (facultatif) : `real` (par défaut) ou `fictional` pour afficher des noms de clubs neutres.
 3. Déployer : `npm run build` génère le client Prisma, applique les migrations puis construit l'application.
 4. Première fois seulement, remplir la base depuis un poste local : `DIRECT_URL=… npm run db:seed`.
 5. Les tests E2E ne tournent jamais au build : en local, ils écrivent dans la base de `DATABASE_URL_TEST` (`.env.test`).
