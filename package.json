@@ -12,6 +12,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "db:seed": "prisma db seed",
+    "measure:size": "tsx scripts/measure-save-size.ts",
     "test:slow": "vitest run --config vitest.slow.config.mts",
     "test:e2e": "playwright test"
   },
