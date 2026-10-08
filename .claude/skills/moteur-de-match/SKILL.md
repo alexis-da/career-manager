@@ -75,6 +75,12 @@ du dispositif, vides compris : une équipe à 10 est plus faible.
   joue h1 dans `playNextMatchday(saveId, { pauseManagedMatch: true })` puis h2 dans `resumeLiveMatch` : sans
   changement, le résultat est identique à un match joué d'une traite.
 
+**Événements persistés.** `eventsToPersist(events, involvesManagedClub)` (`match.ts`) : tous les événements pour un
+match du club dirigé, seulement les buts (avec leur passeur) pour les autres (`OTHER_MATCH_EVENT_TYPES`, `balance.ts`),
+seuls lus à l'écran (scores des autres matchs pendant le direct). Le filtre s'applique à l'écriture
+(`recordFinishedMatches`), après les stats de saison, la forme et les blessures, calculées sur le match complet en
+mémoire : il ne change ni tirage ni score. Une saison passe de 23 600 à 5 800 lignes de `MatchEvent` par partie.
+
 Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 % de victoires à domicile, Bayern-Monza
 82,9 % inchangé.
 

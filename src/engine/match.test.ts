@@ -7,6 +7,7 @@ import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "./gener
 import { selectLineup, type Lineup, type SquadPlayer } from "./lineup";
 import {
   applyAutomaticHalfTime,
+  eventsToPersist,
   applyHalfTimeChoice,
   automaticHalfTimeChoice,
   expectedGoals,
@@ -188,6 +189,47 @@ describe("simulateMatch", () => {
     expect(count("RED_CARD")).toBeLessThan(0.3);
     expect(count("INJURY")).toBeLessThan(0.5);
     expect(count("SUBSTITUTION")).toBeGreaterThan(4);
+  });
+});
+
+describe("eventsToPersist", () => {
+  // A match with every kind of event: goals with and without an assist, cards, an injury, substitutions.
+  const full = leagueResults.find((result) => {
+    const types = new Set(result.events.map((event) => event.type));
+    return types.size === 5 && result.events.some((event) => event.type === "GOAL" && event.relatedPlayerId === undefined);
+  });
+
+  it("keeps every event of a match of the managed club", () => {
+    if (full === undefined) {
+      throw new Error("No match with every kind of event");
+    }
+    expect(eventsToPersist(full.events, true)).toEqual(full.events);
+  });
+
+  it("keeps only the goals of another match, with their assists, in match order", () => {
+    if (full === undefined) {
+      throw new Error("No match with every kind of event");
+    }
+    const kept = eventsToPersist(full.events, false);
+
+    expect(kept).toEqual(full.events.filter((event) => event.type === "GOAL"));
+    expect(kept.length).toBe(full.homeGoals + full.awayGoals);
+    expect(kept.some((event) => event.relatedPlayerId !== undefined)).toBe(true);
+  });
+
+  it("changes neither the match nor its stats, computed from every event", () => {
+    if (full === undefined) {
+      throw new Error("No match with every kind of event");
+    }
+    const before = structuredClone(full);
+    const stats = playerMatchStats(full);
+    eventsToPersist(full.events, false);
+
+    expect(full).toEqual(before);
+    expect(playerMatchStats(full)).toEqual(stats);
+    expect(stats.reduce((sum, player) => sum + player.yellowCards, 0)).toBe(
+      full.events.filter((event) => event.type === "YELLOW_CARD").length,
+    );
   });
 });
 

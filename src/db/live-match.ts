@@ -175,6 +175,7 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
             seasonId: fixture.seasonId,
             result,
             newEvents: result.events.slice(halfTime.events.length),
+            involvesManagedClub: true,
             squads: {
               home: getOrThrow(squads, fixture.homeClubSaveId, "home squad"),
               away: getOrThrow(squads, fixture.awayClubSaveId, "away squad"),

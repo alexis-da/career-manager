@@ -23,6 +23,7 @@ import {
   MAX_EXPECTED_GOALS,
   MAX_STOPPAGE_MINUTES,
   MAX_SUBSTITUTIONS,
+  OTHER_MATCH_EVENT_TYPES,
   RED_CARDS_PER_TEAM,
   REGULATION_MINUTES,
   SCORER_SLOT_WEIGHTS,
@@ -695,6 +696,15 @@ export function simulateMatch(
 ): MatchResult {
   const halfTime = simulateHalf(startMatch(home, away, formations), makeRng(halfRngSeed(matchSeed, "h1")), "h1");
   return matchResult(simulateHalf(applyAutomaticHalfTime(halfTime), makeRng(halfRngSeed(matchSeed, "h2")), "h2"));
+}
+
+/**
+ * The events of a match worth writing: all of them for a match of the managed club, its goals only (with their
+ * assists) for another match, the only events of it ever shown. Stats, form and injuries are computed before, from
+ * the whole match; filtering here never changes a draw or a score.
+ */
+export function eventsToPersist(events: readonly MatchEvent[], involvesManagedClub: boolean): MatchEvent[] {
+  return involvesManagedClub ? [...events] : events.filter((event) => OTHER_MATCH_EVENT_TYPES.includes(event.type));
 }
 
 export function outcomeFor(result: MatchResult, side: Side): Outcome {

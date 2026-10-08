@@ -1,6 +1,7 @@
 import { DEFAULT_FORMATION_NAME, type FormationName } from "../engine/formations";
 import { autoFilledSlots, resolveLineup, selectLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import {
+  eventsToPersist,
   halfRngSeed,
   matchRngSeed,
   nextForm,
@@ -156,6 +157,7 @@ export type FinishedMatch = {
   seasonId: string;
   result: MatchResult;
   newEvents: readonly MatchEvent[]; // the events not written yet: all of them, or the second half's after a pause
+  involvesManagedClub: boolean; // a match of the managed club keeps all its events, another one its goals only
   squads: Readonly<Record<Side, readonly SquadPlayer[]>>; // the clubs' players, whose form and injuries change
 };
 
@@ -168,8 +170,9 @@ type SeasonStats = {
 const seasonStatsKey = (seasonId: string, playerSaveId: string): string => `${seasonId}#${playerSaveId}`;
 
 /**
- * Writes finished matches in bulk: final and half-time scores (the live state cleared), events not written yet,
- * season stats, form and injuries of both clubs' players.
+ * Writes finished matches in bulk: final and half-time scores (the live state cleared), events not written yet (all
+ * of them for the managed club's match, the goals only for the others: eventsToPersist), season stats, form and
+ * injuries of both clubs' players, these three from the whole match.
  */
 export async function recordFinishedMatches(
   tx: Transaction,
@@ -186,8 +189,9 @@ export async function recordFinishedMatches(
   const seasonStats: SeasonStats[] = [];
   const playerUpdates: { playerSaveId: string; form: number; injuredUntil: Date | null }[] = [];
 
-  for (const { fixtureId, seasonId, result, newEvents, squads } of matches) {
-    events.push(...matchEventRows(fixtureId, newEvents, stateByKey));
+  for (const { fixtureId, seasonId, result, newEvents, involvesManagedClub, squads } of matches) {
+    // Only the writing is filtered: the stats and injuries below come from the whole match in memory.
+    events.push(...matchEventRows(fixtureId, eventsToPersist(newEvents, involvesManagedClub), stateByKey));
 
     const statsByKey = new Map(playerMatchStats(result).map((stats) => [stats.playerId, stats]));
     for (const stats of statsByKey.values()) {
@@ -378,7 +382,14 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         if (managedSide !== null) {
           managed = { fixtureId: fixture.id, autoFilledSlots: (managedSide === "home" ? home : away).autoFilledSlots, halfTime: false };
         }
-        finished.push({ fixtureId: fixture.id, seasonId: fixture.seasonId, result, newEvents: result.events, squads: squadsBySide });
+        finished.push({
+          fixtureId: fixture.id,
+          seasonId: fixture.seasonId,
+          result,
+          newEvents: result.events,
+          involvesManagedClub: managedSide !== null,
+          squads: squadsBySide,
+        });
       }
 
       await recordFinishedMatches(tx, saveId, matchDate, finished, stateByKey);

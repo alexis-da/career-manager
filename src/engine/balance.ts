@@ -1,6 +1,6 @@
 import type { Curve } from "./curves";
 import type { AttributeName } from "./generation";
-import type { Outcome } from "./match";
+import type { MatchEventType, Outcome } from "./match";
 import type { Position, PositionGroup } from "./positions";
 
 // ------------------------------------------------------------------ Attribute generation
@@ -294,6 +294,15 @@ export const MAX_SUBSTITUTIONS = 5;
 export const SUBSTITUTIONS_PER_TEAM = 3;
 export const SUBSTITUTION_MINUTE_MIN = 55;
 export const SUBSTITUTION_MINUTE_MAX = 85;
+
+// ------------------------------------------------------------------ Match events kept in the database
+
+/**
+ * Event types written for a match without the managed club. Only its goals are ever shown (the other matches' scores
+ * during a live match); season stats, form and injuries come from the whole match in memory, before this filter.
+ * The managed club's matches keep every event. Three quarters of a season's events go otherwise.
+ */
+export const OTHER_MATCH_EVENT_TYPES: readonly MatchEventType[] = ["GOAL"];
 
 // ------------------------------------------------------------------ Form after a match
 
