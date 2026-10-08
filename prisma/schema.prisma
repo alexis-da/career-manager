@@ -66,8 +66,22 @@ model Player {
 // chaque étape interne de cette cascade : MatchEvent et Transfer, qui référencent PlayerSave, sont donc en
 // Cascade vers PlayerSave, sans quoi une partie jouée ne pourrait pas être supprimée.
 
+// ---------------------------------------------------------------- COMPTES
+// Un joueur du site. ANONYMOUS : reconnu par le cookie lw_uid, sans compte ; REGISTERED : compte (session suivante).
+// Supprimer un User emporte ses parties (cascade) ; seuls la purge et les tests suppriment des User.
+
+model User {
+  id         String   @id @default(cuid())
+  kind       UserKind
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime // mis à jour au plus une fois par jour (src/auth/current-user.ts), pour la purge
+  saves      Save[]
+}
+
 model Save {
   id            String              @id @default(cuid())
+  owner         User?               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId       String? // null = partie « héritée », d'avant les propriétaires, rattachée plus tard au compte administrateur
   name          String
   managerName   String
   seed          String // graine de tout l'aléatoire de la partie
@@ -81,6 +95,8 @@ model Save {
   fixtures      Fixture[]
   transfers     Transfer[]
   stats         PlayerSeasonStats[]
+
+  @@index([ownerId])
 }
 
 model Season {
@@ -251,6 +267,11 @@ enum Position {
   RW
   LW
   ST
+}
+
+enum UserKind {
+  ANONYMOUS
+  REGISTERED
 }
 
 enum FixtureStatus {

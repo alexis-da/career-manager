@@ -36,6 +36,11 @@ rend le moteur testable et rejouable.
 d'OpenFootball et ne changent jamais pendant une partie. Tout ce qui évolue est suffixé `Save`
 (`PlayerSave`, `ClubSave`) et porte un `saveId`. Ne jamais muter une table de référence depuis le jeu.
 
+**Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade) ; seuls
+la purge et les tests suppriment des `User`. Les parties d'avant les propriétaires gardent `ownerId` NULL : ce sont
+les parties **héritées**, rattachées plus tard au compte administrateur. Toute nouvelle partie a un propriétaire ;
+le code n'en crée jamais sans.
+
 **Toute requête est scopée par le propriétaire de la partie, puis par `saveId`.** Une requête Prisma sur une
 table de partie sans `saveId` dans le `where` est un bug : elle mélangerait deux parties du même utilisateur.
 La propriété (une partie appartient à un compte) arrive avec le chantier comptes : d'ici là, le `saveId` reste
