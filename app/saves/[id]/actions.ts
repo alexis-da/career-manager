@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import * as z from "zod";
 import { getManagedClubFixtureOn } from "@/src/db/calendar";
-import { playNextMatchday } from "@/src/db/matchday";
+import { NoMatchInProgressError, resumeLiveMatch } from "@/src/db/live-match";
+import { formationSchema } from "@/src/db/lineup";
+import { MatchInProgressError, playNextMatchday } from "@/src/db/matchday";
 import { getOpponentPreview, type OpponentPreview } from "@/src/db/opponent";
 import { advanceToNextSeason, SeasonNotFinishedError } from "@/src/db/season";
 import {
@@ -15,8 +17,11 @@ import {
   type SimulationPlan,
   type SimulationSummary,
 } from "@/src/db/simulation";
+import { MAX_SUBSTITUTIONS } from "@/src/engine/balance";
+import { HalfTimeChoiceError } from "@/src/engine/match";
 import { seasonLabel } from "@/src/engine/world";
 import { formatDate } from "@/src/lib/format";
+import { halfTimeRefusalMessage, MATCH_IN_PROGRESS_MESSAGE, NO_MATCH_IN_PROGRESS_MESSAGE } from "./_lib/live-match";
 
 export type GameActionResult = {
   ok: boolean;
@@ -29,7 +34,15 @@ const saveIdSchema = z.string().min(1);
 
 export async function playMatchdayAction(saveId: string): Promise<GameActionResult> {
   const id = saveIdSchema.parse(saveId);
-  const matchday = await playNextMatchday(id);
+  let matchday;
+  try {
+    matchday = await playNextMatchday(id);
+  } catch (error) {
+    if (error instanceof MatchInProgressError) {
+      return { ok: false, message: MATCH_IN_PROGRESS_MESSAGE };
+    }
+    throw error;
+  }
   if (matchday === null) {
     return { ok: false, message: "Tous les matchs de la saison sont joués." };
   }
@@ -58,8 +71,56 @@ export async function advanceSeasonAction(saveId: string): Promise<GameActionRes
       message: `Saison ${season} lancée : ${transition.retired} retraites, ${transition.preseason.youthPlayers} jeunes arrivés.`,
     };
   } catch (error) {
+    if (error instanceof MatchInProgressError) {
+      return { ok: false, message: MATCH_IN_PROGRESS_MESSAGE };
+    }
     if (error instanceof SeasonNotFinishedError) {
       return { ok: false, message: "La saison n'est pas terminée." };
+    }
+    throw error;
+  }
+}
+
+/**
+ * The manager's half-time changes: formation, player per slot index, substitutions (playerKey in, playerKey out).
+ * null resumes without a change, the injured players being replaced automatically as AI clubs do.
+ */
+const halfTimeChoiceSchema = z
+  .object({
+    formation: formationSchema,
+    lineup: z
+      .array(z.object({ slot: z.number().int().min(0).max(10), playerKey: z.string().min(1).max(100) }))
+      .max(11),
+    substitutions: z
+      .array(z.object({ in: z.string().min(1).max(100), out: z.string().min(1).max(100) }))
+      .max(MAX_SUBSTITUTIONS),
+  })
+  .nullable();
+
+export type HalfTimeChoiceInput = z.input<typeof halfTimeChoiceSchema>;
+
+/** Plays the second half of the managed club's match paused at half-time, with the manager's changes. */
+export async function resumeMatch(saveId: string, choice: HalfTimeChoiceInput): Promise<GameActionResult> {
+  const id = saveIdSchema.parse(saveId);
+  const parsed = halfTimeChoiceSchema.safeParse(choice);
+  if (!parsed.success) {
+    return { ok: false, message: `Changements invalides : ${MAX_SUBSTITUTIONS} remplacements au maximum, 11 postes.` };
+  }
+  try {
+    const { result } = await resumeLiveMatch(
+      id,
+      parsed.data === null
+        ? null
+        : { formation: parsed.data.formation, starters: parsed.data.lineup, substitutions: parsed.data.substitutions },
+    );
+    revalidatePath(`/saves/${id}`, "layout");
+    return { ok: true, message: `Score final : ${result.homeGoals} – ${result.awayGoals}`, redirectTo: `/saves/${id}/live` };
+  } catch (error) {
+    if (error instanceof HalfTimeChoiceError) {
+      return { ok: false, message: halfTimeRefusalMessage(error.issue) };
+    }
+    if (error instanceof NoMatchInProgressError) {
+      return { ok: false, message: NO_MATCH_IN_PROGRESS_MESSAGE };
     }
     throw error;
   }

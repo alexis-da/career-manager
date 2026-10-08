@@ -2,10 +2,28 @@ import { describe, expect, it } from "vitest";
 import { buildWorldPlan } from "../../prisma/seed/seed";
 import { ageInYears } from "../lib/dates";
 import { makeRng, randomInt } from "../lib/rng";
-import { MAX_STOPPAGE_MINUTES, REGULATION_MINUTES, SUBSTITUTIONS_PER_TEAM } from "./balance";
+import { HALF_TIME_MINUTE, MAX_STOPPAGE_MINUTES, MAX_SUBSTITUTIONS, REGULATION_MINUTES } from "./balance";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "./generation";
 import { selectLineup, type Lineup, type SquadPlayer } from "./lineup";
-import { nextForm, playerMatchStats, simulateMatch, type MatchResult } from "./match";
+import {
+  applyAutomaticHalfTime,
+  applyHalfTimeChoice,
+  automaticHalfTimeChoice,
+  expectedGoals,
+  halfRngSeed,
+  HalfTimeChoiceError,
+  liveStrength,
+  matchResult,
+  nextForm,
+  playerMatchStats,
+  simulateHalf,
+  simulateMatch,
+  startMatch,
+  type HalfTimeChoice,
+  type MatchResult,
+  type MatchState,
+} from "./match";
+import { ratingAt } from "./positions";
 import { WORLD_START_DATE } from "./world";
 
 const SAVE_SEED = "match-test";
@@ -50,7 +68,7 @@ const leagueResults: MatchResult[] = (() => {
     const { clubs } = competitions[index % competitions.length];
     const homeIndex = randomInt(rng, 0, clubs.length - 1);
     const awayIndex = (homeIndex + randomInt(rng, 1, clubs.length - 1)) % clubs.length;
-    return simulateMatch(clubs[homeIndex].lineup, clubs[awayIndex].lineup, makeRng(`league:${index}`));
+    return simulateMatch(clubs[homeIndex].lineup, clubs[awayIndex].lineup, `league:${index}`);
   });
 })();
 
@@ -60,12 +78,12 @@ const bayernMonza = Array.from({ length: MATCH_COUNT }, (_, index) => {
   const [home, away] = bayernAtHome
     ? [lineupOf("fc-bayern-munchen"), lineupOf("ac-monza")]
     : [lineupOf("ac-monza"), lineupOf("fc-bayern-munchen")];
-  return { bayernAtHome, result: simulateMatch(home, away, makeRng(`bayern-monza:${index}`)) };
+  return { bayernAtHome, result: simulateMatch(home, away, `bayern-monza:${index}`) };
 });
 
 describe("simulateMatch", () => {
   it("gives the same match sheet for the same seed", () => {
-    const play = (seed: string) => simulateMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc"), makeRng(seed));
+    const play = (seed: string) => simulateMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc"), seed);
 
     expect(play("same")).toEqual(play("same"));
     expect(play("same")).not.toEqual(play("other"));
@@ -118,8 +136,19 @@ describe("simulateMatch", () => {
         if (players.filter((appearance) => appearance.from === 0).length !== 11) {
           report(`${side} did not start with 11 players`);
         }
-        if (players.length > 11 + SUBSTITUTIONS_PER_TEAM) {
+        if (players.length > 11 + MAX_SUBSTITUTIONS) {
           report(`${side} used ${players.length} players`);
+        }
+        const substitutions = result.events.filter((event) => event.type === "SUBSTITUTION" && event.side === side).length;
+        if (substitutions > MAX_SUBSTITUTIONS) {
+          report(`${side} made ${substitutions} substitutions`);
+        }
+        const halfTimeGoals = side === "home" ? result.homeHalfTimeGoals : result.awayHalfTimeGoals;
+        const firstHalfGoals = result.events.filter(
+          (event) => event.type === "GOAL" && event.side === side && event.minute <= HALF_TIME_MINUTE,
+        ).length;
+        if (halfTimeGoals !== firstHalfGoals || halfTimeGoals > goals) {
+          report(`${side} led ${halfTimeGoals} at half-time with ${firstHalfGoals} first-half goals`);
         }
       }
       for (const event of result.events) {
@@ -185,5 +214,264 @@ describe("nextForm", () => {
     expect(stats.reduce((sum, player) => sum + player.assists, 0)).toBe(
       goals.filter((goal) => goal.relatedPlayerId !== undefined).length,
     );
+  });
+});
+
+describe("a match in two halves", () => {
+  const firstHalf = (seed: string): MatchState =>
+    simulateHalf(startMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc")), makeRng(halfRngSeed(seed, "h1")), "h1");
+  const secondHalf = (state: MatchState, seed: string): MatchResult =>
+    matchResult(simulateHalf(state, makeRng(halfRngSeed(seed, "h2")), "h2"));
+  const seeds = (count: number, prefix: string): string[] => Array.from({ length: count }, (_, index) => `${prefix}:${index}`);
+
+  /** A first half after which the home side still has its eleven, for half-time choices built by hand. */
+  const intactFirstHalf = (prefix: string): { seed: string; state: MatchState } => {
+    for (const seed of seeds(100, prefix)) {
+      const state = firstHalf(seed);
+      if (state.home.pitch.every((entry) => entry.status === "ON")) {
+        return { seed, state };
+      }
+    }
+    throw new Error("No first half without a home injury or red card");
+  };
+
+  /** The home side's eleven as it is, as half-time starters. */
+  const homeStarters = (state: MatchState): HalfTimeChoice["starters"] =>
+    state.home.pitch.filter((entry) => entry.status === "ON").map((entry) => ({ slot: entry.index, playerKey: entry.player.id }));
+
+  /** Home's striker (slot 9 of the 4-3-3) off, its backup goalkeeper on in his place: a much weaker attack. */
+  const goalkeeperUpFront = (state: MatchState): HalfTimeChoice => {
+    const striker = state.home.pitch.find((entry) => entry.index === 9);
+    const goalkeeper = state.home.bench.find((player) => player.position === "GK");
+    if (striker === undefined || goalkeeper === undefined) {
+      throw new Error("No striker or backup goalkeeper");
+    }
+    return {
+      formation: state.home.formation,
+      starters: homeStarters(state).map((starter) => (starter.slot === 9 ? { slot: 9, playerKey: goalkeeper.id } : starter)),
+      substitutions: [{ in: goalkeeper.id, out: striker.player.id }],
+    };
+  };
+
+  /** The home side with the player of a slot gone off, injured or sent off. */
+  const withHomeSlot = (state: MatchState, index: number, status: "INJURED" | "SENT_OFF"): MatchState => ({
+    ...state,
+    home: { ...state.home, pitch: state.home.pitch.map((entry) => (entry.index === index ? { ...entry, status } : entry)) },
+  });
+
+  const issueOf = (play: () => unknown): string | undefined => {
+    try {
+      play();
+    } catch (error) {
+      if (error instanceof HalfTimeChoiceError) {
+        return error.issue;
+      }
+      throw error;
+    }
+    return undefined;
+  };
+
+  it("plays a whole match as the first half, the automatic half-time changes and the second half", () => {
+    for (const seed of seeds(50, "halves")) {
+      const halfTime = firstHalf(seed);
+      const result = secondHalf(applyAutomaticHalfTime(halfTime), seed);
+
+      expect(result).toEqual(simulateMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc"), seed));
+      expect(halfTime.phase).toBe("HALF_TIME");
+      expect(halfTime.events.every((event) => event.minute >= 1 && event.minute <= HALF_TIME_MINUTE)).toBe(true);
+      expect(result.events.slice(halfTime.events.length).every((event) => event.minute > HALF_TIME_MINUTE)).toBe(true);
+      expect([result.homeHalfTimeGoals, result.awayHalfTimeGoals]).toEqual([halfTime.home.goals, halfTime.away.goals]);
+    }
+  });
+
+  it("replays the same second half from a half-time state stored as JSON", () => {
+    for (const seed of seeds(20, "stored")) {
+      const halfTime = firstHalf(seed);
+      const stored: MatchState = JSON.parse(JSON.stringify(halfTime));
+
+      expect(stored).toEqual(halfTime);
+      expect(secondHalf(applyAutomaticHalfTime(stored), seed)).toEqual(secondHalf(applyAutomaticHalfTime(halfTime), seed));
+    }
+  });
+
+  it("changes the second half with a half-time substitution, the same way at every replay", () => {
+    const { seed, state } = intactFirstHalf("substitution");
+    const choice = goalkeeperUpFront(state);
+    const changed = applyHalfTimeChoice(state, "home", choice);
+    const [substitution] = choice.substitutions;
+
+    expect(changed.events.at(-1)).toEqual({
+      minute: HALF_TIME_MINUTE + 1,
+      side: "home",
+      type: "SUBSTITUTION",
+      playerId: substitution.in,
+      relatedPlayerId: substitution.out,
+    });
+    expect(changed.home.substitutions).toBe(1);
+    expect(liveStrength(changed.home).attack).toBeLessThan(liveStrength(state.home).attack);
+    expect(secondHalf(changed, seed)).toEqual(secondHalf(applyHalfTimeChoice(state, "home", choice), seed));
+
+    const striker = secondHalf(changed, seed).appearances.find((appearance) => appearance.playerId === substitution.out);
+    expect(striker).toMatchObject({ from: 0, to: HALF_TIME_MINUTE, minutes: HALF_TIME_MINUTE });
+
+    // Over many second halves from the same break, the weaker attack scores less.
+    const goals = (from: MatchState) =>
+      seeds(2000, "second-halves").reduce((sum, second) => sum + secondHalf(from, second).homeGoals - from.home.goals, 0);
+    expect(goals(applyAutomaticHalfTime(changed, ["away"]))).toBeLessThan(goals(applyAutomaticHalfTime(state)));
+  });
+
+  it("moves players between slots for free, and switches formation", () => {
+    const { state } = intactFirstHalf("moves");
+    const starters = homeStarters(state);
+    const swapped = starters.map((starter) =>
+      starter.slot === 6 ? { ...starter, slot: 7 } : starter.slot === 7 ? { ...starter, slot: 6 } : starter,
+    );
+    const moved = applyHalfTimeChoice(state, "home", { formation: state.home.formation, starters: swapped, substitutions: [] });
+
+    expect(moved.home.substitutions).toBe(0);
+    expect(moved.events).toEqual(state.events);
+    expect(moved.home.pitch.find((entry) => entry.index === 6)?.player.id).toBe(state.home.pitch[7].player.id);
+
+    const fourFourTwo = applyHalfTimeChoice(state, "home", { formation: "4-4-2", starters, substitutions: [] });
+    expect(fourFourTwo.home.formation).toBe("4-4-2");
+    expect(fourFourTwo.home.pitch.map((entry) => entry.slot)).toEqual(["GK", "RB", "CB", "CB", "LB", "RM", "CM", "CM", "LM", "ST", "ST"]);
+    expect(fourFourTwo.home.pitch.every((entry) => entry.from === 0)).toBe(true);
+  });
+
+  it("plays a team down to ten weaker, its sent-off player's slot left empty and never filled", () => {
+    const { seed, state } = intactFirstHalf("ten");
+    const sentOff = withHomeSlot(state, 7, "SENT_OFF");
+    const full = { home: liveStrength(state.home), away: liveStrength(state.away) };
+    const ten = liveStrength(sentOff.home);
+
+    expect(ten.attack).toBeLessThan(full.home.attack);
+    expect(ten.defense).toBeLessThan(full.home.defense);
+    expect(expectedGoals(full.away, ten, 1)).toBeGreaterThan(expectedGoals(full.away, full.home, 1));
+
+    const automatic = automaticHalfTimeChoice(sentOff, "home");
+    expect(automatic.substitutions).toEqual([]);
+    expect(automatic.starters.map((starter) => starter.slot)).not.toContain(7);
+
+    const cm = state.home.pitch[7].player.id;
+    const resumed = secondHalf(applyAutomaticHalfTime(sentOff), seed);
+    expect(resumed.events.some((event) => event.relatedPlayerId === cm && event.type === "SUBSTITUTION")).toBe(false);
+
+    const substitute = sentOff.home.bench[1].id;
+    const starters = homeStarters(sentOff);
+    expect(
+      issueOf(() =>
+        applyHalfTimeChoice(sentOff, "home", {
+          formation: sentOff.home.formation,
+          starters: [...starters, { slot: 7, playerKey: substitute }],
+          substitutions: [{ in: substitute, out: cm }],
+        }),
+      ),
+    ).toBe("sent-off-player");
+    expect(
+      issueOf(() =>
+        applyHalfTimeChoice(sentOff, "home", {
+          formation: sentOff.home.formation,
+          starters: starters.map((starter) => (starter.slot === 6 ? { ...starter, slot: 7 } : starter)),
+          substitutions: [],
+        }),
+      ),
+    ).toBe("sent-off-slot");
+
+    // Over many second halves, ten score less and concede more than eleven.
+    const totals = (from: MatchState) =>
+      seeds(2000, "ten-halves").reduce(
+        (sum, second) => {
+          const result = secondHalf(applyAutomaticHalfTime(from), second);
+          return {
+            scored: sum.scored + result.homeGoals - from.home.goals,
+            conceded: sum.conceded + result.awayGoals - from.away.goals,
+          };
+        },
+        { scored: 0, conceded: 0 },
+      );
+    const withTen = totals(sentOff);
+    const withEleven = totals(state);
+    expect(withTen.scored).toBeLessThan(withEleven.scored);
+    expect(withTen.conceded).toBeGreaterThan(withEleven.conceded);
+  });
+
+  it("allows five substitutions in a match, half-time ones included", () => {
+    const { seed, state } = intactFirstHalf("five");
+    const outfield = state.home.pitch.filter((entry) => entry.slot !== "GK");
+    const substitutes = state.home.bench.filter((player) => player.position !== "GK");
+    const choiceWith = (count: number): HalfTimeChoice => {
+      const changes = substitutes.slice(0, count).map((player, index) => ({ in: player.id, out: outfield[index].player.id }));
+      const replaced = new Map(changes.map((change) => [change.out, change.in]));
+      return {
+        formation: state.home.formation,
+        starters: homeStarters(state).map((starter) => ({ ...starter, playerKey: replaced.get(starter.playerKey) ?? starter.playerKey })),
+        substitutions: changes,
+      };
+    };
+
+    expect(substitutes.length).toBeGreaterThanOrEqual(MAX_SUBSTITUTIONS + 1);
+    expect(issueOf(() => applyHalfTimeChoice(state, "home", choiceWith(MAX_SUBSTITUTIONS + 1)))).toBe("too-many-substitutions");
+
+    const allUsed = applyAutomaticHalfTime(applyHalfTimeChoice(state, "home", choiceWith(MAX_SUBSTITUTIONS)), ["away"]);
+    for (const second of [seed, ...seeds(300, "five-halves")]) {
+      const homeSubstitutions = secondHalf(allUsed, second).events.filter(
+        (event) => event.type === "SUBSTITUTION" && event.side === "home",
+      );
+      expect(homeSubstitutions).toHaveLength(MAX_SUBSTITUTIONS);
+      expect(homeSubstitutions.every((event) => event.minute === HALF_TIME_MINUTE + 1)).toBe(true);
+    }
+  });
+
+  it("replaces a player injured in the first half at half-time with the substitute rated best in his slot", () => {
+    const { state } = intactFirstHalf("injured");
+    const injured = withHomeSlot(state, 1, "INJURED");
+    const best = [...injured.home.bench].sort((a, b) => ratingAt(b, "RB") - ratingAt(a, "RB") || (a.id < b.id ? -1 : 1))[0];
+    const automatic = automaticHalfTimeChoice(injured, "home");
+
+    expect(automatic.substitutions).toEqual([{ in: best.id, out: injured.home.pitch[1].player.id }]);
+    expect(automatic.starters).toContainEqual({ slot: 1, playerKey: best.id });
+    expect(applyHalfTimeChoice(injured, "home", automatic).home.pitch[1]).toMatchObject({
+      player: { id: best.id },
+      from: HALF_TIME_MINUTE,
+      status: "ON",
+    });
+
+    // Leaving his slot empty while substitutes remain is refused.
+    expect(
+      issueOf(() =>
+        applyHalfTimeChoice(injured, "home", {
+          ...automatic,
+          starters: automatic.starters.filter((starter) => starter.slot !== 1),
+          substitutions: [],
+        }),
+      ),
+    ).toBe("incomplete-lineup");
+  });
+
+  it("refuses a player who went off, a player who is not a substitute, and an eleven that does not match", () => {
+    const { state } = intactFirstHalf("refusals");
+    const choice = goalkeeperUpFront(state);
+    const [substitution] = choice.substitutions;
+    const onPitch = choice.starters.find((starter) => starter.slot === 5)?.playerKey ?? "";
+    const refusal = (from: MatchState, changed: HalfTimeChoice) => issueOf(() => applyHalfTimeChoice(from, "home", changed));
+
+    expect(refusal(state, { ...choice, substitutions: [{ in: onPitch, out: substitution.out }] })).toBe("unknown-substitute");
+    expect(
+      refusal(state, {
+        ...choice,
+        starters: choice.starters.map((starter) => (starter.slot === 9 ? { slot: 9, playerKey: substitution.out } : starter)),
+      }),
+    ).toBe("lineup-mismatch");
+    expect(refusal(state, { ...choice, starters: choice.starters.slice(1) })).toBe("lineup-mismatch");
+    // The striker went off at half-time: he cannot come back on.
+    const after = applyHalfTimeChoice(state, "home", choice);
+    expect(
+      refusal(after, {
+        formation: after.home.formation,
+        starters: choice.starters.map((starter) => (starter.slot === 5 ? { slot: 5, playerKey: substitution.out } : starter)),
+        substitutions: [{ in: substitution.out, out: onPitch }],
+      }),
+    ).toBe("unknown-substitute");
+    expect(refusal(startMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc")), choice)).toBe("not-half-time");
   });
 });

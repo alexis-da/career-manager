@@ -14,23 +14,23 @@ datasource db {
 // ---------------------------------------------------------------- RÉFÉRENCE
 
 model Competition {
-  id       String   @id @default(cuid())
-  code     String   @unique // code OpenFootball, ex. "en.1"
-  name     String
-  country  String
-  tier     Int      @default(1)
-  clubs    Club[]
-  seasons  Season[]
+  id      String   @id @default(cuid())
+  code    String   @unique // code OpenFootball, ex. "en.1"
+  name    String
+  country String
+  tier    Int      @default(1)
+  clubs   Club[]
+  seasons Season[]
 }
 
 model Club {
-  id            String       @id @default(cuid())
-  slug          String       @unique // normalisé depuis le nom OpenFootball
-  name          String
-  shortName     String?
-  country       String
-  city          String?
-  stadium       String?
+  id             String       @id @default(cuid())
+  slug           String       @unique // normalisé depuis le nom OpenFootball
+  name           String
+  shortName      String?
+  country        String
+  city           String?
+  stadium        String?
   founded        Int?
   initialRank    Int // classement final de la saison source (2024-25) dans sa compétition, calculé par le seed depuis les scores
   primaryColor   String       @default("#737373") // couleur traditionnelle principale, #RRGGBB ; gris neutre par défaut
@@ -67,19 +67,20 @@ model Player {
 // Cascade vers PlayerSave, sans quoi une partie jouée ne pourrait pas être supprimée.
 
 model Save {
-  id          String              @id @default(cuid())
-  name        String
-  managerName String
-  seed        String // graine de tout l'aléatoire de la partie
-  currentDate DateTime // date "en jeu", jamais l'horloge système
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  clubSaves   ClubSave[]
-  playerSaves PlayerSave[]
-  seasons     Season[]
-  fixtures    Fixture[]
-  transfers   Transfer[]
-  stats       PlayerSeasonStats[]
+  id            String              @id @default(cuid())
+  name          String
+  managerName   String
+  seed          String // graine de tout l'aléatoire de la partie
+  currentDate   DateTime // date "en jeu", jamais l'horloge système
+  liveFixtureId String? // match du club dirigé en suspens à la mi-temps ; sans clé étrangère, pour ne pas croiser la cascade depuis Save
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  clubSaves     ClubSave[]
+  playerSaves   PlayerSave[]
+  seasons       Season[]
+  fixtures      Fixture[]
+  transfers     Transfer[]
+  stats         PlayerSeasonStats[]
 }
 
 model Season {
@@ -159,21 +160,25 @@ model PlayerSave {
 }
 
 model Fixture {
-  id            String       @id @default(cuid())
-  save          Save         @relation(fields: [saveId], references: [id], onDelete: Cascade)
-  saveId        String
-  season        Season       @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  seasonId      String
-  round         Int // numéro de journée
-  scheduledAt   DateTime
-  homeClubSave   ClubSave     @relation("HomeFixtures", fields: [homeClubSaveId], references: [id], onDelete: Cascade)
-  homeClubSaveId String
-  awayClubSave   ClubSave     @relation("AwayFixtures", fields: [awayClubSaveId], references: [id], onDelete: Cascade)
-  awayClubSaveId String
-  played        Boolean      @default(false)
-  homeGoals     Int?
-  awayGoals     Int?
-  events        MatchEvent[]
+  id                String        @id @default(cuid())
+  save              Save          @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId            String
+  season            Season        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId          String
+  round             Int // numéro de journée
+  scheduledAt       DateTime
+  homeClubSave      ClubSave      @relation("HomeFixtures", fields: [homeClubSaveId], references: [id], onDelete: Cascade)
+  homeClubSaveId    String
+  awayClubSave      ClubSave      @relation("AwayFixtures", fields: [awayClubSaveId], references: [id], onDelete: Cascade)
+  awayClubSaveId    String
+  played            Boolean       @default(false) // vrai si et seulement si status = PLAYED : un match en suspens n'est pas joué
+  status            FixtureStatus @default(SCHEDULED)
+  homeGoals         Int? // score final, null tant que le match n'est pas PLAYED
+  awayGoals         Int?
+  homeHalfTimeGoals Int? // score de mi-temps ; null pour les matchs joués avant le moteur en deux périodes
+  awayHalfTimeGoals Int?
+  liveState         Json? // état du moteur à la mi-temps pendant HALF_TIME (validé par Zod, src/db/live-match.ts), null sinon
+  events            MatchEvent[]
 
   @@index([saveId, seasonId, round])
   @@index([saveId, scheduledAt])
@@ -246,6 +251,12 @@ enum Position {
   RW
   LW
   ST
+}
+
+enum FixtureStatus {
+  SCHEDULED
+  HALF_TIME // première période jouée, le match du club dirigé attend la seconde (Save.liveFixtureId)
+  PLAYED
 }
 
 enum MatchEventType {

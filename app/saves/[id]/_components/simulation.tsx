@@ -12,6 +12,7 @@ import type { SimulatedMatch, SimulationSummary } from "@/src/db/simulation";
 import { formatDate, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { planSimulationAction, simulateMatchdays, simulationSummaryAction, type SimulationTargetInput } from "../actions";
+import { MATCH_IN_PROGRESS_MESSAGE } from "../_lib/live-match";
 import { RESULT_CLASSES, resultFor } from "../_lib/results";
 import { ResultPill } from "./result-pill";
 
@@ -304,6 +305,11 @@ export function SimulationProvider({
         } catch {
           setPhase({ kind: "idle" });
           toast.error("La simulation n'a pas pu démarrer. Réessayez.");
+          return;
+        }
+        if (plan.matchInProgress) {
+          setPhase({ kind: "idle" });
+          toast.error(MATCH_IN_PROGRESS_MESSAGE);
           return;
         }
         if (plan.matchdays === 0) {

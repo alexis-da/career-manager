@@ -81,6 +81,11 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
           </p>
           <p className="font-heading text-2xl leading-tight font-bold">{fixture.away.name}</p>
         </div>
+        {fixture.homeHalfTimeGoals !== null && fixture.awayHalfTimeGoals !== null && (
+          <p className="-mt-3 text-center text-sm text-muted-foreground tabular-nums" data-match-sheet="half-time">
+            Mi-temps : {fixture.homeHalfTimeGoals} – {fixture.awayHalfTimeGoals}
+          </p>
+        )}
 
         <div className="grid max-h-[55vh] grid-cols-2 gap-4 overflow-y-auto border-t pt-4 text-sm">
           <EventColumn events={fixture.events.filter((event) => event.side === "home")} align="right" />

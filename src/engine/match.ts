@@ -1,4 +1,4 @@
-import { poisson, randomInt, weightedIndex, type Rng } from "../lib/rng";
+import { makeRng, poisson, randomInt, weightedIndex, type Rng } from "../lib/rng";
 import {
   ASSIST_CHANCE,
   ASSIST_SLOT_WEIGHTS,
@@ -15,12 +15,14 @@ import {
   FORM_PER_GOAL,
   FORM_REST_DRIFT,
   FORM_SENT_OFF,
+  HALF_TIME_MINUTE,
   HOME_ADVANTAGE,
   INJURIES_PER_TEAM,
   INJURY_DAYS_MAX,
   INJURY_DAYS_MIN,
   MAX_EXPECTED_GOALS,
   MAX_STOPPAGE_MINUTES,
+  MAX_SUBSTITUTIONS,
   RED_CARDS_PER_TEAM,
   REGULATION_MINUTES,
   SCORER_SLOT_WEIGHTS,
@@ -32,6 +34,7 @@ import {
   SUBSTITUTIONS_PER_TEAM,
   YELLOW_CARDS_PER_TEAM,
 } from "./balance";
+import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "./formations";
 import { ATTRIBUTE_NAMES, clampRating, type AttributeName } from "./generation";
 import type { Lineup, SquadPlayer } from "./lineup";
 import { playerFamiliarity, positionGroup, ratingAt, type Position, type PositionGroup } from "./positions";
@@ -54,7 +57,7 @@ export type Appearance = {
   playerId: string;
   side: Side;
   slot: Position;
-  from: number; // minute the player came on, 0 for starters
+  from: number; // minute the player came on, 0 for starters, HALF_TIME_MINUTE for a half-time substitute
   to: number; // minute the player went off, or the final whistle
   minutes: number; // minutes played, stoppage time excluded, at least 1
 };
@@ -68,6 +71,8 @@ export type Injury = {
 export type MatchResult = {
   homeGoals: number;
   awayGoals: number;
+  homeHalfTimeGoals: number;
+  awayHalfTimeGoals: number;
   fullTime: number; // minute of the final whistle, stoppage time included
   events: MatchEvent[]; // in chronological order
   appearances: Appearance[]; // one per player who took part
@@ -89,6 +94,69 @@ export type PlayerMatchStats = {
   redCards: number;
 };
 
+/** A half of a match: the first from 1' to 45', the second from 46' to the final whistle. */
+export type Period = "h1" | "h2";
+
+export type MatchPhase = "KICK_OFF" | "HALF_TIME" | "FULL_TIME";
+
+/**
+ * A player in a slot of the formation. INJURED and SENT_OFF keep the player who left the slot, for the half-time
+ * screen: an injured player's slot is empty until someone replaces him, a sent-off player's slot stays empty.
+ */
+export type PitchEntry = {
+  index: number; // the slot's index in the formation
+  slot: Position;
+  player: SquadPlayer;
+  from: number; // minute the player came on, 0 for starters, HALF_TIME_MINUTE for a half-time substitute
+  status: "ON" | "INJURED" | "SENT_OFF";
+};
+
+export type TeamLive = {
+  formation: FormationName;
+  pitch: PitchEntry[]; // at most one entry per slot index
+  bench: SquadPlayer[]; // substitutes still available: a player who went off never comes back
+  substitutions: number; // made so far, at most MAX_SUBSTITUTIONS
+  booked: string[]; // players with a yellow card
+  goals: number;
+};
+
+/** Everything a match carries from one half to the next; plain data, stored as is while a match is paused. */
+export type MatchState = {
+  phase: MatchPhase;
+  fullTime: number | null; // drawn with the second half
+  home: TeamLive;
+  away: TeamLive;
+  events: MatchEvent[]; // in chronological order
+  appearances: Appearance[]; // of the players who already went off
+  injuries: Injury[];
+};
+
+/** A team's half-time decisions: its formation, who plays in which slot, and the substitutions made. */
+export type HalfTimeChoice = {
+  formation: FormationName;
+  starters: { slot: number; playerKey: string }[];
+  substitutions: { in: string; out: string }[];
+};
+
+export type HalfTimeChoiceIssue =
+  | "not-half-time"
+  | "too-many-substitutions"
+  | "unknown-player-off" // the player going off is neither on the pitch nor injured in this match
+  | "sent-off-player" // a sent-off player is never replaced and never plays again
+  | "unknown-substitute" // the player coming on is not on the bench: not a substitute, or already went off
+  | "duplicate-player"
+  | "invalid-slot"
+  | "sent-off-slot" // a sent-off player's slot stays empty
+  | "lineup-mismatch" // the eleven is not the players on the pitch after the substitutions
+  | "incomplete-lineup"; // a slot is left empty while a substitution and a substitute remain
+
+export class HalfTimeChoiceError extends Error {
+  constructor(readonly issue: HalfTimeChoiceIssue) {
+    super(`Invalid half-time choice: ${issue}`);
+    this.name = "HalfTimeChoiceError";
+  }
+}
+
 const SIDES: readonly Side[] = ["home", "away"];
 
 type IncidentKind = "GOAL" | "YELLOW_CARD" | "RED_CARD" | "INJURY" | "SUBSTITUTION";
@@ -104,16 +172,6 @@ const INCIDENT_ORDER: Readonly<Record<IncidentKind, number>> = {
 
 type Incident = { minute: number; side: Side; kind: IncidentKind };
 
-type OnPitch = { player: SquadPlayer; slot: Position; from: number };
-
-type TeamState = {
-  onPitch: OnPitch[];
-  bench: SquadPlayer[];
-  substitutionsLeft: number;
-  booked: Set<string>;
-  goals: number;
-};
-
 /**
  * Seed of a match stream, built from stable keys (season, matchday, club slugs), never from Fixture.id:
  * a cuid differs from one database to another and would break replays.
@@ -126,6 +184,11 @@ export function matchRngSeed(
   awaySlug: string,
 ): string {
   return `${saveSeed}:match:${startYear}:${round}:${homeSlug}:${awaySlug}`;
+}
+
+/** Seed of one half: each half has its own stream, so the second half replays from the half-time state alone. */
+export function halfRngSeed(matchSeed: string, period: Period): string {
+  return `${matchSeed}:${period}`;
 }
 
 function condition(player: SquadPlayer): number {
@@ -141,19 +204,24 @@ function weightedValue(player: SquadPlayer, weights: Partial<Record<AttributeNam
 }
 
 /**
- * Attack and defense of the starting eleven: each starter's attributes weighted for the group of their slot,
+ * Attack and defense of the players on the pitch: each one's attributes weighted for the group of their slot,
  * reduced by their familiarity with the slot (as ratingAt reduces the overall), adjusted for form and morale.
+ * A line's value is shared among the formation's slots of that line, empty ones included: a team down to ten
+ * is weaker. Without a formation, the starters' slots are the formation.
  */
-export function teamStrength(lineup: Lineup): TeamStrength {
+export function teamStrength(
+  lineup: Lineup,
+  formation: readonly Position[] = lineup.starters.map(({ slot }) => slot),
+): TeamStrength {
   const lineSizes: Record<PositionGroup, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
-  for (const { slot } of lineup.starters) {
+  for (const slot of formation) {
     lineSizes[positionGroup(slot)]++;
   }
   let attack = 0;
   let defense = 0;
   for (const { player, slot } of lineup.starters) {
     const group = positionGroup(slot);
-    const share = (condition(player) * playerFamiliarity(player, slot)) / lineSizes[group];
+    const share = (condition(player) * playerFamiliarity(player, slot)) / Math.max(1, lineSizes[group]);
     attack += ATTACK_LINE_WEIGHTS[group] * share * weightedValue(player, ATTACK_WEIGHTS[group]);
     defense += DEFENSE_LINE_WEIGHTS[group] * share * weightedValue(player, DEFENSE_WEIGHTS[group]);
   }
@@ -169,13 +237,53 @@ export function expectedGoals(team: TeamStrength, opponent: TeamStrength, venueF
   return Math.min(MAX_EXPECTED_GOALS, BASE_GOALS_PER_TEAM * Math.pow(ratio, STRENGTH_EXPONENT) * venueFactor);
 }
 
-function startingState(lineup: Lineup): TeamState {
+/** The players a team has on the pitch, as a lineup, with its remaining substitutes. */
+export function lineupOnPitch(team: TeamLive): Lineup {
   return {
-    onPitch: lineup.starters.map(({ player, slot }) => ({ player, slot, from: 0 })),
+    starters: team.pitch
+      .filter((entry) => entry.status === "ON")
+      .sort((a, b) => a.index - b.index)
+      .map(({ player, slot, index }) => ({ player, slot, index })),
+    bench: team.bench,
+  };
+}
+
+/** Attack and defense of a team as it stands: on ten after a red card, without an injured player until he is replaced. */
+export function liveStrength(team: TeamLive): TeamStrength {
+  return teamStrength(lineupOnPitch(team), formationPositions(team.formation));
+}
+
+function startingTeam(lineup: Lineup, formation: FormationName): TeamLive {
+  const positions = formationPositions(formation);
+  for (const { slot, index } of lineup.starters) {
+    if (positions[index] !== slot) {
+      throw new RangeError(`Slot ${index} of ${formation} is ${positions[index]}, not ${slot}`);
+    }
+  }
+  return {
+    formation,
+    pitch: lineup.starters.map(({ player, slot, index }) => ({ index, slot, player, from: 0, status: "ON" })),
     bench: [...lineup.bench],
-    substitutionsLeft: SUBSTITUTIONS_PER_TEAM,
-    booked: new Set(),
+    substitutions: 0,
+    booked: [],
     goals: 0,
+  };
+}
+
+/** A match before kick-off; both lineups are in the 4-3-3 of AI clubs unless told otherwise. */
+export function startMatch(
+  home: Lineup,
+  away: Lineup,
+  formations: Readonly<Record<Side, FormationName>> = { home: DEFAULT_FORMATION_NAME, away: DEFAULT_FORMATION_NAME },
+): MatchState {
+  return {
+    phase: "KICK_OFF",
+    fullTime: null,
+    home: startingTeam(home, formations.home),
+    away: startingTeam(away, formations.away),
+    events: [],
+    appearances: [],
+    injuries: [],
   };
 }
 
@@ -187,30 +295,29 @@ function compareIncidents(a: Incident, b: Incident): number {
   );
 }
 
-/** Index of an on-pitch player drawn by weight, or undefined when nobody can be drawn. */
-function drawOnPitch(rng: Rng, onPitch: readonly OnPitch[], weight: (entry: OnPitch) => number): number | undefined {
+/** A player on the pitch drawn by weight, or undefined when nobody can be drawn. */
+function drawOnPitch(rng: Rng, onPitch: readonly PitchEntry[], weight: (entry: PitchEntry) => number): PitchEntry | undefined {
   const weights = onPitch.map(weight);
-  return weights.some((value) => value > 0) ? weightedIndex(rng, weights) : undefined;
+  return weights.some((value) => value > 0) ? onPitch[weightedIndex(rng, weights)] : undefined;
 }
 
 /** The outfield starter still on the pitch rated lowest in their slot: the one making way for a tactical substitution. */
-function weakestStarterIndex(onPitch: readonly OnPitch[]): number | undefined {
-  let weakest: number | undefined;
-  onPitch.forEach((entry, index) => {
+function weakestStarter(onPitch: readonly PitchEntry[]): PitchEntry | undefined {
+  let weakest: PitchEntry | undefined;
+  for (const entry of onPitch) {
     if (entry.slot === "GK" || entry.from !== 0) {
-      return;
+      continue;
     }
     if (weakest === undefined) {
-      weakest = index;
-      return;
+      weakest = entry;
+      continue;
     }
-    const current = onPitch[weakest];
     const rating = ratingAt(entry.player, entry.slot);
-    const currentRating = ratingAt(current.player, current.slot);
-    if (rating < currentRating || (rating === currentRating && entry.player.id < current.player.id)) {
-      weakest = index;
+    const weakestRating = ratingAt(weakest.player, weakest.slot);
+    if (rating < weakestRating || (rating === weakestRating && entry.player.id < weakest.player.id)) {
+      weakest = entry;
     }
-  });
+  }
   return weakest;
 }
 
@@ -227,7 +334,7 @@ function replacementIndex(bench: readonly SquadPlayer[], slot: Position): number
   return best;
 }
 
-function toAppearance(entry: OnPitch, side: Side, to: number): Appearance {
+function toAppearance(entry: PitchEntry, side: Side, to: number): Appearance {
   return {
     playerId: entry.player.id,
     side,
@@ -238,77 +345,101 @@ function toAppearance(entry: OnPitch, side: Side, to: number): Appearance {
   };
 }
 
+function cloneTeam(team: TeamLive): TeamLive {
+  return { ...team, pitch: team.pitch.map((entry) => ({ ...entry })), bench: [...team.bench], booked: [...team.booked] };
+}
+
+function cloneState(state: MatchState): MatchState {
+  return {
+    ...state,
+    home: cloneTeam(state.home),
+    away: cloneTeam(state.away),
+    events: [...state.events],
+    appearances: [...state.appearances],
+    injuries: [...state.injuries],
+  };
+}
+
+const onPitch = (team: TeamLive): PitchEntry[] => team.pitch.filter((entry) => entry.status === "ON");
+
 /**
- * Simulates a match between two lineups:
- * 1. attack and defense of each eleven, weighted by slot, form and morale;
- * 2. expected goals from the attack / defense ratio, with home advantage;
- * 3. goals, cards and injuries counted with Poisson draws and spread over the match;
- * 4. scorers, assist providers, booked and injured players drawn among the players on the pitch at that
- *    minute; injured players are replaced while substitutions remain, the rest are tactical changes.
+ * Plays one half from the state it starts in, with its own random stream, and returns the state after it:
+ * 1. attack and defense of the players on the pitch, weighted by slot, form and morale, on ten after a red card;
+ * 2. half of the match's expected goals, with home advantage, and half of its expected cards and injuries,
+ *    counted with Poisson draws and spread over the half (the second one runs into stoppage time);
+ * 3. scorers, assist providers, booked and injured players drawn among the players on the pitch at that minute.
+ * In the first half an injured player's slot stays empty until half-time; in the second, he is replaced at once
+ * while substitutions remain, and tactical substitutions take off the weakest starters. A sent-off player is
+ * never replaced.
  */
-export function simulateMatch(home: Lineup, away: Lineup, rng: Rng): MatchResult {
-  const strengths: Record<Side, TeamStrength> = { home: teamStrength(home), away: teamStrength(away) };
+export function simulateHalf(start: MatchState, rng: Rng, period: Period): MatchState {
+  const expectedPhase: MatchPhase = period === "h1" ? "KICK_OFF" : "HALF_TIME";
+  if (start.phase !== expectedPhase) {
+    throw new Error(`Cannot play the ${period} half of a match at ${start.phase}`);
+  }
+  const state = cloneState(start);
+  const teams: Record<Side, TeamLive> = { home: state.home, away: state.away };
+
+  const strengths: Record<Side, TeamStrength> = { home: liveStrength(teams.home), away: liveStrength(teams.away) };
   const expected: Record<Side, number> = {
     home: expectedGoals(strengths.home, strengths.away, HOME_ADVANTAGE),
     away: expectedGoals(strengths.away, strengths.home, 1 / HOME_ADVANTAGE),
   };
-  const fullTime = REGULATION_MINUTES + randomInt(rng, 0, MAX_STOPPAGE_MINUTES);
+  const firstMinute = period === "h1" ? 1 : HALF_TIME_MINUTE + 1;
+  const lastMinute = period === "h1" ? HALF_TIME_MINUTE : REGULATION_MINUTES + randomInt(rng, 0, MAX_STOPPAGE_MINUTES);
 
   const incidents: Incident[] = [];
-  const schedule = (side: Side, kind: IncidentKind, count: number, firstMinute: number, lastMinute: number): void => {
+  const schedule = (side: Side, kind: IncidentKind, count: number, from: number, to: number): void => {
     for (let index = 0; index < count; index++) {
-      incidents.push({ minute: randomInt(rng, firstMinute, lastMinute), side, kind });
+      incidents.push({ minute: randomInt(rng, from, to), side, kind });
     }
   };
   for (const side of SIDES) {
-    schedule(side, "GOAL", poisson(rng, expected[side]), 1, fullTime);
-    schedule(side, "YELLOW_CARD", poisson(rng, YELLOW_CARDS_PER_TEAM), 1, fullTime);
-    schedule(side, "RED_CARD", poisson(rng, RED_CARDS_PER_TEAM), 1, fullTime);
-    schedule(side, "INJURY", poisson(rng, INJURIES_PER_TEAM), 1, fullTime);
-    schedule(side, "SUBSTITUTION", SUBSTITUTIONS_PER_TEAM, SUBSTITUTION_MINUTE_MIN, SUBSTITUTION_MINUTE_MAX);
+    schedule(side, "GOAL", poisson(rng, expected[side] / 2), firstMinute, lastMinute);
+    schedule(side, "YELLOW_CARD", poisson(rng, YELLOW_CARDS_PER_TEAM / 2), firstMinute, lastMinute);
+    schedule(side, "RED_CARD", poisson(rng, RED_CARDS_PER_TEAM / 2), firstMinute, lastMinute);
+    schedule(side, "INJURY", poisson(rng, INJURIES_PER_TEAM / 2), firstMinute, lastMinute);
+    if (period === "h2") {
+      schedule(side, "SUBSTITUTION", SUBSTITUTIONS_PER_TEAM, SUBSTITUTION_MINUTE_MIN, SUBSTITUTION_MINUTE_MAX);
+    }
   }
   incidents.sort(compareIncidents);
 
-  const teams: Record<Side, TeamState> = { home: startingState(home), away: startingState(away) };
-  const events: MatchEvent[] = [];
-  const appearances: Appearance[] = [];
-  const injuries: Injury[] = [];
-
-  const leave = (side: Side, index: number, minute: number): OnPitch => {
-    const [entry] = teams[side].onPitch.splice(index, 1);
-    appearances.push(toAppearance(entry, side, minute));
-    return entry;
+  const leave = (side: Side, entry: PitchEntry, minute: number, status: "INJURED" | "SENT_OFF"): void => {
+    state.appearances.push(toAppearance(entry, side, minute));
+    entry.status = status;
   };
 
-  const substitute = (side: Side, leaving: OnPitch, minute: number): void => {
+  /** Puts the substitute rated best in the slot in place of the player who left it, while substitutions remain. */
+  const substitute = (side: Side, leaving: PitchEntry, minute: number): void => {
     const team = teams[side];
-    if (team.substitutionsLeft === 0 || team.bench.length === 0) {
+    if (team.substitutions >= MAX_SUBSTITUTIONS || team.bench.length === 0) {
       return;
     }
     const [player] = team.bench.splice(replacementIndex(team.bench, leaving.slot), 1);
-    team.substitutionsLeft--;
-    team.onPitch.push({ player, slot: leaving.slot, from: minute });
-    events.push({ minute, side, type: "SUBSTITUTION", playerId: player.id, relatedPlayerId: leaving.player.id });
+    team.substitutions++;
+    team.pitch[team.pitch.indexOf(leaving)] = { index: leaving.index, slot: leaving.slot, player, from: minute, status: "ON" };
+    state.events.push({ minute, side, type: "SUBSTITUTION", playerId: player.id, relatedPlayerId: leaving.player.id });
   };
 
   for (const { minute, side, kind } of incidents) {
     const team = teams[side];
     switch (kind) {
       case "GOAL": {
-        const scorerIndex = drawOnPitch(rng, team.onPitch, ({ player, slot }) => SCORER_SLOT_WEIGHTS[positionGroup(slot)] * player.shooting);
-        if (scorerIndex === undefined) {
+        const players = onPitch(team);
+        const scorer = drawOnPitch(rng, players, ({ player, slot }) => SCORER_SLOT_WEIGHTS[positionGroup(slot)] * player.shooting);
+        if (scorer === undefined) {
           break;
         }
-        const scorer = team.onPitch[scorerIndex];
         team.goals++;
         let assistProviderId: string | undefined;
         if (rng() < ASSIST_CHANCE) {
-          const assistIndex = drawOnPitch(rng, team.onPitch, (entry) =>
+          const assist = drawOnPitch(rng, players, (entry) =>
             entry === scorer ? 0 : ASSIST_SLOT_WEIGHTS[positionGroup(entry.slot)] * entry.player.passing,
           );
-          assistProviderId = assistIndex === undefined ? undefined : team.onPitch[assistIndex].player.id;
+          assistProviderId = assist?.player.id;
         }
-        events.push(
+        state.events.push(
           assistProviderId === undefined
             ? { minute, side, type: "GOAL", playerId: scorer.player.id }
             : { minute, side, type: "GOAL", playerId: scorer.player.id, relatedPlayerId: assistProviderId },
@@ -316,61 +447,254 @@ export function simulateMatch(home: Lineup, away: Lineup, rng: Rng): MatchResult
         break;
       }
       case "YELLOW_CARD": {
-        const index = drawOnPitch(
+        const booked = drawOnPitch(
           rng,
-          team.onPitch,
-          ({ player, slot }) => CARD_SLOT_WEIGHTS[positionGroup(slot)] * (team.booked.has(player.id) ? BOOKED_PLAYER_CARD_FACTOR : 1),
+          onPitch(team),
+          ({ player, slot }) =>
+            CARD_SLOT_WEIGHTS[positionGroup(slot)] * (team.booked.includes(player.id) ? BOOKED_PLAYER_CARD_FACTOR : 1),
         );
-        if (index === undefined) {
+        if (booked === undefined) {
           break;
         }
-        const { player } = team.onPitch[index];
-        events.push({ minute, side, type: "YELLOW_CARD", playerId: player.id });
-        if (team.booked.has(player.id)) {
-          events.push({ minute, side, type: "RED_CARD", playerId: player.id });
-          leave(side, index, minute);
+        state.events.push({ minute, side, type: "YELLOW_CARD", playerId: booked.player.id });
+        if (team.booked.includes(booked.player.id)) {
+          state.events.push({ minute, side, type: "RED_CARD", playerId: booked.player.id });
+          leave(side, booked, minute, "SENT_OFF");
         } else {
-          team.booked.add(player.id);
+          team.booked.push(booked.player.id);
         }
         break;
       }
       case "RED_CARD": {
-        const index = drawOnPitch(rng, team.onPitch, ({ slot }) => CARD_SLOT_WEIGHTS[positionGroup(slot)]);
-        if (index === undefined) {
+        const sentOff = drawOnPitch(rng, onPitch(team), ({ slot }) => CARD_SLOT_WEIGHTS[positionGroup(slot)]);
+        if (sentOff === undefined) {
           break;
         }
-        events.push({ minute, side, type: "RED_CARD", playerId: team.onPitch[index].player.id });
-        leave(side, index, minute);
+        state.events.push({ minute, side, type: "RED_CARD", playerId: sentOff.player.id });
+        leave(side, sentOff, minute, "SENT_OFF");
         break;
       }
       case "INJURY": {
-        const index = drawOnPitch(rng, team.onPitch, () => 1);
-        if (index === undefined) {
+        const injured = drawOnPitch(rng, onPitch(team), () => 1);
+        if (injured === undefined) {
           break;
         }
-        const injured = leave(side, index, minute);
-        events.push({ minute, side, type: "INJURY", playerId: injured.player.id });
-        injuries.push({ playerId: injured.player.id, side, days: randomInt(rng, INJURY_DAYS_MIN, INJURY_DAYS_MAX) });
-        substitute(side, injured, minute);
+        leave(side, injured, minute, "INJURED");
+        state.events.push({ minute, side, type: "INJURY", playerId: injured.player.id });
+        state.injuries.push({ playerId: injured.player.id, side, days: randomInt(rng, INJURY_DAYS_MIN, INJURY_DAYS_MAX) });
+        if (period === "h2") {
+          substitute(side, injured, minute);
+        }
         break;
       }
       case "SUBSTITUTION": {
-        const index = team.substitutionsLeft > 0 && team.bench.length > 0 ? weakestStarterIndex(team.onPitch) : undefined;
-        if (index !== undefined) {
-          substitute(side, leave(side, index, minute), minute);
+        const leaving =
+          team.substitutions < MAX_SUBSTITUTIONS && team.bench.length > 0 ? weakestStarter(onPitch(team)) : undefined;
+        if (leaving !== undefined) {
+          state.appearances.push(toAppearance(leaving, side, minute));
+          substitute(side, leaving, minute);
         }
         break;
       }
     }
   }
 
+  if (period === "h1") {
+    state.phase = "HALF_TIME";
+    return state;
+  }
+  state.phase = "FULL_TIME";
+  state.fullTime = lastMinute;
   for (const side of SIDES) {
-    for (const entry of teams[side].onPitch) {
-      appearances.push(toAppearance(entry, side, fullTime));
+    for (const entry of onPitch(teams[side])) {
+      state.appearances.push(toAppearance(entry, side, lastMinute));
+    }
+  }
+  return state;
+}
+
+/** Slot indexes of a team's sent-off players: they stay empty, whatever the formation. */
+export function sentOffSlots(team: TeamLive): Set<number> {
+  return new Set(team.pitch.filter((entry) => entry.status === "SENT_OFF").map((entry) => entry.index));
+}
+
+/**
+ * The half-time changes of a club that does not choose: each player injured in the first half is replaced, in
+ * slot order, by the substitute rated best in his slot (ratingAt), while substitutions remain. Nobody else
+ * changes, and a sent-off player is never replaced.
+ */
+export function automaticHalfTimeChoice(state: MatchState, side: Side): HalfTimeChoice {
+  const team = state[side];
+  const bench = [...team.bench];
+  let substitutions = team.substitutions;
+  const starters: HalfTimeChoice["starters"] = [];
+  const changes: HalfTimeChoice["substitutions"] = [];
+  for (const entry of [...team.pitch].sort((a, b) => a.index - b.index)) {
+    if (entry.status === "ON") {
+      starters.push({ slot: entry.index, playerKey: entry.player.id });
+    } else if (entry.status === "INJURED" && substitutions < MAX_SUBSTITUTIONS && bench.length > 0) {
+      const [player] = bench.splice(replacementIndex(bench, entry.slot), 1);
+      substitutions++;
+      changes.push({ in: player.id, out: entry.player.id });
+      starters.push({ slot: entry.index, playerKey: player.id });
+    }
+  }
+  return { formation: team.formation, starters, substitutions: changes };
+}
+
+/**
+ * Applies a team's half-time choice: the substitutions, dated HALF_TIME_MINUTE + 1, the players going off leaving
+ * at HALF_TIME_MINUTE (an injured one already left), then the formation and slots, moving players between slots
+ * being free. Refused with a HalfTimeChoiceError when the choice breaks a rule: at most MAX_SUBSTITUTIONS in the
+ * match, a player who went off never comes back, a sent-off player is not replaced and his slot stays empty, the
+ * eleven is exactly the players on the pitch after the substitutions, and no slot stays empty while a substitution
+ * and a substitute remain.
+ */
+export function applyHalfTimeChoice(start: MatchState, side: Side, choice: HalfTimeChoice): MatchState {
+  if (start.phase !== "HALF_TIME") {
+    throw new HalfTimeChoiceError("not-half-time");
+  }
+  const team = start[side];
+  if (team.substitutions + choice.substitutions.length > MAX_SUBSTITUTIONS) {
+    throw new HalfTimeChoiceError("too-many-substitutions");
+  }
+
+  const entryOf = new Map(team.pitch.map((entry) => [entry.player.id, entry]));
+  const benchOf = new Map(team.bench.map((player) => [player.id, player]));
+  const involved = new Set<string>();
+  for (const substitution of choice.substitutions) {
+    for (const playerKey of [substitution.out, substitution.in]) {
+      if (involved.has(playerKey)) {
+        throw new HalfTimeChoiceError("duplicate-player");
+      }
+      involved.add(playerKey);
+    }
+    const leaving = entryOf.get(substitution.out);
+    if (leaving === undefined) {
+      throw new HalfTimeChoiceError("unknown-player-off");
+    }
+    if (leaving.status === "SENT_OFF") {
+      throw new HalfTimeChoiceError("sent-off-player");
+    }
+    if (!benchOf.has(substitution.in)) {
+      throw new HalfTimeChoiceError("unknown-substitute");
     }
   }
 
-  return { homeGoals: teams.home.goals, awayGoals: teams.away.goals, fullTime, events, appearances, injuries };
+  const goingOff = new Set(choice.substitutions.map((substitution) => substitution.out));
+  const comingOn = new Set(choice.substitutions.map((substitution) => substitution.in));
+  const playing = new Set([
+    ...onPitch(team).filter((entry) => !goingOff.has(entry.player.id)).map((entry) => entry.player.id),
+    ...comingOn,
+  ]);
+
+  const positions = formationPositions(choice.formation);
+  const barred = sentOffSlots(team);
+  const placed = new Set<string>();
+  const slotsTaken = new Set<number>();
+  for (const { slot, playerKey } of choice.starters) {
+    if (!Number.isInteger(slot) || slot < 0 || slot >= positions.length || slotsTaken.has(slot)) {
+      throw new HalfTimeChoiceError("invalid-slot");
+    }
+    if (barred.has(slot)) {
+      throw new HalfTimeChoiceError("sent-off-slot");
+    }
+    if (entryOf.get(playerKey)?.status === "SENT_OFF") {
+      throw new HalfTimeChoiceError("sent-off-player");
+    }
+    if (placed.has(playerKey)) {
+      throw new HalfTimeChoiceError("duplicate-player");
+    }
+    if (!playing.has(playerKey)) {
+      throw new HalfTimeChoiceError("lineup-mismatch");
+    }
+    slotsTaken.add(slot);
+    placed.add(playerKey);
+  }
+  if (placed.size !== playing.size) {
+    throw new HalfTimeChoiceError("lineup-mismatch");
+  }
+  const substitutionsLeft = MAX_SUBSTITUTIONS - team.substitutions - choice.substitutions.length;
+  const substitutesLeft = team.bench.length - comingOn.size;
+  if (placed.size < positions.length - barred.size && substitutionsLeft > 0 && substitutesLeft > 0) {
+    throw new HalfTimeChoiceError("incomplete-lineup");
+  }
+
+  const state = cloneState(start);
+  const kickOff = HALF_TIME_MINUTE + 1;
+  for (const substitution of choice.substitutions) {
+    const leaving = entryOf.get(substitution.out);
+    if (leaving?.status === "ON") {
+      state.appearances.push(toAppearance(leaving, side, HALF_TIME_MINUTE));
+    }
+    state.events.push({ minute: kickOff, side, type: "SUBSTITUTION", playerId: substitution.in, relatedPlayerId: substitution.out });
+  }
+
+  const pitch: PitchEntry[] = team.pitch
+    .filter((entry) => entry.status === "SENT_OFF")
+    .map((entry) => ({ ...entry, slot: positions[entry.index] }));
+  for (const { slot, playerKey } of choice.starters) {
+    const current = entryOf.get(playerKey);
+    const incoming = benchOf.get(playerKey);
+    const player = comingOn.has(playerKey) ? incoming : current?.player;
+    if (player === undefined) {
+      throw new HalfTimeChoiceError("lineup-mismatch"); // unreachable: every placed player is playing
+    }
+    const from = comingOn.has(playerKey) ? HALF_TIME_MINUTE : (current?.from ?? 0);
+    pitch.push({ index: slot, slot: positions[slot], player, from, status: "ON" });
+  }
+  pitch.sort((a, b) => a.index - b.index);
+
+  state[side] = {
+    ...cloneTeam(team),
+    formation: choice.formation,
+    pitch,
+    bench: team.bench.filter((player) => !comingOn.has(player.id)),
+    substitutions: team.substitutions + choice.substitutions.length,
+  };
+  return state;
+}
+
+/** Goals of each side so far. */
+export function scoreOf(state: MatchState): { homeGoals: number; awayGoals: number } {
+  return { homeGoals: state.home.goals, awayGoals: state.away.goals };
+}
+
+/** The result of a finished match. */
+export function matchResult(state: MatchState): MatchResult {
+  if (state.phase !== "FULL_TIME" || state.fullTime === null) {
+    throw new Error(`The match is not finished: ${state.phase}`);
+  }
+  const halfTimeGoals = (side: Side): number =>
+    state.events.filter((event) => event.type === "GOAL" && event.side === side && event.minute <= HALF_TIME_MINUTE).length;
+  return {
+    ...scoreOf(state),
+    homeHalfTimeGoals: halfTimeGoals("home"),
+    awayHalfTimeGoals: halfTimeGoals("away"),
+    fullTime: state.fullTime,
+    events: state.events,
+    appearances: state.appearances,
+    injuries: state.injuries,
+  };
+}
+
+/** Both clubs' automatic half-time changes, for clubs that do not choose. */
+export function applyAutomaticHalfTime(state: MatchState, sides: readonly Side[] = SIDES): MatchState {
+  return sides.reduce((current, side) => applyHalfTimeChoice(current, side, automaticHalfTimeChoice(current, side)), state);
+}
+
+/**
+ * Simulates a whole match without a pause: the first half, the automatic half-time changes of both clubs, then
+ * the second half, each half with its own stream derived from matchSeed (halfRngSeed).
+ */
+export function simulateMatch(
+  home: Lineup,
+  away: Lineup,
+  matchSeed: string,
+  formations?: Readonly<Record<Side, FormationName>>,
+): MatchResult {
+  const halfTime = simulateHalf(startMatch(home, away, formations), makeRng(halfRngSeed(matchSeed, "h1")), "h1");
+  return matchResult(simulateHalf(applyAutomaticHalfTime(halfTime), makeRng(halfRngSeed(matchSeed, "h2")), "h2"));
 }
 
 export function outcomeFor(result: MatchResult, side: Side): Outcome {

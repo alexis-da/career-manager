@@ -21,6 +21,8 @@ export type FixtureView = {
   played: boolean;
   homeGoals: number | null;
   awayGoals: number | null;
+  homeHalfTimeGoals: number | null; // null for matches played before the two-half engine
+  awayHalfTimeGoals: number | null;
 };
 
 export type MatchEventView = {
@@ -52,6 +54,8 @@ export const FIXTURE_SELECT = {
   played: true,
   homeGoals: true,
   awayGoals: true,
+  homeHalfTimeGoals: true,
+  awayHalfTimeGoals: true,
   season: { select: { competition: { select: { name: true } } } },
   homeClubSave: TEAM_SELECT,
   awayClubSave: TEAM_SELECT,
@@ -77,6 +81,8 @@ export function toFixtureView(row: FixtureRow): FixtureView {
     played: row.played,
     homeGoals: row.homeGoals,
     awayGoals: row.awayGoals,
+    homeHalfTimeGoals: row.homeHalfTimeGoals,
+    awayHalfTimeGoals: row.awayHalfTimeGoals,
   };
 }
 

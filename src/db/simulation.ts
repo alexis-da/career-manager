@@ -1,7 +1,7 @@
 import { monthEndDate, seasonEndDate, seasonStartYear, upcomingWindowCloseDate } from "../engine/world";
 import { FIXTURE_SELECT, toFixtureView, type FixtureView } from "./calendar";
 import { prisma } from "./client";
-import { playNextMatchday } from "./matchday";
+import { assertNoMatchInProgress, playNextMatchday } from "./matchday";
 import { getStandings } from "./standings";
 
 const DAY_MS = 86_400_000;
@@ -17,6 +17,7 @@ export type SimulationTarget =
   | { kind: "date"; date: Date };
 
 export type SimulationPlan = {
+  matchInProgress: boolean; // the managed club's match waits at half-time: nothing can be simulated before it ends
   fromDate: Date; // the save's current date before the simulation
   untilDate: Date; // last day whose matchdays are played, never past the season's end
   matchdays: number; // dates with fixtures to play from the day after fromDate to untilDate
@@ -66,8 +67,11 @@ async function managedClubSaveId(saveId: string): Promise<string> {
  * of the season of the save's current date: the next season only starts through advanceToNextSeason.
  */
 export async function planSimulation(saveId: string, target: SimulationTarget): Promise<SimulationPlan> {
-  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true, liveFixtureId: true } });
   const fromDate = save.currentDate;
+  if (save.liveFixtureId !== null) {
+    return { matchInProgress: true, fromDate, untilDate: fromDate, matchdays: 0 };
+  }
   const seasonEnd = seasonEndDate(seasonStartYear(fromDate));
 
   let wanted: Date;
@@ -101,18 +105,21 @@ export async function planSimulation(saveId: string, target: SimulationTarget): 
     by: ["scheduledAt"],
     where: { saveId, played: false, ...IN_PROGRESS, scheduledAt: { lte: untilDate } },
   });
-  return { fromDate, untilDate, matchdays: dates.length };
+  return { matchInProgress: false, fromDate, untilDate, matchdays: dates.length };
 }
 
 /**
  * Plays at most maxMatchdays matchdays of the season in progress dated untilDate or earlier, one transaction
- * each through playNextMatchday. Never moves to the next season. With nothing to play, writes nothing.
+ * each through playNextMatchday, the managed club's matches included, without a half-time pause. Never moves to
+ * the next season. With nothing to play, writes nothing. Refused with MatchInProgressError while the managed
+ * club's match waits at half-time.
  */
 export async function simulateMatchdays(
   saveId: string,
   untilDate: Date,
   maxMatchdays: number = SIMULATION_MAX_MATCHDAYS,
 ): Promise<SimulationBatch> {
+  await assertNoMatchInProgress(prisma, saveId);
   const managedMatches: { fixtureId: string; autoFilledSlots: number }[] = [];
   let played = 0;
   let next = await nextMatchdayDate(saveId);

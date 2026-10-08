@@ -54,6 +54,30 @@ Ne pas simuler 90 minutes action par action au début. Partir d'un modèle simpl
 4. Attribuer buteurs et passeurs par tirage pondéré sur les attributs offensifs des joueurs sur le terrain.
 5. Générer les événements (cartons, blessures) avec des probabilités faibles et documentées.
 
+## Deux périodes et mi-temps
+
+Un match se joue en deux appels de `simulateHalf(state, rng, period)` (`match.ts`) : `h1` de 1' à 45', `h2` de 46'
+au coup de sifflet (les arrêts de jeu, 0 à 5 minutes, ne suivent que la seconde période). Chaque période tire la
+moitié des buts, cartons et blessures attendus, avec sa propre graine : `halfRngSeed(matchRngSeed(...), "h1" | "h2")`.
+La force est recalculée au début de chaque période sur les joueurs présents, la ligne étant partagée entre les slots
+du dispositif, vides compris : une équipe à 10 est plus faible.
+
+- `MatchState` (données pures, stockées telles quelles dans `Fixture.liveState`) : phase, score, événements,
+  apparitions closes, blessures, et par équipe le dispositif, les slots (`ON`, `INJURED`, `SENT_OFF`), le banc,
+  les remplacements faits (`MAX_SUBSTITUTIONS` = 5 par match) et les avertis.
+- En première période, un blessé laisse son slot vide jusqu'à la pause ; en seconde, il est remplacé aussitôt tant
+  qu'il reste des changements. Les remplacements tactiques (3 prévus, 55'–85') n'ont lieu qu'en seconde période.
+  Un exclu n'est jamais remplacé et son slot reste vide, quel que soit le dispositif.
+- Mi-temps : `automaticHalfTimeChoice` (clubs IA, simulation rapide, club dirigé sans choix) remplace seulement les
+  blessés, par le meilleur `ratingAt` au slot. `applyHalfTimeChoice` valide et applique un choix (dispositif, joueur
+  par slot, remplacements datés de 46', sortants clos à 45') et lève `HalfTimeChoiceError` sinon.
+- `simulateMatch(home, away, matchSeed, formations?)` = h1, mi-temps automatique des deux côtés, h2. Le club dirigé
+  joue h1 dans `playNextMatchday(saveId, { pauseManagedMatch: true })` puis h2 dans `resumeLiveMatch` : sans
+  changement, le résultat est identique à un match joué d'une traite.
+
+Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 % de victoires à domicile, Bayern-Monza
+82,9 % inchangé.
+
 ## Postes, familiarité et composition
 
 Un joueur a un poste précis (12 valeurs, `src/engine/positions.ts`) et `positionGroup(position)` donne sa

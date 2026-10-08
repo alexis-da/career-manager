@@ -9,6 +9,7 @@ import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
 import { seasonFixtures } from "./fixtures";
+import { assertNoMatchInProgress } from "./matchday";
 import { runPreseasonInTransaction, type PreseasonSummary } from "./preseason";
 
 // The transition rewrites every player of the save, then runs the preseason, in bulk statements.
@@ -39,8 +40,8 @@ type PlayerUpdate = PlayerAttributes & {
 };
 
 /**
- * Closes the season in progress and opens the next one, in one transaction. Refused while a fixture of
- * the season is unplayed. Then: every player progresses (retired players excepted) and gets his market value
+ * Closes the season in progress and opens the next one, in one transaction. Refused while the managed club's
+ * match waits at half-time (MatchInProgressError) or a fixture of the season is unplayed. Then: every player progresses (retired players excepted) and gets his market value
  * from his new rating and age, some retire, expired contracts of the managed club turn its players into free
  * agents, form, morale, fitness and injuries are reset, the seasons are marked completed, the save moves to
  * 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created.
@@ -49,6 +50,7 @@ type PlayerUpdate = PlayerAttributes & {
 export async function advanceToNextSeason(saveId: string): Promise<SeasonTransition> {
   return prisma.$transaction(
     async (tx) => {
+      await assertNoMatchInProgress(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true } });
       const seasons = await tx.season.findMany({
         where: { saveId, completed: false },

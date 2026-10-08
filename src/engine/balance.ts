@@ -260,6 +260,12 @@ export const ASSIST_SLOT_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK
 
 export const REGULATION_MINUTES = 90;
 
+/**
+ * Last minute of the first half. Each half gets half of the expected goals, cards and injuries; stoppage time
+ * only follows the second half. Half-time changes are dated the minute after.
+ */
+export const HALF_TIME_MINUTE = 45;
+
 /** Stoppage time added to a match, drawn from 0 to this many minutes. */
 export const MAX_STOPPAGE_MINUTES = 5;
 
@@ -278,7 +284,13 @@ export const INJURIES_PER_TEAM = 0.12;
 export const INJURY_DAYS_MIN = 7;
 export const INJURY_DAYS_MAX = 42;
 
-/** Substitutions per team, injuries included; tactical ones happen within this minute range. */
+/** Substitutions a team may make in a match, half-time, injury and tactical ones together. */
+export const MAX_SUBSTITUTIONS = 5;
+
+/**
+ * Tactical substitutions each team plans in the second half, within this minute range, while substitutions remain.
+ * A player injured in the first half is replaced at half-time, one injured in the second half at once.
+ */
 export const SUBSTITUTIONS_PER_TEAM = 3;
 export const SUBSTITUTION_MINUTE_MIN = 55;
 export const SUBSTITUTION_MINUTE_MAX = 85;
