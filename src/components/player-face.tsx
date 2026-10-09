@@ -60,6 +60,9 @@ const EARS_HIDDEN: ReadonlySet<HairStyle> = new Set<HairStyle>(["long", "afro", 
 const HAIRLINE_STRETCH: Record<Hairline, number> = { low: 1.08, medium: 1, high: 0.9 };
 const HAIR_TOP = 6;
 
+/** The round background on a page: the theme's --muted. */
+const DEFAULT_BACKGROUND = "var(--muted, #1B1F24)";
+
 function Head({ shape, fill }: { shape: FaceShape; fill: string }) {
   switch (shape) {
     case "oval":
@@ -303,6 +306,7 @@ type PlayerFaceProps = {
   age: number;
   clubColors: ClubColors | null; // null for a free agent: a gray shirt
   size: number; // pixels
+  background?: string; // the round background; the app's surface color by default, a hex color outside the page (an image)
   className?: string;
 };
 
@@ -311,7 +315,7 @@ type PlayerFaceProps = {
  * mouth, facial hair and the rare glasses, headband or scar, over a shirt collar in the club's colors, on a round
  * background of the app's surface color. Decorative: the player's name always sits next to it.
  */
-export function PlayerFace({ playerKey, age, clubColors, size, className }: PlayerFaceProps) {
+export function PlayerFace({ playerKey, age, clubColors, size, background = DEFAULT_BACKGROUND, className }: PlayerFaceProps) {
   const face = faceParams(playerKey, age);
   const skin = SKIN[face.skinTone];
   const hair = HAIR[face.hairColor];
@@ -329,7 +333,7 @@ export function PlayerFace({ playerKey, age, clubColors, size, className }: Play
       focusable="false"
       className={className}
     >
-      <circle cx={32} cy={32} r={32} fill="var(--muted, #1B1F24)" />
+      <circle cx={32} cy={32} r={32} fill={background} />
       <g stroke={HAIR_OUTLINE} strokeWidth={0.8}>
         <HairBack style={face.hairStyle} fill={hair.base} />
       </g>
