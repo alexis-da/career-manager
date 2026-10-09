@@ -80,6 +80,17 @@ model User {
   image      String? // avatar du compte Google, mis à jour à chaque connexion
   googleSub  String?  @unique // identifiant stable du compte Google (claim « sub »)
   saves      Save[]
+  days       UserDay[]
+}
+
+// Un jour où l'utilisateur est venu : écrit au même endroit que lastSeenAt, au plus une fois par jour, pour la
+// rétention (/admin/stats). Supprimé avec l'utilisateur.
+model UserDay {
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  day    DateTime @db.Date // jour UTC
+
+  @@id([userId, day])
 }
 
 model Save {

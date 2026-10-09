@@ -1,0 +1,96 @@
+import type { Prisma, PrismaClient } from "../generated/prisma/client";
+import { databaseSize, relationSizes, type RelationSize } from "./db-size";
+import { utcDayOf } from "./user-days";
+
+// The figures of /admin/stats: users, saves, sign-ups, retention, size of the database. Read only, across every user
+// and save: the administrator's view, never a player's.
+
+type Db = PrismaClient | Prisma.TransactionClient;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Users created on one UTC day, and how many of them came back one day and seven days later (UserDay). */
+export type Cohort = {
+  day: string; // YYYY-MM-DD, UTC
+  users: number;
+  day1: number | null; // null while the day after is not over yet
+  day7: number | null;
+};
+
+export type AdminStats = {
+  usersByKind: { anonymous: number; registered: number };
+  saves: number;
+  newUsersPerDay: { day: string; users: number }[]; // the last 14 days, today included, oldest first
+  cohorts: Cohort[]; // the same 14 days
+  databaseBytes: number;
+  largestTables: RelationSize[];
+};
+
+export const STATS_DAYS = 14;
+const LARGEST_TABLES = 5;
+
+/** The UTC days from first to last, both included, as YYYY-MM-DD. */
+export function daysBetween(first: string, last: string): string[] {
+  const days: string[] = [];
+  for (let time = Date.parse(`${first}T00:00:00.000Z`); time <= Date.parse(`${last}T00:00:00.000Z`); time += DAY_MS) {
+    days.push(utcDayOf(new Date(time)));
+  }
+  return days;
+}
+
+const addDays = (day: string, days: number): string => utcDayOf(new Date(Date.parse(`${day}T00:00:00.000Z`) + days * DAY_MS));
+
+/**
+ * Retention by cohort of creation day, from first to last (UTC days, both included): for each day, the users created
+ * then, and those with a UserDay one day and seven days later. A return day that is not over yet at this time is
+ * unknown (null), not zero. Every day of the range has its row, empty ones included.
+ */
+export async function retentionByCohort(db: Db, { first, last, now }: { first: string; last: string; now: Date }): Promise<Cohort[]> {
+  const rows = await db.$queryRaw<{ day: Date; users: bigint; day1: bigint; day7: bigint }[]>`
+    SELECT u."createdAt"::date AS day,
+           count(*)::bigint AS users,
+           count(*) FILTER (WHERE EXISTS (
+             SELECT 1 FROM "UserDay" d WHERE d."userId" = u."id" AND d."day" = u."createdAt"::date + 1
+           ))::bigint AS day1,
+           count(*) FILTER (WHERE EXISTS (
+             SELECT 1 FROM "UserDay" d WHERE d."userId" = u."id" AND d."day" = u."createdAt"::date + 7
+           ))::bigint AS day7
+    FROM "User" u
+    WHERE u."createdAt" >= ${first}::date AND u."createdAt" < ${last}::date + 1
+    GROUP BY 1`;
+  const byDay = new Map(rows.map((row) => [utcDayOf(row.day), row]));
+  const today = utcDayOf(now);
+  // A return day counts once it is over: strictly before today.
+  const known = (day: string, after: number) => addDays(day, after) < today;
+  return daysBetween(first, last).map((day) => {
+    const row = byDay.get(day);
+    return {
+      day,
+      users: Number(row?.users ?? 0),
+      day1: known(day, 1) ? Number(row?.day1 ?? 0) : null,
+      day7: known(day, 7) ? Number(row?.day7 ?? 0) : null,
+    };
+  });
+}
+
+/** Everything /admin/stats shows, at this time. */
+export async function getAdminStats(db: Db, now: Date): Promise<AdminStats> {
+  const last = utcDayOf(now);
+  const first = addDays(last, -(STATS_DAYS - 1));
+  const [kinds, saves, cohorts, databaseBytes, tables] = await Promise.all([
+    db.user.groupBy({ by: ["kind"], _count: { _all: true } }),
+    db.save.count(),
+    retentionByCohort(db, { first, last, now }),
+    databaseSize(db),
+    relationSizes(db),
+  ]);
+  const countOf = (kind: "ANONYMOUS" | "REGISTERED") => kinds.find((row) => row.kind === kind)?._count._all ?? 0;
+  return {
+    usersByKind: { anonymous: countOf("ANONYMOUS"), registered: countOf("REGISTERED") },
+    saves,
+    newUsersPerDay: cohorts.map(({ day, users }) => ({ day, users })),
+    cohorts,
+    databaseBytes,
+    largestTables: tables.slice(0, LARGEST_TABLES),
+  };
+}

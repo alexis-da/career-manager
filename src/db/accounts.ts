@@ -1,5 +1,6 @@
 import type { AccountStore } from "../auth/google";
 import type { Prisma } from "../generated/prisma/client";
+import { recordUserDay } from "./user-days";
 
 const ACCOUNT_SELECT = { id: true, kind: true } as const;
 
@@ -12,9 +13,15 @@ export function prismaAccountStore(tx: Prisma.TransactionClient): AccountStore {
     findUserById: (id) => tx.user.findUnique({ where: { id }, select: ACCOUNT_SELECT }),
     findUserByGoogleSub: (googleSub) => tx.user.findUnique({ where: { googleSub }, select: ACCOUNT_SELECT }),
     findUserByEmail: (email) => tx.user.findUnique({ where: { email }, select: ACCOUNT_SELECT }),
-    createRegisteredUser: (data) => tx.user.create({ data: { ...data, kind: "REGISTERED" }, select: ACCOUNT_SELECT }),
+    // Both write lastSeenAt, so the day's UserDay too.
+    createRegisteredUser: async (data) => {
+      const user = await tx.user.create({ data: { ...data, kind: "REGISTERED" }, select: ACCOUNT_SELECT });
+      await recordUserDay(tx, user.id, data.lastSeenAt);
+      return user;
+    },
     updateRegisteredUser: async (id, data) => {
       await tx.user.update({ where: { id }, data: { ...data, kind: "REGISTERED" } });
+      await recordUserDay(tx, id, data.lastSeenAt);
     },
     moveSaves: async (fromUserId, toUserId) =>
       (await tx.save.updateMany({ where: { ownerId: fromUserId }, data: { ownerId: toUserId } })).count,

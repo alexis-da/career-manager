@@ -9,6 +9,7 @@
 import "dotenv/config";
 import { Prisma } from "../src/generated/prisma/client";
 import { prisma } from "../src/db/client";
+import { databaseSize, relationSizes } from "../src/db/db-size";
 
 const MB = 1024 * 1024;
 /** The free plan's storage, read as 1 Go = 1024 Mo, and the margin kept for growth, indexes and VACUUM. */
@@ -95,33 +96,11 @@ function printTable(title: string, headers: string[], rows: (string | number)[][
 }
 
 async function tableSizes(): Promise<TableSize[]> {
-  const sizes = await prisma.$queryRaw<
-    { table: string; data: bigint; indexes: bigint; toast: bigint; total: bigint; dead: bigint | null }[]
-  >`
-    SELECT c.relname AS "table",
-           pg_relation_size(c.oid) AS data,
-           pg_indexes_size(c.oid) AS indexes,
-           pg_table_size(c.oid) - pg_relation_size(c.oid) AS toast,
-           pg_total_relation_size(c.oid) AS total,
-           s.n_dead_tup AS dead
-    FROM pg_class c
-    JOIN pg_namespace n ON n.oid = c.relnamespace
-    LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
-    WHERE n.nspname = 'public' AND c.relkind = 'r'`;
   const result: TableSize[] = [];
-  for (const size of sizes) {
+  for (const size of await relationSizes(prisma)) {
     // Exact counts: the tables are small enough, and reltuples is only an estimate.
     const [{ rows }] = await prisma.$queryRaw<{ rows: bigint }[]>(Prisma.sql`SELECT count(*)::bigint AS rows FROM ${Prisma.raw(`"${size.table}"`)}`);
-    result.push({
-      table: size.table,
-      rows: Number(rows),
-      data: Number(size.data),
-      indexes: Number(size.indexes),
-      toast: Number(size.toast),
-      total: Number(size.total),
-      dead: Number(size.dead ?? 0),
-      compact: await compactSize(size.table, Number(rows)),
-    });
+    result.push({ ...size, rows: Number(rows), compact: await compactSize(size.table, Number(rows)) });
   }
   return result.sort((a, b) => b.total - a.total);
 }
@@ -173,8 +152,7 @@ async function main(): Promise<void> {
   console.log("1 Mo = 1 048 576 octets ; 1 Go = 1024 Mo.");
 
   // a. The whole database.
-  const [{ size }] = await prisma.$queryRaw<{ size: bigint }[]>`SELECT pg_database_size(current_database()) AS size`;
-  console.log(`\na. Taille totale de la base : ${mb(Number(size))} Mo`);
+  console.log(`\na. Taille totale de la base : ${mb(await databaseSize(prisma))} Mo`);
 
   // b. Each table.
   const tables = await tableSizes();

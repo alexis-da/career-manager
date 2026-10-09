@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  LAST_SEEN_INTERVAL_MS,
   readAuthSecret,
   readSignedUserId,
   resolveCurrentUser,
@@ -103,9 +102,11 @@ describe("the current user", () => {
     expect(state).toMatchObject({ created: 1, cookiesWritten: 1 });
   });
 
-  it("refreshes lastSeenAt at most once a day", async () => {
-    const recent = { id: "recent", lastSeenAt: new Date(NOW.getTime() - LAST_SEEN_INTERVAL_MS + 60_000) };
-    const stale = { id: "stale", lastSeenAt: new Date(NOW.getTime() - LAST_SEEN_INTERVAL_MS) };
+  it("refreshes lastSeenAt on the first request of a UTC day only", async () => {
+    const dayStart = new Date(`${NOW.toISOString().slice(0, 10)}T00:00:00.000Z`);
+    // Earlier the same UTC day: nothing to write. Just before midnight the day before: a new day, written.
+    const recent = { id: "recent", lastSeenAt: dayStart };
+    const stale = { id: "stale", lastSeenAt: new Date(dayStart.getTime() - 1) };
     const fresh = fakeContext({ cookie: signUserId("recent", SECRET), users: [recent] });
     const old = fakeContext({ cookie: signUserId("stale", SECRET), users: [stale] });
 

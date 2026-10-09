@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { prisma } from "../db/client";
 import { loadOwnedSave, type OwnedSave } from "../db/access";
+import { recordUserDay } from "../db/user-days";
 import { auth } from "./auth";
 import { isAdminEmail, readAdminEmail } from "./google";
 import {
@@ -53,10 +54,16 @@ async function identityContext(): Promise<IdentityContext<CurrentUser>> {
         maxAge: USER_COOKIE_MAX_AGE_SECONDS,
       }),
     findUser: (id) => prisma.user.findUnique({ where: { id }, select: USER_SELECT }),
+    // lastSeenAt and the day's UserDay, together: the first request of a day.
     touchUser: async (id, now) => {
       await prisma.user.update({ where: { id }, data: { lastSeenAt: now } });
+      await recordUserDay(prisma, id, now);
     },
-    createUser: (now) => prisma.user.create({ data: { kind: "ANONYMOUS", lastSeenAt: now }, select: USER_SELECT }),
+    createUser: async (now) => {
+      const user = await prisma.user.create({ data: { kind: "ANONYMOUS", lastSeenAt: now }, select: USER_SELECT });
+      await recordUserDay(prisma, user.id, now);
+      return user;
+    },
   };
 }
 

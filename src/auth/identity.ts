@@ -10,8 +10,11 @@ export const USER_COOKIE = "lw_uid";
 /** The cookie lasts a year; it is set again, for another year, each time a user is created. */
 export const USER_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 
-/** lastSeenAt is written at most once in this many milliseconds: a day. */
-export const LAST_SEEN_INTERVAL_MS = 24 * 60 * 60 * 1000;
+/**
+ * lastSeenAt is written at most once per UTC day: on the first request of a day (with the UserDay of that day, for
+ * the retention). So a user seen in the last 24 hours always has a lastSeenAt within them, which the purge relies on.
+ */
+export const isSameUtcDay = (a: Date, b: Date): boolean => a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
 
 /** Shortest AUTH_SECRET accepted: 32 characters, as the 44 of 32 random bytes in base64. */
 const MIN_SECRET_LENGTH = 32;
@@ -80,13 +83,13 @@ async function findRequestUser<U extends IdentityUser>(context: IdentityContext<
   return userId === null ? null : context.findUser(userId);
 }
 
-/** The user of the session or of the signed cookie, or null; lastSeenAt refreshed once a day. Creates nothing. */
+/** The user of the session or of the signed cookie, or null; lastSeenAt refreshed once a UTC day. Creates nothing. */
 export async function resolveCurrentUser<U extends IdentityUser>(context: IdentityContext<U>): Promise<U | null> {
   const user = await findRequestUser(context);
   if (user === null) {
     return null;
   }
-  if (context.now.getTime() - user.lastSeenAt.getTime() >= LAST_SEEN_INTERVAL_MS) {
+  if (!isSameUtcDay(user.lastSeenAt, context.now)) {
     await context.touchUser(user.id, context.now);
     return { ...user, lastSeenAt: context.now };
   }
