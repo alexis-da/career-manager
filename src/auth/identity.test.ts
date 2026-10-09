@@ -45,12 +45,13 @@ describe("the lw_uid cookie", () => {
 });
 
 /** An in-memory request and users table, counting what the identity does with them. */
-function fakeContext(options: { cookie?: string; users?: IdentityUser[]; now?: Date } = {}) {
+function fakeContext(options: { cookie?: string; session?: string; users?: IdentityUser[]; now?: Date } = {}) {
   const users = new Map((options.users ?? []).map((user) => [user.id, { ...user }]));
   const state = { cookie: options.cookie, created: 0, touched: 0, cookiesWritten: 0 };
   const context: IdentityContext<IdentityUser> = {
     secret: SECRET,
     now: options.now ?? NOW,
+    sessionUserId: options.session ?? null,
     readCookie: () => state.cookie,
     writeCookie: (value) => {
       state.cookie = value;
@@ -113,5 +114,22 @@ describe("the current user", () => {
     expect(await resolveCurrentUser(old.context)).toMatchObject({ lastSeenAt: NOW });
     expect(old.state.touched).toBe(1);
     expect(old.users.get("stale")?.lastSeenAt).toEqual(NOW);
+  });
+
+  it("is the user of the Google session before the one of the cookie", async () => {
+    const account = { id: "account", lastSeenAt: NOW };
+    const anonymous = { id: "anonymous", lastSeenAt: NOW };
+    const both = fakeContext({ session: "account", cookie: signUserId("anonymous", SECRET), users: [account, anonymous] });
+
+    expect(await resolveCurrentUser(both.context)).toMatchObject({ id: "account" });
+    expect(await resolveOrCreateUser(both.context)).toMatchObject({ id: "account" });
+    expect(both.state).toMatchObject({ created: 0, cookiesWritten: 0 });
+  });
+
+  it("falls back on the cookie when the user of the session is gone", async () => {
+    const anonymous = { id: "anonymous", lastSeenAt: NOW };
+    const { context } = fakeContext({ session: "purged", cookie: signUserId("anonymous", SECRET), users: [anonymous] });
+
+    expect(await resolveCurrentUser(context)).toMatchObject({ id: "anonymous" });
   });
 });
