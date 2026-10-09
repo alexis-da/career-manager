@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { seasonLabel, seasonStartYear, WORLD_START_YEAR } from "../engine/world";
 import { prisma } from "./client";
 import { playNextMatchday } from "./matchday";
@@ -31,16 +32,50 @@ export async function ensureDemoUser(id: string = DEMO_USER_ID): Promise<string>
   return id;
 }
 
+/** Prefix of the throwaway owners of test saves, which the database tests' teardown deletes once saveless. */
+export const TEST_OWNER_PREFIX = "test-owner-";
+
 /**
- * Creates a throwaway save with the demo save's seed and club, owned by the demo user, so database tests can play
- * and advance seasons without touching the demo save itself.
+ * A throwaway anonymous user to own one test save: an anonymous user may own a single save (src/lib/limits.ts), and
+ * database tests create many at once. Deleting the save leaves the user; src/db/test-global-setup.ts deletes it.
+ */
+export async function createTestOwner(): Promise<string> {
+  // Not simulation code: a random id and real time.
+  const { id } = await prisma.user.create({
+    data: { id: `${TEST_OWNER_PREFIX}${randomUUID()}`, kind: "ANONYMOUS", lastSeenAt: new Date() },
+    select: { id: true },
+  });
+  return id;
+}
+
+/** Deletes the throwaway owners of test saves that no longer own any save; how many were deleted. */
+export async function deleteSavelessTestOwners(): Promise<number> {
+  const { count } = await prisma.user.deleteMany({
+    where: { id: { startsWith: TEST_OWNER_PREFIX }, kind: "ANONYMOUS", saves: { none: {} } },
+  });
+  return count;
+}
+
+/**
+ * Creates a throwaway save with the demo save's seed and club, owned by a throwaway user of its own, so database
+ * tests can play and advance seasons without touching the demo save itself.
  */
 export async function createDemoTwin(name: string): Promise<string> {
   const [club, ownerId] = await Promise.all([
     prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } }),
-    ensureDemoUser(),
+    createTestOwner(),
   ]);
   const { id } = await createSave({ name, managerName: "Test", clubId: club.id, seed: DEMO_SEED, ownerId });
+  return id;
+}
+
+/** The demo save itself, owned by the demo user: its one save. */
+async function createDemoSave(): Promise<string> {
+  const [club, ownerId] = await Promise.all([
+    prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } }),
+    ensureDemoUser(),
+  ]);
+  const { id } = await createSave({ name: DEMO_SAVE_NAME, managerName: "Test", clubId: club.id, seed: DEMO_SEED, ownerId });
   return id;
 }
 
@@ -64,7 +99,7 @@ export async function ensureDemoSave(): Promise<string> {
     orderBy: { createdAt: "asc" },
     select: { id: true },
   });
-  const saveId = existing?.id ?? (await createDemoTwin(DEMO_SAVE_NAME));
+  const saveId = existing?.id ?? (await createDemoSave());
   // A demo save created before owners is attached to the demo user; one already owned stays with its owner.
   await prisma.save.updateMany({ where: { id: saveId, ownerId: null }, data: { ownerId: await ensureDemoUser() } });
 

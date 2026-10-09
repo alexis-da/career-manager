@@ -12,6 +12,8 @@ export default defineConfig({
     // Hooks of the database tests (creating, then deleting a save, which cascades) can outlast the default 10 s on
     // a remote database while other files run in parallel. Test timeouts keep the default.
     hookTimeout: 30_000,
+    // Deletes the throwaway owners of the database tests' saves once every file has run.
+    globalSetup: ["./src/db/test-global-setup.ts"],
     exclude: [...configDefaults.exclude, "**/*.slow.test.ts", "e2e/**", ".next/**"],
   },
 });

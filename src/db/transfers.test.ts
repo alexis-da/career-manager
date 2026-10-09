@@ -30,7 +30,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
   };
 
   beforeAll(async () => {
-    const [{ prisma }, { createSave }, transfersModule, { ensureDemoUser }] = await Promise.all([
+    const [{ prisma }, { createSave }, transfersModule, { createTestOwner }] = await Promise.all([
       import("./client"),
       import("./saves"),
       import("./transfers"),
@@ -39,9 +39,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
     db = prisma;
     transfers = transfersModule;
     const { id: clubId } = await prisma.club.findUniqueOrThrow({ where: { slug: MANAGED_SLUG }, select: { id: true } });
-    const ownerId = await ensureDemoUser();
     for (const name of ["Test transferts A", "Test transferts B"]) {
-      saveIds.push((await createSave({ name, managerName: "Test", clubId, seed: SEED, ownerId })).id);
+      saveIds.push((await createSave({ name, managerName: "Test", clubId, seed: SEED, ownerId: await createTestOwner() })).id);
     }
   }, 300_000);
 

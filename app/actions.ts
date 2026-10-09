@@ -7,6 +7,8 @@ import * as z from "zod";
 import { signIn, signOut } from "@/src/auth/auth";
 import { requireCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { createSave, deleteSave } from "@/src/db/saves";
+import { SaveLimitError } from "@/src/lib/limits";
+import { SAVE_LIMIT_MESSAGES } from "./_components/save-limit-notice";
 
 export type CreateSaveField = "name" | "managerName" | "clubId" | "seed";
 
@@ -50,6 +52,10 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
     const owner = await requireCurrentUser();
     ({ id: saveId } = await createSave({ ...parsed.data, seed, ownerId: owner.id }));
   } catch (error) {
+    if (error instanceof SaveLimitError) {
+      // The form is replaced by this message once the page knows; a creation from a page loaded earlier ends here.
+      return { values, errors: {}, message: SAVE_LIMIT_MESSAGES[error.kind] };
+    }
     console.error(error);
     return { values, errors: {}, message: "La partie n'a pas pu être créée. Réessayez." };
   }

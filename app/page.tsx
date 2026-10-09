@@ -3,21 +3,28 @@ import { getCurrentUser } from "@/src/auth/current-user";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { listClubsByCompetition } from "@/src/db/clubs";
-import { listSaves } from "@/src/db/saves";
+import { countOwnedSaves, listSaves } from "@/src/db/saves";
 import { seasonLabel, WORLD_START_DATE, WORLD_START_YEAR } from "@/src/engine/world";
 import { formatDate } from "@/src/lib/format";
+import { canCreateSave } from "@/src/lib/limits";
 import { cn } from "@/src/lib/utils";
 import { AccountPanel } from "./_components/account-panel";
 import { BrandHeader } from "./_components/brand-header";
 import { CreateSaveForm } from "./_components/create-save-form";
 import { DeleteSaveDialog } from "./_components/delete-save-dialog";
+import { SaveLimitNotice } from "./_components/save-limit-notice";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   // The player's saves and the inherited ones; signed out and without the lw_uid cookie, the inherited ones only.
   const user = await getCurrentUser();
-  const [saves, competitions] = await Promise.all([listSaves(user), listClubsByCompetition()]);
+  const [saves, competitions, ownedSaves] = await Promise.all([
+    listSaves(user),
+    listClubsByCompetition(),
+    user === null ? 0 : countOwnedSaves(user.id),
+  ]);
+  const atLimit = user !== null && !canCreateSave(user.kind, ownedSaves);
 
   return (
     <main className="brand flex-1 bg-background text-foreground">
@@ -86,7 +93,7 @@ export default async function HomePage() {
               <h2 className="eyebrow">Nouvelle partie</h2>
               <p className="text-xs text-muted-foreground">La saison {seasonLabel(WORLD_START_YEAR)} commence le {formatDate(WORLD_START_DATE)}.</p>
             </div>
-            <CreateSaveForm competitions={competitions} />
+            {atLimit ? <SaveLimitNotice user={user} /> : <CreateSaveForm competitions={competitions} />}
           </section>
         </div>
       </div>

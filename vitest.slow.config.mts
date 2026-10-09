@@ -10,6 +10,8 @@ export default defineConfig({
   test: {
     // Same as vitest.config.mts: database hooks get 30 s, test timeouts keep the default.
     hookTimeout: 30_000,
+    // Deletes the throwaway owners of the database tests' saves once every file has run.
+    globalSetup: ["./src/db/test-global-setup.ts"],
     include: ["**/*.slow.test.ts"],
     exclude: [...configDefaults.exclude, "e2e/**", ".next/**"],
   },

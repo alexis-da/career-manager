@@ -7,6 +7,7 @@ import { worldPlayerKey } from "../engine/identity";
 import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
+import { canCreateSave, SaveLimitError } from "../lib/limits";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { visibleSavesWhere, type SaveViewer } from "./access";
@@ -33,12 +34,22 @@ const TRANSACTION_TIMEOUT_MS = 120_000;
  * world player (identity copied from Player; the free agent pool without a club or a contract), the first
  * preseason (young players), a Season per competition and its fixtures. Everything random derives from the
  * seed, so the same seed always yields the same save. Reference tables (Competition, Club, Player) are only read.
+ * Throws SaveLimitError, before writing anything, when the owner already has as many saves as their kind allows.
  */
 export async function createSave(input: CreateSaveInput): Promise<{ id: string }> {
   const { name, managerName, clubId, seed, ownerId } = createSaveInputSchema.parse(input);
 
   return prisma.$transaction(
     async (tx) => {
+      // The limit first: a refused creation reads nothing else.
+      const owner = await tx.user.findUniqueOrThrow({
+        where: { id: ownerId },
+        select: { kind: true, _count: { select: { saves: true } } },
+      });
+      if (!canCreateSave(owner.kind, owner._count.saves)) {
+        throw new SaveLimitError(owner.kind, owner._count.saves);
+      }
+
       // Sequential on purpose: a transaction runs on a single connection, which takes one query at a time.
       const competitions = await tx.competition.findMany({ select: { id: true, code: true } });
       const clubRows = await tx.club.findMany({
@@ -215,6 +226,11 @@ export async function listSaves(viewer: SaveViewer): Promise<SaveSummary[]> {
     select: SAVE_SUMMARY_SELECT,
   });
   return saves.map(toSaveSummary);
+}
+
+/** How many saves a user owns: what the save limit (src/lib/limits.ts) counts. */
+export async function countOwnedSaves(userId: string): Promise<number> {
+  return prisma.save.count({ where: { ownerId: userId } });
 }
 
 /** A save with its managed club, or null when it does not exist. */
