@@ -11,6 +11,7 @@ import { prisma } from "./client";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
 import { runPreseasonInTransaction, type PreseasonSummary } from "./preseason";
+import { recordSeasonResult } from "./season-results";
 
 // The transition rewrites every player of the save, then runs the preseason, in bulk statements.
 const TRANSACTION_MAX_WAIT_MS = 10_000;
@@ -18,6 +19,7 @@ const TRANSACTION_TIMEOUT_MS = 120_000;
 
 export type SeasonTransition = {
   completedStartYear: number;
+  completedSeasonId: string | null; // the managed club's season just closed, whose SeasonResult was written
   startYear: number;
   retired: number;
   freeAgents: number; // players of the managed club whose contract ended; AI clubs decide in the preseason
@@ -41,7 +43,8 @@ type PlayerUpdate = PlayerAttributes & {
 
 /**
  * Closes the season in progress and opens the next one, in one transaction. Refused while the managed club's
- * match waits at half-time (MatchInProgressError) or a fixture of the season is unplayed. Then: every player progresses (retired players excepted) and gets his market value
+ * match waits at half-time (MatchInProgressError) or a fixture of the season is unplayed. Then: the managed club's
+ * SeasonResult is written, every player progresses (retired players excepted) and gets his market value
  * from his new rating and age, some retire, expired contracts of the managed club turn its players into free
  * agents, form, morale, fitness and injuries are reset, the seasons are marked completed, the save moves to
  * 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created.
@@ -70,6 +73,9 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       if (unplayed > 0) {
         throw new SeasonNotFinishedError(unplayed);
       }
+
+      // The managed club's result, before any player progresses, retires or leaves.
+      const completedSeasonId = await recordSeasonResult(tx, saveId, seasons);
 
       const startYear = completedStartYear + 1;
       const transitionDate = seasonStartDate(startYear);
@@ -205,7 +211,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       );
       await tx.fixture.createMany({ data: fixtures });
 
-      return { completedStartYear, startYear, retired, freeAgents, fixtures: fixtures.length, preseason };
+      return { completedStartYear, completedSeasonId, startYear, retired, freeAgents, fixtures: fixtures.length, preseason };
     },
     { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS },
   );

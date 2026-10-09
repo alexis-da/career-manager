@@ -14,13 +14,14 @@ datasource db {
 // ---------------------------------------------------------------- RÉFÉRENCE
 
 model Competition {
-  id      String   @id @default(cuid())
-  code    String   @unique // code OpenFootball, ex. "en.1"
-  name    String
-  country String
-  tier    Int      @default(1)
-  clubs   Club[]
-  seasons Season[]
+  id            String         @id @default(cuid())
+  code          String         @unique // code OpenFootball, ex. "en.1"
+  name          String
+  country       String
+  tier          Int            @default(1)
+  clubs         Club[]
+  seasons       Season[]
+  seasonResults SeasonResult[]
 }
 
 model Club {
@@ -71,14 +72,14 @@ model Player {
 // Supprimer un User emporte ses parties (cascade) ; seuls la purge et les tests suppriment des User.
 
 model User {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   kind       UserKind
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
   lastSeenAt DateTime // mis à jour au plus une fois par jour (src/auth/current-user.ts), pour la purge
-  email      String?  @unique // compte Google (src/auth/google.ts) ; null pour un utilisateur anonyme
+  email      String?   @unique // compte Google (src/auth/google.ts) ; null pour un utilisateur anonyme
   name       String? // nom du compte Google, mis à jour à chaque connexion
   image      String? // avatar du compte Google, mis à jour à chaque connexion
-  googleSub  String?  @unique // identifiant stable du compte Google (claim « sub »)
+  googleSub  String?   @unique // identifiant stable du compte Google (claim « sub »)
   saves      Save[]
   days       UserDay[]
 }
@@ -110,6 +111,7 @@ model Save {
   fixtures      Fixture[]
   transfers     Transfer[]
   stats         PlayerSeasonStats[]
+  seasonResults SeasonResult[]
 
   @@index([ownerId])
 }
@@ -124,6 +126,7 @@ model Season {
   completed     Boolean             @default(false)
   fixtures      Fixture[]
   stats         PlayerSeasonStats[]
+  results       SeasonResult[] // au plus une : @@unique([saveId, seasonId])
 
   @@unique([saveId, competitionId, startYear])
   @@index([saveId])
@@ -264,6 +267,39 @@ model PlayerSeasonStats {
 
   @@unique([saveId, seasonId, playerSaveId])
   @@index([saveId, seasonId])
+}
+
+// Palmarès : le bilan du club dirigé dans une saison terminée de sa compétition, écrit par advanceToNextSeason avant
+// le changement de saison (src/db/season-results.ts). Une saison terminée avant cette table est reconstruite à la
+// première lecture, une fois. En Cascade vers Season, comme Fixture : la cascade depuis Save supprime Season avant
+// d'atteindre cette table, et PostgreSQL vérifierait Restrict à cette étape.
+model SeasonResult {
+  id                 String      @id @default(cuid())
+  save               Save        @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId             String
+  season             Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId           String
+  competition        Competition @relation(fields: [competitionId], references: [id], onDelete: Restrict)
+  competitionId      String
+  rank               Int
+  points             Int
+  played             Int
+  won                Int
+  drawn              Int
+  lost               Int
+  goalsFor           Int
+  goalsAgainst       Int
+  trophies           String[] // « champion » si rank = 1, vide sinon
+  bestPlayerKey      String? // PlayerSave.playerKey ; null si aucun joueur n'a joué BEST_PLAYER_MIN_APPEARANCES matchs
+  bestPlayerName     String? // prénom et nom
+  bestPlayerPosition Position?
+  bestPlayerGoals    Int?
+  bestPlayerAssists  Int?
+  bestPlayerRating   Float? // note de saison sur 10, une décimale (seasonRating, src/engine/season-result.ts)
+  formation          String // dispositif du club dirigé à la fin de la saison
+  createdAt          DateTime    @default(now())
+
+  @@unique([saveId, seasonId])
 }
 
 // -------------------------------------------------------------------- ENUMS

@@ -79,3 +79,22 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prism
   test en base de `src/db/season.slow.test.ts` (`npm run test:slow`) le fait, et `migrate diff` ne détecte
   rien de ce côté.
 - Les montants (valeurs, salaires, budgets) sont des `Int` en euros. Jamais de flottant sur de l'argent.
+
+## Palmarès et reconstruction paresseuse
+
+`SeasonResult` (une ligne par saison terminée du club dirigé, `@@unique([saveId, seasonId])`) est écrite par
+`advanceToNextSeason` (`recordSeasonResult`, `src/db/season-results.ts`), dans sa transaction, avant que les joueurs
+progressent, partent ou prennent leur retraite. Les saisons terminées avant cette table n'ont pas de ligne : la lecture
+(`getSeasonResults`, `getSeasonResult`) les **reconstruit une fois** et les insère (`createMany` avec
+`skipDuplicates`, deux requêtes simultanées n'en écrivent qu'une), puis ne les recalcule plus jamais.
+
+La reconstruction n'utilise que des données qui ne changent pas après la saison : `Fixture` (classement final),
+`PlayerSeasonStats` (note de saison, `seasonRating`, calculée des seules stats) et `Transfer` : le club d'un joueur à
+la fin de la saison est celui que quitte son premier transfert daté après le 30 juin (`clubAtDate`,
+`src/engine/season-result.ts`), son club actuel sans transfert ultérieur. Tout changement de club doit donc rester
+enregistré dans `Transfer`. Seule approximation : `formation` est le dispositif actuel du club, pas celui de la saison.
+Un joueur arrivé en cours de saison d'un autre club de la même compétition compte ses stats des deux clubs (la table
+de stats n'a pas de club), à la reconstruction comme à l'écriture.
+
+Modifier `seasonRating`, `bestPlayerOf` ou la règle de reconstruction ne réécrit pas les lignes existantes : c'est
+voulu, un palmarès ne bouge pas.

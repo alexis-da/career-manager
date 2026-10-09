@@ -530,3 +530,25 @@ export const WRINKLES_CHANCE_BY_AGE: Curve = [
   [34, 0.35],
   [38, 0.7],
 ];
+
+// Season rating (src/engine/season-result.ts). The game keeps no rating per match: the season rating, out of 10, is
+// read from the season's statistics alone, so that it can be computed again from PlayerSeasonStats at any time.
+
+/** Season rating of a player who played without scoring, assisting or being booked. */
+export const SEASON_RATING_BASE = 6;
+/** Added per goal per appearance: a goal every other match adds 0.6. */
+export const SEASON_RATING_GOAL = 1.2;
+/** Added per assist per appearance. */
+export const SEASON_RATING_ASSIST = 0.8;
+/** Added for full matches: times the share of 90 minutes played per appearance, so a regular starter gets it all. */
+export const SEASON_RATING_MINUTES = 0.6;
+/** Taken off per yellow card per appearance. */
+export const SEASON_RATING_YELLOW_CARD = 0.15;
+/** Taken off per red card per appearance. */
+export const SEASON_RATING_RED_CARD = 1;
+/** Bounds of the season rating. */
+export const SEASON_RATING_MIN = 1;
+export const SEASON_RATING_MAX = 10;
+
+/** Appearances a player needs in the season to be its best player. */
+export const BEST_PLAYER_MIN_APPEARANCES = 10;
