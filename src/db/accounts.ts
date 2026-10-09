@@ -1,5 +1,6 @@
 import type { AccountStore } from "../auth/google";
 import type { Prisma } from "../generated/prisma/client";
+import { prisma } from "./client";
 import { recordUserDay } from "./user-days";
 
 const ACCOUNT_SELECT = { id: true, kind: true } as const;
@@ -31,4 +32,14 @@ export function prismaAccountStore(tx: Prisma.TransactionClient): AccountStore {
     claimInheritedSaves: async (toUserId) =>
       (await tx.save.updateMany({ where: { ownerId: null }, data: { ownerId: toUserId } })).count,
   };
+}
+
+/**
+ * A player's deletion of their own Google account: the user goes, and their saves with them by cascade. Only a
+ * REGISTERED user: an anonymous player deletes their save instead, and the purge does the rest. Whether a user was
+ * deleted.
+ */
+export async function deleteRegisteredUser(userId: string): Promise<boolean> {
+  const { count } = await prisma.user.deleteMany({ where: { id: userId, kind: "REGISTERED" } });
+  return count === 1;
 }

@@ -36,10 +36,13 @@ rend le moteur testable et rejouable.
 d'OpenFootball et ne changent jamais pendant une partie. Tout ce qui évolue est suffixé `Save`
 (`PlayerSave`, `ClubSave`) et porte un `saveId`. Ne jamais muter une table de référence depuis le jeu.
 
-**Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade) ; seuls
-la purge et les tests suppriment des `User`, plus une exception : à la connexion Google, l'utilisateur anonyme du
-navigateur (cookie `lw_uid`) donne d'abord toutes ses parties au compte, puis est supprimé, désormais sans partie
-(`signInWithGoogle`, `src/auth/google.ts`). **La purge est la seule suppression automatique d'utilisateurs** :
+**Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade). Hors des
+tests, trois suppressions d'utilisateur sont autorisées, et aucune autre : **la purge** (ci-dessous) ; **la fusion** à
+la connexion Google, où l'utilisateur anonyme du navigateur (cookie `lw_uid`) donne d'abord toutes ses parties au
+compte, puis est supprimé, désormais sans partie (`signInWithGoogle`, `src/auth/google.ts`) ; **la suppression
+volontaire** d'un compte Google par son joueur, bouton « Supprimer mon compte » de l'accueil (`deleteAccountAction`,
+`app/actions.ts`, puis `deleteRegisteredUser`, `src/db/accounts.ts`, jamais un `ANONYMOUS`), qui déconnecte et
+efface `lw_uid`. **La purge est la seule suppression automatique d'utilisateurs** :
 `purgeAnonymousUsers` (`src/db/purge.ts`), appelée chaque jour à 04:17 UTC par `.github/workflows/maintenance.yml`
 via `POST /api/maintenance/purge` (en-tête `Authorization: Bearer <MAINTENANCE_SECRET>`, 404 sans la variable ou
 avec un mauvais secret, `?dryRun=1` pour compter sans supprimer). Elle supprime les `ANONYMOUS` non vus depuis
@@ -126,6 +129,7 @@ chez un autre hébergeur.
 app/                  # routes App Router, à la racine ; UI en français
   _components/        # composants de la page d'accueil (liste et création de parties)
   admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
+  privacy/            # page de confidentialité, publique (hors mot de passe) ; à tenir à jour avec le code
   api/                # Auth.js et la route de maintenance (purge), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
@@ -138,6 +142,7 @@ src/
     data/names/       # listes de noms, importées statiquement
   db/                 # accès Prisma, toujours scopé par saveId ; *.slow.test.ts via npm run test:slow
   lib/                # utilitaires partagés (rng, dates, couleurs, formatage)
+  config/             # constantes de configuration (CONTACT_EMAIL)
   generated/prisma/   # client Prisma généré, ignoré par git
 prisma/
   schema.prisma

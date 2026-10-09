@@ -4,11 +4,15 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as z from "zod";
+import { cookies } from "next/headers";
 import { signIn, signOut } from "@/src/auth/auth";
-import { requireCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
+import { getCurrentUser, requireCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
+import { USER_COOKIE } from "@/src/auth/identity";
+import { deleteRegisteredUser } from "@/src/db/accounts";
 import { createSave, deleteSave } from "@/src/db/saves";
 import { SaveLimitError } from "@/src/lib/limits";
 import { SAVE_LIMIT_MESSAGES } from "./_components/save-limit-notice";
+import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
 
 export type CreateSaveField = "name" | "managerName" | "clubId" | "seed";
 
@@ -77,4 +81,18 @@ export async function signInWithGoogleAction(): Promise<void> {
 
 export async function signOutAction(): Promise<void> {
   await signOut({ redirectTo: "/" });
+}
+
+/**
+ * « Supprimer mon compte »: the signed-in player's user goes, their saves with them (src/db/accounts.ts); then signed
+ * out, the lw_uid cookie cleared, back to the home page with a message. Nothing for an anonymous player.
+ */
+export async function deleteAccountAction(): Promise<void> {
+  const user = await getCurrentUser();
+  if (user === null || user.kind !== "REGISTERED") {
+    redirect("/");
+  }
+  await deleteRegisteredUser(user.id);
+  (await cookies()).delete(USER_COOKIE);
+  await signOut({ redirectTo: `/?${ACCOUNT_DELETED_PARAM}=1` });
 }

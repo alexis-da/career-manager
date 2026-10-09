@@ -9,10 +9,13 @@ import { formatDate } from "@/src/lib/format";
 import { canCreateSave } from "@/src/lib/limits";
 import { cn } from "@/src/lib/utils";
 import { AccountPanel } from "./_components/account-panel";
+import { BrandFooter } from "./_components/brand-footer";
 import { BrandHeader } from "./_components/brand-header";
 import { CreateSaveForm } from "./_components/create-save-form";
+import { DeleteAccountDialog } from "./_components/delete-account-dialog";
 import { DeleteSaveDialog } from "./_components/delete-save-dialog";
 import { SaveLimitNotice } from "./_components/save-limit-notice";
+import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +33,17 @@ function NewSaveIntro() {
  * A first visit, without a cookie or a session: play in one click. The logo and the catchphrase, the creation form
  * at once (the first save creates the anonymous player), and Google second, for a player coming back on another device.
  */
-async function WelcomePage() {
+async function WelcomePage({ accountDeleted }: { accountDeleted: boolean }) {
   const competitions = await listClubsByCompetition();
   return (
     <main className="brand flex-1 bg-background text-foreground">
       <div className="mx-auto w-full max-w-md space-y-8 px-4 py-10">
         <BrandHeader logoHeight={80} />
+        {accountDeleted && (
+          <p role="status" lang="fr" className="rounded-lg border bg-card px-4 py-3 text-sm">
+            Ton compte et tes parties ont été supprimés.
+          </p>
+        )}
         <section lang="fr" className="space-y-4 rounded-lg border bg-card p-5">
           <NewSaveIntro />
           <CreateSaveForm competitions={competitions} />
@@ -44,15 +52,16 @@ async function WelcomePage() {
           <p className="text-sm text-muted-foreground">Déjà une carrière sur un autre appareil ?</p>
           <AccountPanel user={null} />
         </section>
+        <BrandFooter />
       </div>
     </main>
   );
 }
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: PageProps<"/">) {
   const user = await getCurrentUser();
   if (user === null) {
-    return <WelcomePage />;
+    return <WelcomePage accountDeleted={(await searchParams)[ACCOUNT_DELETED_PARAM] === "1"} />;
   }
   const [saves, competitions, ownedSaves] = await Promise.all([
     listSaves(user),
@@ -128,6 +137,8 @@ export default async function HomePage() {
             {atLimit ? <SaveLimitNotice user={user} /> : <CreateSaveForm competitions={competitions} />}
           </section>
         </div>
+
+        <BrandFooter>{user.kind === "REGISTERED" && <DeleteAccountDialog />}</BrandFooter>
       </div>
     </main>
   );

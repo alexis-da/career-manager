@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/src/auth/current-user";
 import { appPassword } from "@/src/lib/auth";
 import { AccountPanel } from "../_components/account-panel";
+import { BrandFooter } from "../_components/brand-footer";
 import { BrandHeader } from "../_components/brand-header";
 import { LoginForm } from "./_components/login-form";
 
@@ -42,6 +43,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           )}
           <AccountPanel user={user} />
         </section>
+        <BrandFooter />
       </div>
     </main>
   );
