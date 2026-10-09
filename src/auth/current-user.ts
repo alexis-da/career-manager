@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { prisma } from "../db/client";
 import { loadOwnedSave, type OwnedSave } from "../db/access";
+import { auth } from "./auth";
+import { isAdminEmail, readAdminEmail } from "./google";
 import {
   readAuthSecret,
   resolveCurrentUser,
@@ -12,18 +14,33 @@ import {
   type IdentityContext,
 } from "./identity";
 
-// The player making the request, from the lw_uid cookie. Read once when the module loads: without AUTH_SECRET, the
+// The player making the request: from the Auth.js session when signed in with Google, else from the lw_uid cookie. Read once when the module loads: without AUTH_SECRET, the
 // server fails here (and at start-up, instrumentation.ts) rather than serve unsigned identities.
 const AUTH_SECRET = readAuthSecret(process.env.AUTH_SECRET);
 
-export type CurrentUser = { id: string; kind: "ANONYMOUS" | "REGISTERED"; lastSeenAt: Date };
+export type CurrentUser = {
+  id: string;
+  kind: "ANONYMOUS" | "REGISTERED";
+  lastSeenAt: Date;
+  email: string | null; // the Google account's, null for an anonymous user
+  name: string | null;
+  image: string | null;
+};
 
-const USER_SELECT = { id: true, kind: true, lastSeenAt: true } as const;
+const USER_SELECT = { id: true, kind: true, lastSeenAt: true, email: true, name: true, image: true } as const;
+
+const ADMIN_EMAIL = readAdminEmail(process.env.ADMIN_EMAIL);
+
+/** Whether a user is the administrator: the Google account of ADMIN_EMAIL. No column: the variable decides. */
+export function isAdmin(user: Pick<CurrentUser, "email"> | null): boolean {
+  return user !== null && isAdminEmail(user.email, ADMIN_EMAIL);
+}
 
 async function identityContext(): Promise<IdentityContext<CurrentUser>> {
-  const store = await cookies();
+  const [store, session] = await Promise.all([cookies(), auth()]);
   return {
     secret: AUTH_SECRET,
+    sessionUserId: session?.userId ?? null,
     // Not simulation code: lastSeenAt is real time.
     now: new Date(),
     readCookie: () => store.get(USER_COOKIE)?.value,
@@ -43,11 +60,11 @@ async function identityContext(): Promise<IdentityContext<CurrentUser>> {
   };
 }
 
-/** The user of the request, or null without a valid cookie. Creates nothing. Once per request. */
+/** The user of the request, from the Google session, else the lw_uid cookie; null without either. Creates nothing. */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => resolveCurrentUser(await identityContext()));
 
 /**
- * The user of the request, created as an anonymous one with its cookie when there is none. Sets a cookie, so it
+ * The user of the request (signed in, or anonymous), created as an anonymous one with its cookie when there is none. Sets a cookie, so it
  * only runs in a Server Action: the creation of a save is the one that calls it.
  */
 export async function requireCurrentUser(): Promise<CurrentUser> {

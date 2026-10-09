@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-// Who is playing: an anonymous user recognised by a signed cookie, lw_uid = "<user id>.<HMAC-SHA256 signature>".
+// Who is playing: a user signed in with Google (the Auth.js session, src/auth/auth.ts), or else an anonymous user
+// recognised by a signed cookie, lw_uid = "<user id>.<HMAC-SHA256 signature>".
 // The pure part: signing, checking, and resolving the user with the cookies and the users given. The server wiring
 // (next/headers, Prisma, AUTH_SECRET) lives in current-user.ts.
 
@@ -57,6 +58,7 @@ export type IdentityUser = { id: string; lastSeenAt: Date };
 export type IdentityContext<U extends IdentityUser> = {
   secret: string;
   now: Date; // real time: lastSeenAt is about the player, not the game
+  sessionUserId: string | null; // our user id in the Auth.js session, when signed in with Google
   readCookie: () => string | undefined;
   writeCookie: (value: string) => void; // only where cookies can be set: a Server Action or a route handler
   findUser: (id: string) => Promise<U | null>;
@@ -64,15 +66,25 @@ export type IdentityContext<U extends IdentityUser> = {
   createUser: (now: Date) => Promise<U>;
 };
 
-/** The user of the signed cookie, or null; lastSeenAt refreshed once a day. Never creates anything. */
-export async function resolveCurrentUser<U extends IdentityUser>(context: IdentityContext<U>): Promise<U | null> {
-  const userId = readSignedUserId(context.readCookie(), context.secret);
-  if (userId === null) {
-    return null;
+/** The user of the session, else of the signed cookie; null when neither leads to a user. */
+async function findRequestUser<U extends IdentityUser>(context: IdentityContext<U>): Promise<U | null> {
+  if (context.sessionUserId !== null) {
+    const user = await context.findUser(context.sessionUserId);
+    if (user !== null) {
+      return user;
+    }
+    // A session of a user since purged: fall back on the cookie.
   }
-  const user = await context.findUser(userId);
+  const userId = readSignedUserId(context.readCookie(), context.secret);
+  // null as well for a valid cookie of a user since purged
+  return userId === null ? null : context.findUser(userId);
+}
+
+/** The user of the session or of the signed cookie, or null; lastSeenAt refreshed once a day. Creates nothing. */
+export async function resolveCurrentUser<U extends IdentityUser>(context: IdentityContext<U>): Promise<U | null> {
+  const user = await findRequestUser(context);
   if (user === null) {
-    return null; // a valid cookie of a user since purged
+    return null;
   }
   if (context.now.getTime() - user.lastSeenAt.getTime() >= LAST_SEEN_INTERVAL_MS) {
     await context.touchUser(user.id, context.now);

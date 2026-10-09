@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as z from "zod";
+import { signIn, signOut } from "@/src/auth/auth";
 import { requireCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { createSave, deleteSave } from "@/src/db/saves";
 
@@ -61,4 +62,13 @@ export async function deleteSaveAction(saveId: string): Promise<void> {
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   await deleteSave(id);
   revalidatePath("/");
+}
+
+/** Off to Google, then back to the home page: src/auth/auth.ts makes the account one of our users. */
+export async function signInWithGoogleAction(): Promise<void> {
+  await signIn("google", { redirectTo: "/" });
+}
+
+export async function signOutAction(): Promise<void> {
+  await signOut({ redirectTo: "/" });
 }

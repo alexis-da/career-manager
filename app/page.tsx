@@ -7,6 +7,7 @@ import { listSaves } from "@/src/db/saves";
 import { seasonLabel, WORLD_START_DATE, WORLD_START_YEAR } from "@/src/engine/world";
 import { formatDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { AccountPanel } from "./_components/account-panel";
 import { BrandHeader } from "./_components/brand-header";
 import { CreateSaveForm } from "./_components/create-save-form";
 import { DeleteSaveDialog } from "./_components/delete-save-dialog";
@@ -14,14 +15,17 @@ import { DeleteSaveDialog } from "./_components/delete-save-dialog";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  // The player's saves and the inherited ones; without the lw_uid cookie, the inherited ones only.
+  // The player's saves and the inherited ones; signed out and without the lw_uid cookie, the inherited ones only.
   const user = await getCurrentUser();
   const [saves, competitions] = await Promise.all([listSaves(user), listClubsByCompetition()]);
 
   return (
     <main className="brand flex-1 bg-background text-foreground">
       <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-10">
-        <BrandHeader logoHeight={80} />
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <BrandHeader logoHeight={80} />
+          <AccountPanel user={user} />
+        </div>
 
         <p lang="fr" className="text-muted-foreground">
           Reprenez une carrière ou commencez-en une nouvelle.

@@ -37,9 +37,11 @@ d'OpenFootball et ne changent jamais pendant une partie. Tout ce qui évolue est
 (`PlayerSave`, `ClubSave`) et porte un `saveId`. Ne jamais muter une table de référence depuis le jeu.
 
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade) ; seuls
-la purge et les tests suppriment des `User`. Les parties d'avant les propriétaires gardent `ownerId` NULL : ce sont
-les parties **héritées**, rattachées plus tard au compte administrateur. Toute nouvelle partie a un propriétaire ;
-le code n'en crée jamais sans.
+la purge et les tests suppriment des `User`, plus une exception : à la connexion Google, l'utilisateur anonyme du
+navigateur (cookie `lw_uid`) donne d'abord toutes ses parties au compte, puis est supprimé, désormais sans partie
+(`signInWithGoogle`, `src/auth/google.ts`). Les parties d'avant les propriétaires gardent `ownerId` NULL : ce sont
+les parties **héritées** ; la connexion du compte `ADMIN_EMAIL` les lui rattache. Toute nouvelle partie a un
+propriétaire ; le code n'en crée jamais sans.
 
 **Toute requête sur une partie est scopée par propriétaire ET `saveId`.** Le propriétaire est vérifié une fois, à
 l'entrée : toute page sous `app/saves/[id]` et toute Server Action qui reçoit un `saveId` appellent d'abord
@@ -50,9 +52,11 @@ dans le `where` est un bug : elle mélangerait deux parties. Les listes de parti
 Règle transitoire : les parties héritées (`ownerId` NULL) restent visibles de tous, jusqu'à la session 3 du
 chantier « ouverture de l'accès ».
 
-**Identité.** Le joueur est reconnu par le cookie `lw_uid` (id d'utilisateur signé HMAC-SHA256 avec `AUTH_SECRET`,
-obligatoire). `getCurrentUser()` lit sans rien créer ; `requireCurrentUser()` crée un utilisateur anonyme et pose le
-cookie, seulement depuis la création de partie.
+**Identité.** Le joueur est reconnu par sa session Google (Auth.js, `src/auth/auth.ts` : JWT sans adaptateur ni
+table, qui porte notre `User.id`), sinon par le cookie anonyme `lw_uid` (id d'utilisateur signé HMAC-SHA256 avec
+`AUTH_SECRET`, obligatoire). `getCurrentUser()` lit sans rien créer ; `requireCurrentUser()` crée un utilisateur
+anonyme et pose le cookie, seulement depuis la création de partie. La connexion Google efface `lw_uid`.
+L'administrateur n'a pas de colonne : `isAdmin(user)` compare son e-mail à `ADMIN_EMAIL`, sans casse.
 
 **Pas de marques sous licence.** Aucune mention de FIFA, EA, ou des noms de compétitions officiels sous
 licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (CC0).
