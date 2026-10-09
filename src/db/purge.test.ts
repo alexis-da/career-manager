@@ -79,15 +79,49 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     await expect(
       db.$transaction(
         async (tx) => {
-          const result = await purge.purgeAnonymousUsers(tx, now, { dryRun: false });
-          expect(result.inactive).toBeGreaterThanOrEqual(1);
-          expect(result.empty).toBeGreaterThanOrEqual(1);
-          expect(result.total).toBe(result.inactive + result.empty);
+          // Batch after batch, as the workflow calls, until none remain.
+          let inactive = 0;
+          let empty = 0;
+          for (let call = 1; ; call++) {
+            const result = await purge.purgeAnonymousUsers(tx, now, { dryRun: false });
+            expect(result.total).toBe(result.inactive + result.empty);
+            expect(result.total).toBeLessThanOrEqual(purge.PURGE_BATCH_SIZE);
+            inactive += result.inactive;
+            empty += result.empty;
+            if (result.remaining === 0) {
+              break;
+            }
+            expect(call).toBeLessThan(1_000);
+          }
+          expect(inactive).toBeGreaterThanOrEqual(1);
+          expect(empty).toBeGreaterThanOrEqual(1);
           expect(await remaining(tx)).toEqual(
             [users.recentAnonymous.id, users.freshEmptyAnonymous.id, users.oldRegistered.id, users.emptyRegistered.id].sort(),
           );
           // The old anonymous user's save went with them; the old account's stays.
           expect(await tx.save.count({ where: { ownerId: { in: ids } } })).toBe(2);
+          throw new Rollback();
+        },
+        { timeout: 60_000 },
+      ),
+    ).rejects.toBeInstanceOf(Rollback);
+    expect(await remaining(db)).toEqual([...ids].sort());
+  }, 90_000);
+
+  it("stops at the batch size, the users seen longest ago first, and says how many remain (rolled back)", async () => {
+    const { db, purge } = loaded();
+    await expect(
+      db.$transaction(
+        async (tx) => {
+          const before = await remaining(tx);
+          // At least our two purgeable users: a batch of one leaves one at least.
+          const result = await purge.purgeAnonymousUsers(tx, now, { dryRun: false, batchSize: 1 });
+          expect(result.total).toBe(1);
+          expect(result.remaining).toBeGreaterThanOrEqual(1);
+          // Nobody seen more recently than our old anonymous user goes before them; the accounts never.
+          const after = await remaining(tx);
+          const gone = before.filter((id) => !after.includes(id));
+          expect(gone.every((id) => id === users.oldAnonymous.id)).toBe(true);
           throw new Rollback();
         },
         { timeout: 60_000 },
@@ -102,8 +136,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     const result = await purge.purgeAnonymousUsers(db, now, { dryRun: true });
 
     expect(result).toMatchObject({ dryRun: true });
-    expect(result.inactive).toBeGreaterThanOrEqual(1);
-    expect(result.empty).toBeGreaterThanOrEqual(1);
+    expect(result.total).toBeGreaterThanOrEqual(1);
+    // Our two purgeable users are in this batch or among those remaining.
+    expect(result.total + result.remaining).toBeGreaterThanOrEqual(2);
     expect(await remaining(db)).toEqual([...ids].sort());
   });
 
@@ -125,7 +160,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
 
     expect(response.status).toBe(200);
     const body: unknown = await response.json();
-    expect(body).toMatchObject({ dryRun: true, inactive: expect.any(Number), empty: expect.any(Number), total: expect.any(Number) });
+    expect(body).toMatchObject({
+      dryRun: true,
+      inactive: expect.any(Number),
+      empty: expect.any(Number),
+      total: expect.any(Number),
+      remaining: expect.any(Number),
+    });
     expect(await remaining(loaded().db)).toEqual([...ids].sort());
   });
 });

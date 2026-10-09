@@ -14,8 +14,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("admin statistics, in th
   const run = `${Date.now()}`;
   const id = (name: string) => `test-stats-${name}-${run}`;
   const at = (day: string) => new Date(`${day}T10:00:00.000Z`);
-  // Two cohorts, 1 and 2 March 2001, and an empty day, 3 March.
+  // A cohort from before the first UserDay, 28 February 2001 (no visit recorded), two cohorts, 1 and 2 March, and
+  // an empty day, 3 March. The table's first UserDay is these users' 1 March, unless a crashed run left an older one.
   const users = [
+    { id: id("z"), createdAt: at("2001-02-28"), returns: [], untracked: true },
     { id: id("a"), createdAt: at("2001-03-01"), returns: ["2001-03-02", "2001-03-08"] },
     { id: id("b"), createdAt: at("2001-03-01"), returns: ["2001-03-02", "2001-03-05"] },
     { id: id("c"), createdAt: at("2001-03-01"), returns: ["2001-03-08"] },
@@ -39,7 +41,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("admin statistics, in th
       data: users.map((user) => ({ id: user.id, kind: "ANONYMOUS" as const, createdAt: user.createdAt, lastSeenAt: user.createdAt })),
     });
     for (const user of users) {
-      for (const day of [user.createdAt.toISOString().slice(0, 10), ...user.returns]) {
+      const days = "untracked" in user ? user.returns : [user.createdAt.toISOString().slice(0, 10), ...user.returns];
+      for (const day of days) {
         await userDaysModule.recordUserDay(prisma, user.id, at(day));
       }
     }
@@ -52,7 +55,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("admin statistics, in th
 
   it("records a day once, however many times it is written", async () => {
     const { db, userDays } = loaded();
-    const user = users[0];
+    const user = users[1]; // a: created on 1 March, back on the 2nd and the 8th
 
     await userDays.recordUserDay(db, user.id, new Date("2001-03-02T08:00:00.000Z"));
     await userDays.recordUserDay(db, user.id, new Date("2001-03-02T22:00:00.000Z"));
@@ -64,12 +67,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("admin statistics, in th
     const { db, stats } = loaded();
 
     const cohorts = await stats.retentionByCohort(db, {
-      first: "2001-03-01",
+      first: "2001-02-28",
       last: "2001-03-03",
       now: new Date("2001-03-09T12:00:00.000Z"),
     });
 
     expect(cohorts).toEqual([
+      // Before the first recorded visit: unknown, not zero.
+      { day: "2001-02-28", users: 1, day1: null, day7: null },
       // a and b came back the next day, a and c a week later; b's return on day 4 counts for neither.
       { day: "2001-03-01", users: 3, day1: 2, day7: 2 },
       // d, created a minute before midnight, came back the next UTC day; 9 March is not over yet.

@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Statistiques", robots: { index: fals
 const MB = 1024 * 1024;
 const megabytes = (bytes: number): string => `${(bytes / MB).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo`;
 const share = (part: number | null, whole: number): string =>
-  part === null ? "–" : whole === 0 ? "0" : `${part} (${Math.round((part / whole) * 100)} %)`;
+  part === null ? "—" : whole === 0 ? "0" : `${part} (${Math.round((part / whole) * 100)} %)`;
 /** « 2026-10-09 » as « 09/10 ». */
 const shortDay = (day: string): string => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 
@@ -52,8 +52,8 @@ export default async function AdminStatsPage() {
         <section className="space-y-3 rounded-lg border bg-card p-5">
           <h2 className="eyebrow">Nouveaux utilisateurs et rétention, {STATS_DAYS} derniers jours (UTC)</h2>
           <p className="text-xs text-muted-foreground">
-            Par jour de création : revenus le lendemain (J+1) et une semaine après (J+7). « – » tant que le jour de retour
-            n&apos;est pas terminé. Les visites ne sont comptées que depuis la table UserDay.
+            Par jour de création : revenus le lendemain (J+1) et une semaine après (J+7). « — » : inconnu, tant que le
+            jour de retour n&apos;est pas terminé, ou pour un jour antérieur au premier enregistrement des visites (UserDay).
           </p>
           <Table>
             <TableHeader>

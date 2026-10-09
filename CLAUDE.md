@@ -44,7 +44,8 @@ navigateur (cookie `lw_uid`) donne d'abord toutes ses parties au compte, puis es
 via `POST /api/maintenance/purge` (en-tête `Authorization: Bearer <MAINTENANCE_SECRET>`, 404 sans la variable ou
 avec un mauvais secret, `?dryRun=1` pour compter sans supprimer). Elle supprime les `ANONYMOUS` non vus depuis
 30 jours (`lastSeenAt`, avec leurs parties) et les `ANONYMOUS` sans partie non vus depuis 24 h ; jamais un
-`REGISTERED`. Aucun autre code ne supprime d'utilisateur de lui-même.
+`REGISTERED`. Par lots : 25 utilisateurs au plus par appel, les plus anciens d'abord (`maxDuration = 60`), et la
+réponse donne `remaining` ; le workflow rappelle la route tant que `remaining > 0`, 20 appels au plus. Aucun autre code ne supprime d'utilisateur de lui-même.
 
 Les parties d'avant les propriétaires gardent `ownerId` NULL : ce sont les parties **héritées**, visibles de
 personne ; la connexion du compte `ADMIN_EMAIL` les lui rattache. Toute nouvelle partie a un propriétaire ; le code

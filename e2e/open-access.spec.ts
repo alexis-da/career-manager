@@ -8,6 +8,9 @@ const DAY_MS = 86_400_000;
 const LIMIT_MESSAGE = "Tu as déjà une carrière en cours. Connecte-toi avec Google pour en mener jusqu'à trois.";
 const BANNER = "Crée un compte pour ne pas perdre ta carrière";
 
+/** What the maintenance endpoint answers (src/db/purge.ts, PurgeResult). */
+type PurgeResponse = { dryRun: boolean; inactive: number; empty: number; total: number; remaining: number };
+
 // Name of the save the running test created, until it is deleted.
 let saveName: string | undefined;
 
@@ -77,7 +80,7 @@ test("asks an anonymous player to sign in once a matchday is played, and the cro
   expect(closed?.expires).toBeGreaterThan(Date.now() / 1000 + 6 * 24 * 3600);
 });
 
-test("purges an anonymous user not seen for 40 days: counted in dry run, deleted for real, 404 without the secret", async ({ request }) => {
+test("purges an anonymous user not seen for 40 days: counted in dry run, deleted batch after batch, 404 without the secret", async ({ request }) => {
   // Not simulation code: the user is aged against real time.
   const userId = await createAnonymousUser(new Date(Date.now() - 40 * DAY_MS));
   try {
@@ -87,16 +90,20 @@ test("purges an anonymous user not seen for 40 days: counted in dry run, deleted
 
     const dryRun = await request.post("/api/maintenance/purge?dryRun=1", { headers: { authorization } });
     expect(dryRun.status()).toBe(200);
-    const counted: unknown = await dryRun.json();
-    expect(counted).toMatchObject({ dryRun: true, inactive: expect.any(Number) });
-    expect((counted as { inactive: number }).inactive).toBeGreaterThanOrEqual(1);
+    const counted = (await dryRun.json()) as PurgeResponse;
+    expect(counted).toMatchObject({ dryRun: true, total: expect.any(Number), remaining: expect.any(Number) });
+    expect(counted.total + counted.remaining).toBeGreaterThanOrEqual(1);
     expect(await userExists(userId)).toBe(true);
 
-    const purge = await request.post("/api/maintenance/purge", { headers: { authorization } });
-    expect(purge.status()).toBe(200);
-    const purged: unknown = await purge.json();
-    expect(purged).toMatchObject({ dryRun: false });
-    expect((purged as { inactive: number }).inactive).toBeGreaterThanOrEqual(1);
+    // Batch after batch, as the workflow calls (20 calls at most), until none remain.
+    let purged: PurgeResponse | undefined;
+    for (let call = 0; call < 20 && (purged === undefined || purged.remaining > 0); call++) {
+      const purge = await request.post("/api/maintenance/purge", { headers: { authorization } });
+      expect(purge.status()).toBe(200);
+      purged = (await purge.json()) as PurgeResponse;
+      expect(purged).toMatchObject({ dryRun: false });
+    }
+    expect(purged?.remaining).toBe(0);
     expect(await userExists(userId)).toBe(false);
   } finally {
     await deleteUsers([userId]);

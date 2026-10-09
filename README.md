@@ -55,7 +55,8 @@ utilisateurs anonymes. Secrets du dépôt (Settings > Secrets and variables > Ac
 - `MAINTENANCE_URL` : `https://www.latewinner.app/api/maintenance/purge` ;
 - `MAINTENANCE_SECRET` : la même valeur que sur Vercel.
 
-Le job échoue si la réponse n'est pas 200. `?dryRun=1` compte sans supprimer :
+Chaque appel purge au plus 25 utilisateurs et renvoie `remaining` : le job rappelle la route tant qu'il en
+reste, 20 appels au plus (le reste attend le lendemain). Il échoue si une réponse n'est pas 200. `?dryRun=1` compte sans supprimer :
 `curl -X POST -H "Authorization: Bearer $SECRET" "https://www.latewinner.app/api/maintenance/purge?dryRun=1"`.
 
 ## Accès et comptes
@@ -67,7 +68,7 @@ Le job échoue si la réponse n'est pas 200. `?dryRun=1` compte sans supprimer :
 - **Bandeau** : sur le tableau de bord d'un anonyme, après une journée jouée, une invitation à créer un compte ;
   la croix la masque sept jours (cookie `lw_banner_closed`).
 - **Purge** (`src/db/purge.ts`) : anonymes non vus depuis 30 jours (avec leurs parties) et anonymes sans partie
-  non vus depuis 24 h. Jamais un compte Google. Seule suppression automatique d'utilisateurs.
+  non vus depuis 24 h, par lots de 25. Jamais un compte Google. Seule suppression automatique d'utilisateurs.
 - **Mesure** : la table `UserDay` note chaque jour où un utilisateur vient ; `/admin/stats`, réservée à
   `ADMIN_EMAIL` (404 sinon), montre utilisateurs, parties, nouveaux utilisateurs et rétention J+1 et J+7 sur
   14 jours, et la taille de la base.

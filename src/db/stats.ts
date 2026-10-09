@@ -13,7 +13,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export type Cohort = {
   day: string; // YYYY-MM-DD, UTC
   users: number;
-  day1: number | null; // null while the day after is not over yet
+  day1: number | null; // null while the day after is not over yet, or for a cohort from before the first UserDay
   day7: number | null;
 };
 
@@ -42,8 +42,9 @@ const addDays = (day: string, days: number): string => utcDayOf(new Date(Date.pa
 
 /**
  * Retention by cohort of creation day, from first to last (UTC days, both included): for each day, the users created
- * then, and those with a UserDay one day and seven days later. A return day that is not over yet at this time is
- * unknown (null), not zero. Every day of the range has its row, empty ones included.
+ * then, and those with a UserDay one day and seven days later. Unknown (null), not zero: a return day that is not
+ * over yet at this time, and every cohort from before the first UserDay of the table, when visits were not recorded.
+ * Every day of the range has its row, empty ones included.
  */
 export async function retentionByCohort(db: Db, { first, last, now }: { first: string; last: string; now: Date }): Promise<Cohort[]> {
   const rows = await db.$queryRaw<{ day: Date; users: bigint; day1: bigint; day7: bigint }[]>`
@@ -58,10 +59,13 @@ export async function retentionByCohort(db: Db, { first, last, now }: { first: s
     FROM "User" u
     WHERE u."createdAt" >= ${first}::date AND u."createdAt" < ${last}::date + 1
     GROUP BY 1`;
+  const [{ firstDay }] = await db.$queryRaw<{ firstDay: Date | null }[]>`SELECT min("day") AS "firstDay" FROM "UserDay"`;
   const byDay = new Map(rows.map((row) => [utcDayOf(row.day), row]));
   const today = utcDayOf(now);
-  // A return day counts once it is over: strictly before today.
-  const known = (day: string, after: number) => addDays(day, after) < today;
+  const trackedFrom = firstDay === null ? null : utcDayOf(firstDay);
+  // A return day counts once it is over (strictly before today), for a cohort from the first recorded day on: that
+  // day's returns, the day after and later, were all recorded.
+  const known = (day: string, after: number) => trackedFrom !== null && day >= trackedFrom && addDays(day, after) < today;
   return daysBetween(first, last).map((day) => {
     const row = byDay.get(day);
     return {

@@ -13,17 +13,24 @@ permissions: {}
 jobs:
   purge:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     steps:
-      - name: Purge the anonymous users
+      - name: Purge the anonymous users, batch after batch
         env:
           MAINTENANCE_URL: ${{ secrets.MAINTENANCE_URL }}
           MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+          MAX_CALLS: 20 # each call deletes at most 25 users: 500 a day at most
         run: |
-          status=$(curl --silent --show-error --max-time 120 --output response.json --write-out "%{http_code}" \
-            --request POST --header "Authorization: Bearer ${MAINTENANCE_SECRET}" "${MAINTENANCE_URL}")
-          cat response.json; echo
-          if [ "$status" != "200" ]; then
-            echo "::error::The purge answered HTTP $status"
-            exit 1
-          fi
+          for call in $(seq 1 "$MAX_CALLS"); do
+            status=$(curl --silent --show-error --max-time 90 --output response.json --write-out "%{http_code}"               --request POST --header "Authorization: Bearer ${MAINTENANCE_SECRET}" "${MAINTENANCE_URL}")
+            echo "Call $call: HTTP $status $(cat response.json)"
+            if [ "$status" != "200" ]; then
+              echo "::error::The purge answered HTTP $status"
+              exit 1
+            fi
+            remaining=$(jq -r '.remaining' response.json)
+            if [ "$remaining" = "0" ]; then
+              exit 0
+            fi
+          done
+          echo "::warning::$remaining anonymous users still to purge after $MAX_CALLS calls: the next run goes on"
