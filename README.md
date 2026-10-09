@@ -35,10 +35,39 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 2. Créer les variables d'environnement du projet (voir `.env.example`) :
    - `DATABASE_URL` : connexion PostgreSQL *poolée*, utilisée par l'application ;
    - `DIRECT_URL` : connexion *directe* à la même base, utilisée par les migrations et le seed ;
-   - `APP_PASSWORD` : mot de passe d'accès au site (sans lui, le site est ouvert à tous) ;
+   - `AUTH_SECRET` : signe le cookie anonyme `lw_uid` et la session Google (obligatoire) ;
+   - `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` : client OAuth Google (redirection `<site>/api/auth/callback/google`) ;
+   - `ADMIN_EMAIL` : compte Google de l'administrateur (parties héritées, `/admin/stats`) ;
+   - `MAINTENANCE_SECRET` : secret de `POST /api/maintenance/purge` (sans lui, la route répond 404) ;
+   - `APP_PASSWORD` (facultatif) : mode « fermé », tout le site demande ce mot de passe ; absente, le jeu est ouvert ;
    - `CLUB_NAMES` (facultatif) : `real` (par défaut) ou `fictional` pour afficher des noms de clubs neutres.
 3. Déployer : `npm run build` génère le client Prisma, applique les migrations puis construit l'application.
 4. Première fois seulement, remplir la base depuis un poste local : `DIRECT_URL=… npm run db:seed`.
 5. Les tests E2E ne tournent jamais au build : en local, ils écrivent dans la base de `DATABASE_URL_TEST` (`.env.test`).
 
 Le poste local travaille sur la branche Neon test ; la branche production n'est touchée que par Vercel.
+
+### Maintenance (GitHub Actions)
+
+`.github/workflows/maintenance.yml` appelle chaque jour à 04:17 UTC (et à la demande, onglet Actions) la purge des
+utilisateurs anonymes. Secrets du dépôt (Settings > Secrets and variables > Actions) :
+
+- `MAINTENANCE_URL` : `https://www.latewinner.app/api/maintenance/purge` ;
+- `MAINTENANCE_SECRET` : la même valeur que sur Vercel.
+
+Le job échoue si la réponse n'est pas 200. `?dryRun=1` compte sans supprimer :
+`curl -X POST -H "Authorization: Bearer $SECRET" "https://www.latewinner.app/api/maintenance/purge?dryRun=1"`.
+
+## Accès et comptes
+
+- **Jouer en un clic** : un visiteur crée sa partie depuis l'accueil, sans compte ; il devient un utilisateur
+  anonyme reconnu par le cookie `lw_uid`. La connexion Google rattache ses parties à son compte.
+- **Limites** (`src/lib/limits.ts`) : une partie pour un anonyme, trois pour un compte Google, vérifiées à la
+  création seulement (la fusion à la connexion peut dépasser trois).
+- **Bandeau** : sur le tableau de bord d'un anonyme, après une journée jouée, une invitation à créer un compte ;
+  la croix la masque sept jours (cookie `lw_banner_closed`).
+- **Purge** (`src/db/purge.ts`) : anonymes non vus depuis 30 jours (avec leurs parties) et anonymes sans partie
+  non vus depuis 24 h. Jamais un compte Google. Seule suppression automatique d'utilisateurs.
+- **Mesure** : la table `UserDay` note chaque jour où un utilisateur vient ; `/admin/stats`, réservée à
+  `ADMIN_EMAIL` (404 sinon), montre utilisateurs, parties, nouveaux utilisateurs et rétention J+1 et J+7 sur
+  14 jours, et la taille de la base.

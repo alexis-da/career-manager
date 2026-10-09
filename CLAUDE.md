@@ -63,6 +63,19 @@ table, qui porte notre `User.id`), sinon par le cookie anonyme `lw_uid` (id d'ut
 `AUTH_SECRET`, obligatoire). `getCurrentUser()` lit sans rien créer ; `requireCurrentUser()` crée un utilisateur
 anonyme et pose le cookie, seulement depuis la création de partie. La connexion Google efface `lw_uid`.
 L'administrateur n'a pas de colonne : `isAdmin(user)` compare son e-mail à `ADMIN_EMAIL`, sans casse.
+`lastSeenAt` est réécrit à la première requête de chaque jour UTC, avec une ligne `UserDay(userId, day)`
+(`recordUserDay`, `src/db/user-days.ts`, `INSERT … ON CONFLICT DO NOTHING`) : c'est la seule source de la
+rétention.
+
+**Accès ouvert.** Le jeu est ouvert à tous : `APP_PASSWORD` est facultative et active un mode « fermé » (tout passe
+par `/login`, `proxy.ts`) ; absente, aucune redirection. Un visiteur sans cookie ni session voit l'accueil avec le
+formulaire de création, Google en second. Limites de parties dans `src/lib/limits.ts` (constantes, pas de variable
+d'environnement) : `MAX_SAVES_ANONYMOUS = 1`, `MAX_SAVES_REGISTERED = 3`, appliquées par `createSave`
+(`SaveLimitError`) et par l'accueil, qui remplace alors le formulaire par un message ; à la création seulement. Un
+anonyme dont la partie a un match joué voit sur le tableau de bord un bandeau l'invitant à se connecter, masqué sept
+jours par le cookie `lw_banner_closed`. `/admin/stats` (`src/db/stats.ts`) est réservée à `isAdmin(user)` et
+répond 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (route de purge) ; secrets
+GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml`).
 
 **Pas de marques sous licence.** Aucune mention de FIFA, EA, ou des noms de compétitions officiels sous
 licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (CC0).
@@ -111,9 +124,12 @@ chez un autre hébergeur.
 ```
 app/                  # routes App Router, à la racine ; UI en français
   _components/        # composants de la page d'accueil (liste et création de parties)
+  admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
+  api/                # Auth.js et la route de maintenance (purge), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e)
+.github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC
 src/
   components/ui/      # composants shadcn/ui (Base UI), générés par la CLI
   engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes ;
