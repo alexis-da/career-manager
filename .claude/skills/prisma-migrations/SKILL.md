@@ -65,8 +65,8 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prism
   Partout ailleurs, `onDelete: Restrict` — une suppression silencieuse de données de jeu est un bug.
 - Au-dessus de `Save`, `User` : `Save.ownerId` est en `Cascade` vers `User`, supprimer un utilisateur supprime ses
   parties. Seuls la purge et les tests suppriment un `User`.
-- `Save.ownerId` NULL = partie **héritée** (créée avant les propriétaires), rattachée plus tard au compte
-  administrateur. Une nouvelle partie a toujours un propriétaire.
+- `Save.ownerId` NULL = partie **héritée** (créée avant les propriétaires) : visible de personne, rattachée au
+  compte administrateur à sa connexion Google. Une nouvelle partie a toujours un propriétaire.
 - Aucun code ne supprime un PlayerSave, un ClubSave ou une Season directement.
   La seule suppression autorisée est celle d'un Save (ou de son User), qui cascade.
 - Exception : une table de partie qui référence `PlayerSave` (`MatchEvent`, `Transfer`) est en `Cascade`

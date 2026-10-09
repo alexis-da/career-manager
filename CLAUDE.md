@@ -44,18 +44,19 @@ navigateur (cookie `lw_uid`) donne d'abord toutes ses parties au compte, puis es
 via `POST /api/maintenance/purge` (en-tête `Authorization: Bearer <MAINTENANCE_SECRET>`, 404 sans la variable ou
 avec un mauvais secret, `?dryRun=1` pour compter sans supprimer). Elle supprime les `ANONYMOUS` non vus depuis
 30 jours (`lastSeenAt`, avec leurs parties) et les `ANONYMOUS` sans partie non vus depuis 24 h ; jamais un
-`REGISTERED`. Aucun autre code ne supprime d'utilisateur de lui-même. Les parties d'avant les propriétaires gardent `ownerId` NULL : ce sont
-les parties **héritées** ; la connexion du compte `ADMIN_EMAIL` les lui rattache. Toute nouvelle partie a un
-propriétaire ; le code n'en crée jamais sans.
+`REGISTERED`. Aucun autre code ne supprime d'utilisateur de lui-même.
+
+Les parties d'avant les propriétaires gardent `ownerId` NULL : ce sont les parties **héritées**, visibles de
+personne ; la connexion du compte `ADMIN_EMAIL` les lui rattache. Toute nouvelle partie a un propriétaire ; le code
+n'en crée jamais sans.
 
 **Toute requête sur une partie est scopée par propriétaire ET `saveId`.** Le propriétaire est vérifié une fois, à
 l'entrée : toute page sous `app/saves/[id]` et toute Server Action qui reçoit un `saveId` appellent d'abord
 `requireOwnedSave(saveId)` (`src/auth/current-user.ts`, qui passe par `loadOwnedSave`, `src/db/access.ts`, point
 unique du contrôle) ; une partie d'un autre joueur répond 404, comme une partie inexistante. Le layout ne protège pas
 les Server Actions : chacune fait son contrôle. Ensuite, une requête Prisma sur une table de partie sans `saveId`
-dans le `where` est un bug : elle mélangerait deux parties. Les listes de parties passent par `visibleSavesWhere`.
-Règle transitoire : les parties héritées (`ownerId` NULL) restent visibles de tous, jusqu'à la session 3 du
-chantier « ouverture de l'accès ».
+dans le `where` est un bug : elle mélangerait deux parties. Les listes de parties passent par `visibleSavesWhere`
+(les parties du joueur, rien sans utilisateur).
 
 **Identité.** Le joueur est reconnu par sa session Google (Auth.js, `src/auth/auth.ts` : JWT sans adaptateur ni
 table, qui porte notre `User.id`), sinon par le cookie anonyme `lw_uid` (id d'utilisateur signé HMAC-SHA256 avec

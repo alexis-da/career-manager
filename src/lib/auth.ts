@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
-// Password protection of the whole app, for a private deployment: one shared password, APP_PASSWORD, and a signed
-// session cookie. Without APP_PASSWORD (local development), nothing is protected.
+// The « closed » mode, for a private deployment: one shared password, APP_PASSWORD, and a signed session cookie.
+// Without APP_PASSWORD, the game is open: nothing is protected.
 
 export const SESSION_COOKIE = "cm_session";
 

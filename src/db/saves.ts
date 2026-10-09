@@ -218,7 +218,7 @@ function toSaveSummary(save: {
   };
 }
 
-/** The saves a viewer may open (their own and the inherited ones, src/db/access.ts), most recently played first. */
+/** The saves a viewer may open (their own, src/db/access.ts), most recently played first. */
 export async function listSaves(viewer: SaveViewer): Promise<SaveSummary[]> {
   const saves = await prisma.save.findMany({
     where: visibleSavesWhere(viewer),

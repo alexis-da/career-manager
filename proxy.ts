@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { appPassword, isValidSession, SESSION_COOKIE } from "@/src/lib/auth";
 
 /**
- * Password protection: every request needs a valid session cookie, or goes to /login and comes back afterwards.
- * Without APP_PASSWORD (local development), everything is open. Runs on the Node.js runtime (the default for
+ * The « closed » mode: with APP_PASSWORD set, every request needs a valid session cookie, or goes to /login and comes
+ * back afterwards. Without it, the game is open to everyone and nothing is redirected. Runs on the Node.js runtime (the default for
  * proxy.ts since Next 16).
  */
 export default function proxy(request: NextRequest): NextResponse {

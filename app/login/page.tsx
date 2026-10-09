@@ -19,7 +19,8 @@ function signInErrorMessage(error: string): string {
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { next, error } = await searchParams;
   const user = await getCurrentUser();
-  // The shared password, until accounts replace it; without APP_PASSWORD (local development), only Google.
+  // The sign-in page with Google: the logo, the tagline, the button. The password form only in the « closed » mode,
+  // with APP_PASSWORD set (proxy.ts sends every request here until it is typed).
   const passwordRequired = appPassword() !== null;
 
   return (

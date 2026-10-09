@@ -16,15 +16,50 @@ import { SaveLimitNotice } from "./_components/save-limit-notice";
 
 export const dynamic = "force-dynamic";
 
+/** The season a new save starts, above the creation form. */
+function NewSaveIntro() {
+  return (
+    <div className="space-y-1">
+      <h2 className="eyebrow">Nouvelle partie</h2>
+      <p className="text-xs text-muted-foreground">La saison {seasonLabel(WORLD_START_YEAR)} commence le {formatDate(WORLD_START_DATE)}.</p>
+    </div>
+  );
+}
+
+/**
+ * A first visit, without a cookie or a session: play in one click. The logo and the catchphrase, the creation form
+ * at once (the first save creates the anonymous player), and Google second, for a player coming back on another device.
+ */
+async function WelcomePage() {
+  const competitions = await listClubsByCompetition();
+  return (
+    <main className="brand flex-1 bg-background text-foreground">
+      <div className="mx-auto w-full max-w-md space-y-8 px-4 py-10">
+        <BrandHeader logoHeight={80} />
+        <section lang="fr" className="space-y-4 rounded-lg border bg-card p-5">
+          <NewSaveIntro />
+          <CreateSaveForm competitions={competitions} />
+        </section>
+        <section lang="fr" className="space-y-3">
+          <p className="text-sm text-muted-foreground">Déjà une carrière sur un autre appareil ?</p>
+          <AccountPanel user={null} />
+        </section>
+      </div>
+    </main>
+  );
+}
+
 export default async function HomePage() {
-  // The player's saves and the inherited ones; signed out and without the lw_uid cookie, the inherited ones only.
   const user = await getCurrentUser();
+  if (user === null) {
+    return <WelcomePage />;
+  }
   const [saves, competitions, ownedSaves] = await Promise.all([
     listSaves(user),
     listClubsByCompetition(),
-    user === null ? 0 : countOwnedSaves(user.id),
+    countOwnedSaves(user.id),
   ]);
-  const atLimit = user !== null && !canCreateSave(user.kind, ownedSaves);
+  const atLimit = !canCreateSave(user.kind, ownedSaves);
 
   return (
     <main className="brand flex-1 bg-background text-foreground">
@@ -89,10 +124,7 @@ export default async function HomePage() {
           </section>
 
           <section className="space-y-4 rounded-lg border bg-card p-5">
-            <div className="space-y-1">
-              <h2 className="eyebrow">Nouvelle partie</h2>
-              <p className="text-xs text-muted-foreground">La saison {seasonLabel(WORLD_START_YEAR)} commence le {formatDate(WORLD_START_DATE)}.</p>
-            </div>
+            <NewSaveIntro />
             {atLimit ? <SaveLimitNotice user={user} /> : <CreateSaveForm competitions={competitions} />}
           </section>
         </div>

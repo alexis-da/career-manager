@@ -66,19 +66,20 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("access to a save", () =
     await expect(access.loadOwnedSave("no-such-save", { id: users.owner })).rejects.toMatchObject(NOT_FOUND);
   });
 
-  it("opens an inherited save, without an owner, for anyone, and lists it with each one's own saves", async () => {
+  it("opens an inherited save, without an owner, for nobody, and lists it for nobody", async () => {
     const { db, access } = loaded();
     await db.save.update({ where: { id: saveId }, data: { ownerId: null } });
     try {
-      expect(await access.loadOwnedSave(saveId, { id: users.other })).toEqual({ id: saveId, ownerId: null });
-      expect(await access.loadOwnedSave(saveId, null)).toEqual({ id: saveId, ownerId: null });
-      const visibleToNobody = await db.save.findMany({ where: access.visibleSavesWhere(null), select: { ownerId: true } });
-      expect(visibleToNobody.every((save) => save.ownerId === null)).toBe(true);
+      await expect(access.loadOwnedSave(saveId, { id: users.owner })).rejects.toMatchObject(NOT_FOUND);
+      await expect(access.loadOwnedSave(saveId, null)).rejects.toMatchObject(NOT_FOUND);
+      for (const viewer of [null, { id: users.owner }, { id: users.other }]) {
+        const visible = await db.save.findMany({ where: access.visibleSavesWhere(viewer), select: { id: true } });
+        expect(visible.map((save) => save.id)).not.toContain(saveId);
+      }
+      expect(await db.save.count({ where: access.visibleSavesWhere(null) })).toBe(0);
     } finally {
       await db.save.update({ where: { id: saveId }, data: { ownerId: users.owner } });
     }
-    const visibleToOther = await db.save.findMany({ where: access.visibleSavesWhere({ id: users.other }), select: { id: true } });
-    expect(visibleToOther.map((save) => save.id)).not.toContain(saveId);
   });
 
   it("gives the demo save to a stable demo user, created once even by parallel calls", async () => {
