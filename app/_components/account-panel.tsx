@@ -18,19 +18,33 @@ function GoogleMark() {
 }
 
 /**
+ * « Continuer avec Google »: off to Google, back to the home page. With compact, « Google » alone on small screens,
+ * for a one-line banner.
+ */
+export function GoogleSignInButton({ compact = false, className }: { compact?: boolean; className?: string }) {
+  return (
+    <form action={signInWithGoogleAction} lang="fr" className={className}>
+      <Button type="submit" variant="outline" className={cn("gap-2 font-semibold", compact ? "h-7 px-2.5 text-xs" : "h-9")}>
+        <GoogleMark />
+        {compact ? (
+          <span>
+            <span className="max-sm:sr-only">Continuer avec </span>Google
+          </span>
+        ) : (
+          "Continuer avec Google"
+        )}
+      </Button>
+    </form>
+  );
+}
+
+/**
  * The player's account, on the pages outside a save (inside a .brand scope): « Continuer avec Google » when not
  * signed in, an anonymous player included; the account's name, picture and « Se déconnecter » otherwise.
  */
 export function AccountPanel({ user, className }: { user: CurrentUser | null; className?: string }) {
   if (user === null || user.kind !== "REGISTERED") {
-    return (
-      <form action={signInWithGoogleAction} lang="fr" className={className}>
-        <Button type="submit" variant="outline" className="h-9 gap-2 font-semibold">
-          <GoogleMark />
-          Continuer avec Google
-        </Button>
-      </form>
-    );
+    return <GoogleSignInButton className={className} />;
   }
   const label = user.name ?? user.email ?? "Compte Google";
   return (

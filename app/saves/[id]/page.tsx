@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireOwnedSave } from "@/src/auth/current-user";
+import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import type { ClubPreview, Dashboard } from "@/src/db/dashboard";
 import { getDashboard } from "@/src/db/dashboard";
 import { getManagedLineup, type ManagedLineup } from "@/src/db/lineup";
 import { getOpponentPreview } from "@/src/db/opponent";
+import { hasPlayedMatch } from "@/src/db/saves";
 import { nextTransferWindowOpening, transferWindowCloseDate } from "@/src/engine/world";
 import { formatDayMonth, formatDecimal, formatMillions, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { AccountBanner } from "./_components/account-banner";
 import { OpponentSheet } from "./_components/opponent-sheet";
 import { Panel, PanelTitle } from "./_components/panel";
 import { ResultPill } from "./_components/result-pill";
@@ -130,7 +132,14 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const [dashboard, lineup, opponent] = await Promise.all([getDashboard(id), getManagedLineup(id), getOpponentPreview(id)]);
+  const [dashboard, lineup, opponent, user] = await Promise.all([
+    getDashboard(id),
+    getManagedLineup(id),
+    getOpponentPreview(id),
+    getCurrentUser(),
+  ]);
+  // Only an anonymous player's save is at risk: it lives in this browser's cookie.
+  const askToSignIn = user?.kind === "ANONYMOUS" && (await hasPlayedMatch(id));
   const { club, nextMatch, lastResult, position } = dashboard;
   const base = `/saves/${id}`;
   const alerts = alertsOf(dashboard, lineup, `${base}/squad`, `${base}/lineup`);
@@ -142,6 +151,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   return (
     <div className="space-y-5">
       <h1 className="sr-only">Tableau de bord</h1>
+      <AccountBanner show={askToSignIn} />
 
       <div className="grid gap-5 lg:grid-cols-12">
         <Panel className="flex flex-col lg:col-span-7">

@@ -233,6 +233,11 @@ export async function countOwnedSaves(userId: string): Promise<number> {
   return prisma.save.count({ where: { ownerId: userId } });
 }
 
+/** Whether a save has a match played: from then on, an anonymous player is asked to sign in. */
+export async function hasPlayedMatch(saveId: string): Promise<boolean> {
+  return (await prisma.fixture.findFirst({ where: { saveId, played: true }, select: { id: true } })) !== null;
+}
+
 /** A save with its managed club, or null when it does not exist. */
 export async function getSaveSummary(saveId: string): Promise<SaveSummary | null> {
   const save = await prisma.save.findUnique({ where: { id: saveId }, select: SAVE_SUMMARY_SELECT });
