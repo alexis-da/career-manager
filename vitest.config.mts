@@ -9,6 +9,9 @@ export default defineConfig({
     alias: [{ find: /^@\//, replacement: fileURLToPath(new URL("./", import.meta.url)) }],
   },
   test: {
+    // Hooks of the database tests (creating, then deleting a save, which cascades) can outlast the default 10 s on
+    // a remote database while other files run in parallel. Test timeouts keep the default.
+    hookTimeout: 30_000,
     exclude: [...configDefaults.exclude, "**/*.slow.test.ts", "e2e/**", ".next/**"],
   },
 });

@@ -8,6 +8,8 @@ export default defineConfig({
     alias: [{ find: /^@\//, replacement: fileURLToPath(new URL("./", import.meta.url)) }],
   },
   test: {
+    // Same as vitest.config.mts: database hooks get 30 s, test timeouts keep the default.
+    hookTimeout: 30_000,
     include: ["**/*.slow.test.ts"],
     exclude: [...configDefaults.exclude, "e2e/**", ".next/**"],
   },
