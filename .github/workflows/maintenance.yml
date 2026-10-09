@@ -1,0 +1,29 @@
+# Daily maintenance of the production database: the purge of anonymous users (app/api/maintenance/purge/route.ts).
+# Secrets of the repository: MAINTENANCE_URL, the endpoint's full address
+# (https://www.latewinner.app/api/maintenance/purge), and MAINTENANCE_SECRET, the same value as on Vercel.
+name: Maintenance
+
+on:
+  schedule:
+    - cron: "17 4 * * *" # 04:17 UTC, every day
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Purge the anonymous users
+        env:
+          MAINTENANCE_URL: ${{ secrets.MAINTENANCE_URL }}
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+        run: |
+          status=$(curl --silent --show-error --max-time 120 --output response.json --write-out "%{http_code}" \
+            --request POST --header "Authorization: Bearer ${MAINTENANCE_SECRET}" "${MAINTENANCE_URL}")
+          cat response.json; echo
+          if [ "$status" != "200" ]; then
+            echo "::error::The purge answered HTTP $status"
+            exit 1
+          fi

@@ -21,7 +21,8 @@ export default function proxy(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  // Everything but the login page, Auth.js's endpoints (Google comes back to /api/auth/callback), Next's assets, the
-  // static files of /public and the share image, which link previews fetch without a session.
-  matcher: ["/((?!login|api/auth/|opengraph-image|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt)$).*)"],
+  // Everything but the login page, Auth.js's endpoints (Google comes back to /api/auth/callback), the maintenance
+  // endpoints (their own secret, app/api/maintenance), Next's assets, the static files of /public and the share image,
+  // which link previews fetch without a session.
+  matcher: ["/((?!login|api/auth/|api/maintenance/|opengraph-image|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt)$).*)"],
 };

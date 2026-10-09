@@ -39,7 +39,12 @@ d'OpenFootball et ne changent jamais pendant une partie. Tout ce qui évolue est
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade) ; seuls
 la purge et les tests suppriment des `User`, plus une exception : à la connexion Google, l'utilisateur anonyme du
 navigateur (cookie `lw_uid`) donne d'abord toutes ses parties au compte, puis est supprimé, désormais sans partie
-(`signInWithGoogle`, `src/auth/google.ts`). Les parties d'avant les propriétaires gardent `ownerId` NULL : ce sont
+(`signInWithGoogle`, `src/auth/google.ts`). **La purge est la seule suppression automatique d'utilisateurs** :
+`purgeAnonymousUsers` (`src/db/purge.ts`), appelée chaque jour à 04:17 UTC par `.github/workflows/maintenance.yml`
+via `POST /api/maintenance/purge` (en-tête `Authorization: Bearer <MAINTENANCE_SECRET>`, 404 sans la variable ou
+avec un mauvais secret, `?dryRun=1` pour compter sans supprimer). Elle supprime les `ANONYMOUS` non vus depuis
+30 jours (`lastSeenAt`, avec leurs parties) et les `ANONYMOUS` sans partie non vus depuis 24 h ; jamais un
+`REGISTERED`. Aucun autre code ne supprime d'utilisateur de lui-même. Les parties d'avant les propriétaires gardent `ownerId` NULL : ce sont
 les parties **héritées** ; la connexion du compte `ADMIN_EMAIL` les lui rattache. Toute nouvelle partie a un
 propriétaire ; le code n'en crée jamais sans.
 
