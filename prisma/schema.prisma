@@ -75,6 +75,10 @@ model User {
   kind       UserKind
   createdAt  DateTime @default(now())
   lastSeenAt DateTime // mis à jour au plus une fois par jour (src/auth/current-user.ts), pour la purge
+  email      String?  @unique // compte Google (src/auth/google.ts) ; null pour un utilisateur anonyme
+  name       String? // nom du compte Google, mis à jour à chaque connexion
+  image      String? // avatar du compte Google, mis à jour à chaque connexion
+  googleSub  String?  @unique // identifiant stable du compte Google (claim « sub »)
   saves      Save[]
 }
 
