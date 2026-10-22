@@ -20,17 +20,20 @@ function canShareFiles(): boolean {
   }
 }
 
+type CardFile = { url: string; fileName: string };
+
 type SeasonCardPanelProps = {
-  cardUrl: string;
-  fileName: string; // late-winner-saison-2026-27.png
+  square: CardFile; // 1080 × 1080, the default: previewed, downloaded and shared
+  landscape: CardFile; // 1200 × 630, downloaded from a quieter link
   shareTitle: string; // never a club name: the card leaves the game
 };
 
 /**
- * The season's card: its preview, « Télécharger » and, where the browser shares files, « Partager », which hands the
- * PNG itself to the system's share sheet. The file is fetched beforehand: a share must start right on the click.
+ * The season's card: its square preview, « Télécharger », « Version paysage » and, where the browser shares files,
+ * « Partager », which hands the square PNG itself to the system's share sheet. The file is fetched beforehand: a share
+ * must start right on the click.
  */
-export function SeasonCardPanel({ cardUrl, fileName, shareTitle }: SeasonCardPanelProps) {
+export function SeasonCardPanel({ square, landscape, shareTitle }: SeasonCardPanelProps) {
   const shareable = useSyncExternalStore(subscribeToNothing, canShareFiles, () => false);
   const [file, setFile] = useState<File | null>(null);
 
@@ -39,11 +42,11 @@ export function SeasonCardPanel({ cardUrl, fileName, shareTitle }: SeasonCardPan
       return;
     }
     let cancelled = false;
-    fetch(cardUrl)
+    fetch(square.url)
       .then((response) => (response.ok ? response.blob() : Promise.reject(new Error(`HTTP ${response.status}`))))
       .then((blob) => {
         if (!cancelled) {
-          setFile(new File([blob], fileName, { type: "image/png" }));
+          setFile(new File([blob], square.fileName, { type: "image/png" }));
         }
       })
       // No file, no share button: downloading still works.
@@ -51,7 +54,7 @@ export function SeasonCardPanel({ cardUrl, fileName, shareTitle }: SeasonCardPan
     return () => {
       cancelled = true;
     };
-  }, [shareable, cardUrl, fileName]);
+  }, [shareable, square.url, square.fileName]);
 
   const share = async () => {
     if (file === null) {
@@ -67,16 +70,20 @@ export function SeasonCardPanel({ cardUrl, fileName, shareTitle }: SeasonCardPan
   return (
     <Panel className="space-y-4">
       <Image
-        src={cardUrl}
+        src={square.url}
         alt={`Carte de la saison : ${shareTitle}`}
-        width={1200}
-        height={630}
+        width={1080}
+        height={1080}
         unoptimized
         priority
-        className="h-auto w-full rounded-md border"
+        className="h-auto w-full max-w-md rounded-md border"
       />
-      <div className="flex flex-wrap gap-2">
-        <a href={cardUrl} download={fileName} className={buttonVariants({ variant: "club", size: "lg", className: "px-4" })}>
+      <div className="flex flex-wrap items-center gap-2">
+        <a
+          href={square.url}
+          download={square.fileName}
+          className={buttonVariants({ variant: "club", size: "lg", className: "px-4" })}
+        >
           <DownloadIcon data-icon="inline-start" />
           Télécharger
         </a>
@@ -86,6 +93,13 @@ export function SeasonCardPanel({ cardUrl, fileName, shareTitle }: SeasonCardPan
             Partager
           </Button>
         )}
+        <a
+          href={landscape.url}
+          download={landscape.fileName}
+          className="ml-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Version paysage
+        </a>
       </div>
     </Panel>
   );

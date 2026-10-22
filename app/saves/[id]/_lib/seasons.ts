@@ -16,7 +16,8 @@ export function seasonCardPath(saveId: string, seasonId: string, format: "landsc
   return format === "square" ? `${path}?format=square` : path;
 }
 
-/** The name of a downloaded card: late-winner-saison-2026-27.png. */
-export function seasonCardFileName(startYear: number): string {
-  return `late-winner-saison-${seasonLabel(startYear)}.png`;
+/** The name of a downloaded card: late-winner-saison-2026-27.png when square, …-paysage.png in landscape. */
+export function seasonCardFileName(startYear: number, format: "landscape" | "square" = "square"): string {
+  const suffix = format === "landscape" ? "-paysage" : "";
+  return `late-winner-saison-${seasonLabel(startYear)}${suffix}.png`;
 }

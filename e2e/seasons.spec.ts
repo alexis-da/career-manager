@@ -16,17 +16,26 @@ test("shows the demo save's palmarès, its completed season and the season's car
 
   await season.getByRole("link", { name: "Voir la carte de la saison 2026-27" }).click();
   await expect(page.getByRole("heading", { name: "Saison terminée" })).toBeVisible();
+  // Square by default, previewed and downloaded; landscape from the quieter link.
   const download = page.getByRole("link", { name: "Télécharger" });
   await expect(download).toHaveAttribute("download", "late-winner-saison-2026-27.png");
+  await expect(download).toHaveAttribute("href", /\?format=square$/);
+  const landscape = page.getByRole("link", { name: "Version paysage" });
+  await expect(landscape).toHaveAttribute("download", "late-winner-saison-2026-27-paysage.png");
+  await expect(landscape).not.toHaveAttribute("href", /format=/);
   const card = page.getByRole("img", { name: /^Carte de la saison/ });
   await expect(card).toBeVisible();
-  await expect.poll(() => card.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1200);
+  await expect
+    .poll(() => card.evaluate((image: HTMLImageElement) => [image.naturalWidth, image.naturalHeight]))
+    .toEqual([1080, 1080]);
 
-  // The card itself: a PNG for its owner, 404 for a visitor without the cookie.
-  const cardUrl = (await download.getAttribute("href")) ?? "";
-  const owned = await page.request.get(cardUrl);
-  expect(owned.status()).toBe(200);
-  expect(owned.headers()["content-type"]).toBe("image/png");
-  const anonymous = await request.get(cardUrl); // the request fixture shares no cookie with the page
-  expect(anonymous.status()).toBe(404);
+  // The cards themselves: PNGs for their owner, 404 for a visitor without the cookie.
+  for (const link of [download, landscape]) {
+    const cardUrl = (await link.getAttribute("href")) ?? "";
+    const owned = await page.request.get(cardUrl);
+    expect(owned.status()).toBe(200);
+    expect(owned.headers()["content-type"]).toBe("image/png");
+    const anonymous = await request.get(cardUrl); // the request fixture shares no cookie with the page
+    expect(anonymous.status()).toBe(404);
+  }
 });

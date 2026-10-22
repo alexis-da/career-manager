@@ -41,8 +41,8 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
         </p>
       </div>
       <SeasonCardPanel
-        cardUrl={seasonCardPath(id, seasonId)}
-        fileName={seasonCardFileName(season.startYear)}
+        square={{ url: seasonCardPath(id, seasonId, "square"), fileName: seasonCardFileName(season.startYear, "square") }}
+        landscape={{ url: seasonCardPath(id, seasonId), fileName: seasonCardFileName(season.startYear, "landscape") }}
         shareTitle={`Ma saison ${label} sur Late Winner`}
       />
     </div>
