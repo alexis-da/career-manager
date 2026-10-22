@@ -74,3 +74,24 @@ export function ensureContrast(accent: string, background: string, minRatio: num
   }
   return target;
 }
+
+/** Contrast a club color must reach as it is to serve as an accent: a darker one, lightened to 3:1, fades into grey. */
+export const MIN_CLUB_COLOR_CONTRAST = 2;
+
+/**
+ * The club's colors usable as accents on a background, the most contrasting first (measured before any lightening),
+ * each then brought to `minRatio` by ensureContrast; `fallback` alone when neither reaches MIN_CLUB_COLOR_CONTRAST.
+ */
+export function clubAccentsOn(
+  colors: ClubColors,
+  background: string,
+  fallback: string,
+  minRatio: number = MIN_ACCENT_CONTRAST,
+): [string, ...string[]] {
+  const [first, ...rest] = [colors.primary, colors.secondary]
+    .map((color) => ({ color, ratio: contrastRatio(color, background) }))
+    .filter(({ ratio }) => ratio >= MIN_CLUB_COLOR_CONTRAST)
+    .sort((a, b) => b.ratio - a.ratio) // stable: the primary color first on a tie
+    .map(({ color }) => ensureContrast(color, background, minRatio));
+  return first === undefined ? [fallback] : [first, ...rest];
+}

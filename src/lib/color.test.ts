@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { BLACK, contrastRatio, contrastText, ensureContrast, MIN_ACCENT_CONTRAST, relativeLuminance, WHITE } from "./color";
+import {
+  BLACK,
+  clubAccentsOn,
+  contrastRatio,
+  contrastText,
+  ensureContrast,
+  MIN_ACCENT_CONTRAST,
+  MIN_CLUB_COLOR_CONTRAST,
+  relativeLuminance,
+  WHITE,
+} from "./color";
 
 const DARK_BACKGROUND = "#0A0A0A";
 const LIGHT_BACKGROUND = "#FAFAFA";
@@ -61,5 +71,39 @@ describe("ensureContrast", () => {
         expect(contrastRatio(result, background)).toBeGreaterThanOrEqual(MIN_ACCENT_CONTRAST);
       }
     }
+  });
+});
+
+describe("clubAccentsOn", () => {
+  const MIDNIGHT_BLUE = "#0B1340";
+  const ORANGE = "#FF9F1C";
+
+  it("takes the secondary color of a club whose primary is too dark, and drops the primary", () => {
+    // Navy blue and red: the navy, under 2:1 on midnight blue, would only fade into grey once lightened.
+    expect(contrastRatio("#1B3E8F", MIDNIGHT_BLUE)).toBeLessThan(MIN_CLUB_COLOR_CONTRAST);
+    expect(clubAccentsOn({ primary: "#1B3E8F", secondary: "#E2001A" }, MIDNIGHT_BLUE, ORANGE)).toEqual([
+      ensureContrast("#E2001A", MIDNIGHT_BLUE),
+    ]);
+  });
+
+  it("takes the primary color of a light club first, then the secondary when it stands out too", () => {
+    expect(clubAccentsOn({ primary: "#FDE100", secondary: "#000000" }, MIDNIGHT_BLUE, ORANGE)).toEqual(["#FDE100"]);
+    expect(clubAccentsOn({ primary: "#FDE100", secondary: "#E2001A" }, MIDNIGHT_BLUE, ORANGE)).toEqual([
+      "#FDE100",
+      ensureContrast("#E2001A", MIDNIGHT_BLUE),
+    ]);
+  });
+
+  it("measures before lightening, then brings the chosen color to 3:1", () => {
+    // Dark green: over 2:1 as it is, under 3:1, so lightened rather than refused.
+    const [accent] = clubAccentsOn({ primary: "#00703C", secondary: "#000000" }, MIDNIGHT_BLUE, ORANGE);
+    expect(contrastRatio("#00703C", MIDNIGHT_BLUE)).toBeGreaterThanOrEqual(MIN_CLUB_COLOR_CONTRAST);
+    expect(contrastRatio("#00703C", MIDNIGHT_BLUE)).toBeLessThan(MIN_ACCENT_CONTRAST);
+    expect(accent).toBe(ensureContrast("#00703C", MIDNIGHT_BLUE));
+    expect(accent).not.toBe(ORANGE);
+  });
+
+  it("falls back on the brand's orange when both colors are too dark", () => {
+    expect(clubAccentsOn({ primary: "#000000", secondary: "#1B3E8F" }, MIDNIGHT_BLUE, ORANGE)).toEqual([ORANGE]);
   });
 });

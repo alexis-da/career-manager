@@ -5,7 +5,7 @@ import { ImageResponse } from "next/og";
 import type { CSSProperties, ReactNode } from "react";
 import type { SeasonResultView } from "@/src/db/season-results";
 import { seasonLabel } from "@/src/engine/world";
-import { ensureContrast, type ClubColors } from "@/src/lib/color";
+import { clubAccentsOn, type ClubColors } from "@/src/lib/color";
 import { formatDecimal } from "@/src/lib/format";
 import { faceDataUri } from "@/src/og/face-image";
 import { DISPLAY_FONT, imageFonts } from "@/src/og/fonts";
@@ -102,8 +102,9 @@ export async function seasonCardResponse(
 ): Promise<ImageResponse> {
   const [fonts, logo] = await Promise.all([imageFonts(), brandIcon()]);
   const square = format === "square";
-  const accent = ensureContrast(clubColors.primary, MIDNIGHT_BLUE);
-  const secondary = ensureContrast(clubColors.secondary, MIDNIGHT_BLUE);
+  // The club color that stands out best on midnight blue, the brand's orange when neither does; the other club color
+  // only as the thin band, when it stands out too.
+  const [accent, secondary] = clubAccentsOn(clubColors, MIDNIGHT_BLUE, ORANGE);
   const rankSize = square ? 250 : 190;
   const statSize = square ? 72 : 60;
 
@@ -162,7 +163,9 @@ export async function seasonCardResponse(
       >
         {/* The club's two colors, as a band along the left edge. */}
         <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 18, background: accent }} />
-        <div style={{ position: "absolute", left: 18, top: 0, bottom: 0, width: 8, background: secondary }} />
+        {secondary !== undefined && (
+          <div style={{ position: "absolute", left: 18, top: 0, bottom: 0, width: 8, background: secondary }} />
+        )}
         {square ? (
           <div style={{ ...column, justifyContent: "space-between", flex: 1, padding: "64px 64px 56px 90px" }}>
             {headline}
