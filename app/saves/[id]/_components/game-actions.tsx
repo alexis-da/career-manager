@@ -68,6 +68,9 @@ export function GameActions({ saveId, seasonFinished, liveMatch }: GameActionsPr
       try {
         const result = await action(saveId);
         if (result.redirectTo !== undefined) {
+          if (result.announce === true) {
+            toast.success(result.message);
+          }
           router.push(result.redirectTo);
         } else if (result.ok) {
           toast.success(result.message);

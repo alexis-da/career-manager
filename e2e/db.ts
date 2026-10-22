@@ -86,3 +86,25 @@ export async function deleteUsersLeftSince(since: Date): Promise<number> {
   );
   return result.rowCount ?? 0;
 }
+
+/** The demo user's id and the demo save's seed: src/db/test-support.ts, which Playwright's loader cannot import. */
+export const DEMO_USER_ID = "demo-user";
+const DEMO_SEED = "demo-2026-27";
+
+/**
+ * The demo save's id. The database tests create it (ensureDemoSave, npm run test); the end-to-end tests only read it,
+ * and refuse to start without it.
+ */
+export async function demoSaveId(): Promise<string> {
+  const result = await withTestDatabase((client) =>
+    client.query<{ id: string }>(
+      `SELECT "id" FROM "Save" WHERE "seed" = $1 AND "ownerId" = $2 ORDER BY "createdAt" LIMIT 1`,
+      [DEMO_SEED, DEMO_USER_ID],
+    ),
+  );
+  const id = result.rows[0]?.id;
+  if (id === undefined) {
+    throw new Error("No demo save in the test database: run npm run test first, which creates it.");
+  }
+  return id;
+}

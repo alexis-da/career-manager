@@ -48,6 +48,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
   let notFinishedError: (new (unplayed: number) => Error) | undefined;
   let first: AfterFirstAdvance | undefined;
   const kickoffs: Kickoff[] = [];
+  const completedSeasonIds: (string | null)[] = [];
+  let writtenResults: unknown[] = [];
+  let rebuiltResults: unknown[] = [];
 
   const database = (): typeof prismaClient => {
     if (db === undefined) {
@@ -196,10 +199,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
   };
 
   beforeAll(async () => {
-    const [{ prisma }, support, season] = await Promise.all([
+    const [{ prisma }, support, season, seasonResults] = await Promise.all([
       import("./client"),
       import("./test-support"),
       import("./season"),
+      import("./season-results"),
     ]);
     db = prisma;
     notFinishedError = season.SeasonNotFinishedError;
@@ -215,11 +219,21 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       await support.playRemainingMatchdays(saveId);
       const completedFixturesBefore = played === 0 ? await fixturesOfYear(FIRST_YEAR) : [];
       const transition = await season.advanceToNextSeason(saveId);
+      completedSeasonIds.push(transition.completedSeasonId);
       if (played === 0) {
         first = await readAfterFirstAdvance(transition, completedFixturesBefore);
       }
       kickoffs.push(await readKickoff(transition.startYear));
     }
+
+    // The rows advanceToNextSeason wrote, then the same seasons rebuilt from the database once the rows are gone, as
+    // for a save from before SeasonResult: three seasons of transfers later, the rebuilding must find the same squads.
+    const resultsWithoutIdentity = (): Promise<unknown[]> =>
+      prisma.seasonResult.findMany({ where: { saveId }, orderBy: { seasonId: "asc" }, omit: { id: true, createdAt: true } });
+    writtenResults = await resultsWithoutIdentity();
+    await prisma.seasonResult.deleteMany({ where: { saveId } });
+    await seasonResults.getSeasonResults(saveId);
+    rebuiltResults = await resultsWithoutIdentity();
   }, 900_000);
 
   // Deleting a played save cascades to tens of thousands of rows: allow more than the 10 s hook default.
@@ -308,17 +322,32 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
     }
   });
 
-  it("deletes the whole save, played matches and transfers included", async () => {
+  it("writes the managed club's result of every season it closes, and rebuilds the same rows later", async () => {
+    const seasons = await database().season.findMany({
+      where: { saveId, completed: true, competition: { code: "fr.1" } },
+      orderBy: { startYear: "asc" },
+      select: { id: true },
+    });
+    expect(completedSeasonIds).toEqual(seasons.map((season) => season.id));
+    expect(writtenResults).toHaveLength(SEASONS_PLAYED);
+    expect(writtenResults).toEqual(
+      expect.arrayContaining([expect.objectContaining({ played: 34, bestPlayerKey: expect.any(String) })]),
+    );
+    expect(rebuiltResults).toEqual(writtenResults);
+  });
+
+  it("deletes the whole save, played matches, transfers and results included", async () => {
     const db = database();
     await db.save.delete({ where: { id: saveId } });
-    const [saves, players, fixtures, transfers] = await Promise.all([
+    const [saves, players, fixtures, transfers, results] = await Promise.all([
       db.save.count({ where: { id: saveId } }),
       db.playerSave.count({ where: { saveId } }),
       db.fixture.count({ where: { saveId } }),
       db.transfer.count({ where: { saveId } }),
+      db.seasonResult.count({ where: { saveId } }),
     ]);
     saveId = "";
 
-    expect([saves, players, fixtures, transfers]).toEqual([0, 0, 0, 0]);
+    expect([saves, players, fixtures, transfers, results]).toEqual([0, 0, 0, 0, 0]);
   }, 120_000);
 });

@@ -11,6 +11,7 @@ const SECTIONS = [
   { segment: "/fixtures", label: "Calendrier" },
   { segment: "/standings", label: "Classement" },
   { segment: "/transfers", label: "Transferts" },
+  { segment: "/seasons", label: "Palmarès" },
 ] as const;
 
 /** Tabs of a save; the active one gets the club accent at 18 % and an accent underline. */

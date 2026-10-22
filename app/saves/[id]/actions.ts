@@ -27,8 +27,9 @@ import { halfTimeRefusalMessage, MATCH_IN_PROGRESS_MESSAGE, NO_MATCH_IN_PROGRESS
 export type GameActionResult = {
   ok: boolean;
   message: string;
-  // Page to open instead of showing the message: the replay of the managed club's match.
+  // Page to open instead of showing the message: the replay of the managed club's match, or the season just closed.
   redirectTo?: string;
+  announce?: boolean; // show the message as well as opening redirectTo
 };
 
 const saveIdSchema = z.string().min(1);
@@ -78,6 +79,10 @@ export async function advanceSeasonAction(saveId: string): Promise<GameActionRes
     return {
       ok: true,
       message: `Saison ${season} lancée : ${transition.retired} retraites, ${transition.preseason.youthPlayers} jeunes arrivés.`,
+      // The season just closed, with its card.
+      ...(transition.completedSeasonId === null
+        ? {}
+        : { redirectTo: `/saves/${id}/seasons/${transition.completedSeasonId}`, announce: true }),
     };
   } catch (error) {
     if (error instanceof MatchInProgressError) {

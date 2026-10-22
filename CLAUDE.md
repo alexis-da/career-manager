@@ -131,7 +131,8 @@ app/                  # routes App Router, à la racine ; UI en français
   admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
   privacy/            # page de confidentialité, publique (hors mot de passe) ; à tenir à jour avec le code
   api/                # Auth.js et la route de maintenance (purge), seules routes API
-  saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts
+  saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
+                      # palmarès (seasons/, et seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e)
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC
@@ -143,6 +144,8 @@ src/
   db/                 # accès Prisma, toujours scopé par saveId ; *.slow.test.ts via npm run test:slow
   lib/                # utilitaires partagés (rng, dates, couleurs, formatage)
   config/             # constantes de configuration (CONTACT_EMAIL)
+  og/                 # images générées (ImageResponse) : polices, visage en SVG data URI
+  assets/fonts/       # Barlow Condensed ExtraBold Italic et sa licence OFL, lues par src/og/fonts.ts
   generated/prisma/   # client Prisma généré, ignoré par git
 prisma/
   schema.prisma
