@@ -9,6 +9,7 @@ import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import { DEFAULT_WORLD_VERSION, worldTiers } from "../engine/world-version";
 import type { Prisma } from "../generated/prisma/client";
 import { chunk } from "../lib/arrays";
+import { describeError, phaseTimer, type PhaseTimer } from "../lib/diagnostics";
 import { ageInYears } from "../lib/dates";
 import { canCreateSave, SaveLimitError } from "../lib/limits";
 import { getOrThrow } from "../lib/maps";
@@ -48,7 +49,25 @@ const CREATE_BATCH_SIZE = 1_000;
  * Throws SaveLimitError, before writing anything, when the owner already has as many saves as their kind allows.
  */
 export async function createSave(input: CreateSaveInput): Promise<{ id: string }> {
-  const { name, managerName, clubId, seed, ownerId, worldVersion } = createSaveInputSchema.parse(input);
+  const data = createSaveInputSchema.parse(input);
+  const timer = phaseTimer();
+  try {
+    const created = await writeSave(data, timer);
+    console.info(`[createSave] world ${data.worldVersion}: ${timer.elapsed()} ms (${timer.summary()})`);
+    return created;
+  } catch (error) {
+    if (!(error instanceof SaveLimitError)) {
+      console.error(
+        `[createSave] world ${data.worldVersion}, failed after ${timer.elapsed()} ms (${timer.summary() || "nothing done"}): ${describeError(error)}`,
+      );
+    }
+    throw error;
+  }
+}
+
+/** The transaction of createSave, each phase marked on the timer for the logs. */
+async function writeSave(data: z.output<typeof createSaveInputSchema>, timer: PhaseTimer): Promise<{ id: string }> {
+  const { name, managerName, clubId, seed, ownerId, worldVersion } = data;
   const tiers = worldTiers(worldVersion);
 
   return prisma.$transaction(
@@ -61,6 +80,8 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       if (!canCreateSave(owner.kind, owner._count.saves)) {
         throw new SaveLimitError(owner.kind, owner._count.saves);
       }
+
+      timer.mark("limit");
 
       // Sequential on purpose: a transaction runs on a single connection, which takes one query at a time.
       const competitions = await tx.competition.findMany({
@@ -85,6 +106,8 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
           position: true,
         },
       });
+
+      timer.mark("read");
 
       const clubs = clubRows.map(({ competition, ...club }) => {
         if (club.competitionId === null || competition === null) {
@@ -118,6 +141,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
         select: { id: true, clubId: true },
       });
       const clubSaveIdByClubId = new Map(clubSaves.map((clubSave) => [clubSave.clubId, clubSave.id]));
+      timer.mark("clubs");
 
       const playerRows = players.map(
         ({ id: playerId, initialClubId, squadSlot, ...identity }): Prisma.PlayerSaveCreateManyInput => {
@@ -168,9 +192,11 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       for (const batch of chunk(playerRows, CREATE_BATCH_SIZE)) {
         await tx.playerSave.createMany({ data: batch });
       }
+      timer.mark(`players ${playerRows.length}`);
 
       // AI squads are full (SQUAD_SIZE_MAX) once the young players arrive: the pool stays on the market.
       await runPreseasonInTransaction(tx, save.id);
+      timer.mark("preseason");
 
       const startYear = seasonStartYear(save.currentDate);
       const seasons = await tx.season.createManyAndReturn({
@@ -196,6 +222,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       for (const batch of chunk(fixtures, CREATE_BATCH_SIZE)) {
         await tx.fixture.createMany({ data: batch });
       }
+      timer.mark(`fixtures ${fixtures.length}`);
 
       return { id: save.id };
     },

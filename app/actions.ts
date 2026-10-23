@@ -10,6 +10,7 @@ import { getCurrentUser, requireCurrentUser, requireOwnedSave } from "@/src/auth
 import { USER_COOKIE } from "@/src/auth/identity";
 import { deleteRegisteredUser } from "@/src/db/accounts";
 import { createSave, deleteSave } from "@/src/db/saves";
+import { describeError, phaseTimer } from "@/src/lib/diagnostics";
 import { SaveLimitError } from "@/src/lib/limits";
 import { SAVE_LIMIT_MESSAGES } from "./_components/save-limit-notice";
 import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
@@ -49,6 +50,7 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
   }
 
   let saveId: string;
+  const timer = phaseTimer();
   try {
     // An empty seed gets a random one: the seed feeds the simulation, it is never drawn inside it.
     const seed = parsed.data.seed === "" ? randomUUID() : parsed.data.seed;
@@ -60,7 +62,8 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
       // The form is replaced by this message once the page knows; a creation from a page loaded earlier ends here.
       return { values, errors: {}, message: SAVE_LIMIT_MESSAGES[error.kind] };
     }
-    console.error(error);
+    // The real error, its code and the time spent, in one line the hosting logs keep; then the whole error.
+    console.error(`[createSaveAction] failed after ${timer.elapsed()} ms: ${describeError(error)}`, error);
     return { values, errors: {}, message: "La partie n'a pas pu être créée. Réessayez." };
   }
 
