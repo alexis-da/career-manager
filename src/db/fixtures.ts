@@ -1,4 +1,5 @@
-import { generateSchedule, scheduleRngSeed } from "../engine/schedule";
+import { generateSchedule, matchdayDates, scheduleRngSeed } from "../engine/schedule";
+import type { WorldVersion } from "../engine/world-version";
 import { firstMatchdayDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
@@ -12,6 +13,7 @@ export type SeasonClub = {
 export type SeasonFixturesInput = {
   saveId: string;
   saveSeed: string;
+  worldVersion: WorldVersion;
   seasonId: string;
   competitionCode: string;
   startYear: number;
@@ -21,8 +23,10 @@ export type SeasonFixturesInput = {
 const bySlug = (a: SeasonClub, b: SeasonClub): number => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0);
 
 /**
- * Fixture rows of a new season: a seeded double round-robin between the clubs, one matchday a week from
- * the third Saturday of August. Clubs are sorted by slug first, so their order in the input never matters.
+ * Fixture rows of a new season: a seeded double round-robin between the clubs. Clubs are sorted by slug first, so their
+ * order in the input never matters. The pairings are the same in every world; the dates differ: one matchday a week
+ * from the third Saturday of August in a worldVersion 1 save, as always, and in a worldVersion 2 save the matchdays
+ * placed by matchdayDates, so that every competition ends on the same day.
  */
 export function seasonFixtures(input: SeasonFixturesInput): Prisma.FixtureCreateManyInput[] {
   const clubs = [...input.clubs].sort(bySlug);
@@ -32,11 +36,12 @@ export function seasonFixtures(input: SeasonFixturesInput): Prisma.FixtureCreate
     firstMatchdayDate(input.startYear),
     makeRng(scheduleRngSeed(input.saveSeed, input.competitionCode, input.startYear)),
   );
+  const dates = input.worldVersion === 1 ? null : matchdayDates(2 * (clubs.length - 1), input.startYear);
   return schedule.map((match) => ({
     saveId: input.saveId,
     seasonId: input.seasonId,
     round: match.round,
-    scheduledAt: match.scheduledAt,
+    scheduledAt: dates === null ? match.scheduledAt : dates[match.round - 1],
     homeClubSaveId: getOrThrow(clubSaveIdBySlug, match.home, "club save"),
     awayClubSaveId: getOrThrow(clubSaveIdBySlug, match.away, "club save"),
   }));

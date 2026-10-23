@@ -1,4 +1,5 @@
 import { displayClubName } from "../engine/club-name";
+import { DEFAULT_WORLD_VERSION, worldTiers, type WorldVersion } from "../engine/world-version";
 import { prisma } from "./client";
 
 export type ClubOption = {
@@ -12,9 +13,13 @@ export type CompetitionClubs = {
   clubs: ClubOption[];
 };
 
-/** Clubs of the world grouped by competition, both in alphabetical order of the names shown. Reference tables only. */
-export async function listClubsByCompetition(): Promise<CompetitionClubs[]> {
+/**
+ * Clubs a save of a world can be created with, grouped by competition, both in alphabetical order of the names shown.
+ * Reference tables only.
+ */
+export async function listClubsByCompetition(worldVersion: WorldVersion = DEFAULT_WORLD_VERSION): Promise<CompetitionClubs[]> {
   const competitions = await prisma.competition.findMany({
+    where: { tier: { in: worldTiers(worldVersion) } },
     orderBy: { name: "asc" },
     select: { code: true, name: true, clubs: { select: { id: true, slug: true, name: true } } },
   });

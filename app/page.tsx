@@ -19,6 +19,10 @@ import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
 
 export const dynamic = "force-dynamic";
 
+// The Server Actions of this page include the creation of a save (createSave), several thousand rows in one
+// transaction: up to 60 s, as the purge route.
+export const maxDuration = 60;
+
 /** The season a new save starts, above the creation form. */
 function NewSaveIntro() {
   return (

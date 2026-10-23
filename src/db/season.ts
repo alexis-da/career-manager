@@ -3,6 +3,7 @@ import { marketValueFor } from "../engine/economy";
 import type { PlayerAttributes } from "../engine/generation";
 import { progressionRngSeed, progressPlayer, willRetire } from "../engine/progression";
 import { seasonEndDate, seasonStartDate } from "../engine/world";
+import { worldVersionOf } from "../engine/world-version";
 import { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
@@ -54,7 +55,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
   return prisma.$transaction(
     async (tx) => {
       await assertNoMatchInProgress(tx, saveId);
-      const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true } });
+      const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, worldVersion: true } });
       const seasons = await tx.season.findMany({
         where: { saveId, completed: false },
         select: { id: true, startYear: true, competitionId: true, competition: { select: { code: true } } },
@@ -202,6 +203,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         seasonFixtures({
           saveId,
           saveSeed: save.seed,
+          worldVersion: worldVersionOf(save.worldVersion),
           seasonId: season.id,
           competitionCode: getOrThrow(codeByCompetition, season.competitionId, "competition code"),
           startYear,

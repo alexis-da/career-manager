@@ -6,7 +6,9 @@ import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engi
 import { worldPlayerKey } from "../engine/identity";
 import { competitionTier } from "../engine/tiers";
 import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
+import { DEFAULT_WORLD_VERSION, worldTiers } from "../engine/world-version";
 import type { Prisma } from "../generated/prisma/client";
+import { chunk } from "../lib/arrays";
 import { ageInYears } from "../lib/dates";
 import { canCreateSave, SaveLimitError } from "../lib/limits";
 import { getOrThrow } from "../lib/maps";
@@ -22,23 +24,32 @@ export const createSaveInputSchema = z.object({
   clubId: z.string().min(1),
   seed: z.string().min(1).max(200),
   ownerId: z.string().min(1), // every new save has an owner: only inherited saves, from before owners, have none
+  // The game creates DEFAULT_WORLD_VERSION saves; tests pass 2 for the second divisions.
+  worldVersion: z.union([z.literal(1), z.literal(2)]).default(DEFAULT_WORLD_VERSION),
 });
 
 export type CreateSaveInput = z.input<typeof createSaveInputSchema>;
 
-// A new save writes about 4 000 rows: allow much more than the 5 s default.
+// A new save writes about 4 000 rows in a worldVersion 1 world, 8 500 in a worldVersion 2 one: allow much more than
+// the 5 s default.
 const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 120_000;
 
+/** Rows per INSERT of the large tables: bounded statements rather than one of several thousand rows. */
+const CREATE_BATCH_SIZE = 1_000;
+
 /**
- * Creates a save and its whole initial state in one transaction: a ClubSave per club, a PlayerSave per
- * world player (identity copied from Player; the free agent pool without a club or a contract), the first
- * preseason (young players), a Season per competition and its fixtures. Everything random derives from the
- * seed, so the same seed always yields the same save. Reference tables (Competition, Club, Player) are only read.
+ * Creates a save and its whole initial state in one transaction: a ClubSave per club of its world (worldVersion: the
+ * first divisions, or the first and second ones), a PlayerSave per player of those clubs (identity copied from Player)
+ * and per free agent of the pool (without a club or a contract), the first preseason (young players), a Season per
+ * competition and its fixtures. The large tables are written in batches of CREATE_BATCH_SIZE rows. Everything random
+ * derives from the seed, so the same seed always yields the same save; each player's stream is his own, so a first
+ * division player gets the same attributes in both worlds. Reference tables (Competition, Club, Player) are only read.
  * Throws SaveLimitError, before writing anything, when the owner already has as many saves as their kind allows.
  */
 export async function createSave(input: CreateSaveInput): Promise<{ id: string }> {
-  const { name, managerName, clubId, seed, ownerId } = createSaveInputSchema.parse(input);
+  const { name, managerName, clubId, seed, ownerId, worldVersion } = createSaveInputSchema.parse(input);
+  const tiers = worldTiers(worldVersion);
 
   return prisma.$transaction(
     async (tx) => {
@@ -52,11 +63,17 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       }
 
       // Sequential on purpose: a transaction runs on a single connection, which takes one query at a time.
-      const competitions = await tx.competition.findMany({ select: { id: true, code: true } });
+      const competitions = await tx.competition.findMany({
+        where: { tier: { in: tiers } },
+        select: { id: true, code: true },
+      });
       const clubRows = await tx.club.findMany({
+        where: { competition: { tier: { in: tiers } } },
         select: { id: true, slug: true, initialRank: true, competitionId: true, competition: { select: { tier: true } } },
       });
+      // The players of the world's clubs, and the free agent pool, the same in every world.
       const players = await tx.player.findMany({
+        where: { OR: [{ initialClubId: null }, { initialClub: { competition: { tier: { in: tiers } } } }] },
         select: {
           id: true,
           initialClubId: true,
@@ -76,7 +93,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
         return { ...club, competitionId: club.competitionId, tier: competitionTier(competition.tier) };
       });
       if (!clubs.some((club) => club.id === clubId)) {
-        throw new Error(`Unknown club: ${clubId}`);
+        throw new Error(`Unknown club in world ${worldVersion}: ${clubId}`);
       }
 
       const clubById = new Map(clubs.map((club) => [club.id, club]));
@@ -86,7 +103,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       }
 
       const save = await tx.save.create({
-        data: { name, managerName, seed, ownerId, worldVersion: 1, currentDate: WORLD_START_DATE },
+        data: { name, managerName, seed, ownerId, worldVersion, currentDate: WORLD_START_DATE },
         select: { id: true, seed: true, currentDate: true },
       });
 
@@ -102,8 +119,8 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       });
       const clubSaveIdByClubId = new Map(clubSaves.map((clubSave) => [clubSave.clubId, clubSave.id]));
 
-      await tx.playerSave.createMany({
-        data: players.map(({ id: playerId, initialClubId, squadSlot, ...identity }): Prisma.PlayerSaveCreateManyInput => {
+      const playerRows = players.map(
+        ({ id: playerId, initialClubId, squadSlot, ...identity }): Prisma.PlayerSaveCreateManyInput => {
           const age = ageInYears(identity.birthDate, save.currentDate);
 
           if (initialClubId === null) {
@@ -146,8 +163,11 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
             ...attributes,
             ...contract,
           };
-        }),
-      });
+        },
+      );
+      for (const batch of chunk(playerRows, CREATE_BATCH_SIZE)) {
+        await tx.playerSave.createMany({ data: batch });
+      }
 
       // AI squads are full (SQUAD_SIZE_MAX) once the young players arrive: the pool stays on the market.
       await runPreseasonInTransaction(tx, save.id);
@@ -159,21 +179,23 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       });
       const competitionById = new Map(competitions.map((competition) => [competition.id, competition]));
 
-      await tx.fixture.createMany({
-        data: seasons.flatMap((season) => {
-          const competition = getOrThrow(competitionById, season.competitionId, "competition");
-          return seasonFixtures({
-            saveId: save.id,
-            saveSeed: save.seed,
-            seasonId: season.id,
-            competitionCode: competition.code,
-            startYear,
-            clubs: clubs
-              .filter((club) => club.competitionId === competition.id)
-              .map((club) => ({ slug: club.slug, clubSaveId: getOrThrow(clubSaveIdByClubId, club.id, "club save") })),
-          });
-        }),
+      const fixtures = seasons.flatMap((season) => {
+        const competition = getOrThrow(competitionById, season.competitionId, "competition");
+        return seasonFixtures({
+          saveId: save.id,
+          saveSeed: save.seed,
+          worldVersion,
+          seasonId: season.id,
+          competitionCode: competition.code,
+          startYear,
+          clubs: clubs
+            .filter((club) => club.competitionId === competition.id)
+            .map((club) => ({ slug: club.slug, clubSaveId: getOrThrow(clubSaveIdByClubId, club.id, "club save") })),
+        });
       });
+      for (const batch of chunk(fixtures, CREATE_BATCH_SIZE)) {
+        await tx.fixture.createMany({ data: batch });
+      }
 
       return { id: save.id };
     },

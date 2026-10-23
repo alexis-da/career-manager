@@ -1,4 +1,5 @@
 import { shuffle, type Rng } from "../lib/rng";
+import { firstMatchdayDate } from "./world";
 
 export type ScheduledMatch = {
   round: number; // 1-based matchday
@@ -11,6 +12,42 @@ type Pairing = { home: string; away: string };
 
 const DAYS_BETWEEN_MATCHDAYS = 7;
 const DAY_MS = 86_400_000;
+
+/**
+ * Saturdays with matches in a season of a worldVersion 2 save: from the third Saturday of August (firstMatchdayDate)
+ * to mid-May, the 40th (15 May 2027).
+ */
+export const SEASON_SATURDAYS = 40;
+
+/** A midweek matchday is played on the Tuesday after a Saturday. */
+const MIDWEEK_DAYS_AFTER_SATURDAY = 3;
+
+/**
+ * Dates of the matchdays of a season in a worldVersion 2 save, in order: every competition starts on the first of the
+ * SEASON_SATURDAYS Saturdays and ends on the last, whatever its size. Up to 40 matchdays, Saturdays spread evenly,
+ * first and last included, the others rest weeks (34 matchdays: 6 Saturdays off); beyond, every Saturday plus a
+ * Tuesday for each matchday more, spread evenly between the first and the last (46 matchdays: 6 Tuesdays). No draw:
+ * the same number of matchdays always gets the same dates.
+ */
+export function matchdayDates(roundCount: number, startYear: number): Date[] {
+  if (!Number.isInteger(roundCount) || roundCount < 2 || roundCount > 2 * SEASON_SATURDAYS - 1) {
+    throw new RangeError(`A season of 2 to ${2 * SEASON_SATURDAYS - 1} matchdays, got ${roundCount}`);
+  }
+  const first = firstMatchdayDate(startYear).getTime();
+  const saturday = (index: number): number => first + index * DAYS_BETWEEN_MATCHDAYS * DAY_MS;
+  const gaps = SEASON_SATURDAYS - 1;
+
+  if (roundCount <= SEASON_SATURDAYS) {
+    return Array.from({ length: roundCount }, (_, index) => new Date(saturday(Math.round((index * gaps) / (roundCount - 1)))));
+  }
+  const midweeks = roundCount - SEASON_SATURDAYS;
+  const tuesdays = Array.from(
+    { length: midweeks },
+    (_, index) => saturday(Math.floor(((index + 0.5) * gaps) / midweeks)) + MIDWEEK_DAYS_AFTER_SATURDAY * DAY_MS,
+  );
+  const saturdays = Array.from({ length: SEASON_SATURDAYS }, (_, index) => saturday(index));
+  return [...saturdays, ...tuesdays].sort((a, b) => a - b).map((time) => new Date(time));
+}
 
 /** Seed of the stream ordering one competition's season in a save. */
 export function scheduleRngSeed(saveSeed: string, competitionCode: string, startYear: number): string {

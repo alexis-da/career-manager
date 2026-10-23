@@ -27,6 +27,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
   const countReferenceTables = () =>
     Promise.all([database().competition.count(), database().club.count(), database().player.count()]);
 
+  /** Competitions, clubs and players (free agent pool included) of a world's tiers in the reference tables. */
+  const countWorld = (tiers: number[]) =>
+    Promise.all([
+      database().competition.count({ where: { tier: { in: tiers } } }),
+      database().club.count({ where: { competition: { tier: { in: tiers } } } }),
+      database().player.count({
+        where: { OR: [{ initialClubId: null }, { initialClub: { competition: { tier: { in: tiers } } } }] },
+      }),
+    ]);
+
   beforeAll(async () => {
     const [{ prisma }, { createSave }, { createTestOwner }] = await Promise.all([
       import("./client"),
@@ -41,6 +51,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
       const save = await createSave({ name: `Test ${seed}`, managerName: "Test", clubId, seed, ownerId: await createTestOwner() });
       saveIds.push(save.id);
     }
+    // The fourth: the same seed as the first, in the world with the second divisions.
+    const v2 = await createSave({
+      name: "Test v2",
+      managerName: "Test",
+      clubId,
+      seed: "test-seed-1",
+      ownerId: await createTestOwner(),
+      worldVersion: 2,
+    });
+    saveIds.push(v2.id);
     referenceCountsAfter = await countReferenceTables();
   }, 300_000);
 
@@ -109,9 +129,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
         db.playerSave.count({ where: { saveId, playerId: null, playerKey: { startsWith: `youth:${WORLD_START_YEAR}:` } } }),
         db.season.findMany({ where: { saveId }, select: { startYear: true } }),
         db.fixture.count({ where: { saveId } }),
-        db.club.groupBy({ by: ["competitionId"], _count: { _all: true } }),
+        db.club.groupBy({ by: ["competitionId"], where: { competition: { tier: 1 } }, _count: { _all: true } }),
       ]);
-    const [competitionCount, clubCount, playerCount] = referenceCountsAfter;
+    // A save of the default world, the first divisions only.
+    const [competitionCount, clubCount, playerCount] = await countWorld([1]);
+
+    expect(save.worldVersion).toBe(1);
+    expect([competitionCount, clubCount]).toEqual([5, 96]);
 
     // A new save starts on 1 July of the game's first season, 2026-27.
     expect(save.currentDate.toISOString()).toBe("2026-07-01T00:00:00.000Z");
@@ -137,7 +161,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
       JOIN "Player" p ON p.id = ps."playerId"
       LEFT JOIN "Club" c ON c.id = p."initialClubId"
       WHERE ps."saveId" = ${saveId}`;
-    const [, , playerCount] = referenceCountsAfter;
+    const [, , playerCount] = await countWorld([1]);
 
     expect(row.copied).toBe(playerCount);
     expect(row.mismatches).toBe(0);
@@ -188,6 +212,54 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
 
     expect(otherPlayers).toHaveLength(firstPlayers.length);
     expect(differing.length).toBeGreaterThan(worldPlayers.length * 0.7);
+  });
+
+  it("creates a worldVersion 2 save with both divisions, each club in its world competition, all ending the same day", async () => {
+    const [, , , saveId] = saveIds;
+    const db = database();
+    const [save, clubSaves, seasons, fixtures, misplaced] = await Promise.all([
+      db.save.findUniqueOrThrow({ where: { id: saveId }, select: { worldVersion: true } }),
+      db.clubSave.count({ where: { saveId } }),
+      db.season.findMany({ where: { saveId }, select: { competition: { select: { tier: true } } } }),
+      db.fixture.groupBy({ by: ["seasonId"], where: { saveId }, _count: { _all: true }, _max: { scheduledAt: true } }),
+      db.$queryRaw<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM "ClubSave" cs JOIN "Club" c ON c.id = cs."clubId"
+        WHERE cs."saveId" = ${saveId} AND cs."competitionId" <> c."competitionId"`,
+    ]);
+    const [competitionCount, clubCount] = await countWorld([1, 2]);
+
+    expect(save.worldVersion).toBe(2);
+    expect([competitionCount, clubCount]).toEqual([10, 198]);
+    expect(clubSaves).toBe(clubCount);
+    expect(seasons.map((season) => season.competition.tier).sort()).toEqual([1, 1, 1, 1, 1, 2, 2, 2, 2, 2]);
+    // 20 clubs: 380 matches; 24 clubs: 552; the ten competitions, 3 758.
+    expect(fixtures.reduce((sum, season) => sum + season._count._all, 0)).toBe(3758);
+    expect(new Set(fixtures.map((season) => season._max.scheduledAt?.toISOString())).size).toBe(1);
+    expect(misplaced[0].count).toBe(0);
+  });
+
+  it("gives the first division players of a worldVersion 2 save the attributes of a worldVersion 1 save of the same seed", async () => {
+    const [firstSaveId, , , v2SaveId] = saveIds;
+    const firstDivision = async (saveId: string) =>
+      (await playerSavesOf(saveId)).filter((player) => !player.playerKey.startsWith("youth:") && !player.playerKey.startsWith("free-agents#"));
+    const v1Players = await firstDivision(firstSaveId);
+    const v1Keys = new Set(v1Players.map((player) => player.playerKey));
+    const v2Players = (await firstDivision(v2SaveId)).filter((player) => v1Keys.has(player.playerKey));
+    // The club a player is at may differ once the AI clubs have signed: compare the player, not his club.
+    const withoutClub = (players: Awaited<ReturnType<typeof firstDivision>>) =>
+      players.map((player) => ({ ...player, clubSave: undefined }));
+
+    expect(v1Players).toHaveLength(2208);
+    expect(withoutClub(v2Players)).toEqual(withoutClub(v1Players));
+  });
+
+  it("refuses a second division club in a worldVersion 1 save", async () => {
+    const [{ createSave }, { createTestOwner }] = await Promise.all([import("./saves"), import("./test-support")]);
+    const { id: clubId } = await database().club.findUniqueOrThrow({ where: { slug: "leeds-united-fc" }, select: { id: true } });
+
+    await expect(
+      createSave({ name: "Test v1 D2", managerName: "Test", clubId, seed: "test-seed-1", ownerId: await createTestOwner() }),
+    ).rejects.toThrow(/Unknown club in world 1/);
   });
 
   it("leaves the reference tables untouched", () => {

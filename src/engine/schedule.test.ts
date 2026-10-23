@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
-import { generateSchedule } from "./schedule";
+import { generateSchedule, matchdayDates } from "./schedule";
 
 const FIRST_MATCHDAY = new Date(Date.UTC(2024, 7, 17));
 const WEEK_MS = 7 * 86_400_000;
@@ -53,5 +53,61 @@ describe("generateSchedule", () => {
   it("rejects an odd number of clubs and duplicates", () => {
     expect(() => generateSchedule(clubsOf(5), FIRST_MATCHDAY, makeRng("x"))).toThrow(RangeError);
     expect(() => generateSchedule(["a", "a"], FIRST_MATCHDAY, makeRng("x"))).toThrow(RangeError);
+  });
+});
+
+describe("matchdayDates (worldVersion 2)", () => {
+  const DAY_MS = 86_400_000;
+  const FIRST = new Date(Date.UTC(2026, 7, 15)); // third Saturday of August 2026
+  const LAST = new Date(Date.UTC(2027, 4, 15)); // the 40th Saturday
+  const weekday = (date: Date): number => date.getUTCDay();
+
+  it.each([
+    // [matchdays, Saturdays played, Tuesdays]
+    [46, 40, 6],
+    [42, 40, 2],
+    [38, 38, 0],
+    [34, 34, 0],
+  ])("places %i matchdays on %i Saturdays and %i Tuesdays, from the first Saturday to the last", (rounds, saturdays, tuesdays) => {
+    const dates = matchdayDates(rounds, 2026);
+
+    expect(dates).toHaveLength(rounds);
+    expect(dates[0]).toEqual(FIRST);
+    expect(dates.at(-1)).toEqual(LAST);
+    expect(dates.filter((date) => weekday(date) === 6)).toHaveLength(saturdays);
+    expect(dates.filter((date) => weekday(date) === 2)).toHaveLength(tuesdays);
+    expect(dates.every((date, index) => index === 0 || date > dates[index - 1])).toBe(true);
+    // Three days at least between two matchdays: never two on the same weekend.
+    expect(dates.every((date, index) => index === 0 || date.getTime() - dates[index - 1].getTime() >= 3 * DAY_MS)).toBe(true);
+  });
+
+  it("spreads the rest weeks and the midweeks over the season, never two in a row", () => {
+    const gapsInWeeks = (rounds: number) => {
+      const dates = matchdayDates(rounds, 2026);
+      return dates.slice(1).map((date, index) => (date.getTime() - dates[index].getTime()) / (7 * DAY_MS));
+    };
+    // 34 matchdays: 6 rest weeks, each a gap of two weeks, apart from one another.
+    const restGaps = gapsInWeeks(34).flatMap((gap, index) => (gap === 2 ? [index] : []));
+    expect(restGaps).toHaveLength(6);
+    expect(restGaps.every((index, position) => position === 0 || index - restGaps[position - 1] > 2)).toBe(true);
+    expect(gapsInWeeks(34).every((gap) => gap === 1 || gap === 2)).toBe(true);
+    // 46 matchdays: 6 Tuesdays, each between two Saturdays, apart from one another.
+    const dates = matchdayDates(46, 2026);
+    const tuesdays = dates.flatMap((date, index) => (weekday(date) === 2 ? [index] : []));
+    expect(tuesdays.every((index, position) => position === 0 || index - tuesdays[position - 1] > 3)).toBe(true);
+    expect(tuesdays.every((index) => weekday(dates[index - 1]) === 6 && weekday(dates[index + 1]) === 6)).toBe(true);
+  });
+
+  it("ends every season on the 40th Saturday, whatever the year", () => {
+    for (const startYear of [2026, 2027, 2028]) {
+      const lastSaturday = matchdayDates(34, startYear).at(-1);
+      expect(matchdayDates(46, startYear).at(-1)).toEqual(lastSaturday);
+      expect(lastSaturday?.getUTCMonth()).toBe(4); // May
+    }
+  });
+
+  it("refuses a season it cannot place", () => {
+    expect(() => matchdayDates(1, 2026)).toThrow(RangeError);
+    expect(() => matchdayDates(80, 2026)).toThrow(RangeError);
   });
 });
