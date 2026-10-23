@@ -40,7 +40,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
     transfers = transfersModule;
     const { id: clubId } = await prisma.club.findUniqueOrThrow({ where: { slug: MANAGED_SLUG }, select: { id: true } });
     for (const name of ["Test transferts A", "Test transferts B"]) {
-      saveIds.push((await createSave({ name, managerName: "Test", clubId, seed: SEED, ownerId: await createTestOwner() })).id);
+      saveIds.push((await createSave({ name, managerName: "Test", clubId, seed: SEED, ownerId: await createTestOwner(), worldVersion: 1 })).id);
     }
   }, 300_000);
 

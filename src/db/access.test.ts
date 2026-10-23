@@ -42,6 +42,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("access to a save", () =
       clubId: club.id,
       seed: supportModule.DEMO_SEED,
       ownerId: users.owner,
+      worldVersion: 1, // no second division needed here: half the rows
     }));
     await playNextMatchday(saveId);
   }, 240_000);

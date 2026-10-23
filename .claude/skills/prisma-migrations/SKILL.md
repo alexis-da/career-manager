@@ -109,10 +109,11 @@ npx tsx scripts/generate-reference-migration.ts prisma/migrations/<horodatage>_s
   ne lit `Club.competitionId` nulle part ailleurs. Une saison passée prend ses clubs dans ses `Fixture` (classement
   `getStandings`, palmarès `computeSeasonResult`), jamais dans `ClubSave.competitionId`.
 - `Save.worldVersion` (sans défaut en base, la migration a rempli 1 puis retiré le défaut) : 1 = premières divisions,
-  2 = premières et deuxièmes. `createSave` lit les compétitions, clubs et joueurs des niveaux de son monde
+  2 = premières et deuxièmes, le monde par défaut (`DEFAULT_WORLD_VERSION`) de toute nouvelle partie. `createSave` lit les compétitions, clubs et joueurs des niveaux de son monde
   (`worldTiers`) et refuse un club hors de ce monde. Les grandes tables (`PlayerSave`, `Fixture`) s'écrivent par lots de
   1 000 lignes ; la page d'accueil, qui crée les parties, a `maxDuration = 60`.
-- Une table de test qui crée un `Save` directement donne `worldVersion: 1`.
+- Un test qui crée un `Save` directement, ou appelle `createSave` sans avoir besoin de deuxième division, donne
+  explicitement `worldVersion: 1` : deux fois moins de lignes, et le budget Neon des tests s'en porte mieux.
 - `Season.movements` (Json, nullable) : sur une saison terminée d'une partie 2, la liste des clubs qui quittent sa
   compétition `{ clubId, from, to, reason: "PROMOTED" | "RELEGATED", rank }` (codes de compétition, `Club.id`), validée
   par `seasonMovementsSchema` (`src/db/promotion.ts`) à la lecture ; liste vide sans mouvement, null dans une partie 1,

@@ -35,14 +35,3 @@ export async function listClubsByCompetition(worldVersion: WorldVersion = DEFAUL
   }));
 }
 
-/**
- * The world of a save created with a club, until the second divisions are the default: a second division club needs
- * worldVersion 2, any other club gets DEFAULT_WORLD_VERSION. Throws for a club without a competition.
- */
-export async function creationWorldVersion(clubId: string): Promise<WorldVersion> {
-  const club = await prisma.club.findUniqueOrThrow({ where: { id: clubId }, select: { competition: { select: { tier: true } } } });
-  if (club.competition === null) {
-    throw new Error(`Club ${clubId} has no competition`);
-  }
-  return competitionTier(club.competition.tier) === 2 ? 2 : DEFAULT_WORLD_VERSION;
-}

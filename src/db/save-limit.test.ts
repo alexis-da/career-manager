@@ -37,7 +37,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("save limit, in the data
       ownerId,
     }));
 
-  const input = (ownerId: string) => ({ name: "Test limite", managerName: "Test", clubId, seed: `test-limit-${run}`, ownerId });
+  const input = (ownerId: string) => ({ name: "Test limite", managerName: "Test", clubId, seed: `test-limit-${run}`, ownerId, worldVersion: 1 as const });
 
   beforeAll(async () => {
     const [{ prisma }, savesModule, limitsModule] = await Promise.all([import("./client"), import("./saves"), import("../lib/limits")]);

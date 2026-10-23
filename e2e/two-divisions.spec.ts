@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createSave, deleteSave } from "./helpers";
 
-// A second division club: the save gets the world with the second divisions (worldVersion 2).
+// A second division club, chosen in the creation form like any other.
 const PARIS_FC = "Paris FC";
 
 // Name of the save the running test created, until it is deleted.

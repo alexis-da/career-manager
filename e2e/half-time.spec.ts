@@ -21,7 +21,7 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
   try {
     await createSave(page, name, LYON);
 
-    await page.getByRole("button", { name: "Jouer la journée" }).click();
+    await page.getByRole("button", { name: "Prochain match" }).click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
     // « Passer » goes to the break, not to the final whistle.
     await page.getByRole("button", { name: "Passer" }).click();
@@ -30,7 +30,7 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     await expect(halfTime.locator("[data-substitutions]")).toHaveText("Remplacements : 0/5");
 
     // While the match waits, the main button leads back to it, and the page opens on the break.
-    await expect(page.getByRole("button", { name: "Jouer la journée" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Prochain match" })).toHaveCount(0);
     await page.getByRole("link", { name: "Match en cours — reprendre" }).click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live$/);
     await expect(halfTime.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
@@ -60,7 +60,7 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     await expect(page.getByText("Terminé", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Continuer" }).click();
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Jouer la journée" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Prochain match" })).toBeVisible();
 
     // The match sheet: the half-time score, and the substitution at 46'.
     await page.goto(`${page.url()}/fixtures?vue=liste`);
@@ -83,7 +83,7 @@ test("with reduced motion, shows the break at once, then the final whistle at on
     await page.emulateMedia({ reducedMotion: "reduce" });
     await createSave(page, name, LYON);
 
-    await page.getByRole("button", { name: "Jouer la journée" }).click();
+    await page.getByRole("button", { name: "Prochain match" }).click();
     await expect(page.locator("[data-half-time]").getByRole("heading", { name: "Mi-temps" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Passer" })).toHaveCount(0);
 

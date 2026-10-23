@@ -58,7 +58,7 @@ test("asks an anonymous player to sign in once a matchday is played, and the cro
   // Nothing played yet: no banner.
   await expect(page.getByText(BANNER)).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Jouer la journée" }).click();
+  await page.getByRole("button", { name: "Prochain match" }).click();
   await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
   await page.getByRole("button", { name: "Passer" }).click();
   await page.getByRole("button", { name: "Reprendre sans changement" }).click();

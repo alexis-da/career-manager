@@ -48,7 +48,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
     referenceCountsBefore = await countReferenceTables();
     const { id: clubId } = await prisma.club.findUniqueOrThrow({ where: { slug: "liverpool-fc" }, select: { id: true } });
     for (const seed of ["test-seed-1", "test-seed-1", "test-seed-2"]) {
-      const save = await createSave({ name: `Test ${seed}`, managerName: "Test", clubId, seed, ownerId: await createTestOwner() });
+      const save = await createSave({
+        name: `Test ${seed}`,
+        managerName: "Test",
+        clubId,
+        seed,
+        ownerId: await createTestOwner(),
+        worldVersion: 1,
+      });
       saveIds.push(save.id);
     }
     // The fourth: the same seed as the first, in the world with the second divisions.
@@ -131,7 +138,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
         db.fixture.count({ where: { saveId } }),
         db.club.groupBy({ by: ["competitionId"], where: { competition: { tier: 1 } }, _count: { _all: true } }),
       ]);
-    // A save of the default world, the first divisions only.
+    // A worldVersion 1 save, the first divisions only.
     const [competitionCount, clubCount, playerCount] = await countWorld([1]);
 
     expect(save.worldVersion).toBe(1);
@@ -258,7 +265,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
     const { id: clubId } = await database().club.findUniqueOrThrow({ where: { slug: "leeds-united-fc" }, select: { id: true } });
 
     await expect(
-      createSave({ name: "Test v1 D2", managerName: "Test", clubId, seed: "test-seed-1", ownerId: await createTestOwner() }),
+      createSave({ name: "Test v1 D2", managerName: "Test", clubId, seed: "test-seed-1", ownerId: await createTestOwner(), worldVersion: 1 }),
     ).rejects.toThrow(/Unknown club in world 1/);
   });
 

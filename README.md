@@ -29,6 +29,19 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Le jeu
+
+Late Winner, « The football career game ». Une partie commence le 1er juillet 2026 avec l'un des 198 clubs de cinq
+pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0) :
+
+- deux divisions par pays, montées et descentes directes à chaque fin de saison (3 en Angleterre, Espagne et Italie,
+  2 en Allemagne et en France) ;
+- toutes les compétitions finissent le même jour : les deuxièmes divisions à 22 ou 24 clubs jouent aussi le mardi ;
+- « Prochain match » joue les dates où seules les autres compétitions jouent, puis le match du club, en direct ;
+- les parties créées avant les deuxièmes divisions gardent les cinq premières divisions seules
+  (`Save.worldVersion` 1) ;
+- `npm run measure:balance` mesure l'équilibrage des deux divisions sur six saisons (branche Neon test seulement).
+
 ## Déployer
 
 1. Importer le dépôt dans Vercel (Node.js 24.x, réglé par `engines` dans `package.json`).

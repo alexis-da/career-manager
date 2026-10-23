@@ -9,7 +9,6 @@ import { signIn, signOut } from "@/src/auth/auth";
 import { getCurrentUser, requireCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { USER_COOKIE } from "@/src/auth/identity";
 import { deleteRegisteredUser } from "@/src/db/accounts";
-import { creationWorldVersion } from "@/src/db/clubs";
 import { createSave, deleteSave } from "@/src/db/saves";
 import { SaveLimitError } from "@/src/lib/limits";
 import { SAVE_LIMIT_MESSAGES } from "./_components/save-limit-notice";
@@ -55,9 +54,7 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
     const seed = parsed.data.seed === "" ? randomUUID() : parsed.data.seed;
     // The player gets an anonymous identity, and its cookie, with their first save.
     const owner = await requireCurrentUser();
-    // A second division club takes the world with the second divisions, until it is the default one.
-    const worldVersion = await creationWorldVersion(parsed.data.clubId);
-    ({ id: saveId } = await createSave({ ...parsed.data, seed, ownerId: owner.id, worldVersion }));
+    ({ id: saveId } = await createSave({ ...parsed.data, seed, ownerId: owner.id }));
   } catch (error) {
     if (error instanceof SaveLimitError) {
       // The form is replaced by this message once the page knows; a creation from a page loaded earlier ends here.

@@ -175,7 +175,13 @@ round-robin (graine `scheduleRngSeed(save.seed, code, startYear)`). Les dates d�
 
 Les appariements ne changent pas d'un monde à l'autre : seules les dates. La graine d'un match dépend de la journée
 (`round`) et des clubs, jamais de la date. `playNextMatchday` joue la prochaine **date** : une partie 2 compte
-46 dates par saison, dont des mardis où le club dirigé peut ne pas jouer.
+46 dates par saison, dont des mardis et des samedis où le club dirigé ne joue pas. D'où « Prochain match » en monde 2
+(`playUntilNextMatch`, `src/db/simulation.ts`) : les dates qui précèdent son prochain match, par tranches de
+`SIMULATION_MAX_MATCHDAYS` (5) via `simulateMatchdays`, le client rappelant jusqu'à `done`, puis sa date par
+`playMatchdayAction` (mi-temps, direct). Mêmes transactions qu'en jouant chaque date : aucun effet sur le rejeu.
+
+Défaut connu, hors monde 2 : l'alternance domicile/extérieur de `generateSchedule` laisse des séries (8 matchs de suite
+à l'extérieur vus pour un club). La corriger changerait les calendriers des parties 1 : à faire derrière le monde.
 
 Le niveau d'un club à la création dépend du niveau de sa compétition (`clubLevelFromRank(rank, count, tier)`,
 `CLUB_LEVEL_BY_TIER`) : 78 → 60 en première division, inchangé, 64 → 52 en deuxième. La calibration de
@@ -196,6 +202,21 @@ Finances au changement de division : `financesAfterMove(finances, reason)` (`eco
 moins le bas des plages de la première division (budget, masse salariale, réputation), un relégué est ramené au plus
 au haut de celles de la deuxième ; chaque chiffre bouge seul, et seulement vers la nouvelle division. Rien d'autre ne
 change : ni joueurs, ni contrats, ni salaires (un relégué peut donc payer plus que sa masse salariale).
+
+Équilibrage des deux divisions (mesuré par `npm run measure:balance`, réglé dans `balance.ts`) :
+
+- Jeunes par division : `generateYouthPlayer` lit la réputation du club dans la plage de **sa** division
+  (`CLUB_REPUTATION_BY_TIER`) et donne une note dans la plage des jeunes de cette division (`YOUTH_OVERALL_BY_TIER` :
+  45–60 en première, inchangée ; 42–55 en deuxième). `YouthClub.tier` est la division actuelle du club.
+- Ventes pour masse salariale : en présaison, avant les décisions d'effectif, un club IA dont la masse salariale dépasse
+  son budget salarial vend ses joueurs les mieux payés aux autres clubs IA (`planWageSales`, `transfer-ai.ts`, pure) :
+  meilleure offre de `saleBids`, jamais sous `WAGE_SALE_MIN_FEE_SHARE` (80 %) de la valeur, 20 joueurs et deux gardiens
+  au moins, jusqu'à rentrer dans la masse ; transfert payant, budgets mis à jour. Graine `wageSaleRngSeed`. En pratique
+  surtout un relégué de haut de tableau ; aucun club n'est en dépassement dans les démos.
+- Laissés après mesure : la plage de niveau de deuxième division (son champion vaut le 15e de première au départ) et
+  les finances au changement de division (un tiers des promus redescend aussitôt, un tiers des relégués remonte).
+- Calibration épinglée : première division dans `match.test.ts`, deuxième dans `match-d2.slow.test.ts` (2,4–3,2 buts,
+  40–50 % à domicile, 20–28 % de nuls, champion de deuxième aussi fort que le 15e de première).
 
 Côté base (`src/db/promotion.ts`) : `computeSeasonMoves` lit les matchs joués des saisons qui se ferment,
 `applySeasonMoves` écrit `Season.movements` (les clubs qui quittent la compétition de chaque saison, liste vide sinon)

@@ -20,6 +20,7 @@ npx prisma studio      # inspecter la base
 npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright
+npm run measure:balance # équilibrage des deux divisions : six saisons d'une partie 2 (branche test seulement)
 ```
 
 ## Règles non négociables
@@ -44,10 +45,22 @@ Le poste local ne touche jamais la production : les données de référence y ar
 **Monde d'une partie (`Save.worldVersion`).** Fixé à la création, sans défaut en base : 1 = les cinq premières
 divisions (toutes les parties d'avant les deuxièmes divisions, inchangées), 2 = premières et deuxièmes divisions
 (`Competition.tier` 1 et 2), avec un calendrier où toutes les compétitions finissent le même jour (`matchdayDates`,
-`src/engine/schedule.ts`). `DEFAULT_WORLD_VERSION` (`src/engine/world-version.ts`) vaut **1** : le jeu crée des parties
-1 tant que les deuxièmes divisions ne sont pas ouvertes aux joueurs ; seuls les tests passent `worldVersion: 2` à
-`createSave`. Les tests en base utilisent la démo 1 (`ensureDemoSave()`) ; la démo 2 (`ensureDemoSave(2)`, son propre
-propriétaire `demo-user-v2`) seulement où les deuxièmes divisions comptent : une saison y pèse deux fois plus.
+`src/engine/schedule.ts`). `DEFAULT_WORLD_VERSION` (`src/engine/world-version.ts`) vaut **2** : toute nouvelle partie
+a les deux divisions, et le formulaire de création propose les 198 clubs, par pays puis par division. Les parties 1
+existantes restent en monde 1, inchangées. Les tests en base qui n'ont pas besoin de deuxième division passent
+**explicitement** `worldVersion: 1` à `createSave` (deux fois moins de lignes) et utilisent la démo 1
+(`ensureDemoSave()`) ; la démo 2 (`ensureDemoSave(2)`, son propre propriétaire `demo-user-v2`) seulement où les
+deuxièmes divisions comptent. Écrans d'une partie 2 : classement par pays puis Division 1 / Division 2, en-tête avec la
+compétition actuelle du club, et **« Prochain match »** à la place de « Jouer la journée » : les dates qui précèdent
+le prochain match du club, où seules les autres compétitions jouent, par tranches de 5 (`playUntilNextMatch`,
+`src/db/simulation.ts`), puis sa date avec mi-temps et direct. Une partie 1 garde « Jouer la journée ».
+
+**Équilibrage des deux divisions.** Mesuré par `npm run measure:balance` (six saisons d'un jumeau 2 de la démo, sur
+sparkling-darkness seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
+première division vérifiée après chaque changement (2,84 buts, 46 % à domicile, 23 % de nuls, Bayern-Monza ~83 %,
+`match.test.ts`) ; celle de deuxième est épinglée dans `match-d2.slow.test.ts`. Jeunes : réputation et note lues dans
+la plage de la division du club (`YOUTH_OVERALL_BY_TIER`). Un club IA au-dessus de sa masse salariale vend en
+présaison ses joueurs les mieux payés à d'autres clubs IA, jamais sous 80 % de leur valeur (`planWageSales`).
 
 **Montées et descentes (parties 2 seulement).** À chaque `advanceToNextSeason`, dans sa transaction : les classements
 finaux (même ordre que le classement affiché), puis `applyPromotionRelegation` (`src/engine/promotion.ts`, pure) avec
@@ -175,7 +188,8 @@ prisma/
   migrations/         # dont les migrations de données de référence (…_second_divisions), générées, jamais éditées
   seed/               # import OpenFootball, couleurs des clubs, génération du monde ; reference-sql.ts : SQL des migrations de données
     data/             # calendriers OpenFootball (premières et deuxièmes divisions), club-colors.json, club-aliases-fallback.json
-scripts/              # measure-save-size.ts (npm run measure:size), generate-reference-migration.ts
+scripts/              # measure-save-size.ts (npm run measure:size), measure-d2-balance.ts (npm run measure:balance),
+                      # generate-reference-migration.ts
 ```
 
 ## Ordre de construction

@@ -6,8 +6,11 @@ import type { CompetitionTier } from "./tiers";
  */
 export type WorldVersion = 1 | 2;
 
-/** World of the saves the game creates. Stays 1 until the second divisions open to players; tests pass 2. */
-export const DEFAULT_WORLD_VERSION: WorldVersion = 1;
+/**
+ * World of the saves the game creates: the first and second divisions. Saves created before keep their world (1);
+ * the tests that need no second division create worldVersion 1 saves explicitly, half as heavy.
+ */
+export const DEFAULT_WORLD_VERSION: WorldVersion = 2;
 
 /** Competition tiers of a world. */
 export function worldTiers(version: WorldVersion): CompetitionTier[] {

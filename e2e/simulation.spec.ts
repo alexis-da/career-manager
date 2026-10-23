@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createSave, deleteSave } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
-const FRANCE = "France — Division 1";
+const FRANCE = "France";
 const FRENCH_CLUBS = 18;
 
 // Name of the save the running test created, until it is deleted.
@@ -23,8 +23,8 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
   try {
     await createSave(page, name, LYON);
 
-    // The first matchday (15 August) live, as « Jouer la journée » always does.
-    await page.getByRole("button", { name: "Jouer la journée" }).click();
+    // The first matchday (15 August) live, as « Prochain match » plays it: nothing in between on the first date.
+    await page.getByRole("button", { name: "Prochain match" }).click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
     // To the break, on through the second half without a change, to the final whistle.
     await page.getByRole("button", { name: "Passer" }).click();
@@ -58,7 +58,8 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
 
     await page.getByRole("link", { name: "Classement" }).click();
     await page.getByRole("tab", { name: FRANCE }).click();
-    const panel = page.getByRole("tabpanel");
+    await page.getByRole("tab", { name: "Division 1" }).click();
+    const panel = page.getByRole("tabpanel", { name: "Division 1" });
     await expect(panel.locator("tbody tr")).toHaveCount(FRENCH_CLUBS);
     await expect(panel.locator('td[data-column="played"]')).toHaveText(Array.from({ length: FRENCH_CLUBS }, () => "3"));
   } finally {
