@@ -1,4 +1,5 @@
 import type { Position } from "../engine/positions";
+import type { MoveReason } from "../engine/promotion";
 import {
   buildSeasonResult,
   CHAMPION_TROPHY,
@@ -12,6 +13,7 @@ import type { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { prisma } from "./client";
+import type { SeasonMove } from "./promotion";
 
 type Db = Prisma.TransactionClient;
 
@@ -132,13 +134,20 @@ async function computeSeasonResult(db: Db, saveId: string, managed: ManagedClub,
   return buildSeasonResult(standing, lines, { formation: managed.formation });
 }
 
-function seasonResultRow(saveId: string, season: SeasonRef, result: SeasonResultData): Prisma.SeasonResultCreateManyInput {
+function seasonResultRow(
+  saveId: string,
+  season: SeasonRef,
+  result: SeasonResultData,
+  move: MoveReason | null,
+): Prisma.SeasonResultCreateManyInput {
   const { bestPlayer, ...line } = result;
   return {
     ...line,
     saveId,
     seasonId: season.id,
     competitionId: season.competitionId,
+    promoted: move === "PROMOTED",
+    relegated: move === "RELEGATED",
     bestPlayerKey: bestPlayer?.playerKey ?? null,
     bestPlayerName: bestPlayer?.name ?? null,
     bestPlayerPosition: bestPlayer?.position ?? null,
@@ -150,9 +159,15 @@ function seasonResultRow(saveId: string, season: SeasonRef, result: SeasonResult
 
 /**
  * Writes the managed club's result of a season about to close, inside advanceToNextSeason's transaction, before any
- * player changes. Returns the season it was written for, or null when the club plays in none of these seasons.
+ * player changes, with the club's promotion or relegation among the season's moves. Returns the season it was written
+ * for, or null when the club plays in none of these seasons.
  */
-export async function recordSeasonResult(tx: Db, saveId: string, seasons: readonly SeasonRef[]): Promise<string | null> {
+export async function recordSeasonResult(
+  tx: Db,
+  saveId: string,
+  seasons: readonly SeasonRef[],
+  moves: readonly Pick<SeasonMove, "clubId" | "reason">[] = [],
+): Promise<string | null> {
   const managed = await managedClubOf(tx, saveId);
   const season = seasons.find((candidate) => candidate.competitionId === managed.competitionId);
   if (season === undefined) {
@@ -162,7 +177,8 @@ export async function recordSeasonResult(tx: Db, saveId: string, seasons: readon
   if (result === null) {
     return null;
   }
-  await tx.seasonResult.createMany({ data: [seasonResultRow(saveId, season, result)], skipDuplicates: true });
+  const move = moves.find((candidate) => candidate.clubId === managed.clubId)?.reason ?? null;
+  await tx.seasonResult.createMany({ data: [seasonResultRow(saveId, season, result, move)], skipDuplicates: true });
   return season.id;
 }
 
@@ -187,7 +203,8 @@ async function ensureSeasonResults(saveId: string): Promise<ManagedClub> {
   for (const season of missing) {
     const result = await computeSeasonResult(prisma, saveId, managed, season);
     if (result !== null) {
-      rows.push(seasonResultRow(saveId, season, result));
+      // A rebuilt row has no move: promoted and relegated stay false.
+      rows.push(seasonResultRow(saveId, season, result, null));
     }
   }
   if (rows.length > 0) {
@@ -212,6 +229,8 @@ export type SeasonResultView = {
   competitionName: string;
   rank: number;
   champion: boolean;
+  promoted: boolean; // false for a row rebuilt lazily
+  relegated: boolean;
   points: number;
   played: number;
   won: number;
@@ -271,6 +290,8 @@ export async function getSeasonResults(saveId: string, seasonId?: string): Promi
         competitionName: row.competition.name,
         rank: row.rank,
         champion: row.trophies.includes(CHAMPION_TROPHY),
+        promoted: row.promoted,
+        relegated: row.relegated,
         points: row.points,
         played: row.played,
         won: row.won,

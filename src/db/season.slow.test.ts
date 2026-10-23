@@ -322,6 +322,22 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
     }
   });
 
+  it("moves no club in a worldVersion 1 save: no promotion, no relegation, no Season.movements, every club where it began", async () => {
+    const db = database();
+    const [seasons, misplaced, results] = await Promise.all([
+      db.season.findMany({ where: { saveId }, select: { movements: true } }),
+      db.$queryRaw<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM "ClubSave" cs JOIN "Club" c ON c.id = cs."clubId"
+        WHERE cs."saveId" = ${saveId} AND cs."competitionId" <> c."competitionId"`,
+      db.seasonResult.findMany({ where: { saveId }, select: { promoted: true, relegated: true } }),
+    ]);
+
+    expect(first?.transition.moves).toBe(0);
+    expect(seasons.every((season) => season.movements === null)).toBe(true);
+    expect(misplaced[0].count).toBe(0);
+    expect(results.every((result) => !result.promoted && !result.relegated)).toBe(true);
+  });
+
   it("writes the managed club's result of every season it closes, and rebuilds the same rows later", async () => {
     const seasons = await database().season.findMany({
       where: { saveId, completed: true, competition: { code: "fr.1" } },

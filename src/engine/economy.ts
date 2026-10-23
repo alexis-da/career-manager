@@ -17,6 +17,7 @@ import {
 } from "./balance";
 import { interpolate, lerp, rankStrength } from "./curves";
 import { clampRating } from "./generation";
+import type { MoveReason } from "./promotion";
 import type { CompetitionTier } from "./tiers";
 import { seasonEndDate, seasonStartYear } from "./world";
 
@@ -54,6 +55,26 @@ export function clubFinances(initialRank: number, clubCount: number, tier: Compe
     budget: roundToStep(lerp(budget.worst, budget.best, moneyShare), BUDGET_STEP),
     wageBudget: roundToStep(lerp(wageBudget.worst, wageBudget.best, moneyShare), BUDGET_STEP),
     reputation: clampRating(lerp(reputation.worst, reputation.best, strength)),
+  };
+}
+
+/**
+ * A club's finances once it changes division: a promoted club gets at least the bottom of the first division's ranges
+ * (budget, wage budget, reputation), a relegated one keeps at most the top of the second division's. Each figure moves
+ * on its own, and only towards the new division: a rich promoted club keeps its money. Contracts are not touched.
+ */
+export function financesAfterMove(finances: ClubFinances, reason: MoveReason): ClubFinances {
+  if (reason === "PROMOTED") {
+    return {
+      budget: Math.max(finances.budget, CLUB_BUDGET_BY_TIER[1].worst),
+      wageBudget: Math.max(finances.wageBudget, CLUB_WAGE_BUDGET_BY_TIER[1].worst),
+      reputation: Math.max(finances.reputation, CLUB_REPUTATION_BY_TIER[1].worst),
+    };
+  }
+  return {
+    budget: Math.min(finances.budget, CLUB_BUDGET_BY_TIER[2].best),
+    wageBudget: Math.min(finances.wageBudget, CLUB_WAGE_BUDGET_BY_TIER[2].best),
+    reputation: Math.min(finances.reputation, CLUB_REPUTATION_BY_TIER[2].best),
   };
 }
 

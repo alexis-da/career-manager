@@ -13,6 +13,7 @@ import { prisma } from "./client";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
 import { runPreseasonInTransaction, type PreseasonSummary } from "./preseason";
+import { applySeasonMoves, computeSeasonMoves } from "./promotion";
 import { recordSeasonResult } from "./season-results";
 
 // The transition rewrites every player of the save, then runs the preseason, in bulk statements.
@@ -26,6 +27,7 @@ export type SeasonTransition = {
   completedStartYear: number;
   completedSeasonId: string | null; // the managed club's season just closed, whose SeasonResult was written
   startYear: number;
+  moves: number; // clubs promoted or relegated (worldVersion 2 saves)
   retired: number;
   freeAgents: number; // players of the managed club whose contract ended; AI clubs decide in the preseason
   fixtures: number;
@@ -48,10 +50,12 @@ type PlayerUpdate = PlayerAttributes & {
 
 /**
  * Closes the season in progress and opens the next one, in one transaction. Refused while the managed club's
- * match waits at half-time (MatchInProgressError) or a fixture of the season is unplayed. Then: the managed club's
+ * match waits at half-time (MatchInProgressError) or a fixture of the season is unplayed. Then: in a worldVersion 2
+ * save, promotion and relegation are drawn from the final tables (src/db/promotion.ts); the managed club's
  * SeasonResult is written, every player progresses (retired players excepted) and gets his market value
  * from his new rating and age, some retire, expired contracts of the managed club turn its players into free
- * agents, form, morale, fitness and injuries are reset, the seasons are marked completed, the save moves to
+ * agents, form, morale, fitness and injuries are reset, the seasons are marked completed (with their moves), the
+ * moving clubs change competition and finances, the save moves to
  * 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created.
  * PlayerSave.marketValue is read as is everywhere else: this is where it changes.
  */
@@ -79,8 +83,11 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         throw new SeasonNotFinishedError(unplayed);
       }
 
-      // The managed club's result, before any player progresses, retires or leaves.
-      const completedSeasonId = await recordSeasonResult(tx, saveId, seasons);
+      // Promotion and relegation from the final tables (worldVersion 2 saves only), then the managed club's result,
+      // before any player progresses, retires or leaves.
+      const worldVersion = worldVersionOf(save.worldVersion);
+      const moves = await computeSeasonMoves(tx, saveId, worldVersion, seasons);
+      const completedSeasonId = await recordSeasonResult(tx, saveId, seasons, moves);
 
       const startYear = completedStartYear + 1;
       const transitionDate = seasonStartDate(startYear);
@@ -189,6 +196,8 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       }
 
       await tx.season.updateMany({ where: { saveId, id: { in: seasonIds } }, data: { completed: true } });
+      // The moving clubs change competition and finances before the preseason, whose AI clubs plan with them.
+      await applySeasonMoves(tx, saveId, worldVersion, seasons, moves);
       await tx.save.update({ where: { id: saveId }, data: { currentDate: transitionDate } });
 
       const preseason = await runPreseasonInTransaction(tx, saveId);
@@ -208,7 +217,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         seasonFixtures({
           saveId,
           saveSeed: save.seed,
-          worldVersion: worldVersionOf(save.worldVersion),
+          worldVersion,
           seasonId: season.id,
           competitionCode: getOrThrow(codeByCompetition, season.competitionId, "competition code"),
           startYear,
@@ -219,7 +228,16 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       );
       await tx.fixture.createMany({ data: fixtures });
 
-      return { completedStartYear, completedSeasonId, startYear, retired, freeAgents, fixtures: fixtures.length, preseason };
+      return {
+        completedStartYear,
+        completedSeasonId,
+        startYear,
+        moves: moves.length,
+        retired,
+        freeAgents,
+        fixtures: fixtures.length,
+        preseason,
+      };
     },
     { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS },
   );

@@ -126,6 +126,7 @@ model Season {
   competitionId String
   startYear     Int // 2026 pour la saison 2026/27
   completed     Boolean             @default(false)
+  movements     Json? // montées et descentes à la fin de la saison, clubs quittant cette compétition (src/db/promotion.ts, validé par Zod) ; null dans une partie worldVersion 1 et pour une saison en cours
   fixtures      Fixture[]
   stats         PlayerSeasonStats[]
   results       SeasonResult[] // au plus une : @@unique([saveId, seasonId])
@@ -295,6 +296,8 @@ model SeasonResult {
   goalsFor           Int
   goalsAgainst       Int
   trophies           String[] // « champion » si rank = 1, vide sinon
+  promoted           Boolean     @default(false) // monté en première division à la fin de la saison ; false pour une ligne reconstruite
+  relegated          Boolean     @default(false) // descendu en deuxième division à la fin de la saison ; false pour une ligne reconstruite
   bestPlayerKey      String? // PlayerSave.playerKey ; null si aucun joueur n'a joué BEST_PLAYER_MIN_APPEARANCES matchs
   bestPlayerName     String? // prénom et nom
   bestPlayerPosition Position?

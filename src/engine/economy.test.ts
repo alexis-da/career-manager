@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
 import { CONTRACT_YEARS_WEIGHTS } from "./balance";
-import { clubFinances, contractYears, generateContract } from "./economy";
+import { clubFinances, contractYears, financesAfterMove, generateContract } from "./economy";
 import { WORLD_START_DATE } from "./world";
 
 const MAX_DATABASE_INT = 2_147_483_647;
@@ -36,6 +36,31 @@ describe("clubFinances", () => {
         expect(finances.reputation).toBeLessThanOrEqual(99);
       }
     }
+  });
+});
+
+describe("financesAfterMove", () => {
+  it("lifts a promoted club to the bottom of the first division, and keeps what it has above", () => {
+    const poor = { budget: 1_000_000, wageBudget: 5_000_000, reputation: 40 };
+    const rich = { budget: 20_000_000, wageBudget: 30_000_000, reputation: 60 };
+
+    expect(financesAfterMove(poor, "PROMOTED")).toEqual({ budget: 5_000_000, wageBudget: 20_000_000, reputation: 55 });
+    expect(financesAfterMove(rich, "PROMOTED")).toEqual(rich);
+  });
+
+  it("brings a relegated club down to the top of the second division, and keeps what it has below", () => {
+    const rich = { budget: 150_000_000, wageBudget: 200_000_000, reputation: 90 };
+    const poor = { budget: 5_000_000, wageBudget: 20_000_000, reputation: 55 };
+
+    expect(financesAfterMove(rich, "RELEGATED")).toEqual({ budget: 20_000_000, wageBudget: 30_000_000, reputation: 60 });
+    expect(financesAfterMove(poor, "RELEGATED")).toEqual(poor);
+  });
+
+  it("moves each figure on its own, only towards the new division", () => {
+    const mixed = { budget: 2_000_000, wageBudget: 40_000_000, reputation: 70 };
+
+    expect(financesAfterMove(mixed, "PROMOTED")).toEqual({ budget: 5_000_000, wageBudget: 40_000_000, reputation: 70 });
+    expect(financesAfterMove(mixed, "RELEGATED")).toEqual({ budget: 2_000_000, wageBudget: 30_000_000, reputation: 60 });
   });
 });
 

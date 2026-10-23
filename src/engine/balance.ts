@@ -156,6 +156,21 @@ export const CLUB_REPUTATION_BY_TIER: Readonly<Record<CompetitionTier, RankRange
 /** Budgets are rounded to this step, in euros. */
 export const BUDGET_STEP = 100_000;
 
+// ------------------------------------------------------------------ Promotion and relegation (worldVersion 2)
+
+/**
+ * Clubs going up and down between a country's first and second divisions at the end of each season, by country (the
+ * prefix of the competition code: "en" for en.1 and en.2). Direct moves only, no play-off: the N last of the first
+ * division swap with the N first of the second, so both keep their size.
+ */
+export const PROMOTION_RELEGATION: Readonly<Record<string, number>> = {
+  en: 3,
+  es: 3,
+  it: 3,
+  de: 2,
+  fr: 2,
+};
+
 // ------------------------------------------------------------------ Player contracts at save creation
 
 /** Market value in euros by overall rating. */
