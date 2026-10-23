@@ -49,7 +49,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                 </span>
                 {/* The club's competition now: it changes with a promotion or a relegation. */}
                 <span data-testid="header-competition" className="block max-w-64 truncate text-[0.6875rem] text-muted-foreground">
-                  {header.competitionName} · {season}
+                  {header.competitionName} · Saison {season}
                 </span>
               </span>
             </Link>
