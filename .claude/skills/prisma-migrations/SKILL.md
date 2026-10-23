@@ -113,6 +113,12 @@ npx tsx scripts/generate-reference-migration.ts prisma/migrations/<horodatage>_s
   (`worldTiers`) et refuse un club hors de ce monde. Les grandes tables (`PlayerSave`, `Fixture`) s'écrivent par lots de
   1 000 lignes ; la page d'accueil, qui crée les parties, a `maxDuration = 60`.
 - Une table de test qui crée un `Save` directement donne `worldVersion: 1`.
+- `Season.movements` (Json, nullable) : sur une saison terminée d'une partie 2, la liste des clubs qui quittent sa
+  compétition `{ clubId, from, to, reason: "PROMOTED" | "RELEGATED", rank }` (codes de compétition, `Club.id`), validée
+  par `seasonMovementsSchema` (`src/db/promotion.ts`) à la lecture ; liste vide sans mouvement, null dans une partie 1,
+  pour une saison en cours ou terminée avant la migration `promotion_relegation`. `SeasonResult.promoted` et
+  `relegated` (défaut false) sont écrits par `recordSeasonResult` ; une ligne reconstruite paresseusement les laisse
+  à false (la reconstruction ne relit pas les mouvements).
 
 ## Palmarès et reconstruction paresseuse
 

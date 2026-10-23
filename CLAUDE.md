@@ -49,6 +49,16 @@ divisions (toutes les parties d'avant les deuxièmes divisions, inchangées), 2 
 `createSave`. Les tests en base utilisent la démo 1 (`ensureDemoSave()`) ; la démo 2 (`ensureDemoSave(2)`, son propre
 propriétaire `demo-user-v2`) seulement où les deuxièmes divisions comptent : une saison y pèse deux fois plus.
 
+**Montées et descentes (parties 2 seulement).** À chaque `advanceToNextSeason`, dans sa transaction : les classements
+finaux (même ordre que le classement affiché), puis `applyPromotionRelegation` (`src/engine/promotion.ts`, pure) avec
+`PROMOTION_RELEGATION` (`balance.ts`, par pays : 3 en Angleterre, Espagne, Italie ; 2 en Allemagne, France ; échanges
+directs, sans barrages, tailles constantes). Le résultat du club dirigé note `SeasonResult.promoted` / `relegated`
+(false pour une ligne reconstruite) ; avant la présaison, chaque club qui bouge change de `ClubSave.competitionId` et de
+finances (`financesAfterMove`, `economy.ts` : au moins le bas de la première division pour un promu, au plus le haut de
+la deuxième pour un relégué, rien d'autre ; joueurs et contrats intacts) ; `Season.movements` (Json validé par Zod,
+`src/db/promotion.ts`) garde sur chaque saison terminée les clubs qui quittent sa compétition. Une partie 1 n'a qu'une
+division par pays : aucun mouvement, `movements` reste null (test lent de non-régression).
+
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade). Hors des
 tests, trois suppressions d'utilisateur sont autorisées, et aucune autre : **la purge** (ci-dessous) ; **la fusion** à
 la connexion Google, où l'utilisateur anonyme du navigateur (cookie `lw_uid`) donne d'abord toutes ses parties au

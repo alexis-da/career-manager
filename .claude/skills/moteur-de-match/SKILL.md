@@ -181,6 +181,27 @@ Le niveau d'un club à la création dépend du niveau de sa compétition (`clubL
 `CLUB_LEVEL_BY_TIER`) : 78 → 60 en première division, inchangé, 64 → 52 en deuxième. La calibration de
 `match.test.ts` reste mesurée sur les premières divisions.
 
+## Montées et descentes
+
+`applyPromotionRelegation(standings, rules)` (`src/engine/promotion.ts`), pure : pour chaque pays (préfixe du code,
+`en` pour `en.1` et `en.2`) qui a une compétition de niveau 1 et une de niveau 2 parmi les classements, les N derniers
+du niveau 1 descendent et les N premiers du niveau 2 montent, N venant de `PROMOTION_RELEGATION` (`balance.ts`) :
+`en` 3, `es` 3, `it` 3, `de` 2, `fr` 2. Pas de barrages. Les classements sont ceux de `computeStandings` : une égalité
+de points se tranche comme au classement affiché (différence de buts, buts marqués, puis slug). Un pays à une seule
+division ne bouge pas (toutes les parties `worldVersion` 1) ; un pays à deux divisions sans règle, ou trop petit pour
+sa règle, fait échouer le passage de saison. Les échanges étant symétriques, chaque division garde sa taille (18, 20,
+22 ou 24, toujours paire pour le round-robin).
+
+Finances au changement de division : `financesAfterMove(finances, reason)` (`economy.ts`), pure. Un promu reçoit au
+moins le bas des plages de la première division (budget, masse salariale, réputation), un relégué est ramené au plus
+au haut de celles de la deuxième ; chaque chiffre bouge seul, et seulement vers la nouvelle division. Rien d'autre ne
+change : ni joueurs, ni contrats, ni salaires (un relégué peut donc payer plus que sa masse salariale).
+
+Côté base (`src/db/promotion.ts`) : `computeSeasonMoves` lit les matchs joués des saisons qui se ferment,
+`applySeasonMoves` écrit `Season.movements` (les clubs qui quittent la compétition de chaque saison, liste vide sinon)
+et met à jour `ClubSave.competitionId` et les finances avant la présaison ; `getCountryMoves` les relit pour le panneau
+« Saison terminée ».
+
 ## Progression des joueurs
 
 La progression se calcule en fin de saison, pas en continu : âge, temps de jeu, potentiel, et une part
