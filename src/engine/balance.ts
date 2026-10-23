@@ -460,6 +460,15 @@ export const YOUTH_AGE_MAX = 18;
 /** Overall of a young player at the least and at the most reputed club, and the random spread around it. */
 export const YOUTH_OVERALL_MIN = 45;
 export const YOUTH_OVERALL_MAX = 60;
+
+/**
+ * The same by tier: a club's reputation is placed within its own division's range (CLUB_REPUTATION_BY_TIER), then
+ * turned into the young player's overall within his division's range. The first division's is the one above.
+ */
+export const YOUTH_OVERALL_BY_TIER: Readonly<Record<CompetitionTier, RankRange>> = {
+  1: { worst: YOUTH_OVERALL_MIN, best: YOUTH_OVERALL_MAX },
+  2: { worst: 42, best: 55 },
+};
 export const YOUTH_OVERALL_SPREAD = 3;
 
 /** Potential of a young player: overall plus a gap drawn in this range. */
@@ -512,6 +521,12 @@ export const RELEASE_COMPENSATION_SHARE = 0.5;
 export const SALE_MAX_BIDDERS = 5;
 export const SALE_BID_SHARE_MIN = 0.8;
 export const SALE_BID_SHARE_MAX = 1.2;
+
+/**
+ * An AI club whose payroll is above its wage budget (a relegated club, typically) sells its best-paid players to other
+ * AI clubs in the preseason until it is back within it, never for less than this share of a player's market value.
+ */
+export const WAGE_SALE_MIN_FEE_SHARE = 0.8;
 
 // ------------------------------------------------------------------ Faces (src/engine/face.ts)
 // A face is drawn once from the player's key; only the hair changes with age, and never back.

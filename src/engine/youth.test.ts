@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ageInYears } from "../lib/dates";
 import { makeRng } from "../lib/rng";
-import { YOUTH_OVERALL_MAX, YOUTH_OVERALL_MIN, YOUTH_POTENTIAL_GAP_MIN } from "./balance";
+import { YOUTH_OVERALL_BY_TIER, YOUTH_OVERALL_MAX, YOUTH_OVERALL_MIN, YOUTH_POTENTIAL_GAP_MIN } from "./balance";
 import { ATTRIBUTE_NAMES, RATING_MAX, RATING_MIN } from "./generation";
 import { squadTemplate, type Position } from "./positions";
 import { NAME_BANK } from "./names";
@@ -13,7 +13,7 @@ const START_YEAR = 2025;
 const youngster = (reputation: number, index: number, position: Position = "CM") =>
   generateYouthPlayer(
     {
-      club: { slug: `club-${reputation}`, country: "France", reputation },
+      club: { slug: `club-${reputation}`, country: "France", reputation, tier: 1 },
       position,
       startYear: START_YEAR,
       index,
@@ -107,5 +107,37 @@ describe("youthPositions", () => {
 
   it("sends young players to the largest roles when the squad is complete", () => {
     expect(youthPositions(TEMPLATE)).toEqual(["CB", "CM"]);
+  });
+});
+
+describe("generateYouthPlayer in a second division club", () => {
+  const secondDivisionYoungster = (reputation: number, index: number) =>
+    generateYouthPlayer(
+      {
+        club: { slug: `club-d2-${reputation}`, country: "France", reputation, tier: 2 },
+        position: "CM",
+        startYear: START_YEAR,
+        index,
+        takenNames: new Set(),
+      },
+      NAME_BANK,
+      makeRng(youthRngSeed("youth-test", START_YEAR, `club-d2-${reputation}`, index)),
+    );
+  const secondBatch = (reputation: number) => Array.from({ length: 500 }, (_, index) => secondDivisionYoungster(reputation, index + 1));
+
+  it("rates its young players within the second division's range, by its reputation within that division", () => {
+    const { worst, best } = YOUTH_OVERALL_BY_TIER[2];
+    const bottom = secondBatch(40);
+    const top = secondBatch(60);
+
+    for (const player of [...bottom, ...top]) {
+      expect(player.overall).toBeGreaterThanOrEqual(worst);
+      expect(player.overall).toBeLessThanOrEqual(best);
+    }
+    expect(mean(top.map((player) => player.overall))).toBeGreaterThan(mean(bottom.map((player) => player.overall)) + 8);
+  });
+
+  it("keeps a second division club's young players below a first division leader's", () => {
+    expect(mean(secondBatch(60).map((player) => player.overall))).toBeLessThan(mean(batch(90).map((player) => player.overall)));
   });
 });

@@ -7,8 +7,7 @@ import {
   YOUTH_AGE_MIN,
   YOUTH_CONTRACT_YEARS,
   YOUTH_HOME_NATIONALITY_SHARE,
-  YOUTH_OVERALL_MAX,
-  YOUTH_OVERALL_MIN,
+  YOUTH_OVERALL_BY_TIER,
   YOUTH_OVERALL_SPREAD,
   YOUTH_PLAYERS_PER_CLUB,
   YOUTH_POTENTIAL_GAP_MAX,
@@ -20,12 +19,14 @@ import { clampRating, generateAttributes, shiftToOverall, type PlayerAttributes 
 import { drawBirthDate, drawNameList, drawUniqueName, type PlayerIdentity } from "./identity";
 import type { NameBank } from "./names";
 import { roleOf, type Position } from "./positions";
+import type { CompetitionTier } from "./tiers";
 import { seasonStartDate } from "./world";
 
 export type YouthClub = {
   slug: string;
   country: string; // same label as the name lists' nationality
   reputation: number; // 1–99
+  tier: CompetitionTier; // its division now: its reputation and its young players' level are measured within it
 };
 
 export type YouthPlayerInput = {
@@ -99,7 +100,8 @@ export function youthPositions(squadPositions: readonly Position[]): Position[] 
 
 /**
  * A young player joining a club on 1 July: identity from the name lists (the club's country most of the
- * time), aged 16 to 18, rated 45 to 60 according to the club's reputation, with a high potential and a
+ * time), aged 16 to 18, rated according to the club's reputation within its division (45 to 60 in the first, 42
+ * to 55 in the second: YOUTH_OVERALL_BY_TIER), with a high potential and a
  * first contract. Pass the stream of youthRngSeed.
  */
 export function generateYouthPlayer(input: YouthPlayerInput, names: NameBank, rng: Rng): YouthPlayer {
@@ -111,14 +113,15 @@ export function generateYouthPlayer(input: YouthPlayerInput, names: NameBank, rn
   const age = randomInt(rng, YOUTH_AGE_MIN, YOUTH_AGE_MAX);
   const birthDate = drawBirthDate(rng, arrival, age);
 
-  // Measured on the first division's range, as before the second ones: a second division club's young players start
-  // at the bottom of the range.
-  const { worst, best } = CLUB_REPUTATION_BY_TIER[1];
+  // The club's reputation within its own division's range, then its young players' level within their division's:
+  // the first division's is the same as before the second divisions.
+  const { worst, best } = CLUB_REPUTATION_BY_TIER[club.tier];
   const reputationShare = Math.min(1, Math.max(0, (club.reputation - worst) / (best - worst)));
-  const clubOverall = lerp(YOUTH_OVERALL_MIN, YOUTH_OVERALL_MAX, reputationShare);
+  const level = YOUTH_OVERALL_BY_TIER[club.tier];
+  const clubOverall = lerp(level.worst, level.best, reputationShare);
   const overall = Math.min(
-    YOUTH_OVERALL_MAX,
-    Math.max(YOUTH_OVERALL_MIN, Math.round(clubOverall + centeredSpread(rng) * YOUTH_OVERALL_SPREAD)),
+    level.best,
+    Math.max(level.worst, Math.round(clubOverall + centeredSpread(rng) * YOUTH_OVERALL_SPREAD)),
   );
   // Draws the attribute profile of the position, then moves it to the chosen overall.
   const attributes = shiftToOverall(position, generateAttributes({ position, age }, overall, rng), overall);

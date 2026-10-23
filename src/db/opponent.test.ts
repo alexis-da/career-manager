@@ -63,12 +63,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
     saveId = await support.createDemoTwin("Test adversaire");
   }, 120_000);
 
+  // Deleting a played save cascades to thousands of rows, slower while the other test files run: more than the default.
   afterAll(async () => {
     if (saveId !== "") {
       await db?.save.delete({ where: { id: saveId } });
     }
     await db?.$disconnect();
-  });
+  }, 120_000);
 
   it("shows the eleven the matchday will play for an AI club: its automatic 4-3-3", async () => {
     const result = await preview();

@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
+import { WAGE_SALE_MIN_FEE_SHARE } from "./balance";
 import { marketValueFor, wageFor } from "./economy";
 import {
   askingPrice,
   evaluateOffer,
   evaluateRenewal,
   minimumWage,
+  planWageSales,
   saleBids,
   type BidderClub,
   type OfferPlayer,
+  type WageSalePlayer,
 } from "./transfer-ai";
 
 const player = (overrides: Partial<OfferPlayer> = {}): OfferPlayer => ({
@@ -124,5 +127,71 @@ describe("saleBids", () => {
     const poorClubs = bidders.map((club) => ({ ...club, budget: 1 }));
 
     expect(saleBids(player(), SELLER, poorClubs, makeRng("sale"))).toEqual([]);
+  });
+});
+
+describe("planWageSales", () => {
+  /** A squad of 22: two stars paid 12 M€ and 9 M€, a goalkeeper paid 8 M€, and 19 players paid 1 M€ (2 goalkeepers). */
+  const squad = (): WageSalePlayer[] => [
+    { ...player({ overall: 80, potential: 80, wage: 12_000_000 }), id: "star", goalkeeper: false },
+    { ...player({ overall: 78, potential: 79, wage: 9_000_000 }), id: "second", goalkeeper: false },
+    { ...player({ overall: 77, potential: 77, wage: 8_000_000 }), id: "keeper", goalkeeper: true },
+    ...Array.from({ length: 19 }, (_, index) => ({
+      ...player({ overall: 62, potential: 64, wage: 1_000_000 }),
+      id: `squad-${String(index).padStart(2, "0")}`,
+      goalkeeper: index < 2,
+    })),
+  ];
+  const payroll = (players: WageSalePlayer[]) => players.reduce((sum, member) => sum + member.wage, 0); // 48 M€
+  const RICH: BidderClub = { slug: "rich", reputation: 90, budget: 500_000_000, wageRoom: 100_000_000 };
+  const rngFor = (id: string) => makeRng(`wage-sales-test:${id}`);
+
+  it("sells nothing for a club within its wage budget", () => {
+    expect(planWageSales({ reputation: 60, wageBudget: 50_000_000 }, squad(), [RICH], rngFor)).toEqual([]);
+  });
+
+  it("sells the best-paid players first, and stops once the payroll is back within the budget", () => {
+    // 48 M€ for a 30 M€ budget: the 12 M€ star and the 9 M€ second go, 27 M€ left.
+    const sales = planWageSales({ reputation: 60, wageBudget: 30_000_000 }, squad(), [RICH], rngFor);
+    const sold = new Set(sales.map((sale) => sale.playerId));
+
+    expect(sales.map((sale) => sale.playerId)).toEqual(["star", "second"]);
+    expect(payroll(squad().filter((member) => !sold.has(member.id)))).toBeLessThanOrEqual(30_000_000);
+    for (const sale of sales) {
+      const sold = squad().find((member) => member.id === sale.playerId);
+      expect(sale.clubSlug).toBe("rich");
+      expect(sale.fee).toBeGreaterThanOrEqual(WAGE_SALE_MIN_FEE_SHARE * marketValueFor(sold ?? player()));
+    }
+  });
+
+  it("never sells under 80 % of the value: a player nobody can afford stays, and the next best paid is tried", () => {
+    const star = squad()[0];
+    // Enough budget for the second (value at 78) but not for 80 % of the star's value.
+    const tight: BidderClub = { ...RICH, slug: "tight", budget: Math.floor(WAGE_SALE_MIN_FEE_SHARE * marketValueFor(star)) - 1 };
+    const sales = planWageSales({ reputation: 60, wageBudget: 40_000_000 }, squad(), [tight], rngFor);
+
+    expect(sales.map((sale) => sale.playerId)).not.toContain("star");
+    expect(sales.map((sale) => sale.playerId)[0]).toBe("second");
+  });
+
+  it("keeps twenty players at least, even still over the budget", () => {
+    // 1 M€ budget: impossible to reach; the sales stop at 20 players.
+    const sales = planWageSales({ reputation: 60, wageBudget: 1_000_000 }, squad(), [RICH], rngFor);
+
+    expect(sales.map((sale) => sale.playerId)).toEqual(["star", "second"]);
+  });
+
+  it("never sells one of the last two goalkeepers, even the best paid", () => {
+    // Two goalkeepers only, paid most: they stay, the best-paid outfield players go.
+    const keepers: WageSalePlayer[] = [
+      { ...player({ overall: 79, potential: 79, wage: 15_000_000 }), id: "keeper-a", goalkeeper: true },
+      { ...player({ overall: 76, potential: 76, wage: 14_000_000 }), id: "keeper-b", goalkeeper: true },
+      ...squad().filter((member) => !member.goalkeeper),
+    ];
+    const sales = planWageSales({ reputation: 60, wageBudget: 40_000_000 }, keepers, [RICH], rngFor);
+
+    expect(sales.map((sale) => sale.playerId)).not.toContain("keeper-a");
+    expect(sales.map((sale) => sale.playerId)).not.toContain("keeper-b");
+    expect(sales.map((sale) => sale.playerId)[0]).toBe("star");
   });
 });

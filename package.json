@@ -13,6 +13,7 @@
     "test": "vitest run",
     "db:seed": "prisma db seed",
     "measure:size": "tsx scripts/measure-save-size.ts",
+    "measure:balance": "tsx scripts/measure-d2-balance.ts",
     "test:slow": "vitest run --config vitest.slow.config.mts",
     "test:e2e": "playwright test"
   },

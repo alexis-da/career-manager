@@ -3,12 +3,15 @@ import {
   ASKING_PRICE_BY_SEASONS_LEFT,
   FREE_AGENT_MIN_WAGE_SHARE,
   MARKET_VALUE_STEP,
+  MIN_GOALKEEPERS,
   PLAYER_REPUTATION_MARGIN,
   REPUTATION_STEP_DOWN,
   SALE_BID_SHARE_MAX,
   SALE_BID_SHARE_MIN,
   SALE_MAX_BIDDERS,
+  SQUAD_SIZE_MIN,
   TRANSFER_MIN_WAGE_RAISE,
+  WAGE_SALE_MIN_FEE_SHARE,
   WAGE_STEP,
 } from "./balance";
 import { interpolate, lerp } from "./curves";
@@ -170,4 +173,63 @@ export function saleBids(
   return bids.sort(
     (a, b) => b.fee - a.fee || reputationOf(b) - reputationOf(a) || (a.clubSlug < b.clubSlug ? -1 : 1),
   );
+}
+
+/** A player of an AI club over its wage budget, as planWageSales reads him. */
+export type WageSalePlayer = OfferPlayer & {
+  id: string; // stable player key
+  goalkeeper: boolean;
+};
+
+export type WageSale = SaleBid & { playerId: string };
+
+/**
+ * Sales of an AI club whose payroll is above its wage budget: its best-paid players first, each to the best bid of the
+ * other AI clubs (saleBids: clubs he would join, with the budget and the wage room), never under
+ * WAGE_SALE_MIN_FEE_SHARE of his market value, until the payroll is back within the budget. A player without such a bid
+ * stays and the next best paid is tried; the squad never drops under SQUAD_SIZE_MIN players nor MIN_GOALKEEPERS
+ * goalkeepers. Each sale takes the buyer's budget and wage room for the next ones. Nothing when within the budget.
+ */
+export function planWageSales(
+  seller: OfferClub & { wageBudget: number },
+  squad: readonly WageSalePlayer[],
+  buyers: readonly BidderClub[],
+  rngFor: (playerId: string) => Rng,
+): WageSale[] {
+  let payroll = squad.reduce((sum, player) => sum + player.wage, 0);
+  if (payroll <= seller.wageBudget) {
+    return [];
+  }
+  const market = buyers.map((buyer) => ({ ...buyer }));
+  let size = squad.length;
+  let goalkeepers = squad.filter((player) => player.goalkeeper).length;
+  const sales: WageSale[] = [];
+
+  const byWage = [...squad].sort((a, b) => b.wage - a.wage || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const player of byWage) {
+    if (payroll <= seller.wageBudget || size <= SQUAD_SIZE_MIN) {
+      break;
+    }
+    if (player.goalkeeper && goalkeepers <= MIN_GOALKEEPERS) {
+      continue;
+    }
+    const floor = WAGE_SALE_MIN_FEE_SHARE * marketValueFor(player);
+    const bid = saleBids(player, seller, market, rngFor(player.id)).find((candidate) => candidate.fee >= floor);
+    const buyer = bid === undefined ? undefined : market.find((club) => club.slug === bid.clubSlug);
+    if (bid === undefined || buyer === undefined) {
+      continue;
+    }
+    sales.push({ ...bid, playerId: player.id });
+    buyer.budget -= bid.fee;
+    buyer.wageRoom -= bid.wage;
+    payroll -= player.wage;
+    size--;
+    goalkeepers -= player.goalkeeper ? 1 : 0;
+  }
+  return sales;
+}
+
+/** Seed of the bids for a player an AI club over its wage budget sells in a preseason. */
+export function wageSaleRngSeed(saveSeed: string, startYear: number, playerKey: string): string {
+  return `${saveSeed}:wage-sale:${startYear}:${playerKey}`;
 }

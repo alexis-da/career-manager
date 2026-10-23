@@ -3,6 +3,8 @@ import { contractEndDate } from "../engine/economy";
 import type { Position } from "../engine/positions";
 import { NAME_BANK } from "../engine/names";
 import { planSquad, squadPlanRngSeed, type RosterPlayer } from "../engine/squad-ai";
+import { competitionTier } from "../engine/tiers";
+import { planWageSales, wageSaleRngSeed } from "../engine/transfer-ai";
 import { seasonEndDate, seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import { generateYouthPlayer, youthKeyPrefix, youthPositions, youthRngSeed } from "../engine/youth";
 import { Prisma } from "../generated/prisma/client";
@@ -27,6 +29,7 @@ export type PreseasonSummary = {
   renewals: number;
   releases: number;
   signings: number;
+  wageSales: number; // players sold by AI clubs above their wage budget
 };
 
 type PlayerState = {
@@ -73,8 +76,10 @@ export async function runPreseason(saveId: string): Promise<PreseasonSummary> {
  * 1. free agents released before this preseason and rated FREE_AGENT_STAY_MIN_OVERALL or less leave the
  *    world (RETIREMENT transfer); the initial pool, never released, counts as released when the save started;
  * 2. every club, the managed one included, receives its young players;
- * 3. AI clubs, most reputed first, renew or release their expiring contracts and sign free agents, sharing
- *    one market; signings and releases write FREE transfers, renewals update contract and wage.
+ * 3. AI clubs above their wage budget sell their best-paid players to the other AI clubs (TRANSFER, with a fee,
+ *    budgets updated) until within it; then AI clubs, most reputed first, renew or release their expiring contracts
+ *    and sign free agents, sharing one market; signings and releases write FREE transfers, renewals update contract
+ *    and wage.
  * A season whose young players already exist has had its preseason: nothing is done.
  */
 export async function runPreseasonInTransaction(
@@ -92,6 +97,7 @@ export async function runPreseasonInTransaction(
     renewals: 0,
     releases: 0,
     signings: 0,
+    wageSales: 0,
   };
 
   const youthAlreadyThere = await tx.playerSave.count({
@@ -107,7 +113,9 @@ export async function runPreseasonInTransaction(
       id: true,
       isManaged: true,
       reputation: true,
+      budget: true,
       wageBudget: true,
+      competition: { select: { tier: true } },
       club: { select: { id: true, slug: true, country: true } },
     },
   });
@@ -158,7 +166,12 @@ export async function runPreseasonInTransaction(
       const index = offset + 1;
       const { key, ...youth } = generateYouthPlayer(
         {
-          club: { slug: club.club.slug, country: club.club.country, reputation: club.reputation },
+          club: {
+            slug: club.club.slug,
+            country: club.club.country,
+            reputation: club.reputation,
+            tier: competitionTier(club.competition.tier),
+          },
           position,
           startYear,
           index,
@@ -190,6 +203,67 @@ export async function runPreseasonInTransaction(
     contractExpiring: player.contractUntil !== null && player.contractUntil <= lastContractDay,
   });
   const aiClubs = clubs.filter((club) => !club.isManaged).sort((a, b) => b.reputation - a.reputation || bySlug(a, b));
+
+  // 3a. An AI club above its wage budget (a relegated one, typically) sells its best-paid players to the other AI
+  // clubs until it is back within it, never under WAGE_SALE_MIN_FEE_SHARE of their value (planWageSales).
+  const payrollOf = (clubId: string): number =>
+    getOrThrow(squads, clubId, "squad").reduce((sum, player) => sum + player.wage, 0);
+  const buyers = new Map(
+    aiClubs.map((club) => [
+      club.id,
+      { slug: club.club.slug, reputation: club.reputation, budget: club.budget, wageRoom: club.wageBudget - payrollOf(club.id) },
+    ]),
+  );
+  const clubBySlug = new Map(aiClubs.map((club) => [club.club.slug, club]));
+  const budgetChanges = new Map<string, number>();
+  for (const seller of aiClubs) {
+    const squad = getOrThrow(squads, seller.id, "squad");
+    const squadByKey = new Map(squad.map((player) => [player.key, player]));
+    const sales = planWageSales(
+      { reputation: seller.reputation, wageBudget: seller.wageBudget },
+      squad.map((player) => ({
+        id: player.key,
+        goalkeeper: player.position === "GK",
+        age: ageInYears(player.birthDate, date),
+        overall: player.overall,
+        potential: player.potential,
+        wage: player.wage,
+        seasonsLeft: player.contractUntil === null ? 0 : Math.max(0, player.contractUntil.getUTCFullYear() - startYear),
+      })),
+      [...buyers].filter(([id]) => id !== seller.id).map(([, buyer]) => buyer),
+      (playerKey) => makeRng(wageSaleRngSeed(save.seed, startYear, playerKey)),
+    );
+    for (const sale of sales) {
+      const player = getOrThrow(squadByKey, sale.playerId, "sold player");
+      const buyer = getOrThrow(clubBySlug, sale.clubSlug, "buying club");
+      const formerWage = player.wage;
+      squad.splice(squad.indexOf(player), 1);
+      getOrThrow(squads, buyer.id, "squad").push(player);
+      player.clubSaveId = buyer.id;
+      player.contractUntil = contractEndDate(date, sale.years);
+      player.wage = sale.wage;
+      changed.add(player);
+      transfers.push({
+        saveId,
+        playerSaveId: player.id,
+        fromClubId: seller.club.id,
+        toClubId: buyer.club.id,
+        fee: sale.fee,
+        type: "TRANSFER",
+        date,
+      });
+      const buyerState = getOrThrow(buyers, buyer.id, "buyer");
+      buyerState.budget -= sale.fee;
+      buyerState.wageRoom -= sale.wage;
+      getOrThrow(buyers, seller.id, "seller").wageRoom += formerWage;
+      budgetChanges.set(buyer.id, (budgetChanges.get(buyer.id) ?? 0) - sale.fee);
+      budgetChanges.set(seller.id, (budgetChanges.get(seller.id) ?? 0) + sale.fee);
+      summary.wageSales++;
+    }
+  }
+  for (const [clubId, change] of budgetChanges) {
+    await tx.clubSave.update({ where: { id: clubId, saveId }, data: { budget: { increment: change } } });
+  }
 
   for (const club of aiClubs) {
     const squad = getOrThrow(squads, club.id, "squad");
