@@ -9,6 +9,7 @@ import { signIn, signOut } from "@/src/auth/auth";
 import { getCurrentUser, requireCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { USER_COOKIE } from "@/src/auth/identity";
 import { deleteRegisteredUser } from "@/src/db/accounts";
+import { isWakeUpError, retryOnWakeUp } from "@/src/db/retry";
 import { createSave, deleteSave } from "@/src/db/saves";
 import { describeError, phaseTimer } from "@/src/lib/diagnostics";
 import { SaveLimitError } from "@/src/lib/limits";
@@ -56,7 +57,11 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
     const seed = parsed.data.seed === "" ? randomUUID() : parsed.data.seed;
     // The player gets an anonymous identity, and its cookie, with their first save.
     const owner = await requireCurrentUser();
-    ({ id: saveId } = await createSave({ ...parsed.data, seed, ownerId: owner.id }));
+    // A database waking up (P2028, P1001, P1017) gets one more try: the failed transaction was rolled back.
+    ({ id: saveId } = await retryOnWakeUp(() => createSave({ ...parsed.data, seed, ownerId: owner.id }), {
+      onRetry: (error) =>
+        console.warn(`[createSaveAction] trying again after ${timer.elapsed()} ms: ${describeError(error)}`),
+    }));
   } catch (error) {
     if (error instanceof SaveLimitError) {
       // The form is replaced by this message once the page knows; a creation from a page loaded earlier ends here.
@@ -64,7 +69,10 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
     }
     // The real error, its code and the time spent, in one line the hosting logs keep; then the whole error.
     console.error(`[createSaveAction] failed after ${timer.elapsed()} ms: ${describeError(error)}`, error);
-    return { values, errors: {}, message: "La partie n'a pas pu être créée. Réessayez." };
+    const message = isWakeUpError(error)
+      ? "Le serveur se réveille : réessaie dans quelques secondes."
+      : "La partie n'a pas pu être créée. Réessayez.";
+    return { values, errors: {}, message };
   }
 
   revalidatePath("/");

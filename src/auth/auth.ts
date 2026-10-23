@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import { cookies } from "next/headers";
 import { prisma } from "../db/client";
 import { prismaAccountStore } from "../db/accounts";
+import { TRANSACTION_MAX_WAIT_MS } from "../db/transactions";
 import { readAdminEmail, readGoogleProfile, signInWithGoogle } from "./google";
 import { readAuthSecret, readSignedUserId, USER_COOKIE } from "./identity";
 
@@ -56,7 +57,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             // Not simulation code: lastSeenAt is real time.
             now: new Date(),
           }),
-        { timeout: SIGN_IN_TIMEOUT_MS },
+        { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: SIGN_IN_TIMEOUT_MS },
       );
       // The anonymous identity is over: its saves now belong to the account.
       store.delete(USER_COOKIE);

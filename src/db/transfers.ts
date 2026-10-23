@@ -20,9 +20,10 @@ import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
 const MAX_DATABASE_INT = 2_147_483_647;
-const TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+const TRANSACTION_OPTIONS = { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: 30_000 };
 
 const idSchema = z.string().min(1);
 const feeSchema = z.number().int().min(0).max(MAX_DATABASE_INT);

@@ -16,6 +16,7 @@ import {
 import type { WorldVersion } from "@/src/engine/world-version";
 import { advanceSeasonAction, playMatchdayAction, playUntilNextMatchAction, type GameActionResult } from "../actions";
 import { useSimulation, type SimulationTarget } from "./simulation";
+import { isNewVersionError, NEW_VERSION_MESSAGE } from "../../../_lib/new-version";
 
 const SIMULATION_TARGETS: { label: string; target: SimulationTarget }[] = [
   { label: "Prochain match de mon club", target: { kind: "next-match" } },
@@ -83,8 +84,8 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
     startTransition(async () => {
       try {
         show(await action(saveId));
-      } catch {
-        toast.error("L'action a échoué. Réessayez.");
+      } catch (error) {
+        toast.error(isNewVersionError(error) ? NEW_VERSION_MESSAGE : "L'action a échoué. Réessayez.");
       }
     });
 
@@ -107,8 +108,8 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
           toast.info(`${played} ${played > 1 ? "journées intermédiaires jouées" : "journée intermédiaire jouée"}.`);
         }
         show(await playMatchdayAction(saveId));
-      } catch {
-        toast.error("L'action a échoué. Réessayez.");
+      } catch (error) {
+        toast.error(isNewVersionError(error) ? NEW_VERSION_MESSAGE : "L'action a échoué. Réessayez.");
         router.refresh();
       }
     });

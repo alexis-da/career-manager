@@ -13,9 +13,9 @@ import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
 // A preseason reads every player of the save and writes a few thousand rows in bulk statements.
-const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 120_000;
 
 /** Players per bulk UPDATE: PostgreSQL takes 65 535 parameters per statement at most. */

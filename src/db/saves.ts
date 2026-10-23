@@ -18,6 +18,7 @@ import { visibleSavesWhere, type SaveViewer } from "./access";
 import { prisma } from "./client";
 import { seasonFixtures } from "./fixtures";
 import { runPreseasonInTransaction } from "./preseason";
+import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
 export const createSaveInputSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -33,7 +34,6 @@ export type CreateSaveInput = z.input<typeof createSaveInputSchema>;
 
 // A new save writes about 4 000 rows in a worldVersion 1 world, 8 500 in a worldVersion 2 one: allow much more than
 // the 5 s default.
-const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 120_000;
 
 /** Rows per INSERT of the large tables: bounded statements rather than one of several thousand rows. */

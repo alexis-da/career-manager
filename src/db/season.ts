@@ -15,9 +15,9 @@ import { assertNoMatchInProgress } from "./matchday";
 import { runPreseasonInTransaction, type PreseasonSummary } from "./preseason";
 import { applySeasonMoves, computeSeasonMoves } from "./promotion";
 import { recordSeasonResult } from "./season-results";
+import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
 // The transition rewrites every player of the save, then runs the preseason, in bulk statements.
-const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 120_000;
 
 /** Players per bulk UPDATE: PostgreSQL takes 65 535 parameters per statement at most. */

@@ -19,11 +19,13 @@ import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 import { serializeLiveState } from "./live-state";
 import { parseFormation, parseSavedLineup } from "./lineup";
 
 // A matchday writes a few thousand rows, in a handful of bulk statements.
-export const TRANSACTION_MAX_WAIT_MS = 10_000;
+// Re-exported for live-match.ts, which shares the matchday transaction settings.
+export { TRANSACTION_MAX_WAIT_MS };
 export const TRANSACTION_TIMEOUT_MS = 60_000;
 
 const DAY_MS = 86_400_000;

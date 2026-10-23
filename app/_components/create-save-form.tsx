@@ -14,6 +14,7 @@ import {
 } from "@/src/components/ui/select";
 import type { CompetitionClubs } from "@/src/db/clubs";
 import { createSaveAction, type CreateSaveFormState } from "../actions";
+import { isNewVersionError, NEW_VERSION_MESSAGE } from "../_lib/new-version";
 
 const INITIAL_STATE: CreateSaveFormState = {
   values: { name: "", managerName: "", clubId: "", seed: "" },
@@ -47,7 +48,17 @@ function Field({ id, label, hint, errors, children }: FieldProps) {
 }
 
 export function CreateSaveForm({ competitions }: { competitions: CompetitionClubs[] }) {
-  const [state, formAction, pending] = useActionState(createSaveAction, INITIAL_STATE);
+  const [state, formAction, pending] = useActionState(async (previous: CreateSaveFormState, formData: FormData) => {
+    try {
+      return await createSaveAction(previous, formData);
+    } catch (error) {
+      // The page comes from an earlier deployment: its action is gone from the server, a reload fixes it.
+      if (isNewVersionError(error)) {
+        return { ...previous, message: NEW_VERSION_MESSAGE };
+      }
+      throw error;
+    }
+  }, INITIAL_STATE);
   const [clubId, setClubId] = useState(INITIAL_STATE.values.clubId);
   const items = competitions.flatMap((competition) =>
     competition.clubs.map((club) => ({ value: club.id, label: club.name })),
