@@ -6,6 +6,7 @@ import { planSquad, squadPlanRngSeed, type RosterPlayer } from "../engine/squad-
 import { seasonEndDate, seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import { generateYouthPlayer, youthKeyPrefix, youthPositions, youthRngSeed } from "../engine/youth";
 import { Prisma } from "../generated/prisma/client";
+import { chunk } from "../lib/arrays";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
@@ -14,6 +15,9 @@ import { prisma } from "./client";
 // A preseason reads every player of the save and writes a few thousand rows in bulk statements.
 const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 120_000;
+
+/** Players per bulk UPDATE: PostgreSQL takes 65 535 parameters per statement at most. */
+const UPDATE_BATCH_SIZE = 1_000;
 
 export type PreseasonSummary = {
   startYear: number;
@@ -230,13 +234,12 @@ export async function runPreseasonInTransaction(
   }
 
   // Dates go through ISO strings: a Date parameter would be sent in the server's local time zone.
-  const updates = [...changed];
-  if (updates.length > 0) {
+  for (const batch of chunk([...changed], UPDATE_BATCH_SIZE)) {
     await tx.$executeRaw`
       UPDATE "PlayerSave" AS p
       SET "clubSaveId" = v."clubSaveId", "contractUntil" = v."contractUntil", "wage" = v."wage"
       FROM (VALUES ${Prisma.join(
-        updates.map(
+        batch.map(
           (player) =>
             Prisma.sql`(${player.id}::text, ${player.clubSaveId}::text, ${player.contractUntil?.toISOString() ?? null}::timestamp(3), ${player.wage}::int)`,
         ),

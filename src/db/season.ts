@@ -6,6 +6,7 @@ import { seasonEndDate, seasonStartDate } from "../engine/world";
 import { worldVersionOf } from "../engine/world-version";
 import { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
+import { chunk } from "../lib/arrays";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
@@ -17,6 +18,9 @@ import { recordSeasonResult } from "./season-results";
 // The transition rewrites every player of the save, then runs the preseason, in bulk statements.
 const TRANSACTION_MAX_WAIT_MS = 10_000;
 const TRANSACTION_TIMEOUT_MS = 120_000;
+
+/** Players per bulk UPDATE: PostgreSQL takes 65 535 parameters per statement at most. */
+const UPDATE_BATCH_SIZE = 1_000;
 
 export type SeasonTransition = {
   completedStartYear: number;
@@ -146,8 +150,9 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         }
       }
 
-      // Dates go through ISO strings: a Date parameter would be sent in the server's local time zone.
-      if (updates.length > 0) {
+      // Dates go through ISO strings: a Date parameter would be sent in the server's local time zone. In batches: a
+      // statement takes 65 535 parameters at most, and a worldVersion 2 save has some 5 000 players of 13 each.
+      for (const batch of chunk(updates, UPDATE_BATCH_SIZE)) {
         await tx.$executeRaw`
           UPDATE "PlayerSave" AS p
           SET "clubSaveId" = v."clubSaveId",
@@ -167,7 +172,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
               "fitness" = ${FULL_FITNESS},
               "injuredUntil" = NULL
           FROM (VALUES ${Prisma.join(
-            updates.map(
+            batch.map(
               (update) => Prisma.sql`(${update.playerSaveId}::text, ${update.clubSaveId}::text,
                 ${update.contractUntil?.toISOString() ?? null}::timestamp(3), ${update.overall}::int,
                 ${update.potential}::int, ${update.pace}::int, ${update.shooting}::int, ${update.passing}::int,
