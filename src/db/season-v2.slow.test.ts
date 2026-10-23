@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PROMOTION_RELEGATION } from "../engine/balance";
 import { financesAfterMove, type ClubFinances } from "../engine/economy";
 import { countryOf } from "../engine/promotion";
-import { WORLD_START_YEAR } from "../engine/world";
+import { seasonStartDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 import type { SeasonTransition } from "./season";
 
@@ -36,6 +36,7 @@ type TransitionCheck = {
   codeOf: Map<string, string>; // competition code by id
   financesBefore: Map<string, ClubFinances>; // by Club.id
   financesAfter: Map<string, ClubFinances>;
+  saleFees: Map<string, number>; // budget change by Club.id from the preseason's AI sales for wage bills
 };
 
 // Two seasons of a worldVersion 2 save (first and second divisions) on a twin of the demo save, each followed by the
@@ -93,6 +94,27 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
       select: { clubId: true, budget: true, wageBudget: true, reputation: true },
     });
     return new Map(clubs.map(({ clubId, ...finances }) => [clubId, finances]));
+  };
+
+  /**
+   * Budget change of each club (Club.id) from the AI sales of a preseason (planWageSales): the fees received, minus the
+   * fees paid, of the paid transfers dated that day.
+   */
+  const saleFeesOn = async (date: Date): Promise<Map<string, number>> => {
+    const sales = await database().transfer.findMany({
+      where: { saveId, type: "TRANSFER", date },
+      select: { fromClubId: true, toClubId: true, fee: true },
+    });
+    const fees = new Map<string, number>();
+    for (const { fromClubId, toClubId, fee } of sales) {
+      if (fromClubId !== null) {
+        fees.set(fromClubId, (fees.get(fromClubId) ?? 0) + fee);
+      }
+      if (toClubId !== null) {
+        fees.set(toClubId, (fees.get(toClubId) ?? 0) - fee);
+      }
+    }
+    return fees;
   };
 
   /** Plays the season in progress, then moves on, and reads back what the move did. */
@@ -178,6 +200,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         codeOf: new Map(competitions.map((competition) => [competition.id, competition.code])),
         financesBefore,
         financesAfter: await financesOf(saveId),
+        saleFees: await saleFeesOn(seasonStartDate(startYear + 1)),
       },
     };
   };
@@ -248,9 +271,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     const check = checks[index];
     const reasonOf = new Map(check.expected.map((move) => [move.clubId, move.reason as "PROMOTED" | "RELEGATED"]));
 
+    // The preseason's AI sales for wage bills move budgets too: their fees are added back to what the move gives.
     for (const [clubId, before] of check.financesBefore) {
       const reason = reasonOf.get(clubId);
-      expect(check.financesAfter.get(clubId)).toEqual(reason === undefined ? before : financesAfterMove(before, reason));
+      const moved = reason === undefined ? before : financesAfterMove(before, reason);
+      expect(check.financesAfter.get(clubId)).toEqual({ ...moved, budget: moved.budget + (check.saleFees.get(clubId) ?? 0) });
     }
   });
 
