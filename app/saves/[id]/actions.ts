@@ -12,6 +12,8 @@ import { advanceToNextSeason, SeasonNotFinishedError } from "@/src/db/season";
 import {
   getSimulationSummary,
   planSimulation,
+  playUntilNextMatch,
+  type IntermediateBatch,
   simulateMatchdays as simulateMatchdaysOfSave,
   SIMULATION_MAX_MATCHDAYS,
   type SimulationBatch,
@@ -68,6 +70,15 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
     message: `${day} : ${fixture.home.name} ${fixture.homeGoals} – ${fixture.awayGoals} ${fixture.away.name}`,
     redirectTo: `/saves/${id}/live`,
   };
+}
+
+/**
+ * « Prochain match », worldVersion 2: plays at most SIMULATION_MAX_MATCHDAYS dates before the managed club's next
+ * match, the other competitions' intermediate matchdays. The client calls it again until done, then playMatchdayAction.
+ */
+export async function playUntilNextMatchAction(saveId: string): Promise<IntermediateBatch> {
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
+  return playUntilNextMatch(id);
 }
 
 export async function advanceSeasonAction(saveId: string): Promise<GameActionResult> {

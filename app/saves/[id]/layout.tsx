@@ -12,6 +12,10 @@ import { clubAccentStyle } from "./_lib/club-accent";
 
 export const dynamic = "force-dynamic";
 
+// The Server Actions of a save's pages play matchdays: a « Prochain match » or simulation call plays up to
+// SIMULATION_MAX_MATCHDAYS dates, each of up to some fifty matches in a worldVersion 2 save.
+export const maxDuration = 60;
+
 export default async function SaveLayout({ children, params }: LayoutProps<"/saves/[id]">) {
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
@@ -62,7 +66,12 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                   {header.windowOpen ? "ouvert" : "fermé"}
                 </p>
               </div>
-              <GameActions saveId={header.id} seasonFinished={header.seasonFinished} liveMatch={header.liveMatch} />
+              <GameActions
+                saveId={header.id}
+                seasonFinished={header.seasonFinished}
+                liveMatch={header.liveMatch}
+                worldVersion={header.worldVersion}
+              />
             </div>
           </div>
         </header>

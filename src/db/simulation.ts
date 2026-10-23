@@ -108,6 +108,35 @@ export async function planSimulation(saveId: string, target: SimulationTarget): 
   return { matchInProgress: false, fromDate, untilDate, matchdays: dates.length };
 }
 
+export type IntermediateBatch = {
+  played: number; // dates played by this call, none of them with a match of the managed club
+  done: boolean; // the next date to play is the managed club's match, or it has none left
+};
+
+/**
+ * « Prochain match » of a worldVersion 2 save: plays at most maxMatchdays dates of the season in progress before the
+ * managed club's next match date, the other competitions' midweek and rest-week matchdays, through simulateMatchdays
+ * (one transaction each). The client calls it again until done, then plays the managed club's date as « Jouer la
+ * journée » does, half-time pause included. Without a match left for the managed club, done at once.
+ */
+export async function playUntilNextMatch(
+  saveId: string,
+  maxMatchdays: number = SIMULATION_MAX_MATCHDAYS,
+): Promise<IntermediateBatch> {
+  const managedId = await managedClubSaveId(saveId);
+  const next = await prisma.fixture.findFirst({
+    where: { saveId, played: false, ...IN_PROGRESS, OR: [{ homeClubSaveId: managedId }, { awayClubSaveId: managedId }] },
+    orderBy: { scheduledAt: "asc" },
+    select: { scheduledAt: true },
+  });
+  if (next === null) {
+    return { played: 0, done: true };
+  }
+  // The day before the managed club's match: its date is left to playNextMatchday, with the half-time pause.
+  const batch = await simulateMatchdays(saveId, new Date(next.scheduledAt.getTime() - DAY_MS), maxMatchdays);
+  return { played: batch.played, done: batch.done };
+}
+
 /**
  * Plays at most maxMatchdays matchdays of the season in progress dated untilDate or earlier, one transaction
  * each through playNextMatchday, the managed club's matches included, without a half-time pause. Never moves to

@@ -3,7 +3,7 @@
 import { CalendarDaysIcon, ChevronDownIcon, FastForwardIcon, PlayIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/src/components/ui/button";
 import {
@@ -13,7 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { advanceSeasonAction, playMatchdayAction, type GameActionResult } from "../actions";
+import type { WorldVersion } from "@/src/engine/world-version";
+import { advanceSeasonAction, playMatchdayAction, playUntilNextMatchAction, type GameActionResult } from "../actions";
 import { useSimulation, type SimulationTarget } from "./simulation";
 
 const SIMULATION_TARGETS: { label: string; target: SimulationTarget }[] = [
@@ -56,29 +57,59 @@ type GameActionsProps = {
   saveId: string;
   seasonFinished: boolean;
   liveMatch: boolean; // the managed club's match waits at half-time: nothing moves on before it ends
+  worldVersion: WorldVersion; // 2: « Prochain match », which plays the other competitions' dates in between
 };
 
 /** The main button of the navigation bar, in the club accent, with the quick simulation menu during a season. */
-export function GameActions({ saveId, seasonFinished, liveMatch }: GameActionsProps) {
+export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }: GameActionsProps) {
   const [pending, startTransition] = useTransition();
+  const [intermediate, setIntermediate] = useState(0); // dates played so far by « Prochain match »
   const router = useRouter();
+
+  const show = (result: GameActionResult) => {
+    if (result.redirectTo !== undefined) {
+      if (result.announce === true) {
+        toast.success(result.message);
+      }
+      router.push(result.redirectTo);
+    } else if (result.ok) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.message);
+    }
+  };
 
   const run = (action: (saveId: string) => Promise<GameActionResult>) =>
     startTransition(async () => {
       try {
-        const result = await action(saveId);
-        if (result.redirectTo !== undefined) {
-          if (result.announce === true) {
-            toast.success(result.message);
-          }
-          router.push(result.redirectTo);
-        } else if (result.ok) {
-          toast.success(result.message);
-        } else {
-          toast.error(result.message);
-        }
+        show(await action(saveId));
       } catch {
         toast.error("L'action a échoué. Réessayez.");
+      }
+    });
+
+  // « Prochain match »: the dates before the managed club's match, a few per call to stay well within a request's
+  // time limit, then its date as « Jouer la journée » plays it, on to the replay.
+  const playToNextMatch = () =>
+    startTransition(async () => {
+      try {
+        let played = 0;
+        setIntermediate(0);
+        for (;;) {
+          const batch = await playUntilNextMatchAction(saveId);
+          played += batch.played;
+          setIntermediate(played);
+          if (batch.done) {
+            break;
+          }
+        }
+        if (played > 0) {
+          toast.info(`${played} ${played > 1 ? "journées intermédiaires jouées" : "journée intermédiaire jouée"}.`);
+        }
+        show(await playMatchdayAction(saveId));
+      } catch {
+        toast.error("L'action a échoué. Réessayez.");
+        router.refresh();
       }
     });
 
@@ -101,10 +132,17 @@ export function GameActions({ saveId, seasonFinished, liveMatch }: GameActionsPr
   ) : (
     <div className="flex items-center gap-2">
       <SimulateMenu disabled={pending} />
-      <Button variant="club" className={className} disabled={pending} onClick={() => run(playMatchdayAction)}>
-        <PlayIcon data-icon="inline-start" className="fill-current" />
-        {pending ? "Simulation…" : "Jouer la journée"}
-      </Button>
+      {worldVersion === 2 ? (
+        <Button variant="club" className={className} disabled={pending} onClick={playToNextMatch}>
+          <PlayIcon data-icon="inline-start" className="fill-current" />
+          {pending ? (intermediate > 0 ? `Journées intermédiaires… ${intermediate}` : "Simulation…") : "Prochain match"}
+        </Button>
+      ) : (
+        <Button variant="club" className={className} disabled={pending} onClick={() => run(playMatchdayAction)}>
+          <PlayIcon data-icon="inline-start" className="fill-current" />
+          {pending ? "Simulation…" : "Jouer la journée"}
+        </Button>
+      )}
     </div>
   );
 }
