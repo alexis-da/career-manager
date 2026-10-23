@@ -192,9 +192,10 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         select: { id: true, competitionId: true },
       });
       const codeByCompetition = new Map(seasons.map((season) => [season.competitionId, season.competition.code]));
+      // Each club plays its current competition in the save (ClubSave.competitionId), never the world's.
       const clubSaves = await tx.clubSave.findMany({
         where: { saveId },
-        select: { id: true, club: { select: { slug: true, competitionId: true } } },
+        select: { id: true, competitionId: true, club: { select: { slug: true } } },
       });
 
       const fixtures = nextSeasons.flatMap((season) =>
@@ -205,7 +206,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
           competitionCode: getOrThrow(codeByCompetition, season.competitionId, "competition code"),
           startYear,
           clubs: clubSaves
-            .filter((clubSave) => clubSave.club.competitionId === season.competitionId)
+            .filter((clubSave) => clubSave.competitionId === season.competitionId)
             .map((clubSave) => ({ slug: clubSave.club.slug, clubSaveId: clubSave.id })),
         }),
       );

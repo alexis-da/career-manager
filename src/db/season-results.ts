@@ -21,7 +21,7 @@ type ManagedClub = {
   id: string;
   clubId: string;
   formation: string;
-  competitionId: string | null;
+  competitionId: string; // the club's current competition in the save
   primaryColor: string;
   secondaryColor: string;
 };
@@ -33,39 +33,39 @@ async function managedClubOf(db: Db, saveId: string): Promise<ManagedClub> {
       id: true,
       clubId: true,
       formation: true,
-      club: { select: { competitionId: true, primaryColor: true, secondaryColor: true } },
+      competitionId: true,
+      club: { select: { primaryColor: true, secondaryColor: true } },
     },
   });
   return {
     id: managed.id,
     clubId: managed.clubId,
     formation: managed.formation,
-    competitionId: managed.club.competitionId,
+    competitionId: managed.competitionId,
     primaryColor: managed.club.primaryColor,
     secondaryColor: managed.club.secondaryColor,
   };
 }
 
+const RESULT_CLUB_SELECT = { select: { clubId: true, club: { select: { slug: true } } } } as const;
+
 /**
  * The managed club's season, from the database as it stands: the final table from the season's fixtures, the
  * statistics of the players who were at the club at the end of the season (their club then is rebuilt from the
- * transfers dated after it, so it holds for a season long over), and the club's formation now. null when the club does
- * not play in the competition of the season.
+ * transfers dated after it, so it holds for a season long over), and the club's formation now. The season's clubs are
+ * the ones of its fixtures, whatever their competition now. null when the club played none of them.
  */
 async function computeSeasonResult(db: Db, saveId: string, managed: ManagedClub, season: SeasonRef): Promise<SeasonResultData | null> {
-  const [clubSaves, fixtures, stats] = await Promise.all([
-    db.clubSave.findMany({
-      where: { saveId, club: { competitionId: season.competitionId } },
-      select: { club: { select: { slug: true, id: true } } },
-    }),
+  const [fixtures, stats] = await Promise.all([
     db.fixture.findMany({
-      where: { saveId, seasonId: season.id, played: true },
+      where: { saveId, seasonId: season.id },
       select: {
         id: true,
+        played: true,
         homeGoals: true,
         awayGoals: true,
-        homeClubSave: { select: { club: { select: { slug: true } } } },
-        awayClubSave: { select: { club: { select: { slug: true } } } },
+        homeClubSave: RESULT_CLUB_SELECT,
+        awayClubSave: RESULT_CLUB_SELECT,
       },
     }),
     db.playerSeasonStats.findMany({
@@ -91,20 +91,20 @@ async function computeSeasonResult(db: Db, saveId: string, managed: ManagedClub,
     }),
   ]);
 
-  const managedSlug = clubSaves.find(({ club }) => club.id === managed.clubId)?.club.slug;
+  const clubs = fixtures.flatMap(({ homeClubSave, awayClubSave }) => [homeClubSave, awayClubSave]);
+  const managedSlug = clubs.find(({ clubId }) => clubId === managed.clubId)?.club.slug;
   if (managedSlug === undefined) {
     return null;
   }
-  const scores = fixtures.map(({ id, homeGoals, awayGoals, homeClubSave, awayClubSave }) => {
-    if (homeGoals === null || awayGoals === null) {
-      throw new Error(`Fixture ${id} is played but has no score`);
-    }
-    return { home: homeClubSave.club.slug, away: awayClubSave.club.slug, homeGoals, awayGoals };
-  });
-  const table = computeStandings(
-    scores,
-    clubSaves.map(({ club }) => club.slug),
-  );
+  const scores = fixtures
+    .filter((fixture) => fixture.played)
+    .map(({ id, homeGoals, awayGoals, homeClubSave, awayClubSave }) => {
+      if (homeGoals === null || awayGoals === null) {
+        throw new Error(`Fixture ${id} is played but has no score`);
+      }
+      return { home: homeClubSave.club.slug, away: awayClubSave.club.slug, homeGoals, awayGoals };
+    });
+  const table = computeStandings(scores, [...new Set(clubs.map(({ club }) => club.slug))]);
   const standing = table.find((row) => row.club === managedSlug);
   if (standing === undefined) {
     throw new Error(`Club ${managedSlug} is missing from its own table`);
@@ -173,11 +173,14 @@ export async function recordSeasonResult(tx: Db, saveId: string, seasons: readon
  */
 async function ensureSeasonResults(saveId: string): Promise<ManagedClub> {
   const managed = await managedClubOf(prisma, saveId);
-  if (managed.competitionId === null) {
-    return managed;
-  }
+  // The completed seasons the club played, whichever competition it was in then.
   const missing = await prisma.season.findMany({
-    where: { saveId, completed: true, competitionId: managed.competitionId, results: { none: { saveId } } },
+    where: {
+      saveId,
+      completed: true,
+      results: { none: { saveId } },
+      fixtures: { some: { saveId, OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }] } },
+    },
     select: { id: true, startYear: true, competitionId: true },
   });
   const rows: Prisma.SeasonResultCreateManyInput[] = [];

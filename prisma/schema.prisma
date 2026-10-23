@@ -20,6 +20,7 @@ model Competition {
   country       String
   tier          Int            @default(1)
   clubs         Club[]
+  clubSaves     ClubSave[]
   seasons       Season[]
   seasonResults SeasonResult[]
 }
@@ -101,6 +102,7 @@ model Save {
   name          String
   managerName   String
   seed          String // graine de tout l'aléatoire de la partie
+  worldVersion  Int // monde de la partie : 1 = premières divisions seules (parties d'avant les deuxièmes), 2 = premières et deuxièmes divisions ; sans défaut, createSave le donne toujours
   currentDate   DateTime // date "en jeu", jamais l'horloge système
   liveFixtureId String? // match du club dirigé en suspens à la mi-temps ; sans clé étrangère, pour ne pas croiser la cascade depuis Save
   createdAt     DateTime            @default(now())
@@ -138,6 +140,8 @@ model ClubSave {
   saveId          String
   club            Club         @relation(fields: [clubId], references: [id], onDelete: Restrict)
   clubId          String
+  competition     Competition  @relation(fields: [competitionId], references: [id], onDelete: Restrict)
+  competitionId   String // compétition actuelle du club dans la partie, Club.competitionId à la création ; une saison passée lit ses clubs dans ses Fixture
   isManaged       Boolean      @default(false) // le club dirigé par le joueur
   budget          Int          @default(0) // euros
   wageBudget      Int          @default(0) // euros par saison
@@ -151,6 +155,7 @@ model ClubSave {
 
   @@unique([saveId, clubId])
   @@index([saveId])
+  @@index([saveId, competitionId])
 }
 
 model PlayerSave {

@@ -54,7 +54,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     await prisma.save.createMany({
       data: Object.values(users)
         .filter((user) => user.saves > 0)
-        .map((user) => ({ name: "Test purge", managerName: "Test", seed: `test-purge-${run}`, currentDate: new Date("2026-07-01T00:00:00.000Z"), ownerId: user.id })),
+        .map((user) => ({ name: "Test purge", managerName: "Test", seed: `test-purge-${run}`, worldVersion: 1, currentDate: new Date("2026-07-01T00:00:00.000Z"), ownerId: user.id })),
     });
   }, 60_000);
 

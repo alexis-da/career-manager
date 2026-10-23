@@ -209,7 +209,8 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
     clubSave: {
       saveId,
       isManaged: false,
-      ...(filters.competition === undefined ? {} : { club: { competition: { code: filters.competition } } }),
+      // The club's current competition in the save, never the world's.
+      ...(filters.competition === undefined ? {} : { competition: { code: filters.competition } }),
     },
     ...(filters.position === undefined
       ? {}

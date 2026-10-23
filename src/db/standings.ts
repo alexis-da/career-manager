@@ -20,40 +20,43 @@ export type StandingsOptions = {
   before?: Date; // only fixtures played strictly before this date: the table as it was then
 };
 
-/** League table of a season from its played fixtures, every club of the competition included. */
+const STANDINGS_CLUB_SELECT = { select: { isManaged: true, club: { select: { slug: true, name: true } } } } as const;
+
+/**
+ * League table of a season from its played fixtures, every club of the season included. The clubs are the ones of its
+ * fixtures, played or not, never the clubs' current competition (ClubSave.competitionId): a club promoted or relegated
+ * since still shows in the table of the season it played.
+ */
 export async function getStandings(
   saveId: string,
   seasonId: string,
   options: StandingsOptions = {},
 ): Promise<ClubStandingRow[]> {
-  const season = await prisma.season.findFirstOrThrow({
-    where: { id: seasonId, saveId },
-    select: { competitionId: true },
+  const fixtures = await prisma.fixture.findMany({
+    where: { saveId, seasonId },
+    select: {
+      id: true,
+      played: true,
+      scheduledAt: true,
+      homeGoals: true,
+      awayGoals: true,
+      homeClubSave: STANDINGS_CLUB_SELECT,
+      awayClubSave: STANDINGS_CLUB_SELECT,
+    },
   });
-  const [clubSaves, fixtures] = await Promise.all([
-    prisma.clubSave.findMany({
-      where: { saveId, club: { competitionId: season.competitionId } },
-      select: { isManaged: true, club: { select: { slug: true, name: true } } },
-    }),
-    prisma.fixture.findMany({
-      where: {
-        saveId,
-        seasonId,
-        played: true,
-        ...(options.before === undefined ? {} : { scheduledAt: { lt: options.before } }),
-      },
-      select: {
-        id: true,
-        homeGoals: true,
-        awayGoals: true,
-        homeClubSave: { select: { club: { select: { slug: true } } } },
-        awayClubSave: { select: { club: { select: { slug: true } } } },
-      },
-    }),
-  ]);
+  if (fixtures.length === 0) {
+    throw new Error(`Season ${seasonId} of save ${saveId} has no fixture`);
+  }
 
-  const clubBySlug = new Map(clubSaves.map(({ isManaged, club }) => [club.slug, { name: displayClubName(club), isManaged }]));
-  const scores = fixtures.map(({ id, homeGoals, awayGoals, homeClubSave, awayClubSave }) => {
+  const clubBySlug = new Map(
+    fixtures.flatMap(({ homeClubSave, awayClubSave }) =>
+      [homeClubSave, awayClubSave].map(({ isManaged, club }) => [club.slug, { name: displayClubName(club), isManaged }] as const),
+    ),
+  );
+  const counted = fixtures.filter(
+    (fixture) => fixture.played && (options.before === undefined || fixture.scheduledAt < options.before),
+  );
+  const scores = counted.map(({ id, homeGoals, awayGoals, homeClubSave, awayClubSave }) => {
     if (homeGoals === null || awayGoals === null) {
       throw new Error(`Fixture ${id} is played but has no score`);
     }

@@ -102,17 +102,17 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
       id: true,
       budget: true,
       wageBudget: true,
-      club: { select: { slug: true, name: true, competitionId: true, competition: { select: { name: true } } } },
+      competitionId: true,
+      competition: { select: { name: true } },
+      club: { select: { slug: true, name: true } },
     },
   });
-  const season =
-    club.club.competitionId === null
-      ? null
-      : await prisma.season.findFirst({
-          where: { saveId, competitionId: club.club.competitionId, completed: false },
-          orderBy: { startYear: "desc" },
-          select: { id: true, startYear: true },
-        });
+  // The season in progress of the club's current competition.
+  const season = await prisma.season.findFirst({
+    where: { saveId, competitionId: club.competitionId, completed: false },
+    orderBy: { startYear: "desc" },
+    select: { id: true, startYear: true },
+  });
 
   const [payroll, squad, nextRow, lastRow, unplayed, table] = await Promise.all([
     prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } }),
@@ -173,7 +173,7 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
   return {
     currentDate: save.currentDate,
     startYear: season?.startYear ?? null,
-    competitionName: club.club.competition?.name ?? null,
+    competitionName: club.competition.name,
     windowOpen: transferWindowAt(save.currentDate) !== null,
     club: {
       name: displayClubName(club.club),

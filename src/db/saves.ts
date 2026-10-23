@@ -86,7 +86,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       }
 
       const save = await tx.save.create({
-        data: { name, managerName, seed, ownerId, currentDate: WORLD_START_DATE },
+        data: { name, managerName, seed, ownerId, worldVersion: 1, currentDate: WORLD_START_DATE },
         select: { id: true, seed: true, currentDate: true },
       });
 
@@ -94,6 +94,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
         data: clubs.map((club) => ({
           saveId: save.id,
           clubId: club.id,
+          competitionId: club.competitionId,
           isManaged: club.id === clubId,
           ...clubFinances(club.initialRank, getOrThrow(clubCountByCompetition, club.competitionId, "club count"), club.tier),
         })),

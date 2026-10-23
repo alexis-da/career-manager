@@ -27,6 +27,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("account deletion, in th
     name: "Test suppression",
     managerName: "Test",
     seed: `test-delete-${run}`,
+    worldVersion: 1,
     currentDate: new Date("2026-07-01T00:00:00.000Z"),
     ownerId,
   });
