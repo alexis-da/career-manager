@@ -12,6 +12,8 @@ export type CompetitionTable = {
   startYear: number;
   code: string;
   name: string;
+  country: string; // « France »
+  tier: number; // 1 or 2
   hasManagedClub: boolean;
   rows: ClubStandingRow[];
 };
@@ -82,7 +84,7 @@ export async function getLatestSeasonTables(saveId: string): Promise<Competition
   const seasons = await prisma.season.findMany({
     where: { saveId, startYear: latest.startYear },
     orderBy: { competition: { name: "asc" } },
-    select: { id: true, startYear: true, competition: { select: { code: true, name: true } } },
+    select: { id: true, startYear: true, competition: { select: { code: true, name: true, country: true, tier: true } } },
   });
 
   return Promise.all(
@@ -93,6 +95,8 @@ export async function getLatestSeasonTables(saveId: string): Promise<Competition
         startYear: season.startYear,
         code: season.competition.code,
         name: season.competition.name,
+        country: season.competition.country,
+        tier: season.competition.tier,
         hasManagedClub: rows.some((row) => row.isManaged),
         rows,
       };

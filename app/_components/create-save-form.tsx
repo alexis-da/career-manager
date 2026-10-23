@@ -52,6 +52,8 @@ export function CreateSaveForm({ competitions }: { competitions: CompetitionClub
   const items = competitions.flatMap((competition) =>
     competition.clubs.map((club) => ({ value: club.id, label: club.name })),
   );
+  // By country, then by division: the competitions come sorted that way.
+  const countries = [...Map.groupBy(competitions, (competition) => competition.country)];
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
@@ -77,7 +79,12 @@ export function CreateSaveForm({ competitions }: { competitions: CompetitionClub
         />
       </Field>
 
-      <Field id="club" label="Club" errors={state.errors.clubId}>
+      <Field
+        id="club"
+        label="Club"
+        hint="Prends un club de Division 2 et amène-le au sommet."
+        errors={state.errors.clubId}
+      >
         <Select
           items={items}
           value={clubId === "" ? null : clubId}
@@ -87,13 +94,18 @@ export function CreateSaveForm({ competitions }: { competitions: CompetitionClub
             <SelectValue placeholder="Choisir un club" />
           </SelectTrigger>
           <SelectContent>
-            {competitions.map((competition) => (
-              <SelectGroup key={competition.code}>
-                <SelectLabel>{competition.name}</SelectLabel>
-                {competition.clubs.map((club) => (
-                  <SelectItem key={club.id} value={club.id}>
-                    {club.name}
-                  </SelectItem>
+            {countries.map(([country, divisions]) => (
+              <SelectGroup key={country} aria-label={country}>
+                <SelectLabel className="pt-3 text-sm font-semibold text-foreground">{country}</SelectLabel>
+                {divisions.map((competition) => (
+                  <SelectGroup key={competition.code} aria-label={competition.name}>
+                    <SelectLabel>Division {competition.tier}</SelectLabel>
+                    {competition.clubs.map((club) => (
+                      <SelectItem key={club.id} value={club.id}>
+                        {club.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectGroup>
             ))}

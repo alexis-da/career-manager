@@ -38,7 +38,8 @@ function NewSaveIntro() {
  * at once (the first save creates the anonymous player), and Google second, for a player coming back on another device.
  */
 async function WelcomePage({ accountDeleted }: { accountDeleted: boolean }) {
-  const competitions = await listClubsByCompetition();
+  // Every club of the world with the second divisions: a second division club creates such a save (creationWorldVersion).
+  const competitions = await listClubsByCompetition(2);
   return (
     <main className="brand flex-1 bg-background text-foreground">
       <div className="mx-auto w-full max-w-md space-y-8 px-4 py-10">
@@ -69,7 +70,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   }
   const [saves, competitions, ownedSaves] = await Promise.all([
     listSaves(user),
-    listClubsByCompetition(),
+    listClubsByCompetition(2),
     countOwnedSaves(user.id),
   ]);
   const atLimit = !canCreateSave(user.kind, ownedSaves);

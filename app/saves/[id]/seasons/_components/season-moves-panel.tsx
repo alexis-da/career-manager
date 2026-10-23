@@ -19,8 +19,8 @@ function MoveList({ title, moves, up }: { title: string; moves: CountryMoveView[
           >
             <Icon className={cn("size-4 shrink-0", up ? "text-(--club)" : "text-muted-foreground")} aria-hidden />
             <span>{move.clubName}</span>
-            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-              {rankLabel(move.rank)} de {move.from}
+            <span className="ml-auto text-xs text-muted-foreground tabular-nums" title={`${rankLabel(move.rank)} de ${move.from}`}>
+              {rankLabel(move.rank)}
             </span>
           </li>
         ))}
@@ -33,14 +33,12 @@ function MoveList({ title, moves, up }: { title: string; moves: CountryMoveView[
 export function SeasonMovesPanel({ moves }: { moves: CountryMoveView[] }) {
   const promoted = moves.filter((move) => move.reason === "PROMOTED");
   const relegated = moves.filter((move) => move.reason === "RELEGATED");
-  const [firstUp] = promoted;
-  const [firstDown] = relegated;
   return (
     <Panel className="space-y-4" aria-labelledby="season-moves-title">
       <PanelTitle id="season-moves-title">Montées et descentes</PanelTitle>
-      <div className="grid gap-5 sm:grid-cols-2">
-        {firstUp !== undefined && <MoveList title={`Montent en ${firstUp.to}`} moves={promoted} up />}
-        {firstDown !== undefined && <MoveList title={`Descendent en ${firstDown.to}`} moves={relegated} up={false} />}
+      <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+        {promoted.length > 0 && <MoveList title="Montent en Division 1" moves={promoted} up />}
+        {relegated.length > 0 && <MoveList title="Descendent en Division 2" moves={relegated} up={false} />}
       </div>
     </Panel>
   );

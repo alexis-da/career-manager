@@ -33,14 +33,19 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
             <Link href="/" title="Late Winner · toutes les parties" className="-mr-3 shrink-0 rounded-md">
               <Image src="/brand/late-winner-icone.svg" alt="Late Winner" width={28} height={28} unoptimized />
             </Link>
-            <Link href="/" title="Toutes les parties" className="flex min-w-0 shrink-0 items-center gap-3">
+            <Link
+              href="/"
+              title={`Toutes les parties · Manager : ${header.managerName}`}
+              className="flex min-w-0 shrink-0 items-center gap-3"
+            >
               <span aria-hidden className="h-8 w-1 shrink-0 rounded-full bg-(--club)" />
               <span className="min-w-0 leading-tight">
                 <span className="block max-w-56 truncate font-heading text-lg font-bold tracking-wide uppercase">
                   {header.club.name}
                 </span>
-                <span className="block max-w-56 truncate text-[0.6875rem] text-muted-foreground">
-                  Manager : {header.managerName} · Saison {season}
+                {/* The club's competition now: it changes with a promotion or a relegation. */}
+                <span data-testid="header-competition" className="block max-w-64 truncate text-[0.6875rem] text-muted-foreground">
+                  {header.competitionName} · {season}
                 </span>
               </span>
             </Link>
