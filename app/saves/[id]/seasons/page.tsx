@@ -10,7 +10,7 @@ import { formatDecimal } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../_components/panel";
 import { POSITION_SHORT } from "../_lib/positions";
-import { rankLabel, recordLabel } from "../_lib/seasons";
+import { moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +63,17 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                   <TableCell className={cn(TABLE_CELL, "font-heading text-base font-semibold")}>
                     {seasonLabel(season.startYear)}
                   </TableCell>
-                  <TableCell className={TABLE_CELL}>{season.competitionName}</TableCell>
+                  <TableCell className={TABLE_CELL}>
+                    {season.competitionName}
+                    {moveLabel(season) !== null && (
+                      <span
+                        data-column="move"
+                        className={cn("block text-xs font-semibold", season.promoted ? "text-(--club)" : "text-muted-foreground")}
+                      >
+                        {moveLabel(season)}
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell
                     data-column="rank"
                     className={cn(TABLE_CELL, "text-right font-heading text-base font-bold", season.champion && "text-(--club)")}

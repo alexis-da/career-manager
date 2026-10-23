@@ -5,6 +5,14 @@ export function rankLabel(rank: number): string {
   return rank === 1 ? "Champion" : `${rank}e`;
 }
 
+/** « Promu en Division 1 » or « Relégué en Division 2 » for the managed club's season, null when it stayed. */
+export function moveLabel(season: { promoted: boolean; relegated: boolean }): string | null {
+  if (season.promoted) {
+    return "Promu en Division 1";
+  }
+  return season.relegated ? "Relégué en Division 2" : null;
+}
+
 /** Won, drawn, lost: « 24-8-6 ». */
 export function recordLabel(season: { won: number; drawn: number; lost: number }): string {
   return `${season.won}-${season.drawn}-${season.lost}`;

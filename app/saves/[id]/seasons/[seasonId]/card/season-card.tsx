@@ -10,7 +10,7 @@ import { formatDecimal } from "@/src/lib/format";
 import { faceDataUri } from "@/src/og/face-image";
 import { DISPLAY_FONT, imageFonts } from "@/src/og/fonts";
 import { POSITION_LABEL } from "../../../_lib/positions";
-import { rankLabel, recordLabel } from "../../../_lib/seasons";
+import { moveLabel, rankLabel, recordLabel } from "../../../_lib/seasons";
 
 // The shareable card of a season: the brand's midnight blue, the club's colors as accents, and never a club name, real
 // or fictional (CLAUDE.md, « Communication sortante »). The competition keeps its neutral name.
@@ -108,12 +108,16 @@ export async function seasonCardResponse(
   const rankSize = square ? 250 : 190;
   const statSize = square ? 72 : 60;
 
-  // « CHAMPION » underlined in orange, or the rank with its « e » raised: « 2e », never « 2E ».
+  // « CHAMPION » or « PROMU » underlined in orange, a smaller line under it for a promotion (« Promu en Division 1 »
+  // for a champion, the rank otherwise); or the rank with its « e » raised: « 2e », never « 2E ».
+  const badge = season.rank === 1 ? rankLabel(1).toUpperCase() : season.promoted ? "PROMU" : null;
+  const badgeLine = !season.promoted ? null : season.rank === 1 ? moveLabel(season) : `${rankLabel(season.rank)} place`;
   const rank =
-    season.rank === 1 ? (
+    badge !== null ? (
       <div style={column}>
-        <div style={{ fontSize: rankSize * 0.8, lineHeight: 0.95 }}>{rankLabel(1).toUpperCase()}</div>
+        <div style={{ fontSize: rankSize * 0.8, lineHeight: 0.95 }}>{badge}</div>
         <div style={{ marginTop: 12, width: 140, height: 8, borderRadius: 4, background: ORANGE }} />
+        {badgeLine !== null && <div style={{ marginTop: 14, fontSize: square ? 36 : 30, color: MUTED }}>{badgeLine}</div>}
       </div>
     ) : (
       <div style={{ ...row, alignItems: "flex-start" }}>

@@ -10,6 +10,8 @@ const CHAMPION: SeasonResultView = {
   competitionName: "France — Division 1",
   rank: 1,
   champion: true,
+  promoted: false,
+  relegated: false,
   points: 84,
   played: 34,
   won: 26,
@@ -38,6 +40,17 @@ async function render(season: SeasonResultView, format: CardFormat): Promise<Buf
 describe("seasonCardResponse", () => {
   it.each(["landscape", "square"] as const)("draws a champion's %s card at its size", async (format) => {
     expect(pngSize(await render(CHAMPION, format))).toEqual(CARD_SIZES[format]);
+  });
+
+  it.each([
+    ["a second division champion, promoted", { rank: 1, champion: true, promoted: true }],
+    ["a club promoted from second place", { rank: 2, champion: false, promoted: true }],
+    ["a relegated club", { rank: 18, champion: false, relegated: true }],
+  ] as const)("draws the card of %s in both formats", async (_, change) => {
+    const season = { ...CHAMPION, competitionName: "France — Division 2", ...change };
+    for (const format of ["landscape", "square"] as const) {
+      expect(pngSize(await render(season, format))).toEqual(CARD_SIZES[format]);
+    }
   });
 
   it("draws a card without a best player", async () => {
