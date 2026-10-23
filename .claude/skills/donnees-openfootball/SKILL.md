@@ -35,8 +35,19 @@ jamais dans la migration.
 
 `https://raw.githubusercontent.com/openfootball/football.json/master/<saison>/<code>.json`
 
-Exemple : `2024-25/en.1.json`. Codes importés : `en.1`, `es.1`, `de.1`, `it.1`, `fr.1`
-(`prisma/seed/competitions.ts`, avec des noms de compétition neutres — jamais le nom officiel sous licence).
+Exemple : `2024-25/en.1.json`. Codes importés : `en.1`, `es.1`, `de.1`, `it.1`, `fr.1` (`tier` 1) puis `en.2`, `es.2`,
+`de.2`, `it.2`, `fr.2` (`tier` 2 : 24, 22, 18, 20 et 18 clubs, 102 en tout), dans `prisma/seed/competitions.ts`, avec
+des noms de compétition neutres (« Angleterre — Division 2 ») — jamais le nom officiel sous licence. Les deuxièmes
+divisions viennent après les premières dans la liste : rien des premières ne bouge. Chaque club a son entrée dans
+`club-colors.json` et `club-aliases-fallback.json` (tests).
+
+Tours : « Matchday N » ou « Regular, Matchday N » (`en.2`) pour la saison régulière ; les play-offs et play-outs
+(« Playoff, … », « Playout, … », « Finals, … », dans `en.2` et `it.2`) sont laissés hors des clubs et du classement de
+référence (`regularSeasonMatches`) ; un tour d'une autre forme fait échouer le seed.
+
+**Production.** Le seed ne tourne que sur la branche de test. Les données de référence arrivent en production par une
+migration de données générée depuis le plan du seed (skill `prisma-migrations`, « Migrations de données de
+référence ») : ajouter une compétition, c'est l'ajouter ici **et** générer sa migration.
 
 ```json
 {
@@ -173,8 +184,14 @@ l'origine dans le monde du seed (null pour un jeune arrivé en cours de partie).
   `{ position, age }` (âge révolu à `Save.currentDate`, via `ageInYears` de `src/lib/dates.ts`). Sortie :
   `overall`, `potential`, `pace`, `shooting`, `passing`, `dribbling`, `defending`, `physical`,
   `goalkeeping`, tous entiers bornés à 1–99, `potential ≥ overall`.
-- `clubLevel = clubLevelFromRank(club.initialRank, clubCount)` : 78 pour le champion, 60 pour le dernier,
-  linéaire entre les deux, `clubCount` étant le nombre de clubs de la compétition.
+- `clubLevel = clubLevelFromRank(club.initialRank, clubCount, tier)` : en première division 78 pour le champion, 60
+  pour le dernier ; en deuxième 64 et 52 (`CLUB_LEVEL_BY_TIER`, `balance.ts`) ; linéaire entre les deux, `clubCount`
+  étant le nombre de clubs de la compétition. Budgets, masse salariale et réputation suivent aussi le niveau
+  (`clubFinances(rank, count, tier)`, `CLUB_*_BY_TIER`) ; la note des jeunes reste mesurée sur la plage de réputation
+  de la première division (un club de deuxième division part du bas).
+- Un monde ne change pas les tirages d'un autre : une partie `worldVersion` 2 donne à chaque joueur de première
+  division exactement l'identité, les attributs et le contrat d'une partie 1 de même graine (`saves.test.ts`), et
+  l'empreinte des âges épinglée dans `players.test.ts` ne porte que sur les premières divisions et le vivier.
 - Graine d'un joueur du monde à la création : `makeRng(attributeRngSeed(save.seed, club.slug, squadSlot))`,
   attributs puis durée de contrat (1 à 5 saisons pondérées 10/25/30/25/10 %, au plus 2 après 33 ans).
 - Cohérence : profil d'attributs par poste (`POSITION_PROFILES`) — DC défense + physique, latéraux vitesse +

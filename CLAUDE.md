@@ -34,7 +34,20 @@ rend le moteur testable et rejouable.
 
 **Données du monde vs état de partie.** Les tables de référence (`Club`, `Player`, `Competition`) viennent
 d'OpenFootball et ne changent jamais pendant une partie. Tout ce qui évolue est suffixé `Save`
-(`PlayerSave`, `ClubSave`) et porte un `saveId`. Ne jamais muter une table de référence depuis le jeu.
+(`PlayerSave`, `ClubSave`) et porte un `saveId`. Ne jamais muter une table de référence depuis le jeu. La compétition
+d'un club dans une partie est `ClubSave.competitionId` (initialisée depuis `Club.competitionId` à la création, seule
+lecture de ce dernier) ; le classement et le palmarès d'une saison passée prennent leurs clubs dans ses `Fixture`.
+Le poste local ne touche jamais la production : les données de référence y arrivent **par migration**
+(`prisma migrate deploy` au déploiement), un SQL idempotent généré depuis le plan du seed
+(`scripts/generate-reference-migration.ts`, skill `prisma-migrations`), jamais par `npm run db:seed`.
+
+**Monde d'une partie (`Save.worldVersion`).** Fixé à la création, sans défaut en base : 1 = les cinq premières
+divisions (toutes les parties d'avant les deuxièmes divisions, inchangées), 2 = premières et deuxièmes divisions
+(`Competition.tier` 1 et 2), avec un calendrier où toutes les compétitions finissent le même jour (`matchdayDates`,
+`src/engine/schedule.ts`). `DEFAULT_WORLD_VERSION` (`src/engine/world-version.ts`) vaut **1** : le jeu crée des parties
+1 tant que les deuxièmes divisions ne sont pas ouvertes aux joueurs ; seuls les tests passent `worldVersion: 2` à
+`createSave`. Les tests en base utilisent la démo 1 (`ensureDemoSave()`) ; la démo 2 (`ensureDemoSave(2)`, son propre
+propriétaire `demo-user-v2`) seulement où les deuxièmes divisions comptent : une saison y pèse deux fois plus.
 
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade). Hors des
 tests, trois suppressions d'utilisateur sont autorisées, et aucune autre : **la purge** (ci-dessous) ; **la fusion** à
@@ -149,9 +162,10 @@ src/
   generated/prisma/   # client Prisma généré, ignoré par git
 prisma/
   schema.prisma
-  migrations/
-  seed/               # import OpenFootball, couleurs des clubs, génération du monde
-    data/             # calendriers OpenFootball, club-colors.json, club-aliases-fallback.json
+  migrations/         # dont les migrations de données de référence (…_second_divisions), générées, jamais éditées
+  seed/               # import OpenFootball, couleurs des clubs, génération du monde ; reference-sql.ts : SQL des migrations de données
+    data/             # calendriers OpenFootball (premières et deuxièmes divisions), club-colors.json, club-aliases-fallback.json
+scripts/              # measure-save-size.ts (npm run measure:size), generate-reference-migration.ts
 ```
 
 ## Ordre de construction

@@ -80,6 +80,40 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prism
   rien de ce côté.
 - Les montants (valeurs, salaires, budgets) sont des `Int` en euros. Jamais de flottant sur de l'argent.
 
+## Migrations de données de référence
+
+Le poste local ne touche jamais la production : `Competition`, `Club` et `Player` y arrivent par des migrations,
+appliquées par `prisma migrate deploy` au déploiement, jamais par `npm run db:seed` (qui ne tourne que sur
+sparkling-darkness). Une telle migration est **générée**, jamais écrite à la main :
+
+```bash
+npx tsx scripts/generate-reference-migration.ts prisma/migrations/<horodatage>_second_divisions
+```
+
+- `prisma/seed/reference-sql.ts` transforme une partie du plan du seed (`buildWorldPlan`) en SQL idempotent : chaque
+  ligne est insérée sur sa clé naturelle (`Competition.code`, `Club.slug`, `Player (initialClubId, squadSlot)`, le club
+  et la compétition retrouvés par sous-requête sur leur clé) avec `ON CONFLICT DO NOTHING`, et un id
+  `gen_random_uuid()::text` (les ids diffèrent d'une base à l'autre, comme les cuid du seed ; aucune graine n'en dépend).
+- `reference-sql.test.ts` compare la migration commitée à la sortie du générateur : changer une liste de noms ou un
+  gabarit le fait échouer, et rappelle que la production a déjà ces lignes (la migration est appliquée, on ne l'édite
+  pas ; une correction est une nouvelle migration).
+- Vérifier avant de commiter, sur sparkling-darkness, dans une transaction annulée : supprimer les lignes concernées,
+  appliquer le SQL (tout est inséré, identique au plan), le rejouer (rien n'est inséré). Puis `migrate deploy`, et
+  `npm run db:seed` doit annoncer `0 created, 0 updated`.
+- Première : `20261023120000_second_divisions` (5 compétitions, 102 clubs, 2 346 joueurs, environ 220 Ko).
+
+## Compétition d'un club et monde d'une partie
+
+- `ClubSave.competitionId` (NOT NULL, Restrict, index `(saveId, competitionId)`) : la compétition **actuelle** du club
+  dans la partie, initialisée depuis `Club.competitionId` par `createSave` ; montées et descentes la changeront. Le jeu
+  ne lit `Club.competitionId` nulle part ailleurs. Une saison passée prend ses clubs dans ses `Fixture` (classement
+  `getStandings`, palmarès `computeSeasonResult`), jamais dans `ClubSave.competitionId`.
+- `Save.worldVersion` (sans défaut en base, la migration a rempli 1 puis retiré le défaut) : 1 = premières divisions,
+  2 = premières et deuxièmes. `createSave` lit les compétitions, clubs et joueurs des niveaux de son monde
+  (`worldTiers`) et refuse un club hors de ce monde. Les grandes tables (`PlayerSave`, `Fixture`) s'écrivent par lots de
+  1 000 lignes ; la page d'accueil, qui crée les parties, a `maxDuration = 60`.
+- Une table de test qui crée un `Save` directement donne `worldVersion: 1`.
+
 ## Palmarès et reconstruction paresseuse
 
 `SeasonResult` (une ligne par saison terminée du club dirigé, `@@unique([saveId, seasonId])`) est écrite par

@@ -160,6 +160,27 @@ Toute modification du moteur s'accompagne de tests Vitest :
 
 Un test statistique doit lui-même utiliser une graine fixe pour ne pas devenir instable.
 
+## Calendrier
+
+`generateSchedule(clubs, firstMatchday, rng)` (`src/engine/schedule.ts`) tire les appariements d'un double
+round-robin (graine `scheduleRngSeed(save.seed, code, startYear)`). Les dates dépendent du monde de la partie
+(`Save.worldVersion`, appliqué par `seasonFixtures`, `src/db/fixtures.ts`) :
+
+- **1** : une journée par semaine depuis le troisième samedi d'août, comme toujours (empreinte épinglée dans
+  `fixtures.test.ts` : même graine, même calendrier qu'avant les deuxièmes divisions).
+- **2** : `matchdayDates(roundCount, startYear)`, pure et sans tirage, place les journées sur les 40 samedis
+  (`SEASON_SATURDAYS`) du troisième samedi d'août à la mi-mai : jusqu'à 40 journées, samedis répartis, le premier et le
+  dernier compris (34 journées : 6 samedis de repos, 38 : 2) ; au-delà, tous les samedis et un mardi par journée de plus,
+  répartis entre deux samedis (46 : 6 mardis, 42 : 2). Toutes les compétitions commencent et finissent le même jour.
+
+Les appariements ne changent pas d'un monde à l'autre : seules les dates. La graine d'un match dépend de la journée
+(`round`) et des clubs, jamais de la date. `playNextMatchday` joue la prochaine **date** : une partie 2 compte
+46 dates par saison, dont des mardis où le club dirigé peut ne pas jouer.
+
+Le niveau d'un club à la création dépend du niveau de sa compétition (`clubLevelFromRank(rank, count, tier)`,
+`CLUB_LEVEL_BY_TIER`) : 78 → 60 en première division, inchangé, 64 → 52 en deuxième. La calibration de
+`match.test.ts` reste mesurée sur les premières divisions.
+
 ## Progression des joueurs
 
 La progression se calcule en fin de saison, pas en continu : âge, temps de jeu, potentiel, et une part
