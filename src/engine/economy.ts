@@ -1,12 +1,9 @@
 import { weightedIndex, type Rng } from "../lib/rng";
 import {
   BUDGET_STEP,
-  CLUB_BUDGET_BEST,
-  CLUB_BUDGET_WORST,
-  CLUB_REPUTATION_BEST,
-  CLUB_REPUTATION_WORST,
-  CLUB_WAGE_BUDGET_BEST,
-  CLUB_WAGE_BUDGET_WORST,
+  CLUB_BUDGET_BY_TIER,
+  CLUB_REPUTATION_BY_TIER,
+  CLUB_WAGE_BUDGET_BY_TIER,
   CONTRACT_YEARS_WEIGHTS,
   LATE_CAREER_MAX_CONTRACT_YEARS,
   LONG_CONTRACT_MAX_AGE,
@@ -20,6 +17,7 @@ import {
 } from "./balance";
 import { interpolate, lerp, rankStrength } from "./curves";
 import { clampRating } from "./generation";
+import type { CompetitionTier } from "./tiers";
 import { seasonEndDate, seasonStartYear } from "./world";
 
 export type ClubFinances = {
@@ -45,13 +43,17 @@ function roundToStep(value: number, step: number): number {
   return Math.max(step, Math.round(value / step) * step);
 }
 
-export function clubFinances(initialRank: number, clubCount: number): ClubFinances {
+/** Budgets and reputation of a club at save creation, from its final league rank and its league's tier. */
+export function clubFinances(initialRank: number, clubCount: number, tier: CompetitionTier): ClubFinances {
   const strength = rankStrength(initialRank, clubCount);
   const moneyShare = strength * strength; // money concentrates at the top of the table
+  const budget = CLUB_BUDGET_BY_TIER[tier];
+  const wageBudget = CLUB_WAGE_BUDGET_BY_TIER[tier];
+  const reputation = CLUB_REPUTATION_BY_TIER[tier];
   return {
-    budget: roundToStep(lerp(CLUB_BUDGET_WORST, CLUB_BUDGET_BEST, moneyShare), BUDGET_STEP),
-    wageBudget: roundToStep(lerp(CLUB_WAGE_BUDGET_WORST, CLUB_WAGE_BUDGET_BEST, moneyShare), BUDGET_STEP),
-    reputation: clampRating(lerp(CLUB_REPUTATION_WORST, CLUB_REPUTATION_BEST, strength)),
+    budget: roundToStep(lerp(budget.worst, budget.best, moneyShare), BUDGET_STEP),
+    wageBudget: roundToStep(lerp(wageBudget.worst, wageBudget.best, moneyShare), BUDGET_STEP),
+    reputation: clampRating(lerp(reputation.worst, reputation.best, strength)),
   };
 }
 

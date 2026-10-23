@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   extractClubs,
+  extractScores,
   fixtureFilePath,
   parseFixtureFile,
   readFixtureFile,
+  regularSeasonMatches,
   resolveClubName,
   slugify,
 } from "./openfootball";
@@ -15,10 +17,35 @@ describe("extractClubs", () => {
     ["de.1", 18],
     ["it.1", 20],
     ["fr.1", 18],
+    ["en.2", 24],
+    ["es.2", 22],
+    ["de.2", 18],
+    ["it.2", 20],
+    ["fr.2", 18],
   ])("%s produces %i clubs", (code, expected) => {
     const clubs = extractClubs(readFixtureFile(fixtureFilePath(code)));
 
     expect(clubs).toHaveLength(expected);
+  });
+
+  it.each<[string, number]>([
+    ["en.2", 552], // 46 matchdays of 12 matches, the 5 promotion play-off matches left out
+    ["es.2", 453], // 42 matchdays of 11 matches, 9 of the last without a score
+    ["it.2", 380], // 38 matchdays of 10 matches, the 8 play-off and 2 play-out matches left out
+  ])("%s gives %i regular season scores to the source season's table", (code, expected) => {
+    expect(extractScores(readFixtureFile(fixtureFilePath(code)))).toHaveLength(expected);
+  });
+
+  it("reads « Regular, Matchday N », leaves play-offs and play-outs out, and refuses an unknown round", () => {
+    const match = (round: string) => ({ round, date: "2025-05-01", team1: "Alpha FC", team2: "Beta FC", score: { ft: [1, 0] } });
+    const file = (rounds: string[]) => parseFixtureFile({ name: "Test league", matches: rounds.map(match) }, "inline");
+
+    expect(
+      regularSeasonMatches(file(["Matchday 1", "Regular, Matchday 2", "Playoff, Final", "Playout, Final", "Finals, Final"])).map(
+        (kept) => kept.round,
+      ),
+    ).toEqual(["Matchday 1", "Regular, Matchday 2"]);
+    expect(() => regularSeasonMatches(file(["Matchday 1", "Quarter-finals"]))).toThrow(/Quarter-finals/);
   });
 
   it("accepts matches without time or score", () => {

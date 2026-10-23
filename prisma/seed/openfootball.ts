@@ -77,11 +77,29 @@ export function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** Distinct clubs of a fixture file, sorted by slug so the output never depends on match order. */
+// A round of the regular season: « Matchday 12 », or « Regular, Matchday 12 » in some second divisions.
+const REGULAR_ROUND = /^(Regular, )?Matchday \d+$/;
+// After the regular season: promotion play-offs and relegation play-outs, never part of the source season's table.
+const POST_SEASON_ROUND = /^(Playoff|Playout|Finals), /;
+
+/** The regular season's matches of a file, play-offs and play-outs left out; throws on a round of unknown form. */
+export function regularSeasonMatches(file: FixtureFile): FixtureFile["matches"] {
+  return file.matches.filter((match) => {
+    if (REGULAR_ROUND.test(match.round)) {
+      return true;
+    }
+    if (POST_SEASON_ROUND.test(match.round)) {
+      return false;
+    }
+    throw new Error(`Unknown round "${match.round}" in ${file.name}`);
+  });
+}
+
+/** Distinct clubs of a fixture file's regular season, sorted by slug so the output never depends on match order. */
 export function extractClubs(file: FixtureFile, aliases: ClubAliases = CLUB_ALIASES): SeedClub[] {
   const namesBySlug = new Map<string, string>();
 
-  for (const match of file.matches) {
+  for (const match of regularSeasonMatches(file)) {
     for (const team of [match.team1, match.team2]) {
       const name = resolveClubName(team, aliases);
       const slug = slugify(name);
@@ -101,9 +119,12 @@ export function extractClubs(file: FixtureFile, aliases: ClubAliases = CLUB_ALIA
     .sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
 }
 
-/** Full-time scores of the played matches, clubs keyed by slug. Matches without a full-time score are skipped. */
+/**
+ * Full-time scores of the regular season's played matches, clubs keyed by slug. Matches without a full-time score are
+ * skipped, and so are play-offs and play-outs.
+ */
 export function extractScores(file: FixtureFile, aliases: ClubAliases = CLUB_ALIASES): MatchScore[] {
-  return file.matches.flatMap((match) => {
+  return regularSeasonMatches(file).flatMap((match) => {
     const fullTime = match.score?.ft;
     if (fullTime === undefined) {
       return [];

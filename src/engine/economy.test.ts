@@ -9,21 +9,32 @@ const MAX_DATABASE_INT = 2_147_483_647;
 const isStoredAmount = (value: number): boolean => Number.isInteger(value) && value > 0 && value <= MAX_DATABASE_INT;
 
 describe("clubFinances", () => {
-  it("gives the champion more money and reputation than the last club", () => {
-    const champion = clubFinances(1, 20);
-    const last = clubFinances(20, 20);
+  it.each([1, 2] as const)("gives tier %i's champion more money and reputation than its last club", (tier) => {
+    const champion = clubFinances(1, 20, tier);
+    const last = clubFinances(20, 20, tier);
 
     expect(champion.budget).toBeGreaterThan(last.budget);
     expect(champion.wageBudget).toBeGreaterThan(last.wageBudget);
     expect(champion.reputation).toBeGreaterThan(last.reputation);
   });
 
+  it("keeps the first division's figures, and puts a second division's champion below a mid-table first division club", () => {
+    expect(clubFinances(1, 20, 1)).toEqual({ budget: 150_000_000, wageBudget: 200_000_000, reputation: 90 });
+    expect(clubFinances(20, 20, 1)).toEqual({ budget: 5_000_000, wageBudget: 20_000_000, reputation: 55 });
+    const secondChampion = clubFinances(1, 24, 2);
+    const firstMidTable = clubFinances(10, 20, 1);
+    expect(secondChampion.budget).toBeLessThan(firstMidTable.budget);
+    expect(secondChampion.reputation).toBeLessThan(firstMidTable.reputation);
+  });
+
   it("keeps amounts positive database integers and reputation within 1–99", () => {
-    for (let rank = 1; rank <= 20; rank++) {
-      const finances = clubFinances(rank, 20);
-      expect(isStoredAmount(finances.budget) && isStoredAmount(finances.wageBudget)).toBe(true);
-      expect(finances.reputation).toBeGreaterThanOrEqual(1);
-      expect(finances.reputation).toBeLessThanOrEqual(99);
+    for (const tier of [1, 2] as const) {
+      for (let rank = 1; rank <= 24; rank++) {
+        const finances = clubFinances(rank, 24, tier);
+        expect(isStoredAmount(finances.budget) && isStoredAmount(finances.wageBudget)).toBe(true);
+        expect(finances.reputation).toBeGreaterThanOrEqual(1);
+        expect(finances.reputation).toBeLessThanOrEqual(99);
+      }
     }
   });
 });

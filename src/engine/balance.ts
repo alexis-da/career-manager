@@ -2,12 +2,21 @@ import type { Curve } from "./curves";
 import type { AttributeName } from "./generation";
 import type { MatchEventType, Outcome } from "./match";
 import type { Position, PositionGroup } from "./positions";
+import type { CompetitionTier } from "./tiers";
 
 // ------------------------------------------------------------------ Attribute generation
 
-/** Club level (1–99) of a league's champion and of its last club; ranks in between are interpolated. */
-export const CLUB_LEVEL_BEST = 78;
-export const CLUB_LEVEL_WORST = 60;
+/** A value at a league's last club and at its champion; ranks in between are interpolated. */
+export type RankRange = { readonly worst: number; readonly best: number };
+
+/**
+ * Club level (1–99) of a league's champion and of its last club, by tier: a second division's champion sits a little
+ * above the first division's last club. The first division's range is the one of every save before the second ones.
+ */
+export const CLUB_LEVEL_BY_TIER: Readonly<Record<CompetitionTier, RankRange>> = {
+  1: { worst: 60, best: 78 },
+  2: { worst: 52, best: 64 },
+};
 
 /** Maximum gap between a player's overall quality and their club level (bell-shaped draw). */
 export const PLAYER_QUALITY_SPREAD = 8;
@@ -126,17 +135,23 @@ export const GROUP_FAMILIARITY: Readonly<Record<PositionGroup, Readonly<Record<P
 // Money follows the square of the rank strength (1 = champion, 0 = last club), so it concentrates at the
 // top of each league; reputation follows the rank strength linearly.
 
-/** Transfer budget in euros of a league's last club and of its champion. */
-export const CLUB_BUDGET_WORST = 5_000_000;
-export const CLUB_BUDGET_BEST = 150_000_000;
+/** Transfer budget in euros of a league's last club and of its champion, by tier. */
+export const CLUB_BUDGET_BY_TIER: Readonly<Record<CompetitionTier, RankRange>> = {
+  1: { worst: 5_000_000, best: 150_000_000 },
+  2: { worst: 1_000_000, best: 20_000_000 },
+};
 
-/** Wage budget in euros per season of a league's last club and of its champion. */
-export const CLUB_WAGE_BUDGET_WORST = 20_000_000;
-export const CLUB_WAGE_BUDGET_BEST = 200_000_000;
+/** Wage budget in euros per season of a league's last club and of its champion, by tier. */
+export const CLUB_WAGE_BUDGET_BY_TIER: Readonly<Record<CompetitionTier, RankRange>> = {
+  1: { worst: 20_000_000, best: 200_000_000 },
+  2: { worst: 5_000_000, best: 30_000_000 },
+};
 
-/** Reputation (1–99) of a league's last club and of its champion. */
-export const CLUB_REPUTATION_WORST = 55;
-export const CLUB_REPUTATION_BEST = 90;
+/** Reputation (1–99) of a league's last club and of its champion, by tier. */
+export const CLUB_REPUTATION_BY_TIER: Readonly<Record<CompetitionTier, RankRange>> = {
+  1: { worst: 55, best: 90 },
+  2: { worst: 40, best: 60 },
+};
 
 /** Budgets are rounded to this step, in euros. */
 export const BUDGET_STEP = 100_000;

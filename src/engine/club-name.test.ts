@@ -39,8 +39,8 @@ describe("club names", () => {
     expect(() => clubNameIn("fictional", { slug: "unknown-club", name: "Unknown Club" })).toThrow(/unknown-club/);
   });
 
-  it("has a fictional name for each of the 96 clubs of the seed, and none for another club", () => {
-    expect(seedClubs).toHaveLength(96);
+  it("has a fictional name for each of the 198 clubs of the seed, and none for another club", () => {
+    expect(seedClubs).toHaveLength(198);
     expect(seedClubs.filter((club) => !FICTIONAL_CLUB_NAMES.has(club.slug)).map((club) => club.slug)).toEqual([]);
     expect([...FICTIONAL_CLUB_NAMES.keys()].sort()).toEqual(seedClubs.map((club) => club.slug).sort());
   });
@@ -56,7 +56,8 @@ describe("club names", () => {
     // A city in both is fine (Liverpool FC → Liverpool Sporting); the words that make the club are not.
     const PLACE_NAMES = new Set([
       "bournemouth", "leicester", "liverpool", "manchester", "nottingham", "leganes", "vigo", "leverkusen", "dortmund",
-      "frankfurt", "augsburg", "leipzig", "bremen", "bochum", "wolfsburg", "lille", "madrid",
+      "frankfurt", "augsburg", "leipzig", "bremen", "bochum", "wolfsburg", "lille", "madrid", "sheffield", "dusseldorf",
+      "paris",
     ]);
     const leaks = seedClubs.flatMap((club) => {
       const fictional = distinctiveWords(clubNameIn("fictional", club));

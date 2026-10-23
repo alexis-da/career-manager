@@ -4,6 +4,7 @@ import { clubFinances, generateContract, marketValueFor } from "../engine/econom
 import { FREE_AGENT_POOL_SLUG, freeAgentPlayerKey, generateFreeAgentAttributes } from "../engine/free-agents";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engine/generation";
 import { worldPlayerKey } from "../engine/identity";
+import { competitionTier } from "../engine/tiers";
 import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
@@ -53,7 +54,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
       // Sequential on purpose: a transaction runs on a single connection, which takes one query at a time.
       const competitions = await tx.competition.findMany({ select: { id: true, code: true } });
       const clubRows = await tx.club.findMany({
-        select: { id: true, slug: true, initialRank: true, competitionId: true },
+        select: { id: true, slug: true, initialRank: true, competitionId: true, competition: { select: { tier: true } } },
       });
       const players = await tx.player.findMany({
         select: {
@@ -68,11 +69,11 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
         },
       });
 
-      const clubs = clubRows.map((club) => {
-        if (club.competitionId === null) {
+      const clubs = clubRows.map(({ competition, ...club }) => {
+        if (club.competitionId === null || competition === null) {
           throw new Error(`Club ${club.slug} has no competition`);
         }
-        return { ...club, competitionId: club.competitionId };
+        return { ...club, competitionId: club.competitionId, tier: competitionTier(competition.tier) };
       });
       if (!clubs.some((club) => club.id === clubId)) {
         throw new Error(`Unknown club: ${clubId}`);
@@ -94,7 +95,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
           saveId: save.id,
           clubId: club.id,
           isManaged: club.id === clubId,
-          ...clubFinances(club.initialRank, getOrThrow(clubCountByCompetition, club.competitionId, "club count")),
+          ...clubFinances(club.initialRank, getOrThrow(clubCountByCompetition, club.competitionId, "club count"), club.tier),
         })),
         select: { id: true, clubId: true },
       });
@@ -125,6 +126,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
           const clubLevel = clubLevelFromRank(
             club.initialRank,
             getOrThrow(clubCountByCompetition, club.competitionId, "club count"),
+            club.tier,
           );
           // One stream per player, keyed by stable identity: attributes first, then the contract length.
           const rng = makeRng(attributeRngSeed(save.seed, club.slug, squadSlot));

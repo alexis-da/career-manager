@@ -3,8 +3,7 @@ import {
   AGE_GROWTH_CURVE,
   AGE_QUALITY_CURVE,
   ATTRIBUTE_SPREAD,
-  CLUB_LEVEL_BEST,
-  CLUB_LEVEL_WORST,
+  CLUB_LEVEL_BY_TIER,
   GROWTH_MIN_SHARE,
   OVERALL_WEIGHTS,
   PLAYER_QUALITY_SPREAD,
@@ -12,6 +11,7 @@ import {
 } from "./balance";
 import { interpolate, lerp, rankStrength } from "./curves";
 import type { Position } from "./positions";
+import type { CompetitionTier } from "./tiers";
 
 /** Draw order matters for replays: never reorder this list. */
 export const ATTRIBUTE_NAMES = [
@@ -49,9 +49,10 @@ export function overallFor(position: Position, attributes: Readonly<Record<Attri
   return clampRating(ATTRIBUTE_NAMES.reduce((sum, name) => sum + attributes[name] * weights[name], 0));
 }
 
-/** Level of a club from its final league rank: CLUB_LEVEL_BEST for the champion, CLUB_LEVEL_WORST for the last. */
-export function clubLevelFromRank(rank: number, clubCount: number): number {
-  return Math.round(lerp(CLUB_LEVEL_WORST, CLUB_LEVEL_BEST, rankStrength(rank, clubCount)));
+/** Level of a club from its final league rank and its league's tier: the tier's best for the champion, its worst for the last. */
+export function clubLevelFromRank(rank: number, clubCount: number, tier: CompetitionTier): number {
+  const { worst, best } = CLUB_LEVEL_BY_TIER[tier];
+  return Math.round(lerp(worst, best, rankStrength(rank, clubCount)));
 }
 
 /**

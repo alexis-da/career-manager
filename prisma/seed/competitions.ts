@@ -12,4 +12,10 @@ export const COMPETITIONS: readonly SeedCompetition[] = [
   { code: "de.1", name: "Allemagne — Division 1", country: "Allemagne", tier: 1 },
   { code: "it.1", name: "Italie — Division 1", country: "Italie", tier: 1 },
   { code: "fr.1", name: "France — Division 1", country: "France", tier: 1 },
+  // Second divisions (worldVersion 2 saves): seeded after the first ones, so nothing of the first ones moves.
+  { code: "en.2", name: "Angleterre — Division 2", country: "Angleterre", tier: 2 },
+  { code: "es.2", name: "Espagne — Division 2", country: "Espagne", tier: 2 },
+  { code: "de.2", name: "Allemagne — Division 2", country: "Allemagne", tier: 2 },
+  { code: "it.2", name: "Italie — Division 2", country: "Italie", tier: 2 },
+  { code: "fr.2", name: "France — Division 2", country: "France", tier: 2 },
 ];

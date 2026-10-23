@@ -1,7 +1,6 @@
 import { centeredSpread, randomInt, type Rng } from "../lib/rng";
 import {
-  CLUB_REPUTATION_BEST,
-  CLUB_REPUTATION_WORST,
+  CLUB_REPUTATION_BY_TIER,
   MIN_GOALKEEPERS,
   SQUAD_ROLES,
   YOUTH_AGE_MAX,
@@ -112,10 +111,10 @@ export function generateYouthPlayer(input: YouthPlayerInput, names: NameBank, rn
   const age = randomInt(rng, YOUTH_AGE_MIN, YOUTH_AGE_MAX);
   const birthDate = drawBirthDate(rng, arrival, age);
 
-  const reputationShare = Math.min(
-    1,
-    Math.max(0, (club.reputation - CLUB_REPUTATION_WORST) / (CLUB_REPUTATION_BEST - CLUB_REPUTATION_WORST)),
-  );
+  // Measured on the first division's range, as before the second ones: a second division club's young players start
+  // at the bottom of the range.
+  const { worst, best } = CLUB_REPUTATION_BY_TIER[1];
+  const reputationShare = Math.min(1, Math.max(0, (club.reputation - worst) / (best - worst)));
   const clubOverall = lerp(YOUTH_OVERALL_MIN, YOUTH_OVERALL_MAX, reputationShare);
   const overall = Math.min(
     YOUTH_OVERALL_MAX,

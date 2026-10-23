@@ -30,8 +30,11 @@ import { WORLD_START_DATE } from "./world";
 const SAVE_SEED = "match-test";
 const MATCH_COUNT = 10_000;
 
-// The real 2024-25 world, with attributes generated for one save and every player at neutral form.
-const competitions = buildWorldPlan().map(({ competition, clubs }) => ({
+// The real 2024-25 first divisions, with attributes generated for one save and every player at neutral form: the
+// calibration below is the one of the first divisions, as before the second ones.
+const competitions = buildWorldPlan()
+  .filter(({ competition }) => competition.tier === 1)
+  .map(({ competition, clubs }) => ({
   code: competition.code,
   clubs: clubs.map((club) => ({
     slug: club.slug,
@@ -40,7 +43,7 @@ const competitions = buildWorldPlan().map(({ competition, clubs }) => ({
         (player): SquadPlayer => ({
           ...generateAttributes(
             { position: player.position, age: ageInYears(player.birthDate, WORLD_START_DATE) },
-            clubLevelFromRank(club.initialRank, clubs.length),
+            clubLevelFromRank(club.initialRank, clubs.length, 1),
             makeRng(attributeRngSeed(SAVE_SEED, club.slug, player.squadSlot)),
           ),
           id: `${club.slug}#${player.squadSlot}`,

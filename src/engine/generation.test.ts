@@ -131,10 +131,15 @@ describe("generateAttributes", () => {
 });
 
 describe("clubLevelFromRank", () => {
-  it("decreases from the champion to the last club", () => {
-    const levels = Array.from({ length: 20 }, (_, index) => clubLevelFromRank(index + 1, 20));
+  it.each([1, 2] as const)("decreases from the champion to the last club in tier %i", (tier) => {
+    const levels = Array.from({ length: 20 }, (_, index) => clubLevelFromRank(index + 1, 20, tier));
 
     expect(levels[0]).toBeGreaterThan(levels[19]);
     expect(levels.every((level, index) => index === 0 || level <= levels[index - 1])).toBe(true);
+  });
+
+  it("keeps the first division from 78 to 60, and puts the second from 64 to 52", () => {
+    expect([clubLevelFromRank(1, 20, 1), clubLevelFromRank(20, 20, 1)]).toEqual([78, 60]);
+    expect([clubLevelFromRank(1, 24, 2), clubLevelFromRank(24, 24, 2)]).toEqual([64, 52]);
   });
 });

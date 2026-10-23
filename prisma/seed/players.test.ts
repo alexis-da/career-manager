@@ -5,6 +5,7 @@ import { ageInYears } from "../../src/lib/dates";
 import { makeRng } from "../../src/lib/rng";
 import { NAME_BANK } from "../../src/engine/names";
 import type { Position } from "../../src/engine/positions";
+import { competitionTier, type CompetitionTier } from "../../src/engine/tiers";
 import {
   FREE_AGENT_MAX_AGE,
   FREE_AGENT_MIN_AGE,
@@ -21,7 +22,9 @@ import { buildWorldPlan, type ClubPlan } from "./seed";
 
 const names = NAME_BANK;
 const plan = buildWorldPlan();
-const clubs = plan.flatMap(({ competition, clubs }) => clubs.map((club) => ({ ...club, country: competition.country })));
+const clubs = plan.flatMap(({ competition, clubs }) =>
+  clubs.map((club) => ({ ...club, country: competition.country, tier: competition.tier })),
+);
 const players = clubs.flatMap((club) => club.players.map((player) => ({ ...player, country: club.country })));
 
 const mean = (values: number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -59,7 +62,8 @@ describe("world players", () => {
     const count = (positions: Position[], ...wanted: Position[]) =>
       positions.filter((position) => wanted.includes(position)).length;
 
-    expect(clubs).toHaveLength(96);
+    expect(clubs).toHaveLength(198);
+    expect(clubs.filter((club) => club.tier === 1)).toHaveLength(96);
     for (const club of clubs) {
       const positions = club.players.map((player) => player.position);
       expect([
@@ -89,12 +93,15 @@ describe("world players", () => {
     expect(Math.max(...ages)).toBe(MAX_AGE);
   });
 
-  // Pinned digest of every world player's age on the day saves start, taken when the game moved from 2024-25 to
-  // 2026-27: a change of WORLD_START_YEAR moves birth dates, never ages.
+  // Pinned digest of every first division player's age on the day saves start, taken when the game moved from 2024-25
+  // to 2026-27: a change of WORLD_START_YEAR moves birth dates, never ages, and the second divisions, added later in
+  // streams of their own, move nothing of the first ones.
   it("keep the ages they had before the game moved to a later season", () => {
     const pool = generateFreeAgentPool(names);
     const ages = [
-      ...clubs.flatMap((club) => club.players.map((player) => `${club.slug}#${player.squadSlot}:${ageInYears(player.birthDate, WORLD_REFERENCE_DATE)}`)),
+      ...clubs
+        .filter((club) => club.tier === 1)
+        .flatMap((club) => club.players.map((player) => `${club.slug}#${player.squadSlot}:${ageInYears(player.birthDate, WORLD_REFERENCE_DATE)}`)),
       ...pool.map((player) => `free-agents#${player.squadSlot}:${ageInYears(player.birthDate, WORLD_REFERENCE_DATE)}`),
     ];
 
@@ -195,15 +202,17 @@ describe("club level from the source season rank", () => {
     expect(rankOf("paris-saint-germain-fc")).toBe(1);
   });
 
-  it.each<[string, ClubPlan[]]>(plan.map(({ competition, clubs }) => [competition.code, clubs]))(
+  it.each<[string, ClubPlan[], CompetitionTier]>(
+    plan.map(({ competition, clubs }) => [competition.code, clubs, competitionTier(competition.tier)]),
+  )(
     "%s: the champion's squad has a higher average overall than the last club's",
-    (_, competitionClubs) => {
+    (_, competitionClubs, tier) => {
       const averageOverallAtRank = (rank: number): number => {
         const club = competitionClubs.find((candidate) => candidate.initialRank === rank);
         if (club === undefined) {
           throw new Error(`No club at rank ${rank}`);
         }
-        const clubLevel = clubLevelFromRank(club.initialRank, competitionClubs.length);
+        const clubLevel = clubLevelFromRank(club.initialRank, competitionClubs.length, tier);
         return mean(
           club.players.map(
             (player) =>
