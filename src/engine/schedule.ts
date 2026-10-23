@@ -49,6 +49,52 @@ export function matchdayDates(roundCount: number, startYear: number): Date[] {
   return [...saturdays, ...tuesdays].sort((a, b) => a - b).map((time) => new Date(time));
 }
 
+/**
+ * Double round-robin of a worldVersion 2 save, where no club plays more than two matches in a row at home or away.
+ * First half: the canonical circle schedule (de Werra) — club n − 1 fixed, in matchday r club r meets it, at home when
+ * r is even, and the pair (r + k, r − k) has its first club at home when k is odd —, which gives each club at most one
+ * pair of matches in a row at the same venue. Second half: the same matchdays with home and away swapped, starting
+ * with the second one and ending with the first, so that no club makes three in a row where the halves meet and no
+ * pair meets twice in a row. The seed shuffles the clubs' places only: the order of the matchdays is the construction's,
+ * and the same seed always gives the same season. Pass the clubs in a stable order (e.g. sorted by slug).
+ */
+export function generateBalancedSchedule(clubs: readonly string[], firstMatchday: Date, rng: Rng): ScheduledMatch[] {
+  const clubCount = clubs.length;
+  if (clubCount < 4 || clubCount % 2 !== 0) {
+    throw new RangeError(`A balanced round-robin needs an even number of clubs, at least 4, got ${clubCount}`);
+  }
+  if (new Set(clubs).size !== clubCount) {
+    throw new RangeError("Clubs must be distinct");
+  }
+
+  const placed = shuffle(rng, clubs);
+  const rotating = clubCount - 1;
+  const firstHalf: Pairing[][] = Array.from({ length: rotating }, (_, round) => {
+    const pairings: Pairing[] = [
+      round % 2 === 0
+        ? { home: placed[round], away: placed[clubCount - 1] }
+        : { home: placed[clubCount - 1], away: placed[round] },
+    ];
+    for (let k = 1; k < clubCount / 2; k++) {
+      const a = placed[(round + k) % rotating];
+      const b = placed[(round - k + rotating) % rotating];
+      pairings.push(k % 2 === 1 ? { home: a, away: b } : { home: b, away: a });
+    }
+    return pairings;
+  });
+  const secondHalf = [...firstHalf.slice(1), firstHalf[0]].map((pairings) =>
+    pairings.map(({ home, away }) => ({ home: away, away: home })),
+  );
+
+  return [...firstHalf, ...secondHalf].flatMap((pairings, index) =>
+    pairings.map((pairing) => ({
+      round: index + 1,
+      ...pairing,
+      scheduledAt: new Date(firstMatchday.getTime() + index * DAYS_BETWEEN_MATCHDAYS * DAY_MS),
+    })),
+  );
+}
+
 /** Seed of the stream ordering one competition's season in a save. */
 export function scheduleRngSeed(saveSeed: string, competitionCode: string, startYear: number): string {
   return `${saveSeed}:schedule:${competitionCode}:${startYear}`;

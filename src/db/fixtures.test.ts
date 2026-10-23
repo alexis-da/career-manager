@@ -37,14 +37,22 @@ describe("seasonFixtures", () => {
     );
   });
 
-  it("keeps the pairings of each matchday in a worldVersion 2 save, and only moves the dates", () => {
-    const pairings = (fixtures: ReturnType<typeof fixturesOf>) =>
-      fixtures.map(({ round, homeClubSaveId, awayClubSaveId }) => `${round}|${homeClubSaveId}|${awayClubSaveId}`);
+  it("never makes a club of a worldVersion 2 save play more than two matches in a row at home or away", () => {
+    for (const { competition, clubs } of plan) {
+      const fixtures = fixturesOf(competition.code, 2026, 2);
+      for (const club of clubs) {
+        const venues = fixtures
+          .filter((fixture) => fixture.homeClubSaveId === club.slug || fixture.awayClubSaveId === club.slug)
+          .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+          .map((fixture) => (fixture.homeClubSaveId === club.slug ? "D" : "E"))
+          .join("");
+        expect(venues, `${competition.code} ${club.slug}`).not.toMatch(/DDD|EEE/);
+      }
+    }
+  });
 
-    expect(pairings(fixturesOf("fr.1", 2026, 2))).toEqual(pairings(fixturesOf("fr.1", 2026, 1)));
-    expect(fixturesOf("fr.1", 2026, 2).map((fixture) => fixture.scheduledAt)).not.toEqual(
-      fixturesOf("fr.1", 2026, 1).map((fixture) => fixture.scheduledAt),
-    );
+  it("gives a worldVersion 2 save the same calendar for the same seed", () => {
+    expect(fixturesOf("en.2", 2026, 2)).toEqual(fixturesOf("en.2", 2026, 2));
   });
 
   it("ends every competition of a worldVersion 2 save on the same day, the smallest and the largest alike", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
-import { generateSchedule, matchdayDates } from "./schedule";
+import { generateBalancedSchedule, generateSchedule, matchdayDates } from "./schedule";
 
 const FIRST_MATCHDAY = new Date(Date.UTC(2024, 7, 17));
 const WEEK_MS = 7 * 86_400_000;
@@ -109,5 +109,51 @@ describe("matchdayDates (worldVersion 2)", () => {
   it("refuses a season it cannot place", () => {
     expect(() => matchdayDates(1, 2026)).toThrow(RangeError);
     expect(() => matchdayDates(80, 2026)).toThrow(RangeError);
+  });
+});
+
+describe.each([18, 20, 22, 24])("generateBalancedSchedule with %i clubs (worldVersion 2)", (clubCount) => {
+  const clubs = clubsOf(clubCount);
+  const schedule = generateBalancedSchedule(clubs, FIRST_MATCHDAY, makeRng(`balanced-test:${clubCount}`));
+  const roundCount = 2 * (clubCount - 1);
+  const half = clubCount - 1;
+  const pairKey = (a: string, b: string) => [a, b].sort().join("/");
+
+  it("plays every club once per matchday, over 2(n − 1) weekly matchdays", () => {
+    for (let round = 1; round <= roundCount; round++) {
+      const matches = schedule.filter((match) => match.round === round);
+      expect(matches).toHaveLength(clubCount / 2);
+      expect(new Set(matches.flatMap((match) => [match.home, match.away])).size).toBe(clubCount);
+      expect(new Set(matches.map((match) => match.scheduledAt.getTime())).size).toBe(1);
+    }
+    expect(schedule.at(-1)?.round).toBe(roundCount);
+  });
+
+  it("makes each pair meet once per half, home and away swapped in the second", () => {
+    const firstHalf = schedule.filter((match) => match.round <= half);
+    const secondHalf = schedule.filter((match) => match.round > half);
+    const expectedPairs = (clubCount * (clubCount - 1)) / 2;
+
+    expect(new Set(firstHalf.map((match) => pairKey(match.home, match.away))).size).toBe(expectedPairs);
+    expect(new Set(secondHalf.map((match) => pairKey(match.home, match.away))).size).toBe(expectedPairs);
+    const firstHome = new Map(firstHalf.map((match) => [pairKey(match.home, match.away), match.home]));
+    for (const match of secondHalf) {
+      expect(match.away).toBe(firstHome.get(pairKey(match.home, match.away)));
+    }
+  });
+
+  it("never makes a club play more than two matches in a row at home or away, nor meet a club twice in a row", () => {
+    for (const club of clubs) {
+      const own = schedule.filter((match) => match.home === club || match.away === club).sort((a, b) => a.round - b.round);
+      const venues = own.map((match) => (match.home === club ? "H" : "A")).join("");
+      expect(venues, club).not.toMatch(/HHH|AAA/);
+      const opponents = own.map((match) => (match.home === club ? match.away : match.home));
+      expect(opponents.every((opponent, index) => index === 0 || opponent !== opponents[index - 1])).toBe(true);
+    }
+  });
+
+  it("is the same for the same seed, and another for another seed", () => {
+    expect(generateBalancedSchedule(clubs, FIRST_MATCHDAY, makeRng(`balanced-test:${clubCount}`))).toEqual(schedule);
+    expect(generateBalancedSchedule(clubs, FIRST_MATCHDAY, makeRng("another-seed"))).not.toEqual(schedule);
   });
 });

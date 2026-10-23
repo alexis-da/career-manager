@@ -180,8 +180,13 @@ Les appariements ne changent pas d'un monde à l'autre : seules les dates. La gr
 `SIMULATION_MAX_MATCHDAYS` (5) via `simulateMatchdays`, le client rappelant jusqu'à `done`, puis sa date par
 `playMatchdayAction` (mi-temps, direct). Mêmes transactions qu'en jouant chaque date : aucun effet sur le rejeu.
 
-Défaut connu, hors monde 2 : l'alternance domicile/extérieur de `generateSchedule` laisse des séries (8 matchs de suite
-à l'extérieur vus pour un club). La corriger changerait les calendriers des parties 1 : à faire derrière le monde.
+Alternance domicile/extérieur : `generateSchedule` (monde 1, inchangé, empreinte épinglée) laisse des séries (8 matchs
+de suite à l'extérieur vus pour un club). Le monde 2 utilise `generateBalancedSchedule` : aller = calendrier canonique du
+cercle (de Werra : le club fixe reçoit aux journées paires, la paire (r + k, r − k) a son premier club à domicile quand k
+est impair), retour = mêmes journées inversées, en commençant par la deuxième et en finissant par la première ; jamais
+plus de deux matchs de suite au même endroit, jonction des phases comprise, ni deux fois le même adversaire de suite. La
+graine ne mélange que les places des clubs : l'ordre des journées vient de la construction (`schedule.test.ts`, 18 à
+24 clubs).
 
 Le niveau d'un club à la création dépend du niveau de sa compétition (`clubLevelFromRank(rank, count, tier)`,
 `CLUB_LEVEL_BY_TIER`) : 78 → 60 en première division, inchangé, 64 → 52 en deuxième. La calibration de

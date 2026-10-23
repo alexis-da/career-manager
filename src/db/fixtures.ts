@@ -1,4 +1,4 @@
-import { generateSchedule, matchdayDates, scheduleRngSeed } from "../engine/schedule";
+import { generateBalancedSchedule, generateSchedule, matchdayDates, scheduleRngSeed } from "../engine/schedule";
 import type { WorldVersion } from "../engine/world-version";
 import { firstMatchdayDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
@@ -24,14 +24,15 @@ const bySlug = (a: SeasonClub, b: SeasonClub): number => (a.slug < b.slug ? -1 :
 
 /**
  * Fixture rows of a new season: a seeded double round-robin between the clubs. Clubs are sorted by slug first, so their
- * order in the input never matters. The pairings are the same in every world; the dates differ: one matchday a week
- * from the third Saturday of August in a worldVersion 1 save, as always, and in a worldVersion 2 save the matchdays
- * placed by matchdayDates, so that every competition ends on the same day.
+ * order in the input never matters. A worldVersion 1 save keeps the calendar it always had: generateSchedule, one
+ * matchday a week from the third Saturday of August. A worldVersion 2 save gets generateBalancedSchedule, never more than
+ * two matches in a row at home or away, its matchdays placed by matchdayDates so that every competition ends the same day.
  */
 export function seasonFixtures(input: SeasonFixturesInput): Prisma.FixtureCreateManyInput[] {
   const clubs = [...input.clubs].sort(bySlug);
   const clubSaveIdBySlug = new Map(clubs.map((club) => [club.slug, club.clubSaveId]));
-  const schedule = generateSchedule(
+  const generate = input.worldVersion === 1 ? generateSchedule : generateBalancedSchedule;
+  const schedule = generate(
     clubs.map((club) => club.slug),
     firstMatchdayDate(input.startYear),
     makeRng(scheduleRngSeed(input.saveSeed, input.competitionCode, input.startYear)),
