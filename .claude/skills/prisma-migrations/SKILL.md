@@ -88,6 +88,7 @@ sparkling-darkness). Une telle migration est **générée**, jamais écrite à l
 
 ```bash
 npx tsx scripts/generate-reference-migration.ts prisma/migrations/<horodatage>_second_divisions
+npx tsx scripts/generate-reference-migration.ts prisma/migrations/<horodatage>_national_cups
 ```
 
 - `prisma/seed/reference-sql.ts` transforme une partie du plan du seed (`buildWorldPlan`) en SQL idempotent : chaque
@@ -100,7 +101,10 @@ npx tsx scripts/generate-reference-migration.ts prisma/migrations/<horodatage>_s
 - Vérifier avant de commiter, sur sparkling-darkness, dans une transaction annulée : supprimer les lignes concernées,
   appliquer le SQL (tout est inséré, identique au plan), le rejouer (rien n'est inséré). Puis `migrate deploy`, et
   `npm run db:seed` doit annoncer `0 created, 0 updated`.
-- Première : `20261023120000_second_divisions` (5 compétitions, 102 clubs, 2 346 joueurs, environ 220 Ko).
+- Le générateur choisit le contenu d'après le suffixe du dossier ; une nouvelle donnée de référence y ajoute le sien.
+- Première : `20261023120000_second_divisions` (5 compétitions, 102 clubs, 2 346 joueurs, environ 220 Ko). Deuxième :
+  `20261024124148_national_cups` (les 5 coupes, `kind = CUP`, niveau 0, depuis `CUPS`, `prisma/seed/competitions.ts`),
+  après la migration de schéma `20261024124147_national_cup` qui crée `Competition.kind`.
 
 ## Compétition d'un club et monde d'une partie
 

@@ -84,6 +84,63 @@ mémoire : il ne change ni tirage ni score. Une saison passe de 23 600 à 5 800 
 Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 % de victoires à domicile, Bayern-Monza
 82,9 % inchangé.
 
+## Matchs à élimination : prolongation et tirs au but
+
+Un match de coupe se joue avec `knockout = true` (`startMatch(…, knockout)`, `simulateMatch(…, formations, true)`) ;
+`MatchState.knockout` passe la mi-temps (il est dans `Fixture.liveState`). Un match de championnat ne l'a jamais et
+**tire exactement la même chose qu'avant les coupes** : empreinte d'une journée complète épinglée
+(`match-fingerprint.test.ts`). Toute modification des tirages de `h1`/`h2` la casse : c'est voulu.
+
+- Phases : à égalité après `h2`, un match à élimination s'arrête sur `REGULATION_END` (apparitions non closes), puis
+  `simulateHalf(state, rng, "e1")` (91'–105', fin sur `EXTRA_TIME_BREAK`) et `"e2"` (106'–120'), puis
+  `simulateShootout` si l'égalité tient (`SHOOTOUT`), et `FULL_TIME`. `finishKnockout(state, matchSeed)` enchaîne tout
+  cela ; `resumeLiveMatch` l'appelle aussi après la seconde période du club dirigé.
+- Graines : `halfRngSeed(matchSeed, "e1" | "e2" | "shootout")`, une par phase. La graine d'un match de coupe est
+  `cupMatchRngSeed(save.seed, startYear, round, home, away)` (`…:cup:…`), jamais celle du match de championnat de la
+  même journée entre les mêmes clubs (`fixtureMatchSeed`, `src/db/matchday.ts`, la choisit selon la compétition).
+- Prolongation : 15/90 des buts, cartons et blessures attendus par période, buts multipliés par
+  `EXTRA_TIME_INTENSITY` (1 : autant qu'en temps réglementaire) ; un remplacement de plus (`EXTRA_TIME_SUBSTITUTIONS`,
+  plafond `MAX_SUBSTITUTIONS + 1`), utilisé en `e1` ; un blessé est remplacé aussitôt. Événements marqués
+  `period: "EXTRA_TIME"` (en base `MatchEvent.period`, `REGULAR` par défaut : la minute 92 d'un arrêt de jeu n'est pas
+  celle d'une prolongation). Un titulaire qui joue tout le match est crédité de 120 minutes.
+- Tirs au but : ordre de tir tiré au sort, tireurs parmi les joueurs sur le terrain du meilleur au moins bon tir (puis
+  `playerKey`), en boucle ; gardien au slot GK, sinon le meilleur gardien sur le terrain. Cinq tirs chacun, arrêt dès que
+  l'issue est acquise, puis mort subite. Chance d'un tir : `shootoutChance(tir, gardien)` = 75 % modulés de 0,4 point
+  par point d'écart à 70 du tireur et du gardien, bornés à 55–90 %. Événements `SHOOTOUT_GOAL` / `SHOOTOUT_MISS`,
+  `minute` = numéro du tir, `relatedPlayerId` = le gardien, `period: "SHOOTOUT"`.
+- Résultat : `homeGoals` / `awayGoals` comptent la prolongation, jamais les tirs au but ; `decidedBy`
+  (`REGULATION | EXTRA_TIME | PENALTIES`), `homePenalties` / `awayPenalties` ; `knockoutWinner(result)` donne le
+  qualifié (écrit en `Fixture.winnerClubSaveId`). Les buts de mi-temps ne comptent que les minutes ≤ 45.
+- Calibration (`match-cup.slow.test.ts`, 10 000 matchs entre clubs d'un même pays, D1 et D2 mêlées) : 79,3 % décidés en
+  90 minutes, 10,5 % en prolongation, 10,2 % aux tirs au but (0,8 donnait 11,5 %), 0,88 but par prolongation, 73 % de
+  tirs réussis. Tolérances : 8–12 % aux tirs au but, 70–78 % de réussite.
+
+## Coupes nationales (parties 2)
+
+Une coupe par pays (`Competition.kind = CUP`, code `xx.cup`, niveau 0, « Pays — Coupe »), avec les clubs de ses deux
+divisions. Moteur pur dans `src/engine/cup.ts`, base dans `src/db/cup.ts`.
+
+- Tours : 1 préliminaire, 2 seizièmes, 3 huitièmes, 4 quarts, 5 demies, 6 finale (`Fixture.round`), N − 1 matchs.
+  `preliminaryTies` oppose les 2 × (N − `CUP_MAIN_DRAW`) clubs les plus bas du pays (première division devant la
+  deuxième, chacune par rang : `initialRank` à la création, classement final ensuite) : 12, 10, 8, 4 et 4 matchs en
+  Angleterre, Espagne, Italie, Allemagne, France ; les autres entrent en seizièmes.
+- Tirage : `drawTies` trie les clubs par slug, les mélange (graine `cupDrawRngSeed(save.seed, startYear, code, round)`)
+  et les apparie, le premier reçoit. `nextRoundTies` tire le tour suivant parmi les clubs du pays qui n'ont perdu aucun
+  match de la coupe, et refuse un tour incomplet.
+- Dates : `cupDates(startYear)`, pure : cinq mercredis de semaines sans mardi de championnat (23 septembre,
+  11 novembre, 6 janvier, 17 février, 7 avril pour 2026-27), puis la finale le samedi après la dernière journée
+  (22 mai 2027). `matchdayDates` ne change pas.
+- Vie d'une coupe : `openCups` crée les saisons de coupe et le tour préliminaire à la création d'une partie 2 et à
+  chaque `advanceToNextSeason` (classements finaux, `readFinalTables`) ; `progressCups`, dans la transaction de
+  `playNextMatchday` et de `resumeLiveMatch`, crédite les primes (`cupPrize`, `balance.ts` : 0,1 / 0,25 / 0,5 / 1 /
+  2 M€ par tour gagné, 5 M€ au vainqueur, 2,5 M€ au finaliste) sur `ClubSave.budget` et tire le tour suivant dès le
+  dernier match du tour. La saison ne se termine qu'après les finales (tous les matchs joués).
+- Stats : un match de coupe n'écrit de `PlayerSeasonStats` (sur la saison de coupe) que pour les joueurs du club
+  dirigé ; la progression ne compte que les minutes de championnat. Le palmarès (`SeasonResult`) garde la saison de
+  championnat et reçoit `cupRound` (dernier tour joué, `cupRunOf`) et le trophée `cup` (`CUP_TROPHY`) au vainqueur.
+- Tout lecteur de championnat filtre `competition.kind = "LEAGUE"` (classement, montées et descentes, palmarès,
+  marché, résumé de simulation, buteur de l'adversaire) : une coupe n'a pas de classement.
+
 ## Postes, familiarité et composition
 
 Un joueur a un poste précis (12 valeurs, `src/engine/positions.ts`) et `positionGroup(position)` donne sa
@@ -156,7 +213,8 @@ Toute modification du moteur s'accompagne de tests Vitest :
 - **Plausibilité statistique** (`match.test.ts`, sur le vrai monde avec `selectLineup`, donc hors poste
   compris) : sur 10 000 matchs simulés, la moyenne de buts par match tombe dans une
   fourchette réaliste (2,4 à 3,2), et la meilleure équipe gagne nettement plus souvent que la plus faible.
-- **Bornes** : aucun score négatif, aucun attribut hors de 1–99, aucune minute hors de 1–90.
+- **Bornes** : aucun score négatif, aucun attribut hors de 1–99, aucune minute hors de 1–90 (arrêts de jeu compris),
+  91–120 en prolongation (`match-knockout.test.ts`).
 
 Un test statistique doit lui-même utiliser une graine fixe pour ne pas devenir instable.
 
@@ -223,7 +281,8 @@ change : ni joueurs, ni contrats, ni salaires (un relégué peut donc payer plus
 - Calibration épinglée : première division dans `match.test.ts`, deuxième dans `match-d2.slow.test.ts` (2,4–3,2 buts,
   40–50 % à domicile, 20–28 % de nuls, champion de deuxième aussi fort que le 15e de première).
 
-Côté base (`src/db/promotion.ts`) : `computeSeasonMoves` lit les matchs joués des saisons qui se ferment,
+Côté base (`src/db/promotion.ts`) : `readFinalTables` lit les matchs joués des saisons de championnat qui se ferment
+(les classements finaux servent aussi aux tours préliminaires des coupes), `seasonMovesOf` en tire les mouvements,
 `applySeasonMoves` écrit `Season.movements` (les clubs qui quittent la compétition de chaque saison, liste vide sinon)
 et met à jour `ClubSave.competitionId` et les finances avant la présaison ; `getCountryMoves` les relit pour le panneau
 « Saison terminée ».

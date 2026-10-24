@@ -72,6 +72,18 @@ la deuxième pour un relégué, rien d'autre ; joueurs et contrats intacts) ; `S
 `src/db/promotion.ts`) garde sur chaque saison terminée les clubs qui quittent sa compétition. Une partie 1 n'a qu'une
 division par pays : aucun mouvement, `movements` reste null (test lent de non-régression).
 
+**Coupes nationales (parties 2 seulement).** Une coupe par pays (`Competition.kind = CUP`, `xx.cup`, niveau 0,
+« Pays — Coupe », arrivée par la migration de données `…_national_cups`), à élimination directe entre les clubs de ses
+deux divisions : tour préliminaire entre les plus bas pour ramener le pays à 32, puis seizièmes à finale (`round` 1 à
+6, N − 1 matchs). Ouverte (saison de coupe et tour préliminaire, `openCups`, `src/db/cup.ts`) à la création d'une
+partie 2 et à chaque `advanceToNextSeason` (les parties 2 d'avant la coupe l'ont à la saison suivante) ; chaque tour est
+tiré (`progressCups`) dans la transaction qui joue le dernier match du précédent, primes créditées sur
+`ClubSave.budget`. Dates pures (`cupDates`, `src/engine/cup.ts`) : mercredis sans mardi de championnat, finale le samedi
+après la dernière journée. Prolongation et tirs au but : skill `moteur-de-match`. Un match de coupe a sa propre graine
+(`cupMatchRngSeed`) et n'écrit de stats que pour les joueurs du club dirigé. **Tout lecteur de championnat filtre
+`competition.kind = "LEAGUE"`** (classement, montées et descentes, palmarès et carte, meilleur joueur, marché, résumé de
+simulation) ; `SeasonResult` reste une ligne de championnat, avec `cupRound` et le trophée `cup`.
+
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade). Hors des
 tests, trois suppressions d'utilisateur sont autorisées, et aucune autre : **la purge** (ci-dessous) ; **la fusion** à
 la connexion Google, où l'utilisateur anonyme du navigateur (cookie `lw_uid`) donne d'abord toutes ses parties au
@@ -174,7 +186,7 @@ e2e/                  # tests Playwright (npm run test:e2e)
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC
 src/
   components/ui/      # composants shadcn/ui (Base UI), générés par la CLI
-  engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes ;
+  engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes, coupes ;
                       # club-name.ts : nom affiché des clubs (CLUB_NAMES)
     data/names/       # listes de noms, importées statiquement
   db/                 # accès Prisma, toujours scopé par saveId ; *.slow.test.ts via npm run test:slow
@@ -185,7 +197,7 @@ src/
   generated/prisma/   # client Prisma généré, ignoré par git
 prisma/
   schema.prisma
-  migrations/         # dont les migrations de données de référence (…_second_divisions), générées, jamais éditées
+  migrations/         # dont les migrations de données de référence (…_second_divisions, …_national_cups), générées, jamais éditées
   seed/               # import OpenFootball, couleurs des clubs, génération du monde ; reference-sql.ts : SQL des migrations de données
     data/             # calendriers OpenFootball (premières et deuxièmes divisions), club-colors.json, club-aliases-fallback.json
 scripts/              # measure-save-size.ts (npm run measure:size), measure-d2-balance.ts (npm run measure:balance),
