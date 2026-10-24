@@ -10,6 +10,7 @@ import { chunk } from "../lib/arrays";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { CUPS_ENABLED } from "../engine/cup";
 import { cupEntrantsOf, openCups } from "./cup";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
@@ -59,8 +60,9 @@ type PlayerUpdate = PlayerAttributes & {
  * agents, form, morale, fitness and injuries are reset, the seasons are marked completed (with their moves), the
  * moving clubs change competition and finances, the save moves to
  * 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created, with the
- * cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables. Every cup tie must have been
- * played too: the season ends with the cups' finals.
+ * cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables: when the save already had
+ * cups, or the game gives them (CUPS_ENABLED). Every cup tie must have been played too: the season ends with the cups'
+ * finals.
  * PlayerSave.marketValue is read as is everywhere else: this is where it changes.
  */
 export async function advanceToNextSeason(saveId: string): Promise<SeasonTransition> {
@@ -237,9 +239,12 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         }),
       );
       await tx.fixture.createMany({ data: fixtures });
-      // The cups of a worldVersion 2 save, its saves from before the cups included: the final tables rank the entrants.
-      const cupTies =
-        tables === null ? 0 : await openCups(tx, { saveId, saveSeed: save.seed, startYear, entrants: cupEntrantsOf(tables) });
+      // The cups of a worldVersion 2 save that had them, or of any once the game gives them (its saves from before the
+      // cups included): the final tables rank the entrants.
+      const withCups = tables !== null && (CUPS_ENABLED || cupSeasonIds.length > 0);
+      const cupTies = withCups
+        ? await openCups(tx, { saveId, saveSeed: save.seed, startYear, entrants: cupEntrantsOf(tables) })
+        : 0;
 
       return {
         completedStartYear,

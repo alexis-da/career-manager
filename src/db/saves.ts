@@ -4,6 +4,7 @@ import { clubFinances, generateContract, marketValueFor } from "../engine/econom
 import { FREE_AGENT_POOL_SLUG, freeAgentPlayerKey, generateFreeAgentAttributes } from "../engine/free-agents";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engine/generation";
 import { worldPlayerKey } from "../engine/identity";
+import { CUPS_ENABLED } from "../engine/cup";
 import { countryOf } from "../engine/promotion";
 import { competitionTier } from "../engine/tiers";
 import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
@@ -30,6 +31,8 @@ export const createSaveInputSchema = z.object({
   ownerId: z.string().min(1), // every new save has an owner: only inherited saves, from before owners, have none
   // The game creates DEFAULT_WORLD_VERSION saves; tests pass 2 for the second divisions.
   worldVersion: z.union([z.literal(1), z.literal(2)]).default(DEFAULT_WORLD_VERSION),
+  // The national cups of a worldVersion 2 save: CUPS_ENABLED for the game; tests pass true to have them already.
+  cups: z.boolean().default(CUPS_ENABLED),
 });
 
 export type CreateSaveInput = z.input<typeof createSaveInputSchema>;
@@ -45,7 +48,8 @@ const CREATE_BATCH_SIZE = 1_000;
  * Creates a save and its whole initial state in one transaction: a ClubSave per club of its world (worldVersion: the
  * first divisions, or the first and second ones), a PlayerSave per player of those clubs (identity copied from Player)
  * and per free agent of the pool (without a club or a contract), the first preseason (young players), a Season per
- * competition and its fixtures; in a worldVersion 2 save, the national cups and their preliminary rounds too. The large tables are written in batches of CREATE_BATCH_SIZE rows. Everything random
+ * competition and its fixtures; in a worldVersion 2 save with cups (CUPS_ENABLED), the national cups and their
+ * preliminary rounds too. The large tables are written in batches of CREATE_BATCH_SIZE rows. Everything random
  * derives from the seed, so the same seed always yields the same save; each player's stream is his own, so a first
  * division player gets the same attributes in both worlds. Reference tables (Competition, Club, Player) are only read.
  * Throws SaveLimitError, before writing anything, when the owner already has as many saves as their kind allows.
@@ -69,7 +73,7 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
 
 /** The transaction of createSave, each phase marked on the timer for the logs. */
 async function writeSave(data: z.output<typeof createSaveInputSchema>, timer: PhaseTimer): Promise<{ id: string }> {
-  const { name, managerName, clubId, seed, ownerId, worldVersion } = data;
+  const { name, managerName, clubId, seed, ownerId, worldVersion, cups } = data;
   const tiers = worldTiers(worldVersion);
 
   return prisma.$transaction(
@@ -226,7 +230,7 @@ async function writeSave(data: z.output<typeof createSaveInputSchema>, timer: Ph
       }
       timer.mark(`fixtures ${fixtures.length}`);
 
-      if (worldVersion === 2) {
+      if (worldVersion === 2 && cups) {
         // The clubs' places in the world's source season decide who plays the preliminary rounds.
         const ties = await openCups(tx, {
           saveId: save.id,

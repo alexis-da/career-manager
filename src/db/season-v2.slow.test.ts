@@ -327,7 +327,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
       import("./season"),
     ]);
     db = prisma;
-    saveId = await support.createDemoTwin("Test saisons deux divisions", 2);
+    saveId = await support.createDemoTwin("Test saisons deux divisions", 2, true);
     const first = await playAndAdvance(support, standings, season, FIRST_YEAR);
     matchdays = first.matchdays;
     firstSeasonDates = (await seasonDates(saveId)).filter((row) => row.startYear === FIRST_YEAR);

@@ -118,7 +118,8 @@ Un match de coupe se joue avec `knockout = true` (`startMatch(…, knockout)`, `
 ## Coupes nationales (parties 2)
 
 Une coupe par pays (`Competition.kind = CUP`, code `xx.cup`, niveau 0, « Pays — Coupe »), avec les clubs de ses deux
-divisions. Moteur pur dans `src/engine/cup.ts`, base dans `src/db/cup.ts`.
+divisions. Moteur pur dans `src/engine/cup.ts`, base dans `src/db/cup.ts`. Tant que `CUPS_ENABLED` vaut false, le jeu
+n'en crée aucune : un test les demande à la création (`createSave({ …, cups: true })`), et une partie qui en a les garde.
 
 - Tours : 1 préliminaire, 2 seizièmes, 3 huitièmes, 4 quarts, 5 demies, 6 finale (`Fixture.round`), N − 1 matchs.
   `preliminaryTies` oppose les 2 × (N − `CUP_MAIN_DRAW`) clubs les plus bas du pays (première division devant la

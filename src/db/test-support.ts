@@ -70,14 +70,15 @@ export async function deleteSavelessTestOwners(): Promise<number> {
 
 /**
  * Creates a throwaway save with the demo save's seed and club, owned by a throwaway user of its own, so database
- * tests can play and advance seasons without touching the demo save itself.
+ * tests can play and advance seasons without touching the demo save itself. cups: the national cups of a worldVersion 2
+ * save, as the game gives them (CUPS_ENABLED) when left out.
  */
-export async function createDemoTwin(name: string, worldVersion: WorldVersion = 1): Promise<string> {
+export async function createDemoTwin(name: string, worldVersion: WorldVersion = 1, cups?: boolean): Promise<string> {
   const [club, ownerId] = await Promise.all([
     prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } }),
     createTestOwner(),
   ]);
-  const { id } = await createSave({ name, managerName: "Test", clubId: club.id, seed: DEMO_SEED, ownerId, worldVersion });
+  const { id } = await createSave({ name, managerName: "Test", clubId: club.id, seed: DEMO_SEED, ownerId, worldVersion, cups });
   return id;
 }
 

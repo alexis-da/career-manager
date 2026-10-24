@@ -72,7 +72,10 @@ la deuxième pour un relégué, rien d'autre ; joueurs et contrats intacts) ; `S
 `src/db/promotion.ts`) garde sur chaque saison terminée les clubs qui quittent sa compétition. Une partie 1 n'a qu'une
 division par pays : aucun mouvement, `movements` reste null (test lent de non-régression).
 
-**Coupes nationales (parties 2 seulement).** Une coupe par pays (`Competition.kind = CUP`, `xx.cup`, niveau 0,
+**Coupes nationales (parties 2 seulement).** `CUPS_ENABLED` (`src/engine/cup.ts`) vaut **false** : même rôle que
+`DEFAULT_WORLD_VERSION` avant la bascule, aucune coupe n'est créée pour le jeu (ni à la création, ni au passage de
+saison) tant qu'elle est à false. Les tests qui en ont besoin la forcent à la création (`createSave({ …, cups: true })`,
+`createDemoTwin(nom, 2, true)`) ; une partie qui a des coupes les garde de saison en saison. Une coupe par pays (`Competition.kind = CUP`, `xx.cup`, niveau 0,
 « Pays — Coupe », arrivée par la migration de données `…_national_cups`), à élimination directe entre les clubs de ses
 deux divisions : tour préliminaire entre les plus bas pour ramener le pays à 32, puis seizièmes à finale (`round` 1 à
 6, N − 1 matchs). Ouverte (saison de coupe et tour préliminaire, `openCups`, `src/db/cup.ts`) à la création d'une
