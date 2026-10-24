@@ -171,6 +171,25 @@ export const PROMOTION_RELEGATION: Readonly<Record<string, number>> = {
   fr: 2,
 };
 
+// ------------------------------------------------------------------ National cups (worldVersion 2)
+
+/**
+ * A national cup gathers a country's first and second divisions in knockout ties: a preliminary round between its
+ * 2 × (N − CUP_MAIN_DRAW) lowest clubs brings it to CUP_MAIN_DRAW, then round of 32, of 16, quarter-finals,
+ * semi-finals and the final: CUP_ROUNDS rounds, N − 1 ties.
+ */
+export const CUP_MAIN_DRAW = 32;
+export const CUP_ROUNDS = 6;
+
+/**
+ * Prize for each round won, the same in every division (euros, credited to the club's budget as the tie ends):
+ * preliminary, round of 32, of 16, quarter-final, semi-final. A second division club reaching the semi-finals earns
+ * some 3.9 M€, one to four times its budget; a great first division club hardly notices.
+ */
+export const CUP_ROUND_PRIZES: readonly number[] = [100_000, 250_000, 500_000, 1_000_000, 2_000_000];
+export const CUP_WINNER_PRIZE = 5_000_000;
+export const CUP_RUNNER_UP_PRIZE = 2_500_000;
+
 // ------------------------------------------------------------------ Player contracts at save creation
 
 /** Market value in euros by overall rating. */

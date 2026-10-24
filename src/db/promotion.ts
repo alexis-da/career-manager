@@ -28,20 +28,17 @@ export type SeasonMove = z.infer<typeof seasonMoveSchema> & { clubSaveId: string
 
 export const seasonMovementsSchema = z.array(seasonMoveSchema);
 
+/** The final tables of the league seasons being closed, and each club of them by its key in the tables (its slug). */
+export type FinalTables = {
+  standings: CompetitionStanding[];
+  clubBySlug: ReadonlyMap<string, { clubId: string; clubSaveId: string }>;
+};
+
 /**
- * The promotions and relegations at the end of the seasons being closed: their final tables from the played fixtures,
- * keyed and sorted as the league table (getStandings) sorts them, then applyPromotionRelegation with
- * PROMOTION_RELEGATION. None in a worldVersion 1 save, which has first divisions only: nothing is even read.
+ * The final tables of the league seasons being closed, from their played fixtures, keyed and sorted as the league table
+ * (getStandings) sorts them: promotion and relegation (seasonMovesOf) and the next cups' preliminary rounds read them.
  */
-export async function computeSeasonMoves(
-  tx: Db,
-  saveId: string,
-  worldVersion: WorldVersion,
-  seasons: readonly ClosingSeason[],
-): Promise<SeasonMove[]> {
-  if (worldVersion === 1) {
-    return [];
-  }
+export async function readFinalTables(tx: Db, saveId: string, seasons: readonly ClosingSeason[]): Promise<FinalTables> {
   const [competitions, fixtures] = await Promise.all([
     tx.competition.findMany({
       where: { id: { in: seasons.map((season) => season.competitionId) } },
@@ -66,7 +63,7 @@ export async function computeSeasonMoves(
   );
   const fixturesBySeason = Map.groupBy(fixtures, (fixture) => fixture.seasonId);
 
-  const standings: CompetitionStanding[] = seasons.map((season) => {
+  const standings = seasons.map((season): CompetitionStanding => {
     const played = fixturesBySeason.get(season.id) ?? [];
     const scores = played.map(({ homeGoals, awayGoals, homeClubSave, awayClubSave }) => {
       if (homeGoals === null || awayGoals === null) {
@@ -81,6 +78,11 @@ export async function computeSeasonMoves(
     };
   });
 
+  return { standings, clubBySlug };
+}
+
+/** The promotions and relegations of final tables: applyPromotionRelegation with PROMOTION_RELEGATION. */
+export function seasonMovesOf({ standings, clubBySlug }: FinalTables): SeasonMove[] {
   return applyPromotionRelegation(standings, PROMOTION_RELEGATION).map(({ club, ...move }) => ({
     ...move,
     ...getOrThrow(clubBySlug, club, "club of the table"),

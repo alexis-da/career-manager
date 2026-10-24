@@ -14,6 +14,7 @@ import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { progressCups } from "./cup";
 import type { LineupPlayer } from "./lineup";
 import { parseLiveState } from "./live-state";
 import {
@@ -190,6 +191,8 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
         ],
         stateByKey,
       );
+      // A cup tie: its prize, and the next round once it was the round's last tie.
+      await progressCups(tx, saveId, save.seed, [fixture.id]);
       await tx.save.update({ where: { id: saveId }, data: { liveFixtureId: null } });
       return { fixtureId: fixture.id, result };
     },

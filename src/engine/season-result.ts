@@ -12,8 +12,11 @@ import {
 import type { Position } from "./positions";
 import type { StandingRow } from "./standings";
 
-/** The one trophy so far: first of the league. */
+/** First of the league. */
 export const CHAMPION_TROPHY = "champion";
+
+/** Winner of the national cup (worldVersion 2 saves). */
+export const CUP_TROPHY = "cup";
 
 const MINUTES_PER_MATCH = 90;
 

@@ -4,6 +4,7 @@ import { clubFinances, generateContract, marketValueFor } from "../engine/econom
 import { FREE_AGENT_POOL_SLUG, freeAgentPlayerKey, generateFreeAgentAttributes } from "../engine/free-agents";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engine/generation";
 import { worldPlayerKey } from "../engine/identity";
+import { countryOf } from "../engine/promotion";
 import { competitionTier } from "../engine/tiers";
 import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import { DEFAULT_WORLD_VERSION, worldTiers } from "../engine/world-version";
@@ -16,6 +17,7 @@ import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { visibleSavesWhere, type SaveViewer } from "./access";
 import { prisma } from "./client";
+import { openCups } from "./cup";
 import { seasonFixtures } from "./fixtures";
 import { runPreseasonInTransaction } from "./preseason";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
@@ -43,7 +45,7 @@ const CREATE_BATCH_SIZE = 1_000;
  * Creates a save and its whole initial state in one transaction: a ClubSave per club of its world (worldVersion: the
  * first divisions, or the first and second ones), a PlayerSave per player of those clubs (identity copied from Player)
  * and per free agent of the pool (without a club or a contract), the first preseason (young players), a Season per
- * competition and its fixtures. The large tables are written in batches of CREATE_BATCH_SIZE rows. Everything random
+ * competition and its fixtures; in a worldVersion 2 save, the national cups and their preliminary rounds too. The large tables are written in batches of CREATE_BATCH_SIZE rows. Everything random
  * derives from the seed, so the same seed always yields the same save; each player's stream is his own, so a first
  * division player gets the same attributes in both worlds. Reference tables (Competition, Club, Player) are only read.
  * Throws SaveLimitError, before writing anything, when the owner already has as many saves as their kind allows.
@@ -223,6 +225,23 @@ async function writeSave(data: z.output<typeof createSaveInputSchema>, timer: Ph
         await tx.fixture.createMany({ data: batch });
       }
       timer.mark(`fixtures ${fixtures.length}`);
+
+      if (worldVersion === 2) {
+        // The clubs' places in the world's source season decide who plays the preliminary rounds.
+        const ties = await openCups(tx, {
+          saveId: save.id,
+          saveSeed: save.seed,
+          startYear,
+          entrants: clubs.map((club) => ({
+            club: club.slug,
+            tier: club.tier,
+            rank: club.initialRank,
+            clubSaveId: getOrThrow(clubSaveIdByClubId, club.id, "club save"),
+            country: countryOf(getOrThrow(competitionById, club.competitionId, "competition").code),
+          })),
+        });
+        timer.mark(`cups ${ties}`);
+      }
 
       return { id: save.id };
     },

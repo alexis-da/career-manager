@@ -10,10 +10,11 @@ import { chunk } from "../lib/arrays";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { cupEntrantsOf, openCups } from "./cup";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
 import { runPreseasonInTransaction, type PreseasonSummary } from "./preseason";
-import { applySeasonMoves, computeSeasonMoves } from "./promotion";
+import { applySeasonMoves, readFinalTables, seasonMovesOf } from "./promotion";
 import { recordSeasonResult } from "./season-results";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
@@ -30,7 +31,8 @@ export type SeasonTransition = {
   moves: number; // clubs promoted or relegated (worldVersion 2 saves)
   retired: number;
   freeAgents: number; // players of the managed club whose contract ended; AI clubs decide in the preseason
-  fixtures: number;
+  fixtures: number; // of the leagues
+  cupTies: number; // the cups' preliminary rounds (worldVersion 2 saves)
   preseason: PreseasonSummary;
 };
 
@@ -56,7 +58,9 @@ type PlayerUpdate = PlayerAttributes & {
  * from his new rating and age, some retire, expired contracts of the managed club turn its players into free
  * agents, form, morale, fitness and injuries are reset, the seasons are marked completed (with their moves), the
  * moving clubs change competition and finances, the save moves to
- * 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created.
+ * 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created, with the
+ * cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables. Every cup tie must have been
+ * played too: the season ends with the cups' finals.
  * PlayerSave.marketValue is read as is everywhere else: this is where it changes.
  */
 export async function advanceToNextSeason(saveId: string): Promise<SeasonTransition> {
@@ -80,17 +84,19 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       // The leagues' seasons: tables, promotion and relegation, the managed club's result, playing time. A cup's
       // fixtures only have to be played.
       const leagueSeasons = seasons.filter((season) => season.competition.kind === "LEAGUE");
+      const cupSeasonIds = seasons.filter((season) => season.competition.kind === "CUP").map((season) => season.id);
 
       const unplayed = await tx.fixture.count({ where: { saveId, seasonId: { in: seasonIds }, played: false } });
       if (unplayed > 0) {
         throw new SeasonNotFinishedError(unplayed);
       }
 
-      // Promotion and relegation from the final tables (worldVersion 2 saves only), then the managed club's result,
-      // before any player progresses, retires or leaves.
+      // Promotion and relegation from the final tables (worldVersion 2 saves only), then the managed club's result and
+      // cup run, before any player progresses, retires or leaves. A worldVersion 1 save reads no table: one division.
       const worldVersion = worldVersionOf(save.worldVersion);
-      const moves = await computeSeasonMoves(tx, saveId, worldVersion, leagueSeasons);
-      const completedSeasonId = await recordSeasonResult(tx, saveId, leagueSeasons, moves);
+      const tables = worldVersion === 1 ? null : await readFinalTables(tx, saveId, leagueSeasons);
+      const moves = tables === null ? [] : seasonMovesOf(tables);
+      const completedSeasonId = await recordSeasonResult(tx, saveId, leagueSeasons, moves, cupSeasonIds);
 
       const startYear = completedStartYear + 1;
       const transitionDate = seasonStartDate(startYear);
@@ -231,6 +237,9 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         }),
       );
       await tx.fixture.createMany({ data: fixtures });
+      // The cups of a worldVersion 2 save, its saves from before the cups included: the final tables rank the entrants.
+      const cupTies =
+        tables === null ? 0 : await openCups(tx, { saveId, saveSeed: save.seed, startYear, entrants: cupEntrantsOf(tables) });
 
       return {
         completedStartYear,
@@ -240,6 +249,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         retired,
         freeAgents,
         fixtures: fixtures.length,
+        cupTies,
         preseason,
       };
     },

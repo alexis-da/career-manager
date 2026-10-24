@@ -1,9 +1,11 @@
+import { cupRunOf, type CupRun } from "../engine/cup";
 import type { Position } from "../engine/positions";
 import type { MoveReason } from "../engine/promotion";
 import {
   buildSeasonResult,
   CHAMPION_TROPHY,
   clubAtDate,
+  CUP_TROPHY,
   type SeasonPlayerLine,
   type SeasonResultData,
 } from "../engine/season-result";
@@ -22,6 +24,7 @@ type SeasonRef = { id: string; startYear: number; competitionId: string };
 type ManagedClub = {
   id: string;
   clubId: string;
+  slug: string;
   formation: string;
   competitionId: string; // the club's current competition in the save
   primaryColor: string;
@@ -36,12 +39,13 @@ async function managedClubOf(db: Db, saveId: string): Promise<ManagedClub> {
       clubId: true,
       formation: true,
       competitionId: true,
-      club: { select: { primaryColor: true, secondaryColor: true } },
+      club: { select: { slug: true, primaryColor: true, secondaryColor: true } },
     },
   });
   return {
     id: managed.id,
     clubId: managed.clubId,
+    slug: managed.club.slug,
     formation: managed.formation,
     competitionId: managed.competitionId,
     primaryColor: managed.club.primaryColor,
@@ -139,10 +143,13 @@ function seasonResultRow(
   season: SeasonRef,
   result: SeasonResultData,
   move: MoveReason | null,
+  cup: CupRun | null,
 ): Prisma.SeasonResultCreateManyInput {
-  const { bestPlayer, ...line } = result;
+  const { bestPlayer, trophies, ...line } = result;
   return {
     ...line,
+    trophies: cup?.won === true ? [...trophies, CUP_TROPHY] : trophies,
+    cupRound: cup?.round ?? null,
     saveId,
     seasonId: season.id,
     competitionId: season.competitionId,
@@ -157,16 +164,50 @@ function seasonResultRow(
   };
 }
 
+const CUP_TIE_CLUB_SELECT = { select: { club: { select: { slug: true } } } } as const;
+
+/** The managed club's run in the cups of the seasons closing (none in a worldVersion 1 save, or before the cups). */
+async function cupRunOfClub(tx: Db, saveId: string, clubSaveId: string, slug: string, cupSeasonIds: readonly string[]): Promise<CupRun | null> {
+  if (cupSeasonIds.length === 0) {
+    return null;
+  }
+  const ties = await tx.fixture.findMany({
+    where: {
+      saveId,
+      seasonId: { in: [...cupSeasonIds] },
+      played: true,
+      OR: [{ homeClubSaveId: clubSaveId }, { awayClubSaveId: clubSaveId }],
+    },
+    select: { round: true, homeClubSave: CUP_TIE_CLUB_SELECT, awayClubSave: CUP_TIE_CLUB_SELECT, winnerClubSave: CUP_TIE_CLUB_SELECT },
+  });
+  return cupRunOf(
+    ties.map((tie) => {
+      if (tie.winnerClubSave === null) {
+        throw new Error(`A played cup tie of save ${saveId} has no winner`);
+      }
+      return {
+        round: tie.round,
+        home: tie.homeClubSave.club.slug,
+        away: tie.awayClubSave.club.slug,
+        winner: tie.winnerClubSave.club.slug,
+      };
+    }),
+    slug,
+  );
+}
+
 /**
  * Writes the managed club's result of a season about to close, inside advanceToNextSeason's transaction, before any
- * player changes, with the club's promotion or relegation among the season's moves. Returns the season it was written
- * for, or null when the club plays in none of these seasons.
+ * player changes, with the club's promotion or relegation among the season's moves, and its cup run (cupRound, the
+ * « cup » trophy) from the closing cup seasons. Returns the season it was written for, or null when the club plays in
+ * none of these seasons.
  */
 export async function recordSeasonResult(
   tx: Db,
   saveId: string,
   seasons: readonly SeasonRef[],
   moves: readonly Pick<SeasonMove, "clubId" | "reason">[] = [],
+  cupSeasonIds: readonly string[] = [],
 ): Promise<string | null> {
   const managed = await managedClubOf(tx, saveId);
   const season = seasons.find((candidate) => candidate.competitionId === managed.competitionId);
@@ -178,7 +219,8 @@ export async function recordSeasonResult(
     return null;
   }
   const move = moves.find((candidate) => candidate.clubId === managed.clubId)?.reason ?? null;
-  await tx.seasonResult.createMany({ data: [seasonResultRow(saveId, season, result, move)], skipDuplicates: true });
+  const cup = await cupRunOfClub(tx, saveId, managed.id, managed.slug, cupSeasonIds);
+  await tx.seasonResult.createMany({ data: [seasonResultRow(saveId, season, result, move, cup)], skipDuplicates: true });
   return season.id;
 }
 
@@ -204,8 +246,8 @@ async function ensureSeasonResults(saveId: string): Promise<ManagedClub> {
   for (const season of missing) {
     const result = await computeSeasonResult(prisma, saveId, managed, season);
     if (result !== null) {
-      // A rebuilt row has no move: promoted and relegated stay false.
-      rows.push(seasonResultRow(saveId, season, result, null));
+      // A rebuilt row has no move nor cup run: promoted and relegated stay false, cupRound null.
+      rows.push(seasonResultRow(saveId, season, result, null, null));
     }
   }
   if (rows.length > 0) {

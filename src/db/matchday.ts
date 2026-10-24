@@ -21,6 +21,7 @@ import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { progressCups } from "./cup";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 import { serializeLiveState } from "./live-state";
 import { parseFormation, parseSavedLineup } from "./lineup";
@@ -323,7 +324,8 @@ export async function recordFinishedMatches(
 
 /**
  * Plays every fixture of the next date with unplayed fixtures, in all competitions, in one transaction:
- * scores, match events, season stats, form and injuries, then moves the save's current date to that day.
+ * scores, match events, season stats, form and injuries, the cups' prizes and next rounds (progressCups), then moves
+ * the save's current date to that day.
  * With pauseManagedMatch, the managed club's match stops at half-time instead: its first half's events, its
  * half-time score and the engine state are written, and the save waits for resumeLiveMatch (Save.liveFixtureId).
  * Refused with MatchInProgressError while a match waits at half-time. Returns null when every fixture of the
@@ -422,6 +424,12 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
       }
 
       await recordFinishedMatches(tx, saveId, matchDate, finished, stateByKey);
+      await progressCups(
+        tx,
+        saveId,
+        save.seed,
+        finished.filter((match) => match.knockout).map((match) => match.fixtureId),
+      );
       await tx.save.update({ where: { id: saveId }, data: { currentDate: matchDate } });
 
       return {
