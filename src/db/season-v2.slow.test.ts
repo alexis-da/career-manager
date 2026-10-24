@@ -1,6 +1,8 @@
 import "dotenv/config";
+import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PROMOTION_RELEGATION } from "../engine/balance";
+import { CUP_ROUNDS, PROMOTION_RELEGATION } from "../engine/balance";
+import { cupDates, cupRunOf, type CupRun } from "../engine/cup";
 import { financesAfterMove, type ClubFinances } from "../engine/economy";
 import { countryOf } from "../engine/promotion";
 import { seasonStartDate, WORLD_START_YEAR } from "../engine/world";
@@ -8,6 +10,17 @@ import type { prisma as prismaClient } from "./client";
 import type { SeasonTransition } from "./season";
 
 const FIRST_YEAR = WORLD_START_YEAR;
+
+/** Clubs of each country, the cup's entrants: N − 1 ties, 12, 10, 8, 4 and 4 of them in the preliminary round. */
+const CUP_SIZES: Record<string, number> = { "de.cup": 36, "en.cup": 44, "es.cup": 42, "fr.cup": 36, "it.cup": 40 };
+const PRELIMINARY_TIES: Record<string, number> = { "de.cup": 4, "en.cup": 12, "es.cup": 10, "fr.cup": 4, "it.cup": 8 };
+
+/**
+ * Every league score of the demo save's first season until the eve of the first cup round, 570 matches, as a digest:
+ * taken on a twin before the cups existed. The cups change nothing before their first tie (later, their matches change
+ * form, fitness and injuries, so the league goes its own way).
+ */
+const LEAGUE_DIGEST_BEFORE_CUP = "57b502b2f96082f2b7b3aa1a3ee603692521cc53e684a8252de502e73f391186";
 
 /** Clubs of each competition of a worldVersion 2 save: they never change, promotions and relegations included. */
 const DIVISION_SIZES: Record<string, number> = {
@@ -37,6 +50,20 @@ type TransitionCheck = {
   financesBefore: Map<string, ClubFinances>; // by Club.id
   financesAfter: Map<string, ClubFinances>;
   saleFees: Map<string, number>; // budget change by Club.id from the preseason's AI sales for wage bills
+  cups: CupCheck[]; // the closing season's cups, read before the move
+  managedRun: CupRun | null; // the managed club's cup run, from those ties
+  seasonResult: { cupRound: number | null; trophies: string[] } | null; // as advanceToNextSeason wrote it
+  nextCupTies: Record<string, number>; // the next season's preliminary rounds
+};
+
+type CupCheck = {
+  code: string;
+  ties: number;
+  unplayed: number;
+  withoutWinner: number;
+  perRound: number[]; // ties of rounds 1 to 6
+  datesPerRound: string[][];
+  winnerPlayedFinal: boolean;
 };
 
 // Two seasons of a worldVersion 2 save (first and second divisions) on a twin of the demo save, each followed by the
@@ -127,9 +154,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     const db = database();
     const played = await support.playRemainingMatchdays(saveId);
     const closing = await db.season.findMany({
-      where: { saveId, startYear },
+      where: { saveId, startYear, competition: { kind: "LEAGUE" } },
       select: { id: true, competitionId: true, competition: { select: { code: true, tier: true } } },
     });
+    const { cups, managedRun } = await readCups(startYear);
     // The final tables as the league table shows them, read before the move.
     const clubIdBySlug = new Map(
       (await db.clubSave.findMany({ where: { saveId }, select: { clubId: true, club: { select: { slug: true } } } })).map(
@@ -170,14 +198,22 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
           })),
         ];
       });
-    const [movements, competitions, clubs, nextFixtures] = await Promise.all([
-      db.season.findMany({ where: { saveId, startYear }, select: { movements: true, competition: { select: { code: true } } } }),
+    const [movements, competitions, clubs, nextFixtures, nextCupTies, seasonResult] = await Promise.all([
+      db.season.findMany({
+        where: { saveId, startYear, competition: { kind: "LEAGUE" } },
+        select: { movements: true, competition: { select: { code: true } } },
+      }),
       db.competition.findMany({ select: { id: true, code: true } }),
       db.clubSave.findMany({ where: { saveId }, select: { clubId: true, competitionId: true } }),
       db.fixture.findMany({
-        where: { saveId, season: { startYear: startYear + 1 } },
+        where: { saveId, season: { startYear: startYear + 1, competition: { kind: "LEAGUE" } } },
         select: { homeClubSaveId: true, awayClubSaveId: true, season: { select: { competition: { select: { code: true } } } } },
       }),
+      db.fixture.findMany({
+        where: { saveId, season: { startYear: startYear + 1, competition: { kind: "CUP" } } },
+        select: { round: true, season: { select: { competition: { select: { code: true } } } } },
+      }),
+      db.seasonResult.findFirst({ where: { saveId, season: { startYear } }, select: { cupRound: true, trophies: true } }),
     ]);
     const clubSets = new Map<string, Set<string>>();
     const fixturesByCompetition: Record<string, number> = {};
@@ -201,9 +237,87 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         financesBefore,
         financesAfter: await financesOf(saveId),
         saleFees: await saleFeesOn(seasonStartDate(startYear + 1)),
+        cups,
+        managedRun,
+        seasonResult,
+        nextCupTies: Object.fromEntries(
+          Object.entries(Object.groupBy(nextCupTies, (tie) => tie.season.competition.code)).map(([code, ties]) => [
+            code,
+            ties?.filter((tie) => tie.round === 1).length ?? 0,
+          ]),
+        ),
       },
     };
   };
+
+  /** The cups of a season as they stand, and the managed club's run in them. */
+  const readCups = async (startYear: number): Promise<{ cups: CupCheck[]; managedRun: CupRun | null }> => {
+    const clubSelect = { select: { isManaged: true, club: { select: { slug: true } } } } as const;
+    const ties = await database().fixture.findMany({
+      where: { saveId, season: { startYear, competition: { kind: "CUP" } } },
+      select: {
+        round: true,
+        played: true,
+        scheduledAt: true,
+        winnerClubSaveId: true,
+        homeClubSaveId: true,
+        awayClubSaveId: true,
+        season: { select: { competition: { select: { code: true } } } },
+        homeClubSave: clubSelect,
+        awayClubSave: clubSelect,
+        winnerClubSave: clubSelect,
+      },
+    });
+    const byCup = Map.groupBy(ties, (tie) => tie.season.competition.code);
+    const cups = [...byCup].map(([code, rows]): CupCheck => {
+      const rounds = Array.from({ length: CUP_ROUNDS }, (_, index) => rows.filter((tie) => tie.round === index + 1));
+      const final = rounds[CUP_ROUNDS - 1][0];
+      return {
+        code,
+        ties: rows.length,
+        unplayed: rows.filter((tie) => !tie.played).length,
+        withoutWinner: rows.filter(
+          (tie) => tie.winnerClubSaveId !== tie.homeClubSaveId && tie.winnerClubSaveId !== tie.awayClubSaveId,
+        ).length,
+        perRound: rounds.map((round) => round.length),
+        datesPerRound: rounds.map((round) => [...new Set(round.map((tie) => tie.scheduledAt.toISOString()))]),
+        winnerPlayedFinal: final !== undefined && final.winnerClubSaveId !== null,
+      };
+    });
+    const managedTies = ties.flatMap((tie) =>
+      tie.winnerClubSave === null
+        ? []
+        : [{ round: tie.round, home: tie.homeClubSave.club.slug, away: tie.awayClubSave.club.slug, winner: tie.winnerClubSave.club.slug }],
+    );
+    const managedSlug = ties.flatMap((tie) => [tie.homeClubSave, tie.awayClubSave]).find((club) => club.isManaged)?.club.slug;
+    return {
+      cups: cups.sort((a, b) => a.code.localeCompare(b.code)),
+      managedRun: managedSlug === undefined ? null : cupRunOf(managedTies, managedSlug),
+    };
+  };
+
+  /** Digest of the save's league scores played before a date, as the pre-cup fingerprint was taken. */
+  const leagueDigestBefore = async (date: Date): Promise<{ played: number; digest: string }> => {
+    const fixtures = await database().fixture.findMany({
+      where: { saveId, played: true, scheduledAt: { lt: date }, season: { competition: { kind: "LEAGUE" } } },
+      select: {
+        round: true,
+        homeGoals: true,
+        awayGoals: true,
+        season: { select: { competition: { select: { code: true } } } },
+        homeClubSave: { select: { club: { select: { slug: true } } } },
+        awayClubSave: { select: { club: { select: { slug: true } } } },
+      },
+    });
+    const lines = fixtures
+      .map(
+        (f) =>
+          `${f.season.competition.code}|${f.round}|${f.homeClubSave.club.slug}|${f.awayClubSave.club.slug}|${f.homeGoals}-${f.awayGoals}`,
+      )
+      .sort();
+    return { played: lines.length, digest: createHash("sha256").update(lines.join("\n")).digest("hex") };
+  };
+  let leagueBeforeCup = { played: 0, digest: "" };
 
   beforeAll(async () => {
     const [{ prisma }, support, standings, season] = await Promise.all([
@@ -217,6 +331,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     const first = await playAndAdvance(support, standings, season, FIRST_YEAR);
     matchdays = first.matchdays;
     firstSeasonDates = (await seasonDates(saveId)).filter((row) => row.startYear === FIRST_YEAR);
+    leagueBeforeCup = await leagueDigestBefore(cupDates(FIRST_YEAR)[0]);
     checks.push(first.check);
     checks.push((await playAndAdvance(support, standings, season, FIRST_YEAR + 1)).check);
     demoId = await support.ensureDemoSave(2);
@@ -231,14 +346,46 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
   }, 300_000);
 
   it("plays the ten competitions of the first season, all from the same first Saturday to the same last one", () => {
-    expect(firstSeasonDates.map((season) => [season.code, season.fixtures])).toEqual(
+    const leagues = firstSeasonDates.filter((season) => season.code in DIVISION_SIZES);
+    expect(leagues.map((season) => [season.code, season.fixtures])).toEqual(
       Object.entries(DIVISION_SIZES).map(([code, size]) => [code, size * (size - 1)]),
     );
     expect(firstSeasonDates.every((season) => season.unplayed === 0)).toBe(true);
-    expect(new Set(firstSeasonDates.map((season) => season.first))).toEqual(new Set(["2026-08-15T00:00:00.000Z"]));
-    expect(new Set(firstSeasonDates.map((season) => season.last))).toEqual(new Set(["2027-05-15T00:00:00.000Z"]));
-    // 40 Saturdays and the Tuesdays of the 46 and 42 matchday seasons, some shared: one playNextMatchday each.
-    expect(matchdays).toBe(46);
+    expect(new Set(leagues.map((season) => season.first))).toEqual(new Set(["2026-08-15T00:00:00.000Z"]));
+    expect(new Set(leagues.map((season) => season.last))).toEqual(new Set(["2027-05-15T00:00:00.000Z"]));
+    // 40 Saturdays and the Tuesdays of the 46 and 42 matchday seasons, some shared, then the cups' five Wednesdays
+    // and their final: one playNextMatchday each.
+    expect(matchdays).toBe(52);
+  });
+
+  it("plays the league exactly as before the cups until their first tie", () => {
+    expect(leagueBeforeCup).toEqual({ played: 570, digest: LEAGUE_DIGEST_BEFORE_CUP });
+  });
+
+  it.each([0, 1])("plays each country's cup to the end: N − 1 ties, each with a winner, the final on its Saturday (season %i)", (index) => {
+    const check = checks[index];
+    const dates = cupDates(FIRST_YEAR + index).map((date) => [date.toISOString()]);
+
+    expect(check.cups.map((cup) => [cup.code, cup.ties])).toEqual(Object.entries(CUP_SIZES).map(([code, size]) => [code, size - 1]));
+    for (const cup of check.cups) {
+      expect(cup).toMatchObject({ unplayed: 0, withoutWinner: 0, winnerPlayedFinal: true });
+      expect(cup.perRound).toEqual([PRELIMINARY_TIES[cup.code], 16, 8, 4, 2, 1]);
+      expect(cup.datesPerRound).toEqual(dates);
+    }
+    expect(dates[CUP_ROUNDS - 1]).toEqual([index === 0 ? "2027-05-22T00:00:00.000Z" : "2028-05-27T00:00:00.000Z"]);
+  });
+
+  it.each([0, 1])("writes the managed club's cup run in its season result, the « cup » trophy to a winner (season %i)", (index) => {
+    const check = checks[index];
+
+    expect(check.managedRun).not.toBeNull();
+    expect(check.seasonResult?.cupRound).toBe(check.managedRun?.round);
+    expect(check.seasonResult?.trophies.includes("cup")).toBe(check.managedRun?.won);
+  });
+
+  it.each([0, 1])("opens the next season's cups with their preliminary rounds (transition %i)", (index) => {
+    expect(checks[index].nextCupTies).toEqual(PRELIMINARY_TIES);
+    expect(checks[index].transition.cupTies).toBe(38);
   });
 
   it.each([0, 1])("moves the last of each first division down and the first of each second up (transition %i)", (index) => {
@@ -292,7 +439,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     expect(demo.currentDate.toISOString()).toBe("2027-07-01T00:00:00.000Z");
     expect(v1Demo?.id).not.toBe(demoId);
     expect(seasons.filter((season) => season.startYear === FIRST_YEAR).every((season) => season.unplayed === 0)).toBe(true);
-    expect(seasons.filter((season) => season.startYear === FIRST_YEAR + 1)).toHaveLength(10);
+    // Its leagues: a demo created before the cups got them only from its second season, one created since from the first.
+    expect(seasons.filter((season) => season.startYear === FIRST_YEAR + 1 && season.code in DIVISION_SIZES)).toHaveLength(10);
     expect(movements.flatMap((season) => (Array.isArray(season.movements) ? season.movements : []))).toHaveLength(26);
   });
 });
