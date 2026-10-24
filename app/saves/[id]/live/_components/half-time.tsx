@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
 import type { HalfTimeTeam } from "@/src/db/live-match";
-import { MAX_SUBSTITUTIONS } from "@/src/engine/balance";
 import { FORMATION_NAMES, FORMATIONS, isFormationName } from "@/src/engine/formations";
 import { ratingAt, type Position } from "@/src/engine/positions";
 import { cn } from "@/src/lib/utils";
@@ -34,11 +33,12 @@ const GHOST_OFFSET_PX = 14;
 type HalfTimeProps = {
   saveId: string;
   team: HalfTimeTeam;
-  onResumed: () => void; // the second half is played and saved: replay it
+  onResumed: () => void; // what follows the break is played and saved: replay it
 };
 
 /**
- * The managed club at the break: its eleven on the pitch (players injured in the first half in red, a sent-off
+ * The managed club at a break, half-time or the end of regulation time of a level cup tie (one more substitution
+ * then, before extra time): its eleven on the pitch (players injured in the first half in red, a sent-off
  * player's slot crossed out), its bench and its formation. A substitute dropped on a slot comes on, the player in the
  * slot goes off for good; starters moved between slots or another formation cost no substitution. The keyboard way
  * is the lineup page's: a slot, then a substitute or another slot.
@@ -48,7 +48,9 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
     injured: new Set(team.injured),
     sentOffSlots: new Set(team.sentOff.map((entry) => entry.slot)),
     substitutionsBefore: team.substitutions,
+    maxSubstitutions: team.maxSubstitutions,
   }));
+  const regulationEnd = team.phase === "REGULATION_END";
   const [state, setState] = useState<HalfTimeState>(() => ({
     formation: team.formation,
     starters: team.starters,
@@ -131,11 +133,12 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
   const injuredOnPitch = state.starters.filter((key): key is string => key !== null && rules.injured.has(key));
 
   return (
-    <Panel className="space-y-4" data-half-time>
+    <Panel className="space-y-4" data-half-time={team.phase}>
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-heading text-2xl font-bold">Mi-temps</h2>
-        <p data-substitutions className={cn("text-sm", made >= MAX_SUBSTITUTIONS ? "text-warning" : "text-muted-foreground")}>
-          Remplacements : {made}/{MAX_SUBSTITUTIONS}
+        <h2 className="font-heading text-2xl font-bold">{regulationEnd ? "Fin du temps réglementaire" : "Mi-temps"}</h2>
+        <p data-substitutions className={cn("text-sm", made >= team.maxSubstitutions ? "text-warning" : "text-muted-foreground")}>
+          Remplacements : {made}/{team.maxSubstitutions}
+          {regulationEnd && " · un de plus pour la prolongation"}
         </p>
         <label htmlFor="half-time-formation" className="eyebrow ml-auto">
           Dispositif
@@ -263,7 +266,13 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
         </Button>
         <Button variant="club" className="h-9 px-4 font-heading text-base font-semibold" disabled={pending} onClick={() => resume(true)}>
           <PlayIcon data-icon="inline-start" className="fill-current" />
-          {pending ? "Seconde période…" : "Reprendre la seconde période"}
+          {pending
+            ? regulationEnd
+              ? "Prolongation…"
+              : "Seconde période…"
+            : regulationEnd
+              ? "Jouer la prolongation"
+              : "Reprendre la seconde période"}
         </Button>
       </div>
 

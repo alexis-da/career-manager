@@ -1,4 +1,3 @@
-import { MAX_SUBSTITUTIONS } from "@/src/engine/balance";
 import { formationPositions, type FormationName } from "@/src/engine/formations";
 import { changeFormation, type LineupCandidate } from "@/src/engine/lineup";
 import { ratingAt } from "@/src/engine/positions";
@@ -12,11 +11,15 @@ export type HalfTimeState = {
   substitutions: { in: string; out: string }[];
 };
 
-/** What the half-time state cannot change: who is injured, which slots are a sent-off player's, the substitutions made. */
+/**
+ * What the break cannot change: who is injured, which slots are a sent-off player's, the substitutions made, and how
+ * many the match allows by the end of this break (one more at the end of regulation time, before extra time).
+ */
 export type HalfTimeRules = {
   injured: ReadonlySet<string>;
   sentOffSlots: ReadonlySet<number>;
   substitutionsBefore: number;
+  maxSubstitutions: number;
 };
 
 export type Move = { ok: true; state: HalfTimeState } | { ok: false; message: string };
@@ -56,8 +59,8 @@ export function substitute(state: HalfTimeState, rules: HalfTimeRules, slot: num
       },
     };
   }
-  if (substitutionsMade(state, rules) >= MAX_SUBSTITUTIONS) {
-    return { ok: false, message: `Plus de remplacement possible : ${MAX_SUBSTITUTIONS} sur ${MAX_SUBSTITUTIONS}.` };
+  if (substitutionsMade(state, rules) >= rules.maxSubstitutions) {
+    return { ok: false, message: `Plus de remplacement possible : ${rules.maxSubstitutions} sur ${rules.maxSubstitutions}.` };
   }
   return {
     ok: true,
@@ -149,7 +152,7 @@ export function halfTimeChoice<P extends LineupCandidate>(
         best = candidate;
       }
     }
-    if (best === undefined || rules.substitutionsBefore + substitutions.length >= MAX_SUBSTITUTIONS) {
+    if (best === undefined || rules.substitutionsBefore + substitutions.length >= rules.maxSubstitutions) {
       starters[slot] = null;
       return;
     }

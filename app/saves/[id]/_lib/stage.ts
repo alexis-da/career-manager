@@ -38,9 +38,9 @@ export function stageShortLabel(stage: Stage): string {
 
 /** How a played cup tie ended, beyond its score. */
 export type Decision = {
-  decidedBy: DecidedBy | null;
-  homePenalties: number | null;
-  awayPenalties: number | null;
+  decidedBy?: DecidedBy | null; // null in the database, absent from the engine's result of a league match
+  homePenalties?: number | null;
+  awayPenalties?: number | null;
 };
 
 /** « a.p. » after extra time (a shoot-out included), null otherwise. */
@@ -50,7 +50,7 @@ export function extraTimeNote(decision: Decision): string | null {
 
 /** « 5-3 t.a.b. », home first, after a shoot-out; null otherwise. */
 export function penaltiesNote(decision: Decision): string | null {
-  return decision.decidedBy === "PENALTIES" && decision.homePenalties !== null && decision.awayPenalties !== null
+  return decision.decidedBy === "PENALTIES" && decision.homePenalties != null && decision.awayPenalties != null
     ? `${decision.homePenalties}-${decision.awayPenalties} t.a.b.`
     : null;
 }
@@ -63,7 +63,7 @@ export function matchResultFor(
   match: Decision & { homeGoals: number; awayGoals: number },
   atHome: boolean,
 ): ResultKind {
-  const penalties = match.decidedBy === "PENALTIES" && match.homePenalties !== null && match.awayPenalties !== null;
+  const penalties = match.decidedBy === "PENALTIES" && match.homePenalties != null && match.awayPenalties != null;
   const [home, away] = penalties ? [match.homePenalties ?? 0, match.awayPenalties ?? 0] : [match.homeGoals, match.awayGoals];
   const [scored, conceded] = atHome ? [home, away] : [away, home];
   return scored > conceded ? "W" : scored < conceded ? "L" : "D";

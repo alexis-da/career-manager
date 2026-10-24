@@ -20,7 +20,7 @@ import {
   type SimulationPlan,
   type SimulationSummary,
 } from "@/src/db/simulation";
-import { MAX_SUBSTITUTIONS } from "@/src/engine/balance";
+import { EXTRA_TIME_SUBSTITUTIONS, MAX_SUBSTITUTIONS } from "@/src/engine/balance";
 import { HalfTimeChoiceError } from "@/src/engine/match";
 import { seasonLabel } from "@/src/engine/world";
 import { formatDate } from "@/src/lib/format";
@@ -119,13 +119,17 @@ const halfTimeChoiceSchema = z
       .max(11),
     substitutions: z
       .array(z.object({ in: z.string().min(1).max(100), out: z.string().min(1).max(100) }))
-      .max(MAX_SUBSTITUTIONS),
+      .max(MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS), // the engine checks the break's own limit
   })
   .nullable();
 
 export type HalfTimeChoiceInput = z.input<typeof halfTimeChoiceSchema>;
 
-/** Plays the second half of the managed club's match paused at half-time, with the manager's changes. */
+/**
+ * Plays on the managed club's match paused at a break, with the manager's changes: the second half from half-time
+ * (a level cup tie stopping again at the end of regulation time), extra time and the shoot-out from there. The replay
+ * page then shows what was just played: from 45' (?reprise=1), or from 90' (?reprise=2).
+ */
 export async function resumeMatch(saveId: string, choice: HalfTimeChoiceInput): Promise<GameActionResult> {
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   const parsed = halfTimeChoiceSchema.safeParse(choice);
@@ -133,14 +137,22 @@ export async function resumeMatch(saveId: string, choice: HalfTimeChoiceInput): 
     return { ok: false, message: `Changements invalides : ${MAX_SUBSTITUTIONS} remplacements au maximum, 11 postes.` };
   }
   try {
-    const { result } = await resumeLiveMatch(
+    const { from, result, score } = await resumeLiveMatch(
       id,
       parsed.data === null
         ? null
         : { formation: parsed.data.formation, starters: parsed.data.lineup, substitutions: parsed.data.substitutions },
     );
     revalidatePath(`/saves/${id}`, "layout");
-    return { ok: true, message: `Score final : ${result.homeGoals} – ${result.awayGoals}`, redirectTo: `/saves/${id}/live?reprise=1` };
+    const notes = result === null ? [] : [extraTimeNote(result), penaltiesNote(result)].filter((note) => note !== null);
+    return {
+      ok: true,
+      message:
+        result === null
+          ? `Fin du temps réglementaire : ${score.homeGoals} – ${score.awayGoals}, prolongation`
+          : `Score final : ${score.homeGoals} – ${score.awayGoals}${notes.map((note) => ` ${note}`).join(",")}`,
+      redirectTo: `/saves/${id}/live?reprise=${from === "HALF_TIME" ? 1 : 2}`,
+    };
   } catch (error) {
     if (error instanceof HalfTimeChoiceError) {
       return { ok: false, message: halfTimeRefusalMessage(error.issue) };

@@ -7,7 +7,7 @@ import type { prisma as prismaClient } from "./client";
 const TIE_DATE = new Date(Date.UTC(WORLD_START_YEAR, 7, 12)); // a Wednesday before the first matchday
 const OPPONENT_SLUG = "toulouse-fc";
 
-// A cup final of the managed club, stopped at half-time then resumed, on a throwaway twin of the demo save (a
+// A cup final of the managed club, stopped at half-time, then at the end of regulation time, then resumed, on a throwaway twin of the demo save (a
 // worldVersion 1 save, half as heavy as one with the cups, given a cup season and a tie by hand). With the demo's
 // seed, this tie is 1-1 after 90 minutes, 2-2 after extra time, and the managed club wins the shoot-out 5-3. Runs against
 // DATABASE_URL and is skipped without it; modules are imported lazily because the client throws without it.
@@ -18,6 +18,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
   let clubs = { managed: "", opponent: "" };
   let budgetsBefore = new Map<string, number>();
   let halfTimeKnockout: boolean | undefined;
+  // What the second half left: a level tie waiting for extra time.
+  let atRegulationEnd: { result: unknown; status: string; liveFixtureId: string | null; phase: string | null; maxSubstitutions: number | null } | undefined;
 
   const database = (): typeof prismaClient => {
     if (db === undefined) {
@@ -57,6 +59,19 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
     expect(day).toMatchObject({ fixtures: 1, managed: { fixtureId, halfTime: true } });
     const paused = await prisma.fixture.findUniqueOrThrow({ where: { id: fixtureId }, select: { liveState: true } });
     halfTimeKnockout = liveState.parseLiveState(fixtureId, paused.liveState).state.knockout;
+    const secondHalf = await live.resumeLiveMatch(saveId, null);
+    const [waiting, saveAtBreak, breakTeam] = await Promise.all([
+      prisma.fixture.findUniqueOrThrow({ where: { id: fixtureId }, select: { status: true } }),
+      prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true } }),
+      live.getHalfTimeTeam(saveId),
+    ]);
+    atRegulationEnd = {
+      result: secondHalf.result,
+      status: waiting.status,
+      liveFixtureId: saveAtBreak.liveFixtureId,
+      phase: breakTeam?.phase ?? null,
+      maxSubstitutions: breakTeam?.maxSubstitutions ?? null,
+    };
     await live.resumeLiveMatch(saveId, null);
   }, 300_000);
 
@@ -67,7 +82,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
     await db?.$disconnect();
   }, 120_000);
 
-  it("keeps the tie a knockout match across half-time, then plays extra time and the shoot-out", async () => {
+  it("keeps the tie a knockout match across half-time, waits at the end of regulation time, then plays extra time and the shoot-out", async () => {
     const fixture = await database().fixture.findUniqueOrThrow({
       where: { id: fixtureId },
       select: {
@@ -85,6 +100,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
     const extraTime = fixture.events.filter((event) => event.period === "EXTRA_TIME");
 
     expect(halfTimeKnockout).toBe(true);
+    expect(atRegulationEnd).toEqual({ result: null, status: "REGULATION_END", liveFixtureId: fixtureId, phase: "REGULATION_END", maxSubstitutions: 6 });
     expect(fixture).toMatchObject({
       status: "PLAYED",
       homeGoals: 2,

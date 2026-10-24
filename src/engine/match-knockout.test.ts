@@ -5,7 +5,23 @@ import { makeRng } from "../lib/rng";
 import { EXTRA_TIME_END_MINUTE, EXTRA_TIME_SUBSTITUTIONS, MAX_SUBSTITUTIONS, SHOOTOUT_KICKS } from "./balance";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "./generation";
 import { selectLineup, type Lineup } from "./lineup";
-import { cupMatchRngSeed, knockoutWinner, matchRngSeed, shootoutChance, simulateMatch, type MatchResult } from "./match";
+import {
+  applyAutomaticHalfTime,
+  applyHalfTimeChoice,
+  breakSubstitutionLimit,
+  cupMatchRngSeed,
+  finishKnockout,
+  halfRngSeed,
+  HalfTimeChoiceError,
+  knockoutWinner,
+  matchResult,
+  matchRngSeed,
+  shootoutChance,
+  simulateHalf,
+  simulateMatch,
+  startMatch,
+  type MatchResult,
+} from "./match";
 import { competitionTier } from "./tiers";
 import { WORLD_START_DATE } from "./world";
 
@@ -111,6 +127,56 @@ describe("knockout matches", () => {
 
   it("is the same for the same seed", () => {
     expect(knockout(7)).toEqual(results[7]);
+  });
+
+  it("stops a level tie at the end of regulation time, where a team may make one more substitution than at half-time", () => {
+    // The first seed of the 400 whose tie is level after 90 minutes, played as the live match plays it.
+    const index = results.findIndex((result) => result.decidedBy !== "REGULATION");
+    const seed = `knockout-test:${index}`;
+    const halfTime = simulateHalf(startMatch(HOME, AWAY, undefined, true), makeRng(halfRngSeed(seed, "h1")), "h1");
+    const regulationEnd = simulateHalf(applyAutomaticHalfTime(halfTime), makeRng(halfRngSeed(seed, "h2")), "h2");
+    expect(regulationEnd.phase).toBe("REGULATION_END");
+    expect(breakSubstitutionLimit(halfTime)).toBe(MAX_SUBSTITUTIONS);
+    expect(breakSubstitutionLimit(regulationEnd)).toBe(MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS);
+
+    // No change at the break: the very match played without a pause.
+    expect(matchResult(finishKnockout(regulationEnd, seed))).toEqual(results[index]);
+
+    // A substitution at the break: on at 91', in extra time; the player going off leaves at 90'.
+    const team = regulationEnd.home;
+    const [incoming] = team.bench;
+    const leaving = team.pitch.find((entry) => entry.status === "ON" && entry.slot !== "GK");
+    if (incoming === undefined || leaving === undefined) {
+      throw new Error("No substitution possible in this match");
+    }
+    const starters = team.pitch
+      .filter((entry) => entry.status === "ON")
+      .map((entry) => ({ slot: entry.index, playerKey: entry === leaving ? incoming.id : entry.player.id }));
+    const changed = applyHalfTimeChoice(regulationEnd, "home", {
+      formation: team.formation,
+      starters,
+      substitutions: [{ in: incoming.id, out: leaving.player.id }],
+    });
+    expect(changed.events.at(-1)).toEqual({
+      minute: 91,
+      side: "home",
+      type: "SUBSTITUTION",
+      playerId: incoming.id,
+      relatedPlayerId: leaving.player.id,
+      period: "EXTRA_TIME",
+    });
+    const played = matchResult(finishKnockout(changed, seed));
+    expect(played.appearances.find((appearance) => appearance.playerId === leaving.player.id)?.to).toBe(90);
+    expect(played.appearances.find((appearance) => appearance.playerId === incoming.id)?.minutes).toBe(30);
+
+    // Beyond the break's limit, and at no other phase.
+    const tooMany = { ...regulationEnd, home: { ...team, substitutions: MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS } };
+    expect(() =>
+      applyHalfTimeChoice(tooMany, "home", { formation: team.formation, starters, substitutions: [{ in: incoming.id, out: leaving.player.id }] }),
+    ).toThrow(HalfTimeChoiceError);
+    expect(() => applyHalfTimeChoice(finishKnockout(regulationEnd, seed), "home", { formation: team.formation, starters, substitutions: [] })).toThrow(
+      HalfTimeChoiceError,
+    );
   });
 
   it("gives a cup tie a seed of its own, apart from the league match of the same round", () => {

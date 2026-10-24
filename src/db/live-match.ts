@@ -1,12 +1,15 @@
 import {
   applyHalfTimeChoice,
   automaticHalfTimeChoice,
+  breakSubstitutionLimit,
   finishKnockout,
   halfRngSeed,
   matchResult,
+  scoreOf,
   simulateHalf,
   type HalfTimeChoice,
   type MatchResult,
+  type MatchState,
 } from "../engine/match";
 import { formationPositions, type FormationName } from "../engine/formations";
 import { clubColorsOf, type ClubColors } from "../lib/color";
@@ -16,11 +19,12 @@ import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
 import type { LineupPlayer } from "./lineup";
-import { parseLiveState } from "./live-state";
+import { parseLiveState, serializeLiveState } from "./live-state";
 import {
   FIXTURE_SEASON_SELECT,
   fixtureMatchSeed,
   isKnockout,
+  matchEventRows,
   PLAYER_SELECT,
   recordFinishedMatches,
   squadsOf,
@@ -30,13 +34,21 @@ import {
 
 export class NoMatchInProgressError extends Error {
   constructor(saveId: string) {
-    super(`Save ${saveId} has no match paused at half-time`);
+    super(`Save ${saveId} has no match paused at a break`);
     this.name = "NoMatchInProgressError";
   }
 }
 
-/** The managed club at half-time, as the half-time screen shows it. */
+/** The breaks a managed club's match waits at: half-time, and the end of regulation time of a level cup tie. */
+export type MatchBreak = "HALF_TIME" | "REGULATION_END";
+
+/** Statuses of a fixture paused at a break. */
+const PAUSED_STATUSES: MatchBreak[] = ["HALF_TIME", "REGULATION_END"];
+
+/** The managed club at a break, as the half-time (or end of regulation time) screen shows it. */
 export type HalfTimeTeam = {
+  phase: MatchBreak;
+  maxSubstitutions: number; // in the whole match: one more before extra time (breakSubstitutionLimit)
   formation: FormationName;
   starters: (string | null)[]; // player key per slot: on the pitch, or injured in the first half and still in his slot
   injured: string[]; // injured in the first half: off the pitch, to replace
@@ -47,14 +59,14 @@ export type HalfTimeTeam = {
   clubColors: ClubColors;
 };
 
-/** The managed club's side of its match paused at half-time, or null when no match waits. */
+/** The managed club's side of its match paused at a break, or null when no match waits. */
 export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | null> {
   const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, currentDate: true } });
   if (save.liveFixtureId === null) {
     return null;
   }
   const fixture = await prisma.fixture.findFirst({
-    where: { id: save.liveFixtureId, saveId, status: "HALF_TIME" },
+    where: { id: save.liveFixtureId, saveId, status: { in: PAUSED_STATUSES } },
     select: { id: true, liveState: true },
   });
   if (fixture === null) {
@@ -82,6 +94,8 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
     }
   }
   return {
+    phase: state.phase === "REGULATION_END" ? "REGULATION_END" : "HALF_TIME",
+    maxSubstitutions: breakSubstitutionLimit(state),
     formation: team.formation,
     starters,
     injured: [...injured],
@@ -110,16 +124,21 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
 
 export type ResumedMatch = {
   fixtureId: string;
-  result: MatchResult;
+  from: MatchBreak; // the break the match resumed from
+  result: MatchResult | null; // null: a cup tie level after 90 minutes, now waiting at the end of regulation time
+  score: { homeGoals: number; awayGoals: number };
 };
 
 /**
- * Plays the second half of the managed club's match paused at half-time, in one transaction: the manager's
- * half-time choice (null: the automatic changes, as an AI club makes them) and the opponent's automatic changes,
- * then the second half with its own stream, so the same choices always give the same match; a cup tie level after 90
- * minutes goes on to extra time and a shoot-out, played at once. Writes the second half's events (half-time
- * substitutions at 46') and what follows, the final score, season stats, form and injuries, then clears
- * the live state and Save.liveFixtureId. An invalid choice throws HalfTimeChoiceError and writes nothing.
+ * Plays on the managed club's match paused at a break, in one transaction.
+ * - At half-time: the manager's choice (null: the automatic changes, as an AI club makes them) and the opponent's
+ *   automatic changes, then the second half with its own stream. A cup tie level after 90 minutes stops again at the
+ *   end of regulation time: its second half's events and the engine state are written, the save still waits.
+ * - At the end of regulation time: the manager's choice only (null: no change, and the opponent never changes here, as
+ *   in a cup tie played without a pause), then extra time and the shoot-out (finishKnockout).
+ * The same choices always give the same match. Once over: the events not written yet, the final score, the cup tie's
+ * winner, season stats, form and injuries, the cups' prizes and draws, then the live state and Save.liveFixtureId
+ * are cleared. An invalid choice throws HalfTimeChoiceError and writes nothing.
  */
 export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | null): Promise<ResumedMatch> {
   return prisma.$transaction(
@@ -130,7 +149,7 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
       }
       const clubSelect = { select: { club: { select: { slug: true } } } } as const;
       const fixture = await tx.fixture.findFirst({
-        where: { id: save.liveFixtureId, saveId, status: "HALF_TIME" },
+        where: { id: save.liveFixtureId, saveId, status: { in: PAUSED_STATUSES } },
         select: {
           id: true,
           round: true,
@@ -145,20 +164,24 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
         },
       });
       if (fixture === null) {
-        throw new Error(`Save ${saveId} points to fixture ${save.liveFixtureId}, which is not paused at half-time`);
+        throw new Error(`Save ${saveId} points to fixture ${save.liveFixtureId}, which is not paused at a break`);
       }
 
-      const { managedSide, state: halfTime } = parseLiveState(fixture.id, fixture.liveState);
+      const { managedSide, state: paused } = parseLiveState(fixture.id, fixture.liveState);
       const opponentSide = managedSide === "home" ? "away" : "home";
-      let state = applyHalfTimeChoice(halfTime, managedSide, choice ?? automaticHalfTimeChoice(halfTime, managedSide));
-      state = applyHalfTimeChoice(state, opponentSide, automaticHalfTimeChoice(state, opponentSide));
       const matchSeed = fixtureMatchSeed(save.seed, fixture);
-      state = finishKnockout(simulateHalf(state, makeRng(halfRngSeed(matchSeed, "h2")), "h2"), matchSeed);
-      const result = matchResult(state);
+      let state: MatchState;
+      if (paused.phase === "HALF_TIME") {
+        state = applyHalfTimeChoice(paused, managedSide, choice ?? automaticHalfTimeChoice(paused, managedSide));
+        state = applyHalfTimeChoice(state, opponentSide, automaticHalfTimeChoice(state, opponentSide));
+        state = simulateHalf(state, makeRng(halfRngSeed(matchSeed, "h2")), "h2");
+      } else {
+        state = choice === null ? paused : applyHalfTimeChoice(paused, managedSide, choice);
+      }
 
       // The clubs' current players, whose form and injuries change, and anyone of the match who has left since.
-      const matchKeys = [...halfTime.home.pitch, ...halfTime.away.pitch].map((entry) => entry.player.id);
-      const benchKeys = [...halfTime.home.bench, ...halfTime.away.bench].map((player) => player.id);
+      const matchKeys = [...paused.home.pitch, ...paused.away.pitch].map((entry) => entry.player.id);
+      const benchKeys = [...paused.home.bench, ...paused.away.bench].map((player) => player.id);
       const rows = await tx.playerSave.findMany({
         where: {
           saveId,
@@ -171,6 +194,23 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
       });
       const { squads, stateByKey } = squadsOf(rows, fixture.scheduledAt);
 
+      if (state.phase === "REGULATION_END" && paused.phase === "HALF_TIME") {
+        const updated = await tx.fixture.updateMany({
+          where: { id: fixture.id, saveId, status: "HALF_TIME" },
+          data: { status: "REGULATION_END", liveState: serializeLiveState({ managedSide, state }) },
+        });
+        if (updated.count !== 1) {
+          throw new Error(`Fixture ${fixture.id} could not wait for extra time`);
+        }
+        const events = matchEventRows(fixture.id, state.events.slice(paused.events.length), stateByKey);
+        if (events.length > 0) {
+          await tx.matchEvent.createMany({ data: events });
+        }
+        return { fixtureId: fixture.id, from: paused.phase, result: null, score: scoreOf(state) };
+      }
+
+      state = finishKnockout(state, matchSeed);
+      const result = matchResult(state);
       await recordFinishedMatches(
         tx,
         saveId,
@@ -180,7 +220,7 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
             fixtureId: fixture.id,
             seasonId: fixture.seasonId,
             result,
-            newEvents: result.events.slice(halfTime.events.length),
+            newEvents: result.events.slice(paused.events.length),
             managedSide,
             knockout: isKnockout(fixture.season),
             squads: {
@@ -194,7 +234,12 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
       // A cup tie: its prize, and the next round once it was the round's last tie.
       await progressCups(tx, saveId, save.seed, [fixture.id]);
       await tx.save.update({ where: { id: saveId }, data: { liveFixtureId: null } });
-      return { fixtureId: fixture.id, result };
+      return {
+        fixtureId: fixture.id,
+        from: paused.phase === "REGULATION_END" ? "REGULATION_END" : "HALF_TIME",
+        result,
+        score: { homeGoals: result.homeGoals, awayGoals: result.awayGoals },
+      };
     },
     { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS },
   );

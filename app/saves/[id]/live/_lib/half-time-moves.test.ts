@@ -23,6 +23,7 @@ const rules = (overrides: Partial<HalfTimeRules> = {}): HalfTimeRules => ({
   injured: new Set(),
   sentOffSlots: new Set(),
   substitutionsBefore: 0,
+  maxSubstitutions: MAX_SUBSTITUTIONS,
   ...overrides,
 });
 

@@ -224,7 +224,7 @@ model Fixture {
   awayPenalties     Int?
   winnerClubSave    ClubSave?     @relation("WonFixtures", fields: [winnerClubSaveId], references: [id], onDelete: Cascade)
   winnerClubSaveId  String? // qualifié d'un match de coupe joué ; null en championnat
-  liveState         Json? // état du moteur à la mi-temps pendant HALF_TIME (validé par Zod, src/db/live-match.ts), null sinon
+  liveState         Json? // état du moteur pendant HALF_TIME ou REGULATION_END (validé par Zod, src/db/live-state.ts), null sinon
   events            MatchEvent[]
 
   @@index([saveId, seasonId, round])
@@ -345,6 +345,7 @@ enum UserKind {
 enum FixtureStatus {
   SCHEDULED
   HALF_TIME // première période jouée, le match du club dirigé attend la seconde (Save.liveFixtureId)
+  REGULATION_END // match de coupe du club dirigé à égalité après 90 minutes : il attend la prolongation (Save.liveFixtureId)
   PLAYED
 }
 

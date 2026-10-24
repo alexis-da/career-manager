@@ -115,7 +115,8 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
           {fixture.home.name} {score} {fixture.away.name}
         </DialogTitle>
         <DialogDescription className="eyebrow text-center">
-          {fixture.competitionName} · {stageLabel(fixture)} · {formatDate(fixture.scheduledAt)}
+          {fixture.cup ? "" : `${fixture.competitionName} · `}
+          {stageLabel(fixture)} · {formatDate(fixture.scheduledAt)}
         </DialogDescription>
 
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">

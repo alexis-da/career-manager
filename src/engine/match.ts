@@ -633,6 +633,14 @@ export function sentOffSlots(team: TeamLive): Set<number> {
 }
 
 /**
+ * Substitutions a team may have made by the end of a break: MAX_SUBSTITUTIONS at half-time, one more
+ * (EXTRA_TIME_SUBSTITUTIONS) at the end of regulation time before extra time.
+ */
+export function breakSubstitutionLimit(state: MatchState): number {
+  return state.phase === "REGULATION_END" ? MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS : MAX_SUBSTITUTIONS;
+}
+
+/**
  * The half-time changes of a club that does not choose: each player injured in the first half is replaced, in
  * slot order, by the substitute rated best in his slot (ratingAt), while substitutions remain. Nobody else
  * changes, and a sent-off player is never replaced.
@@ -640,13 +648,14 @@ export function sentOffSlots(team: TeamLive): Set<number> {
 export function automaticHalfTimeChoice(state: MatchState, side: Side): HalfTimeChoice {
   const team = state[side];
   const bench = [...team.bench];
+  const limit = breakSubstitutionLimit(state);
   let substitutions = team.substitutions;
   const starters: HalfTimeChoice["starters"] = [];
   const changes: HalfTimeChoice["substitutions"] = [];
   for (const entry of [...team.pitch].sort((a, b) => a.index - b.index)) {
     if (entry.status === "ON") {
       starters.push({ slot: entry.index, playerKey: entry.player.id });
-    } else if (entry.status === "INJURED" && substitutions < MAX_SUBSTITUTIONS && bench.length > 0) {
+    } else if (entry.status === "INJURED" && substitutions < limit && bench.length > 0) {
       const [player] = bench.splice(replacementIndex(bench, entry.slot), 1);
       substitutions++;
       changes.push({ in: player.id, out: entry.player.id });
@@ -657,19 +666,23 @@ export function automaticHalfTimeChoice(state: MatchState, side: Side): HalfTime
 }
 
 /**
- * Applies a team's half-time choice: the substitutions, dated HALF_TIME_MINUTE + 1, the players going off leaving
- * at HALF_TIME_MINUTE (an injured one already left), then the formation and slots, moving players between slots
- * being free. Refused with a HalfTimeChoiceError when the choice breaks a rule: at most MAX_SUBSTITUTIONS in the
- * match, a player who went off never comes back, a sent-off player is not replaced and his slot stays empty, the
- * eleven is exactly the players on the pitch after the substitutions, and no slot stays empty while a substitution
- * and a substitute remain.
+ * Applies a team's choice at a break, half-time or the end of regulation time before extra time: the
+ * substitutions, dated the minute after the break (46', or 91' in extra time), the players going off leaving at the
+ * break (an injured one already left), then the formation and slots, moving players between slots being free.
+ * Refused with a HalfTimeChoiceError when the choice breaks a rule: at most breakSubstitutionLimit in the match, a
+ * player who went off never comes back, a sent-off player is not replaced and his slot stays empty, the eleven is
+ * exactly the players on the pitch after the substitutions, and no slot stays empty while a substitution and a
+ * substitute remain.
  */
 export function applyHalfTimeChoice(start: MatchState, side: Side, choice: HalfTimeChoice): MatchState {
-  if (start.phase !== "HALF_TIME") {
+  const regulationEnd = start.phase === "REGULATION_END";
+  if (start.phase !== "HALF_TIME" && !regulationEnd) {
     throw new HalfTimeChoiceError("not-half-time");
   }
+  const limit = breakSubstitutionLimit(start);
+  const breakMinute = regulationEnd ? REGULATION_MINUTES : HALF_TIME_MINUTE;
   const team = start[side];
-  if (team.substitutions + choice.substitutions.length > MAX_SUBSTITUTIONS) {
+  if (team.substitutions + choice.substitutions.length > limit) {
     throw new HalfTimeChoiceError("too-many-substitutions");
   }
 
@@ -728,20 +741,21 @@ export function applyHalfTimeChoice(start: MatchState, side: Side, choice: HalfT
   if (placed.size !== playing.size) {
     throw new HalfTimeChoiceError("lineup-mismatch");
   }
-  const substitutionsLeft = MAX_SUBSTITUTIONS - team.substitutions - choice.substitutions.length;
+  const substitutionsLeft = limit - team.substitutions - choice.substitutions.length;
   const substitutesLeft = team.bench.length - comingOn.size;
   if (placed.size < positions.length - barred.size && substitutionsLeft > 0 && substitutesLeft > 0) {
     throw new HalfTimeChoiceError("incomplete-lineup");
   }
 
   const state = cloneState(start);
-  const kickOff = HALF_TIME_MINUTE + 1;
+  const kickOff = breakMinute + 1;
   for (const substitution of choice.substitutions) {
     const leaving = entryOf.get(substitution.out);
     if (leaving?.status === "ON") {
-      state.appearances.push(toAppearance(leaving, side, HALF_TIME_MINUTE));
+      state.appearances.push(toAppearance(leaving, side, breakMinute));
     }
-    state.events.push({ minute: kickOff, side, type: "SUBSTITUTION", playerId: substitution.in, relatedPlayerId: substitution.out });
+    const event: MatchEvent = { minute: kickOff, side, type: "SUBSTITUTION", playerId: substitution.in, relatedPlayerId: substitution.out };
+    state.events.push(regulationEnd ? { ...event, period: "EXTRA_TIME" } : event);
   }
 
   const pitch: PitchEntry[] = team.pitch
@@ -754,7 +768,7 @@ export function applyHalfTimeChoice(start: MatchState, side: Side, choice: HalfT
     if (player === undefined) {
       throw new HalfTimeChoiceError("lineup-mismatch"); // unreachable: every placed player is playing
     }
-    const from = comingOn.has(playerKey) ? HALF_TIME_MINUTE : (current?.from ?? 0);
+    const from = comingOn.has(playerKey) ? breakMinute : (current?.from ?? 0);
     pitch.push({ index: slot, slot: positions[slot], player, from, status: "ON" });
   }
   pitch.sort((a, b) => a.index - b.index);

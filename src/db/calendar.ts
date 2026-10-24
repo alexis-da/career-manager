@@ -172,11 +172,13 @@ export async function getManagedClubFixtureOn(saveId: string, date: Date): Promi
 }
 
 /** A match of the same competition and day, with the minute and side of its goals to replay its score. */
-export type ScoreTimeline = FixtureView & { goals: { id: string; minute: number; side: Side }[] };
+export type ScoreTimeline = FixtureView & { goals: { id: string; minute: number; period: MatchEventView["period"]; side: Side }[] };
 
 export type LiveMatchday = {
   match: FixtureWithEvents;
-  halfTime: boolean; // the match waits at half-time: its events stop at 45' and its score is the half-time one
+  // The break the match waits at: half-time (its events stop at 45'), or the end of regulation time of a level cup
+  // tie (they stop at the final whistle of the 90 minutes); null once played.
+  pause: "HALF_TIME" | "REGULATION_END" | null;
   others: ScoreTimeline[];
 };
 
@@ -188,7 +190,12 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
   const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
   const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
   const row = await prisma.fixture.findFirst({
-    where: { saveId, scheduledAt: save.currentDate, status: { in: ["PLAYED", "HALF_TIME"] }, ...involving(managed.id) },
+    where: {
+      saveId,
+      scheduledAt: save.currentDate,
+      status: { in: ["PLAYED", "HALF_TIME", "REGULATION_END"] },
+      ...involving(managed.id),
+    },
     select: { ...FIXTURE_SELECT, seasonId: true, status: true, events: EVENTS_SELECT },
   });
   if (row === null) {
@@ -199,19 +206,24 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
     where: { saveId, seasonId: row.seasonId, scheduledAt: save.currentDate, played: true, id: { not: row.id } },
     select: {
       ...FIXTURE_SELECT,
-      events: { where: { type: "GOAL" }, orderBy: EVENTS_SELECT.orderBy, select: { id: true, minute: true, side: true } },
+      events: { where: { type: "GOAL" }, orderBy: EVENTS_SELECT.orderBy, select: { id: true, minute: true, period: true, side: true } },
     },
   });
 
   const { events, status, ...fixture } = row;
   return {
     match: { ...toFixtureView(fixture), events: events.map(toEventView(fixture.scheduledAt)) },
-    halfTime: status === "HALF_TIME",
+    pause: status === "HALF_TIME" || status === "REGULATION_END" ? status : null,
     // By home club, in the names shown: the database only knows the real ones.
     others: others
       .map(({ events: goals, ...other }): ScoreTimeline => ({
         ...toFixtureView(other),
-        goals: goals.map((goal) => ({ id: goal.id, minute: goal.minute, side: goal.side === "HOME" ? "home" : "away" })),
+        goals: goals.map((goal) => ({
+          id: goal.id,
+          minute: goal.minute,
+          period: goal.period,
+          side: goal.side === "HOME" ? "home" : "away",
+        })),
       }))
       .sort((a, b) => a.home.name.localeCompare(b.home.name, "fr")),
   };

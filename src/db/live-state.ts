@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { MAX_SUBSTITUTIONS } from "../engine/balance";
+import { EXTRA_TIME_SUBSTITUTIONS, MAX_SUBSTITUTIONS } from "../engine/balance";
 import { FORMATION_NAMES } from "../engine/formations";
 import type { MatchState, Side } from "../engine/match";
 import { POSITIONS } from "../engine/positions";
@@ -43,14 +43,15 @@ const teamSchema = z.object({
     )
     .max(SLOT_COUNT),
   bench: z.array(squadPlayerSchema).max(50),
-  substitutions: z.number().int().min(0).max(MAX_SUBSTITUTIONS),
+  substitutions: z.number().int().min(0).max(MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS),
   booked: z.array(playerKey),
   goals: z.number().int().min(0),
 });
 
 const matchStateSchema = z.object({
-  phase: z.enum(["KICK_OFF", "HALF_TIME", "FULL_TIME"]),
+  phase: z.enum(["KICK_OFF", "HALF_TIME", "REGULATION_END", "FULL_TIME"]),
   knockout: z.literal(true).optional(), // a cup tie: level after 90 minutes, extra time and a shoot-out follow
+  regulationTime: minute.optional(), // a cup tie paused at the end of regulation time: the minute the 90 ended at
   fullTime: minute.nullable(),
   home: teamSchema,
   away: teamSchema,
@@ -69,7 +70,10 @@ const matchStateSchema = z.object({
   injuries: z.array(z.object({ playerId: playerKey, side, days: z.number().int().min(0) })),
 });
 
-/** Shape of Fixture.liveState: the engine state of the managed club's match at half-time, and the club's side. */
+/**
+ * Shape of Fixture.liveState: the engine state of the managed club's match at a break (half-time, or the end of
+ * regulation time of a cup tie level after 90 minutes), and the club's side.
+ */
 const liveStateSchema = z.object({
   version: z.literal(1),
   managedSide: side,
@@ -98,7 +102,7 @@ export function parseLiveState(fixtureId: string, value: unknown): LiveState {
     throw new InvalidLiveStateError(fixtureId, parsed.error);
   }
   const { managedSide, state } = parsed.data;
-  if (state.phase !== "HALF_TIME") {
+  if (state.phase !== "HALF_TIME" && state.phase !== "REGULATION_END") {
     throw new InvalidLiveStateError(fixtureId, new Error(`phase ${state.phase}`));
   }
   return { managedSide, state };
