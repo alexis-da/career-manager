@@ -325,6 +325,34 @@ export const SUBSTITUTIONS_PER_TEAM = 3;
 export const SUBSTITUTION_MINUTE_MIN = 55;
 export const SUBSTITUTION_MINUTE_MAX = 85;
 
+// ------------------------------------------------------------------ Knockout matches: extra time and shoot-out
+
+/** A knockout match level after 90 minutes plays two periods of extra time, 91' to 105' and 106' to 120'. */
+export const EXTRA_TIME_PERIOD_MINUTES = 15;
+export const EXTRA_TIME_END_MINUTE = REGULATION_MINUTES + 2 * EXTRA_TIME_PERIOD_MINUTES;
+
+/**
+ * Goals in extra time, against the same minutes of a regular match. At 1, as many as in regular time: with some 21 %
+ * of cup ties level after 90 minutes, about half of them stay level and 10 % go to a shoot-out (measured at 0.8:
+ * 11.5 %; at 1.2: 9.2 %). Pinned in match-cup.slow.test.ts.
+ */
+export const EXTRA_TIME_INTENSITY = 1;
+
+/** One more substitution in extra time, and the tactical change each team makes with it in its first period. */
+export const EXTRA_TIME_SUBSTITUTIONS = 1;
+
+/**
+ * Shoot-out: five kicks each, then one each until one side misses; a kick's chance is SHOOTOUT_BASE_CHANCE, moved by
+ * the kicker's shooting and the goalkeeper's goalkeeping away from SHOOTOUT_REFERENCE_RATING, within the bounds.
+ */
+export const SHOOTOUT_KICKS = 5;
+export const SHOOTOUT_BASE_CHANCE = 0.75;
+export const SHOOTOUT_REFERENCE_RATING = 70;
+export const SHOOTOUT_KICKER_FACTOR = 0.004; // per point of shooting
+export const SHOOTOUT_KEEPER_FACTOR = 0.004; // per point of goalkeeping
+export const SHOOTOUT_MIN_CHANCE = 0.55;
+export const SHOOTOUT_MAX_CHANCE = 0.9;
+
 // ------------------------------------------------------------------ Match events kept in the database
 
 /**

@@ -10,6 +10,10 @@ import {
   CONDITION_NEUTRAL,
   DEFENSE_LINE_WEIGHTS,
   DEFENSE_WEIGHTS,
+  EXTRA_TIME_END_MINUTE,
+  EXTRA_TIME_INTENSITY,
+  EXTRA_TIME_PERIOD_MINUTES,
+  EXTRA_TIME_SUBSTITUTIONS,
   FORM_BY_OUTCOME,
   FORM_PER_ASSIST,
   FORM_PER_GOAL,
@@ -27,6 +31,13 @@ import {
   RED_CARDS_PER_TEAM,
   REGULATION_MINUTES,
   SCORER_SLOT_WEIGHTS,
+  SHOOTOUT_BASE_CHANCE,
+  SHOOTOUT_KEEPER_FACTOR,
+  SHOOTOUT_KICKER_FACTOR,
+  SHOOTOUT_KICKS,
+  SHOOTOUT_MAX_CHANCE,
+  SHOOTOUT_MIN_CHANCE,
+  SHOOTOUT_REFERENCE_RATING,
   STRENGTH_EXPONENT,
   STRENGTH_PER_FORM_POINT,
   STRENGTH_PER_MORALE_POINT,
@@ -44,15 +55,29 @@ export type Side = "home" | "away";
 
 export type Outcome = "win" | "draw" | "loss";
 
-export type MatchEventType = "GOAL" | "YELLOW_CARD" | "RED_CARD" | "INJURY" | "SUBSTITUTION";
+export type MatchEventType =
+  | "GOAL"
+  | "YELLOW_CARD"
+  | "RED_CARD"
+  | "INJURY"
+  | "SUBSTITUTION"
+  | "SHOOTOUT_GOAL"
+  | "SHOOTOUT_MISS";
+
+/** Where an event of a knockout match happened past regular time; absent for regular time, stoppage time included. */
+export type EventPeriod = "EXTRA_TIME" | "SHOOTOUT";
 
 export type MatchEvent = {
-  minute: number; // 1–90, above 90 in stoppage time
+  minute: number; // 1–90, above 90 in stoppage time; 91–120 in extra time; the kick's number in a shoot-out
   side: Side;
   type: MatchEventType;
-  playerId: string; // GOAL: the scorer; SUBSTITUTION: the player coming on
-  relatedPlayerId?: string; // GOAL: the assist provider, if any; SUBSTITUTION: the player going off
+  playerId: string; // GOAL: the scorer; SUBSTITUTION: the player coming on; SHOOTOUT_*: the kicker
+  relatedPlayerId?: string; // GOAL: the assist provider, if any; SUBSTITUTION: the player going off; SHOOTOUT_*: the goalkeeper
+  period?: EventPeriod;
 };
+
+/** How a knockout match was won: in 90 minutes, in extra time, or in a shoot-out. */
+export type DecidedBy = "REGULATION" | "EXTRA_TIME" | "PENALTIES";
 
 export type Appearance = {
   playerId: string;
@@ -74,10 +99,14 @@ export type MatchResult = {
   awayGoals: number;
   homeHalfTimeGoals: number;
   awayHalfTimeGoals: number;
-  fullTime: number; // minute of the final whistle, stoppage time included
+  fullTime: number; // minute of the final whistle, stoppage time included; 120 after extra time
   events: MatchEvent[]; // in chronological order
   appearances: Appearance[]; // one per player who took part
   injuries: Injury[];
+  // A knockout match only: how it was decided, and the shoot-out's score when there was one.
+  decidedBy?: DecidedBy;
+  homePenalties?: number;
+  awayPenalties?: number;
 };
 
 export type TeamStrength = {
@@ -95,10 +124,20 @@ export type PlayerMatchStats = {
   redCards: number;
 };
 
-/** A half of a match: the first from 1' to 45', the second from 46' to the final whistle. */
-export type Period = "h1" | "h2";
+/**
+ * A period of play: the first half from 1' to 45', the second from 46' to the final whistle; in a knockout match level
+ * after 90 minutes, the two periods of extra time, 91' to 105' and 106' to 120'.
+ */
+export type Period = "h1" | "h2" | "e1" | "e2";
 
-export type MatchPhase = "KICK_OFF" | "HALF_TIME" | "FULL_TIME";
+/** A knockout match level after extra time ends in a shoot-out, with a stream of its own. */
+export type RngPhase = Period | "shootout";
+
+/**
+ * Where a match stands. REGULATION_END: a knockout match level after 90 minutes, before extra time; EXTRA_TIME_BREAK:
+ * between its two periods; SHOOTOUT: level after 120 minutes, before the shoot-out. A league match never sees them.
+ */
+export type MatchPhase = "KICK_OFF" | "HALF_TIME" | "REGULATION_END" | "EXTRA_TIME_BREAK" | "SHOOTOUT" | "FULL_TIME";
 
 /**
  * A player in a slot of the formation. INJURED and SENT_OFF keep the player who left the slot, for the half-time
@@ -130,6 +169,10 @@ export type MatchState = {
   events: MatchEvent[]; // in chronological order
   appearances: Appearance[]; // of the players who already went off
   injuries: Injury[];
+  // A knockout match only (cup): it cannot end level. Absent from a league match, whose state is unchanged.
+  knockout?: true;
+  regulationTime?: number; // minute the 90 minutes ended at, stoppage time included, when extra time followed
+  penalties?: Record<Side, number>; // the shoot-out's score
 };
 
 /** A team's half-time decisions: its formation, who plays in which slot, and the substitutions made. */
@@ -187,8 +230,19 @@ export function matchRngSeed(
   return `${saveSeed}:match:${startYear}:${round}:${homeSlug}:${awaySlug}`;
 }
 
-/** Seed of one half: each half has its own stream, so the second half replays from the half-time state alone. */
-export function halfRngSeed(matchSeed: string, period: Period): string {
+/**
+ * Seed of a cup match: a key of its own, so that a cup tie never replays the league match of the same round between
+ * the same clubs.
+ */
+export function cupMatchRngSeed(saveSeed: string, startYear: number, round: number, homeSlug: string, awaySlug: string): string {
+  return `${saveSeed}:cup:${startYear}:${round}:${homeSlug}:${awaySlug}`;
+}
+
+/**
+ * Seed of one period: each has its own stream, so a period replays from the state before it alone. The extra time
+ * periods (e1, e2) and the shoot-out add streams of their own after the second half's, which never changes.
+ */
+export function halfRngSeed(matchSeed: string, period: RngPhase): string {
   return `${matchSeed}:${period}`;
 }
 
@@ -271,13 +325,17 @@ function startingTeam(lineup: Lineup, formation: FormationName): TeamLive {
   };
 }
 
-/** A match before kick-off; both lineups are in the 4-3-3 of AI clubs unless told otherwise. */
+/**
+ * A match before kick-off; both lineups are in the 4-3-3 of AI clubs unless told otherwise. A knockout match (cup)
+ * cannot end level: extra time, then a shoot-out.
+ */
 export function startMatch(
   home: Lineup,
   away: Lineup,
   formations: Readonly<Record<Side, FormationName>> = { home: DEFAULT_FORMATION_NAME, away: DEFAULT_FORMATION_NAME },
+  knockout: boolean = false,
 ): MatchState {
-  return {
+  const state: MatchState = {
     phase: "KICK_OFF",
     fullTime: null,
     home: startingTeam(home, formations.home),
@@ -286,6 +344,7 @@ export function startMatch(
     appearances: [],
     injuries: [],
   };
+  return knockout ? { ...state, knockout: true } : state;
 }
 
 function compareIncidents(a: Incident, b: Incident): number {
@@ -335,14 +394,18 @@ function replacementIndex(bench: readonly SquadPlayer[], slot: Position): number
   return best;
 }
 
-function toAppearance(entry: PitchEntry, side: Side, to: number): Appearance {
+/**
+ * A player's time on the pitch, stoppage time excluded: minutes count up to the 90th, or up to the 120th when he played
+ * in extra time (lastCountedMinute).
+ */
+function toAppearance(entry: PitchEntry, side: Side, to: number, lastCountedMinute: number = REGULATION_MINUTES): Appearance {
   return {
     playerId: entry.player.id,
     side,
     slot: entry.slot,
     from: entry.from,
     to,
-    minutes: Math.max(1, Math.min(to, REGULATION_MINUTES) - Math.min(entry.from, REGULATION_MINUTES)),
+    minutes: Math.max(1, Math.min(to, lastCountedMinute) - Math.min(entry.from, lastCountedMinute)),
   };
 }
 
@@ -374,10 +437,14 @@ const onPitch = (team: TeamLive): PitchEntry[] => team.pitch.filter((entry) => e
  * never replaced.
  */
 export function simulateHalf(start: MatchState, rng: Rng, period: Period): MatchState {
-  const expectedPhase: MatchPhase = period === "h1" ? "KICK_OFF" : "HALF_TIME";
-  if (start.phase !== expectedPhase) {
-    throw new Error(`Cannot play the ${period} half of a match at ${start.phase}`);
+  if (start.phase !== PHASE_BEFORE[period]) {
+    throw new Error(`Cannot play the ${period} period of a match at ${start.phase}`);
   }
+  const extraTime = period === "e1" || period === "e2";
+  const substitutionLimit = extraTime ? MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS : MAX_SUBSTITUTIONS;
+  const lastCounted = extraTime ? EXTRA_TIME_END_MINUTE : REGULATION_MINUTES;
+  // Events past regular time are marked; a regular half's events keep exactly their old shape.
+  const mark = (event: MatchEvent): MatchEvent => (extraTime ? { ...event, period: "EXTRA_TIME" } : event);
   const state = cloneState(start);
   const teams: Record<Side, TeamLive> = { home: state.home, away: state.away };
 
@@ -386,8 +453,16 @@ export function simulateHalf(start: MatchState, rng: Rng, period: Period): Match
     home: expectedGoals(strengths.home, strengths.away, HOME_ADVANTAGE),
     away: expectedGoals(strengths.away, strengths.home, 1 / HOME_ADVANTAGE),
   };
-  const firstMinute = period === "h1" ? 1 : HALF_TIME_MINUTE + 1;
-  const lastMinute = period === "h1" ? HALF_TIME_MINUTE : REGULATION_MINUTES + randomInt(rng, 0, MAX_STOPPAGE_MINUTES);
+  const firstMinute = FIRST_MINUTE[period];
+  const lastMinute =
+    period === "h1"
+      ? HALF_TIME_MINUTE
+      : period === "h2"
+        ? REGULATION_MINUTES + randomInt(rng, 0, MAX_STOPPAGE_MINUTES)
+        : firstMinute + EXTRA_TIME_PERIOD_MINUTES - 1;
+  // A period of extra time has its minutes' share of the match's expected incidents, its goals reduced by
+  // EXTRA_TIME_INTENSITY; a regular half keeps its half, drawn below exactly as before the cup.
+  const share = EXTRA_TIME_PERIOD_MINUTES / REGULATION_MINUTES;
 
   const incidents: Incident[] = [];
   const schedule = (side: Side, kind: IncidentKind, count: number, from: number, to: number): void => {
@@ -396,6 +471,16 @@ export function simulateHalf(start: MatchState, rng: Rng, period: Period): Match
     }
   };
   for (const side of SIDES) {
+    if (extraTime) {
+      schedule(side, "GOAL", poisson(rng, expected[side] * share * EXTRA_TIME_INTENSITY), firstMinute, lastMinute);
+      schedule(side, "YELLOW_CARD", poisson(rng, YELLOW_CARDS_PER_TEAM * share), firstMinute, lastMinute);
+      schedule(side, "RED_CARD", poisson(rng, RED_CARDS_PER_TEAM * share), firstMinute, lastMinute);
+      schedule(side, "INJURY", poisson(rng, INJURIES_PER_TEAM * share), firstMinute, lastMinute);
+      if (period === "e1") {
+        schedule(side, "SUBSTITUTION", EXTRA_TIME_SUBSTITUTIONS, firstMinute, lastMinute);
+      }
+      continue;
+    }
     schedule(side, "GOAL", poisson(rng, expected[side] / 2), firstMinute, lastMinute);
     schedule(side, "YELLOW_CARD", poisson(rng, YELLOW_CARDS_PER_TEAM / 2), firstMinute, lastMinute);
     schedule(side, "RED_CARD", poisson(rng, RED_CARDS_PER_TEAM / 2), firstMinute, lastMinute);
@@ -407,20 +492,20 @@ export function simulateHalf(start: MatchState, rng: Rng, period: Period): Match
   incidents.sort(compareIncidents);
 
   const leave = (side: Side, entry: PitchEntry, minute: number, status: "INJURED" | "SENT_OFF"): void => {
-    state.appearances.push(toAppearance(entry, side, minute));
+    state.appearances.push(toAppearance(entry, side, minute, lastCounted));
     entry.status = status;
   };
 
   /** Puts the substitute rated best in the slot in place of the player who left it, while substitutions remain. */
   const substitute = (side: Side, leaving: PitchEntry, minute: number): void => {
     const team = teams[side];
-    if (team.substitutions >= MAX_SUBSTITUTIONS || team.bench.length === 0) {
+    if (team.substitutions >= substitutionLimit || team.bench.length === 0) {
       return;
     }
     const [player] = team.bench.splice(replacementIndex(team.bench, leaving.slot), 1);
     team.substitutions++;
     team.pitch[team.pitch.indexOf(leaving)] = { index: leaving.index, slot: leaving.slot, player, from: minute, status: "ON" };
-    state.events.push({ minute, side, type: "SUBSTITUTION", playerId: player.id, relatedPlayerId: leaving.player.id });
+    state.events.push(mark({ minute, side, type: "SUBSTITUTION", playerId: player.id, relatedPlayerId: leaving.player.id }));
   };
 
   for (const { minute, side, kind } of incidents) {
@@ -441,9 +526,11 @@ export function simulateHalf(start: MatchState, rng: Rng, period: Period): Match
           assistProviderId = assist?.player.id;
         }
         state.events.push(
-          assistProviderId === undefined
-            ? { minute, side, type: "GOAL", playerId: scorer.player.id }
-            : { minute, side, type: "GOAL", playerId: scorer.player.id, relatedPlayerId: assistProviderId },
+          mark(
+            assistProviderId === undefined
+              ? { minute, side, type: "GOAL", playerId: scorer.player.id }
+              : { minute, side, type: "GOAL", playerId: scorer.player.id, relatedPlayerId: assistProviderId },
+          ),
         );
         break;
       }
@@ -457,9 +544,9 @@ export function simulateHalf(start: MatchState, rng: Rng, period: Period): Match
         if (booked === undefined) {
           break;
         }
-        state.events.push({ minute, side, type: "YELLOW_CARD", playerId: booked.player.id });
+        state.events.push(mark({ minute, side, type: "YELLOW_CARD", playerId: booked.player.id }));
         if (team.booked.includes(booked.player.id)) {
-          state.events.push({ minute, side, type: "RED_CARD", playerId: booked.player.id });
+          state.events.push(mark({ minute, side, type: "RED_CARD", playerId: booked.player.id }));
           leave(side, booked, minute, "SENT_OFF");
         } else {
           team.booked.push(booked.player.id);
@@ -471,7 +558,7 @@ export function simulateHalf(start: MatchState, rng: Rng, period: Period): Match
         if (sentOff === undefined) {
           break;
         }
-        state.events.push({ minute, side, type: "RED_CARD", playerId: sentOff.player.id });
+        state.events.push(mark({ minute, side, type: "RED_CARD", playerId: sentOff.player.id }));
         leave(side, sentOff, minute, "SENT_OFF");
         break;
       }
@@ -481,18 +568,18 @@ export function simulateHalf(start: MatchState, rng: Rng, period: Period): Match
           break;
         }
         leave(side, injured, minute, "INJURED");
-        state.events.push({ minute, side, type: "INJURY", playerId: injured.player.id });
+        state.events.push(mark({ minute, side, type: "INJURY", playerId: injured.player.id }));
         state.injuries.push({ playerId: injured.player.id, side, days: randomInt(rng, INJURY_DAYS_MIN, INJURY_DAYS_MAX) });
-        if (period === "h2") {
+        if (period !== "h1") {
           substitute(side, injured, minute);
         }
         break;
       }
       case "SUBSTITUTION": {
         const leaving =
-          team.substitutions < MAX_SUBSTITUTIONS && team.bench.length > 0 ? weakestStarter(onPitch(team)) : undefined;
+          team.substitutions < substitutionLimit && team.bench.length > 0 ? weakestStarter(onPitch(team)) : undefined;
         if (leaving !== undefined) {
-          state.appearances.push(toAppearance(leaving, side, minute));
+          state.appearances.push(toAppearance(leaving, side, minute, lastCounted));
           substitute(side, leaving, minute);
         }
         break;
@@ -504,15 +591,41 @@ export function simulateHalf(start: MatchState, rng: Rng, period: Period): Match
     state.phase = "HALF_TIME";
     return state;
   }
-  state.phase = "FULL_TIME";
+  if (period === "e1") {
+    state.phase = "EXTRA_TIME_BREAK";
+    return state;
+  }
+  const level = teams.home.goals === teams.away.goals;
+  if (period === "h2" && state.knockout === true && level) {
+    // Extra time to come: the players stay on, their time is counted at its end.
+    state.phase = "REGULATION_END";
+    state.regulationTime = lastMinute;
+    return state;
+  }
+  state.phase = period === "e2" && level ? "SHOOTOUT" : "FULL_TIME";
   state.fullTime = lastMinute;
   for (const side of SIDES) {
     for (const entry of onPitch(teams[side])) {
-      state.appearances.push(toAppearance(entry, side, lastMinute));
+      state.appearances.push(toAppearance(entry, side, lastMinute, lastCounted));
     }
   }
   return state;
 }
+
+/** The phase each period starts from, and its first minute. */
+const PHASE_BEFORE: Readonly<Record<Period, MatchPhase>> = {
+  h1: "KICK_OFF",
+  h2: "HALF_TIME",
+  e1: "REGULATION_END",
+  e2: "EXTRA_TIME_BREAK",
+};
+
+const FIRST_MINUTE: Readonly<Record<Period, number>> = {
+  h1: 1,
+  h2: HALF_TIME_MINUTE + 1,
+  e1: REGULATION_MINUTES + 1,
+  e2: REGULATION_MINUTES + EXTRA_TIME_PERIOD_MINUTES + 1,
+};
 
 /** Slot indexes of a team's sent-off players: they stay empty, whatever the formation. */
 export function sentOffSlots(team: TeamLive): Set<number> {
@@ -661,14 +774,112 @@ export function scoreOf(state: MatchState): { homeGoals: number; awayGoals: numb
   return { homeGoals: state.home.goals, awayGoals: state.away.goals };
 }
 
-/** The result of a finished match. */
+/** A kick's chance in a shoot-out: the kicker's shooting against the goalkeeper's goalkeeping, within the bounds. */
+export function shootoutChance(kickerShooting: number, keeperGoalkeeping: number): number {
+  const chance =
+    SHOOTOUT_BASE_CHANCE +
+    SHOOTOUT_KICKER_FACTOR * (kickerShooting - SHOOTOUT_REFERENCE_RATING) -
+    SHOOTOUT_KEEPER_FACTOR * (keeperGoalkeeping - SHOOTOUT_REFERENCE_RATING);
+  return Math.min(SHOOTOUT_MAX_CHANCE, Math.max(SHOOTOUT_MIN_CHANCE, chance));
+}
+
+/** Kickers of a side, best shooters first (ties by id), among the players on the pitch at the end of extra time. */
+function kickersOf(team: TeamLive): SquadPlayer[] {
+  return onPitch(team)
+    .map((entry) => entry.player)
+    .sort((a, b) => b.shooting - a.shooting || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/** A side's goalkeeper for the shoot-out: the one in goal, or the best at it on the pitch if he was sent off. */
+function keeperOf(team: TeamLive): SquadPlayer {
+  const players = onPitch(team);
+  const inGoal = players.find((entry) => entry.slot === "GK");
+  if (inGoal !== undefined) {
+    return inGoal.player;
+  }
+  const [best] = players
+    .map((entry) => entry.player)
+    .sort((a, b) => b.goalkeeping - a.goalkeeping || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  if (best === undefined) {
+    throw new Error("A shoot-out side without a player on the pitch");
+  }
+  return best;
+}
+
+/**
+ * The shoot-out of a knockout match level after extra time, with its own stream (halfRngSeed(…, "shootout")): a drawn
+ * side kicks first, then the sides alternate, SHOOTOUT_KICKS each unless one can no longer catch up, then one each
+ * until a round is won. Kickers go best shooter first, around again when all have kicked; each kick succeeds with
+ * shootoutChance against the other side's goalkeeper. Each kick is an event numbered from 1; the match ends FULL_TIME.
+ */
+export function simulateShootout(start: MatchState, rng: Rng): MatchState {
+  if (start.phase !== "SHOOTOUT") {
+    throw new Error(`Cannot play a shoot-out at ${start.phase}`);
+  }
+  const state = cloneState(start);
+  const order: Side[] = rng() < 0.5 ? ["home", "away"] : ["away", "home"];
+  const kickers: Record<Side, SquadPlayer[]> = { home: kickersOf(state.home), away: kickersOf(state.away) };
+  const keepers: Record<Side, SquadPlayer> = { home: keeperOf(state.home), away: keeperOf(state.away) };
+  const scored: Record<Side, number> = { home: 0, away: 0 };
+  const taken: Record<Side, number> = { home: 0, away: 0 };
+  const other = (side: Side): Side => (side === "home" ? "away" : "home");
+
+  let kick = 0;
+  const shoot = (side: Side): void => {
+    const kicker = kickers[side][taken[side] % kickers[side].length];
+    const keeper = keepers[other(side)];
+    const goal = rng() < shootoutChance(kicker.shooting, keeper.goalkeeping);
+    taken[side]++;
+    scored[side] += goal ? 1 : 0;
+    kick++;
+    state.events.push({
+      minute: kick,
+      side,
+      type: goal ? "SHOOTOUT_GOAL" : "SHOOTOUT_MISS",
+      playerId: kicker.id,
+      relatedPlayerId: keeper.id,
+      period: "SHOOTOUT",
+    });
+  };
+  // Within the first five each, a side that cannot catch up even scoring all its remaining kicks has lost.
+  const decided = (): boolean =>
+    scored.home + (SHOOTOUT_KICKS - taken.home) < scored.away || scored.away + (SHOOTOUT_KICKS - taken.away) < scored.home;
+
+  for (let round = 0; round < SHOOTOUT_KICKS && !decided(); round++) {
+    for (const side of order) {
+      shoot(side);
+      if (decided()) {
+        break;
+      }
+    }
+  }
+  while (scored.home === scored.away) {
+    for (const side of order) {
+      shoot(side);
+    }
+  }
+
+  state.penalties = scored;
+  state.phase = "FULL_TIME";
+  return state;
+}
+
+/** How a finished knockout match was decided. */
+function decidedBy(state: MatchState): DecidedBy {
+  if (state.penalties !== undefined) {
+    return "PENALTIES";
+  }
+  return state.regulationTime === undefined ? "REGULATION" : "EXTRA_TIME";
+}
+
+/** The result of a finished match; a knockout match's also says how it was decided. */
 export function matchResult(state: MatchState): MatchResult {
   if (state.phase !== "FULL_TIME" || state.fullTime === null) {
     throw new Error(`The match is not finished: ${state.phase}`);
   }
   const halfTimeGoals = (side: Side): number =>
     state.events.filter((event) => event.type === "GOAL" && event.side === side && event.minute <= HALF_TIME_MINUTE).length;
-  return {
+  const result: MatchResult = {
     ...scoreOf(state),
     homeHalfTimeGoals: halfTimeGoals("home"),
     awayHalfTimeGoals: halfTimeGoals("away"),
@@ -677,6 +888,36 @@ export function matchResult(state: MatchState): MatchResult {
     appearances: state.appearances,
     injuries: state.injuries,
   };
+  if (state.knockout !== true) {
+    return result;
+  }
+  return state.penalties === undefined
+    ? { ...result, decidedBy: decidedBy(state) }
+    : { ...result, decidedBy: "PENALTIES", homePenalties: state.penalties.home, awayPenalties: state.penalties.away };
+}
+
+/** The winner of a knockout match: more goals, or more kicks in the shoot-out. */
+export function knockoutWinner(result: MatchResult): Side {
+  if (result.homeGoals !== result.awayGoals) {
+    return result.homeGoals > result.awayGoals ? "home" : "away";
+  }
+  if (result.homePenalties === undefined || result.awayPenalties === undefined || result.homePenalties === result.awayPenalties) {
+    throw new Error("A knockout match without a winner");
+  }
+  return result.homePenalties > result.awayPenalties ? "home" : "away";
+}
+
+/**
+ * What follows the second half of a knockout match level after 90 minutes: both periods of extra time, then the
+ * shoot-out if still level, each with its stream from matchSeed. A state already at FULL_TIME is returned as it is.
+ */
+export function finishKnockout(state: MatchState, matchSeed: string): MatchState {
+  if (state.phase !== "REGULATION_END") {
+    return state;
+  }
+  const firstPeriod = simulateHalf(state, makeRng(halfRngSeed(matchSeed, "e1")), "e1");
+  const extraTime = simulateHalf(firstPeriod, makeRng(halfRngSeed(matchSeed, "e2")), "e2");
+  return extraTime.phase === "SHOOTOUT" ? simulateShootout(extraTime, makeRng(halfRngSeed(matchSeed, "shootout"))) : extraTime;
 }
 
 /** Both clubs' automatic half-time changes, for clubs that do not choose. */
@@ -686,16 +927,19 @@ export function applyAutomaticHalfTime(state: MatchState, sides: readonly Side[]
 
 /**
  * Simulates a whole match without a pause: the first half, the automatic half-time changes of both clubs, then
- * the second half, each half with its own stream derived from matchSeed (halfRngSeed).
+ * the second half, each half with its own stream derived from matchSeed (halfRngSeed). A knockout match level after
+ * 90 minutes goes on to extra time and a shoot-out (finishKnockout); a league match never draws more than before.
  */
 export function simulateMatch(
   home: Lineup,
   away: Lineup,
   matchSeed: string,
   formations?: Readonly<Record<Side, FormationName>>,
+  knockout: boolean = false,
 ): MatchResult {
-  const halfTime = simulateHalf(startMatch(home, away, formations), makeRng(halfRngSeed(matchSeed, "h1")), "h1");
-  return matchResult(simulateHalf(applyAutomaticHalfTime(halfTime), makeRng(halfRngSeed(matchSeed, "h2")), "h2"));
+  const halfTime = simulateHalf(startMatch(home, away, formations, knockout), makeRng(halfRngSeed(matchSeed, "h1")), "h1");
+  const regulation = simulateHalf(applyAutomaticHalfTime(halfTime), makeRng(halfRngSeed(matchSeed, "h2")), "h2");
+  return matchResult(finishKnockout(regulation, matchSeed));
 }
 
 /**

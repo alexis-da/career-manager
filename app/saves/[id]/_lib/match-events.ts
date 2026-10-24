@@ -9,6 +9,8 @@ export const EVENT_LABELS: Record<MatchEventType, string> = {
   RED_CARD: "Carton rouge",
   INJURY: "Blessure",
   SUBSTITUTION: "Remplacement",
+  SHOOTOUT_GOAL: "Tir au but réussi",
+  SHOOTOUT_MISS: "Tir au but manqué",
 };
 
 export const EVENT_MARKS: Record<MatchEventType, string> = {
@@ -17,6 +19,8 @@ export const EVENT_MARKS: Record<MatchEventType, string> = {
   RED_CARD: "🟥",
   INJURY: "✚",
   SUBSTITUTION: "⇄",
+  SHOOTOUT_GOAL: "◉",
+  SHOOTOUT_MISS: "✕",
 };
 
 /** « 37' », or « 90+3' » in stoppage time. */

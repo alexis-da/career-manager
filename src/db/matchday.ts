@@ -137,6 +137,17 @@ export function fixtureMatchSeed(
   return matchRngSeed(saveSeed, fixture.season.startYear, fixture.round, fixture.homeClubSave.club.slug, fixture.awayClubSave.club.slug);
 }
 
+/**
+ * The stored type of an event. Shoot-out kicks only come from cup matches, which the database does not hold yet: the
+ * cup's schema brings their types.
+ */
+function storedEventType(type: MatchEvent["type"]): Exclude<MatchEvent["type"], "SHOOTOUT_GOAL" | "SHOOTOUT_MISS"> {
+  if (type === "SHOOTOUT_GOAL" || type === "SHOOTOUT_MISS") {
+    throw new Error(`No stored type yet for ${type}`);
+  }
+  return type;
+}
+
 export function matchEventRows(
   fixtureId: string,
   events: readonly MatchEvent[],
@@ -146,7 +157,7 @@ export function matchEventRows(
   return events.map((event) => ({
     fixtureId,
     minute: event.minute,
-    type: event.type,
+    type: storedEventType(event.type),
     side: event.side === "home" ? "HOME" : "AWAY",
     playerSaveId: playerSaveIdOf(event.playerId),
     relatedPlayerSaveId: event.relatedPlayerId === undefined ? null : playerSaveIdOf(event.relatedPlayerId),
