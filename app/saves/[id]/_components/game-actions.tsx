@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDaysIcon, ChevronDownIcon, FastForwardIcon, PlayIcon } from "lucide-react";
+import { CalendarDaysIcon, ChevronDownIcon, FastForwardIcon, LoaderCircleIcon, PlayIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -65,6 +65,7 @@ type GameActionsProps = {
 export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }: GameActionsProps) {
   const [pending, startTransition] = useTransition();
   const [intermediate, setIntermediate] = useState(0); // dates played so far by « Prochain match »
+  const [kickOff, setKickOff] = useState(false); // « Prochain match » is playing the managed club's date
   const router = useRouter();
 
   const show = (result: GameActionResult) => {
@@ -96,6 +97,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
       try {
         let played = 0;
         setIntermediate(0);
+        setKickOff(false);
         for (;;) {
           const batch = await playUntilNextMatchAction(saveId);
           played += batch.played;
@@ -107,6 +109,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
         if (played > 0) {
           toast.info(`${played} ${played > 1 ? "journées intermédiaires jouées" : "journée intermédiaire jouée"}.`);
         }
+        setKickOff(true);
         show(await playMatchdayAction(saveId));
       } catch (error) {
         toast.error(isNewVersionError(error) ? NEW_VERSION_MESSAGE : "L'action a échoué. Réessayez.");
@@ -134,9 +137,18 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
     <div className="flex items-center gap-2">
       <SimulateMenu disabled={pending} />
       {worldVersion === 2 ? (
-        <Button variant="club" className={className} disabled={pending} onClick={playToNextMatch}>
-          <PlayIcon data-icon="inline-start" className="fill-current" />
-          {pending ? (intermediate > 0 ? `Journées intermédiaires… ${intermediate}` : "Simulation…") : "Prochain match"}
+        // Busy from the click: the dates in between first, counted as they are played, then the match's own.
+        <Button variant="club" className={className} disabled={pending} aria-busy={pending} onClick={playToNextMatch}>
+          {pending ? (
+            <LoaderCircleIcon data-icon="inline-start" aria-hidden className="animate-spin" />
+          ) : (
+            <PlayIcon data-icon="inline-start" className="fill-current" />
+          )}
+          {pending
+            ? kickOff
+              ? "Coup d'envoi…"
+              : `Journées intermédiaires…${intermediate > 0 ? ` ${intermediate}` : ""}`
+            : "Prochain match"}
         </Button>
       ) : (
         <Button variant="club" className={className} disabled={pending} onClick={() => run(playMatchdayAction)}>

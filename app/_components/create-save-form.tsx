@@ -1,6 +1,8 @@
 "use client";
 
+import { LoaderCircleIcon } from "lucide-react";
 import { useActionState, useState, type ReactNode } from "react";
+import { useFormStatus } from "react-dom";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -47,8 +49,22 @@ function Field({ id, label, hint, errors, children }: FieldProps) {
   );
 }
 
+/**
+ * The form's button: busy while the save is created (some seconds for a world of 198 clubs), disabled so that a second
+ * click never sends a second creation.
+ */
+function CreateButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" size="lg" className="w-full" disabled={pending} aria-busy={pending} data-creating={pending || undefined}>
+      {pending && <LoaderCircleIcon data-icon="inline-start" aria-hidden className="animate-spin" />}
+      {pending ? "Création de ton monde…" : "Créer la partie"}
+    </Button>
+  );
+}
+
 export function CreateSaveForm({ competitions }: { competitions: CompetitionClubs[] }) {
-  const [state, formAction, pending] = useActionState(async (previous: CreateSaveFormState, formData: FormData) => {
+  const [state, formAction] = useActionState(async (previous: CreateSaveFormState, formData: FormData) => {
     try {
       return await createSaveAction(previous, formData);
     } catch (error) {
@@ -136,9 +152,7 @@ export function CreateSaveForm({ competitions }: { competitions: CompetitionClub
 
       {state.message !== null && <p className="text-sm text-destructive">{state.message}</p>}
 
-      <Button type="submit" size="lg" className="w-full" disabled={pending}>
-        {pending ? "Création de la partie…" : "Créer la partie"}
-      </Button>
+      <CreateButton />
     </form>
   );
 }
