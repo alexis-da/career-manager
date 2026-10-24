@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 import { parse } from "dotenv";
 import { MAINTENANCE_SECRET_TEST } from "./e2e/constants";
+import { assertLocalDatabase } from "./src/db/database-url";
 
 // The tests write to a database of their own, DATABASE_URL_TEST, read from .env.test (never committed). Without it,
 // refuse to start rather than fall back on .env and write to the development or production database.
@@ -16,6 +17,8 @@ const DATABASE_URL_TEST = testEnv.DATABASE_URL_TEST;
 if (DATABASE_URL_TEST === undefined || DATABASE_URL_TEST === "") {
   throw new Error(`${ENV_TEST} has no DATABASE_URL_TEST: set the database the end-to-end tests write to. Refusing to start.`);
 }
+// The local test database (latewinner_test), never Neon.
+assertLocalDatabase(DATABASE_URL_TEST, "DATABASE_URL_TEST");
 // The test server signs players' cookies with a secret of its own, never the development one.
 const AUTH_SECRET_TEST = testEnv.AUTH_SECRET;
 if (AUTH_SECRET_TEST === undefined || AUTH_SECRET_TEST === "") {

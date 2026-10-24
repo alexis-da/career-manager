@@ -1,6 +1,7 @@
 /**
  * Size of a save in the database, to set the number of saves a free Neon plan holds (npm run measure:size).
- * Read only: SELECT statements, nothing written. Runs against DATABASE_URL, whose host it prints first.
+ * Read only: SELECT statements, nothing written. Runs against DATABASE_URL, whose host it prints first: the local
+ * database (src/db/client.ts refuses any other without ALLOW_REMOTE_DB=1), whose saves weigh as they would on Neon.
  *
  * A save's share of a table is the table's total size (data, indexes, TOAST) × its share of the rows. It counts
  * the space dead rows still take (deleted saves before a VACUUM), so it is an upper bound; the tables' dead rows

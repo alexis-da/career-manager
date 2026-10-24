@@ -3,11 +3,12 @@
  * worldVersion 2 twin of the demo save (demo seed, demo club) for several seasons, then prints, by division, goals per
  * match, home wins and draws, and by country the strength of the promoted clubs against the first division's last club
  * to stay up, their rank the next season, and the clubs going up and down more than once. The twin and its throwaway
- * owner are deleted at the end. Writes to the database: refuses any other than the test branch (sparkling-darkness).
+ * owner are deleted at the end. Writes to the database: the local one only (src/db/client.ts refuses any other).
  */
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
 import { prisma } from "../src/db/client";
+import { isLocalDatabase } from "../src/db/database-url";
 import { seasonMovementsSchema } from "../src/db/promotion";
 import { advanceToNextSeason } from "../src/db/season";
 import { getStandings } from "../src/db/standings";
@@ -17,7 +18,6 @@ import { PROMOTION_RELEGATION } from "../src/engine/balance";
 import { averageStarterRating, selectLineup } from "../src/engine/lineup";
 import { countryOf } from "../src/engine/promotion";
 
-const TEST_HOST = "sparkling-darkness";
 const OWNER = "test-owner-measure-balance";
 
 type DivisionTally = { matches: number; goals: number; homeWins: number; draws: number };
@@ -189,10 +189,12 @@ function report(records: SeasonRecord[]): string {
 }
 
 async function main(): Promise<void> {
-  const host = new URL(process.env.DIRECT_URL ?? "").host;
-  console.log(`Database: ${host}`);
-  if (!host.includes(TEST_HOST)) {
-    throw new Error(`Refusing to write anywhere else than the test branch (${TEST_HOST})`);
+  // The client already refuses any database but a local one (assertLocalDatabase), ALLOW_REMOTE_DB=1 aside: this
+  // script writes, so it refuses even that.
+  const url = process.env.DATABASE_URL ?? "";
+  console.log(`Database: ${url === "" ? "(none)" : new URL(url).host}`);
+  if (url === "" || !isLocalDatabase(url)) {
+    throw new Error("Refusing to write anywhere else than the local database");
   }
   const seasons = Number(process.argv[2] ?? 6);
   const out = process.argv[3];

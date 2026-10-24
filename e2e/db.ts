@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import type { BrowserContext } from "@playwright/test";
 import { parse } from "dotenv";
 import { Client } from "pg";
+import { assertLocalDatabase, pgConnection } from "../src/db/database-url";
 
 // Direct access to the end-to-end tests' database (DATABASE_URL_TEST, .env.test), only for the users the tests
 // create or delete: deleting a user deletes their saves by cascade. Plain pg rather than the Prisma client, an ES module that
@@ -15,7 +16,8 @@ async function withTestDatabase<T>(run: (client: Client) => Promise<T>): Promise
   if (url === undefined || url === "") {
     throw new Error(".env.test has no DATABASE_URL_TEST");
   }
-  const client = new Client({ connectionString: url });
+  assertLocalDatabase(url, "DATABASE_URL_TEST");
+  const client = new Client(pgConnection(url));
   await client.connect();
   try {
     return await run(client);

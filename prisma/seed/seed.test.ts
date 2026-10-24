@@ -1,18 +1,20 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { assertLocalDatabase, pgConnection } from "../../src/db/database-url";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import { FREE_AGENT_POOL_TEMPLATE, SQUAD_TEMPLATE } from "./players";
 import { buildWorldPlan, seedWorld } from "./seed";
 
 const connectionString = process.env.DATABASE_URL;
 
-// Runs the real seed against DATABASE_URL (the dev database); skipped when it is not set.
+// Runs the real seed against DATABASE_URL (the local test database); skipped when it is not set.
 describe.skipIf(connectionString === undefined)("seedWorld", () => {
   let prisma: PrismaClient;
 
   beforeAll(() => {
-    prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+    assertLocalDatabase(connectionString, "DATABASE_URL");
+    prisma = new PrismaClient({ adapter: new PrismaPg(pgConnection(connectionString ?? "")) });
   });
 
   afterAll(async () => {
