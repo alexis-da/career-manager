@@ -20,6 +20,7 @@
 # next.js
 /.next/
 /.next-e2e/
+/.next-preview/
 /out/
 
 # production
@@ -50,3 +51,6 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# local preview server of Claude Code (port and build directory of its own)
+/.claude/launch.json
