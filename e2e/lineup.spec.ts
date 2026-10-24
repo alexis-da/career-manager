@@ -33,7 +33,8 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
     await expect(page.getByText("Modifications non enregistrées")).toBeVisible();
 
     const slot = page.locator(`[data-slot-index="${STRIKER_SLOT}"]`);
-    const starter = (await slot.locator("[data-slot-player]").textContent()) ?? "";
+    // By key, not by name: Lyon has three Martins, and two of them can sit on the bench.
+    const starterKey = (await slot.getAttribute("data-slot-player-key")) ?? "";
     await slot.click();
     const substitute = page.locator('[data-bench="true"]').first();
     const substituteKey = (await substitute.getAttribute("data-player-key")) ?? "";
@@ -43,7 +44,7 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
 
     await expect(slot.locator("[data-slot-player]")).toHaveText(substituteLastName);
     // The replaced starter is now among the substitutes.
-    await expect(page.locator('[data-bench="true"]').filter({ hasText: starter })).toHaveCount(1);
+    await expect(page.locator(`[data-bench="true"][data-player-key="${starterKey}"]`)).toHaveCount(1);
 
     await page.getByRole("button", { name: "Enregistrer" }).click();
     await expect(page.getByText("Composition en 4-4-2 enregistrée.")).toBeVisible();
