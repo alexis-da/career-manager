@@ -31,7 +31,7 @@ export const createSaveInputSchema = z.object({
   ownerId: z.string().min(1), // every new save has an owner: only inherited saves, from before owners, have none
   // The game creates DEFAULT_WORLD_VERSION saves; tests pass 2 for the second divisions.
   worldVersion: z.union([z.literal(1), z.literal(2)]).default(DEFAULT_WORLD_VERSION),
-  // The national cups of a worldVersion 2 save: CUPS_ENABLED for the game; tests pass true to have them already.
+  // The national cups of a worldVersion 2 save: CUPS_ENABLED (true) for the game; a test may pass either.
   cups: z.boolean().default(CUPS_ENABLED),
 });
 

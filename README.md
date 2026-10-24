@@ -38,6 +38,9 @@ pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0)
   2 en Allemagne et en France) ;
 - toutes les compétitions finissent le même jour : les deuxièmes divisions à 22 ou 24 clubs jouent aussi le mardi ;
 - « Prochain match » joue les dates où seules les autres compétitions jouent, puis le match du club, en direct ;
+- une coupe nationale par pays, à élimination directe entre les clubs des deux divisions : tour préliminaire le
+  23 septembre, finale le samedi après la dernière journée, prolongation et tirs au but joués en direct pour le club
+  du joueur, primes par tour, page Coupe, trophée au palmarès et sur la carte de fin de saison ;
 - les parties créées avant les deuxièmes divisions gardent les cinq premières divisions seules
   (`Save.worldVersion` 1) ;
 - `npm run measure:balance` mesure l'équilibrage des deux divisions sur six saisons (branche Neon test seulement).

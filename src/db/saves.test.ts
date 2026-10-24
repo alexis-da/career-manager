@@ -251,18 +251,43 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
     expect(misplaced[0].count).toBe(0);
   });
 
-  it("gives a worldVersion 2 save no cup while the game has none (CUPS_ENABLED false), nor a worldVersion 1 save", async () => {
+  it("opens the national cups of a worldVersion 2 save as the game creates one, with their preliminary rounds, none in a worldVersion 1 save", async () => {
     const [firstSaveId, , , v2SaveId] = saveIds;
     const db = database();
-    const [cupSeasons, cupTies] = await Promise.all([
-      db.season.count({ where: { saveId: { in: [firstSaveId, v2SaveId] }, competition: { kind: "CUP" } } }),
-      db.fixture.count({ where: { saveId: { in: [firstSaveId, v2SaveId] }, season: { competition: { kind: "CUP" } } } }),
+    const cupWhere = (saveId: string) => ({ saveId, season: { competition: { kind: "CUP" as const } } });
+    const [v1Cups, seasons, ties, firstDivisionClubs] = await Promise.all([
+      db.season.count({ where: { saveId: firstSaveId, competition: { kind: "CUP" } } }),
+      db.season.findMany({
+        where: { saveId: v2SaveId, competition: { kind: "CUP" } },
+        select: { startYear: true, competition: { select: { code: true } } },
+      }),
+      db.fixture.findMany({
+        where: cupWhere(v2SaveId),
+        select: {
+          round: true,
+          scheduledAt: true,
+          season: { select: { competition: { select: { code: true } } } },
+          homeClubSave: { select: { competition: { select: { tier: true } } } },
+          awayClubSave: { select: { competition: { select: { tier: true } } } },
+        },
+      }),
+      db.fixture.count({ where: { ...cupWhere(v2SaveId), homeClubSave: { competition: { tier: 1 } } } }),
     ]);
+    const tiesByCup = Object.fromEntries(
+      Object.entries(Object.groupBy(ties, (tie) => tie.season.competition.code)).map(([code, rows]) => [code, rows?.length]),
+    );
 
-    // The worldVersion 2 save was created as the game creates one, without the cups option. The cups' opening at
-    // creation, asked for by a test, is checked by season-v2.slow.test.ts.
-    expect(CUPS_ENABLED).toBe(false);
-    expect([cupSeasons, cupTies]).toEqual([0, 0]);
+    // The worldVersion 2 save was created as the game creates one, without the cups option: CUPS_ENABLED gives them.
+    expect(CUPS_ENABLED).toBe(true);
+    expect(v1Cups).toBe(0);
+    expect(seasons.map((season) => [season.competition.code, season.startYear]).sort()).toEqual(
+      ["de.cup", "en.cup", "es.cup", "fr.cup", "it.cup"].map((code) => [code, WORLD_START_YEAR]),
+    );
+    expect(tiesByCup).toEqual({ "de.cup": 4, "en.cup": 12, "es.cup": 10, "fr.cup": 4, "it.cup": 8 });
+    expect(new Set(ties.map((tie) => `${tie.round} ${tie.scheduledAt.toISOString()}`))).toEqual(new Set(["1 2026-09-23T00:00:00.000Z"]));
+    // The lowest clubs of each country: second division ones only.
+    expect(ties.every((tie) => tie.homeClubSave.competition.tier === 2 && tie.awayClubSave.competition.tier === 2)).toBe(true);
+    expect(firstDivisionClubs).toBe(0);
   });
 
   it("gives the first division players of a worldVersion 2 save the attributes of a worldVersion 1 save of the same seed", async () => {

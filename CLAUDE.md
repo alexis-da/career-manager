@@ -72,10 +72,10 @@ la deuxième pour un relégué, rien d'autre ; joueurs et contrats intacts) ; `S
 `src/db/promotion.ts`) garde sur chaque saison terminée les clubs qui quittent sa compétition. Une partie 1 n'a qu'une
 division par pays : aucun mouvement, `movements` reste null (test lent de non-régression).
 
-**Coupes nationales (parties 2 seulement).** `CUPS_ENABLED` (`src/engine/cup.ts`) vaut **false** : même rôle que
-`DEFAULT_WORLD_VERSION` avant la bascule, aucune coupe n'est créée pour le jeu (ni à la création, ni au passage de
-saison) tant qu'elle est à false. Les tests qui en ont besoin la forcent à la création (`createSave({ …, cups: true })`,
-`createDemoTwin(nom, 2, true)`) ; une partie qui a des coupes les garde de saison en saison. Une coupe par pays (`Competition.kind = CUP`, `xx.cup`, niveau 0,
+**Coupes nationales (parties 2 seulement).** `CUPS_ENABLED` (`src/engine/cup.ts`) vaut **true** : toute nouvelle
+partie 2 a ses coupes dès sa création, une partie 2 d'avant les coupes les reçoit à son prochain passage de saison. À
+false, le jeu n'en créerait plus aucune (`createSave({ …, cups })` reste pour un test qui en décide) ; une partie qui a
+des coupes les garde de saison en saison. Une coupe par pays (`Competition.kind = CUP`, `xx.cup`, niveau 0,
 « Pays — Coupe », arrivée par la migration de données `…_national_cups`), à élimination directe entre les clubs de ses
 deux divisions : tour préliminaire entre les plus bas pour ramener le pays à 32, puis seizièmes à finale (`round` 1 à
 6, N − 1 matchs). Ouverte (saison de coupe et tour préliminaire, `openCups`, `src/db/cup.ts`) à la création d'une
@@ -86,6 +86,15 @@ après la dernière journée. Prolongation et tirs au but : skill `moteur-de-mat
 (`cupMatchRngSeed`) et n'écrit de stats que pour les joueurs du club dirigé. **Tout lecteur de championnat filtre
 `competition.kind = "LEAGUE"`** (classement, montées et descentes, palmarès et carte, meilleur joueur, marché, résumé de
 simulation) ; `SeasonResult` reste une ligne de championnat, avec `cupRound` et le trophée `cup`.
+
+**Écrans de la coupe.** Un match de coupe se nomme « Coupe — Tour préliminaire / 16es / 8es / Quarts / Demi-finale /
+Finale », jamais « Journée N » (`stageLabel`, `app/saves/[id]/_lib/stage.ts`) ; son score porte « a.p. » et
+« 5-3 t.a.b. » (`ScoreNotes`), son résultat pour le club vient de la séance. Le direct du club du joueur s'arrête deux
+fois sur un match de coupe nul après 90 minutes : mi-temps (`Fixture.status` HALF_TIME), puis « Fin du temps
+réglementaire » (REGULATION_END, un remplacement de plus) ; `resumeLiveMatch` reprend à la bonne phase, et sans
+changement le match est celui joué sans pause. Page Coupe (`app/saves/[id]/cup`, `getCupBracket`,
+`src/db/cup-view.ts`) et entrée « Coupe » de la navigation pour une partie qui a une coupe ; palmarès (« Vainqueur de la
+Coupe », « Coupe : quarts de finale »), carte (« COUPE », « DOUBLÉ », `cardBadge`) et panneau « Saison terminée ».
 
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade). Hors des
 tests, trois suppressions d'utilisateur sont autorisées, et aucune autre : **la purge** (ci-dessous) ; **la fusion** à

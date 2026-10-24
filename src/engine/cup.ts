@@ -5,11 +5,12 @@ import type { CompetitionTier } from "./tiers";
 import { firstMatchdayDate } from "./world";
 
 /**
- * Whether the game gives its worldVersion 2 saves the national cups, as DEFAULT_WORLD_VERSION chose their world before
- * the switch: while false, no save the game creates or advances gets a cup. The tests that need cups ask for them at
- * creation (createSave's `cups`); a save that has cups keeps them from season to season.
+ * Whether the game gives its worldVersion 2 saves the national cups: true since the cup's screens. Every new
+ * worldVersion 2 save gets them at its creation, and a worldVersion 2 save from before at its next season. Set to false,
+ * no save the game creates or advances would get a new cup (createSave's `cups` still asks for them); a save that has
+ * cups keeps them from season to season.
  */
-export const CUPS_ENABLED = false;
+export const CUPS_ENABLED = true;
 
 const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
