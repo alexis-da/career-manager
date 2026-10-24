@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { Client } from "pg";
 import { seasonLabel, seasonStartYear, WORLD_START_YEAR } from "../engine/world";
 import type { WorldVersion } from "../engine/world-version";
 import { prisma } from "./client";
+import { pgConnection } from "./database-url";
 import { playNextMatchday } from "./matchday";
 import { createSave } from "./saves";
 import { advanceToNextSeason } from "./season";
@@ -102,14 +104,42 @@ export async function playRemainingMatchdays(saveId: string): Promise<number> {
   return matchdays;
 }
 
+/** Key of the advisory lock that lets one test process at a time make or finish a demo save. Any fixed number. */
+const DEMO_SAVE_LOCK_KEY = 2_026_102_501;
+
+/**
+ * Runs `work` holding the demo saves' advisory lock, waiting for it while another process holds it. A session lock on
+ * a connection of its own, not a transaction lock: making a demo save takes many transactions (creation, then a whole
+ * season played and advanced), and the lock must cover them all. It goes with the connection, even if the process dies.
+ */
+async function withDemoSaveLock<T>(work: () => Promise<T>): Promise<T> {
+  const url = process.env.DATABASE_URL;
+  if (url === undefined || url === "") {
+    throw new Error("DATABASE_URL is not set");
+  }
+  const lock = new Client(pgConnection(url));
+  await lock.connect();
+  try {
+    await lock.query("SELECT pg_advisory_lock($1)", [DEMO_SAVE_LOCK_KEY]);
+    return await work();
+  } finally {
+    await lock.end();
+  }
+}
+
 /**
  * Returns the demo save of a world, creating it when it is missing: the demo seed and club, its first season played,
  * then advanced to 1 July of the next one, owned by its demo user. Everything is deterministic, so every recreation
  * gives the same save. It is kept for later runs; a creation interrupted halfway resumes where it stopped. The tests
  * use the worldVersion 1 demo; the worldVersion 2 one, with the second divisions, only where they matter: a season of
- * it is twice as heavy.
+ * it is twice as heavy. Serialized across the test files running at once (withDemoSaveLock): on a fresh database, the
+ * first one makes the save while the others wait, then find it ready; its anonymous owner may hold one save only.
  */
 export async function ensureDemoSave(worldVersion: WorldVersion = 1): Promise<string> {
+  return withDemoSaveLock(() => ensureDemoSaveNow(worldVersion));
+}
+
+async function ensureDemoSaveNow(worldVersion: WorldVersion): Promise<string> {
   const { name, ownerId } = DEMO_SAVES[worldVersion];
   const existing = await prisma.save.findFirst({
     where: { seed: DEMO_SEED, name, worldVersion },
