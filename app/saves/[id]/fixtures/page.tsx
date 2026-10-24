@@ -12,7 +12,9 @@ import { formatMonth, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../_components/panel";
 import { ResultPill } from "../_components/result-pill";
-import { RESULT_CLASSES, resultFor } from "../_lib/results";
+import { ScoreNotes } from "../_components/score-notes";
+import { RESULT_CLASSES } from "../_lib/results";
+import { matchResultFor, stageLabel, stageShortLabel } from "../_lib/stage";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { CalendarDay, PickBanner } from "./_components/calendar-day";
 import { MatchSheetDialog } from "./_components/match-sheet-dialog";
@@ -67,28 +69,39 @@ function MatchCell({ saveId, fixture }: { saveId: string; fixture: FixtureWithEv
       {atHome ? "Dom." : "Ext."}
     </span>
   );
+  // A cup tie says so: its round instead of a matchday.
+  const stage = fixture.cup && (
+    <span data-cup-stage="" className="w-full truncate text-[0.625rem] leading-tight font-semibold text-(--club)">
+      {stageLabel(fixture)}
+    </span>
+  );
   const className =
     "flex w-full flex-col items-start gap-0.5 rounded-md border bg-background/60 px-1.5 py-1 text-left transition-colors hover:border-(--club)/60 focus-visible:ring-2 focus-visible:ring-(--club) focus-visible:outline-none";
 
   if (fixture.played && fixture.homeGoals !== null && fixture.awayGoals !== null) {
-    const result = resultFor(fixture.homeGoals, fixture.awayGoals, atHome);
+    const result = matchResultFor({ ...fixture, homeGoals: fixture.homeGoals, awayGoals: fixture.awayGoals }, atHome);
     return (
       <MatchSheetDialog fixture={fixture} triggerClassName={className}>
+        {stage}
         <span className="flex w-full items-center gap-1">
           {venue}
           <span className="min-w-0 flex-1 truncate text-xs font-medium">{opponent.name}</span>
         </span>
-        <span
-          data-result={result}
-          className={cn("rounded-sm px-1.5 font-heading text-sm leading-snug font-bold tabular-nums", RESULT_CLASSES[result])}
-        >
-          {fixture.homeGoals} – {fixture.awayGoals}
+        <span className="flex flex-wrap items-baseline gap-x-1">
+          <span
+            data-result={result}
+            className={cn("rounded-sm px-1.5 font-heading text-sm leading-snug font-bold tabular-nums", RESULT_CLASSES[result])}
+          >
+            {fixture.homeGoals} – {fixture.awayGoals}
+          </span>
+          <ScoreNotes match={fixture} className="text-[0.625rem]" />
         </span>
       </MatchSheetDialog>
     );
   }
   return (
     <UpcomingMatchSheet saveId={saveId} fixtureId={fixture.id} className={className}>
+      {stage}
       <span className="flex w-full items-center gap-1">
         {venue}
         <span className="min-w-0 flex-1 truncate text-xs font-medium">{opponent.name}</span>
@@ -221,7 +234,7 @@ function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
       <Table className="tabular-nums">
         <TableHeader>
           <TableRow className="border-border hover:bg-transparent">
-            <TableHead className={cn(TABLE_HEAD, "w-14 text-right")}>J.</TableHead>
+            <TableHead className={cn(TABLE_HEAD, "w-36")}>Match</TableHead>
             <TableHead className={TABLE_HEAD}>Date</TableHead>
             <TableHead className={TABLE_HEAD}>Adversaire</TableHead>
             <TableHead className={TABLE_HEAD}>Lieu</TableHead>
@@ -236,18 +249,27 @@ function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
             const opponent = fixture.home.isManaged ? fixture.away : fixture.home;
             const result =
               fixture.played && fixture.homeGoals !== null && fixture.awayGoals !== null
-                ? resultFor(fixture.homeGoals, fixture.awayGoals, fixture.home.isManaged)
+                ? matchResultFor({ ...fixture, homeGoals: fixture.homeGoals, awayGoals: fixture.awayGoals }, fixture.home.isManaged)
                 : null;
             return (
               <TableRow key={fixture.id} className={TABLE_ROW}>
-                <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{fixture.round}</TableCell>
+                <TableCell className={cn(TABLE_CELL, fixture.cup ? "font-medium text-(--club)" : "text-muted-foreground")}>
+                  {stageShortLabel(fixture)}
+                </TableCell>
                 <TableCell className={cn(TABLE_CELL, "first-letter:uppercase")}>{formatShortDate(fixture.scheduledAt)}</TableCell>
                 <TableCell className={cn(TABLE_CELL, "font-medium")}>{opponent.name}</TableCell>
                 <TableCell className={cn(TABLE_CELL, "text-muted-foreground")}>
                   {fixture.home.isManaged ? "Domicile" : "Extérieur"}
                 </TableCell>
                 <TableCell className={cn(TABLE_CELL, "text-center")}>
-                  {fixture.played ? <MatchSheetDialog fixture={fixture} /> : <span className="text-muted-foreground">–</span>}
+                  {fixture.played ? (
+                    <span className="inline-flex items-baseline gap-1.5">
+                      <MatchSheetDialog fixture={fixture} />
+                      <ScoreNotes match={fixture} />
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">–</span>
+                  )}
                 </TableCell>
                 <TableCell className={cn(TABLE_CELL, "text-center")}>{result !== null && <ResultPill result={result} />}</TableCell>
               </TableRow>

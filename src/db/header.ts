@@ -5,7 +5,8 @@ import { getSaveSummary, type SaveSummary } from "./saves";
 
 export type SaveHeader = SaveSummary & {
   startYear: number;
-  nextRound: number | null; // matchday of the managed club's next fixture; null once its season is over
+  // The managed club's next fixture: its matchday, or its cup round; null once its season is over.
+  nextStage: { round: number; cup: boolean } | null;
   seasonFinished: boolean; // every fixture of the seasons in progress is played
   windowOpen: boolean;
   liveMatch: boolean; // the managed club's match waits at half-time
@@ -32,7 +33,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
         OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }],
       },
       orderBy: { scheduledAt: "asc" },
-      select: { round: true },
+      select: { round: true, season: { select: { competition: { select: { kind: true } } } } },
     }),
     prisma.fixture.count({ where: { saveId, played: false, season: { completed: false } } }),
     prisma.season.count({ where: { saveId, completed: false } }),
@@ -42,7 +43,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
   return {
     ...summary,
     startYear: seasonStartYear(summary.currentDate),
-    nextRound: nextFixture?.round ?? null,
+    nextStage: nextFixture === null ? null : { round: nextFixture.round, cup: nextFixture.season.competition.kind === "CUP" },
     seasonFinished: seasonsInProgress > 0 && unplayed === 0,
     windowOpen: transferWindowAt(summary.currentDate) !== null,
     liveMatch: save.liveFixtureId !== null,

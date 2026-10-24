@@ -14,8 +14,10 @@ import { AccountBanner } from "./_components/account-banner";
 import { OpponentSheet } from "./_components/opponent-sheet";
 import { Panel, PanelTitle } from "./_components/panel";
 import { ResultPill } from "./_components/result-pill";
+import { ScoreNotes } from "./_components/score-notes";
 import { POSITION_SHORT, positionTextClass } from "./_lib/positions";
-import { RESULT_CLASSES, resultFor } from "./_lib/results";
+import { RESULT_CLASSES } from "./_lib/results";
+import { matchResultFor, stageLabel } from "./_lib/stage";
 import { MANAGED_ROW, TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 
 export const dynamic = "force-dynamic";
@@ -156,7 +158,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
       <div className="grid gap-5 lg:grid-cols-12">
         <Panel className="flex flex-col lg:col-span-7">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <PanelTitle>Prochain match{nextMatch !== null && ` · Journée ${nextMatch.fixture.round}`}</PanelTitle>
+            <PanelTitle>Prochain match{nextMatch !== null && ` · ${stageLabel(nextMatch.fixture)}`}</PanelTitle>
             {nextMatch !== null && (
               <p className="text-xs text-muted-foreground first-letter:uppercase">
                 {formatShortDate(nextMatch.fixture.scheduledAt)} · {nextMatch.fixture.home.isManaged ? "Domicile" : "Extérieur"}{" "}
@@ -211,7 +213,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
         </Panel>
 
         <Panel className="flex flex-col lg:col-span-5">
-          <PanelTitle>Dernier résultat{lastResult !== null && ` · Journée ${lastResult.fixture.round}`}</PanelTitle>
+          <PanelTitle>Dernier résultat{lastResult !== null && ` · ${stageLabel(lastResult.fixture)}`}</PanelTitle>
           {lastResult === null ? (
             <p className="py-10 text-center text-muted-foreground">Aucun match joué cette saison.</p>
           ) : (
@@ -222,7 +224,10 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                   className={cn(
                     "rounded-md px-4 py-1 font-heading text-5xl leading-tight font-bold tabular-nums",
                     RESULT_CLASSES[
-                      resultFor(lastResult.fixture.homeGoals ?? 0, lastResult.fixture.awayGoals ?? 0, lastResult.fixture.home.isManaged)
+                      matchResultFor(
+                        { ...lastResult.fixture, homeGoals: lastResult.fixture.homeGoals ?? 0, awayGoals: lastResult.fixture.awayGoals ?? 0 },
+                        lastResult.fixture.home.isManaged,
+                      )
                     ],
                   )}
                 >
@@ -230,6 +235,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                 </p>
                 <p className="truncate text-right font-heading text-2xl font-bold">{lastResult.fixture.away.name}</p>
               </div>
+              <ScoreNotes match={lastResult.fixture} className="mt-1 block text-center" />
               <div className="grid flex-1 grid-cols-2 gap-4 pt-4 text-sm tabular-nums">
                 <ul className="space-y-1">
                   {lastResult.homeScorers.map((scorer, index) => (

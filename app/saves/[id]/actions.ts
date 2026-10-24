@@ -25,6 +25,7 @@ import { HalfTimeChoiceError } from "@/src/engine/match";
 import { seasonLabel } from "@/src/engine/world";
 import { formatDate } from "@/src/lib/format";
 import { halfTimeRefusalMessage, MATCH_IN_PROGRESS_MESSAGE, NO_MATCH_IN_PROGRESS_MESSAGE } from "./_lib/live-match";
+import { extraTimeNote, penaltiesNote, stageLabel } from "./_lib/stage";
 
 export type GameActionResult = {
   ok: boolean;
@@ -54,7 +55,7 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
   const fixture = await getManagedClubFixtureOn(id, matchday.date);
   revalidatePath(`/saves/${id}`, "layout");
 
-  const day = `Journée du ${formatDate(matchday.date)}`;
+  const day = fixture?.cup === true ? `${stageLabel(fixture)}, le ${formatDate(matchday.date)}` : `Journée du ${formatDate(matchday.date)}`;
   if (matchday.managed?.halfTime === true && fixture !== null) {
     return {
       ok: true,
@@ -67,7 +68,7 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
   }
   return {
     ok: true,
-    message: `${day} : ${fixture.home.name} ${fixture.homeGoals} – ${fixture.awayGoals} ${fixture.away.name}`,
+    message: `${day} : ${fixture.home.name} ${fixture.homeGoals} – ${fixture.awayGoals} ${fixture.away.name}${[extraTimeNote(fixture), penaltiesNote(fixture)].filter((note) => note !== null).map((note) => ` ${note}`).join(",")}`,
     redirectTo: `/saves/${id}/live`,
   };
 }

@@ -114,7 +114,10 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
     select: { id: true, startYear: true },
   });
 
-  const [payroll, squad, nextRow, lastRow, unplayed, table] = await Promise.all([
+  // The next and last matches in any competition of the seasons in progress, cup ties included; the table and the
+  // rank's movement come from the league season.
+  const inProgress = { season: { completed: false } } as const;
+  const [payroll, squad, nextRow, lastRow, lastLeagueRow, unplayed, table] = await Promise.all([
     prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } }),
     prisma.playerSave.findMany({
       where: { saveId, clubSaveId: club.id },
@@ -123,14 +126,14 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
     season === null
       ? null
       : prisma.fixture.findFirst({
-          where: { saveId, seasonId: season.id, played: false, ...involving(club.id) },
+          where: { saveId, played: false, ...inProgress, ...involving(club.id) },
           orderBy: { scheduledAt: "asc" },
           select: { ...FIXTURE_SELECT, homeClubSave: { select: { ...FIXTURE_SELECT.homeClubSave.select, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true, stadium: true } } } } },
         }),
     season === null
       ? null
       : prisma.fixture.findFirst({
-          where: { saveId, seasonId: season.id, played: true, ...involving(club.id) },
+          where: { saveId, played: true, ...inProgress, ...involving(club.id) },
           orderBy: { scheduledAt: "desc" },
           select: {
             ...FIXTURE_SELECT,
@@ -140,6 +143,13 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
               select: { minute: true, side: true, playerSave: { select: { firstName: true, lastName: true } } },
             },
           },
+        }),
+    season === null
+      ? null
+      : prisma.fixture.findFirst({
+          where: { saveId, seasonId: season.id, played: true, ...involving(club.id) },
+          orderBy: { scheduledAt: "desc" },
+          select: { round: true, scheduledAt: true },
         }),
     prisma.fixture.count({ where: { saveId, played: false, season: { completed: false } } }),
     season === null ? [] : getStandings(saveId, season.id),
@@ -155,11 +165,11 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
         ]);
 
   const managedRow = table.find((row) => row.isManaged);
-  const previousRound = lastRow === null ? null : lastRow.round - 1;
+  const previousRound = lastLeagueRow === null ? null : lastLeagueRow.round - 1;
   const previousTable =
-    season === null || lastRow === null || previousRound === null || previousRound < 1
+    season === null || lastLeagueRow === null || previousRound === null || previousRound < 1
       ? null
-      : await getStandings(saveId, season.id, { before: lastRow.scheduledAt });
+      : await getStandings(saveId, season.id, { before: lastLeagueRow.scheduledAt });
 
   const secondHalf = season !== null && save.currentDate >= new Date(Date.UTC(season.startYear + 1, 0, 1));
   const lastContractDay = season === null ? null : seasonEndDate(season.startYear);

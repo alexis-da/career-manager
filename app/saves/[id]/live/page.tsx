@@ -5,6 +5,7 @@ import { getLiveMatchday } from "@/src/db/calendar";
 import { getHalfTimeTeam } from "@/src/db/live-match";
 import { HALF_TIME_MINUTE } from "@/src/engine/balance";
 import { formatDate } from "@/src/lib/format";
+import { stageLabel } from "../_lib/stage";
 import { LiveMatch } from "./_components/live-match";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,7 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
       key={`${match.id}:${paused ? "h1" : "h2"}`}
       saveId={id}
       dashboardHref={`/saves/${id}`}
-      caption={`${match.competitionName} · Journée ${match.round} · ${formatDate(match.scheduledAt)}`}
+      caption={`${match.competitionName} · ${stageLabel(match)} · ${formatDate(match.scheduledAt)}`}
       match={match}
       others={matchday.others}
       halfTime={paused ? halfTime : null}

@@ -13,8 +13,10 @@ import { formatDate, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { planSimulationAction, simulateMatchdays, simulationSummaryAction, type SimulationTargetInput } from "../actions";
 import { MATCH_IN_PROGRESS_MESSAGE } from "../_lib/live-match";
-import { RESULT_CLASSES, resultFor } from "../_lib/results";
+import { RESULT_CLASSES } from "../_lib/results";
+import { matchResultFor, stageLabel } from "../_lib/stage";
 import { ResultPill } from "./result-pill";
+import { ScoreNotes } from "./score-notes";
 
 /** Where a simulation stops; a picked day is sent as « 2026-08-31 ». */
 export type SimulationTarget = SimulationTargetInput;
@@ -70,21 +72,24 @@ function MatchLine({ match, fresh = false }: { match: SimulatedMatch; fresh?: bo
   const homeGoals = match.homeGoals ?? 0;
   const awayGoals = match.awayGoals ?? 0;
   const [scored, conceded] = atHome ? [homeGoals, awayGoals] : [awayGoals, homeGoals];
-  const result = resultFor(homeGoals, awayGoals, atHome);
+  const result = matchResultFor({ ...match, homeGoals, awayGoals }, atHome);
   return (
     <div
       className={cn(
-        "grid grid-cols-[4.5rem_minmax(0,1fr)_auto_auto] items-center gap-3 text-sm",
+        "grid grid-cols-[4.5rem_minmax(0,1fr)_auto_auto_auto] items-center gap-3 text-sm",
         fresh && "animate-in duration-300 fade-in-0 slide-in-from-top-2",
       )}
     >
       <span className="text-xs text-muted-foreground tabular-nums first-letter:uppercase">{formatShortDate(match.scheduledAt)}</span>
       <span className="min-w-0 truncate">
         <span className="text-muted-foreground">{atHome ? "contre" : "à"}</span> {opponent.name}
+        {match.cup && <span className="ml-1.5 text-xs font-medium text-(--club)">{stageLabel(match)}</span>}
       </span>
       <span className={cn("rounded-sm px-2 font-heading text-base font-bold tabular-nums", RESULT_CLASSES[result])}>
         {scored} – {conceded}
       </span>
+      {/* The shoot-out's score in the managed club's order, as the goals are. */}
+      <ScoreNotes match={atHome ? match : { ...match, homePenalties: match.awayPenalties, awayPenalties: match.homePenalties }} />
       <ResultPill result={result} />
     </div>
   );

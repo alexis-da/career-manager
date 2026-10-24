@@ -6,8 +6,10 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } 
 import type { FixtureWithEvents, MatchEventView } from "@/src/db/calendar";
 import { formatDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { describeEvent, EVENT_LABELS, EVENT_MARKS, formatMinute } from "../../_lib/match-events";
-import { RESULT_CLASSES, resultFor } from "../../_lib/results";
+import { ScoreNotes } from "../../_components/score-notes";
+import { describeEvent, EVENT_LABELS, EVENT_MARKS, formatMinute, shootoutKicks } from "../../_lib/match-events";
+import { RESULT_CLASSES } from "../../_lib/results";
+import { matchResultFor, stageLabel } from "../../_lib/stage";
 
 function EventColumn({ events, align }: { events: MatchEventView[]; align: "left" | "right" }) {
   if (events.length === 0) {
@@ -24,11 +26,49 @@ function EventColumn({ events, align }: { events: MatchEventView[]; align: "left
             event.type === "GOAL" && "bg-muted",
           )}
         >
-          <span className="w-10 shrink-0 tabular-nums text-muted-foreground">{formatMinute(event.minute)}</span>
+          <span className="w-10 shrink-0 tabular-nums text-muted-foreground">{formatMinute(event.minute, event.period)}</span>
           <span aria-hidden>{EVENT_MARKS[event.type]}</span>
           <span className="min-w-0">
             <span className="sr-only">{EVENT_LABELS[event.type]} : </span>
             <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event)}</span>
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** The two sides' events of a period, face to face. */
+function EventColumns({ events }: { events: MatchEventView[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <EventColumn events={events.filter((event) => event.side === "home")} align="right" />
+      <EventColumn events={events.filter((event) => event.side === "away")} align="left" />
+    </div>
+  );
+}
+
+/** The shoot-out kick by kick: who took it, scored or missed, and the shoot-out's score after it. */
+function ShootoutList({ fixture }: { fixture: FixtureWithEvents }) {
+  const kicks = shootoutKicks(fixture.events);
+  return (
+    <ol className="space-y-1" data-match-sheet="shootout">
+      {kicks.map(({ event, scored, home, away }) => (
+        <li
+          key={event.id}
+          data-kick={scored ? "scored" : "missed"}
+          className="grid grid-cols-[2rem_1fr_auto_3rem] items-baseline gap-3 rounded-md px-2 py-1 odd:bg-muted/50"
+        >
+          <span className="text-muted-foreground tabular-nums">{event.minute}</span>
+          <span className="min-w-0 truncate">
+            {event.playerName} <span className="text-muted-foreground">· {(event.side === "home" ? fixture.home : fixture.away).name}</span>
+          </span>
+          <span className={cn("text-xs font-semibold", scored ? "text-win" : "text-loss")}>
+            <span aria-hidden>{EVENT_MARKS[event.type]} </span>
+            {scored ? "Réussi" : "Manqué"}
+          </span>
+          <span className="text-right font-heading font-bold tabular-nums">
+            {home}-{away}
           </span>
         </li>
       ))}
@@ -47,7 +87,11 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
   const homeGoals = fixture.homeGoals ?? 0;
   const awayGoals = fixture.awayGoals ?? 0;
   const score = `${homeGoals} – ${awayGoals}`;
-  const result = resultFor(homeGoals, awayGoals, fixture.home.isManaged);
+  const result = matchResultFor({ ...fixture, homeGoals, awayGoals }, fixture.home.isManaged);
+  const regular = fixture.events.filter((event) => event.period === "REGULAR");
+  const extraTime = fixture.events.filter((event) => event.period === "EXTRA_TIME");
+  const playedExtraTime = fixture.decidedBy === "EXTRA_TIME" || fixture.decidedBy === "PENALTIES";
+  const hasShootout = fixture.events.some((event) => event.period === "SHOOTOUT");
 
   return (
     <Dialog>
@@ -71,7 +115,7 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
           {fixture.home.name} {score} {fixture.away.name}
         </DialogTitle>
         <DialogDescription className="eyebrow text-center">
-          {fixture.competitionName} · Journée {fixture.round} · {formatDate(fixture.scheduledAt)}
+          {fixture.competitionName} · {stageLabel(fixture)} · {formatDate(fixture.scheduledAt)}
         </DialogDescription>
 
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
@@ -81,15 +125,27 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
           </p>
           <p className="font-heading text-2xl leading-tight font-bold">{fixture.away.name}</p>
         </div>
+        <ScoreNotes match={fixture} className="-mt-3 block text-center text-sm" />
         {fixture.homeHalfTimeGoals !== null && fixture.awayHalfTimeGoals !== null && (
           <p className="-mt-3 text-center text-sm text-muted-foreground tabular-nums" data-match-sheet="half-time">
             Mi-temps : {fixture.homeHalfTimeGoals} – {fixture.awayHalfTimeGoals}
           </p>
         )}
 
-        <div className="grid max-h-[55vh] grid-cols-2 gap-4 overflow-y-auto border-t pt-4 text-sm">
-          <EventColumn events={fixture.events.filter((event) => event.side === "home")} align="right" />
-          <EventColumn events={fixture.events.filter((event) => event.side === "away")} align="left" />
+        <div className="max-h-[55vh] space-y-4 overflow-y-auto border-t pt-4 text-sm">
+          <EventColumns events={regular} />
+          {playedExtraTime && (
+            <section className="space-y-2 border-t pt-3" data-match-sheet="extra-time">
+              <h3 className="eyebrow text-center">Prolongation</h3>
+              <EventColumns events={extraTime} />
+            </section>
+          )}
+          {hasShootout && (
+            <section className="space-y-2 border-t pt-3">
+              <h3 className="eyebrow text-center">Tirs au but</h3>
+              <ShootoutList fixture={fixture} />
+            </section>
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -9,6 +9,7 @@ import { GameActions } from "./_components/game-actions";
 import { SaveNav } from "./_components/save-nav";
 import { SimulationProvider } from "./_components/simulation";
 import { clubAccentStyle } from "./_lib/club-accent";
+import { stageLabel } from "./_lib/stage";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                   <time dateTime={header.currentDate.toISOString()}>{formatDayDate(header.currentDate)}</time>
                 </p>
                 <p className="text-[0.6875rem] text-muted-foreground tabular-nums">
-                  {header.nextRound === null ? "Saison terminée" : `Journée ${header.nextRound}`} · Mercato{" "}
+                  {header.nextStage === null ? "Saison terminée" : stageLabel(header.nextStage)} · Mercato{" "}
                   {header.windowOpen ? "ouvert" : "fermé"}
                 </p>
               </div>

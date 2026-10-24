@@ -1,5 +1,5 @@
 import { displayClubName } from "../engine/club-name";
-import type { MatchEventType, Side } from "../engine/match";
+import type { DecidedBy, MatchEventType, Side } from "../engine/match";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
@@ -14,7 +14,8 @@ export type TeamView = {
 
 export type FixtureView = {
   id: string;
-  round: number;
+  round: number; // the matchday; in a cup, the round (1 preliminary … 6 final)
+  cup: boolean; // a national cup tie
   scheduledAt: Date;
   competitionName: string;
   home: TeamView;
@@ -24,12 +25,16 @@ export type FixtureView = {
   awayGoals: number | null;
   homeHalfTimeGoals: number | null; // null for matches played before the two-half engine
   awayHalfTimeGoals: number | null;
+  decidedBy: DecidedBy | null; // a played cup tie: in 90 minutes, after extra time or on penalties; null in a league
+  homePenalties: number | null; // shoot-out kicks scored
+  awayPenalties: number | null;
 };
 
 export type MatchEventView = {
   id: string;
   minute: number;
   type: MatchEventType;
+  period: "REGULAR" | "EXTRA_TIME" | "SHOOTOUT"; // the minute of a shoot-out kick is its number
   side: Side; // stored with the event: the player's club may have changed since
   playerName: string;
   playerKey: string | null; // with his age on the match day, to draw his face
@@ -57,7 +62,10 @@ export const FIXTURE_SELECT = {
   awayGoals: true,
   homeHalfTimeGoals: true,
   awayHalfTimeGoals: true,
-  season: { select: { competition: { select: { name: true } } } },
+  decidedBy: true,
+  homePenalties: true,
+  awayPenalties: true,
+  season: { select: { competition: { select: { name: true, kind: true } } } },
   homeClubSave: TEAM_SELECT,
   awayClubSave: TEAM_SELECT,
 } as const;
@@ -75,6 +83,7 @@ export function toFixtureView(row: FixtureRow): FixtureView {
   return {
     id: row.id,
     round: row.round,
+    cup: row.season.competition.kind === "CUP",
     scheduledAt: row.scheduledAt,
     competitionName: row.season.competition.name,
     home: toTeamView(row.homeClubSave),
@@ -84,6 +93,9 @@ export function toFixtureView(row: FixtureRow): FixtureView {
     awayGoals: row.awayGoals,
     homeHalfTimeGoals: row.homeHalfTimeGoals,
     awayHalfTimeGoals: row.awayHalfTimeGoals,
+    decidedBy: row.decidedBy,
+    homePenalties: row.homePenalties,
+    awayPenalties: row.awayPenalties,
   };
 }
 
@@ -92,11 +104,13 @@ const fullName = (player: { firstName: string; lastName: string }): string => `$
 const involving = (clubSaveId: string) => ({ OR: [{ homeClubSaveId: clubSaveId }, { awayClubSaveId: clubSaveId }] });
 
 const EVENTS_SELECT = {
-  // Events are written in match order, so the id breaks ties within a minute.
-  orderBy: [{ minute: "asc" }, { id: "asc" }],
+  // Events are written in match order, so the id breaks ties within a minute. Periods first: the enum's order is the
+  // match's (regular time, extra time, shoot-out), and a kick's « minute » is its number.
+  orderBy: [{ period: "asc" }, { minute: "asc" }, { id: "asc" }],
   select: {
     id: true,
     minute: true,
+    period: true,
     type: true,
     side: true,
     playerSave: { select: { firstName: true, lastName: true, playerKey: true, birthDate: true } },
@@ -111,6 +125,7 @@ const toEventView =
   (event: EventRow): MatchEventView => ({
     id: event.id,
     minute: event.minute,
+    period: event.period,
     type: event.type,
     side: event.side === "HOME" ? "home" : "away",
     playerName: event.playerSave === null ? "Joueur inconnu" : fullName(event.playerSave),

@@ -12,8 +12,10 @@ import { HALF_TIME_MINUTE } from "@/src/engine/balance";
 import type { Side } from "@/src/engine/match";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "../../_components/panel";
+import { ScoreNotes } from "../../_components/score-notes";
 import { describeEvent, EVENT_LABELS, EVENT_MARKS, formatMinute, REGULATION_MINUTES } from "../../_lib/match-events";
 import { RESULT_CLASSES, resultFor } from "../../_lib/results";
+import { stageLabel } from "../../_lib/stage";
 import { HalfTime } from "./half-time";
 
 /** Real duration of the replay from kick-off to the 90th minute, at normal speed. */
@@ -189,7 +191,10 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, halfT
 
       {others.length > 0 && (
         <Panel>
-          <PanelTitle>Autres matchs · {match.competitionName}</PanelTitle>
+          <PanelTitle>
+            Autres matchs · {match.competitionName}
+            {match.cup && ` · ${stageLabel(match)}`}
+          </PanelTitle>
           <ul className="mt-3 divide-y text-sm">
             {others.map((other) => {
               const otherGoals = other.goals.filter(isShown);
@@ -205,7 +210,10 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, halfT
                   >
                     {goalsOf(otherGoals, "home")} – {goalsOf(otherGoals, "away")}
                   </span>
-                  <span className="truncate">{other.away.name}</span>
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span className="truncate">{other.away.name}</span>
+                    {finished && halfTime === null && <ScoreNotes match={other} />}
+                  </span>
                 </li>
               );
             })}
