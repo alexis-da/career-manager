@@ -111,7 +111,7 @@ export async function getCountryMoves(saveId: string, seasonId: string): Promise
   }
   const country = countryOf(season.competition.code);
   const seasons = await prisma.season.findMany({
-    where: { saveId, startYear: season.startYear, competition: { code: { startsWith: `${country}.` } } },
+    where: { saveId, startYear: season.startYear, competition: { kind: "LEAGUE", code: { startsWith: `${country}.` } } },
     select: { movements: true, competition: { select: { code: true, name: true } } },
   });
   const moves = seasons.flatMap((row) => (row.movements === null ? [] : seasonMovementsSchema.parse(row.movements)));

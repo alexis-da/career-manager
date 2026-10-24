@@ -66,7 +66,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, worldVersion: true } });
       const seasons = await tx.season.findMany({
         where: { saveId, completed: false },
-        select: { id: true, startYear: true, competitionId: true, competition: { select: { code: true } } },
+        select: { id: true, startYear: true, competitionId: true, competition: { select: { code: true, kind: true } } },
       });
       if (seasons.length === 0) {
         throw new Error(`Save ${saveId} has no season in progress`);
@@ -77,6 +77,9 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       }
       const [completedStartYear] = startYears;
       const seasonIds = seasons.map((season) => season.id);
+      // The leagues' seasons: tables, promotion and relegation, the managed club's result, playing time. A cup's
+      // fixtures only have to be played.
+      const leagueSeasons = seasons.filter((season) => season.competition.kind === "LEAGUE");
 
       const unplayed = await tx.fixture.count({ where: { saveId, seasonId: { in: seasonIds }, played: false } });
       if (unplayed > 0) {
@@ -86,8 +89,8 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       // Promotion and relegation from the final tables (worldVersion 2 saves only), then the managed club's result,
       // before any player progresses, retires or leaves.
       const worldVersion = worldVersionOf(save.worldVersion);
-      const moves = await computeSeasonMoves(tx, saveId, worldVersion, seasons);
-      const completedSeasonId = await recordSeasonResult(tx, saveId, seasons, moves);
+      const moves = await computeSeasonMoves(tx, saveId, worldVersion, leagueSeasons);
+      const completedSeasonId = await recordSeasonResult(tx, saveId, leagueSeasons, moves);
 
       const startYear = completedStartYear + 1;
       const transitionDate = seasonStartDate(startYear);
@@ -120,9 +123,10 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
           clubSave: { select: { clubId: true, isManaged: true } },
         },
       });
+      // League minutes only: the cup keeps the managed club's players' stats alone, which would favour them.
       const minutes = await tx.playerSeasonStats.groupBy({
         by: ["playerSaveId"],
-        where: { saveId, seasonId: { in: seasonIds } },
+        where: { saveId, seasonId: { in: leagueSeasons.map((season) => season.id) } },
         _sum: { minutes: true },
       });
       const minutesByPlayer = new Map(minutes.map((row) => [row.playerSaveId, row._sum.minutes ?? 0]));
@@ -197,16 +201,16 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
 
       await tx.season.updateMany({ where: { saveId, id: { in: seasonIds } }, data: { completed: true } });
       // The moving clubs change competition and finances before the preseason, whose AI clubs plan with them.
-      await applySeasonMoves(tx, saveId, worldVersion, seasons, moves);
+      await applySeasonMoves(tx, saveId, worldVersion, leagueSeasons, moves);
       await tx.save.update({ where: { id: saveId }, data: { currentDate: transitionDate } });
 
       const preseason = await runPreseasonInTransaction(tx, saveId);
 
       const nextSeasons = await tx.season.createManyAndReturn({
-        data: seasons.map((season) => ({ saveId, competitionId: season.competitionId, startYear })),
+        data: leagueSeasons.map((season) => ({ saveId, competitionId: season.competitionId, startYear })),
         select: { id: true, competitionId: true },
       });
-      const codeByCompetition = new Map(seasons.map((season) => [season.competitionId, season.competition.code]));
+      const codeByCompetition = new Map(leagueSeasons.map((season) => [season.competitionId, season.competition.code]));
       // Each club plays its current competition in the save (ClubSave.competitionId), never the world's.
       const clubSaves = await tx.clubSave.findMany({
         where: { saveId },

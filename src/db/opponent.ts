@@ -49,7 +49,7 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
       OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }],
     },
     orderBy: { scheduledAt: "asc" },
-    select: { scheduledAt: true, seasonId: true, homeClubSaveId: true, awayClubSaveId: true },
+    select: { scheduledAt: true, season: { select: { startYear: true } }, homeClubSaveId: true, awayClubSaveId: true },
   });
   if (next === null) {
     return null;
@@ -82,7 +82,13 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
       },
     }),
     prisma.playerSeasonStats.findFirst({
-      where: { saveId, seasonId: next.seasonId, goals: { gt: 0 }, playerSave: { saveId, clubSaveId: opponentId } },
+      // Its league season's scorer, cup match or not: the cup keeps the stats of the managed club's players only.
+      where: {
+        saveId,
+        season: { saveId, startYear: next.season.startYear, competition: { kind: "LEAGUE" } },
+        goals: { gt: 0 },
+        playerSave: { saveId, clubSaveId: opponentId },
+      },
       orderBy: [{ goals: "desc" }, { assists: "desc" }, { playerSave: { playerKey: "asc" } }],
       select: { goals: true, playerSave: { select: { firstName: true, lastName: true } } },
     }),

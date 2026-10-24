@@ -1,6 +1,7 @@
 import {
   applyHalfTimeChoice,
   automaticHalfTimeChoice,
+  finishKnockout,
   halfRngSeed,
   matchResult,
   simulateHalf,
@@ -16,7 +17,9 @@ import { prisma } from "./client";
 import type { LineupPlayer } from "./lineup";
 import { parseLiveState } from "./live-state";
 import {
+  FIXTURE_SEASON_SELECT,
   fixtureMatchSeed,
+  isKnockout,
   PLAYER_SELECT,
   recordFinishedMatches,
   squadsOf,
@@ -112,8 +115,9 @@ export type ResumedMatch = {
 /**
  * Plays the second half of the managed club's match paused at half-time, in one transaction: the manager's
  * half-time choice (null: the automatic changes, as an AI club makes them) and the opponent's automatic changes,
- * then the second half with its own stream, so the same choices always give the same match. Writes the second
- * half's events (half-time substitutions at 46'), the final score, season stats, form and injuries, then clears
+ * then the second half with its own stream, so the same choices always give the same match; a cup tie level after 90
+ * minutes goes on to extra time and a shoot-out, played at once. Writes the second half's events (half-time
+ * substitutions at 46') and what follows, the final score, season stats, form and injuries, then clears
  * the live state and Save.liveFixtureId. An invalid choice throws HalfTimeChoiceError and writes nothing.
  */
 export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | null): Promise<ResumedMatch> {
@@ -134,7 +138,7 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
           homeClubSaveId: true,
           awayClubSaveId: true,
           liveState: true,
-          season: { select: { startYear: true } },
+          season: FIXTURE_SEASON_SELECT,
           homeClubSave: clubSelect,
           awayClubSave: clubSelect,
         },
@@ -147,7 +151,8 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
       const opponentSide = managedSide === "home" ? "away" : "home";
       let state = applyHalfTimeChoice(halfTime, managedSide, choice ?? automaticHalfTimeChoice(halfTime, managedSide));
       state = applyHalfTimeChoice(state, opponentSide, automaticHalfTimeChoice(state, opponentSide));
-      state = simulateHalf(state, makeRng(halfRngSeed(fixtureMatchSeed(save.seed, fixture), "h2")), "h2");
+      const matchSeed = fixtureMatchSeed(save.seed, fixture);
+      state = finishKnockout(simulateHalf(state, makeRng(halfRngSeed(matchSeed, "h2")), "h2"), matchSeed);
       const result = matchResult(state);
 
       // The clubs' current players, whose form and injuries change, and anyone of the match who has left since.
@@ -175,7 +180,8 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
             seasonId: fixture.seasonId,
             result,
             newEvents: result.events.slice(halfTime.events.length),
-            involvesManagedClub: true,
+            managedSide,
+            knockout: isKnockout(fixture.season),
             squads: {
               home: getOrThrow(squads, fixture.homeClubSaveId, "home squad"),
               away: getOrThrow(squads, fixture.awayClubSaveId, "away squad"),

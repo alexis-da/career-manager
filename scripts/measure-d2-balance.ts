@@ -64,7 +64,7 @@ async function playSeason(saveId: string): Promise<SeasonRecord> {
   const kickoff = await strengths(saveId);
   const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
   const seasons = await prisma.season.findMany({
-    where: { saveId, completed: false },
+    where: { saveId, completed: false, competition: { kind: "LEAGUE" } },
     select: { id: true, startYear: true, competition: { select: { code: true } } },
   });
   const started = performance.now();

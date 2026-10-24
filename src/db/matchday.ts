@@ -1,8 +1,10 @@
 import { DEFAULT_FORMATION_NAME, type FormationName } from "../engine/formations";
 import { autoFilledSlots, resolveLineup, selectLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import {
+  cupMatchRngSeed,
   eventsToPersist,
   halfRngSeed,
+  knockoutWinner,
   matchRngSeed,
   nextForm,
   outcomeFor,
@@ -129,23 +131,24 @@ export function squadsOf(rows: readonly PlayerRow[], matchDate: Date): {
   return { squads, stateByKey };
 }
 
-/** The seed of a fixture's match: save seed, season, matchday and club slugs. */
-export function fixtureMatchSeed(
-  saveSeed: string,
-  fixture: { round: number; season: { startYear: number }; homeClubSave: { club: { slug: string } }; awayClubSave: { club: { slug: string } } },
-): string {
-  return matchRngSeed(saveSeed, fixture.season.startYear, fixture.round, fixture.homeClubSave.club.slug, fixture.awayClubSave.club.slug);
-}
+/** What a fixture's match needs to know of its season: its year, and whether it is a cup tie, a knockout match. */
+export const FIXTURE_SEASON_SELECT = { select: { startYear: true, competition: { select: { kind: true } } } } as const;
+
+type FixtureSeason = { startYear: number; competition: { kind: "LEAGUE" | "CUP" } };
+
+/** A cup tie is a knockout match: level after 90 minutes, it goes to extra time and a shoot-out. */
+export const isKnockout = (season: FixtureSeason): boolean => season.competition.kind === "CUP";
 
 /**
- * The stored type of an event. Shoot-out kicks only come from cup matches, which the database does not hold yet: the
- * cup's schema brings their types.
+ * The seed of a fixture's match: save seed, season, matchday (or cup round) and club slugs. A cup tie has a seed of its
+ * own (cupMatchRngSeed), so that it never replays the league match of the same round between the same clubs.
  */
-function storedEventType(type: MatchEvent["type"]): Exclude<MatchEvent["type"], "SHOOTOUT_GOAL" | "SHOOTOUT_MISS"> {
-  if (type === "SHOOTOUT_GOAL" || type === "SHOOTOUT_MISS") {
-    throw new Error(`No stored type yet for ${type}`);
-  }
-  return type;
+export function fixtureMatchSeed(
+  saveSeed: string,
+  fixture: { round: number; season: FixtureSeason; homeClubSave: { club: { slug: string } }; awayClubSave: { club: { slug: string } } },
+): string {
+  const seed = isKnockout(fixture.season) ? cupMatchRngSeed : matchRngSeed;
+  return seed(saveSeed, fixture.season.startYear, fixture.round, fixture.homeClubSave.club.slug, fixture.awayClubSave.club.slug);
 }
 
 export function matchEventRows(
@@ -157,7 +160,8 @@ export function matchEventRows(
   return events.map((event) => ({
     fixtureId,
     minute: event.minute,
-    type: storedEventType(event.type),
+    period: event.period ?? "REGULAR",
+    type: event.type,
     side: event.side === "home" ? "HOME" : "AWAY",
     playerSaveId: playerSaveIdOf(event.playerId),
     relatedPlayerSaveId: event.relatedPlayerId === undefined ? null : playerSaveIdOf(event.relatedPlayerId),
@@ -170,7 +174,8 @@ export type FinishedMatch = {
   seasonId: string;
   result: MatchResult;
   newEvents: readonly MatchEvent[]; // the events not written yet: all of them, or the second half's after a pause
-  involvesManagedClub: boolean; // a match of the managed club keeps all its events, another one its goals only
+  managedSide: Side | null; // a match of the managed club keeps all its events, another one its goals only
+  knockout: boolean; // a cup tie: its winner is written, and only the managed club's players get season stats
   squads: Readonly<Record<Side, readonly SquadPlayer[]>>; // the clubs' players, whose form and injuries change
 };
 
@@ -183,9 +188,10 @@ type SeasonStats = {
 const seasonStatsKey = (seasonId: string, playerSaveId: string): string => `${seasonId}#${playerSaveId}`;
 
 /**
- * Writes finished matches in bulk: final and half-time scores (the live state cleared), events not written yet (all
- * of them for the managed club's match, the goals only for the others: eventsToPersist), season stats, form and
- * injuries of both clubs' players, these three from the whole match.
+ * Writes finished matches in bulk: final and half-time scores (the live state cleared), a cup tie's winner and how it
+ * was decided, events not written yet (all of them for the managed club's match, the goals only for the others:
+ * eventsToPersist), season stats (in a cup tie, the managed club's players only), form and injuries of both clubs'
+ * players, these three from the whole match.
  */
 export async function recordFinishedMatches(
   tx: Transaction,
@@ -202,13 +208,15 @@ export async function recordFinishedMatches(
   const seasonStats: SeasonStats[] = [];
   const playerUpdates: { playerSaveId: string; form: number; injuredUntil: Date | null }[] = [];
 
-  for (const { fixtureId, seasonId, result, newEvents, involvesManagedClub, squads } of matches) {
+  for (const { fixtureId, seasonId, result, newEvents, managedSide, knockout, squads } of matches) {
     // Only the writing is filtered: the stats and injuries below come from the whole match in memory.
-    events.push(...matchEventRows(fixtureId, eventsToPersist(newEvents, involvesManagedClub), stateByKey));
+    events.push(...matchEventRows(fixtureId, eventsToPersist(newEvents, managedSide !== null), stateByKey));
 
     const statsByKey = new Map(playerMatchStats(result).map((stats) => [stats.playerId, stats]));
     for (const stats of statsByKey.values()) {
-      seasonStats.push({ seasonId, playerSaveId: playerSaveIdOf(stats.playerId), stats });
+      if (!knockout || stats.side === managedSide) {
+        seasonStats.push({ seasonId, playerSaveId: playerSaveIdOf(stats.playerId), stats });
+      }
     }
 
     const injuryDays = new Map(result.injuries.map((injury) => [injury.playerId, injury.days]));
@@ -226,18 +234,24 @@ export async function recordFinishedMatches(
     }
   }
 
+  // A cup tie's winner is a side of the fixture: the CASE turns it into the club's row.
   await tx.$executeRaw`
     UPDATE "Fixture" AS f
     SET "played" = true, "status" = 'PLAYED'::"FixtureStatus", "liveState" = NULL,
         "homeGoals" = v."homeGoals", "awayGoals" = v."awayGoals",
-        "homeHalfTimeGoals" = v."homeHalfTimeGoals", "awayHalfTimeGoals" = v."awayHalfTimeGoals"
+        "homeHalfTimeGoals" = v."homeHalfTimeGoals", "awayHalfTimeGoals" = v."awayHalfTimeGoals",
+        "decidedBy" = v."decidedBy"::"DecidedBy", "homePenalties" = v."homePenalties", "awayPenalties" = v."awayPenalties",
+        "winnerClubSaveId" = CASE v."winner" WHEN 'home' THEN f."homeClubSaveId" WHEN 'away' THEN f."awayClubSaveId" END
     FROM (VALUES ${Prisma.join(
       matches.map(
-        ({ fixtureId, result }) =>
+        ({ fixtureId, result, knockout }) =>
           Prisma.sql`(${fixtureId}::text, ${result.homeGoals}::int, ${result.awayGoals}::int,
-            ${result.homeHalfTimeGoals}::int, ${result.awayHalfTimeGoals}::int)`,
+            ${result.homeHalfTimeGoals}::int, ${result.awayHalfTimeGoals}::int, ${result.decidedBy ?? null}::text,
+            ${result.homePenalties ?? null}::int, ${result.awayPenalties ?? null}::int,
+            ${knockout ? knockoutWinner(result) : null}::text)`,
       ),
-    )}) AS v("id", "homeGoals", "awayGoals", "homeHalfTimeGoals", "awayHalfTimeGoals")
+    )}) AS v("id", "homeGoals", "awayGoals", "homeHalfTimeGoals", "awayHalfTimeGoals", "decidedBy", "homePenalties",
+             "awayPenalties", "winner")
     WHERE f."id" = v."id" AND f."saveId" = ${saveId}`;
 
   if (events.length > 0) {
@@ -340,7 +354,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
           seasonId: true,
           homeClubSaveId: true,
           awayClubSaveId: true,
-          season: { select: { startYear: true } },
+          season: FIXTURE_SEASON_SELECT,
           homeClubSave: { select: TEAM_SELECT },
           awayClubSave: { select: TEAM_SELECT },
         },
@@ -365,9 +379,10 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         const away = lineupOf(fixture.awayClubSave, squadsBySide.away);
         const formations = { home: home.formation, away: away.formation };
         const managedSide: Side | null = fixture.homeClubSave.isManaged ? "home" : fixture.awayClubSave.isManaged ? "away" : null;
+        const knockout = isKnockout(fixture.season);
 
         if (managedSide !== null && options.pauseManagedMatch === true) {
-          const halfTime = simulateHalf(startMatch(home.lineup, away.lineup, formations), makeRng(halfRngSeed(matchSeed, "h1")), "h1");
+          const halfTime = simulateHalf(startMatch(home.lineup, away.lineup, formations, knockout), makeRng(halfRngSeed(matchSeed, "h1")), "h1");
           const homeHalfTimeGoals = halfTime.home.goals;
           const awayHalfTimeGoals = halfTime.away.goals;
           const updated = await tx.fixture.updateMany({
@@ -391,7 +406,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
           continue;
         }
 
-        const result = simulateMatch(home.lineup, away.lineup, matchSeed, formations);
+        const result = simulateMatch(home.lineup, away.lineup, matchSeed, formations, knockout);
         if (managedSide !== null) {
           managed = { fixtureId: fixture.id, autoFilledSlots: (managedSide === "home" ? home : away).autoFilledSlots, halfTime: false };
         }
@@ -400,7 +415,8 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
           seasonId: fixture.seasonId,
           result,
           newEvents: result.events,
-          involvesManagedClub: managedSide !== null,
+          managedSide,
+          knockout,
           squads: squadsBySide,
         });
       }

@@ -50,6 +50,7 @@ const teamSchema = z.object({
 
 const matchStateSchema = z.object({
   phase: z.enum(["KICK_OFF", "HALF_TIME", "FULL_TIME"]),
+  knockout: z.literal(true).optional(), // a cup tie: level after 90 minutes, extra time and a shoot-out follow
   fullTime: minute.nullable(),
   home: teamSchema,
   away: teamSchema,

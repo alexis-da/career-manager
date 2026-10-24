@@ -22,7 +22,7 @@ export type CompetitionClubs = {
  */
 export async function listClubsByCompetition(worldVersion: WorldVersion = DEFAULT_WORLD_VERSION): Promise<CompetitionClubs[]> {
   const competitions = await prisma.competition.findMany({
-    where: { tier: { in: worldTiers(worldVersion) } },
+    where: { kind: "LEAGUE", tier: { in: worldTiers(worldVersion) } },
     orderBy: [{ country: "asc" }, { tier: "asc" }],
     select: { code: true, name: true, country: true, tier: true, clubs: { select: { id: true, slug: true, name: true } } },
   });

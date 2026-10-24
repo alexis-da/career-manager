@@ -189,11 +189,12 @@ export async function recordSeasonResult(
  */
 async function ensureSeasonResults(saveId: string): Promise<ManagedClub> {
   const managed = await managedClubOf(prisma, saveId);
-  // The completed seasons the club played, whichever competition it was in then.
+  // The completed league seasons the club played, whichever division it was in then: a cup has no table.
   const missing = await prisma.season.findMany({
     where: {
       saveId,
       completed: true,
+      competition: { kind: "LEAGUE" },
       results: { none: { saveId } },
       fixtures: { some: { saveId, OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }] } },
     },

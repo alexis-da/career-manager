@@ -14,11 +14,12 @@ datasource db {
 // ---------------------------------------------------------------- RÉFÉRENCE
 
 model Competition {
-  id            String         @id @default(cuid())
-  code          String         @unique // code OpenFootball, ex. "en.1"
+  id            String          @id @default(cuid())
+  code          String          @unique // code OpenFootball, ex. "en.1"
   name          String
   country       String
-  tier          Int            @default(1)
+  tier          Int             @default(1) // 1 ou 2 pour un championnat, 0 pour une coupe
+  kind          CompetitionKind @default(LEAGUE) // championnat ou coupe nationale ("xx.cup") : les lecteurs de championnat filtrent LEAGUE
   clubs         Club[]
   clubSaves     ClubSave[]
   seasons       Season[]
@@ -153,6 +154,7 @@ model ClubSave {
   players         PlayerSave[]
   homeFixtures    Fixture[]    @relation("HomeFixtures")
   awayFixtures    Fixture[]    @relation("AwayFixtures")
+  wonFixtures     Fixture[]    @relation("WonFixtures")
 
   @@unique([saveId, clubId])
   @@index([saveId])
@@ -205,7 +207,7 @@ model Fixture {
   saveId            String
   season            Season        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   seasonId          String
-  round             Int // numéro de journée
+  round             Int // numéro de journée ; en coupe, le tour : 1 préliminaire, 2 seizièmes … 6 finale
   scheduledAt       DateTime
   homeClubSave      ClubSave      @relation("HomeFixtures", fields: [homeClubSaveId], references: [id], onDelete: Cascade)
   homeClubSaveId    String
@@ -217,6 +219,11 @@ model Fixture {
   awayGoals         Int?
   homeHalfTimeGoals Int? // score de mi-temps ; null pour les matchs joués avant le moteur en deux périodes
   awayHalfTimeGoals Int?
+  decidedBy         DecidedBy? // match de coupe joué : en 90 minutes, en prolongation ou aux tirs au but ; null en championnat
+  homePenalties     Int? // tirs au but réussis, seulement si decidedBy = PENALTIES
+  awayPenalties     Int?
+  winnerClubSave    ClubSave?     @relation("WonFixtures", fields: [winnerClubSaveId], references: [id], onDelete: Cascade)
+  winnerClubSaveId  String? // qualifié d'un match de coupe joué ; null en championnat
   liveState         Json? // état du moteur à la mi-temps pendant HALF_TIME (validé par Zod, src/db/live-match.ts), null sinon
   events            MatchEvent[]
 
@@ -228,7 +235,8 @@ model MatchEvent {
   id                  String         @id @default(cuid())
   fixture             Fixture        @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
   fixtureId           String
-  minute              Int // 1–90 (+ arrêts de jeu)
+  minute              Int // 1–90 (+ arrêts de jeu), 91–120 en prolongation ; numéro du tir pendant la séance
+  period              EventPeriod    @default(REGULAR) // la minute 92 est un arrêt de jeu en REGULAR, une minute de prolongation en EXTRA_TIME
   type                MatchEventType
   side                MatchSide // équipe de l'événement, fixée au match : le club du joueur peut changer ensuite
   playerSave          PlayerSave?    @relation("MatchEventPlayer", fields: [playerSaveId], references: [id], onDelete: Cascade)
@@ -295,7 +303,8 @@ model SeasonResult {
   lost               Int
   goalsFor           Int
   goalsAgainst       Int
-  trophies           String[] // « champion » si rank = 1, vide sinon
+  trophies           String[] // « champion » si rank = 1, « cup » pour la coupe gagnée
+  cupRound           Int? // dernier tour de coupe joué (1 préliminaire … 6 finale) ; null sans coupe cette saison
   promoted           Boolean     @default(false) // monté en première division à la fin de la saison ; false pour une ligne reconstruite
   relegated          Boolean     @default(false) // descendu en deuxième division à la fin de la saison ; false pour une ligne reconstruite
   bestPlayerKey      String? // PlayerSave.playerKey ; null si aucun joueur n'a joué BEST_PLAYER_MIN_APPEARANCES matchs
@@ -345,6 +354,25 @@ enum MatchEventType {
   RED_CARD
   INJURY
   SUBSTITUTION
+  SHOOTOUT_GOAL // tir au but réussi : playerSaveId le tireur, relatedPlayerSaveId le gardien
+  SHOOTOUT_MISS
+}
+
+enum EventPeriod {
+  REGULAR
+  EXTRA_TIME
+  SHOOTOUT
+}
+
+enum CompetitionKind {
+  LEAGUE
+  CUP
+}
+
+enum DecidedBy {
+  REGULATION
+  EXTRA_TIME
+  PENALTIES
 }
 
 enum MatchSide {

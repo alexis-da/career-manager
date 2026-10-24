@@ -71,10 +71,10 @@ export async function getStandings(
   });
 }
 
-/** Tables of the save's latest season, one per competition, in alphabetical order of competition. */
+/** Tables of the save's latest season, one per league (the cups have none), in alphabetical order of competition. */
 export async function getLatestSeasonTables(saveId: string): Promise<CompetitionTable[]> {
   const latest = await prisma.season.findFirst({
-    where: { saveId },
+    where: { saveId, competition: { kind: "LEAGUE" } },
     orderBy: { startYear: "desc" },
     select: { startYear: true },
   });
@@ -82,7 +82,7 @@ export async function getLatestSeasonTables(saveId: string): Promise<Competition
     return [];
   }
   const seasons = await prisma.season.findMany({
-    where: { saveId, startYear: latest.startYear },
+    where: { saveId, startYear: latest.startYear, competition: { kind: "LEAGUE" } },
     orderBy: { competition: { name: "asc" } },
     select: { id: true, startYear: true, competition: { select: { code: true, name: true, country: true, tier: true } } },
   });

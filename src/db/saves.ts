@@ -85,7 +85,7 @@ async function writeSave(data: z.output<typeof createSaveInputSchema>, timer: Ph
 
       // Sequential on purpose: a transaction runs on a single connection, which takes one query at a time.
       const competitions = await tx.competition.findMany({
-        where: { tier: { in: tiers } },
+        where: { kind: "LEAGUE", tier: { in: tiers } },
         select: { id: true, code: true },
       });
       const clubRows = await tx.club.findMany({

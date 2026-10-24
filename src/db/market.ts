@@ -68,7 +68,7 @@ export async function getMarketOverview(saveId: string): Promise<MarketOverview>
     prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } }),
     prisma.playerSave.count({ where: freeAgentWhere(saveId) }),
     prisma.competition.findMany({
-      where: { seasons: { some: { saveId } } },
+      where: { kind: "LEAGUE", seasons: { some: { saveId } } },
       orderBy: { name: "asc" },
       select: { code: true, name: true },
     }),

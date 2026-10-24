@@ -196,9 +196,9 @@ export async function getSimulationSummary(saveId: string, fromDate: Date): Prom
   const period = { gt: fromDate, lte: toDate };
 
   const involving = { OR: [{ homeClubSaveId: managedId }, { awayClubSaveId: managedId }] };
-  // The managed club's league: the latest season with a fixture of it.
+  // The managed club's league: the latest league season with a fixture of it.
   const season = await prisma.season.findFirst({
-    where: { saveId, fixtures: { some: { saveId, ...involving } } },
+    where: { saveId, competition: { kind: "LEAGUE" }, fixtures: { some: { saveId, ...involving } } },
     orderBy: { startYear: "desc" },
     select: { id: true },
   });
