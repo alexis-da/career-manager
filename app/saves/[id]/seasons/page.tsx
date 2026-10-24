@@ -10,7 +10,7 @@ import { formatDecimal } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../_components/panel";
 import { POSITION_SHORT } from "../_lib/positions";
-import { moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
+import { cupLabel, moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +58,7 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                 <TableRow
                   key={season.seasonId}
                   data-season={season.startYear}
-                  className={cn(TABLE_ROW, season.champion && MANAGED_ROW)}
+                  className={cn(TABLE_ROW, (season.champion || season.cupWinner) && MANAGED_ROW)}
                 >
                   <TableCell className={cn(TABLE_CELL, "font-heading text-base font-semibold")}>
                     {seasonLabel(season.startYear)}
@@ -71,6 +71,14 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                         className={cn("block text-xs font-semibold", season.promoted ? "text-(--club)" : "text-muted-foreground")}
                       >
                         {moveLabel(season)}
+                      </span>
+                    )}
+                    {cupLabel(season) !== null && (
+                      <span
+                        data-column="cup"
+                        className={cn("block text-xs font-semibold", season.cupWinner ? "text-(--club)" : "text-muted-foreground")}
+                      >
+                        {cupLabel(season)}
                       </span>
                     )}
                   </TableCell>

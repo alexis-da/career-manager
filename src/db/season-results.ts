@@ -274,6 +274,8 @@ export type SeasonResultView = {
   champion: boolean;
   promoted: boolean; // false for a row rebuilt lazily
   relegated: boolean;
+  cupRound: number | null; // the last cup round played (1 preliminary … 6 final); null without a cup that season
+  cupWinner: boolean;
   points: number;
   played: number;
   won: number;
@@ -335,6 +337,8 @@ export async function getSeasonResults(saveId: string, seasonId?: string): Promi
         champion: row.trophies.includes(CHAMPION_TROPHY),
         promoted: row.promoted,
         relegated: row.relegated,
+        cupRound: row.cupRound,
+        cupWinner: row.trophies.includes(CUP_TROPHY),
         points: row.points,
         played: row.played,
         won: row.won,

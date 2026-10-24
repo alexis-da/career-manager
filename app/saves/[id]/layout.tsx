@@ -55,7 +55,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               </span>
             </Link>
 
-            <SaveNav saveId={header.id} />
+            <SaveNav saveId={header.id} hasCup={header.hasCup} />
 
             <div className="ml-auto flex shrink-0 items-center gap-4">
               <div className="hidden text-right leading-tight lg:block">

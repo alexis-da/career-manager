@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SeasonResultView } from "@/src/db/season-results";
-import { CARD_SIZES, seasonCardResponse, type CardFormat } from "./season-card";
+import { CARD_SIZES, cardBadge, seasonCardResponse, type CardFormat } from "./season-card";
 
 const LYON = { primary: "#1B3E8F", secondary: "#E2001A" };
 
@@ -12,6 +12,8 @@ const CHAMPION: SeasonResultView = {
   champion: true,
   promoted: false,
   relegated: false,
+  cupRound: 5,
+  cupWinner: false,
   points: 84,
   played: 34,
   won: 26,
@@ -50,6 +52,28 @@ describe("seasonCardResponse", () => {
     const season = { ...CHAMPION, competitionName: "France — Division 2", ...change };
     for (const format of ["landscape", "square"] as const) {
       expect(pngSize(await render(season, format))).toEqual(CARD_SIZES[format]);
+    }
+  });
+
+  it("shows the double, the cup or the league, then a promotion", () => {
+    const season = { rank: 1, promoted: false, relegated: false, cupWinner: false };
+    expect(cardBadge({ ...season, cupWinner: true })).toEqual({ badge: "DOUBLÉ", line: "Championnat et Coupe" });
+    expect(cardBadge({ ...season, cupWinner: true, promoted: true })).toEqual({
+      badge: "DOUBLÉ",
+      line: "Championnat et Coupe · Promu en Division 1",
+    });
+    expect(cardBadge(season)).toEqual({ badge: "CHAMPION", line: null });
+    expect(cardBadge({ ...season, rank: 4, cupWinner: true })).toEqual({ badge: "COUPE", line: "4e place" });
+    expect(cardBadge({ ...season, rank: 2, cupWinner: true, promoted: true })).toEqual({ badge: "COUPE", line: "2e place · promu" });
+    expect(cardBadge({ ...season, rank: 3, promoted: true })).toEqual({ badge: "PROMU", line: "3e place" });
+    expect(cardBadge({ ...season, rank: 9 })).toBeNull();
+  });
+
+  it("draws the cards of a double and of a cup winner in both formats", async () => {
+    for (const change of [{ cupWinner: true, cupRound: 6 }, { rank: 5, champion: false, cupWinner: true, cupRound: 6 }]) {
+      for (const format of ["landscape", "square"] as const) {
+        expect(pngSize(await render({ ...CHAMPION, ...change }, format))).toEqual(CARD_SIZES[format]);
+      }
     }
   });
 

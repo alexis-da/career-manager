@@ -10,19 +10,20 @@ const SECTIONS = [
   { segment: "/lineup", label: "Composition" },
   { segment: "/fixtures", label: "Calendrier" },
   { segment: "/standings", label: "Classement" },
+  { segment: "/cup", label: "Coupe" },
   { segment: "/transfers", label: "Transferts" },
   { segment: "/seasons", label: "Palmarès" },
 ] as const;
 
-/** Tabs of a save; the active one gets the club accent at 18 % and an accent underline. */
-export function SaveNav({ saveId }: { saveId: string }) {
+/** Tabs of a save, « Coupe » only with a cup; the active one gets the club accent at 18 % and an accent underline. */
+export function SaveNav({ saveId, hasCup }: { saveId: string; hasCup: boolean }) {
   const pathname = usePathname();
   const base = `/saves/${saveId}`;
 
   return (
     // Full bar height: the active tab's underline hangs below the tab and must stay inside the nav, which never scrolls.
     <nav aria-label="Navigation de la partie" className="flex min-w-0 items-center gap-1 self-stretch overflow-hidden">
-      {SECTIONS.map(({ segment, label }) => {
+      {SECTIONS.filter(({ segment }) => hasCup || segment !== "/cup").map(({ segment, label }) => {
         const href = `${base}${segment}`;
         const active = segment === "" ? pathname === base : pathname.startsWith(href);
         return (

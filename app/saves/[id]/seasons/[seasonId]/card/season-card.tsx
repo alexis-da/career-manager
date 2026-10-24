@@ -94,6 +94,28 @@ function BestPlayer({
   );
 }
 
+/**
+ * The word a card shows in place of the rank, underlined in orange, and the smaller line under it: « DOUBLÉ » for
+ * the league and the cup the same season, « CHAMPION », « COUPE » for the cup alone (the rank under it), « PROMU »
+ * (the rank under it); null for any other season, which shows its rank.
+ */
+export function cardBadge(
+  season: Pick<SeasonResultView, "rank" | "promoted" | "relegated" | "cupWinner">,
+): { badge: string; line: string | null } | null {
+  const champion = season.rank === 1;
+  const promoted = season.promoted ? moveLabel(season) : null;
+  if (champion && season.cupWinner) {
+    return { badge: "DOUBLÉ", line: promoted === null ? "Championnat et Coupe" : `Championnat et Coupe · ${promoted}` };
+  }
+  if (champion) {
+    return { badge: rankLabel(1).toUpperCase(), line: promoted };
+  }
+  if (season.cupWinner) {
+    return { badge: "COUPE", line: `${rankLabel(season.rank)} place${season.promoted ? " · promu" : ""}` };
+  }
+  return season.promoted ? { badge: "PROMU", line: `${rankLabel(season.rank)} place` } : null;
+}
+
 /** The card of a season as a PNG response, 1200 × 630 or 1080 × 1080. */
 export async function seasonCardResponse(
   season: SeasonResultView,
@@ -108,16 +130,14 @@ export async function seasonCardResponse(
   const rankSize = square ? 250 : 190;
   const statSize = square ? 72 : 60;
 
-  // « CHAMPION » or « PROMU » underlined in orange, a smaller line under it for a promotion (« Promu en Division 1 »
-  // for a champion, the rank otherwise); or the rank with its « e » raised: « 2e », never « 2E ».
-  const badge = season.rank === 1 ? rankLabel(1).toUpperCase() : season.promoted ? "PROMU" : null;
-  const badgeLine = !season.promoted ? null : season.rank === 1 ? moveLabel(season) : `${rankLabel(season.rank)} place`;
+  // The badge (cardBadge) underlined in orange, with its line; or the rank with its « e » raised: « 2e », never « 2E ».
+  const badge = cardBadge(season);
   const rank =
     badge !== null ? (
       <div style={column}>
-        <div style={{ fontSize: rankSize * 0.8, lineHeight: 0.95 }}>{badge}</div>
+        <div style={{ fontSize: rankSize * 0.8, lineHeight: 0.95 }}>{badge.badge}</div>
         <div style={{ marginTop: 12, width: 140, height: 8, borderRadius: 4, background: ORANGE }} />
-        {badgeLine !== null && <div style={{ marginTop: 14, fontSize: square ? 36 : 30, color: MUTED }}>{badgeLine}</div>}
+        {badge.line !== null && <div style={{ marginTop: 14, fontSize: square ? 36 : 30, color: MUTED }}>{badge.line}</div>}
       </div>
     ) : (
       <div style={{ ...row, alignItems: "flex-start" }}>

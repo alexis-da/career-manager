@@ -3,10 +3,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireOwnedSave } from "@/src/auth/current-user";
+import { getCupWinnerName } from "@/src/db/cup-view";
 import { getCountryMoves } from "@/src/db/promotion";
 import { getSeasonResult } from "@/src/db/season-results";
 import { seasonLabel } from "@/src/engine/world";
-import { moveLabel, rankLabel, recordLabel, seasonCardFileName, seasonCardPath } from "../../_lib/seasons";
+import { cupLabel, moveLabel, rankLabel, recordLabel, seasonCardFileName, seasonCardPath } from "../../_lib/seasons";
 import { SeasonCardPanel } from "../_components/season-card-panel";
 import { SeasonMovesPanel } from "../_components/season-moves-panel";
 
@@ -26,6 +27,9 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
   const { season } = result;
   const move = moveLabel(season);
   const label = seasonLabel(season.startYear);
+  // The cup's line: the managed club's run, and the winner when it is another club.
+  const cup = cupLabel(season);
+  const cupWinner = cup === null || season.cupWinner ? null : await getCupWinnerName(id, season.startYear);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -42,6 +46,12 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
           Saison {label} · {season.competitionName} · {rankLabel(season.rank)} avec {season.points} points (
           {recordLabel(season)}){move === null ? "" : ` · ${move}`}
         </p>
+        {cup !== null && (
+          <p data-season-cup="" className={season.cupWinner ? "text-sm font-semibold text-(--club)" : "text-sm text-muted-foreground"}>
+            {cup}
+            {cupWinner !== null && ` · vainqueur : ${cupWinner}`}
+          </p>
+        )}
       </div>
       <SeasonCardPanel
         square={{ url: seasonCardPath(id, seasonId, "square"), fileName: seasonCardFileName(season.startYear, "square") }}

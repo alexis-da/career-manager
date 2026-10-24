@@ -132,6 +132,23 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
     expect(Math.max(...stats.map((row) => row.minutes))).toBe(EXTRA_TIME_END_MINUTE);
   });
 
+  it("shows the cup round by round, the managed club as its winner, and the cup in the navigation", async () => {
+    const view = await import("./cup-view");
+    const [bracket, withCup, winner] = await Promise.all([
+      view.getCupBracket(saveId),
+      view.hasCup(saveId),
+      view.getCupWinnerName(saveId, WORLD_START_YEAR),
+    ]);
+
+    expect(withCup).toBe(true);
+    expect(bracket?.name).toBe("France — Coupe");
+    expect(bracket?.rounds.map((round) => round.ties.length)).toEqual([0, 0, 0, 0, 0, 1]);
+    expect(bracket?.rounds[5].ties[0]).toMatchObject({ played: true, decidedBy: "PENALTIES", homePenalties: 5, awayPenalties: 3 });
+    expect(bracket?.winner?.clubSaveId).toBe(clubs.managed);
+    expect(bracket?.managedRun).toEqual({ firstRound: 6, lastRound: 6, status: "won" });
+    expect(winner).toBe("Olympique Lyonnais");
+  });
+
   it("pays both finalists, draws nothing after the final, and lets the save play on", async () => {
     const db = database();
     const [budgets, ties, save] = await Promise.all([
