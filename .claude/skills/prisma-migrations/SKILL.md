@@ -25,8 +25,10 @@ déjà suffisant. Concentrer les accès dans `src/db/`, avec une fonction par in
 
 ## Procédure de modification
 
-Avant toute migration ou seed depuis le poste local, afficher l'hôte de DIRECT_URL et vérifier qu'il contient
-sparkling-darkness (branche test), jamais damp-rain (production).
+Avant toute migration ou seed depuis le poste local, l'hôte de DIRECT_URL doit être **localhost** (latewinner_dev, ou
+latewinner_test avec DIRECT_URL en préfixe) : `prisma.config.ts`, le seed et le client le refusent sinon
+(`assertLocalDatabase`, `src/db/database-url.ts`), sauf ALLOW_REMOTE_DB=1. Neon (damp-rain, production) n'est atteint
+que par Vercel ; la branche Neon de test (sparkling-darkness) n'existe plus pour nous.
 
 ```bash
 # 1. modifier prisma/schema.prisma
@@ -84,7 +86,7 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prism
 
 Le poste local ne touche jamais la production : `Competition`, `Club` et `Player` y arrivent par des migrations,
 appliquées par `prisma migrate deploy` au déploiement, jamais par `npm run db:seed` (qui ne tourne que sur
-sparkling-darkness). Une telle migration est **générée**, jamais écrite à la main :
+les bases locales). Une telle migration est **générée**, jamais écrite à la main :
 
 ```bash
 npx tsx scripts/generate-reference-migration.ts prisma/migrations/<horodatage>_second_divisions
@@ -98,7 +100,7 @@ npx tsx scripts/generate-reference-migration.ts prisma/migrations/<horodatage>_n
 - `reference-sql.test.ts` compare la migration commitée à la sortie du générateur : changer une liste de noms ou un
   gabarit le fait échouer, et rappelle que la production a déjà ces lignes (la migration est appliquée, on ne l'édite
   pas ; une correction est une nouvelle migration).
-- Vérifier avant de commiter, sur sparkling-darkness, dans une transaction annulée : supprimer les lignes concernées,
+- Vérifier avant de commiter, sur une base locale, dans une transaction annulée : supprimer les lignes concernées,
   appliquer le SQL (tout est inséré, identique au plan), le rejouer (rien n'est inséré). Puis `migrate deploy`, et
   `npm run db:seed` doit annoncer `0 created, 0 updated`.
 - Le générateur choisit le contenu d'après le suffixe du dossier ; une nouvelle donnée de référence y ajoute le sien.
@@ -117,7 +119,7 @@ npx tsx scripts/generate-reference-migration.ts prisma/migrations/<horodatage>_n
   (`worldTiers`) et refuse un club hors de ce monde. Les grandes tables (`PlayerSave`, `Fixture`) s'écrivent par lots de
   1 000 lignes ; la page d'accueil, qui crée les parties, a `maxDuration = 60`.
 - Un test qui crée un `Save` directement, ou appelle `createSave` sans avoir besoin de deuxième division, donne
-  explicitement `worldVersion: 1` : deux fois moins de lignes, et le budget Neon des tests s'en porte mieux.
+  explicitement `worldVersion: 1` : deux fois moins de lignes, des tests plus rapides.
 - `Season.movements` (Json, nullable) : sur une saison terminée d'une partie 2, la liste des clubs qui quittent sa
   compétition `{ clubId, from, to, reason: "PROMOTED" | "RELEGATED", rank }` (codes de compétition, `Club.id`), validée
   par `seasonMovementsSchema` (`src/db/promotion.ts`) à la lecture ; liste vide sans mouvement, null dans une partie 1,

@@ -43,7 +43,7 @@ pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0)
   du joueur, primes par tour, page Coupe, trophée au palmarès et sur la carte de fin de saison ;
 - les parties créées avant les deuxièmes divisions gardent les cinq premières divisions seules
   (`Save.worldVersion` 1) ;
-- `npm run measure:balance` mesure l'équilibrage des deux divisions sur six saisons (branche Neon test seulement).
+- `npm run measure:balance` mesure l'équilibrage des deux divisions sur six saisons (base locale seulement).
 
 ## Déployer
 
@@ -60,10 +60,25 @@ pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0)
 3. Déployer : `npm run build` génère le client Prisma, applique les migrations puis construit l'application.
 4. Données de référence : la production a reçu les premières divisions par un seed initial, une fois ; tout ce qui
    s'ajoute depuis (deuxièmes divisions…) arrive par des migrations de données générées
-   (`scripts/generate-reference-migration.ts`), appliquées à l'étape 3. Le seed ne tourne plus que sur la branche test.
+   (`scripts/generate-reference-migration.ts`), appliquées à l'étape 3. Le seed ne tourne que sur les bases locales.
 5. Les tests E2E ne tournent jamais au build : en local, ils écrivent dans la base de `DATABASE_URL_TEST` (`.env.test`).
 
-Le poste local travaille sur la branche Neon test ; la branche production n'est touchée que par Vercel.
+Le poste local travaille sur un PostgreSQL local ; Neon (la production) n'est touché que par Vercel.
+
+## Développer en local
+
+1. PostgreSQL 17 sur le port 5432 (utilisateur `postgres`).
+2. `.env` (voir `.env.example`) : `DATABASE_URL` et `DIRECT_URL` sur `latewinner_dev` ; `.env.test` :
+   `DATABASE_URL_TEST` sur `latewinner_test` et un `AUTH_SECRET` à lui. Un mot de passe à caractères spéciaux s'écrit
+   encodé (`%40` pour `@`).
+3. `npm run db:local:init` crée les deux bases (psql, idempotent ; `PSQL=<chemin>` si psql n'est pas dans le PATH).
+4. Sur chacune : `npx prisma migrate deploy` puis `npm run db:seed` (pour la base de test :
+   `DIRECT_URL=<URL de latewinner_test>` devant les deux commandes).
+5. `npm run test`, `npm run test:slow` et `npm run test:e2e` écrivent dans `latewinner_test` ; `npm run dev` dans
+   `latewinner_dev`.
+
+Toute commande locale refuse une base qui n'est pas sur localhost ; `ALLOW_REMOTE_DB=1` lève ce garde-fou, à
+n'utiliser que sciemment.
 
 ### Maintenance (GitHub Actions)
 

@@ -15,12 +15,13 @@ Jeu de gestion de carrière football en web. Projet personnel solo, développé 
 ```bash
 npm run dev            # serveur de dev
 npm run build          # build de production
-npx prisma migrate dev # créer + appliquer une migration
+npm run db:local:init  # créer les bases locales latewinner_dev et latewinner_test (idempotent, psql)
+npx prisma migrate dev # créer + appliquer une migration (base locale)
 npx prisma studio      # inspecter la base
 npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright
-npm run measure:balance # équilibrage des deux divisions : six saisons d'une partie 2 (branche test seulement)
+npm run measure:balance # équilibrage des deux divisions : six saisons d'une partie 2 (base locale seulement)
 ```
 
 ## Règles non négociables
@@ -42,6 +43,17 @@ Le poste local ne touche jamais la production : les données de référence y ar
 (`prisma migrate deploy` au déploiement), un SQL idempotent généré depuis le plan du seed
 (`scripts/generate-reference-migration.ts`, skill `prisma-migrations`), jamais par `npm run db:seed`.
 
+**Bases de données : Postgres local, Neon pour la production seule.** Développement et tests tournent sur un
+PostgreSQL 17 local (port 5432, utilisateur postgres) : `latewinner_dev` (`.env`, `DATABASE_URL` et `DIRECT_URL`)
+et `latewinner_test` (`.env.test`, `DATABASE_URL_TEST`, pour les E2E **et** les tests Vitest en base,
+`src/db/test-database.ts`), créées par `npm run db:local:init`, puis `npx prisma migrate deploy` et
+`npm run db:seed` sur chacune. Une URL locale sans `sslmode` se connecte sans SSL (`pgConnection`, `cliDatabaseUrl`,
+`src/db/database-url.ts`) ; une URL Neon garde son `sslmode`. **Garde-fou : l'hôte doit être localhost pour toute
+commande locale** (`assertLocalDatabase` : client Prisma, `prisma.config.ts`, seed, mesures, tests en base,
+Playwright) ; une base distante n'est acceptée que sur Vercel (`VERCEL=1`) ou avec `ALLOW_REMOTE_DB=1` posée à la main,
+sciemment. Neon (`damp-rain`, production) n'est atteint que par Vercel ; la branche Neon de test (`sparkling-darkness`)
+n'existe plus pour nous.
+
 **Monde d'une partie (`Save.worldVersion`).** Fixé à la création, sans défaut en base : 1 = les cinq premières
 divisions (toutes les parties d'avant les deuxièmes divisions, inchangées), 2 = premières et deuxièmes divisions
 (`Competition.tier` 1 et 2), avec un calendrier où toutes les compétitions finissent le même jour (`matchdayDates`,
@@ -56,7 +68,7 @@ le prochain match du club, où seules les autres compétitions jouent, par tranc
 `src/db/simulation.ts`), puis sa date avec mi-temps et direct. Une partie 1 garde « Jouer la journée ».
 
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:balance` (six saisons d'un jumeau 2 de la démo, sur
-sparkling-darkness seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
+base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
 première division vérifiée après chaque changement (2,84 buts, 46 % à domicile, 23 % de nuls, Bayern-Monza ~83 %,
 `match.test.ts`) ; celle de deuxième est épinglée dans `match-d2.slow.test.ts`. Jeunes : réputation et note lues dans
 la plage de la division du club (`YOUTH_OVERALL_BY_TIER`). Un club IA au-dessus de sa masse salariale vend en
@@ -171,8 +183,9 @@ Jamais de logo ni d'écusson de club.
 chez un autre hébergeur.
 
 **Budget base de données.** Le plan gratuit Neon donne, par mois, 100 CU-h de calcul, 1 Go de stockage et
-5 Go de transfert, **partagés par la production et la branche de test**. Limiter le volume des tests lourds
-(`npm run test:slow`, saisons complètes, E2E) : ne les lancer que quand le changement le justifie.
+5 Go de transfert, désormais pour la **production seule** : les tests l'avaient épuisé le 24 octobre 2026 (production
+hors ligne jusqu'au 1er novembre), d'où le Postgres local. Les tests lourds (`npm run test:slow`, saisons complètes,
+E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
 
 ## Conventions
 
