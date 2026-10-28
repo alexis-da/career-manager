@@ -9,7 +9,7 @@ test("shows the privacy page without a cookie, and links to it from the home pag
 
   for (const path of ["/", "/login"]) {
     await page.goto(path);
-    await page.getByRole("link", { name: "Confidentialité" }).click();
+    await page.getByTestId("privacy-link").click();
     await expect(page).toHaveURL(/\/privacy$/);
   }
 });

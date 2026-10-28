@@ -13,7 +13,7 @@ export function BrandFooter({ children, className }: { children?: ReactNode; cla
   return (
     <footer className={cn("flex flex-wrap items-center gap-x-6 gap-y-3 border-t pt-4 text-xs text-muted-foreground", className)}>
       {children}
-      <Link href="/privacy" className="hover:text-foreground hover:underline">
+      <Link href="/privacy" className="hover:text-foreground hover:underline" data-testid="privacy-link">
         {t("privacy")}
       </Link>
       <LanguageSwitcher className="ml-auto" />

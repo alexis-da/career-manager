@@ -23,13 +23,13 @@ test("plays the week's challenge from the home page to its tenth matchday, then 
   test.setTimeout(300_000);
   try {
     await page.goto("/");
-    await page.getByRole("link", { name: "Voir le défi" }).click();
+    await page.getByTestId("challenge-teaser").click();
     await expect(page).toHaveURL(/\/challenge$/);
     await expect(page.getByRole("heading", { name: "Défi de la semaine" })).toBeVisible();
     await expect(page.getByTestId("challenge-club")).not.toBeEmpty();
     await expect(page.getByText(/^Semaine \d+ · fin le lundi .+ \(heure de Paris\)$/)).toBeVisible();
 
-    await page.getByRole("button", { name: "Jouer le défi" }).click();
+    await page.getByTestId("challenge-play").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+$/);
     const banner = page.getByTestId("challenge-banner");
     const standing = banner.getByTestId("challenge-standing");
@@ -54,7 +54,7 @@ test("plays the week's challenge from the home page to its tenth matchday, then 
     await expect(own).toContainText("Toi");
     await expect(own).toContainText("Connecte-toi pour apparaître au classement");
     await expect(own.locator("td").first()).toHaveText("—");
-    await expect(page.getByRole("link", { name: "Reprendre ma partie" })).toBeVisible();
+    await expect(page.getByTestId("challenge-resume")).toHaveText("Reprendre ma partie");
     await expect(page.getByText("Score enregistré")).toBeVisible();
   } finally {
     // Even when a step failed: a leftover challenge save would count against the week's cap.
@@ -65,7 +65,7 @@ test("plays the week's challenge from the home page to its tenth matchday, then 
 test("replaces « Jouer le défi » once the week has its saves", async ({ page }) => {
   // The page creates the week's challenge when missing; then its saves fill it.
   await page.goto("/challenge");
-  await expect(page.getByRole("button", { name: "Jouer le défi" })).toBeVisible();
+  await expect(page.getByTestId("challenge-play")).toHaveText("Jouer le défi");
   // Not simulation code: a user last seen now.
   const ownerId = await createAnonymousUser(new Date());
   try {
@@ -74,7 +74,7 @@ test("replaces « Jouer le défi » once the week has its saves", async ({ page 
     await page.reload();
 
     await expect(page.getByTestId("challenge-full")).toHaveText("Défi complet cette semaine, reviens lundi");
-    await expect(page.getByRole("button", { name: "Jouer le défi" })).toHaveCount(0);
+    await expect(page.getByTestId("challenge-play")).toHaveCount(0);
   } finally {
     await deleteUsers([ownerId]);
   }

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { deleteUsers, userIdOf } from "./db";
-import { createSave } from "./helpers";
+import { createSave, saveRow } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 
@@ -22,13 +22,13 @@ test("a save is seen by the player who created it only: another one gets neither
 
     // The creator finds the save on the home page and opens it.
     await creatorPage.goto("/");
-    await expect(creatorPage.getByRole("row").filter({ hasText: name })).toHaveCount(1);
+    await expect(saveRow(creatorPage, name)).toHaveCount(1);
     expect((await creatorPage.goto(saveUrl))?.status()).toBe(200);
 
     // The other player sees no row of it, and its address answers 404, as a save that does not exist.
     await otherPage.goto("/");
     await expect(otherPage.getByRole("heading", { name: "Late Winner" })).toBeVisible();
-    await expect(otherPage.getByRole("row").filter({ hasText: name })).toHaveCount(0);
+    await expect(saveRow(otherPage, name)).toHaveCount(0);
     expect((await otherPage.goto(saveUrl))?.status()).toBe(404);
     expect((await otherPage.goto(`${saveUrl}/squad`))?.status()).toBe(404);
     userIds.push(await userIdOf(other)); // none: looking creates no user

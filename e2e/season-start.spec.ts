@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, saveRow } from "./helpers";
 
 // Name of the save the running test created, until it is deleted.
 let saveName: string | undefined;
@@ -23,8 +23,8 @@ test("starts a save on 1 July 2026, shows a squad player's card on hover and the
     await expect(page.getByText("Saison 2026-27")).toBeVisible();
 
     await page.goto("/");
-    await expect(page.getByRole("row").filter({ hasText: name })).toContainText("1er juillet 2026");
-    await page.getByRole("link", { name }).click();
+    await expect(saveRow(page, name)).toContainText("1er juillet 2026");
+    await saveRow(page, name).getByTestId("open-save").click();
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 
     // The squad: hovering a row shows the player's card after a short delay; a click still opens the full sheet.

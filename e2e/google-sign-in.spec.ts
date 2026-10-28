@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 test("a signed-out player is offered « Continuer avec Google » on the home page and on /login", async ({ page }) => {
   for (const path of ["/", "/login"]) {
     await page.goto(path);
-    await expect(page.getByRole("button", { name: "Continuer avec Google" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Se déconnecter" })).toHaveCount(0);
+    await expect(page.getByTestId("google-sign-in")).toHaveText("Continuer avec Google");
+    await expect(page.getByTestId("sign-out")).toHaveCount(0);
   }
 });

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { MAINTENANCE_SECRET_TEST } from "./constants";
 import { createAnonymousUser, deleteUsers, signedUserCookie, USER_COOKIE, userExists } from "./db";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, fillCreateSaveForm, saveRow } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 const DAY_MS = 86_400_000;
@@ -28,27 +28,24 @@ test("refuses a second save to an anonymous player with the message, and puts it
   // A second tab of the same browser, opened on the creation form before the first save exists.
   const otherTab = await page.context().newPage();
   await otherTab.goto("/");
-  await expect(otherTab.getByRole("button", { name: "Créer la partie" })).toBeVisible();
+  await expect(otherTab.getByTestId("create-save")).toBeVisible();
 
   await createSave(page, name, LYON);
 
   // The tab opened earlier still shows the form: the server refuses the creation with the message.
-  await otherTab.getByLabel("Nom de la partie").fill(`${name} bis`);
-  await otherTab.getByLabel("Manager").fill("Test E2E");
-  await otherTab.getByLabel("Club").click();
-  await otherTab.getByRole("option", { name: LYON, exact: true }).click();
-  await otherTab.getByRole("button", { name: "Créer la partie" }).click();
-  await expect(otherTab.getByText(LIMIT_MESSAGE)).toBeVisible();
+  await fillCreateSaveForm(otherTab, `${name} bis`, LYON);
+  await otherTab.getByTestId("create-save").click();
+  await expect(otherTab.getByTestId("create-save-message")).toHaveText(LIMIT_MESSAGE);
   await otherTab.close();
 
   // Back on the home page, the message and the Google button replace the form; the one save is there.
   await page.goto("/");
   const notice = page.getByTestId("save-limit");
   await expect(notice.getByText(LIMIT_MESSAGE)).toBeVisible();
-  await expect(notice.getByRole("button", { name: "Continuer avec Google" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Créer la partie" })).toHaveCount(0);
-  await expect(page.getByRole("row").filter({ hasText: name })).toHaveCount(1);
-  await expect(page.getByRole("row").filter({ hasText: `${name} bis` })).toHaveCount(0);
+  await expect(notice.getByTestId("google-sign-in")).toBeVisible();
+  await expect(page.getByTestId("create-save")).toHaveCount(0);
+  await expect(saveRow(page, name)).toHaveCount(1);
+  await expect(saveRow(page, `${name} bis`)).toHaveCount(0);
 });
 
 test("asks an anonymous player to sign in once a matchday is played, and the cross puts it away", async ({ page }) => {
