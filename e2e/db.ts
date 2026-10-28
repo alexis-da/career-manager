@@ -4,10 +4,12 @@ import type { BrowserContext } from "@playwright/test";
 import { parse } from "dotenv";
 import { Client } from "pg";
 import { assertLocalDatabase, pgConnection } from "../src/db/database-url";
+import { isoWeekKey } from "../src/lib/iso-week";
 
 // Direct access to the end-to-end tests' database (DATABASE_URL_TEST, .env.test), only for the users the tests
-// create or delete: deleting a user deletes their saves by cascade. Plain pg rather than the Prisma client, an ES module that
-// Playwright's CommonJS loader cannot import.
+// create or delete, and the bare saves that fill the week's challenge: deleting a user deletes their saves (and their
+// challenge entries) by cascade. Plain pg rather than the Prisma client, an ES module that Playwright's CommonJS loader
+// cannot import.
 
 export const USER_COOKIE = "lw_uid";
 
@@ -109,4 +111,33 @@ export async function demoSaveId(): Promise<string> {
     throw new Error("No demo save in the test database: run npm run test first, which creates it.");
   }
   return id;
+}
+
+/**
+ * Fills the real week's challenge (created by the page /challenge beforehand) with bare saves of a user up to `total`,
+ * so that the page finds it full: rows without a world, which deleting the user takes away. How many were added.
+ */
+export async function fillWeekChallenge(ownerId: string, total: number): Promise<number> {
+  // Not simulation code: the week the test server serves.
+  const weekKey = isoWeekKey(new Date());
+  return withTestDatabase(async (client) => {
+    const challenge = await client.query<{ id: string; saves: string }>(
+      `SELECT c."id", (SELECT count(*) FROM "Save" s WHERE s."challengeId" = c."id")::text AS "saves"
+       FROM "Challenge" c WHERE c."weekKey" = $1`,
+      [weekKey],
+    );
+    const row = challenge.rows[0];
+    if (row === undefined) {
+      throw new Error(`No challenge for ${weekKey}: open /challenge first, which creates it`);
+    }
+    const missing = Math.max(0, total - Number(row.saves));
+    await client.query(
+      `INSERT INTO "Save" ("id", "ownerId", "name", "managerName", "seed", "worldVersion", "currentDate", "challengeId", "updatedAt")
+       SELECT gen_random_uuid()::text, $1, 'E2E défi complet', 'Test', 'e2e-challenge-full', 2,
+              '2026-07-01T00:00:00.000Z'::timestamp(3), $2, now() AT TIME ZONE 'UTC'
+       FROM generate_series(1, $3::int)`,
+      [ownerId, row.id, missing],
+    );
+    return missing;
+  });
 }
