@@ -31,11 +31,12 @@ function SimulateMenu({ disabled }: { disabled: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="outline" className="h-9 px-3 font-heading text-base font-semibold" />}
+        render={<Button variant="outline" className="h-9 px-2.5 font-heading text-base font-semibold sm:px-3" />}
         disabled={disabled || simulation.busy}
       >
         <FastForwardIcon data-icon="inline-start" />
-        Simuler jusqu&apos;à…
+        {/* Its icons alone on a phone, its name still read: the header's first row must hold at 390 px. */}
+        <span className="max-sm:sr-only">Simuler jusqu&apos;à…</span>
         <ChevronDownIcon data-icon="inline-end" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-60">

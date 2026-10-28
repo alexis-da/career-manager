@@ -276,7 +276,8 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
             aria-label="Banc"
             data-drop-target={BENCH_TARGET}
             className={cn(
-              "sticky top-18 z-10 rounded-lg border-2 border-dashed bg-card p-3 transition-colors",
+              // 16 px under the save's header, 96 px high with its tabs.
+              "sticky top-28 z-10 rounded-lg border-2 border-dashed bg-card p-3 transition-colors",
               drag === null ? "border-border" : overBench ? "border-solid border-(--club) bg-(--club)/25" : "border-(--club)/70",
             )}
           >

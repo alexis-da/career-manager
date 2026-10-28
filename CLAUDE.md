@@ -144,7 +144,13 @@ premier chargement (`ensureCurrentChallenge`). Tableau de bord d'une partie de d
 « Défi de la semaine · journée X / 10 », puis score et rang provisoire et « La partie continue mais ne compte plus », ou
 « Cette partie ne compte pas au classement » ; toujours « Partie de défi supprimée le mardi JJ/MM ». Accueil : encart
 « Défi de la semaine » et marque « Défi » sur une partie de défi ; dans une partie, une icône trophée à droite de
-l'en-tête (les onglets, que la barre coupe, n'ont pas d'entrée « Défi »).
+l'en-tête (les onglets, propres à la partie, n'ont pas d'entrée « Défi »).
+
+**Barre d'onglets d'une partie.** Sur sa propre ligne sous l'en-tête (`SaveNav`) : tous les onglets à toutes les
+largeurs, sur une seule ligne sur ordinateur ; plus étroite, elle défile de côté, avec un dégradé du côté qui cache des
+onglets, et l'onglet actif est ramené en vue au chargement. L'en-tête d'une partie fait donc 96 px (sa ligne et celle des
+onglets) : les panneaux collants en tiennent compte (fiche joueur `lg:top-30`, banc de la composition `top-28`). Sur un
+téléphone, « Simuler jusqu'à… » n'y montre que ses icônes (son nom reste lu).
 
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade). Hors des
 tests, trois suppressions d'utilisateur sont autorisées, et aucune autre : **la purge** (ci-dessous) ; **la fusion** à

@@ -34,15 +34,15 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
     <SimulationProvider saveId={header.id} accent={accent}>
       <div lang="fr" style={accent} className="flex min-h-full flex-1 flex-col">
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-          <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-6 px-4 lg:px-7">
+          <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-3 px-4 sm:gap-6 lg:px-7">
             {/* The game's mark, the only one in a save: the rest is in the club's colours. */}
-            <Link href="/" title="Late Winner · toutes les parties" className="-mr-3 shrink-0 rounded-md">
+            <Link href="/" title="Late Winner · toutes les parties" className="-mr-1.5 shrink-0 rounded-md sm:-mr-3">
               <Image src="/brand/late-winner-icone.svg" alt="Late Winner" width={28} height={28} unoptimized />
             </Link>
             <Link
               href="/"
               title={`Toutes les parties · Manager : ${header.managerName}`}
-              className="flex min-w-0 shrink-0 items-center gap-3"
+              className="flex min-w-0 items-center gap-3"
             >
               <span aria-hidden className="h-8 w-1 shrink-0 rounded-full bg-(--club)" />
               <span className="min-w-0 leading-tight">
@@ -56,10 +56,8 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               </span>
             </Link>
 
-            <SaveNav saveId={header.id} hasCup={header.hasCup} />
-
-            <div className="ml-auto flex shrink-0 items-center gap-4">
-              {/* The weekly challenge, outside the save: here rather than among the tabs, which the bar clips. */}
+            <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-4">
+              {/* The weekly challenge, outside the save: next to the game's actions rather than among its tabs. */}
               <Link
                 href="/challenge"
                 title="Défi de la semaine"
@@ -85,6 +83,8 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               />
             </div>
           </div>
+          {/* The tabs on a row of their own: the header is 56 + 40 px high, which the sticky panels below it allow for. */}
+          <SaveNav saveId={header.id} hasCup={header.hasCup} />
         </header>
         <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 lg:px-7">{children}</main>
       </div>
