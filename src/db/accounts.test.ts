@@ -17,6 +17,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
   const anonymousId = `test-google-anon-${run}`;
   const profile = { sub: `test-google-sub-${run}`, email: `test-google-${run}@example.com`, name: "Test Google", image: null };
   const createdUserIds: string[] = [anonymousId];
+  const challengeWeeks = [`${2100 + (Number(run) % 800)}-W40`, `${2100 + (Number(run) % 800)}-W41`];
 
   /** Thrown to roll a transaction back once its checks are done. */
   class Rollback extends Error {}
@@ -70,9 +71,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     await prisma.save.createMany({ data: [bareSave("Anonyme 1", anonymousId), bareSave("Anonyme 2", anonymousId)] });
   }, 60_000);
 
-  // Deleting the users cascades to their saves.
+  // Deleting the users cascades to their saves; the test challenges go after their saves and entries.
   afterAll(async () => {
     await db?.user.deleteMany({ where: { id: { in: createdUserIds } } });
+    const { deleteTestChallenges } = await import("./test-support");
+    await deleteTestChallenges(challengeWeeks);
     await db?.$disconnect();
   }, 60_000);
 
@@ -99,7 +102,15 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
 
     const again = await signIn({ anonymousUserId: anonymousId, profile: { ...profile, name: "Test Google renamed" } });
 
-    expect(again).toEqual({ userId: first.id, created: false, mergedSaves: 0, deletedAnonymousUserId: null, claimedInheritedSaves: 0 });
+    expect(again).toEqual({
+      userId: first.id,
+      created: false,
+      mergedSaves: 0,
+      mergedChallengeEntries: 0,
+      droppedChallengeEntries: 0,
+      deletedAnonymousUserId: null,
+      claimedInheritedSaves: 0,
+    });
     expect(await db.user.count({ where: { email: profile.email } })).toBe(1);
     expect(await db.save.count({ where: { ownerId: first.id } })).toBe(2);
     expect((await db.user.findUniqueOrThrow({ where: { id: first.id } })).name).toBe("Test Google renamed");
@@ -137,5 +148,39 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
 
     expect(await db.save.count({ where: { ownerId: null } })).toBe(inheritedBefore);
     expect(await db.user.count({ where: { googleSub: adminProfile.sub } })).toBe(0);
+  });
+
+  it("gives the anonymous user's challenge entries with their saves, the account keeping its own entry of a week", async () => {
+    const { db } = loaded();
+    const { ensureChallenge } = await import("./challenge");
+    // Weeks of a far year of their own, deleted at the end with their saves and entries.
+    const SECRET = "test-challenge-secret-0123456789abcdef";
+    const [first, second] = await Promise.all(challengeWeeks.map((weekKey) => ensureChallenge(weekKey, SECRET)));
+    const otherAnonymous = `${anonymousId}-challenge`;
+    const otherProfile = { ...profile, sub: `${profile.sub}-challenge`, email: `test-google-challenge-${run}@example.com` };
+    createdUserIds.push(otherAnonymous);
+    // Not simulation code: lastSeenAt is real time.
+    await db.user.create({ data: { id: otherAnonymous, kind: "ANONYMOUS", lastSeenAt: new Date() } });
+    const account = await signIn({ profile: otherProfile });
+    createdUserIds.push(account.userId);
+    const challengeSave = async (ownerId: string, challengeId: string) => {
+      const { id: saveId } = await db.save.create({ data: { ...bareSave("Défi", ownerId), challengeId }, select: { id: true } });
+      await db.challengeEntry.create({ data: { challengeId, userId: ownerId, saveId } });
+      return saveId;
+    };
+    const anonymousFirst = await challengeSave(otherAnonymous, first.id);
+    const anonymousSecond = await challengeSave(otherAnonymous, second.id);
+    const accountSecond = await challengeSave(account.userId, second.id);
+
+    const result = await signIn({ profile: otherProfile, anonymousUserId: otherAnonymous });
+
+    expect(result).toMatchObject({ userId: account.userId, mergedSaves: 2, mergedChallengeEntries: 1, droppedChallengeEntries: 1 });
+    const entries = await db.challengeEntry.findMany({ where: { userId: account.userId }, select: { challengeId: true, saveId: true } });
+    expect(entries.map(({ challengeId, saveId }) => `${challengeId} ${saveId}`).sort()).toEqual(
+      [`${first.id} ${anonymousFirst}`, `${second.id} ${accountSecond}`].sort(),
+    );
+    // The anonymous user's save of the second week follows them, without an entry: it no longer counts.
+    expect(await db.save.findUniqueOrThrow({ where: { id: anonymousSecond }, select: { ownerId: true } })).toEqual({ ownerId: account.userId });
+    expect(await db.challengeEntry.count({ where: { saveId: anonymousSecond } })).toBe(0);
   });
 });

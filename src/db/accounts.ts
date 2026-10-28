@@ -26,6 +26,14 @@ export function prismaAccountStore(tx: Prisma.TransactionClient): AccountStore {
     },
     moveSaves: async (fromUserId, toUserId) =>
       (await tx.save.updateMany({ where: { ownerId: fromUserId }, data: { ownerId: toUserId } })).count,
+    // The other user's entry of a week first, or moving would break the one entry a user a week.
+    moveChallengeEntries: async (fromUserId, toUserId) => {
+      const dropped = await tx.challengeEntry.deleteMany({
+        where: { userId: fromUserId, challenge: { entries: { some: { userId: toUserId } } } },
+      });
+      const moved = await tx.challengeEntry.updateMany({ where: { userId: fromUserId }, data: { userId: toUserId } });
+      return { moved: moved.count, dropped: dropped.count };
+    },
     deleteUser: async (id) => {
       await tx.user.delete({ where: { id } });
     },

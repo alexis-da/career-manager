@@ -20,8 +20,12 @@ type FakeUser = {
   image: string | null;
 };
 
-/** An in-memory users and saves table, standing in for Prisma (src/db/accounts.ts). */
-function fakeStore(options: { users?: Partial<FakeUser>[]; saves?: { id: string; ownerId: string | null }[] } = {}) {
+type FakeEntry = { id: string; challengeId: string; userId: string };
+
+/** An in-memory users, saves and challenge entries table, standing in for Prisma (src/db/accounts.ts). */
+function fakeStore(
+  options: { users?: Partial<FakeUser>[]; saves?: { id: string; ownerId: string | null }[]; entries?: FakeEntry[] } = {},
+) {
   const users = new Map<string, FakeUser>(
     (options.users ?? []).map((user, index) => {
       const full: FakeUser = { id: `u${index}`, kind: "REGISTERED", googleSub: null, email: null, name: null, image: null, ...user };
@@ -29,6 +33,7 @@ function fakeStore(options: { users?: Partial<FakeUser>[]; saves?: { id: string;
     }),
   );
   const saves = (options.saves ?? []).map((save) => ({ ...save }));
+  let entries = (options.entries ?? []).map((entry) => ({ ...entry }));
   let created = 0;
   const account = (user: FakeUser | undefined) => (user === undefined ? null : { id: user.id, kind: user.kind });
 
@@ -53,8 +58,18 @@ function fakeStore(options: { users?: Partial<FakeUser>[]; saves?: { id: string;
       moved.forEach((save) => (save.ownerId = to));
       return moved.length;
     },
+    moveChallengeEntries: async (from, to) => {
+      const kept = new Set(entries.filter((entry) => entry.userId === to).map((entry) => entry.challengeId));
+      const dropped = entries.filter((entry) => entry.userId === from && kept.has(entry.challengeId));
+      entries = entries.filter((entry) => !dropped.includes(entry));
+      const moved = entries.filter((entry) => entry.userId === from);
+      moved.forEach((entry) => (entry.userId = to));
+      return { moved: moved.length, dropped: dropped.length };
+    },
     deleteUser: async (id) => {
       users.delete(id);
+      // As the cascade in the database.
+      entries = entries.filter((entry) => entry.userId !== id);
     },
     claimInheritedSaves: async (to) => {
       const claimed = saves.filter((save) => save.ownerId === null);
@@ -62,7 +77,7 @@ function fakeStore(options: { users?: Partial<FakeUser>[]; saves?: { id: string;
       return claimed.length;
     },
   };
-  return { store, users, saves, created: () => created };
+  return { store, users, saves, entries: () => entries, created: () => created };
 }
 
 const PROFILE: GoogleProfile = { sub: "google-1", email: "Player@Example.com", name: "Ada Lovelace", image: "https://img/ada" };
@@ -81,7 +96,14 @@ describe("signing in with Google", () => {
 
     const result = await signIn(store);
 
-    expect(result).toMatchObject({ created: true, mergedSaves: 0, deletedAnonymousUserId: null, claimedInheritedSaves: 0 });
+    expect(result).toMatchObject({
+      created: true,
+      mergedSaves: 0,
+      mergedChallengeEntries: 0,
+      droppedChallengeEntries: 0,
+      deletedAnonymousUserId: null,
+      claimedInheritedSaves: 0,
+    });
     expect(users.get(result.userId)).toMatchObject({
       kind: "REGISTERED",
       googleSub: "google-1",
@@ -143,6 +165,31 @@ describe("signing in with Google", () => {
     expect(saves.find((save) => save.id === "s3")?.ownerId).toBe("someone");
   });
 
+  it("gives the anonymous user's challenge entries to the account with their saves, the account keeping its own entry of a week", async () => {
+    const { store, saves, entries } = fakeStore({
+      users: [
+        { id: "account", googleSub: "google-1" },
+        { id: "anon", kind: "ANONYMOUS" },
+      ],
+      saves: [
+        { id: "week-1-anon", ownerId: "anon" },
+        { id: "week-2-anon", ownerId: "anon" },
+        { id: "week-2-account", ownerId: "account" },
+      ],
+      entries: [
+        { id: "entry-1-anon", challengeId: "week-1", userId: "anon" },
+        { id: "entry-2-anon", challengeId: "week-2", userId: "anon" },
+        { id: "entry-2-account", challengeId: "week-2", userId: "account" },
+      ],
+    });
+
+    const result = await signIn(store, { anonymousUserId: "anon" });
+
+    expect(result).toMatchObject({ mergedSaves: 2, mergedChallengeEntries: 1, droppedChallengeEntries: 1, deletedAnonymousUserId: "anon" });
+    expect(saves.every((save) => save.ownerId === "account")).toBe(true);
+    expect(entries().map(({ id, userId }) => `${id} ${userId}`).sort()).toEqual(["entry-1-anon account", "entry-2-account account"]);
+  });
+
   it("merges into a brand new account too", async () => {
     const { store, saves } = fakeStore({ users: [{ id: "anon", kind: "ANONYMOUS" }], saves: [{ id: "s1", ownerId: "anon" }] });
 
@@ -202,7 +249,15 @@ describe("signing in with Google", () => {
 
     const second = await signIn(store, { profile: { email: ADMIN }, anonymousUserId: "anon" });
 
-    expect(second).toEqual({ userId: first.userId, created: false, mergedSaves: 0, deletedAnonymousUserId: null, claimedInheritedSaves: 0 });
+    expect(second).toEqual({
+      userId: first.userId,
+      created: false,
+      mergedSaves: 0,
+      mergedChallengeEntries: 0,
+      droppedChallengeEntries: 0,
+      deletedAnonymousUserId: null,
+      claimedInheritedSaves: 0,
+    });
     expect(users.size).toBe(1);
     expect(saves.every((save) => save.ownerId === first.userId)).toBe(true);
   });

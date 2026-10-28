@@ -21,6 +21,12 @@ export type AccountStore = {
   updateRegisteredUser: (id: string, data: GoogleAccountData) => Promise<void>;
   /** Gives every save of one user to another; the number of saves moved. */
   moveSaves: (fromUserId: string, toUserId: string) => Promise<number>;
+  /**
+   * Gives one user's weekly challenge entries to another, as their saves, but the other keeps its own entry of a week:
+   * the first user's entry of that week is deleted, its save (moved all the same) no longer counts. The entries moved
+   * and dropped.
+   */
+  moveChallengeEntries: (fromUserId: string, toUserId: string) => Promise<{ moved: number; dropped: number }>;
   deleteUser: (id: string) => Promise<void>;
   /** Gives the inherited saves (ownerId NULL) to a user; the number of saves attached. */
   claimInheritedSaves: (toUserId: string) => Promise<number>;
@@ -46,6 +52,8 @@ export type GoogleSignInResult = {
   userId: string;
   created: boolean;
   mergedSaves: number; // saves of the anonymous user given to the account
+  mergedChallengeEntries: number; // the anonymous user's challenge entries given to the account with their saves
+  droppedChallengeEntries: number; // those of a week the account already plays: the account keeps its own
   deletedAnonymousUserId: string | null;
   claimedInheritedSaves: number;
 };
@@ -65,8 +73,9 @@ export function isAdminEmail(email: string | null | undefined, adminEmail: strin
 
 /**
  * Signs a Google account in: our user of that Google account (by its sub, else by its email, else a new REGISTERED
- * one), its name and picture brought up to date; the saves of the browser's anonymous user given to it, and that
- * user deleted; the inherited saves given to the administrator. Running it again changes nothing more.
+ * one), its name and picture brought up to date; the saves of the browser's anonymous user given to it with their
+ * challenge entries (the account keeping its own entry of a week), and that user deleted; the inherited saves given
+ * to the administrator. Running it again changes nothing more.
  */
 export async function signInWithGoogle(store: AccountStore, input: GoogleSignIn): Promise<GoogleSignInResult> {
   const data: GoogleAccountData = {
@@ -89,11 +98,14 @@ export async function signInWithGoogle(store: AccountStore, input: GoogleSignIn)
   // The anonymous user of this browser: its saves follow the player into the account. Only an anonymous user: a
   // cookie never names an account, and an account is never deleted here.
   let mergedSaves = 0;
+  let challengeEntries = { moved: 0, dropped: 0 };
   let deletedAnonymousUserId: string | null = null;
   if (input.anonymousUserId !== null && input.anonymousUserId !== userId) {
     const anonymous = await store.findUserById(input.anonymousUserId);
     if (anonymous !== null && anonymous.kind === "ANONYMOUS") {
       mergedSaves = await store.moveSaves(anonymous.id, userId);
+      // Before the user goes, or their entries would go with them.
+      challengeEntries = await store.moveChallengeEntries(anonymous.id, userId);
       await store.deleteUser(anonymous.id);
       deletedAnonymousUserId = anonymous.id;
     }
@@ -101,7 +113,15 @@ export async function signInWithGoogle(store: AccountStore, input: GoogleSignIn)
 
   const claimedInheritedSaves = isAdminEmail(data.email, input.adminEmail) ? await store.claimInheritedSaves(userId) : 0;
 
-  return { userId, created: existing === null, mergedSaves, deletedAnonymousUserId, claimedInheritedSaves };
+  return {
+    userId,
+    created: existing === null,
+    mergedSaves,
+    mergedChallengeEntries: challengeEntries.moved,
+    droppedChallengeEntries: challengeEntries.dropped,
+    deletedAnonymousUserId,
+    claimedInheritedSaves,
+  };
 }
 
 /**
