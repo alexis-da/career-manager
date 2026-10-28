@@ -75,6 +75,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("season results of the d
     expect(second).toEqual(first);
   });
 
+  // 15 s: the first card drawn loads the fonts and the image engine, more than the default 5 s on a busy machine.
   it.each([
     ["landscape", "", { width: 1200, height: 630 }],
     ["square", "?format=square", { width: 1080, height: 1080 }],
@@ -91,7 +92,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("season results of the d
     expect(response.headers.get("cache-control")).toBe("private, max-age=0");
     expect(bytes.subarray(1, 4).toString("ascii")).toBe("PNG");
     expect({ width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) }).toEqual(size);
-  });
+  }, 15_000);
 
   it("answers 404 to another player, and to nobody", async () => {
     const { route } = loaded();

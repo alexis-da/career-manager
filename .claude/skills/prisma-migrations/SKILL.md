@@ -37,10 +37,15 @@ que par Vercel ; la branche Neon de test (sparkling-darkness) n'existe plus pour
 
 ```bash
 # 1. modifier prisma/schema.prisma
-npx prisma migrate dev --name description_courte   # crée la migration + régénère le client
+npx prisma migrate dev --name description_courte   # crée et applique la migration, sans régénérer le client
+npx prisma generate                                 # puis régénère le client (src/generated/prisma)
 npx prisma studio                                   # vérifier visuellement
 npm run test                                        # les tests doivent passer
 ```
+
+Après `migrate dev`, lancer `npx prisma generate` : depuis Prisma 7, la migration ne régénère plus le client, et le
+code ne voit pas encore les nouvelles tables (`prisma.challenge` indéfini, tests en échec). Le `postinstall` ne le fait
+qu'à l'installation.
 
 Ne jamais éditer un fichier de migration déjà appliqué. Ne jamais utiliser `prisma db push` sur ce projet :
 l'historique des migrations doit rester complet pour pouvoir redéployer proprement.

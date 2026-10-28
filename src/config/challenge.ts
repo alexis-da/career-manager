@@ -8,7 +8,7 @@ export const CHALLENGE_HORIZON_MATCHDAYS = 10;
 export const CHALLENGE_FIRST_DIVISION_RANKS = { from: 12, to: 18 } as const;
 
 /** The most saves of one week's challenge: each weighs as a worldVersion 2 save, on the database's storage. */
-export const MAX_CHALLENGE_SAVES_PER_WEEK = 40;
+export const MAX_CHALLENGE_SAVES_PER_WEEK = 20;
 
 /** Hours a challenge save is kept once its challenge has ended: the daily purge deletes it after (src/db/purge.ts). */
 export const CHALLENGE_SAVE_RETENTION_HOURS = 24;
