@@ -31,6 +31,9 @@ function pngSize(bytes: Buffer): { width: number; height: number } {
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
 }
 
+/** A test that draws a card: the first drawing loads the fonts and the image engine, more than 5 s on a busy machine. */
+const DRAWING_TIMEOUT_MS = 15_000;
+
 async function render(season: SeasonResultView, format: CardFormat): Promise<Buffer> {
   const response = await seasonCardResponse(season, LYON, format);
   expect(response.headers.get("content-type")).toBe("image/png");
@@ -42,7 +45,7 @@ async function render(season: SeasonResultView, format: CardFormat): Promise<Buf
 describe("seasonCardResponse", () => {
   it.each(["landscape", "square"] as const)("draws a champion's %s card at its size", async (format) => {
     expect(pngSize(await render(CHAMPION, format))).toEqual(CARD_SIZES[format]);
-  });
+  }, DRAWING_TIMEOUT_MS);
 
   it.each([
     ["a second division champion, promoted", { rank: 1, champion: true, promoted: true }],
@@ -53,7 +56,7 @@ describe("seasonCardResponse", () => {
     for (const format of ["landscape", "square"] as const) {
       expect(pngSize(await render(season, format))).toEqual(CARD_SIZES[format]);
     }
-  });
+  }, DRAWING_TIMEOUT_MS);
 
   it("shows the double, the cup or the league, then a promotion", () => {
     const season = { rank: 1, promoted: false, relegated: false, cupWinner: false };
@@ -75,10 +78,10 @@ describe("seasonCardResponse", () => {
         expect(pngSize(await render({ ...CHAMPION, ...change }, format))).toEqual(CARD_SIZES[format]);
       }
     }
-  });
+  }, DRAWING_TIMEOUT_MS);
 
   it("draws a card without a best player", async () => {
     const season = { ...CHAMPION, rank: 14, champion: false, bestPlayer: null };
     expect(pngSize(await render(season, "landscape"))).toEqual(CARD_SIZES.landscape);
-  });
+  }, DRAWING_TIMEOUT_MS);
 });
