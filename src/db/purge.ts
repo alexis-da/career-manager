@@ -1,12 +1,17 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 import { purgeCutoffs } from "../lib/maintenance";
 
-// The purge of anonymous users, the only automatic deletion of users: run daily by .github/workflows/maintenance.yml
-// through app/api/maintenance/purge/route.ts. A REGISTERED user is never touched. Deleting a user deletes their saves
-// by cascade. By batches: a user's saves may hold tens of thousands of rows, and a call must end within its time.
+// The daily purge, run by .github/workflows/maintenance.yml through app/api/maintenance/purge/route.ts. The anonymous
+// users first, the only automatic deletion of users: a REGISTERED user is never touched, and deleting a user deletes
+// their saves by cascade. Then the weekly challenge's saves once their challenge is over, whoever owns them: the only
+// automatic deletion of a Google account's saves. By batches: a save may hold tens of thousands of rows, and a call
+// must end within its time.
 
 /** The most users one call deletes: the workflow calls again while some remain. */
 export const PURGE_BATCH_SIZE = 25;
+
+/** The most challenge saves one call deletes, after its users: each is a whole worldVersion 2 save. */
+export const CHALLENGE_SAVE_PURGE_BATCH_SIZE = 10;
 
 export type PurgeResult = {
   dryRun: boolean;
@@ -46,4 +51,36 @@ export async function purgeAnonymousUsers(
   }
   const inactive = batch.filter((user) => user.lastSeenAt < inactiveBefore).length;
   return { dryRun, inactive, empty: batch.length - inactive, total: batch.length, remaining: purgeableCount - batch.length };
+}
+
+export type ChallengeSavePurgeResult = {
+  dryRun: boolean;
+  total: number; // this batch: deleted, or in dry run what would be
+  remaining: number; // still to purge after this batch
+};
+
+/**
+ * Deletes, or with dryRun only counts, one batch of the weekly challenge's saves whose challenge ended more than
+ * CHALLENGE_SAVE_RETENTION_HOURS ago (from the Tuesday after the challenge's week), whoever owns them, a Google account
+ * included; the oldest challenges first. Their entries stay, without their save: the rankings outlive them.
+ */
+export async function purgeChallengeSaves(
+  db: PrismaClient | Prisma.TransactionClient,
+  now: Date,
+  { dryRun, batchSize = CHALLENGE_SAVE_PURGE_BATCH_SIZE }: { dryRun: boolean; batchSize?: number },
+): Promise<ChallengeSavePurgeResult> {
+  const purgeable: Prisma.SaveWhereInput = { challenge: { is: { endsAt: { lt: purgeCutoffs(now).challengeEndedBefore } } } };
+  const [batch, purgeableCount] = await Promise.all([
+    db.save.findMany({
+      where: purgeable,
+      orderBy: [{ challenge: { endsAt: "asc" } }, { id: "asc" }],
+      take: batchSize,
+      select: { id: true },
+    }),
+    db.save.count({ where: purgeable }),
+  ]);
+  if (!dryRun && batch.length > 0) {
+    await db.save.deleteMany({ where: { AND: [purgeable, { id: { in: batch.map((save) => save.id) } }] } });
+  }
+  return { dryRun, total: batch.length, remaining: purgeableCount - batch.length };
 }

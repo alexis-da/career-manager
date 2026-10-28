@@ -1,7 +1,8 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { CHALLENGE_SAVE_RETENTION_HOURS } from "../config/challenge";
 
-// The maintenance endpoint (app/api/maintenance/purge/route.ts): its secret, and who the purge removes. Pure: the
-// secret and the time are passed in.
+// The maintenance endpoints (app/api/maintenance): their secret, and what the purge removes. Pure: the secret and the
+// time are passed in.
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -24,10 +25,14 @@ export function bearerMatches(header: string | null, secret: string): boolean {
   return timingSafeEqual(digest(header.slice("Bearer ".length).trim()), digest(secret));
 }
 
-/** The two thresholds of a purge at this time: lastSeenAt before them, an anonymous user goes. */
-export function purgeCutoffs(now: Date): { inactiveBefore: Date; emptyBefore: Date } {
+/**
+ * The thresholds of a purge at this time: lastSeenAt before the first two, an anonymous user goes; a challenge's end
+ * before the third, its saves go.
+ */
+export function purgeCutoffs(now: Date): { inactiveBefore: Date; emptyBefore: Date; challengeEndedBefore: Date } {
   return {
     inactiveBefore: new Date(now.getTime() - INACTIVE_ANONYMOUS_DAYS * 24 * HOUR_MS),
     emptyBefore: new Date(now.getTime() - EMPTY_ANONYMOUS_HOURS * HOUR_MS),
+    challengeEndedBefore: new Date(now.getTime() - CHALLENGE_SAVE_RETENTION_HOURS * HOUR_MS),
   };
 }

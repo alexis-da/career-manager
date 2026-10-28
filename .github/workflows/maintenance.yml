@@ -1,4 +1,5 @@
-# Daily maintenance of the production database: the purge of anonymous users (app/api/maintenance/purge/route.ts).
+# Daily maintenance of the production database: the purge of anonymous users, then of the saves of finished weekly
+# challenges (app/api/maintenance/purge/route.ts).
 # Secrets of the repository: MAINTENANCE_URL, the endpoint's full address
 # (https://www.latewinner.app/api/maintenance/purge), and MAINTENANCE_SECRET, the same value as on Vercel.
 name: Maintenance
@@ -15,11 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Purge the anonymous users, batch after batch
+      - name: Purge the anonymous users and the finished challenges' saves, batch after batch
         env:
           MAINTENANCE_URL: ${{ secrets.MAINTENANCE_URL }}
           MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
-          MAX_CALLS: 20 # each call deletes at most 25 users: 500 a day at most
+          MAX_CALLS: 20 # each call deletes at most 25 users and 10 challenge saves
         run: |
           for call in $(seq 1 "$MAX_CALLS"); do
             status=$(curl --silent --show-error --max-time 90 --output response.json --write-out "%{http_code}"               --request POST --header "Authorization: Bearer ${MAINTENANCE_SECRET}" "${MAINTENANCE_URL}")
@@ -33,4 +34,4 @@ jobs:
               exit 0
             fi
           done
-          echo "::warning::$remaining anonymous users still to purge after $MAX_CALLS calls: the next run goes on"
+          echo "::warning::$remaining anonymous users or challenge saves still to purge after $MAX_CALLS calls: the next run goes on"

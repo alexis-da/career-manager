@@ -165,8 +165,114 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
       inactive: expect.any(Number),
       empty: expect.any(Number),
       total: expect.any(Number),
+      challengeSaves: expect.any(Number),
       remaining: expect.any(Number),
     });
     expect(await remaining(loaded().db)).toEqual([...ids].sort());
+  });
+});
+
+// The purge of the weekly challenge's saves, against DATABASE_URL: a week of a past year, whose challenge is over long
+// before the real time, and a week of a far year to come; bare challenge saves with their entries, one owned by an
+// account. The deleting runs happen at chosen times around the challenge's end, in a transaction rolled back at the
+// end; the challenges, their saves and entries are deleted afterwards (deleteTestChallenges), with the account.
+describe.skipIf(process.env.DATABASE_URL === undefined)("purge of the weekly challenge's saves, in the database", () => {
+  let db: typeof prismaClient | undefined;
+  let purge: typeof import("./purge") | undefined;
+  let support: typeof import("./test-support") | undefined;
+  // Real time, not simulation code: years of their own keep parallel runs, and the real weeks, apart.
+  const run = `${Date.now()}`;
+  const endedWeek = `${1100 + (Number(run) % 800)}-W10`;
+  const comingWeek = `${2100 + (Number(run) % 800)}-W12`;
+  const accountId = `test-purge-challenge-reg-${run}`;
+  const SECRET = "test-challenge-secret-0123456789abcdef";
+  const HOUR_MS = 3_600_000;
+  let endsAt = new Date(0);
+  const endedSaves: string[] = [];
+  let comingSave = "";
+
+  /** Thrown to roll a transaction back once its checks are done. */
+  class Rollback extends Error {}
+
+  const loaded = () => {
+    if (db === undefined || purge === undefined || support === undefined) {
+      throw new Error("Modules not loaded");
+    }
+    return { db, purge, support };
+  };
+
+  beforeAll(async () => {
+    const [{ prisma }, purgeModule, supportModule, { ensureChallenge }] = await Promise.all([
+      import("./client"),
+      import("./purge"),
+      import("./test-support"),
+      import("./challenge"),
+    ]);
+    db = prisma;
+    purge = purgeModule;
+    support = supportModule;
+    const [ended, coming] = await Promise.all([ensureChallenge(endedWeek, SECRET), ensureChallenge(comingWeek, SECRET)]);
+    endsAt = ended.endsAt;
+    const anonymousId = await supportModule.createTestOwner();
+    // Not simulation code: lastSeenAt is real time.
+    await prisma.user.create({ data: { id: accountId, kind: "REGISTERED", lastSeenAt: new Date() } });
+    const challengeSave = async (ownerId: string, challengeId: string) => {
+      const { id } = await prisma.save.create({
+        data: { name: "Test purge défi", managerName: "Test", seed: `test-purge-${run}`, worldVersion: 2, currentDate: new Date("2026-07-01T00:00:00.000Z"), ownerId, challengeId },
+        select: { id: true },
+      });
+      await prisma.challengeEntry.create({ data: { challengeId, userId: ownerId, saveId: id } });
+      return id;
+    };
+    endedSaves.push(await challengeSave(accountId, ended.id), await challengeSave(anonymousId, ended.id));
+    comingSave = await challengeSave(accountId, coming.id);
+  }, 60_000);
+
+  afterAll(async () => {
+    await support?.deleteTestChallenges([endedWeek, comingWeek]);
+    await db?.user.deleteMany({ where: { id: accountId } });
+    await db?.$disconnect();
+  }, 60_000);
+
+  it("keeps a challenge's saves 24 hours after its end, then deletes them whoever owns them, their entries kept (rolled back)", async () => {
+    const { db, purge } = loaded();
+    const ours = (client: Pick<typeof prismaClient, "save">) =>
+      client.save.findMany({ where: { id: { in: [...endedSaves, comingSave] } }, select: { id: true } }).then((rows) => rows.map((row) => row.id).sort());
+
+    await expect(
+      db.$transaction(
+        async (tx) => {
+          await purge.purgeChallengeSaves(tx, new Date(endsAt.getTime() + 23 * HOUR_MS), { dryRun: false, batchSize: 100 });
+          expect(await ours(tx)).toEqual([...endedSaves, comingSave].sort());
+
+          // Batch after batch, as the workflow calls, until none remain.
+          for (let call = 1; ; call++) {
+            const result = await purge.purgeChallengeSaves(tx, new Date(endsAt.getTime() + 25 * HOUR_MS), { dryRun: false, batchSize: 1 });
+            expect(result.total).toBeLessThanOrEqual(1);
+            if (result.remaining === 0) {
+              break;
+            }
+            expect(call).toBeLessThan(1_000);
+          }
+          expect(await ours(tx)).toEqual([comingSave]);
+          expect(await tx.challengeEntry.count({ where: { challenge: { weekKey: endedWeek }, saveId: null } })).toBe(2);
+          expect(await tx.user.count({ where: { id: accountId } })).toBe(1);
+          throw new Rollback();
+        },
+        { timeout: 60_000 },
+      ),
+    ).rejects.toBeInstanceOf(Rollback);
+    expect(await ours(db)).toEqual([...endedSaves, comingSave].sort());
+  }, 90_000);
+
+  it("only counts in dry run", async () => {
+    const { db, purge } = loaded();
+
+    // At the real time, the past year's challenge is long over.
+    const result = await purge.purgeChallengeSaves(db, new Date(), { dryRun: true, batchSize: 1_000 });
+
+    expect(result.dryRun).toBe(true);
+    expect(result.total).toBeGreaterThanOrEqual(2);
+    expect(await db.save.count({ where: { id: { in: endedSaves } } })).toBe(2);
   });
 });
