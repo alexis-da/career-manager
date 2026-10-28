@@ -1,12 +1,15 @@
 import { CHALLENGE_HORIZON_MATCHDAYS } from "../config/challenge";
-import { drawChallengeClub } from "../engine/challenge";
+import { challengeScore, drawChallengeClub } from "../engine/challenge";
+import { WORLD_START_YEAR } from "../engine/world";
+import type { Prisma } from "../generated/prisma/client";
 import { challengeSeed } from "../lib/challenge-seed";
 import { isoWeekBounds, previousIsoWeekKey } from "../lib/iso-week";
 import { getOrThrow } from "../lib/maps";
 import { prisma } from "./client";
 
 // The weekly challenge in the database: the week's Challenge row, written once by ensureChallenge, from the Monday
-// maintenance call (app/api/maintenance/challenge/route.ts) or, failing it, from the first visit of /challenge.
+// maintenance call (app/api/maintenance/challenge/route.ts) or, failing it, from the first visit of /challenge; and the
+// score of a challenge save's entry (recordChallengeScore), in the transactions that play its club's matches.
 
 /** A challenge as the rest of the game sees it: never its seed, which only the creation of its saves reads. */
 export type ChallengeSummary = {
@@ -54,4 +57,63 @@ export async function ensureChallenge(weekKey: string, secret: string): Promise<
   });
   const challenge = await prisma.challenge.findUniqueOrThrow({ where: { weekKey }, select: CHALLENGE_SELECT });
   return { ...challenge, created: count === 1 };
+}
+
+/**
+ * Brings a challenge save's entry up to date, in the transaction that has just finished a match of its club: the league
+ * matchdays its club has played so far, then, once it has played the challenge's first horizonMatchdays, the score
+ * (challengeScore) and the submission's real time, written once. Later matches never change it. Nothing for an ordinary
+ * save (challengeId null), for a challenge save without an entry (that of a player who already had one when they
+ * signed in), nor for a submitted entry. Called by playNextMatchday and resumeLiveMatch, after recordFinishedMatches:
+ * the save's date reaches the match's day while the managed club's match may still wait at half-time.
+ */
+export async function recordChallengeScore(tx: Prisma.TransactionClient, saveId: string, challengeId: string | null): Promise<void> {
+  if (challengeId === null) {
+    return;
+  }
+  const entry = await tx.challengeEntry.findUnique({
+    where: { saveId },
+    select: { id: true, matchdaysPlayed: true, submittedAt: true, challenge: { select: { horizonMatchdays: true } } },
+  });
+  if (entry === null || entry.submittedAt !== null) {
+    return;
+  }
+  const horizon = entry.challenge.horizonMatchdays;
+  const managed = await tx.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
+  // The first season's league: a challenge save starts on WORLD_START_DATE, as every save.
+  const fixtures = await tx.fixture.findMany({
+    where: {
+      saveId,
+      played: true,
+      round: { lte: horizon },
+      season: { startYear: WORLD_START_YEAR, competition: { kind: "LEAGUE" } },
+      OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }],
+    },
+    select: { id: true, round: true, homeClubSaveId: true, homeGoals: true, awayGoals: true },
+  });
+  const score = challengeScore(
+    fixtures.map(({ id, round, homeClubSaveId, homeGoals, awayGoals }) => {
+      if (homeGoals === null || awayGoals === null) {
+        throw new Error(`Played fixture ${id} has no score`);
+      }
+      const home = homeClubSaveId === managed.id;
+      return { round, goalsFor: home ? homeGoals : awayGoals, goalsAgainst: home ? awayGoals : homeGoals };
+    }),
+    horizon,
+  );
+
+  if (score.matchdaysPlayed < horizon) {
+    if (score.matchdaysPlayed !== entry.matchdaysPlayed) {
+      await tx.challengeEntry.update({ where: { id: entry.id }, data: { matchdaysPlayed: score.matchdaysPlayed } });
+    }
+    return;
+  }
+  // Not simulation code: the submission's real time, from the database's clock rather than new Date(), in UTC as every
+  // DateTime column (a timestamp without time zone would otherwise take the session's zone). Once: the condition on
+  // submittedAt holds against a concurrent call too.
+  await tx.$executeRaw`
+    UPDATE "ChallengeEntry"
+    SET "matchdaysPlayed" = ${score.matchdaysPlayed}, "points" = ${score.points}, "goalDiff" = ${score.goalDiff},
+        "goalsFor" = ${score.goalsFor}, "submittedAt" = now() AT TIME ZONE 'UTC'
+    WHERE "id" = ${entry.id} AND "submittedAt" IS NULL`;
 }

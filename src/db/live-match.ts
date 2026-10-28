@@ -16,6 +16,7 @@ import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
+import { recordChallengeScore } from "./challenge";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
 import type { LineupPlayer } from "./lineup";
@@ -143,7 +144,10 @@ export type ResumedMatch = {
 export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | null): Promise<ResumedMatch> {
   return prisma.$transaction(
     async (tx) => {
-      const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, liveFixtureId: true } });
+      const save = await tx.save.findUniqueOrThrow({
+        where: { id: saveId },
+        select: { seed: true, liveFixtureId: true, challengeId: true },
+      });
       if (save.liveFixtureId === null) {
         throw new NoMatchInProgressError(saveId);
       }
@@ -233,6 +237,8 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
       );
       // A cup tie: its prize, and the next round once it was the round's last tie.
       await progressCups(tx, saveId, save.seed, [fixture.id]);
+      // A challenge save's entry, now that its club's match is over.
+      await recordChallengeScore(tx, saveId, save.challengeId);
       await tx.save.update({ where: { id: saveId }, data: { liveFixtureId: null } });
       return {
         fixtureId: fixture.id,

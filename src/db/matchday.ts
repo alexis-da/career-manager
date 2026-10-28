@@ -20,6 +20,7 @@ import {
 import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
+import { recordChallengeScore } from "./challenge";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
@@ -334,7 +335,10 @@ export async function recordFinishedMatches(
 export async function playNextMatchday(saveId: string, options: PlayNextMatchdayOptions = {}): Promise<MatchdaySummary | null> {
   return prisma.$transaction(
     async (tx) => {
-      const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, liveFixtureId: true } });
+      const save = await tx.save.findUniqueOrThrow({
+        where: { id: saveId },
+        select: { seed: true, liveFixtureId: true, challengeId: true },
+      });
       if (save.liveFixtureId !== null) {
         throw new MatchInProgressError(save.liveFixtureId);
       }
@@ -430,6 +434,10 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         save.seed,
         finished.filter((match) => match.knockout).map((match) => match.fixtureId),
       );
+      // A challenge save's entry, once its club's match is over: not while it waits at half-time.
+      if (managed !== null && !managed.halfTime) {
+        await recordChallengeScore(tx, saveId, save.challengeId);
+      }
       await tx.save.update({ where: { id: saveId }, data: { currentDate: matchDate } });
 
       return {
