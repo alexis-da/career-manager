@@ -121,7 +121,8 @@ semaine précédente (`drawChallengeClub`, `src/engine/challenge.ts`). Règles d
 10 journées, `MAX_CHALLENGE_SAVES_PER_WEEK` = 20 (une partie de défi pèse 7,7 Mo compactée, 25,9 Mo réels à la
 10e journée), parties gardées 24 h après la fin du défi. Une partie de défi
 (`Save.challengeId`, `createChallengeSave`, `src/db/saves.ts`) est une partie 2 avec la graine, le club et le nom du
-défi (« Défi — semaine 45 »), les mêmes pour tous ; **hors des limites de parties**, mais une par joueur et par semaine
+défi (« Défi — semaine 45 », stocké en français, affiché dans la langue du joueur par `SaveSummary.challengeWeek`), les
+mêmes pour tous ; **hors des limites de parties**, mais une par joueur et par semaine
 (`ChallengeEntryExistsError`) et 20 par semaine (`ChallengeFullError`). L'entrée du joueur (`ChallengeEntry`, unique
 par défi et utilisateur) naît avec la partie, dans sa transaction, et lui survit (`saveId` en SetNull) : supprimer sa
 partie ne permet pas de recommencer, et le classement survit à la purge ; elle part avec son utilisateur (Cascade). Le
@@ -138,7 +139,8 @@ derrière le mot de passe en mode fermé : le club de la semaine (`displayClubNa
 ni l'image de partage** ; la fin du défi en heure de Paris (`formatParisDateTime`) ; « Jouer le défi »
 (`playChallengeAction`, qui reçoit la semaine de la page et refuse un défi fermé ; `maxDuration = 60`), « Reprendre ma
 partie », ou « Défi complet cette semaine, reviens lundi » au plafond ; les classements de la semaine et de la
-précédente : entrées soumises avant `endsAt`, comptes Google seulement, prénom (`rankingName`) ; un anonyme voit sa
+précédente : entrées soumises avant `endsAt`, comptes Google seulement, prénom (`rankingName`, null sans prénom :
+« Anonyme » à l'écran) ; un anonyme voit sa
 propre ligne grisée, sans rang, avec « Connecte-toi pour apparaître au classement ». Le défi de la semaine y est créé au
 premier chargement (`ensureCurrentChallenge`). Tableau de bord d'une partie de défi : bannière (`getChallengeBanner`)
 « Défi de la semaine · journée X / 10 », puis score et rang provisoire et « La partie continue mais ne compte plus », ou
@@ -205,6 +207,19 @@ répond 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANC
 secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml`), `CHALLENGE_URL` et le même
 `MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à 05:00 UTC).
 
+**Langues : français et anglais.** next-intl 4, sans la langue dans l'adresse. La langue du joueur est celle qu'il a
+choisie (cookie de confort `lw_lang`, `fr` ou `en`, un an, posé seulement par le sélecteur « FR · EN »,
+`setLanguageAction`, `app/actions.ts`), sinon le français si `Accept-Language` le préfère à l'anglais, l'anglais sinon
+(`negotiateLocale`, `src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`) ; `<html lang>` la suit.
+Textes dans `src/i18n/messages/{fr,en}.json`, typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
+un test exige les mêmes clés et les mêmes arguments dans les deux langues. Serveur : `getTranslations` ; composant
+client ou serveur non async : `useTranslations`. Dates et montants : `src/lib/format.ts` prend la langue (fr-FR, en-GB ;
+français par défaut). Compétitions : pays traduit par le code (`competitionCountry`, `src/i18n/countries.ts`) et
+« Division N » (« England — Division 2 ») ; le nom en base reste français. Traduits : accueil, création, compte,
+connexion, défi et son action, 404. Les écrans d'une partie restent en français (`lang="fr"` sur leur conteneur) ; le
+sélecteur est dans leur en-tête, sauf sur téléphone. E2E : Playwright envoie `fr-FR` par défaut ; les contrôles des pages
+publiques se trouvent par `data-testid`, le parcours anglais est `e2e/english.spec.ts` (`locale: "en-GB"`).
+
 **Pas de marques sous licence.** Aucune mention de FIFA, EA, ou des noms de compétitions officiels sous
 licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (CC0).
 
@@ -213,7 +228,7 @@ licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (C
 **Nom.** Le jeu s'appelle **Late Winner**. Slogan : « The football career game ». Accroche : « Take your club
 to the top ». Adresse canonique : https://www.latewinner.app. « Career Manager » reste le nom interne (dépôt,
 `package.json`, projet Vercel) : seul ce que voit le joueur change. Métadonnées, slogan et accroche en anglais ;
-le jeu lui-même est en français. Fichiers de marque dans `public/brand/` (logo clair, logo pour fond sombre,
+le jeu lui-même est en français et en anglais (règle « Langues »). Fichiers de marque dans `public/brand/` (logo clair, logo pour fond sombre,
 icône), icônes du site dans `app/` (`favicon.ico`, `icon.svg`, `apple-icon.png`) et `public/icons/`.
 
 **Couleurs.** Bleu vif `#1F3BFF`, bleu nuit `#0B1340`, orange `#FF9F1C`, blanc, fond clair `#EEF1F7`. Elles
@@ -241,7 +256,8 @@ E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
 
 ## Conventions
 
-- Code, noms de variables et commentaires en **anglais**. Textes d'interface en **français**.
+- Code, noms de variables et commentaires en **anglais**. Textes d'interface en **français** et en **anglais**, dans
+  les messages (`src/i18n/messages`), jamais en dur dans une page traduite.
 - Server Components par défaut ; `"use client"` seulement pour un composant réellement interactif.
 - Mutations via Server Actions, jamais de route API pour un usage interne.
 - Validation des entrées avec Zod à la frontière (Server Action, parsing de fichier importé).
@@ -255,7 +271,7 @@ E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
 ## Structure
 
 ```
-app/                  # routes App Router, à la racine ; UI en français
+app/                  # routes App Router, à la racine ; UI en français et en anglais (src/i18n)
   _components/        # composants de la page d'accueil (liste et création de parties)
   admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
   privacy/            # page de confidentialité, publique (hors mot de passe) ; à tenir à jour avec le code
@@ -263,7 +279,7 @@ app/                  # routes App Router, à la racine ; UI en français
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
                       # palmarès (seasons/, et seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
-e2e/                  # tests Playwright (npm run test:e2e)
+e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC ; challenge.yml : défi du lundi, 05:00 UTC
 src/
   components/ui/      # composants shadcn/ui (Base UI), générés par la CLI
@@ -273,6 +289,8 @@ src/
   db/                 # accès Prisma, toujours scopé par saveId ; *.slow.test.ts via npm run test:slow
   lib/                # utilitaires partagés (rng, dates, couleurs, formatage)
   config/             # constantes de configuration (CONTACT_EMAIL, règles du défi de la semaine)
+  i18n/               # langues : négociation (locale.ts), configuration next-intl (request.ts), messages fr et en,
+                      # pays des compétitions (countries.ts)
   og/                 # images générées (ImageResponse) : polices, visage en SVG data URI
   assets/fonts/       # Barlow Condensed ExtraBold Italic et sa licence OFL, lues par src/og/fonts.ts
   generated/prisma/   # client Prisma généré, ignoré par git
