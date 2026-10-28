@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/src/auth/current-user";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
+import { Badge } from "@/src/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { listClubsByCompetition } from "@/src/db/clubs";
 import { countOwnedSaves, listSaves } from "@/src/db/saves";
@@ -112,9 +113,16 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                   {saves.map((save) => (
                     <TableRow key={save.id} data-save-name={save.name} className={TABLE_ROW}>
                       <TableCell className={cn(TABLE_CELL, "font-semibold")}>
-                        <Link href={`/saves/${save.id}`} className="hover:underline">
-                          {save.name}
-                        </Link>
+                        <span className="flex items-center gap-2">
+                          <Link href={`/saves/${save.id}`} className="hover:underline">
+                            {save.name}
+                          </Link>
+                          {save.isChallenge && (
+                            <Badge variant="outline" className="border-(--brand-orange) text-(--brand-orange)">
+                              Défi
+                            </Badge>
+                          )}
+                        </span>
                       </TableCell>
                       <TableCell className={TABLE_CELL}>{save.managerName}</TableCell>
                       <TableCell className={TABLE_CELL}>

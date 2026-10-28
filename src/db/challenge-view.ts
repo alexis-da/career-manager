@@ -133,3 +133,52 @@ export async function getChallengePage(challenge: ChallengeSummary, viewer: Chal
         : { weekNumber: isoWeekNumber(previous.weekKey), ranking: rankingOf(previousEntries, viewer) },
   };
 }
+
+export type ChallengeBannerView = {
+  weekNumber: number;
+  horizon: number;
+  savesPurgedAt: Date;
+  status:
+    | { kind: "playing"; matchdaysPlayed: number }
+    | { kind: "submitted"; points: number; goalDiff: number; goalsFor: number; rank: number; inRanking: boolean }
+    | { kind: "too-late" } // the challenge ended before the save's score: it does not count
+    | { kind: "not-counted" }; // no entry: its player already had one that week when they signed in
+};
+
+/**
+ * A challenge save's banner, or null for an ordinary save: its club's matchday out of the horizon, then its score and
+ * provisional rank (among the ranking's entries, the save's own counted in, even an anonymous player's), or why it does
+ * not count; and when the purge deletes it. `now` is real time, the caller's: a challenge over without the save's score
+ * no longer waits for it.
+ */
+export async function getChallengeBanner(saveId: string, now: Date): Promise<ChallengeBannerView | null> {
+  const { challenge, challengeEntry: entry } = await prisma.save.findUniqueOrThrow({
+    where: { id: saveId },
+    select: {
+      challenge: { select: { id: true, weekKey: true, endsAt: true, horizonMatchdays: true } },
+      challengeEntry: {
+        select: { id: true, matchdaysPlayed: true, points: true, goalDiff: true, goalsFor: true, submittedAt: true, user: { select: { kind: true } } },
+      },
+    },
+  });
+  if (challenge === null) {
+    return null;
+  }
+  const banner = {
+    weekNumber: isoWeekNumber(challenge.weekKey),
+    horizon: challenge.horizonMatchdays,
+    savesPurgedAt: challengeSavesPurgedAt(challenge.endsAt),
+  };
+  if (entry === null) {
+    return { ...banner, status: { kind: "not-counted" } };
+  }
+  const { points, goalDiff, goalsFor, submittedAt } = entry;
+  if (points === null || goalDiff === null || goalsFor === null || submittedAt === null) {
+    return { ...banner, status: now < challenge.endsAt ? { kind: "playing", matchdaysPlayed: entry.matchdaysPlayed } : { kind: "too-late" } };
+  }
+  if (submittedAt >= challenge.endsAt) {
+    return { ...banner, status: { kind: "too-late" } };
+  }
+  const rank = rankAmong({ id: entry.id, points, goalDiff, goalsFor, submittedAt }, ranked(await entriesInTime(challenge)));
+  return { ...banner, status: { kind: "submitted", points, goalDiff, goalsFor, rank, inRanking: entry.user.kind === "REGISTERED" } };
+}

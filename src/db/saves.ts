@@ -337,6 +337,7 @@ export type SaveSummary = {
   name: string;
   managerName: string;
   currentDate: Date;
+  isChallenge: boolean; // a save of the weekly challenge
   club: { name: string; primaryColor: string; secondaryColor: string };
 };
 
@@ -345,6 +346,7 @@ const SAVE_SUMMARY_SELECT = {
   name: true,
   managerName: true,
   currentDate: true,
+  challengeId: true,
   clubSaves: {
     where: { isManaged: true },
     select: { club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
@@ -356,6 +358,7 @@ function toSaveSummary(save: {
   name: string;
   managerName: string;
   currentDate: Date;
+  challengeId: string | null;
   clubSaves: { club: SaveSummary["club"] & { slug: string } }[];
 }): SaveSummary {
   const [managed] = save.clubSaves;
@@ -368,6 +371,7 @@ function toSaveSummary(save: {
     name: save.name,
     managerName: save.managerName,
     currentDate: save.currentDate,
+    isChallenge: save.challengeId !== null,
     club: { name: displayClubName(managed.club), primaryColor, secondaryColor },
   };
 }

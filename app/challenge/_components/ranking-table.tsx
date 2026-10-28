@@ -37,9 +37,10 @@ export function RankingTable({ rows, empty, label }: { rows: ChallengeRankingRow
             className={cn(TABLE_ROW, row.isViewer && "font-semibold", row.rank === null && "text-muted-foreground italic")}
           >
             <TableCell className={cn(TABLE_CELL, "tabular-nums")}>{row.rank ?? "—"}</TableCell>
-            <TableCell className={TABLE_CELL}>
+            <TableCell className={cn(TABLE_CELL, "whitespace-normal")}>
               {row.name}
-              {row.rank === null && <span className="ml-2 text-xs not-italic">Connecte-toi pour apparaître au classement</span>}
+              {/* On a line of its own: on a phone, the scores stay in view. */}
+              {row.rank === null && <span className="block pb-1 text-xs not-italic">Connecte-toi pour apparaître au classement</span>}
             </TableCell>
             <TableCell className={cn(TABLE_CELL, "text-right tabular-nums")}>{row.points}</TableCell>
             <TableCell className={cn(TABLE_CELL, "text-right tabular-nums")}>{formatGoalDifference(row.goalDiff)}</TableCell>

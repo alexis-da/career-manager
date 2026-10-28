@@ -1,3 +1,4 @@
+import { TrophyIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -58,6 +59,15 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
             <SaveNav saveId={header.id} hasCup={header.hasCup} />
 
             <div className="ml-auto flex shrink-0 items-center gap-4">
+              {/* The weekly challenge, outside the save: here rather than among the tabs, which the bar clips. */}
+              <Link
+                href="/challenge"
+                title="Défi de la semaine"
+                className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <TrophyIcon aria-hidden className="size-4" />
+                <span className="sr-only">Défi de la semaine</span>
+              </Link>
               <div className="hidden text-right leading-tight lg:block">
                 <p className="font-heading text-base font-semibold tabular-nums first-letter:uppercase">
                   <time dateTime={header.currentDate.toISOString()}>{formatDayDate(header.currentDate)}</time>

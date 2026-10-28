@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
+import { getChallengeBanner } from "@/src/db/challenge-view";
 import type { ClubPreview, Dashboard } from "@/src/db/dashboard";
 import { getDashboard } from "@/src/db/dashboard";
 import { getManagedLineup, type ManagedLineup } from "@/src/db/lineup";
@@ -11,6 +12,7 @@ import { nextTransferWindowOpening, transferWindowCloseDate } from "@/src/engine
 import { formatDayMonth, formatDecimal, formatMillions, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { AccountBanner } from "./_components/account-banner";
+import { ChallengeBanner } from "./_components/challenge-banner";
 import { OpponentSheet } from "./_components/opponent-sheet";
 import { Panel, PanelTitle } from "./_components/panel";
 import { ResultPill } from "./_components/result-pill";
@@ -134,11 +136,13 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const [dashboard, lineup, opponent, user] = await Promise.all([
+  const [dashboard, lineup, opponent, user, challenge] = await Promise.all([
     getDashboard(id),
     getManagedLineup(id),
     getOpponentPreview(id),
     getCurrentUser(),
+    // Not simulation code: whether the challenge is over is real time.
+    getChallengeBanner(id, new Date()),
   ]);
   // Only an anonymous player's save is at risk: it lives in this browser's cookie.
   const askToSignIn = user?.kind === "ANONYMOUS" && (await hasPlayedMatch(id));
@@ -153,6 +157,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   return (
     <div className="space-y-5">
       <h1 className="sr-only">Tableau de bord</h1>
+      {challenge !== null && <ChallengeBanner view={challenge} />}
       <AccountBanner show={askToSignIn} />
 
       <div className="grid gap-5 lg:grid-cols-12">

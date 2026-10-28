@@ -117,6 +117,47 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the page of the weekly 
     });
   });
 
+  it("gives a challenge save's banner: its matchday, its score and provisional rank, or why it does not count", async () => {
+    const { db, view, challenge } = loaded();
+    const bareSave = async (ownerId: string, challengeId: string | null) =>
+      (
+        await db.save.create({
+          data: { name: "Test bannière", managerName: "Test", seed: `test-view-${run}`, worldVersion: 2, currentDate: new Date("2026-07-01T00:00:00.000Z"), ownerId, challengeId },
+          select: { id: true },
+        })
+      ).id;
+    const entrySave = async (userId: string) => {
+      const saveId = await bareSave(userId, challenge.id);
+      await db.challengeEntry.update({ where: { challengeId_userId: { challengeId: challenge.id, userId } }, data: { saveId } });
+      return saveId;
+    };
+    const during = new Date(challenge.startsAt.getTime() + 5 * 3_600_000);
+    const after = challenge.endsAt;
+    const statusOf = async (saveId: string, now: Date) => (await view.getChallengeBanner(saveId, now))?.status ?? null;
+
+    expect(await view.getChallengeBanner(await bareSave(users.nameless.id, null), during)).toBeNull();
+    const playing = await entrySave(users.playing.id);
+    expect(await view.getChallengeBanner(playing, during)).toEqual({
+      weekNumber: 21,
+      horizon: 10,
+      savesPurgedAt: new Date(challenge.endsAt.getTime() + 24 * 3_600_000),
+      status: { kind: "playing", matchdaysPlayed: 4 },
+    });
+    expect(await statusOf(playing, after)).toEqual({ kind: "too-late" });
+    // Behind Ada's 20 points, ahead of Grace: second, outside the ranking until signed in.
+    expect(await statusOf(await entrySave(users.viewer.id), during)).toEqual({
+      kind: "submitted",
+      points: 18,
+      goalDiff: 3,
+      goalsFor: 12,
+      rank: 2,
+      inRanking: false,
+    });
+    expect(await statusOf(await entrySave(users.grace.id), during)).toMatchObject({ kind: "submitted", rank: 2, inRanking: true });
+    expect(await statusOf(await entrySave(users.late.id), during)).toEqual({ kind: "too-late" });
+    expect(await statusOf(await bareSave(users.other.id, challenge.id), during)).toEqual({ kind: "not-counted" });
+  });
+
   it("is full once the week has its saves", async () => {
     const { db, view, challenge } = loaded();
     await db.save.createMany({
