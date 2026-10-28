@@ -20,6 +20,9 @@ function EventColumn({ events, align }: { events: MatchEventView[]; align: "left
       {events.map((event) => (
         <li
           key={event.id}
+          // The players by their keys: two players of a match may share a name.
+          data-player-key={event.playerKey ?? undefined}
+          data-related-player-key={event.relatedPlayerKey ?? undefined}
           className={cn(
             "flex items-baseline gap-2 rounded-md px-2 py-1",
             align === "right" && "flex-row-reverse text-right",

@@ -40,7 +40,6 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     const slotIndex = await halfTime.locator("button[data-slot-player-key]").last().getAttribute("data-slot-index");
     const striker = halfTime.locator(`button[data-slot-index="${slotIndex}"]`);
     const outgoingKey = await striker.getAttribute("data-slot-player-key");
-    const outgoingName = (await striker.locator("[data-slot-player]").textContent()) ?? "";
     const substitute = halfTime.locator("[data-bench-player-key]").last();
     const incomingKey = await substitute.getAttribute("data-bench-player-key");
     await substitute.dragTo(striker);
@@ -67,8 +66,9 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     await page.getByRole("button", { name: /^\d+ – \d+$/ }).first().click();
     const sheet = page.getByRole("dialog");
     await expect(sheet.locator('[data-match-sheet="half-time"]')).toHaveText(/^Mi-temps : \d+ – \d+$/);
-    const substitution = sheet.locator("li").filter({ hasText: "Remplacement" }).filter({ hasText: "46'" });
-    await expect(substitution.filter({ hasText: "remplace" }).filter({ hasText: outgoingName })).toHaveCount(1);
+    // By key, not by name: two players of a match may share a name.
+    const substitution = sheet.locator(`li[data-player-key="${incomingKey}"][data-related-player-key="${outgoingKey}"]`);
+    await expect(substitution.filter({ hasText: "Remplacement" }).filter({ hasText: "46'" })).toHaveCount(1);
   } finally {
     // Even when a step failed: a leftover save would pollute the database.
     await deleteSave(page, name);

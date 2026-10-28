@@ -40,6 +40,7 @@ export type MatchEventView = {
   playerKey: string | null; // with his age on the match day, to draw his face
   playerAge: number | null;
   relatedPlayerName: string | null; // assist provider of a goal, player going off in a substitution
+  relatedPlayerKey: string | null; // his key: two players of a match may share a name
 };
 
 export type FixtureWithEvents = FixtureView & { events: MatchEventView[] };
@@ -114,7 +115,7 @@ const EVENTS_SELECT = {
     type: true,
     side: true,
     playerSave: { select: { firstName: true, lastName: true, playerKey: true, birthDate: true } },
-    relatedPlayerSave: { select: { firstName: true, lastName: true } },
+    relatedPlayerSave: { select: { firstName: true, lastName: true, playerKey: true } },
   },
 } as const satisfies Prisma.Fixture$eventsArgs;
 
@@ -132,6 +133,7 @@ const toEventView =
     playerKey: event.playerSave?.playerKey ?? null,
     playerAge: event.playerSave === null ? null : ageInYears(event.playerSave.birthDate, matchDate),
     relatedPlayerName: event.relatedPlayerSave === null ? null : fullName(event.relatedPlayerSave),
+    relatedPlayerKey: event.relatedPlayerSave?.playerKey ?? null,
   });
 
 /** Fixtures of the managed club in the save's latest season, by date, with the events of played matches. */

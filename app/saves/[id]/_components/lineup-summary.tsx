@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { LineupPlayer } from "@/src/db/lineup";
 import type { FormationSlot } from "@/src/engine/formations";
 import { cn } from "@/src/lib/utils";
@@ -11,8 +12,9 @@ type LineupSummaryProps = {
 };
 
 /**
- * Is the eleven clean? Starters at their own or a secondary position, and the others with the position they play.
- * Under the pitch of the lineup page and of the half-time screen.
+ * Is the eleven clean? Starters at their own or a secondary position, and the others with the position they play,
+ * each marked with its playerKey (data-off-position): two players of a squad may share a last name. Under the pitch of
+ * the lineup page and of the half-time screen.
  */
 export function LineupSummary({ slots, starters, players, closedSlots = 0 }: LineupSummaryProps) {
   const placed = starters.flatMap((key, index) => {
@@ -30,10 +32,13 @@ export function LineupSummary({ slots, starters, players, closedSlots = 0 }: Lin
       </span>
       {" · "}
       <span className={cn(offPosition.length > 0 ? "text-warning" : "text-foreground")}>{offPosition.length} hors poste</span>
-      {offPosition.length > 0 &&
-        ` : ${offPosition
-          .map(({ player, slot }) => `${player.lastName} (${POSITION_SHORT[player.position]} en ${POSITION_SHORT[slot]})`)
-          .join(", ")}`}
+      {offPosition.length > 0 && " : "}
+      {offPosition.map(({ player, slot }, index) => (
+        <Fragment key={player.id}>
+          {index > 0 && ", "}
+          <span data-off-position={player.id}>{`${player.lastName} (${POSITION_SHORT[player.position]} en ${POSITION_SHORT[slot]})`}</span>
+        </Fragment>
+      ))}
       {emptySlots > 0 && ` · ${emptySlots === 1 ? "1 poste vide" : `${emptySlots} postes vides`}`}
     </p>
   );

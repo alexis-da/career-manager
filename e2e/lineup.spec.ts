@@ -38,11 +38,9 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
     await slot.click();
     const substitute = page.locator('[data-bench="true"]').first();
     const substituteKey = (await substitute.getAttribute("data-player-key")) ?? "";
-    const substituteName = (await substitute.locator("[data-reserve-name]").textContent()) ?? "";
-    const substituteLastName = substituteName.trim().split(" ").slice(1).join(" ");
     await substitute.click();
 
-    await expect(slot.locator("[data-slot-player]")).toHaveText(substituteLastName);
+    await expect(slot).toHaveAttribute("data-slot-player-key", substituteKey);
     // The replaced starter is now among the substitutes.
     await expect(page.locator(`[data-bench="true"][data-player-key="${starterKey}"]`)).toHaveCount(1);
 
@@ -52,7 +50,7 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
 
     await page.reload();
     await expect(page.getByLabel("Dispositif")).toHaveValue("4-4-2");
-    await expect(page.locator(`[data-slot-index="${STRIKER_SLOT}"] [data-slot-player]`)).toHaveText(substituteLastName);
+    await expect(page.locator(`[data-slot-index="${STRIKER_SLOT}"]`)).toHaveAttribute("data-slot-player-key", substituteKey);
     await expect(page.locator(`[data-player-key="${substituteKey}"]`)).toHaveCount(0);
   } finally {
     // Even when a step failed: a leftover save would pollute the database.
@@ -126,13 +124,14 @@ test("shows a centre-back dragged up front with his DC badge outlined in red, an
     const badges = await Promise.all(centreBackSlots.map((slot) => slot.locator("[data-position]").getAttribute("data-position")));
     const centreBack = centreBackSlots[badges.indexOf("CB")];
     await expect(centreBack.locator("[data-position]")).toHaveAttribute("data-fit", "exact");
-    const lastName = (await centreBack.locator("[data-slot-player]").textContent()) ?? "";
+    // By key, not by name: two players of a squad may share a last name.
+    const centreBackKey = (await centreBack.getAttribute("data-slot-player-key")) ?? "";
 
     const striker = page.locator('[data-slot-index="9"]');
     await centreBack.dragTo(striker);
 
     await expect(striker.locator("[data-slot-position]")).toHaveText("BU");
-    await expect(striker.locator("[data-slot-player]")).toHaveText(lastName);
+    await expect(striker).toHaveAttribute("data-slot-player-key", centreBackKey);
     const badge = striker.locator("[data-position]");
     await expect(badge).toHaveText("DC");
     await expect(badge).toHaveAttribute("data-fit", "other-line");
@@ -140,7 +139,7 @@ test("shows a centre-back dragged up front with his DC badge outlined in red, an
 
     const summary = page.locator("[data-lineup-summary]");
     await expect(summary).toContainText("hors poste");
-    await expect(summary).toContainText(`${lastName} (DC en BU)`);
+    await expect(summary.locator(`[data-off-position="${centreBackKey}"]`)).toHaveText(/ \(DC en BU\)$/);
   } finally {
     await deleteSave(page, name);
     saveName = undefined;

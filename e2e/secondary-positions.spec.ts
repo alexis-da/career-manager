@@ -20,6 +20,12 @@ const SHORT: Record<string, string> = {
 };
 const SLOT_COUNT = 11;
 
+/**
+ * A Lyon whose automatic 4-3-3 starts a player off position (a right midfielder in central midfield) and two at a
+ * secondary position: fixed, so that the test plays the same squad every run; it finds them by their keys.
+ */
+const SEED = "e2e-postes-1";
+
 // Name of the save the running test created, until it is deleted.
 let saveName: string | undefined;
 
@@ -36,7 +42,7 @@ test("shows secondary positions in the squad, and a player at his secondary posi
   const name = `E2E postes ${Date.now()}`;
   saveName = name;
   try {
-    await createSave(page, name, LYON);
+    await createSave(page, name, LYON, SEED);
     const nav = page.getByRole("navigation", { name: "Navigation de la partie" });
 
     // Three players in four have at least one: a squad of 25 always shows some.
@@ -46,16 +52,28 @@ test("shows secondary positions in the squad, and a player at his secondary posi
     await nav.getByRole("link", { name: "Composition" }).click();
     await expect(page.getByLabel("Dispositif")).toHaveValue("4-3-3");
 
-    // The 4-3-3 slots by short label, to find one matching a reserve's secondary position.
-    const slotIndexByShort = new Map<string, number>();
+    // The eleven as the pitch shows it: each slot's position, its starter's key and how he fits it.
+    const slots: { index: number; short: string; key: string; fit: string }[] = [];
     for (let index = 0; index < SLOT_COUNT; index++) {
-      const short = (await page.locator(`[data-slot-index="${index}"] [data-slot-position]`).textContent())?.trim() ?? "";
-      if (!slotIndexByShort.has(short)) {
-        slotIndexByShort.set(short, index);
-      }
+      const slot = page.locator(`[data-slot-index="${index}"]`);
+      slots.push({
+        index,
+        short: ((await slot.locator("[data-slot-position]").textContent()) ?? "").trim(),
+        key: (await slot.getAttribute("data-slot-player-key")) ?? "",
+        fit: (await slot.locator("[data-position]").getAttribute("data-fit")) ?? "",
+      });
     }
+    const offStarter = slots.find((slot) => slot.fit === "line" || slot.fit === "other-line");
+    const secondaryStarter = slots.find((slot) => slot.fit === "secondary");
+    if (offStarter === undefined || secondaryStarter === undefined) {
+      throw new Error(`The seed ${SEED} no longer starts a player off position and another at a secondary position`);
+    }
+    // The summary names the first, never the second: by their keys, as two players of a squad may share a last name.
+    const summary = page.locator("[data-lineup-summary]");
+    await expect(summary.locator(`[data-off-position="${offStarter.key}"]`)).toHaveCount(1);
+    await expect(summary.locator(`[data-off-position="${secondaryStarter.key}"]`)).toHaveCount(0);
 
-    // A reserve with a secondary position the formation has, and that slot.
+    // A reserve with a secondary position the formation has, into a slot held by another than the starter off position.
     const reserves = page.locator("button[data-player-key]");
     let choice: { key: string; slotIndex: number } | undefined;
     for (let index = 0; index < (await reserves.count()) && choice === undefined; index++) {
@@ -63,27 +81,25 @@ test("shows secondary positions in the squad, and a player at his secondary posi
       for (const position of await reserve.locator("[data-secondary-position]").evaluateAll((badges) =>
         badges.map((badge) => badge.getAttribute("data-secondary-position") ?? ""),
       )) {
-        const slotIndex = slotIndexByShort.get(SHORT[position]);
-        if (slotIndex !== undefined) {
-          choice = { key: (await reserve.getAttribute("data-player-key")) ?? "", slotIndex };
+        const slot = slots.find((candidate) => candidate.short === SHORT[position] && candidate.key !== offStarter.key);
+        if (slot !== undefined) {
+          choice = { key: (await reserve.getAttribute("data-player-key")) ?? "", slotIndex: slot.index };
           break;
         }
       }
     }
     if (choice === undefined) {
-      throw new Error("No reserve with a secondary position of the 4-3-3");
+      throw new Error(`The seed ${SEED} no longer has a reserve with a secondary position of the 4-3-3`);
     }
 
-    const reserve = page.locator(`button[data-player-key="${choice.key}"]`);
-    const fullName = ((await reserve.locator("[data-reserve-name]").textContent()) ?? "").trim();
-    const lastName = fullName.split(" ").slice(1).join(" ");
     const slot = page.locator(`[data-slot-index="${choice.slotIndex}"]`);
     await slot.click();
-    await reserve.click();
+    await page.locator(`button[data-player-key="${choice.key}"]`).click();
 
-    await expect(slot.locator("[data-slot-player]")).toHaveText(lastName);
+    await expect(slot).toHaveAttribute("data-slot-player-key", choice.key);
     await expect(slot.locator("[data-position]")).toHaveAttribute("data-fit", "secondary");
-    await expect(page.locator("[data-lineup-summary]")).not.toContainText(`${lastName} (`);
+    await expect(summary.locator(`[data-off-position="${choice.key}"]`)).toHaveCount(0);
+    await expect(summary.locator(`[data-off-position="${offStarter.key}"]`)).toHaveCount(1);
 
     // Transfers: « Inclure les postes secondaires » adds the players with ST as a secondary position.
     await nav.getByRole("link", { name: "Transferts" }).click();

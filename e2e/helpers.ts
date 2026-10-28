@@ -1,12 +1,19 @@
 import { expect, type Page } from "@playwright/test";
 
-/** Creates a save from the home page and waits for its dashboard. */
-export async function createSave(page: Page, name: string, clubName: string): Promise<void> {
+/**
+ * The seed of the saves the end-to-end tests create, unless a test needs a world of its own: fixed, so that every run
+ * plays the same squads and the same matches, and a failure can be replayed.
+ */
+export const E2E_SEED = "e2e";
+
+/** Creates a save from the home page, with a fixed seed, and waits for its dashboard. */
+export async function createSave(page: Page, name: string, clubName: string, seed: string = E2E_SEED): Promise<void> {
   await page.goto("/");
   await page.getByLabel("Nom de la partie").fill(name);
   await page.getByLabel("Manager").fill("Test E2E");
   await page.getByLabel("Club").click();
   await page.getByRole("option", { name: clubName, exact: true }).click();
+  await page.getByLabel("Graine (facultative)").fill(seed);
   await page.getByRole("button", { name: "Créer la partie" }).click();
 
   await expect(page).toHaveURL(/\/saves\/[^/]+$/);
