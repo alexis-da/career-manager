@@ -6,7 +6,7 @@ import { CONTACT_EMAIL } from "@/src/config/contact";
 export const metadata: Metadata = { title: "Confidentialité" };
 
 /** The day this page last changed: to update with its content. */
-const UPDATED_ON = { fr: "9 octobre 2026", en: "9 October 2026" };
+const UPDATED_ON = { fr: "28 octobre 2026", en: "28 October 2026" };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -25,8 +25,9 @@ const Contact = () => (
 
 /**
  * What the game does with players' data, exactly as it works today: the cookies it sets, the Google account it reads,
- * the game data, the visit days of /admin/stats, the purge (src/db/purge.ts), account deletion. Open to everyone,
- * outside the password (proxy.ts). Update it, and UPDATED_ON, whenever one of these changes.
+ * the game data, the weekly challenge's public ranking (first names) and its saves' deletion, the visit days of
+ * /admin/stats, the purge (src/db/purge.ts), account deletion. Open to everyone, outside the password (proxy.ts). Update
+ * it, and UPDATED_ON, whenever one of these changes.
  */
 export default function PrivacyPage() {
   return (
@@ -60,6 +61,11 @@ export default function PrivacyPage() {
               <strong>Les données de jeu</strong> : tes parties, tes choix et leurs résultats.
             </li>
             <li>
+              <strong>Si tu joues le défi de la semaine</strong> : ton score de la semaine. Connecté avec Google, ton
+              prénom (le premier mot du nom de ton compte Google) apparaît avec ce score dans le classement public du
+              défi, visible de tous ; sans compte, ton score n&apos;y apparaît pas.
+            </li>
+            <li>
               <strong>La date de ta dernière visite et la liste de tes jours de visite</strong>, pour mesurer combien de
               joueurs reviennent.
             </li>
@@ -74,7 +80,8 @@ export default function PrivacyPage() {
         <Section title="Finalités">
           <p>
             Faire fonctionner le jeu et te permettre de retrouver tes parties, y compris sur un autre appareil avec ton
-            compte Google ; mesurer l&apos;audience, strictement en interne.
+            compte Google ; afficher le classement du défi de la semaine ; mesurer l&apos;audience, strictement en
+            interne.
           </p>
         </Section>
 
@@ -83,6 +90,11 @@ export default function PrivacyPage() {
             Un joueur sans compte et inactif depuis 30 jours est supprimé avec ses parties ; un joueur sans compte qui
             n&apos;a plus aucune partie l&apos;est après 24 heures d&apos;inactivité. Un compte Google est conservé
             jusqu&apos;à ce que tu le supprimes.
+          </p>
+          <p>
+            Une partie du défi de la semaine est supprimée 24 heures après la fin de sa semaine, le mardi, avec ou sans
+            compte. Ton entrée au classement (ton score, et ton prénom si tu es connecté) est conservée, pour les
+            classements des semaines passées, aussi longtemps que ton compte, ou que ton profil sans compte.
           </p>
         </Section>
 
@@ -96,8 +108,9 @@ export default function PrivacyPage() {
         <Section title="Tes droits">
           <p>
             Tu disposes d&apos;un droit d&apos;accès, de rectification, d&apos;effacement et d&apos;opposition. Le bouton
-            « Supprimer mon compte », sur l&apos;accueil une fois connecté, efface immédiatement ton compte et tes parties ;
-            sans compte, supprimer ta partie suffit. Tu peux aussi écrire à <Contact />. En cas de désaccord, tu peux
+            « Supprimer mon compte », sur l&apos;accueil une fois connecté, efface immédiatement ton compte, tes parties et
+            tes entrées au classement du défi ; sans compte, supprimer ta partie suffit (une entrée au classement du
+            défi, elle, part avec ton profil, après 30 jours sans visite). Tu peux aussi écrire à <Contact />. En cas de désaccord, tu peux
             adresser une réclamation à la CNIL (cnil.fr).
           </p>
         </Section>
@@ -109,14 +122,18 @@ export default function PrivacyPage() {
               Late Winner is run by Alexis Da Cruz (<Contact />). It uses a technical cookie, lw_uid (a random id, one
               year), to link your saves to your browser; if you sign in with Google, your email address, name, profile
               picture and Google id, and a session cookie; your game data; and the date of your last visit and the days
-              you visited, to measure how many players come back. No third-party cookie, no advertising, no cross-site
-              tracking, no sale of data.
+              you visited, to measure how many players come back. If you play the weekly challenge, your score; signed in
+              with Google, your first name (the first word of your Google account&apos;s name) is shown with it in the
+              challenge&apos;s public ranking, to everyone. No third-party cookie, no advertising, no cross-site tracking,
+              no sale of data.
             </p>
             <p>
-              Purposes: running the game and finding your saves again; internal audience measurement only. A player
-              without an account is deleted with their saves after 30 days of inactivity (24 hours if they have no save
-              left); an account is kept until you delete it. Hosting: Vercel (application) and Neon (database), with
-              their contractual safeguards for transfers outside the European Union.
+              Purposes: running the game and finding your saves again; showing the weekly challenge&apos;s ranking; internal
+              audience measurement only. A player without an account is deleted with their saves after 30 days of
+              inactivity (24 hours if they have no save left); an account is kept until you delete it. A weekly
+              challenge save is deleted 24 hours after its week ends, with or without an account; its ranking entry is
+              kept as long as your account or your profile without one. Hosting: Vercel (application) and Neon
+              (database), with their contractual safeguards for transfers outside the European Union.
             </p>
             <p>
               You may access, correct, erase or object to your data: « Supprimer mon compte » on the home page deletes your
