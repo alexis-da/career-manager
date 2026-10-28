@@ -17,6 +17,11 @@ Deux familles de tables, à ne jamais confondre :
 Un attribut qui change au cours d'une carrière (valeur marchande, moral, note) appartient à une table
 `*Save`, jamais à la table de référence.
 
+À part, le **défi de la semaine** (CLAUDE.md) : `Challenge`, une ligne par semaine, écrite une fois et jamais supprimée
+(Restrict depuis `Save.challengeId` et `ChallengeEntry`) ; `ChallengeEntry`, une par utilisateur et par semaine, qui
+survit à sa partie (`saveId` en SetNull) et part avec son utilisateur (Cascade). Les tests suppriment leurs semaines par
+`deleteTestChallenges` (`src/db/test-support.ts`), sur des années lointaines qui ne croisent pas les vraies semaines.
+
 ## Règle de requête
 
 Toute requête sur une table de partie inclut `saveId` dans le `where`, même quand un autre filtre semble

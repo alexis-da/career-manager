@@ -108,6 +108,28 @@ changement le match est celui joué sans pause. Page Coupe (`app/saves/[id]/cup`
 `src/db/cup-view.ts`) et entrée « Coupe » de la navigation pour une partie qui a une coupe ; palmarès (« Vainqueur de la
 Coupe », « Coupe : quarts de finale »), carte (« COUPE », « DOUBLÉ », `cardBadge`) et panneau « Saison terminée ».
 
+**Défi de la semaine.** Un défi par semaine ISO en UTC (`Challenge`, `weekKey` « 2026-W45 », `src/lib/iso-week.ts`),
+écrit une fois par `ensureChallenge` (`src/db/challenge.ts`) : par `POST /api/maintenance/challenge` le lundi (même
+secret et mêmes réponses 404 que la purge) ou, à défaut, à la première visite de `/challenge` ; jamais modifié ni
+supprimé, ouvert tant que `startsAt ≤ maintenant < endsAt` (pas de statut stocké). Sa graine est un HMAC de la semaine
+sous `AUTH_SECRET` (`challengeSeed`, `src/lib/challenge-seed.ts`), **jamais affichée ni renvoyée** : le formulaire de
+création accepte toute graine, la connaître permettrait de répéter le défi dans une partie normale, au tir près. Son
+club est tiré par la graine parmi la deuxième division et les 12e à 18e de première (137 clubs), sans celui de la
+semaine précédente (`drawChallengeClub`, `src/engine/challenge.ts`). Règles dans `src/config/challenge.ts` : horizon de
+10 journées, `MAX_CHALLENGE_SAVES_PER_WEEK` = 40, parties gardées 24 h après la fin du défi. Une partie de défi
+(`Save.challengeId`, `createChallengeSave`, `src/db/saves.ts`) est une partie 2 avec la graine, le club et le nom du
+défi (« Défi — semaine 45 »), les mêmes pour tous ; **hors des limites de parties**, mais une par joueur et par semaine
+(`ChallengeEntryExistsError`) et 40 par semaine (`ChallengeFullError`). L'entrée du joueur (`ChallengeEntry`, unique
+par défi et utilisateur) naît avec la partie, dans sa transaction, et lui survit (`saveId` en SetNull) : supprimer sa
+partie ne permet pas de recommencer, et le classement survit à la purge ; elle part avec son utilisateur (Cascade). Le
+score (`recordChallengeScore`) s'écrit une seule fois, dans la transaction de `playNextMatchday` ou de
+`resumeLiveMatch` qui termine le 10e match de championnat du club dans la première saison : points, différence, buts
+marqués (`challengeScore`), `submittedAt` à l'horloge de la base en UTC (`now() AT TIME ZONE 'UTC'`, jamais
+`new Date()` dans la simulation) ; plus rien ne le change ensuite. Classement : points, différence, buts, soumission la
+plus ancienne, id (`rankChallengeEntries`) ; une entrée soumise après `endsAt` ne compte pas. À la connexion Google, les
+entrées de l'anonyme suivent ses parties (`moveChallengeEntries`), sauf pour une semaine où le compte a déjà la sienne :
+le compte la garde, celle de l'anonyme est supprimée et sa partie ne compte plus.
+
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade). Hors des
 tests, trois suppressions d'utilisateur sont autorisées, et aucune autre : **la purge** (ci-dessous) ; **la fusion** à
 la connexion Google, où l'utilisateur anonyme du navigateur (cookie `lw_uid`) donne d'abord toutes ses parties au
@@ -121,6 +143,10 @@ avec un mauvais secret, `?dryRun=1` pour compter sans supprimer). Elle supprime 
 30 jours (`lastSeenAt`, avec leurs parties) et les `ANONYMOUS` sans partie non vus depuis 24 h ; jamais un
 `REGISTERED`. Par lots : 25 utilisateurs au plus par appel, les plus anciens d'abord (`maxDuration = 60`), et la
 réponse donne `remaining` ; le workflow rappelle la route tant que `remaining > 0`, 20 appels au plus. Aucun autre code ne supprime d'utilisateur de lui-même.
+Après les anonymes, chaque appel supprime aussi un lot de 10 parties de défi dont le défi est fini depuis plus de 24 h
+(le mardi qui suit sa semaine), **quel que soit leur propriétaire** (`purgeChallengeSaves`) : **première suppression
+automatique de parties de comptes Google**, annoncée au joueur à la création ; leurs entrées restent, sans partie.
+`remaining` compte les deux.
 
 Les parties d'avant les propriétaires gardent `ownerId` NULL : ce sont les parties **héritées**, visibles de
 personne ; la connexion du compte `ADMIN_EMAIL` les lui rattache. Toute nouvelle partie a un propriétaire ; le code
@@ -132,7 +158,9 @@ l'entrée : toute page sous `app/saves/[id]` et toute Server Action qui reçoit 
 unique du contrôle) ; une partie d'un autre joueur répond 404, comme une partie inexistante. Le layout ne protège pas
 les Server Actions : chacune fait son contrôle. Ensuite, une requête Prisma sur une table de partie sans `saveId`
 dans le `where` est un bug : elle mélangerait deux parties. Les listes de parties passent par `visibleSavesWhere`
-(les parties du joueur, rien sans utilisateur).
+(les parties du joueur, rien sans utilisateur). **Seule exception, limitée aux entrées du défi** : le classement d'un
+défi lit les `ChallengeEntry` de toutes ses parties, par `challengeId` (score, utilisateur, jamais le contenu d'une
+partie), et la fusion à la connexion Google déplace les entrées d'un utilisateur à l'autre, comme ses parties.
 
 **Identité.** Le joueur est reconnu par sa session Google (Auth.js, `src/auth/auth.ts` : JWT sans adaptateur ni
 table, qui porte notre `User.id`), sinon par le cookie anonyme `lw_uid` (id d'utilisateur signé HMAC-SHA256 avec
@@ -147,11 +175,12 @@ rétention.
 par `/login`, `proxy.ts`) ; absente, aucune redirection. Un visiteur sans cookie ni session voit l'accueil avec le
 formulaire de création, Google en second. Limites de parties dans `src/lib/limits.ts` (constantes, pas de variable
 d'environnement) : `MAX_SAVES_ANONYMOUS = 1`, `MAX_SAVES_REGISTERED = 3`, appliquées par `createSave`
-(`SaveLimitError`) et par l'accueil, qui remplace alors le formulaire par un message ; à la création seulement. Un
+(`SaveLimitError`) et par l'accueil, qui remplace alors le formulaire par un message ; à la création seulement ; les
+parties de défi n'y comptent pas (`countOwnedSaves`, `challengeId` NULL). Un
 anonyme dont la partie a un match joué voit sur le tableau de bord un bandeau l'invitant à se connecter, masqué sept
 jours par le cookie `lw_banner_closed`. `/admin/stats` (`src/db/stats.ts`) est réservée à `isAdmin(user)` et
-répond 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (route de purge) ; secrets
-GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml`).
+répond 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (routes de purge et du défi) ;
+secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml`).
 
 **Pas de marques sous licence.** Aucune mention de FIFA, EA, ou des noms de compétitions officiels sous
 licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (CC0).
@@ -203,7 +232,7 @@ app/                  # routes App Router, à la racine ; UI en français
   _components/        # composants de la page d'accueil (liste et création de parties)
   admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
   privacy/            # page de confidentialité, publique (hors mot de passe) ; à tenir à jour avec le code
-  api/                # Auth.js et la route de maintenance (purge), seules routes API
+  api/                # Auth.js et les routes de maintenance (purge, défi de la semaine), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
                       # palmarès (seasons/, et seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
@@ -211,12 +240,12 @@ e2e/                  # tests Playwright (npm run test:e2e)
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC
 src/
   components/ui/      # composants shadcn/ui (Base UI), générés par la CLI
-  engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes, coupes ;
+  engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes, coupes, défi ;
                       # club-name.ts : nom affiché des clubs (CLUB_NAMES)
     data/names/       # listes de noms, importées statiquement
   db/                 # accès Prisma, toujours scopé par saveId ; *.slow.test.ts via npm run test:slow
   lib/                # utilitaires partagés (rng, dates, couleurs, formatage)
-  config/             # constantes de configuration (CONTACT_EMAIL)
+  config/             # constantes de configuration (CONTACT_EMAIL, règles du défi de la semaine)
   og/                 # images générées (ImageResponse) : polices, visage en SVG data URI
   assets/fonts/       # Barlow Condensed ExtraBold Italic et sa licence OFL, lues par src/og/fonts.ts
   generated/prisma/   # client Prisma généré, ignoré par git
