@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import * as z from "zod";
 import { cookies } from "next/headers";
 import { signIn, signOut } from "@/src/auth/auth";
@@ -14,7 +15,6 @@ import { createSave, deleteSave } from "@/src/db/saves";
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE_SECONDS, LOCALES } from "@/src/i18n/locale";
 import { describeError, phaseTimer } from "@/src/lib/diagnostics";
 import { SaveLimitError } from "@/src/lib/limits";
-import { SAVE_LIMIT_MESSAGES } from "./_components/save-limit-notice";
 import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
 
 export type CreateSaveField = "name" | "managerName" | "clubId" | "seed";
@@ -25,12 +25,16 @@ export type CreateSaveFormState = {
   message: string | null;
 };
 
-const createSaveFormSchema = z.object({
-  name: z.string().trim().min(1, "Donnez un nom à la partie.").max(100, "100 caractères au plus."),
-  managerName: z.string().trim().min(1, "Indiquez le nom du manager.").max(100, "100 caractères au plus."),
-  clubId: z.string().min(1, "Choisissez un club."),
-  seed: z.string().trim().max(200, "200 caractères au plus."),
-});
+/** The creation form's fields, with what a refused one says in the player's language. */
+async function createSaveFormSchema() {
+  const t = await getTranslations("createSave.errors");
+  return z.object({
+    name: z.string().trim().min(1, t("nameRequired")).max(100, t("tooLong", { max: 100 })),
+    managerName: z.string().trim().min(1, t("managerRequired")).max(100, t("tooLong", { max: 100 })),
+    clubId: z.string().min(1, t("clubRequired")),
+    seed: z.string().trim().max(200, t("tooLong", { max: 200 })),
+  });
+}
 
 const saveIdSchema = z.string().min(1);
 
@@ -46,7 +50,7 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
     clubId: field(formData, "clubId"),
     seed: field(formData, "seed"),
   };
-  const parsed = createSaveFormSchema.safeParse(values);
+  const parsed = (await createSaveFormSchema()).safeParse(values);
   if (!parsed.success) {
     return { values, errors: z.flattenError(parsed.error).fieldErrors, message: null };
   }
@@ -66,13 +70,13 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
   } catch (error) {
     if (error instanceof SaveLimitError) {
       // The form is replaced by this message once the page knows; a creation from a page loaded earlier ends here.
-      return { values, errors: {}, message: SAVE_LIMIT_MESSAGES[error.kind] };
+      return { values, errors: {}, message: (await getTranslations("saveLimit"))(error.kind) };
     }
     // The real error, its code and the time spent, in one line the hosting logs keep; then the whole error.
     console.error(`[createSaveAction] failed after ${timer.elapsed()} ms: ${describeError(error)}`, error);
     const message = isWakeUpError(error)
-      ? "Le serveur se réveille : réessaie dans quelques secondes."
-      : "La partie n'a pas pu être créée. Réessayez.";
+      ? (await getTranslations("common"))("wakingUp")
+      : (await getTranslations("createSave.errors"))("failed");
     return { values, errors: {}, message };
   }
 

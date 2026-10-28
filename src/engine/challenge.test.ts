@@ -125,10 +125,10 @@ describe("a challenge's ranking", () => {
     expect(rankAmong(entry("first", 20, 5, 15, "2026-11-03T10:00:00.000Z"), ranked)).toBe(1);
   });
 
-  it("shows a Google account's first name only, « Anonyme » without a name", () => {
+  it("shows a Google account's first name only, none without a name", () => {
     expect(rankingName("Ada Lovelace")).toBe("Ada");
     expect(rankingName("  Grace  ")).toBe("Grace");
-    expect(rankingName(null)).toBe("Anonyme");
-    expect(rankingName("   ")).toBe("Anonyme");
+    expect(rankingName(null)).toBeNull();
+    expect(rankingName("   ")).toBeNull();
   });
 });

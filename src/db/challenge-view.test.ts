@@ -82,18 +82,19 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the page of the weekly 
     await db?.$disconnect();
   }, 60_000);
 
-  const lines = (rows: { rank: number | null; name: string; points: number; isViewer: boolean }[]) =>
-    rows.map(({ rank, name, points, isViewer }) => `${rank ?? "—"} ${name} ${points}${isViewer ? " *" : ""}`);
+  // « ? »: a line without a name, an account without one (« Anonyme ») or the viewer's own outside the ranking (« Toi »).
+  const lines = (rows: { rank: number | null; name: string | null; points: number; isViewer: boolean }[]) =>
+    rows.map(({ rank, name, points, isViewer }) => `${rank ?? "—"} ${name ?? "?"} ${points}${isViewer ? " *" : ""}`);
 
   it("ranks the Google accounts' entries submitted in time, by first name, and last week's", async () => {
     const { view, challenge } = loaded();
 
     const page = await view.getChallengePage(challenge, null);
 
-    expect(lines(page.ranking)).toEqual(["1 Ada 20", "2 Grace 15", "3 Anonyme 15"]);
+    expect(lines(page.ranking)).toEqual(["1 Ada 20", "2 Grace 15", "3 ? 15"]);
     expect(page).toMatchObject({ weekKey, weekNumber: 21, horizon: 10, full: false, own: null });
     expect(page.club.name).not.toBe("");
-    expect(page.club.competitionName).toMatch(/Division [12]$/);
+    expect(page.club.competition).toEqual({ country: expect.stringMatching(/^(de|en|es|fr|it)$/), tier: expect.any(Number) });
     expect(page.savesPurgedAt).toEqual(new Date(challenge.endsAt.getTime() + 24 * 3_600_000));
     expect(page.previous === null ? null : { weekNumber: page.previous.weekNumber, lines: lines(page.previous.ranking) }).toEqual({
       weekNumber: 20,
@@ -107,9 +108,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the page of the weekly 
     const anonymous = await view.getChallengePage(challenge, { id: users.viewer.id, kind: "ANONYMOUS" });
     const grace = await view.getChallengePage(challenge, { id: users.grace.id, kind: "REGISTERED" });
 
-    expect(lines(anonymous.ranking)).toEqual(["1 Ada 20", "— Toi 18 *", "2 Grace 15", "3 Anonyme 15"]);
+    expect(lines(anonymous.ranking)).toEqual(["1 Ada 20", "— ? 18 *", "2 Grace 15", "3 ? 15"]);
     expect(anonymous.own).toEqual({ saveId: null, matchdaysPlayed: 10, submitted: true });
-    expect(lines(grace.ranking)).toEqual(["1 Ada 20", "2 Grace 15 *", "3 Anonyme 15"]);
+    expect(lines(grace.ranking)).toEqual(["1 Ada 20", "2 Grace 15 *", "3 ? 15"]);
     expect((await view.getChallengePage(challenge, { id: users.playing.id, kind: "REGISTERED" })).own).toEqual({
       saveId: null,
       matchdaysPlayed: 4,

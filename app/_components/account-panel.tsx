@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { LogOutIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { CurrentUser } from "@/src/auth/current-user";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/utils";
@@ -22,17 +23,19 @@ function GoogleMark() {
  * for a one-line banner.
  */
 export function GoogleSignInButton({ compact = false, className }: { compact?: boolean; className?: string }) {
+  const t = useTranslations("account");
   return (
-    <form action={signInWithGoogleAction} lang="fr" className={className}>
-      <Button type="submit" variant="outline" className={cn("gap-2 font-semibold", compact ? "h-7 px-2.5 text-xs" : "h-9")}>
+    <form action={signInWithGoogleAction} className={className}>
+      <Button
+        type="submit"
+        variant="outline"
+        className={cn("gap-2 font-semibold", compact ? "h-7 px-2.5 text-xs" : "h-9")}
+        data-testid="google-sign-in"
+      >
         <GoogleMark />
-        {compact ? (
-          <span>
-            <span className="max-sm:sr-only">Continuer avec </span>Google
-          </span>
-        ) : (
-          "Continuer avec Google"
-        )}
+        <span>
+          <span className={cn(compact && "max-sm:sr-only")}>{t("continueWith")} </span>Google
+        </span>
       </Button>
     </form>
   );
@@ -43,12 +46,13 @@ export function GoogleSignInButton({ compact = false, className }: { compact?: b
  * signed in, an anonymous player included; the account's name, picture and « Se déconnecter » otherwise.
  */
 export function AccountPanel({ user, className }: { user: CurrentUser | null; className?: string }) {
+  const t = useTranslations("account");
   if (user === null || user.kind !== "REGISTERED") {
     return <GoogleSignInButton className={className} />;
   }
-  const label = user.name ?? user.email ?? "Compte Google";
+  const label = user.name ?? user.email ?? t("googleAccount");
   return (
-    <div lang="fr" className={cn("flex items-center gap-3", className)}>
+    <div className={cn("flex items-center gap-3", className)}>
       {user.image !== null && (
         // Google's picture as it is: no image optimisation for a remote host.
         <Image src={user.image} alt="" width={32} height={32} unoptimized referrerPolicy="no-referrer" className="size-8 rounded-full" />
@@ -57,9 +61,9 @@ export function AccountPanel({ user, className }: { user: CurrentUser | null; cl
         {label}
       </span>
       <form action={signOutAction}>
-        <Button type="submit" variant="ghost" size="sm" className="gap-1.5">
+        <Button type="submit" variant="ghost" size="sm" className="gap-1.5" data-testid="sign-out">
           <LogOutIcon data-icon="inline-start" />
-          Se déconnecter
+          {t("signOut")}
         </Button>
       </form>
     </div>

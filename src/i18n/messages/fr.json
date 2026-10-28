@@ -12,5 +12,134 @@
   },
   "footer": {
     "privacy": "Confidentialité"
+  },
+  "common": {
+    "newVersion": "Une nouvelle version du jeu est en ligne : recharge la page.",
+    "wakingUp": "Le serveur se réveille : réessaie dans quelques secondes.",
+    "cancel": "Annuler",
+    "deleting": "Suppression…"
+  },
+  "brand": {
+    "languages": "Jouable en français et en anglais."
+  },
+  "countries": {
+    "de": "Allemagne",
+    "en": "Angleterre",
+    "es": "Espagne",
+    "fr": "France",
+    "it": "Italie"
+  },
+  "competition": {
+    "league": "{country} — Division {tier}"
+  },
+  "home": {
+    "newSave": "Nouvelle partie",
+    "seasonStart": "La saison {season} commence le {date}.",
+    "accountDeleted": "Ton compte et tes parties ont été supprimés.",
+    "otherDevice": "Déjà une carrière sur un autre appareil ?",
+    "intro": "Reprenez une carrière ou commencez-en une nouvelle.",
+    "saves": "Parties",
+    "saveCount": "{count, plural, =0 {Aucune partie pour l'instant.} one {# partie} other {# parties}}",
+    "columns": {
+      "name": "Nom",
+      "manager": "Manager",
+      "club": "Club",
+      "date": "Date en jeu",
+      "actions": "Actions"
+    },
+    "challengeBadge": "Défi",
+    "challengeSaveName": "Défi — semaine {week}"
+  },
+  "createSave": {
+    "name": "Nom de la partie",
+    "namePlaceholder": "Ma carrière",
+    "manager": "Manager",
+    "managerPlaceholder": "Votre nom",
+    "club": "Club",
+    "clubHint": "Prends un club de Division 2 et amène-le au sommet.",
+    "clubPlaceholder": "Choisir un club",
+    "division": "Division {tier}",
+    "seed": "Graine (facultative)",
+    "seedHint": "Deux parties de même graine et même club se jouent à l'identique.",
+    "seedPlaceholder": "Tirée au hasard si vide",
+    "submit": "Créer la partie",
+    "pending": "Création de ton monde…",
+    "errors": {
+      "nameRequired": "Donnez un nom à la partie.",
+      "managerRequired": "Indiquez le nom du manager.",
+      "clubRequired": "Choisissez un club.",
+      "tooLong": "{max} caractères au plus.",
+      "failed": "La partie n'a pas pu être créée. Réessayez."
+    }
+  },
+  "saveLimit": {
+    "ANONYMOUS": "Tu as déjà une carrière en cours. Connecte-toi avec Google pour en mener jusqu'à trois.",
+    "REGISTERED": "Trois carrières maximum pour l'instant. Supprime-en une pour en commencer une autre."
+  },
+  "account": {
+    "continueWith": "Continuer avec",
+    "googleAccount": "Compte Google",
+    "signOut": "Se déconnecter",
+    "delete": {
+      "trigger": "Supprimer mon compte",
+      "title": "Supprimer ton compte ?",
+      "description": "Ton compte et toutes tes parties seront perdus, sans retour possible. Tu pourras toujours rejouer, avec un nouveau compte ou sans compte.",
+      "confirm": "Supprimer définitivement"
+    }
+  },
+  "deleteSave": {
+    "trigger": "Supprimer",
+    "title": "Supprimer « {name} » ?",
+    "description": "La partie et tout ce qu'elle contient seront effacés. Cette action est définitive.",
+    "confirm": "Supprimer la partie",
+    "deleted": "Partie « {name} » supprimée.",
+    "failed": "La partie n'a pas pu être supprimée. Réessayez."
+  },
+  "login": {
+    "title": "Connexion",
+    "passwordPrompt": "Accès privé : entrez le mot de passe.",
+    "password": "Mot de passe",
+    "checking": "Vérification…",
+    "enter": "Entrer",
+    "wrongPassword": "Mot de passe incorrect.",
+    "googlePrompt": "Retrouvez vos parties sur tous vos appareils.",
+    "accessDenied": "Connexion refusée : ce compte Google n'a pas d'adresse e-mail vérifiée.",
+    "googleFailed": "La connexion avec Google a échoué. Réessayez."
+  },
+  "challenge": {
+    "title": "Défi de la semaine",
+    "teaser": "Le même club pour tout le monde, dix journées de championnat, un classement chaque semaine.",
+    "see": "Voir le défi",
+    "back": "← Late Winner",
+    "week": "Semaine {week} · fin le {end} (heure de Paris)",
+    "scenario": "Le scénario",
+    "rules": "Tu prends le club le {date}, comme tous les joueurs de la semaine : même club, même monde. Seules comptent ses {horizon} premières journées de championnat, aux points, puis à la différence de buts, puis aux buts marqués. Ensuite, la partie continue, sans compter.",
+    "resume": "Reprendre ma partie",
+    "submitted": "Score enregistré",
+    "progress": "Journée {played} / {horizon}",
+    "play": "Jouer le défi",
+    "creating": "Création de ta partie…",
+    "purgedOn": "Partie de défi supprimée le {day}",
+    "ranking": "Classement de la semaine {week}",
+    "rankingEmpty": "Personne n'a encore terminé le défi cette semaine.",
+    "previous": "Semaine {week}",
+    "previousEmpty": "Personne n'a terminé ce défi.",
+    "full": "Défi complet cette semaine, reviens lundi",
+    "closed": "Ce défi est terminé : recharge la page pour jouer celui de cette semaine.",
+    "played": "Tu as déjà joué le défi de cette semaine.",
+    "failed": "La partie de défi n'a pas pu être créée. Réessaie.",
+    "table": {
+      "rank": "Rang",
+      "player": "Joueur",
+      "points": "Pts",
+      "pointsTitle": "Points",
+      "goalDiff": "Diff.",
+      "goalDiffTitle": "Différence de buts",
+      "goalsFor": "Buts",
+      "goalsForTitle": "Buts marqués",
+      "you": "Toi",
+      "anonymous": "Anonyme",
+      "signInToRank": "Connecte-toi pour apparaître au classement"
+    }
   }
 }

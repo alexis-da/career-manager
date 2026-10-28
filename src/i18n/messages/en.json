@@ -12,5 +12,134 @@
   },
   "footer": {
     "privacy": "Privacy"
+  },
+  "common": {
+    "newVersion": "A new version of the game is live: reload the page.",
+    "wakingUp": "The server is waking up: try again in a few seconds.",
+    "cancel": "Cancel",
+    "deleting": "Deleting…"
+  },
+  "brand": {
+    "languages": "Playable in English and French."
+  },
+  "countries": {
+    "de": "Germany",
+    "en": "England",
+    "es": "Spain",
+    "fr": "France",
+    "it": "Italy"
+  },
+  "competition": {
+    "league": "{country} — Division {tier}"
+  },
+  "home": {
+    "newSave": "New career",
+    "seasonStart": "The {season} season starts on {date}.",
+    "accountDeleted": "Your account and your careers have been deleted.",
+    "otherDevice": "Already have a career on another device?",
+    "intro": "Pick up a career or start a new one.",
+    "saves": "Careers",
+    "saveCount": "{count, plural, =0 {No careers yet.} one {# career} other {# careers}}",
+    "columns": {
+      "name": "Name",
+      "manager": "Manager",
+      "club": "Club",
+      "date": "In-game date",
+      "actions": "Actions"
+    },
+    "challengeBadge": "Challenge",
+    "challengeSaveName": "Challenge — week {week}"
+  },
+  "createSave": {
+    "name": "Career name",
+    "namePlaceholder": "My career",
+    "manager": "Manager",
+    "managerPlaceholder": "Your name",
+    "club": "Club",
+    "clubHint": "Take a Division 2 club and lead it to the top.",
+    "clubPlaceholder": "Choose a club",
+    "division": "Division {tier}",
+    "seed": "Seed (optional)",
+    "seedHint": "Two careers with the same seed and the same club play out identically.",
+    "seedPlaceholder": "Random if left empty",
+    "submit": "Start the career",
+    "pending": "Building your world…",
+    "errors": {
+      "nameRequired": "Give the career a name.",
+      "managerRequired": "Enter the manager's name.",
+      "clubRequired": "Choose a club.",
+      "tooLong": "{max} characters at most.",
+      "failed": "The career could not be created. Try again."
+    }
+  },
+  "saveLimit": {
+    "ANONYMOUS": "You already have a career under way. Sign in with Google to run up to three.",
+    "REGISTERED": "Three careers at most for now. Delete one to start another."
+  },
+  "account": {
+    "continueWith": "Continue with",
+    "googleAccount": "Google account",
+    "signOut": "Sign out",
+    "delete": {
+      "trigger": "Delete my account",
+      "title": "Delete your account?",
+      "description": "Your account and all your careers will be lost, with no way back. You can always play again, with a new account or without one.",
+      "confirm": "Delete for good"
+    }
+  },
+  "deleteSave": {
+    "trigger": "Delete",
+    "title": "Delete “{name}”?",
+    "description": "The career and everything in it will be erased. This cannot be undone.",
+    "confirm": "Delete the career",
+    "deleted": "Career “{name}” deleted.",
+    "failed": "The career could not be deleted. Try again."
+  },
+  "login": {
+    "title": "Sign in",
+    "passwordPrompt": "Private access: enter the password.",
+    "password": "Password",
+    "checking": "Checking…",
+    "enter": "Enter",
+    "wrongPassword": "Wrong password.",
+    "googlePrompt": "Find your careers on all your devices.",
+    "accessDenied": "Sign-in refused: this Google account has no verified email address.",
+    "googleFailed": "Signing in with Google failed. Try again."
+  },
+  "challenge": {
+    "title": "Weekly challenge",
+    "teaser": "The same club for everyone, ten league matchdays, a ranking every week.",
+    "see": "See the challenge",
+    "back": "← Late Winner",
+    "week": "Week {week} · ends {end} (Paris time)",
+    "scenario": "The scenario",
+    "rules": "You take over the club on {date}, like every player this week: same club, same world. Only its first {horizon} league matchdays count, on points, then goal difference, then goals scored. After that, the career goes on, without counting.",
+    "resume": "Resume my career",
+    "submitted": "Score recorded",
+    "progress": "Matchday {played} / {horizon}",
+    "play": "Play the challenge",
+    "creating": "Creating your career…",
+    "purgedOn": "Challenge career deleted on {day}",
+    "ranking": "Week {week} ranking",
+    "rankingEmpty": "Nobody has finished the challenge yet this week.",
+    "previous": "Week {week}",
+    "previousEmpty": "Nobody finished this challenge.",
+    "full": "This week's challenge is full, come back on Monday",
+    "closed": "This challenge is over: reload the page to play this week's.",
+    "played": "You have already played this week's challenge.",
+    "failed": "The challenge career could not be created. Try again.",
+    "table": {
+      "rank": "Rank",
+      "player": "Player",
+      "points": "Pts",
+      "pointsTitle": "Points",
+      "goalDiff": "GD",
+      "goalDiffTitle": "Goal difference",
+      "goalsFor": "GF",
+      "goalsForTitle": "Goals scored",
+      "you": "You",
+      "anonymous": "Anonymous",
+      "signInToRank": "Sign in to appear in the ranking"
+    }
   }
 }

@@ -1,33 +1,43 @@
 "use client";
 
 import { LoaderCircleIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/src/components/ui/button";
-import { isNewVersionError, NEW_VERSION_MESSAGE } from "@/app/_lib/new-version";
+import { isNewVersionError } from "@/app/_lib/new-version";
 import { playChallengeAction, type PlayChallengeState } from "../actions";
 
 const INITIAL_STATE: PlayChallengeState = { message: null };
 
 /** The button: busy while the save is created (some seconds for a world of 198 clubs), never sent twice. */
 function PlayButton() {
+  const t = useTranslations("challenge");
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={pending} aria-busy={pending}>
+    <Button
+      type="submit"
+      size="lg"
+      className="w-full sm:w-auto"
+      disabled={pending}
+      aria-busy={pending}
+      data-testid="challenge-play"
+    >
       {pending && <LoaderCircleIcon data-icon="inline-start" aria-hidden className="animate-spin" />}
-      {pending ? "Création de ta partie…" : "Jouer le défi"}
+      {pending ? t("creating") : t("play")}
     </Button>
   );
 }
 
 /** « Jouer le défi »: the week the page offers goes with it, so that the action refuses a challenge over since. */
 export function PlayChallengeForm({ weekKey }: { weekKey: string }) {
+  const common = useTranslations("common");
   const [state, formAction] = useActionState(async (previous: PlayChallengeState, formData: FormData) => {
     try {
       return await playChallengeAction(previous, formData);
     } catch (error) {
       if (isNewVersionError(error)) {
-        return { message: NEW_VERSION_MESSAGE };
+        return { message: common("newVersion") };
       }
       throw error;
     }
@@ -38,7 +48,7 @@ export function PlayChallengeForm({ weekKey }: { weekKey: string }) {
       <input type="hidden" name="weekKey" value={weekKey} />
       <PlayButton />
       {state.message !== null && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-sm text-destructive" data-testid="challenge-message">
           {state.message}
         </p>
       )}

@@ -15,6 +15,7 @@ import type { Prisma } from "../generated/prisma/client";
 import { chunk } from "../lib/arrays";
 import { describeError, phaseTimer, type PhaseTimer } from "../lib/diagnostics";
 import { ageInYears } from "../lib/dates";
+import { isoWeekNumber } from "../lib/iso-week";
 import { canCreateSave, ChallengeEntryExistsError, ChallengeFullError, SaveLimitError } from "../lib/limits";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
@@ -337,7 +338,8 @@ export type SaveSummary = {
   name: string;
   managerName: string;
   currentDate: Date;
-  isChallenge: boolean; // a save of the weekly challenge
+  // A save of the weekly challenge: the number of its week, which names it in the player's language; null otherwise.
+  challengeWeek: number | null;
   club: { name: string; primaryColor: string; secondaryColor: string };
 };
 
@@ -346,7 +348,7 @@ const SAVE_SUMMARY_SELECT = {
   name: true,
   managerName: true,
   currentDate: true,
-  challengeId: true,
+  challenge: { select: { weekKey: true } },
   clubSaves: {
     where: { isManaged: true },
     select: { club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
@@ -358,7 +360,7 @@ function toSaveSummary(save: {
   name: string;
   managerName: string;
   currentDate: Date;
-  challengeId: string | null;
+  challenge: { weekKey: string } | null;
   clubSaves: { club: SaveSummary["club"] & { slug: string } }[];
 }): SaveSummary {
   const [managed] = save.clubSaves;
@@ -371,7 +373,7 @@ function toSaveSummary(save: {
     name: save.name,
     managerName: save.managerName,
     currentDate: save.currentDate,
-    isChallenge: save.challengeId !== null,
+    challengeWeek: save.challenge === null ? null : isoWeekNumber(save.challenge.weekKey),
     club: { name: displayClubName(managed.club), primaryColor, secondaryColor },
   };
 }

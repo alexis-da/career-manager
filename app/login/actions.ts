@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import * as z from "zod";
 import {
   appPassword,
@@ -26,7 +27,7 @@ export async function loginAction(_previous: LoginState, formData: FormData): Pr
   }
   const parsed = loginSchema.safeParse({ password: formData.get("password"), next: formData.get("next") });
   if (!parsed.success || !passwordMatches(parsed.data.password, password)) {
-    return { error: "Mot de passe incorrect." };
+    return { error: (await getTranslations("login"))("wrongPassword") };
   }
   (await cookies()).set(SESSION_COOKIE, createSessionValue(password, Date.now()), {
     httpOnly: true,

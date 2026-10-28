@@ -1,6 +1,8 @@
 import { MAX_CHALLENGE_SAVES_PER_WEEK } from "../config/challenge";
 import { challengeSavesPurgedAt, rankAmong, rankChallengeEntries, rankingName } from "../engine/challenge";
 import { displayClubName } from "../engine/club-name";
+import { competitionTier, type CompetitionTier } from "../engine/tiers";
+import { competitionCountry, type Country } from "../i18n/countries";
 import { isoWeekNumber, previousIsoWeekKey } from "../lib/iso-week";
 import type { ChallengeSummary } from "./challenge";
 import { prisma } from "./client";
@@ -13,8 +15,8 @@ import { prisma } from "./client";
 export type ChallengeViewer = { id: string; kind: "ANONYMOUS" | "REGISTERED" } | null;
 
 export type ChallengeRankingRow = {
-  rank: number | null; // null: the viewer's own entry outside the public ranking, an anonymous player's
-  name: string; // the Google account's first name
+  rank: number | null; // null: the viewer's own entry outside the public ranking, an anonymous player's (« Toi »)
+  name: string | null; // the Google account's first name; null without one (« Anonyme »), and on the viewer's own line
   points: number;
   goalDiff: number;
   goalsFor: number;
@@ -75,7 +77,7 @@ function rankingOf(entries: readonly SubmittedEntry[], viewer: ChallengeViewer):
     return rows;
   }
   const at = rankAmong(own, ranking) - 1;
-  const ownRow = { rank: null, name: "Toi", points: own.points, goalDiff: own.goalDiff, goalsFor: own.goalsFor, isViewer: true };
+  const ownRow = { rank: null, name: null, points: own.points, goalDiff: own.goalDiff, goalsFor: own.goalsFor, isViewer: true };
   return [...rows.slice(0, at), ownRow, ...rows.slice(at)];
 }
 
@@ -85,7 +87,8 @@ export type ChallengePageView = {
   horizon: number;
   endsAt: Date;
   savesPurgedAt: Date;
-  club: { name: string; competitionName: string; primaryColor: string };
+  // The club and its competition, by country and division: the page names it in the player's language.
+  club: { name: string; competition: { country: Country; tier: CompetitionTier } | null; primaryColor: string };
   full: boolean; // the week has its MAX_CHALLENGE_SAVES_PER_WEEK saves
   own: { saveId: string | null; matchdaysPlayed: number; submitted: boolean } | null; // the viewer's entry this week
   ranking: ChallengeRankingRow[];
@@ -100,7 +103,7 @@ export async function getChallengePage(challenge: ChallengeSummary, viewer: Chal
   const [club, saves, own, entries, previous] = await Promise.all([
     prisma.club.findUniqueOrThrow({
       where: { id: challenge.clubId },
-      select: { slug: true, name: true, primaryColor: true, competition: { select: { name: true } } },
+      select: { slug: true, name: true, primaryColor: true, competition: { select: { code: true, tier: true } } },
     }),
     prisma.save.count({ where: { challengeId: challenge.id } }),
     viewer === null
@@ -123,7 +126,14 @@ export async function getChallengePage(challenge: ChallengeSummary, viewer: Chal
     horizon: challenge.horizonMatchdays,
     endsAt: challenge.endsAt,
     savesPurgedAt: challengeSavesPurgedAt(challenge.endsAt),
-    club: { name: displayClubName(club), competitionName: club.competition?.name ?? "", primaryColor: club.primaryColor },
+    club: {
+      name: displayClubName(club),
+      competition:
+        club.competition === null
+          ? null
+          : { country: competitionCountry(club.competition.code), tier: competitionTier(club.competition.tier) },
+      primaryColor: club.primaryColor,
+    },
     full: saves >= MAX_CHALLENGE_SAVES_PER_WEEK,
     own: own === null ? null : { saveId: own.saveId, matchdaysPlayed: own.matchdaysPlayed, submitted: own.submittedAt !== null },
     ranking: rankingOf(entries, viewer),

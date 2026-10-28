@@ -3,6 +3,7 @@
 import { CalendarDaysIcon, ChevronDownIcon, FastForwardIcon, LoaderCircleIcon, PlayIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/src/components/ui/button";
@@ -16,7 +17,7 @@ import {
 import type { WorldVersion } from "@/src/engine/world-version";
 import { advanceSeasonAction, playMatchdayAction, playUntilNextMatchAction, type GameActionResult } from "../actions";
 import { useSimulation, type SimulationTarget } from "./simulation";
-import { isNewVersionError, NEW_VERSION_MESSAGE } from "../../../_lib/new-version";
+import { isNewVersionError } from "../../../_lib/new-version";
 
 const SIMULATION_TARGETS: { label: string; target: SimulationTarget }[] = [
   { label: "Prochain match de mon club", target: { kind: "next-match" } },
@@ -68,6 +69,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
   const [intermediate, setIntermediate] = useState(0); // dates played so far by « Prochain match »
   const [kickOff, setKickOff] = useState(false); // « Prochain match » is playing the managed club's date
   const router = useRouter();
+  const common = useTranslations("common");
 
   const show = (result: GameActionResult) => {
     if (result.redirectTo !== undefined) {
@@ -87,7 +89,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
       try {
         show(await action(saveId));
       } catch (error) {
-        toast.error(isNewVersionError(error) ? NEW_VERSION_MESSAGE : "L'action a échoué. Réessayez.");
+        toast.error(isNewVersionError(error) ? common("newVersion") : "L'action a échoué. Réessayez.");
       }
     });
 
@@ -113,7 +115,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
         setKickOff(true);
         show(await playMatchdayAction(saveId));
       } catch (error) {
-        toast.error(isNewVersionError(error) ? NEW_VERSION_MESSAGE : "L'action a échoué. Réessayez.");
+        toast.error(isNewVersionError(error) ? common("newVersion") : "L'action a échoué. Réessayez.");
         router.refresh();
       }
     });

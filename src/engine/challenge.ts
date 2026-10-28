@@ -105,8 +105,8 @@ export function rankAmong(entry: RankableChallengeEntry, others: readonly Rankab
   return 1 + others.filter((other) => other.id !== entry.id && compareChallengeEntries(other, entry) < 0).length;
 }
 
-/** The name a public ranking shows: the first name of the Google account, no more; « Anonyme » without a name. */
-export function rankingName(accountName: string | null): string {
+/** The name a public ranking shows: the first name of the Google account, no more; null without one (« Anonyme »). */
+export function rankingName(accountName: string | null): string | null {
   const [first] = (accountName ?? "").trim().split(/\s+/);
-  return first === undefined || first === "" ? "Anonyme" : first;
+  return first === undefined || first === "" ? null : first;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { LoaderCircleIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useActionState, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/src/components/ui/button";
@@ -16,7 +17,10 @@ import {
 } from "@/src/components/ui/select";
 import type { CompetitionClubs } from "@/src/db/clubs";
 import { createSaveAction, type CreateSaveFormState } from "../actions";
-import { isNewVersionError, NEW_VERSION_MESSAGE } from "../_lib/new-version";
+import { isNewVersionError } from "../_lib/new-version";
+
+/** A competition of the form, its country named in the player's language (app/page.tsx). */
+export type CreatableCompetition = CompetitionClubs & { countryName: string };
 
 const INITIAL_STATE: CreateSaveFormState = {
   values: { name: "", managerName: "", clubId: "", seed: "" },
@@ -54,23 +58,35 @@ function Field({ id, label, hint, errors, children }: FieldProps) {
  * click never sends a second creation.
  */
 function CreateButton() {
+  const t = useTranslations("createSave");
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" className="w-full" disabled={pending} aria-busy={pending} data-creating={pending || undefined}>
+    <Button
+      type="submit"
+      size="lg"
+      className="w-full"
+      disabled={pending}
+      aria-busy={pending}
+      data-creating={pending || undefined}
+      data-testid="create-save"
+    >
       {pending && <LoaderCircleIcon data-icon="inline-start" aria-hidden className="animate-spin" />}
-      {pending ? "Création de ton monde…" : "Créer la partie"}
+      {pending ? t("pending") : t("submit")}
     </Button>
   );
 }
 
-export function CreateSaveForm({ competitions }: { competitions: CompetitionClubs[] }) {
+export function CreateSaveForm({ competitions }: { competitions: CreatableCompetition[] }) {
+  const t = useTranslations("createSave");
+  const common = useTranslations("common");
+  const competitionName = useTranslations("competition");
   const [state, formAction] = useActionState(async (previous: CreateSaveFormState, formData: FormData) => {
     try {
       return await createSaveAction(previous, formData);
     } catch (error) {
       // The page comes from an earlier deployment: its action is gone from the server, a reload fixes it.
       if (isNewVersionError(error)) {
-        return { ...previous, message: NEW_VERSION_MESSAGE };
+        return { ...previous, message: common("newVersion") };
       }
       throw error;
     }
@@ -80,53 +96,59 @@ export function CreateSaveForm({ competitions }: { competitions: CompetitionClub
     competition.clubs.map((club) => ({ value: club.id, label: club.name })),
   );
   // By country, then by division: the competitions come sorted that way.
-  const countries = [...Map.groupBy(competitions, (competition) => competition.country)];
+  const countries = [...Map.groupBy(competitions, (competition) => competition.countryName)];
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
-      <Field id="save-name" label="Nom de la partie" errors={state.errors.name}>
+      <Field id="save-name" label={t("name")} errors={state.errors.name}>
         <Input
           id="save-name"
           name="name"
           maxLength={100}
           defaultValue={state.values.name}
-          placeholder="Ma carrière"
+          placeholder={t("namePlaceholder")}
           aria-invalid={state.errors.name !== undefined}
+          data-testid="save-name"
         />
       </Field>
 
-      <Field id="manager-name" label="Manager" errors={state.errors.managerName}>
+      <Field id="manager-name" label={t("manager")} errors={state.errors.managerName}>
         <Input
           id="manager-name"
           name="managerName"
           maxLength={100}
           defaultValue={state.values.managerName}
-          placeholder="Votre nom"
+          placeholder={t("managerPlaceholder")}
           aria-invalid={state.errors.managerName !== undefined}
+          data-testid="manager-name"
         />
       </Field>
 
-      <Field
-        id="club"
-        label="Club"
-        hint="Prends un club de Division 2 et amène-le au sommet."
-        errors={state.errors.clubId}
-      >
+      <Field id="club" label={t("club")} hint={t("clubHint")} errors={state.errors.clubId}>
         <Select
           items={items}
           value={clubId === "" ? null : clubId}
           onValueChange={(value) => setClubId(typeof value === "string" ? value : "")}
         >
-          <SelectTrigger id="club" aria-labelledby="club-label" aria-invalid={state.errors.clubId !== undefined} className="w-full">
-            <SelectValue placeholder="Choisir un club" />
+          <SelectTrigger
+            id="club"
+            aria-labelledby="club-label"
+            aria-invalid={state.errors.clubId !== undefined}
+            className="w-full"
+            data-testid="club"
+          >
+            <SelectValue placeholder={t("clubPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
             {countries.map(([country, divisions]) => (
               <SelectGroup key={country} aria-label={country}>
                 <SelectLabel className="pt-3 text-sm font-semibold text-foreground">{country}</SelectLabel>
                 {divisions.map((competition) => (
-                  <SelectGroup key={competition.code} aria-label={competition.name}>
-                    <SelectLabel>Division {competition.tier}</SelectLabel>
+                  <SelectGroup
+                    key={competition.code}
+                    aria-label={competitionName("league", { country, tier: competition.tier })}
+                  >
+                    <SelectLabel>{t("division", { tier: competition.tier })}</SelectLabel>
                     {competition.clubs.map((club) => (
                       <SelectItem key={club.id} value={club.id}>
                         {club.name}
@@ -141,16 +163,22 @@ export function CreateSaveForm({ competitions }: { competitions: CompetitionClub
         <input type="hidden" name="clubId" value={clubId} />
       </Field>
 
-      <Field
-        id="seed"
-        label="Graine (facultative)"
-        hint="Deux parties de même graine et même club se jouent à l'identique."
-        errors={state.errors.seed}
-      >
-        <Input id="seed" name="seed" maxLength={200} defaultValue={state.values.seed} placeholder="Tirée au hasard si vide" />
+      <Field id="seed" label={t("seed")} hint={t("seedHint")} errors={state.errors.seed}>
+        <Input
+          id="seed"
+          name="seed"
+          maxLength={200}
+          defaultValue={state.values.seed}
+          placeholder={t("seedPlaceholder")}
+          data-testid="seed"
+        />
       </Field>
 
-      {state.message !== null && <p className="text-sm text-destructive">{state.message}</p>}
+      {state.message !== null && (
+        <p className="text-sm text-destructive" data-testid="create-save-message">
+          {state.message}
+        </p>
+      )}
 
       <CreateButton />
     </form>
