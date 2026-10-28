@@ -62,6 +62,17 @@ export async function createTestOwner(): Promise<string> {
   return id;
 }
 
+/**
+ * Deletes test challenges, their entries and their saves first: the game never deletes a challenge, and both refer to
+ * it with Restrict. Their owners stay, for src/db/test-global-setup.ts to delete once saveless.
+ */
+export async function deleteTestChallenges(weekKeys: readonly string[]): Promise<void> {
+  const ofTheseWeeks = { challenge: { weekKey: { in: [...weekKeys] } } };
+  await prisma.challengeEntry.deleteMany({ where: ofTheseWeeks });
+  await prisma.save.deleteMany({ where: ofTheseWeeks });
+  await prisma.challenge.deleteMany({ where: { weekKey: { in: [...weekKeys] } } });
+}
+
 /** Deletes the throwaway owners of test saves that no longer own any save; how many were deleted. */
 export async function deleteSavelessTestOwners(): Promise<number> {
   const { count } = await prisma.user.deleteMany({
