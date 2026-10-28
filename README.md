@@ -43,7 +43,9 @@ pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0)
   du joueur, primes par tour, page Coupe, trophée au palmarès et sur la carte de fin de saison ;
 - les parties créées avant les deuxièmes divisions gardent les cinq premières divisions seules
   (`Save.worldVersion` 1) ;
-- `npm run measure:balance` mesure l'équilibrage des deux divisions sur six saisons (base locale seulement).
+- `npm run measure:balance` mesure l'équilibrage des deux divisions sur six saisons (base locale seulement) ;
+- un défi chaque semaine (`/challenge`) : le même club et le même monde pour tous, classement sur les 10 premières
+  journées de championnat, 20 parties par semaine au plus, supprimées le mardi qui suit.
 
 ## Déployer
 
@@ -54,7 +56,8 @@ pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0)
    - `AUTH_SECRET` : signe le cookie anonyme `lw_uid` et la session Google (obligatoire) ;
    - `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` : client OAuth Google (redirection `<site>/api/auth/callback/google`) ;
    - `ADMIN_EMAIL` : compte Google de l'administrateur (parties héritées, `/admin/stats`) ;
-   - `MAINTENANCE_SECRET` : secret de `POST /api/maintenance/purge` (sans lui, la route répond 404) ;
+   - `MAINTENANCE_SECRET` : secret de `POST /api/maintenance/purge` et de `POST /api/maintenance/challenge` (sans lui,
+     elles répondent 404) ;
    - `APP_PASSWORD` (facultatif) : mode « fermé », tout le site demande ce mot de passe ; absente, le jeu est ouvert ;
    - `CLUB_NAMES` (facultatif) : `real` (par défaut) ou `fictional` pour afficher des noms de clubs neutres.
 3. Déployer : `npm run build` génère le client Prisma, applique les migrations puis construit l'application.
@@ -86,14 +89,20 @@ n'utiliser que sciemment.
 ### Maintenance (GitHub Actions)
 
 `.github/workflows/maintenance.yml` appelle chaque jour à 04:17 UTC (et à la demande, onglet Actions) la purge des
-utilisateurs anonymes. Secrets du dépôt (Settings > Secrets and variables > Actions) :
+utilisateurs anonymes, puis des parties de défi finies depuis plus de 24 h. `.github/workflows/challenge.yml` crée le
+défi de la semaine chaque lundi à 05:00 UTC (et à la demande) ; sans lui, la première visite de `/challenge` le crée.
+Secrets du dépôt (Settings > Secrets and variables > Actions) :
 
 - `MAINTENANCE_URL` : `https://www.latewinner.app/api/maintenance/purge` ;
-- `MAINTENANCE_SECRET` : la même valeur que sur Vercel.
+- `CHALLENGE_URL` : `https://www.latewinner.app/api/maintenance/challenge` ;
+- `MAINTENANCE_SECRET` : la même valeur que sur Vercel, pour les deux workflows.
 
-Chaque appel purge au plus 25 utilisateurs et renvoie `remaining` : le job rappelle la route tant qu'il en
-reste, 20 appels au plus (le reste attend le lendemain). Il échoue si une réponse n'est pas 200. `?dryRun=1` compte sans supprimer :
-`curl -X POST -H "Authorization: Bearer $SECRET" "https://www.latewinner.app/api/maintenance/purge?dryRun=1"`.
+Chaque appel de la purge supprime au plus 25 utilisateurs et 10 parties de défi et renvoie `remaining` : le job rappelle
+la route tant qu'il en reste, 20 appels au plus (le reste attend le lendemain). Il échoue si une réponse n'est pas 200.
+`?dryRun=1` compte sans supprimer :
+`curl -X POST -H "Authorization: Bearer $SECRET" "https://www.latewinner.app/api/maintenance/purge?dryRun=1"`. Le
+workflow du défi essaie trois fois, à 30 s d'intervalle, et échoue si aucune réponse n'est 200 ; rappelé, il ne crée
+rien de plus (`created: false`).
 
 ## Accès et comptes
 

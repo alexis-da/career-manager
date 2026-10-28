@@ -38,7 +38,9 @@ rend le moteur testable et rejouable.
 d'OpenFootball et ne changent jamais pendant une partie. Tout ce qui évolue est suffixé `Save`
 (`PlayerSave`, `ClubSave`) et porte un `saveId`. Ne jamais muter une table de référence depuis le jeu. La compétition
 d'un club dans une partie est `ClubSave.competitionId` (initialisée depuis `Club.competitionId` à la création, seule
-lecture de ce dernier) ; le classement et le palmarès d'une saison passée prennent leurs clubs dans ses `Fixture`.
+lecture de ce dernier dans une partie ; le défi de la semaine le lit aussi, pour tirer son club et l'afficher, ses parties
+partant toutes du monde de départ) ; le classement et le palmarès d'une saison passée prennent leurs clubs dans ses
+`Fixture`.
 Le poste local ne touche jamais la production : les données de référence y arrivent **par migration**
 (`prisma migrate deploy` au déploiement), un SQL idempotent généré depuis le plan du seed
 (`scripts/generate-reference-migration.ts`, skill `prisma-migrations`), jamais par `npm run db:seed`.
@@ -131,6 +133,19 @@ plus ancienne, id (`rankChallengeEntries`) ; une entrée soumise après `endsAt`
 entrées de l'anonyme suivent ses parties (`moveChallengeEntries`), sauf pour une semaine où le compte a déjà la sienne :
 le compte la garde, celle de l'anonyme est supprimée et sa partie ne compte plus.
 
+**Écrans du défi.** `/challenge` (`app/challenge`, `getChallengePage`, `src/db/challenge-view.ts`), ouverte à tous et
+derrière le mot de passe en mode fermé : le club de la semaine (`displayClubName`, dans `src/db`), **jamais dans le titre
+ni l'image de partage** ; la fin du défi en heure de Paris (`formatParisDateTime`) ; « Jouer le défi »
+(`playChallengeAction`, qui reçoit la semaine de la page et refuse un défi fermé ; `maxDuration = 60`), « Reprendre ma
+partie », ou « Défi complet cette semaine, reviens lundi » au plafond ; les classements de la semaine et de la
+précédente : entrées soumises avant `endsAt`, comptes Google seulement, prénom (`rankingName`) ; un anonyme voit sa
+propre ligne grisée, sans rang, avec « Connecte-toi pour apparaître au classement ». Le défi de la semaine y est créé au
+premier chargement (`ensureCurrentChallenge`). Tableau de bord d'une partie de défi : bannière (`getChallengeBanner`)
+« Défi de la semaine · journée X / 10 », puis score et rang provisoire et « La partie continue mais ne compte plus », ou
+« Cette partie ne compte pas au classement » ; toujours « Partie de défi supprimée le mardi JJ/MM ». Accueil : encart
+« Défi de la semaine » et marque « Défi » sur une partie de défi ; dans une partie, une icône trophée à droite de
+l'en-tête (les onglets, que la barre coupe, n'ont pas d'entrée « Défi »).
+
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade). Hors des
 tests, trois suppressions d'utilisateur sont autorisées, et aucune autre : **la purge** (ci-dessous) ; **la fusion** à
 la connexion Google, où l'utilisateur anonyme du navigateur (cookie `lw_uid`) donne d'abord toutes ses parties au
@@ -181,7 +196,8 @@ parties de défi n'y comptent pas (`countOwnedSaves`, `challengeId` NULL). Un
 anonyme dont la partie a un match joué voit sur le tableau de bord un bandeau l'invitant à se connecter, masqué sept
 jours par le cookie `lw_banner_closed`. `/admin/stats` (`src/db/stats.ts`) est réservée à `isAdmin(user)` et
 répond 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (routes de purge et du défi) ;
-secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml`).
+secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml`), `CHALLENGE_URL` et le même
+`MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à 05:00 UTC).
 
 **Pas de marques sous licence.** Aucune mention de FIFA, EA, ou des noms de compétitions officiels sous
 licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (CC0).
@@ -238,7 +254,7 @@ app/                  # routes App Router, à la racine ; UI en français
                       # palmarès (seasons/, et seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e)
-.github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC
+.github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC ; challenge.yml : défi du lundi, 05:00 UTC
 src/
   components/ui/      # composants shadcn/ui (Base UI), générés par la CLI
   engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes, coupes, défi ;

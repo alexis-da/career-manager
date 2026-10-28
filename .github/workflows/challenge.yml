@@ -1,0 +1,36 @@
+# The weekly challenge of the production game: creates the week's challenge every Monday at 05:00 UTC
+# (app/api/maintenance/challenge/route.ts); without it, the first visit of /challenge creates it. Idempotent: run again
+# (or by hand, from the Actions tab), it answers the same week with created: false. Secrets of the repository:
+# CHALLENGE_URL, the endpoint's full address (https://www.latewinner.app/api/maintenance/challenge), and
+# MAINTENANCE_SECRET, the same value as on Vercel, shared with the purge (maintenance.yml).
+name: Challenge
+
+on:
+  schedule:
+    - cron: "0 5 * * 1" # 05:00 UTC, every Monday
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  challenge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Create the week's challenge, three tries at most
+        env:
+          CHALLENGE_URL: ${{ secrets.CHALLENGE_URL }}
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+        run: |
+          for try in 1 2 3; do
+            status=$(curl --silent --show-error --max-time 60 --output response.json --write-out "%{http_code}" \
+              --request POST --header "Authorization: Bearer ${MAINTENANCE_SECRET}" "${CHALLENGE_URL}" || true)
+            echo "Try $try: HTTP $status $(cat response.json 2>/dev/null)"
+            if [ "$status" = "200" ]; then
+              exit 0
+            fi
+            # A database waking up may fail the first call: the next one finds it awake.
+            sleep 30
+          done
+          echo "::error::The challenge endpoint answered HTTP $status three times"
+          exit 1
