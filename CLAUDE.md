@@ -245,6 +245,10 @@ E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
 - Server Components par défaut ; `"use client"` seulement pour un composant réellement interactif.
 - Mutations via Server Actions, jamais de route API pour un usage interne.
 - Validation des entrées avec Zod à la frontière (Server Action, parsing de fichier importé).
+- Une requête à la fois sur une connexion : pas de `Promise.all` sur un client de transaction (`tx`) ni sur un client
+  pg à soi. Les requêtes que Prisma lance lui-même ensemble dans une transaction (chargement des relations, `createMany`
+  découpé) sont chaînées par `SequentialPrismaPg` (`src/db/pg-adapter.ts`), l'adaptateur de tous les clients Prisma ;
+  en test, `src/db/test-pg-guard.ts` fait échouer toute requête envoyée sur une connexion occupée (pg 9 la refusera).
 - Pas de `any`. Pas de `!` non-null sans commentaire justifiant.
 - Un commit = un changement cohérent, message en français à l'impératif.
 

@@ -36,15 +36,14 @@ export async function purgeAnonymousUsers(
     kind: "ANONYMOUS",
     OR: [{ lastSeenAt: { lt: inactiveBefore } }, { lastSeenAt: { lt: emptyBefore }, saves: { none: {} } }],
   };
-  const [batch, purgeableCount] = await Promise.all([
-    db.user.findMany({
-      where: purgeable,
-      orderBy: [{ lastSeenAt: "asc" }, { id: "asc" }],
-      take: batchSize,
-      select: { id: true, lastSeenAt: true },
-    }),
-    db.user.count({ where: purgeable }),
-  ]);
+  // One after the other: db may be a transaction (the tests' rolled-back ones), whose queries share its connection.
+  const batch = await db.user.findMany({
+    where: purgeable,
+    orderBy: [{ lastSeenAt: "asc" }, { id: "asc" }],
+    take: batchSize,
+    select: { id: true, lastSeenAt: true },
+  });
+  const purgeableCount = await db.user.count({ where: purgeable });
   if (!dryRun && batch.length > 0) {
     // The same conditions again: a user seen since the read is not deleted.
     await db.user.deleteMany({ where: { AND: [purgeable, { id: { in: batch.map((user) => user.id) } }] } });
@@ -70,15 +69,14 @@ export async function purgeChallengeSaves(
   { dryRun, batchSize = CHALLENGE_SAVE_PURGE_BATCH_SIZE }: { dryRun: boolean; batchSize?: number },
 ): Promise<ChallengeSavePurgeResult> {
   const purgeable: Prisma.SaveWhereInput = { challenge: { is: { endsAt: { lt: purgeCutoffs(now).challengeEndedBefore } } } };
-  const [batch, purgeableCount] = await Promise.all([
-    db.save.findMany({
-      where: purgeable,
-      orderBy: [{ challenge: { endsAt: "asc" } }, { id: "asc" }],
-      take: batchSize,
-      select: { id: true },
-    }),
-    db.save.count({ where: purgeable }),
-  ]);
+  // One after the other, as for the users.
+  const batch = await db.save.findMany({
+    where: purgeable,
+    orderBy: [{ challenge: { endsAt: "asc" } }, { id: "asc" }],
+    take: batchSize,
+    select: { id: true },
+  });
+  const purgeableCount = await db.save.count({ where: purgeable });
   if (!dryRun && batch.length > 0) {
     await db.save.deleteMany({ where: { AND: [purgeable, { id: { in: batch.map((save) => save.id) } }] } });
   }

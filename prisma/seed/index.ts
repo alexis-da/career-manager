@@ -1,6 +1,6 @@
 import "dotenv/config";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { assertLocalDatabase, pgConnection } from "../../src/db/database-url";
+import { SequentialPrismaPg } from "../../src/db/pg-adapter";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import { seedWorld } from "./seed";
 
@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   }
 
   assertLocalDatabase(connectionString, "DIRECT_URL");
-  const prisma = new PrismaClient({ adapter: new PrismaPg(pgConnection(connectionString)) });
+  const prisma = new PrismaClient({ adapter: new SequentialPrismaPg(pgConnection(connectionString)) });
   try {
     const summary = await seedWorld(prisma);
     for (const competition of summary.competitions) {

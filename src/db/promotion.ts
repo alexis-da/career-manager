@@ -39,22 +39,21 @@ export type FinalTables = {
  * (getStandings) sorts them: promotion and relegation (seasonMovesOf) and the next cups' preliminary rounds read them.
  */
 export async function readFinalTables(tx: Db, saveId: string, seasons: readonly ClosingSeason[]): Promise<FinalTables> {
-  const [competitions, fixtures] = await Promise.all([
-    tx.competition.findMany({
-      where: { id: { in: seasons.map((season) => season.competitionId) } },
-      select: { id: true, tier: true },
-    }),
-    tx.fixture.findMany({
-      where: { saveId, seasonId: { in: seasons.map((season) => season.id) }, played: true },
-      select: {
-        seasonId: true,
-        homeGoals: true,
-        awayGoals: true,
-        homeClubSave: { select: { id: true, clubId: true, club: { select: { slug: true } } } },
-        awayClubSave: { select: { id: true, clubId: true, club: { select: { slug: true } } } },
-      },
-    }),
-  ]);
+  // One after the other: the transaction's queries share its connection.
+  const competitions = await tx.competition.findMany({
+    where: { id: { in: seasons.map((season) => season.competitionId) } },
+    select: { id: true, tier: true },
+  });
+  const fixtures = await tx.fixture.findMany({
+    where: { saveId, seasonId: { in: seasons.map((season) => season.id) }, played: true },
+    select: {
+      seasonId: true,
+      homeGoals: true,
+      awayGoals: true,
+      homeClubSave: { select: { id: true, clubId: true, club: { select: { slug: true } } } },
+      awayClubSave: { select: { id: true, clubId: true, club: { select: { slug: true } } } },
+    },
+  });
   const tierById = new Map(competitions.map((competition) => [competition.id, competitionTier(competition.tier)]));
   const clubBySlug = new Map(
     fixtures.flatMap(({ homeClubSave, awayClubSave }) =>

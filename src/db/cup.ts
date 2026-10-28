@@ -88,17 +88,16 @@ async function drawRound(
   season: { id: string; startYear: number; code: string },
   round: number,
 ): Promise<void> {
-  const [clubs, played] = await Promise.all([
-    // The country's clubs: a club changes division only at the end of the season, after the final.
-    tx.clubSave.findMany({
-      where: { saveId, competition: { kind: "LEAGUE", code: { startsWith: `${countryOf(season.code)}.` } } },
-      select: { id: true, club: { select: { slug: true } } },
-    }),
-    tx.fixture.findMany({
-      where: { saveId, seasonId: season.id, played: true },
-      select: { round: true, homeClubSave: TIE_CLUB_SELECT, awayClubSave: TIE_CLUB_SELECT, winnerClubSave: TIE_CLUB_SELECT },
-    }),
-  ]);
+  // One after the other: the transaction's queries share its connection. The country's clubs: a club changes division
+  // only at the end of the season, after the final.
+  const clubs = await tx.clubSave.findMany({
+    where: { saveId, competition: { kind: "LEAGUE", code: { startsWith: `${countryOf(season.code)}.` } } },
+    select: { id: true, club: { select: { slug: true } } },
+  });
+  const played = await tx.fixture.findMany({
+    where: { saveId, seasonId: season.id, played: true },
+    select: { round: true, homeClubSave: TIE_CLUB_SELECT, awayClubSave: TIE_CLUB_SELECT, winnerClubSave: TIE_CLUB_SELECT },
+  });
   const ties = nextRoundTies(
     clubs.map((club) => club.club.slug),
     played.map((tie) => {
@@ -167,10 +166,9 @@ export async function progressCups(tx: Db, saveId: string, saveSeed: string, fix
       .map((tie) => [`${tie.season.id}#${tie.round}`, { round: tie.round, season: tie.season }]),
   );
   for (const { round, season } of rounds.values()) {
-    const [unplayed, drawn] = await Promise.all([
-      tx.fixture.count({ where: { saveId, seasonId: season.id, round, played: false } }),
-      tx.fixture.count({ where: { saveId, seasonId: season.id, round: round + 1 } }),
-    ]);
+    // One after the other: the transaction's queries share its connection.
+    const unplayed = await tx.fixture.count({ where: { saveId, seasonId: season.id, round, played: false } });
+    const drawn = await tx.fixture.count({ where: { saveId, seasonId: season.id, round: round + 1 } });
     if (unplayed === 0 && drawn === 0) {
       await drawRound(tx, saveId, saveSeed, { id: season.id, startYear: season.startYear, code: season.competition.code }, round + 1);
     }

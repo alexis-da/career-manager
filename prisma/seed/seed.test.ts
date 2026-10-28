@@ -1,7 +1,7 @@
 import "dotenv/config";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { assertLocalDatabase, pgConnection } from "../../src/db/database-url";
+import { SequentialPrismaPg } from "../../src/db/pg-adapter";
 import { PrismaClient } from "../../src/generated/prisma/client";
 import { FREE_AGENT_POOL_TEMPLATE, SQUAD_TEMPLATE } from "./players";
 import { buildWorldPlan, seedWorld } from "./seed";
@@ -14,7 +14,7 @@ describe.skipIf(connectionString === undefined)("seedWorld", () => {
 
   beforeAll(() => {
     assertLocalDatabase(connectionString, "DATABASE_URL");
-    prisma = new PrismaClient({ adapter: new PrismaPg(pgConnection(connectionString ?? "")) });
+    prisma = new PrismaClient({ adapter: new SequentialPrismaPg(pgConnection(connectionString ?? "")) });
   });
 
   afterAll(async () => {

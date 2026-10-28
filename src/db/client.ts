@@ -1,6 +1,6 @@
-import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client";
 import { assertLocalDatabase, pgConnection } from "./database-url";
+import { SequentialPrismaPg } from "./pg-adapter";
 
 function createClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
@@ -9,7 +9,7 @@ function createClient(): PrismaClient {
   }
   // From the workstation, the local PostgreSQL only (dev server, tests, scripts); Vercel reaches Neon.
   assertLocalDatabase(connectionString, "DATABASE_URL");
-  return new PrismaClient({ adapter: new PrismaPg(pgConnection(connectionString)) });
+  return new PrismaClient({ adapter: new SequentialPrismaPg(pgConnection(connectionString)) });
 }
 
 // One client per process, kept across hot reloads in development so connections are not exhausted.

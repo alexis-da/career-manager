@@ -62,40 +62,39 @@ const RESULT_CLUB_SELECT = { select: { clubId: true, club: { select: { slug: tru
  * the ones of its fixtures, whatever their competition now. null when the club played none of them.
  */
 async function computeSeasonResult(db: Db, saveId: string, managed: ManagedClub, season: SeasonRef): Promise<SeasonResultData | null> {
-  const [fixtures, stats] = await Promise.all([
-    db.fixture.findMany({
-      where: { saveId, seasonId: season.id },
-      select: {
-        id: true,
-        played: true,
-        homeGoals: true,
-        awayGoals: true,
-        homeClubSave: RESULT_CLUB_SELECT,
-        awayClubSave: RESULT_CLUB_SELECT,
-      },
-    }),
-    db.playerSeasonStats.findMany({
-      where: { saveId, seasonId: season.id },
-      select: {
-        appearances: true,
-        minutes: true,
-        goals: true,
-        assists: true,
-        yellowCards: true,
-        redCards: true,
-        playerSave: {
-          select: {
-            id: true,
-            playerKey: true,
-            firstName: true,
-            lastName: true,
-            position: true,
-            clubSave: { select: { clubId: true } },
-          },
+  // One after the other: in a transaction (recordSeasonResult), its queries share its connection.
+  const fixtures = await db.fixture.findMany({
+    where: { saveId, seasonId: season.id },
+    select: {
+      id: true,
+      played: true,
+      homeGoals: true,
+      awayGoals: true,
+      homeClubSave: RESULT_CLUB_SELECT,
+      awayClubSave: RESULT_CLUB_SELECT,
+    },
+  });
+  const stats = await db.playerSeasonStats.findMany({
+    where: { saveId, seasonId: season.id },
+    select: {
+      appearances: true,
+      minutes: true,
+      goals: true,
+      assists: true,
+      yellowCards: true,
+      redCards: true,
+      playerSave: {
+        select: {
+          id: true,
+          playerKey: true,
+          firstName: true,
+          lastName: true,
+          position: true,
+          clubSave: { select: { clubId: true } },
         },
       },
-    }),
-  ]);
+    },
+  });
 
   const clubs = fixtures.flatMap(({ homeClubSave, awayClubSave }) => [homeClubSave, awayClubSave]);
   const managedSlug = clubs.find(({ clubId }) => clubId === managed.clubId)?.club.slug;

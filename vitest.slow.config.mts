@@ -15,6 +15,8 @@ export default defineConfig({
     hookTimeout: 30_000,
     // Deletes the throwaway owners of the database tests' saves once every file has run.
     globalSetup: ["./src/db/test-global-setup.ts"],
+    // A query sent on a busy pg connection fails the test (src/db/test-pg-guard.ts).
+    setupFiles: ["./src/db/test-pg-guard.ts"],
     include: ["**/*.slow.test.ts"],
     exclude: [...configDefaults.exclude, "e2e/**", ".next/**"],
   },
