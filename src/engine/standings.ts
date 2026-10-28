@@ -18,8 +18,8 @@ export type StandingRow = {
   points: number;
 };
 
-const POINTS_FOR_WIN = 3;
-const POINTS_FOR_DRAW = 1;
+export const POINTS_FOR_WIN = 3;
+export const POINTS_FOR_DRAW = 1;
 
 type Tally = Omit<StandingRow, "rank" | "goalDifference" | "points">;
 
