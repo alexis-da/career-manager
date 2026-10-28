@@ -17,7 +17,8 @@
     "newVersion": "Une nouvelle version du jeu est en ligne : recharge la page.",
     "wakingUp": "Le serveur se réveille : réessaie dans quelques secondes.",
     "cancel": "Annuler",
-    "deleting": "Suppression…"
+    "deleting": "Suppression…",
+    "close": "Fermer"
   },
   "brand": {
     "languages": "Jouable en français et en anglais."

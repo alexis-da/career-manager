@@ -17,7 +17,8 @@
     "newVersion": "A new version of the game is live: reload the page.",
     "wakingUp": "The server is waking up: try again in a few seconds.",
     "cancel": "Cancel",
-    "deleting": "Deleting…"
+    "deleting": "Deleting…",
+    "close": "Close"
   },
   "brand": {
     "languages": "Playable in English and French."
