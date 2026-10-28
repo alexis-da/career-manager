@@ -20,7 +20,7 @@ npx prisma migrate dev # créer + appliquer une migration (base locale)
 npx prisma studio      # inspecter la base
 npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
-npm run test:e2e       # tests Playwright
+npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
 npm run measure:balance # équilibrage des deux divisions : six saisons d'une partie 2 (base locale seulement)
 ```
 

@@ -17,7 +17,7 @@
     "measure:size": "tsx scripts/measure-save-size.ts",
     "measure:balance": "tsx scripts/measure-d2-balance.ts",
     "test:slow": "vitest run --config vitest.slow.config.mts",
-    "test:e2e": "playwright test"
+    "test:e2e": "tsx scripts/e2e-reset.ts && playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
