@@ -96,3 +96,17 @@ export function compareChallengeEntries(a: RankableChallengeEntry, b: RankableCh
 export function rankChallengeEntries<T extends RankableChallengeEntry>(entries: readonly T[]): (T & { rank: number })[] {
   return [...entries].sort(compareChallengeEntries).map((entry, index) => ({ ...entry, rank: index + 1 }));
 }
+
+/**
+ * The rank an entry would have among others, ranked or not: one more than those that come before it, itself left out.
+ * For a player's own entry, which an anonymous player sees where it would stand.
+ */
+export function rankAmong(entry: RankableChallengeEntry, others: readonly RankableChallengeEntry[]): number {
+  return 1 + others.filter((other) => other.id !== entry.id && compareChallengeEntries(other, entry) < 0).length;
+}
+
+/** The name a public ranking shows: the first name of the Google account, no more; « Anonyme » without a name. */
+export function rankingName(accountName: string | null): string {
+  const [first] = (accountName ?? "").trim().split(/\s+/);
+  return first === undefined || first === "" ? "Anonyme" : first;
+}

@@ -16,6 +16,18 @@ const dayDate = new Intl.DateTimeFormat("fr-FR", {
 const shortMonth = new Intl.DateTimeFormat("fr-FR", { month: "short", timeZone: TIME_ZONE });
 const monthYear = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: TIME_ZONE });
 
+// Real times, not in-game dates (the weekly challenge's end, its saves' purge): in the players' clock, Paris time.
+const PARIS = "Europe/Paris";
+const parisDateTime = new Intl.DateTimeFormat("fr-FR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: PARIS,
+});
+const parisDay = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "2-digit", month: "2-digit", timeZone: PARIS });
+
 /** Amount in euros: « 12,5 M€ », « 850 k€ », « 900 € ». */
 export function formatMoney(euros: number): string {
   const magnitude = Math.abs(euros);
@@ -62,4 +74,19 @@ export function formatDayMonth(date: Date): string {
 /** « septembre 2026 ». */
 export function formatMonth(date: Date): string {
   return monthYear.format(date);
+}
+
+/** A real time in Paris: « lundi 2 novembre à 01:00 ». */
+export function formatParisDateTime(date: Date): string {
+  return parisDateTime.format(date);
+}
+
+/** A real day in Paris: « mardi 03/11 ». */
+export function formatParisDay(date: Date): string {
+  return parisDay.format(date);
+}
+
+/** A goal difference with its sign when positive: « +4 », « 0 », « -2 ». */
+export function formatGoalDifference(difference: number): string {
+  return difference > 0 ? `+${difference}` : `${difference}`;
 }

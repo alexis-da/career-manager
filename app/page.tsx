@@ -11,6 +11,7 @@ import { cn } from "@/src/lib/utils";
 import { AccountPanel } from "./_components/account-panel";
 import { BrandFooter } from "./_components/brand-footer";
 import { BrandHeader } from "./_components/brand-header";
+import { ChallengeTeaser } from "./_components/challenge-teaser";
 import { CreateSaveForm } from "./_components/create-save-form";
 import { DeleteAccountDialog } from "./_components/delete-account-dialog";
 import { DeleteSaveDialog } from "./_components/delete-save-dialog";
@@ -52,6 +53,7 @@ async function WelcomePage({ accountDeleted }: { accountDeleted: boolean }) {
           <NewSaveIntro />
           <CreateSaveForm competitions={competitions} />
         </section>
+        <ChallengeTeaser />
         <section lang="fr" className="space-y-3">
           <p className="text-sm text-muted-foreground">Déjà une carrière sur un autre appareil ?</p>
           <AccountPanel user={null} />
@@ -136,10 +138,13 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
             )}
           </section>
 
-          <section className="space-y-4 rounded-lg border bg-card p-5">
-            <NewSaveIntro />
-            {atLimit ? <SaveLimitNotice user={user} /> : <CreateSaveForm competitions={competitions} />}
-          </section>
+          <div className="space-y-5">
+            <section className="space-y-4 rounded-lg border bg-card p-5">
+              <NewSaveIntro />
+              {atLimit ? <SaveLimitNotice user={user} /> : <CreateSaveForm competitions={competitions} />}
+            </section>
+            <ChallengeTeaser />
+          </div>
         </div>
 
         <BrandFooter>{user.kind === "REGISTERED" && <DeleteAccountDialog />}</BrandFooter>

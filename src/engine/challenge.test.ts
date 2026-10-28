@@ -5,7 +5,9 @@ import {
   challengeScore,
   drawChallengeClub,
   isChallengeClub,
+  rankAmong,
   rankChallengeEntries,
+  rankingName,
   type ChallengeClubCandidate,
 } from "./challenge";
 
@@ -113,5 +115,20 @@ describe("a challenge's ranking", () => {
       "6 late-twin",
     ]);
     expect(entries[0]?.id).toBe("late-twin");
+  });
+
+  it("gives an entry outside the ranking the rank it would have", () => {
+    const ranked = [entry("first", 20, 5, 15, "2026-11-03T10:00:00.000Z"), entry("third", 10, 0, 8, "2026-11-03T10:00:00.000Z")];
+
+    expect(rankAmong(entry("mine", 15, 2, 10, "2026-11-04T10:00:00.000Z"), ranked)).toBe(2);
+    expect(rankAmong(entry("mine", 25, 2, 10, "2026-11-04T10:00:00.000Z"), ranked)).toBe(1);
+    expect(rankAmong(entry("first", 20, 5, 15, "2026-11-03T10:00:00.000Z"), ranked)).toBe(1);
+  });
+
+  it("shows a Google account's first name only, « Anonyme » without a name", () => {
+    expect(rankingName("Ada Lovelace")).toBe("Ada");
+    expect(rankingName("  Grace  ")).toBe("Grace");
+    expect(rankingName(null)).toBe("Anonyme");
+    expect(rankingName("   ")).toBe("Anonyme");
   });
 });

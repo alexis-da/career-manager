@@ -15,7 +15,10 @@ const SECTIONS = [
   { segment: "/seasons", label: "Palmarès" },
 ] as const;
 
-/** Tabs of a save, « Coupe » only with a cup; the active one gets the club accent at 18 % and an accent underline. */
+/**
+ * Tabs of a save, « Coupe » only with a cup; the active one gets the club accent at 18 % and an accent underline. Then
+ * « Défi », the weekly challenge's page, outside the save.
+ */
 export function SaveNav({ saveId, hasCup }: { saveId: string; hasCup: boolean }) {
   const pathname = usePathname();
   const base = `/saves/${saveId}`;
@@ -42,6 +45,13 @@ export function SaveNav({ saveId, hasCup }: { saveId: string; hasCup: boolean })
           </Link>
         );
       })}
+      {/* Outside the save: the weekly challenge's public page. */}
+      <Link
+        href="/challenge"
+        className="rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
+      >
+        Défi
+      </Link>
     </nav>
   );
 }

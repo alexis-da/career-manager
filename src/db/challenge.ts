@@ -1,9 +1,10 @@
+import { readAuthSecret } from "../auth/identity";
 import { CHALLENGE_HORIZON_MATCHDAYS } from "../config/challenge";
 import { challengeScore, drawChallengeClub } from "../engine/challenge";
 import { WORLD_START_YEAR } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
 import { challengeSeed } from "../lib/challenge-seed";
-import { isoWeekBounds, previousIsoWeekKey } from "../lib/iso-week";
+import { isoWeekBounds, isoWeekKey, previousIsoWeekKey } from "../lib/iso-week";
 import { getOrThrow } from "../lib/maps";
 import { prisma } from "./client";
 
@@ -57,6 +58,19 @@ export async function ensureChallenge(weekKey: string, secret: string): Promise<
   });
   const challenge = await prisma.challenge.findUniqueOrThrow({ where: { weekKey }, select: CHALLENGE_SELECT });
   return { ...challenge, created: count === 1 };
+}
+
+/**
+ * The challenge of the real week at `now`, created when missing, its seed under AUTH_SECRET: what the Monday route,
+ * the page /challenge and its action all ask for. `now` is real time, the caller's.
+ */
+export function ensureCurrentChallenge(now: Date): Promise<ChallengeSummary & { created: boolean }> {
+  return ensureChallenge(isoWeekKey(now), readAuthSecret(process.env.AUTH_SECRET));
+}
+
+/** Whether a challenge is open at `now`, real time: from its Monday 00:00 UTC to the next one's, excluded. */
+export function isChallengeOpen(challenge: Pick<ChallengeSummary, "startsAt" | "endsAt">, now: Date): boolean {
+  return challenge.startsAt <= now && now < challenge.endsAt;
 }
 
 /**

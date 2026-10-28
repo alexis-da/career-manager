@@ -4,8 +4,11 @@ import {
   formatDayDate,
   formatDayMonth,
   formatDecimal,
+  formatGoalDifference,
   formatMillions,
   formatMoney,
+  formatParisDateTime,
+  formatParisDay,
   formatShortDate,
 } from "./format";
 
@@ -49,5 +52,17 @@ describe("formatDate", () => {
     expect(formatDayDate(new Date(Date.UTC(2024, 8, 14)))).toBe("sam. 14 sept. 2024");
     expect(formatDayMonth(new Date(Date.UTC(2025, 0, 1)))).toBe("1er janv.");
     expect(formatDayMonth(new Date(Date.UTC(2024, 7, 31)))).toBe("31 août");
+  });
+});
+
+describe("real times", () => {
+  it("writes them in Paris time, winter and summer", () => {
+    expect(formatParisDateTime(new Date("2026-11-02T00:00:00.000Z"))).toBe("lundi 2 novembre à 01:00");
+    expect(formatParisDateTime(new Date("2026-07-06T00:00:00.000Z"))).toBe("lundi 6 juillet à 02:00");
+    expect(formatParisDay(new Date("2026-11-03T00:00:00.000Z"))).toBe("mardi 03/11");
+  });
+
+  it("signs a positive goal difference only", () => {
+    expect([4, 0, -2].map(formatGoalDifference)).toEqual(["+4", "0", "-2"]);
   });
 });
