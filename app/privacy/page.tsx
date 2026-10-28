@@ -70,8 +70,9 @@ export default function PrivacyPage() {
               joueurs reviennent.
             </li>
             <li>
-              Deux cookies de confort : la fermeture du bandeau qui invite à créer un compte (sept jours) et, si l&apos;accès
-              au site est protégé par un mot de passe, la session correspondante.
+              Trois cookies de confort : la langue que tu choisis, lw_lang (un an), la fermeture du bandeau qui invite à
+              créer un compte (sept jours) et, si l&apos;accès au site est protégé par un mot de passe, la session
+              correspondante.
             </li>
           </ul>
           <p>Aucun cookie tiers, aucune publicité, aucun suivi entre sites, aucune revente de données.</p>
@@ -124,8 +125,9 @@ export default function PrivacyPage() {
               picture and Google id, and a session cookie; your game data; and the date of your last visit and the days
               you visited, to measure how many players come back. If you play the weekly challenge, your score; signed in
               with Google, your first name (the first word of your Google account&apos;s name) is shown with it in the
-              challenge&apos;s public ranking, to everyone. No third-party cookie, no advertising, no cross-site tracking,
-              no sale of data.
+              challenge&apos;s public ranking, to everyone. Comfort cookies keep the language you choose (lw_lang, one
+              year) and the closing of the banner inviting you to sign in (seven days). No third-party cookie, no
+              advertising, no cross-site tracking, no sale of data.
             </p>
             <p>
               Purposes: running the game and finding your saves again; showing the weekly challenge&apos;s ranking; internal
@@ -136,7 +138,7 @@ export default function PrivacyPage() {
               (database), with their contractual safeguards for transfers outside the European Union.
             </p>
             <p>
-              You may access, correct, erase or object to your data: « Supprimer mon compte » on the home page deletes your
+              You may access, correct, erase or object to your data: “Delete my account” on the home page deletes your
               account and saves at once, or write to us. You may lodge a complaint with the CNIL. Last updated{" "}
               {UPDATED_ON.en}.
             </p>

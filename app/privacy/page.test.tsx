@@ -24,6 +24,11 @@ describe("privacy page", () => {
     }
   });
 
+  it("lists the language cookie among the comfort cookies, in French and in the English summary", () => {
+    expect(markup).toContain("Trois cookies de confort : la langue que tu choisis, lw_lang (un an)");
+    expect(markup).toContain("keep the language you choose (lw_lang, one");
+  });
+
   it("ends with an English summary in a block marked as English", () => {
     expect(markup).toMatch(/<section lang="en"[^>]*><h2[^>]*>English summary<\/h2>/);
   });
