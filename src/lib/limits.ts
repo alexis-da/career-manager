@@ -1,6 +1,7 @@
 // How many saves a player may keep, by kind of user. Constants rather than environment variables: they are rules of
 // the game, the same everywhere. They only apply when a save is created: signing in with Google may give an account
-// more saves than this (the anonymous user's join the account's), and nothing is taken away then.
+// more saves than this (the anonymous user's join the account's), and nothing is taken away then. A save of the weekly
+// challenge never counts: its own rules are one a user a week, and a cap a week (src/config/challenge.ts).
 
 export const MAX_SAVES_ANONYMOUS = 1;
 export const MAX_SAVES_REGISTERED = 3;
@@ -25,5 +26,27 @@ export class SaveLimitError extends Error {
   ) {
     super(`Save limit reached: a ${kind} user may own ${maxSavesFor(kind)} save(s) and owns ${saveCount}`);
     this.name = "SaveLimitError";
+  }
+}
+
+/** Thrown by createChallengeSave when the user already plays this week's challenge, even if they deleted that save. */
+export class ChallengeEntryExistsError extends Error {
+  constructor(
+    readonly challengeId: string,
+    readonly userId: string,
+  ) {
+    super(`User ${userId} already has an entry in challenge ${challengeId}`);
+    this.name = "ChallengeEntryExistsError";
+  }
+}
+
+/** Thrown by createChallengeSave when this week's challenge already has as many saves as it may hold. */
+export class ChallengeFullError extends Error {
+  constructor(
+    readonly challengeId: string,
+    readonly maxSaves: number,
+  ) {
+    super(`Challenge ${challengeId} already has its ${maxSaves} saves`);
+    this.name = "ChallengeFullError";
   }
 }

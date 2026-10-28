@@ -1,4 +1,6 @@
 import * as z from "zod";
+import { MAX_CHALLENGE_SAVES_PER_WEEK } from "../config/challenge";
+import { challengeSaveName } from "../engine/challenge";
 import { displayClubName } from "../engine/club-name";
 import { clubFinances, generateContract, marketValueFor } from "../engine/economy";
 import { FREE_AGENT_POOL_SLUG, freeAgentPlayerKey, generateFreeAgentAttributes } from "../engine/free-agents";
@@ -13,7 +15,7 @@ import type { Prisma } from "../generated/prisma/client";
 import { chunk } from "../lib/arrays";
 import { describeError, phaseTimer, type PhaseTimer } from "../lib/diagnostics";
 import { ageInYears } from "../lib/dates";
-import { canCreateSave, SaveLimitError } from "../lib/limits";
+import { canCreateSave, ChallengeEntryExistsError, ChallengeFullError, SaveLimitError } from "../lib/limits";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { visibleSavesWhere, type SaveViewer } from "./access";
@@ -37,6 +39,17 @@ export const createSaveInputSchema = z.object({
 
 export type CreateSaveInput = z.input<typeof createSaveInputSchema>;
 
+export const createChallengeSaveInputSchema = z.object({
+  challengeId: z.string().min(1),
+  managerName: z.string().trim().min(1).max(100),
+  ownerId: z.string().min(1),
+});
+
+export type CreateChallengeSaveInput = z.input<typeof createChallengeSaveInputSchema>;
+
+/** What a creation writes: a challenge save also has its challenge, and the cap of its week. */
+type SaveData = z.output<typeof createSaveInputSchema> & { challenge: { id: string; maxSaves: number } | null };
+
 // A new save writes about 4 000 rows in a worldVersion 1 world, 8 500 in a worldVersion 2 one: allow much more than
 // the 5 s default.
 const TRANSACTION_TIMEOUT_MS = 120_000;
@@ -52,39 +65,93 @@ const CREATE_BATCH_SIZE = 1_000;
  * preliminary rounds too. The large tables are written in batches of CREATE_BATCH_SIZE rows. Everything random
  * derives from the seed, so the same seed always yields the same save; each player's stream is his own, so a first
  * division player gets the same attributes in both worlds. Reference tables (Competition, Club, Player) are only read.
- * Throws SaveLimitError, before writing anything, when the owner already has as many saves as their kind allows.
+ * Throws SaveLimitError, before writing anything, when the owner already has as many saves as their kind allows (their
+ * challenge saves left out).
  */
 export async function createSave(input: CreateSaveInput): Promise<{ id: string }> {
-  const data = createSaveInputSchema.parse(input);
+  return timedWriteSave({ ...createSaveInputSchema.parse(input), challenge: null });
+}
+
+/**
+ * Creates a user's save of a week's challenge: the save createSave makes in a worldVersion 2 world, cups included, with
+ * the challenge's seed, club and name (challengeSaveName), the same for every player of the week, and the user's entry
+ * (ChallengeEntry) in the same transaction. Outside the save limits; before writing anything, throws
+ * ChallengeEntryExistsError when the user already has an entry this week (even if they deleted its save: the entry
+ * stays), and ChallengeFullError when the week has maxSaves challenge saves. Whether the challenge is still open is the
+ * caller's to check: that is real time.
+ */
+export async function createChallengeSave(
+  input: CreateChallengeSaveInput,
+  { maxSaves = MAX_CHALLENGE_SAVES_PER_WEEK }: { maxSaves?: number } = {},
+): Promise<{ id: string }> {
+  const { challengeId, managerName, ownerId } = createChallengeSaveInputSchema.parse(input);
+  const challenge = await prisma.challenge.findUniqueOrThrow({
+    where: { id: challengeId },
+    select: { weekKey: true, seed: true, clubId: true },
+  });
+  return timedWriteSave({
+    name: challengeSaveName(challenge.weekKey),
+    managerName,
+    clubId: challenge.clubId,
+    seed: challenge.seed,
+    ownerId,
+    worldVersion: 2,
+    cups: CUPS_ENABLED,
+    challenge: { id: challengeId, maxSaves },
+  });
+}
+
+/** A rule's refusal, before anything is written: no error worth a log line. */
+const isRefusal = (error: unknown): boolean =>
+  error instanceof SaveLimitError || error instanceof ChallengeEntryExistsError || error instanceof ChallengeFullError;
+
+/** writeSave, its phases and its duration in the logs, a failure's too. */
+async function timedWriteSave(data: SaveData): Promise<{ id: string }> {
   const timer = phaseTimer();
+  const what = `world ${data.worldVersion}${data.challenge === null ? "" : ", challenge"}`;
   try {
     const created = await writeSave(data, timer);
-    console.info(`[createSave] world ${data.worldVersion}: ${timer.elapsed()} ms (${timer.summary()})`);
+    console.info(`[createSave] ${what}: ${timer.elapsed()} ms (${timer.summary()})`);
     return created;
   } catch (error) {
-    if (!(error instanceof SaveLimitError)) {
+    if (!isRefusal(error)) {
       console.error(
-        `[createSave] world ${data.worldVersion}, failed after ${timer.elapsed()} ms (${timer.summary() || "nothing done"}): ${describeError(error)}`,
+        `[createSave] ${what}, failed after ${timer.elapsed()} ms (${timer.summary() || "nothing done"}): ${describeError(error)}`,
       );
     }
     throw error;
   }
 }
 
-/** The transaction of createSave, each phase marked on the timer for the logs. */
-async function writeSave(data: z.output<typeof createSaveInputSchema>, timer: PhaseTimer): Promise<{ id: string }> {
-  const { name, managerName, clubId, seed, ownerId, worldVersion, cups } = data;
+/** The transaction of a creation, each phase marked on the timer for the logs. */
+async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: string }> {
+  const { name, managerName, clubId, seed, ownerId, worldVersion, cups, challenge } = data;
   const tiers = worldTiers(worldVersion);
 
   return prisma.$transaction(
     async (tx) => {
-      // The limit first: a refused creation reads nothing else.
-      const owner = await tx.user.findUniqueOrThrow({
-        where: { id: ownerId },
-        select: { kind: true, _count: { select: { saves: true } } },
-      });
-      if (!canCreateSave(owner.kind, owner._count.saves)) {
-        throw new SaveLimitError(owner.kind, owner._count.saves);
+      // The limits first: a refused creation reads nothing else. A challenge save leaves the save limit alone, for its
+      // own rules: one a user a week, and the week's cap. The cap is read without a lock: two creations at once may
+      // pass it by one, which the storage it protects can take.
+      if (challenge === null) {
+        const owner = await tx.user.findUniqueOrThrow({
+          where: { id: ownerId },
+          select: { kind: true, _count: { select: { saves: { where: { challengeId: null } } } } },
+        });
+        if (!canCreateSave(owner.kind, owner._count.saves)) {
+          throw new SaveLimitError(owner.kind, owner._count.saves);
+        }
+      } else {
+        const entry = await tx.challengeEntry.findUnique({
+          where: { challengeId_userId: { challengeId: challenge.id, userId: ownerId } },
+          select: { id: true },
+        });
+        if (entry !== null) {
+          throw new ChallengeEntryExistsError(challenge.id, ownerId);
+        }
+        if ((await tx.save.count({ where: { challengeId: challenge.id } })) >= challenge.maxSaves) {
+          throw new ChallengeFullError(challenge.id, challenge.maxSaves);
+        }
       }
 
       timer.mark("limit");
@@ -132,9 +199,21 @@ async function writeSave(data: z.output<typeof createSaveInputSchema>, timer: Ph
       }
 
       const save = await tx.save.create({
-        data: { name, managerName, seed, ownerId, worldVersion, currentDate: WORLD_START_DATE },
+        data: { name, managerName, seed, ownerId, worldVersion, currentDate: WORLD_START_DATE, challengeId: challenge?.id ?? null },
         select: { id: true, seed: true, currentDate: true },
       });
+      if (challenge !== null) {
+        // Right after the save: a creation for the same user and week at the same time waits on this row's unique
+        // index, then fails here, before writing its world.
+        try {
+          await tx.challengeEntry.create({ data: { challengeId: challenge.id, userId: ownerId, saveId: save.id }, select: { id: true } });
+        } catch (error) {
+          if (error instanceof Error && "code" in error && error.code === "P2002") {
+            throw new ChallengeEntryExistsError(challenge.id, ownerId);
+          }
+          throw error;
+        }
+      }
 
       const clubSaves = await tx.clubSave.createManyAndReturn({
         data: clubs.map((club) => ({
@@ -303,9 +382,9 @@ export async function listSaves(viewer: SaveViewer): Promise<SaveSummary[]> {
   return saves.map(toSaveSummary);
 }
 
-/** How many saves a user owns: what the save limit (src/lib/limits.ts) counts. */
+/** How many saves a user owns, their challenge saves left out: what the save limit (src/lib/limits.ts) counts. */
 export async function countOwnedSaves(userId: string): Promise<number> {
-  return prisma.save.count({ where: { ownerId: userId } });
+  return prisma.save.count({ where: { ownerId: userId, challengeId: null } });
 }
 
 /** Whether a save has a match played: from then on, an anonymous player is asked to sign in. */
