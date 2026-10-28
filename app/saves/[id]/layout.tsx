@@ -2,6 +2,7 @@ import { TrophyIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { LanguageSwitcher } from "@/app/_components/language-switcher";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getSaveHeader } from "@/src/db/header";
 import { seasonLabel } from "@/src/engine/world";
@@ -57,6 +58,8 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
             </Link>
 
             <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-4">
+              {/* Not on a phone, where the club's name needs the room: the home page's foot has it. */}
+              <LanguageSwitcher className="max-sm:hidden" />
               {/* The weekly challenge, outside the save: next to the game's actions rather than among its tabs. */}
               <Link
                 href="/challenge"

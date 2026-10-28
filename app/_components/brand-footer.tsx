@@ -1,15 +1,22 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { cn } from "@/src/lib/utils";
+import { LanguageSwitcher } from "./language-switcher";
 
-/** The foot of the pages outside a save (inside a .brand scope): the privacy link, and what a page adds before it. */
+/**
+ * The foot of the pages outside a save (inside a .brand scope): what a page adds, the privacy link, and the language
+ * switcher at the end of the line.
+ */
 export function BrandFooter({ children, className }: { children?: ReactNode; className?: string }) {
+  const t = useTranslations("footer");
   return (
-    <footer lang="fr" className={cn("flex flex-wrap items-center gap-x-6 gap-y-3 border-t pt-4 text-xs text-muted-foreground", className)}>
+    <footer className={cn("flex flex-wrap items-center gap-x-6 gap-y-3 border-t pt-4 text-xs text-muted-foreground", className)}>
       {children}
       <Link href="/privacy" className="hover:text-foreground hover:underline">
-        Confidentialité
+        {t("privacy")}
       </Link>
+      <LanguageSwitcher className="ml-auto" />
     </footer>
   );
 }

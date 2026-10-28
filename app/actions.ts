@@ -11,6 +11,7 @@ import { USER_COOKIE } from "@/src/auth/identity";
 import { deleteRegisteredUser } from "@/src/db/accounts";
 import { isWakeUpError, retryOnWakeUp } from "@/src/db/retry";
 import { createSave, deleteSave } from "@/src/db/saves";
+import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE_SECONDS, LOCALES } from "@/src/i18n/locale";
 import { describeError, phaseTimer } from "@/src/lib/diagnostics";
 import { SaveLimitError } from "@/src/lib/limits";
 import { SAVE_LIMIT_MESSAGES } from "./_components/save-limit-notice";
@@ -83,6 +84,28 @@ export async function deleteSaveAction(saveId: string): Promise<void> {
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   await deleteSave(id);
   revalidatePath("/");
+}
+
+const localeSchema = z.enum(LOCALES);
+
+/**
+ * The language switcher: the language the player chose, kept a year by the lw_lang comfort cookie (app/privacy), then
+ * the page again in it. Anything but « fr » or « en » changes nothing.
+ */
+export async function setLanguageAction(formData: FormData): Promise<void> {
+  const parsed = localeSchema.safeParse(formData.get("locale"));
+  if (!parsed.success) {
+    return;
+  }
+  (await cookies()).set(LOCALE_COOKIE, parsed.data, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: LOCALE_COOKIE_MAX_AGE_SECONDS,
+  });
+  // Every page the browser keeps is in the other language now.
+  revalidatePath("/", "layout");
 }
 
 /** Off to Google, then back to the home page: src/auth/auth.ts makes the account one of our users. */

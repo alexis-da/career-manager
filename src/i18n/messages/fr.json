@@ -4,5 +4,13 @@
     "title": "Page introuvable",
     "description": "Cette page n'existe pas, ou plus.",
     "home": "Retour à l'accueil"
+  },
+  "language": {
+    "label": "Langue",
+    "fr": "Français",
+    "en": "English"
+  },
+  "footer": {
+    "privacy": "Confidentialité"
   }
 }

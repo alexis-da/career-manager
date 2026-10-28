@@ -4,5 +4,13 @@
     "title": "Page not found",
     "description": "This page does not exist, or no longer does.",
     "home": "Back to the home page"
+  },
+  "language": {
+    "label": "Language",
+    "fr": "Français",
+    "en": "English"
+  },
+  "footer": {
+    "privacy": "Privacy"
   }
 }
