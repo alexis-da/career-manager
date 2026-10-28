@@ -67,13 +67,16 @@ Le poste local travaille sur un PostgreSQL local ; Neon (la production) n'est to
 
 ## Développer en local
 
-1. PostgreSQL 17 sur le port 5432 (utilisateur `postgres`).
+1. PostgreSQL 17 sur le port 5432 par défaut (utilisateur `postgres`). Le port dépend de l'installation (5434 si un
+   autre PostgreSQL occupait 5432, voir `Get-Content postgresql.conf`) : celui des URL de l'étape 2.
 2. `.env` (voir `.env.example`) : `DATABASE_URL` et `DIRECT_URL` sur `latewinner_dev` ; `.env.test` :
    `DATABASE_URL_TEST` sur `latewinner_test` et un `AUTH_SECRET` à lui. Un mot de passe à caractères spéciaux s'écrit
    encodé (`%40` pour `@`).
 3. `npm run db:local:init` crée les deux bases (psql, idempotent ; `PSQL=<chemin>` si psql n'est pas dans le PATH).
 4. Sur chacune : `npx prisma migrate deploy` puis `npm run db:seed` (pour la base de test :
-   `DIRECT_URL=<URL de latewinner_test>` devant les deux commandes).
+   `DIRECT_URL=<URL de latewinner_test>` devant les deux commandes). Le client Prisma (`src/generated/prisma`, ignoré
+   par git) est généré par `npm install` (`postinstall`) ; si le seed se plaint de `src/generated/prisma`, lancer
+   `npx prisma generate`.
 5. `npm run test`, `npm run test:slow` et `npm run test:e2e` écrivent dans `latewinner_test` ; `npm run dev` dans
    `latewinner_dev`.
 

@@ -10,6 +10,7 @@
     "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "prisma generate",
     "test": "vitest run",
     "db:seed": "prisma db seed",
     "db:local:init": "tsx scripts/db-local-init.ts",
