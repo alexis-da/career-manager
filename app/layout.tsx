@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale } from "next-intl/server";
 import { Toaster } from "@/src/components/ui/sonner";
 import "./globals.css";
 
@@ -39,12 +41,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// Each page in the player's language (src/i18n/request.ts), its messages handed down to the client components.
+export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`dark ${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}>
+    <html lang={await getLocale()} className={`dark ${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
-        {children}
-        <Toaster theme="dark" position="bottom-right" />
+        <NextIntlClientProvider>
+          {children}
+          <Toaster theme="dark" position="bottom-right" />
+        </NextIntlClientProvider>
       </body>
     </html>
   );

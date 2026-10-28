@@ -6,6 +6,7 @@ import {
   formatDecimal,
   formatGoalDifference,
   formatMillions,
+  formatMonth,
   formatMoney,
   formatParisDateTime,
   formatParisDay,
@@ -64,5 +65,35 @@ describe("real times", () => {
 
   it("signs a positive goal difference only", () => {
     expect([4, 0, -2].map(formatGoalDifference)).toEqual(["+4", "0", "-2"]);
+  });
+});
+
+describe("in English", () => {
+  it("writes amounts and figures as in Britain", () => {
+    expect([12_500_000, 150_000_000, 850_000, 1_500, 900, -2_300_000].map((euros) => formatMoney(euros, "en"))).toEqual([
+      "€12.5m",
+      "€150m",
+      "€850k",
+      "€1.5k",
+      "€900",
+      "-€2.3m",
+    ]);
+    expect(formatMoney(1_250_000_000, "en")).toBe("€1,250m");
+    expect(formatMillions(38_240_000, "en")).toBe("38.2");
+    expect(formatDecimal(25, "en")).toBe("25.0");
+  });
+
+  it("writes in-game dates without the French ordinal, on the stored UTC day", () => {
+    expect(formatDate(new Date(Date.UTC(2024, 7, 17)), "en")).toBe("17 August 2024");
+    expect(formatDate(new Date(Date.UTC(2025, 0, 1)), "en")).toBe("1 January 2025");
+    expect(formatShortDate(new Date(Date.UTC(2024, 7, 17)), "en")).toBe("Sat 17 Aug");
+    expect(formatDayDate(new Date(Date.UTC(2024, 8, 14)), "en")).toBe("Sat, 14 Sept 2024");
+    expect(formatDayMonth(new Date(Date.UTC(2025, 0, 1)), "en")).toBe("1 Jan");
+    expect(formatMonth(new Date(Date.UTC(2026, 8, 1)), "en")).toBe("September 2026");
+  });
+
+  it("writes real times in Paris time", () => {
+    expect(formatParisDateTime(new Date("2026-11-02T00:00:00.000Z"), "en")).toBe("Monday 2 November at 01:00");
+    expect(formatParisDay(new Date("2026-11-03T00:00:00.000Z"), "en")).toBe("Tuesday 03/11");
   });
 });
