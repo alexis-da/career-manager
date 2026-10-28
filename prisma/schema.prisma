@@ -42,6 +42,7 @@ model Club {
   competitionId  String?
   initialPlayers Player[]
   clubSaves      ClubSave[]
+  challenges     Challenge[]
 
   @@index([competitionId])
 }
@@ -74,16 +75,17 @@ model Player {
 // Supprimer un User emporte ses parties (cascade) ; seuls la purge et les tests suppriment des User.
 
 model User {
-  id         String    @id @default(cuid())
-  kind       UserKind
-  createdAt  DateTime  @default(now())
-  lastSeenAt DateTime // mis à jour au plus une fois par jour (src/auth/current-user.ts), pour la purge
-  email      String?   @unique // compte Google (src/auth/google.ts) ; null pour un utilisateur anonyme
-  name       String? // nom du compte Google, mis à jour à chaque connexion
-  image      String? // avatar du compte Google, mis à jour à chaque connexion
-  googleSub  String?   @unique // identifiant stable du compte Google (claim « sub »)
-  saves      Save[]
-  days       UserDay[]
+  id               String           @id @default(cuid())
+  kind             UserKind
+  createdAt        DateTime         @default(now())
+  lastSeenAt       DateTime // mis à jour au plus une fois par jour (src/auth/current-user.ts), pour la purge
+  email            String?          @unique // compte Google (src/auth/google.ts) ; null pour un utilisateur anonyme
+  name             String? // nom du compte Google, mis à jour à chaque connexion
+  image            String? // avatar du compte Google, mis à jour à chaque connexion
+  googleSub        String?          @unique // identifiant stable du compte Google (claim « sub »)
+  saves            Save[]
+  days             UserDay[]
+  challengeEntries ChallengeEntry[]
 }
 
 // Un jour où l'utilisateur est venu : écrit au même endroit que lastSeenAt, au plus une fois par jour, pour la
@@ -97,26 +99,30 @@ model UserDay {
 }
 
 model Save {
-  id            String              @id @default(cuid())
-  owner         User?               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  ownerId       String? // null = partie « héritée », d'avant les propriétaires, rattachée plus tard au compte administrateur
-  name          String
-  managerName   String
-  seed          String // graine de tout l'aléatoire de la partie
-  worldVersion  Int // monde de la partie : 1 = premières divisions seules (parties d'avant les deuxièmes), 2 = premières et deuxièmes divisions ; sans défaut, createSave le donne toujours
-  currentDate   DateTime // date "en jeu", jamais l'horloge système
-  liveFixtureId String? // match du club dirigé en suspens à la mi-temps ; sans clé étrangère, pour ne pas croiser la cascade depuis Save
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  clubSaves     ClubSave[]
-  playerSaves   PlayerSave[]
-  seasons       Season[]
-  fixtures      Fixture[]
-  transfers     Transfer[]
-  stats         PlayerSeasonStats[]
-  seasonResults SeasonResult[]
+  id             String              @id @default(cuid())
+  owner          User?               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId        String? // null = partie « héritée », d'avant les propriétaires, rattachée plus tard au compte administrateur
+  name           String
+  managerName    String
+  seed           String // graine de tout l'aléatoire de la partie
+  worldVersion   Int // monde de la partie : 1 = premières divisions seules (parties d'avant les deuxièmes), 2 = premières et deuxièmes divisions ; sans défaut, createSave le donne toujours
+  currentDate    DateTime // date "en jeu", jamais l'horloge système
+  liveFixtureId  String? // match du club dirigé en suspens à la mi-temps ; sans clé étrangère, pour ne pas croiser la cascade depuis Save
+  challenge      Challenge?          @relation(fields: [challengeId], references: [id], onDelete: Restrict)
+  challengeId    String? // partie du défi de la semaine (graine, club et nom imposés, hors des limites de parties, purgée 24 h après la fin du défi) ; null pour une partie normale
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  clubSaves      ClubSave[]
+  playerSaves    PlayerSave[]
+  seasons        Season[]
+  fixtures       Fixture[]
+  transfers      Transfer[]
+  stats          PlayerSeasonStats[]
+  seasonResults  SeasonResult[]
+  challengeEntry ChallengeEntry?
 
   @@index([ownerId])
+  @@index([challengeId])
 }
 
 model Season {
@@ -317,6 +323,48 @@ model SeasonResult {
   createdAt          DateTime    @default(now())
 
   @@unique([saveId, seasonId])
+}
+
+// --------------------------------------------------------------------- DÉFI
+// Le défi de la semaine : une graine et un club communs à toutes ses parties. Ni référence ni partie : écrit une fois
+// par ensureChallenge (src/db/challenge.ts : route de maintenance du lundi, ou premier chargement de /challenge), jamais
+// modifié ni supprimé. Ouvert tant que startsAt ≤ maintenant < endsAt : pas de statut stocké.
+
+model Challenge {
+  id               String           @id @default(cuid())
+  weekKey          String           @unique // semaine ISO 8601 en UTC, « 2026-W45 » (src/lib/iso-week.ts)
+  seed             String // graine de ses parties, HMAC de weekKey (src/lib/challenge-seed.ts) : jamais affichée
+  club             Club             @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  clubId           String // club imposé, tiré par drawChallengeClub (src/engine/challenge.ts)
+  horizonMatchdays Int // journées de championnat du club qui comptent
+  startsAt         DateTime // lundi 00:00 UTC de la semaine
+  endsAt           DateTime // lundi suivant 00:00 UTC : une entrée soumise ensuite ne compte pas
+  createdAt        DateTime         @default(now())
+  saves            Save[]
+  entries          ChallengeEntry[]
+}
+
+// La participation d'un utilisateur à un défi, une par semaine : créée avec sa partie (createChallengeSave), gardée
+// quand la partie est supprimée (saveId à NULL), pour que le classement survive à la purge et qu'on ne recommence pas en
+// supprimant sa partie. Score écrit une seule fois, quand le club a joué horizonMatchdays journées de championnat
+// (recordChallengeScore) : null jusque-là. Supprimée avec l'utilisateur ; suit la partie à la fusion d'un anonyme.
+model ChallengeEntry {
+  id              String    @id @default(cuid())
+  challenge       Challenge @relation(fields: [challengeId], references: [id], onDelete: Restrict)
+  challengeId     String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String
+  save            Save?     @relation(fields: [saveId], references: [id], onDelete: SetNull)
+  saveId          String?   @unique // null une fois la partie supprimée, par le joueur ou par la purge
+  matchdaysPlayed Int       @default(0) // journées de championnat jouées par le club, jusqu'à horizonMatchdays
+  points          Int? // des horizonMatchdays premières journées ; null tant que l'entrée n'est pas soumise
+  goalDiff        Int?
+  goalsFor        Int?
+  submittedAt     DateTime? // heure réelle (UTC) de la soumission : date limite et dernier départage
+  createdAt       DateTime  @default(now())
+
+  @@unique([challengeId, userId])
+  @@index([userId])
 }
 
 // -------------------------------------------------------------------- ENUMS
