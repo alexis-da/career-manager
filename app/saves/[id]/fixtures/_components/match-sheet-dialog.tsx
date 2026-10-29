@@ -68,7 +68,7 @@ function ShootoutList({ fixture }: { fixture: FixtureWithEvents }) {
           className="grid grid-cols-[2rem_1fr_auto_3rem] items-baseline gap-3 rounded-md px-2 py-1 odd:bg-muted/50"
         >
           <span className="text-muted-foreground tabular-nums">{event.minute}</span>
-          <span className="min-w-0 truncate">
+          <span className="min-w-0 truncate max-sm:whitespace-normal">
             {event.playerName} <span className="text-muted-foreground">· {(event.side === "home" ? fixture.home : fixture.away).name}</span>
           </span>
           <span className={cn("text-xs font-semibold", scored ? "text-win" : "text-loss")}>
@@ -123,7 +123,7 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
       ) : (
         <DialogTrigger className={triggerClassName} data-testid="match-sheet-trigger">{children}</DialogTrigger>
       )}
-      <DialogContent className="gap-5 p-6 sm:max-w-2xl" data-testid="match-sheet">
+      <DialogContent className="gap-5 p-6 sm:max-w-2xl max-sm:p-4" data-testid="match-sheet">
         <DialogTitle className="sr-only">
           {fixture.home.name} {score} {fixture.away.name}
         </DialogTitle>
@@ -132,12 +132,18 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
           {stageLabel(fixture, tStage)} · {formatDate(fixture.scheduledAt, locale)}
         </DialogDescription>
 
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-          <p className="text-right font-heading text-2xl leading-tight font-bold">{fixture.home.name}</p>
-          <p className={cn("rounded-md px-5 py-1 font-heading text-6xl leading-tight font-bold tabular-nums", RESULT_CLASSES[result])}>
+        {/* On a phone, home, score and away one above the other: side by side, they were wider than the screen. */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 max-sm:grid-cols-1 max-sm:justify-items-center max-sm:gap-1 max-sm:text-center">
+          <p className="text-right font-heading text-2xl leading-tight font-bold max-sm:text-center max-sm:text-xl">{fixture.home.name}</p>
+          <p
+            className={cn(
+              "rounded-md px-5 py-1 font-heading text-6xl leading-tight font-bold tabular-nums max-sm:text-5xl",
+              RESULT_CLASSES[result],
+            )}
+          >
             {score}
           </p>
-          <p className="font-heading text-2xl leading-tight font-bold">{fixture.away.name}</p>
+          <p className="font-heading text-2xl leading-tight font-bold max-sm:text-xl">{fixture.away.name}</p>
         </div>
         <ScoreNotes match={fixture} className="-mt-3 block text-center text-sm" />
         {fixture.homeHalfTimeGoals !== null && fixture.awayHalfTimeGoals !== null && (

@@ -46,7 +46,8 @@ export function UpcomingMatchSheet({
       }}
     >
       <SheetTrigger className={className} data-testid="upcoming-match-trigger">{children}</SheetTrigger>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-md" data-testid="upcoming-match-sheet">
+      {/* The screen's whole width on a phone: the sheet's three quarters crushed the pitch and the names. */}
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md data-[side=right]:w-full" data-testid="upcoming-match-sheet">
         {loaded?.kind === "ready" ? (
           <OpponentPanel preview={loaded.preview} />
         ) : (

@@ -30,8 +30,9 @@ function RatingComparison({ preview }: { preview: OpponentPreview }) {
   return (
     <dl className="space-y-1.5" data-opponent="ratings">
       {rows.map((row) => (
-        <div key={row.label} className="grid grid-cols-[minmax(0,1fr)_8rem_2.5rem] items-center gap-3 text-sm">
-          <dt className={cn("truncate", row.mine ? "font-semibold" : "text-muted-foreground")}>{row.label}</dt>
+        // On a phone, a shorter bar, and the club's name whole.
+        <div key={row.label} className="grid grid-cols-[minmax(0,1fr)_8rem_2.5rem] items-center gap-3 text-sm max-sm:grid-cols-[minmax(0,1fr)_4.5rem_2.5rem]">
+          <dt className={cn("truncate max-sm:whitespace-normal", row.mine ? "font-semibold" : "text-muted-foreground")}>{row.label}</dt>
           <span aria-hidden className="h-1.5 rounded-full bg-border">
             <span
               // Fixed colors: the sheet is portaled out of the save layout, which sets --club.
@@ -104,7 +105,7 @@ export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
                   <span className="w-10 font-heading font-bold tabular-nums">
                     {match.scored}-{match.conceded}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">
+                  <span className="min-w-0 flex-1 truncate max-sm:whitespace-normal">
                     {match.atHome ? t("against", { club: match.againstName }) : t("at", { club: match.againstName })}
                   </span>
                   <span className="text-xs text-muted-foreground">{formatShortDate(match.date, locale)}</span>
@@ -145,7 +146,8 @@ export function OpponentSheet({ preview, besidePage = false }: { preview: Oppone
         <EyeIcon />
         {t("view")}
       </SheetTrigger>
-      <SheetContent showOverlay={!besidePage} className="w-full overflow-y-auto sm:max-w-md">
+      {/* The screen's whole width on a phone: the sheet's three quarters crushed the pitch and the names. */}
+      <SheetContent showOverlay={!besidePage} className="w-full overflow-y-auto sm:max-w-md data-[side=right]:w-full">
         <OpponentPanel preview={preview} />
       </SheetContent>
     </Sheet>

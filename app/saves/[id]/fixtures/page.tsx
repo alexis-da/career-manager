@@ -45,8 +45,11 @@ type View = "calendar" | "list";
 /** A day's landmarks besides the match: the transfer windows' bounds and the season's end. */
 type Landmark = { label: string; tone: "window" | "season" };
 
+const LANDMARK_CLASSES: Record<Landmark["tone"], string> = { window: "bg-info/15 text-info", season: "bg-warning/15 text-warning" };
+const LANDMARK_DOTS: Record<Landmark["tone"], string> = { window: "bg-info", season: "bg-warning" };
+
 const VIEW_TAB = cn(
-  "relative rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
+  "relative rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground max-sm:py-3",
   "aria-[current=page]:bg-(--club)/18 aria-[current=page]:font-semibold aria-[current=page]:text-foreground",
 );
 
@@ -80,36 +83,41 @@ function MatchCell({ saveId, fixture }: { saveId: string; fixture: FixtureWithEv
   const atHome = fixture.home.isManaged;
   const opponent = atHome ? fixture.away : fixture.home;
   const venue = (
-    <span className="text-[0.625rem] font-semibold tracking-wide text-muted-foreground uppercase">
+    <span className="text-[0.625rem] font-semibold tracking-wide text-muted-foreground uppercase max-sm:tracking-normal">
       {atHome ? t("venueShort.home") : t("venueShort.away")}
     </span>
   );
-  // A cup tie says so: its round instead of a matchday.
+  // A cup tie says so: its round instead of a matchday. On a phone, where a cell is a thumb wide, the round, the
+  // opponent and « À venir » are read but not shown (the sheet has them), and a cup tie has the club's border.
   const stage = fixture.cup && (
-    <span data-cup-stage="" className="w-full truncate text-[0.625rem] leading-tight font-semibold text-(--club)">
+    <span data-cup-stage="" className="w-full truncate text-[0.625rem] leading-tight font-semibold text-(--club) max-sm:sr-only">
       {stageLabel(fixture, tStage)}
     </span>
   );
-  const className =
-    "flex w-full flex-col items-start gap-0.5 rounded-md border bg-background/60 px-1.5 py-1 text-left transition-colors hover:border-(--club)/60 focus-visible:ring-2 focus-visible:ring-(--club) focus-visible:outline-none";
+  const opponentName = <span className="min-w-0 flex-1 truncate text-xs font-medium max-sm:sr-only">{opponent.name}</span>;
+  const className = cn(
+    "flex w-full flex-col items-start gap-0.5 rounded-md border bg-background/60 px-1.5 py-1 text-left transition-colors hover:border-(--club)/60 focus-visible:ring-2 focus-visible:ring-(--club) focus-visible:outline-none",
+    "max-sm:min-h-11 max-sm:items-center max-sm:justify-center max-sm:px-0.5 max-sm:py-0.5",
+    fixture.cup && "max-sm:border-(--club)/70",
+  );
 
   if (fixture.played && fixture.homeGoals !== null && fixture.awayGoals !== null) {
     const result = matchResultFor({ ...fixture, homeGoals: fixture.homeGoals, awayGoals: fixture.awayGoals }, atHome);
     return (
       <MatchSheetDialog fixture={fixture} triggerClassName={className}>
         {stage}
-        <span className="flex w-full items-center gap-1">
+        <span className="flex w-full items-center gap-1 max-sm:justify-center">
           {venue}
-          <span className="min-w-0 flex-1 truncate text-xs font-medium">{opponent.name}</span>
+          {opponentName}
         </span>
-        <span className="flex flex-wrap items-baseline gap-x-1">
+        <span className="flex flex-wrap items-baseline gap-x-1 max-sm:justify-center">
           <span
             data-result={result}
-            className={cn("rounded-sm px-1.5 font-heading text-sm leading-snug font-bold tabular-nums", RESULT_CLASSES[result])}
+            className={cn("rounded-sm px-1.5 font-heading text-sm leading-snug font-bold tabular-nums max-sm:px-1", RESULT_CLASSES[result])}
           >
             {fixture.homeGoals} – {fixture.awayGoals}
           </span>
-          <ScoreNotes match={fixture} className="text-[0.625rem]" />
+          <ScoreNotes match={fixture} className="text-[0.625rem] max-sm:text-center max-sm:leading-tight" />
         </span>
       </MatchSheetDialog>
     );
@@ -117,12 +125,12 @@ function MatchCell({ saveId, fixture }: { saveId: string; fixture: FixtureWithEv
   return (
     <UpcomingMatchSheet saveId={saveId} fixtureId={fixture.id} className={className}>
       {stage}
-      <span className="flex w-full items-center gap-1">
+      <span className="flex w-full items-center gap-1 max-sm:justify-center">
         {venue}
-        <span className="min-w-0 flex-1 truncate text-xs font-medium">{opponent.name}</span>
+        {opponentName}
       </span>
       {/* Matchdays have a date but no kickoff time. */}
-      <span className="text-xs text-muted-foreground">{t("upcoming")}</span>
+      <span className="text-xs text-muted-foreground max-sm:sr-only">{t("upcoming")}</span>
     </UpcomingMatchSheet>
   );
 }
@@ -151,11 +159,16 @@ function MonthCalendar({
   const next = months[index + 1];
   const fixturesByDay = new Map(fixtures.map((fixture) => [dayKey(fixture.scheduledAt), fixture]));
   const landmarks = landmarksOf(startYear, t);
+  // The month's landmarks in order, listed under the grid on a phone.
+  const monthLandmarks = [...landmarks]
+    .filter(([day]) => day.startsWith(`${monthParam(month)}-`))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([day, list]) => list.map((landmark) => ({ day, landmark })));
   const today = dayKey(currentDate);
 
   const navLink = (target: Month | undefined, label: string, icon: ReactNode, testId: string) =>
     target === undefined ? (
-      <span aria-hidden className="grid size-8 place-items-center rounded-md text-muted-foreground/40">
+      <span aria-hidden className="grid size-8 place-items-center rounded-md text-muted-foreground/40 max-sm:size-11">
         {icon}
       </span>
     ) : (
@@ -164,7 +177,7 @@ function MonthCalendar({
         aria-label={label}
         data-testid={testId}
         scroll={false}
-        className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:size-11"
       >
         {icon}
       </Link>
@@ -186,23 +199,24 @@ function MonthCalendar({
 
       <PickBanner />
 
-      <Panel className="overflow-x-auto p-2 sm:p-3">
+      {/* On a phone, the week holds in the screen: seven columns a thumb wide, side by side, no scrolling sideways. */}
+      <Panel className="overflow-x-auto p-2 sm:p-3 max-sm:p-0.5">
         <div
           role="grid"
           aria-label={t("monthGrid", { month: formatMonth(firstDayOf(month), locale) })}
           data-testid="fixtures-calendar"
-          className="min-w-[44rem]"
+          className="min-w-[44rem] max-sm:min-w-0"
         >
-          <div role="row" className="grid grid-cols-7 gap-1.5 pb-1.5">
+          <div role="row" className="grid grid-cols-7 gap-1.5 pb-1.5 max-sm:gap-0">
             {weekdayNames(locale).map((weekday) => (
-              <div key={weekday} role="columnheader" className="eyebrow px-1.5">
+              <div key={weekday} role="columnheader" className="eyebrow px-1.5 max-sm:px-0 max-sm:text-center max-sm:tracking-normal">
                 {weekday}
               </div>
             ))}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 max-sm:space-y-0">
             {monthWeeks(month).map((week) => (
-              <div key={dayKey(week[0])} role="row" className="grid grid-cols-7 gap-1.5">
+              <div key={dayKey(week[0])} role="row" className="grid grid-cols-7 gap-1.5 max-sm:gap-0">
                 {week.map((day) => {
                   const key = dayKey(day);
                   const inMonth = day.getUTCMonth() === month.month;
@@ -217,7 +231,7 @@ function MonthCalendar({
                       pickable={pickable}
                       today={isToday}
                       className={cn(
-                        "flex min-h-24 flex-col gap-1 rounded-md border p-1.5",
+                        "flex min-h-24 flex-col gap-1 rounded-md border p-1.5 max-sm:min-h-16 max-sm:gap-0.5 max-sm:rounded-none max-sm:p-0",
                         inMonth ? "bg-card" : "border-transparent bg-transparent",
                         isToday && "border-(--club) ring-1 ring-(--club)",
                       )}
@@ -232,15 +246,18 @@ function MonthCalendar({
                         {day.getUTCDate()}
                       </span>
                       {fixture !== undefined && <MatchCell saveId={saveId} fixture={fixture} />}
+                      {/* On a phone, a dot of the landmark's colour, its words listed under the grid. */}
                       {dayLandmarks.map((landmark) => (
-                        <span
-                          key={landmark.label}
-                          className={cn(
-                            "rounded-sm px-1.5 py-0.5 text-[0.625rem] leading-tight font-semibold",
-                            landmark.tone === "window" ? "bg-info/15 text-info" : "bg-warning/15 text-warning",
-                          )}
-                        >
-                          {landmark.label}
+                        <span key={landmark.label} className="contents">
+                          <span
+                            className={cn(
+                              "rounded-sm px-1.5 py-0.5 text-[0.625rem] leading-tight font-semibold max-sm:sr-only",
+                              LANDMARK_CLASSES[landmark.tone],
+                            )}
+                          >
+                            {landmark.label}
+                          </span>
+                          <span aria-hidden className={cn("mx-auto size-2 rounded-full sm:hidden", LANDMARK_DOTS[landmark.tone])} />
                         </span>
                       ))}
                     </CalendarDay>
@@ -251,6 +268,20 @@ function MonthCalendar({
           </div>
         </div>
       </Panel>
+
+      {monthLandmarks.length > 0 && (
+        <ul aria-hidden className="space-y-1 text-xs sm:hidden" data-testid="fixtures-landmarks">
+          {monthLandmarks.map(({ day, landmark }) => (
+            <li key={`${day}-${landmark.label}`} className="flex items-center gap-2">
+              <span className={cn("size-2 shrink-0 rounded-full", LANDMARK_DOTS[landmark.tone])} />
+              <span className="text-muted-foreground tabular-nums first-letter:uppercase">
+                {formatShortDate(new Date(`${day}T00:00:00.000Z`), locale)}
+              </span>
+              <span className="font-semibold">{landmark.label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -260,9 +291,11 @@ function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
   const tStage = useTranslations("stage");
   const locale = useLocale();
   return (
+    // On a phone, each match is a two-line card: its matchday or round over its venue, its date over its opponent, then
+    // the score and the result. Same rows, laid out by CSS.
     <Panel className="p-2 sm:p-3" data-testid="fixtures-list">
-      <Table className="tabular-nums">
-        <TableHeader>
+      <Table className="tabular-nums max-sm:block">
+        <TableHeader className="max-sm:hidden">
           <TableRow className="border-border hover:bg-transparent">
             <TableHead className={cn(TABLE_HEAD, "w-36")}>{t("columns.match")}</TableHead>
             <TableHead className={TABLE_HEAD}>{t("columns.date")}</TableHead>
@@ -274,7 +307,7 @@ function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
             </TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <TableBody className="max-sm:block">
           {fixtures.map((fixture) => {
             const opponent = fixture.home.isManaged ? fixture.away : fixture.home;
             const result =
@@ -282,18 +315,34 @@ function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
                 ? matchResultFor({ ...fixture, homeGoals: fixture.homeGoals, awayGoals: fixture.awayGoals }, fixture.home.isManaged)
                 : null;
             return (
-              <TableRow key={fixture.id} className={TABLE_ROW}>
-                <TableCell className={cn(TABLE_CELL, fixture.cup ? "font-medium text-(--club)" : "text-muted-foreground")}>
+              <TableRow
+                key={fixture.id}
+                className={cn(
+                  TABLE_ROW,
+                  "max-sm:grid max-sm:h-auto max-sm:grid-cols-[4rem_minmax(0,1fr)_auto_2rem] max-sm:items-center max-sm:gap-x-2 max-sm:py-1",
+                )}
+              >
+                <TableCell
+                  className={cn(
+                    TABLE_CELL,
+                    "max-sm:col-start-1 max-sm:row-start-1 max-sm:px-0 max-sm:text-xs max-sm:whitespace-normal",
+                    fixture.cup ? "font-medium text-(--club)" : "text-muted-foreground",
+                  )}
+                >
                   {stageShortLabel(fixture, tStage)}
                 </TableCell>
-                <TableCell className={cn(TABLE_CELL, "first-letter:uppercase")}>
+                <TableCell
+                  className={cn(TABLE_CELL, "first-letter:uppercase max-sm:col-start-2 max-sm:row-start-1 max-sm:px-0 max-sm:text-xs max-sm:text-muted-foreground")}
+                >
                   {formatShortDate(fixture.scheduledAt, locale)}
                 </TableCell>
-                <TableCell className={cn(TABLE_CELL, "font-medium")}>{opponent.name}</TableCell>
-                <TableCell className={cn(TABLE_CELL, "text-muted-foreground")}>
+                <TableCell className={cn(TABLE_CELL, "font-medium max-sm:col-start-2 max-sm:row-start-2 max-sm:px-0 max-sm:whitespace-normal")}>
+                  {opponent.name}
+                </TableCell>
+                <TableCell className={cn(TABLE_CELL, "text-muted-foreground max-sm:col-start-1 max-sm:row-start-2 max-sm:px-0 max-sm:text-xs")}>
                   {fixture.home.isManaged ? t("venue.home") : t("venue.away")}
                 </TableCell>
-                <TableCell className={cn(TABLE_CELL, "text-center")}>
+                <TableCell className={cn(TABLE_CELL, "text-center max-sm:col-start-3 max-sm:row-span-2 max-sm:row-start-1 max-sm:px-0")}>
                   {fixture.played ? (
                     <span className="inline-flex items-baseline gap-1.5">
                       <MatchSheetDialog fixture={fixture} />
@@ -303,7 +352,9 @@ function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
                     <span className="text-muted-foreground">–</span>
                   )}
                 </TableCell>
-                <TableCell className={cn(TABLE_CELL, "text-center")}>{result !== null && <ResultPill result={result} />}</TableCell>
+                <TableCell className={cn(TABLE_CELL, "text-center max-sm:col-start-4 max-sm:row-span-2 max-sm:row-start-1 max-sm:px-0")}>
+                  {result !== null && <ResultPill result={result} />}
+                </TableCell>
               </TableRow>
             );
           })}
