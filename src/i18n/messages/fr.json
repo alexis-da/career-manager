@@ -38,7 +38,7 @@
     "seasonStart": "La saison {season} commence le {date}.",
     "accountDeleted": "Ton compte et tes parties ont été supprimés.",
     "otherDevice": "Déjà une carrière sur un autre appareil ?",
-    "intro": "Reprenez une carrière ou commencez-en une nouvelle.",
+    "intro": "Reprends une carrière ou commences-en une nouvelle.",
     "saves": "Parties",
     "saveCount": "{count, plural, =0 {Aucune partie pour l'instant.} one {# partie} other {# parties}}",
     "columns": {
@@ -55,7 +55,7 @@
     "name": "Nom de la partie",
     "namePlaceholder": "Ma carrière",
     "manager": "Manager",
-    "managerPlaceholder": "Votre nom",
+    "managerPlaceholder": "Ton nom",
     "club": "Club",
     "clubHint": "Prends un club de Division 2 et amène-le au sommet.",
     "clubPlaceholder": "Choisir un club",
@@ -66,11 +66,11 @@
     "submit": "Créer la partie",
     "pending": "Création de ton monde…",
     "errors": {
-      "nameRequired": "Donnez un nom à la partie.",
-      "managerRequired": "Indiquez le nom du manager.",
-      "clubRequired": "Choisissez un club.",
+      "nameRequired": "Donne un nom à la partie.",
+      "managerRequired": "Indique le nom du manager.",
+      "clubRequired": "Choisis un club.",
       "tooLong": "{max} caractères au plus.",
-      "failed": "La partie n'a pas pu être créée. Réessayez."
+      "failed": "La partie n'a pas pu être créée. Réessaie."
     }
   },
   "saveLimit": {
@@ -94,18 +94,18 @@
     "description": "La partie et tout ce qu'elle contient seront effacés. Cette action est définitive.",
     "confirm": "Supprimer la partie",
     "deleted": "Partie « {name} » supprimée.",
-    "failed": "La partie n'a pas pu être supprimée. Réessayez."
+    "failed": "La partie n'a pas pu être supprimée. Réessaie."
   },
   "login": {
     "title": "Connexion",
-    "passwordPrompt": "Accès privé : entrez le mot de passe.",
+    "passwordPrompt": "Accès privé : entre le mot de passe.",
     "password": "Mot de passe",
     "checking": "Vérification…",
     "enter": "Entrer",
     "wrongPassword": "Mot de passe incorrect.",
-    "googlePrompt": "Retrouvez vos parties sur tous vos appareils.",
+    "googlePrompt": "Retrouve tes parties sur tous tes appareils.",
     "accessDenied": "Connexion refusée : ce compte Google n'a pas d'adresse e-mail vérifiée.",
-    "googleFailed": "La connexion avec Google a échoué. Réessayez."
+    "googleFailed": "La connexion avec Google a échoué. Réessaie."
   },
   "challenge": {
     "title": "Défi de la semaine",
