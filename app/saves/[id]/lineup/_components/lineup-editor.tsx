@@ -9,7 +9,7 @@ import { Button } from "@/src/components/ui/button";
 import type { LineupPlayer } from "@/src/db/lineup";
 import { FORMATION_NAMES, FORMATIONS, isFormationName, type FormationName } from "@/src/engine/formations";
 import { BENCH_SIZE, changeFormation, resolveLineup, type Lineup, type SavedLineup } from "@/src/engine/lineup";
-import { POSITION_GROUPS, positionGroup, ratingAt, type Position, type PositionGroup } from "@/src/engine/positions";
+import { POSITION_GROUPS, positionGroup, ratingAt, type Position } from "@/src/engine/positions";
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "../../_components/panel";
@@ -26,13 +26,6 @@ import {
   type EditorState,
 } from "../_lib/editor-moves";
 import { BENCH_TARGET, slotTarget, usePointerDrag, type DragSource, type DropTarget } from "./use-pointer-drag";
-
-const GROUP_LABEL: Record<PositionGroup, string> = {
-  GK: "Gardiens",
-  DF: "Défenseurs",
-  MF: "Milieux",
-  FW: "Attaquants",
-};
 
 const SLOT_COUNT = 11;
 
@@ -88,6 +81,7 @@ type LineupEditorProps = {
  * keyboard way), or drag a player onto a slot or onto the bench.
  */
 export function LineupEditor({ saveId, formation, saved, clubColors, players }: LineupEditorProps) {
+  const t = useTranslations("lineup");
   const tPositions = useTranslations("positions");
   const [initial] = useState(() => initialState(formation, saved, players));
   const [state, setState] = useState(initial);
@@ -167,9 +161,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
 
   const save = (): void => {
     if (emptySlots > 0) {
-      toast.error(
-        `Onze incomplet : ${emptySlots === 1 ? "1 poste est vide" : `${emptySlots} postes sont vides`}. Placez un joueur sur chaque poste ou cliquez sur « Compléter automatiquement ».`,
-      );
+      toast.error(t("incompleteRefused", { count: emptySlots, complete: t("complete") }));
       return;
     }
     startTransition(async () => {
@@ -187,7 +179,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
           toast.error(result.message);
         }
       } catch {
-        toast.error("L'enregistrement a échoué. Réessayez.");
+        toast.error(t("saveFailed"));
       }
     });
   };
@@ -201,18 +193,21 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
   const injuredStarters = state.starters.filter((key) => key !== null && byKey.get(key)?.injured === true).length;
   const selectedPlayer = selected === null ? undefined : byKey.get(state.starters[selected] ?? "");
   const overBench = drag?.over?.kind === "bench";
+  const ratingTitle =
+    selectedPosition === null ? t("rating") : t("ratingAt", { position: tPositions(`short.${selectedPosition}`) });
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">
         <label htmlFor="lineup-formation" className="eyebrow">
-          Dispositif
+          {t("formation")}
         </label>
         <select
           id="lineup-formation"
           value={state.formation}
           onChange={(event) => switchFormation(event.target.value)}
           className="h-8 rounded-lg border border-input bg-input/30 px-2 font-heading text-base font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          data-testid="lineup-formation"
         >
           {FORMATION_NAMES.map((name) => (
             <option key={name} value={name}>
@@ -220,33 +215,41 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
             </option>
           ))}
         </select>
-        <Button variant="outline" onClick={automatic}>
+        <Button variant="outline" onClick={automatic} data-testid="lineup-automatic">
           <SparklesIcon data-icon="inline-start" />
-          Composition automatique
+          {t("automatic")}
         </Button>
-        <p role="status" className="ml-auto text-sm">
+        <p role="status" className="ml-auto text-sm" data-testid="lineup-status">
           {dirty ? (
-            <span className="text-warning">Modifications non enregistrées</span>
+            <span className="text-warning">{t("unsaved")}</span>
           ) : (
-            <span className="text-muted-foreground">Composition enregistrée</span>
+            <span className="text-muted-foreground">{t("saved")}</span>
           )}
         </p>
-        <Button variant="club" className="h-9 px-4 font-heading text-base font-semibold" disabled={pending || !dirty} onClick={save}>
+        <Button
+          variant="club"
+          className="h-9 px-4 font-heading text-base font-semibold"
+          disabled={pending || !dirty}
+          onClick={save}
+          data-testid="lineup-save"
+        >
           <SaveIcon data-icon="inline-start" />
-          {pending ? "Enregistrement…" : "Enregistrer"}
+          {pending ? t("saving") : t("save")}
         </Button>
       </div>
 
       {(emptySlots > 0 || injuredStarters > 0) && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/25 bg-warning/5 px-4 py-2 text-sm text-warning">
+        <div
+          className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/25 bg-warning/5 px-4 py-2 text-sm text-warning"
+          data-testid="lineup-warning"
+        >
           <p className="flex-1">
-            {emptySlots > 0 &&
-              `Onze incomplet : ${emptySlots === 1 ? "1 poste vide" : `${emptySlots} postes vides`}, à remplir avant d'enregistrer. `}
-            {injuredStarters > 0 && "Un titulaire blessé sera remplacé automatiquement au coup d'envoi."}
+            {emptySlots > 0 && `${t("incomplete", { count: emptySlots })} `}
+            {injuredStarters > 0 && t("injuredStarter")}
           </p>
           {emptySlots > 0 && (
-            <Button size="sm" variant="outline" onClick={completeEmptySlots}>
-              Compléter automatiquement
+            <Button size="sm" variant="outline" onClick={completeEmptySlots} data-testid="lineup-complete">
+              {t("complete")}
             </Button>
           )}
         </div>
@@ -259,7 +262,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
             starters={state.starters}
             players={byKey}
             clubColors={clubColors}
-            label="Mon onze"
+            label={t("myEleven")}
             editing={{
               selected,
               onSelect: clickSlot,
@@ -275,8 +278,9 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
 
         <div className="space-y-4">
           <section
-            aria-label="Banc"
+            aria-label={t("bench")}
             data-drop-target={BENCH_TARGET}
+            data-testid="lineup-bench"
             className={cn(
               // 16 px under the save's header, 96 px high with its tabs.
               "sticky top-28 z-10 rounded-lg border-2 border-dashed bg-card p-3 transition-colors",
@@ -284,9 +288,9 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
             )}
           >
             <div className="flex items-baseline justify-between gap-3">
-              <PanelTitle>Banc</PanelTitle>
+              <PanelTitle>{t("bench")}</PanelTitle>
               <p className={cn("text-xs", overBench ? "font-semibold text-foreground" : "text-muted-foreground")}>
-                {overBench ? "Relâcher ici pour mettre sur le banc" : "Glissez un titulaire ici pour le sortir du onze"}
+                {overBench ? t("dropOnBench") : t("dragToBench")}
               </p>
             </div>
             <ol className="mt-2 flex flex-wrap gap-1.5">
@@ -300,14 +304,15 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                   <li
                     key={key}
                     data-bench-player-key={key}
-                    title={`Remplaçant ${index + 1} : ${player.firstName} ${player.lastName}`}
+                    data-testid="lineup-bench-player"
+                    title={t("substituteTitle", { number: index + 1, name: `${player.firstName} ${player.lastName}` })}
                     className="flex items-center gap-1.5 rounded-md bg-muted py-0.5 pr-2 pl-0.5 text-xs"
                   >
                     <PlayerFace playerKey={key} age={player.age} clubColors={clubColors} size={20} />
                     <PositionBadges playerKey={key} position={player.position} />
                     {player.lastName}
                     <span
-                      title={selectedPosition === null ? "Note" : `Note au poste ${tPositions(`short.${selectedPosition}`)}`}
+                      title={ratingTitle}
                       className={cn(
                         "font-heading font-bold tabular-nums",
                         selectedPosition === null ? "text-muted-foreground" : offAtSelected(player) && "text-warning",
@@ -321,16 +326,14 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
             </ol>
           </section>
 
-          <Panel className="space-y-4">
-            <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
+          <Panel className="space-y-4" data-testid="lineup-reserves">
+            <div className="flex min-h-9 flex-wrap items-center justify-between gap-2" data-testid="lineup-selection">
               {selectedPosition === null || selected === null ? (
-                <p className="text-sm text-muted-foreground">
-                  Sélectionnez un poste sur le terrain, ou glissez un joueur sur un poste : sa note au poste s&apos;affiche.
-                </p>
+                <p className="text-sm text-muted-foreground">{t("selectHint")}</p>
               ) : (
                 <>
                   <p className="text-sm">
-                    Poste sélectionné :{" "}
+                    {t("selectedSlot")}{" "}
                     <span className={cn("font-heading font-bold", positionTextClass(selectedPosition))}>
                       {tPositions(`short.${selectedPosition}`)}
                     </span>{" "}
@@ -338,9 +341,9 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                     {selectedPlayer !== undefined && ` · ${selectedPlayer.firstName} ${selectedPlayer.lastName}`}
                   </p>
                   {selectedPlayer !== undefined && (
-                    <Button size="sm" variant="outline" onClick={sendToBench}>
+                    <Button size="sm" variant="outline" onClick={sendToBench} data-testid="lineup-send-to-bench">
                       <ArmchairIcon data-icon="inline-start" />
-                      Mettre sur le banc
+                      {t("sendToBench")}
                     </Button>
                   )}
                 </>
@@ -355,8 +358,8 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                 return null;
               }
               return (
-                <section key={group} aria-label={GROUP_LABEL[group]}>
-                  <PanelTitle>{GROUP_LABEL[group]}</PanelTitle>
+                <section key={group} aria-label={t(`groups.${group}`)} data-testid={`lineup-group-${group.toLowerCase()}`}>
+                  <PanelTitle>{t(`groups.${group}`)}</PanelTitle>
                   <ul className="mt-1.5 divide-y">
                     {members.map((player) => {
                       const benchIndex = state.bench.indexOf(player.id);
@@ -367,6 +370,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                             type="button"
                             data-player-key={player.id}
                             data-bench={benchIndex !== -1}
+                            data-testid="lineup-reserve"
                             aria-disabled={selected === null}
                             onClick={() => placePlayer(player.id)}
                             {...sourceProps({ kind: "reserve", key: player.id })}
@@ -383,19 +387,19 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                             </span>
                             <span className="flex gap-1">
                               {player.injured && (
-                                <span className="rounded-sm bg-loss/15 px-1.5 text-xs font-semibold text-loss">Blessé</span>
+                                <span className="rounded-sm bg-loss/15 px-1.5 text-xs font-semibold text-loss">{t("injured")}</span>
                               )}
                               {benchIndex !== -1 && (
                                 <span className="rounded-sm bg-muted px-1.5 text-xs text-muted-foreground">
-                                  Remplaçant {benchIndex + 1}
+                                  {t("substitute", { number: benchIndex + 1 })}
                                 </span>
                               )}
                             </span>
-                            <span className="text-right text-muted-foreground tabular-nums" title="Note">
+                            <span className="text-right text-muted-foreground tabular-nums" title={t("rating")}>
                               {player.overall}
                             </span>
                             <span
-                              title={selectedPosition === null ? "Note" : `Note au poste ${tPositions(`short.${selectedPosition}`)}`}
+                              title={ratingTitle}
                               className={cn(
                                 "text-right font-heading font-bold tabular-nums",
                                 offAtSelected(player) && "text-warning",

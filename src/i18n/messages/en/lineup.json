@@ -1,1 +1,44 @@
-{}
+{
+  "lineup": {
+    "title": "Line-up",
+    "instructions": "For the match on {date} · click a position, then a player",
+    "formation": "Formation",
+    "automatic": "Automatic line-up",
+    "unsaved": "Unsaved changes",
+    "saved": "Line-up saved",
+    "saving": "Saving…",
+    "save": "Save",
+    "incompleteRefused": "Incomplete eleven: {count, plural, one {# position is empty} other {# positions are empty}}. Put a player in every position or click “{complete}”.",
+    "saveFailed": "Saving failed. Try again.",
+    "incomplete": "Incomplete eleven: {count, plural, one {# empty position} other {# empty positions}} to fill before saving.",
+    "injuredStarter": "An injured starter will be replaced automatically at kick-off.",
+    "complete": "Fill automatically",
+    "myEleven": "My eleven",
+    "bench": "Bench",
+    "dropOnBench": "Drop here to move to the bench",
+    "dragToBench": "Drag a starter here to take him out of the eleven",
+    "substitute": "Substitute {number}",
+    "substituteTitle": "Substitute {number}: {name}",
+    "rating": "Rating",
+    "ratingAt": "Rating at {position}",
+    "selectHint": "Select a position on the pitch, or drag a player onto a position: his rating there is shown.",
+    "selectedSlot": "Selected position:",
+    "sendToBench": "Move to the bench",
+    "injured": "Injured",
+    "groups": {
+      "GK": "Goalkeepers",
+      "DF": "Defenders",
+      "MF": "Midfielders",
+      "FW": "Forwards"
+    }
+  },
+  "pitch": {
+    "empty": "Empty",
+    "emptySlot": "{position}: empty position",
+    "slot": "{position}: {name}, {detail}",
+    "detail": "{position} {overall} · plays {slot}: {rating}",
+    "injured": "injured",
+    "sentOff": "sent off",
+    "sentOffSlot": "{position}: empty position, {name} sent off"
+  }
+}

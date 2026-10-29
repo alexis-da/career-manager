@@ -64,6 +64,7 @@ type SlotElementProps = DOMAttributes<HTMLElement> & {
   "data-slot-index": number;
   "data-slot-player-key": string | undefined;
   "data-drop-target": string | undefined;
+  "data-testid": string;
 };
 
 /** A button in the editor; a plain element on a read-only pitch, which nothing can select or drag. */
@@ -88,6 +89,7 @@ type PitchProps = {
  * editor, the half-time screen and, read-only, the opponent's preview.
  */
 export function Pitch({ slots, starters, players, clubColors, label, editing, sentOff }: PitchProps) {
+  const t = useTranslations("pitch");
   const tPositions = useTranslations("positions");
   const selected = editing?.selected ?? null;
   const dragged = editing?.dragged ?? null;
@@ -96,6 +98,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
       role="list"
       aria-label={label}
       data-pitch={editing === undefined ? "read-only" : "editable"}
+      data-testid="pitch"
       className="relative aspect-[68/105] w-full overflow-hidden rounded-lg border bg-pitch"
       style={{
         backgroundImage: "repeating-linear-gradient(to bottom, transparent 0 10%, rgb(255 255 255 / 0.025) 10% 20%)",
@@ -110,7 +113,11 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
               <div
                 data-slot-index={index}
                 data-slot-sent-off={sentOffPlayer.id}
-                aria-label={`${tPositions(`label.${slot.position}`)} : poste vide, ${sentOffPlayer.firstName} ${sentOffPlayer.lastName} exclu`}
+                data-testid="pitch-slot"
+                aria-label={t("sentOffSlot", {
+                  position: tPositions(`label.${slot.position}`),
+                  name: `${sentOffPlayer.firstName} ${sentOffPlayer.lastName}`,
+                })}
                 className="flex w-28 flex-col items-center gap-0.5 select-none"
               >
                 <span className="text-[0.625rem] leading-3 font-semibold tracking-wide text-white/55 uppercase">
@@ -120,7 +127,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
                   ✕
                 </span>
                 <span className="mt-0.5 rounded-sm bg-background/85 px-1.5 py-px text-[0.6875rem] leading-4 font-semibold text-loss">
-                  <span className="line-through">{sentOffPlayer.lastName}</span> · exclu
+                  <span className="line-through">{sentOffPlayer.lastName}</span> · {t("sentOff")}
                 </span>
               </div>
             </div>
@@ -139,20 +146,29 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
         const detail =
           player === undefined || rating === null
             ? null
-            : `${tPositions(`short.${player.position}`)} ${player.overall} · joue ${tPositions(`short.${slot.position}`)} : ${Math.round(rating)}`;
+            : t("detail", {
+                position: tPositions(`short.${player.position}`),
+                overall: player.overall,
+                slot: tPositions(`short.${slot.position}`),
+                rating: Math.round(rating),
+              });
+        // After the player, whether he is injured, else how he fits the slot when it is not his own position.
+        const note =
+          player === undefined || fit === undefined
+            ? null
+            : player.injured
+              ? t("injured")
+              : fit === "exact"
+                ? null
+                : tPositions(`fit.${fit}`);
         const slotLabel =
           player === undefined
-            ? `${tPositions(`label.${slot.position}`)} : poste vide`
-            : `${tPositions(`label.${slot.position}`)} : ${player.firstName} ${player.lastName}, ${detail ?? ""}` +
-              (player.injured
-                ? ", blessé"
-                : fit === "other-line"
-                  ? ", hors de sa ligne"
-                  : fit === "line"
-                    ? ", hors poste"
-                    : fit === "secondary"
-                      ? ", poste secondaire"
-                      : "");
+            ? t("emptySlot", { position: tPositions(`label.${slot.position}`) })
+            : t("slot", {
+                position: tPositions(`label.${slot.position}`),
+                name: `${player.firstName} ${player.lastName}`,
+                detail: detail ?? "",
+              }) + (note === null ? "" : `, ${note}`);
         return (
           <div key={index} role="listitem" style={{ left: `${slot.x}%`, top: `${slot.y}%` }} className="absolute -translate-x-1/2 -translate-y-1/2">
           <SlotElement
@@ -160,6 +176,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
             data-slot-index={index}
             data-slot-player-key={key ?? undefined}
             data-drop-target={editing?.dropTarget(index)}
+            data-testid="pitch-slot"
             {...(editing === undefined || key === null ? {} : editing.dragProps(index, key))}
             aria-label={slotLabel}
             aria-pressed={editing === undefined ? undefined : selected === index}
@@ -212,7 +229,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
             >
               {player !== undefined && <PositionBadge position={player.position} fit={fit} />}
               <span data-slot-player className="truncate">
-                {player === undefined ? "Vide" : player.lastName}
+                {player === undefined ? t("empty") : player.lastName}
               </span>
             </span>
             {/* Under the name, which keeps the width of the slot. */}

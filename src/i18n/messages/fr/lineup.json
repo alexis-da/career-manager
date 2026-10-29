@@ -1,1 +1,44 @@
-{}
+{
+  "lineup": {
+    "title": "Composition",
+    "instructions": "Pour le match du {date} · clique sur un poste, puis sur un joueur",
+    "formation": "Dispositif",
+    "automatic": "Composition automatique",
+    "unsaved": "Modifications non enregistrées",
+    "saved": "Composition enregistrée",
+    "saving": "Enregistrement…",
+    "save": "Enregistrer",
+    "incompleteRefused": "Onze incomplet : {count, plural, one {# poste est vide} other {# postes sont vides}}. Place un joueur sur chaque poste ou clique sur « {complete} ».",
+    "saveFailed": "L'enregistrement a échoué. Réessaie.",
+    "incomplete": "Onze incomplet : {count, plural, one {# poste vide} other {# postes vides}}, à remplir avant d'enregistrer.",
+    "injuredStarter": "Un titulaire blessé sera remplacé automatiquement au coup d'envoi.",
+    "complete": "Compléter automatiquement",
+    "myEleven": "Mon onze",
+    "bench": "Banc",
+    "dropOnBench": "Relâcher ici pour mettre sur le banc",
+    "dragToBench": "Glisse un titulaire ici pour le sortir du onze",
+    "substitute": "Remplaçant {number}",
+    "substituteTitle": "Remplaçant {number} : {name}",
+    "rating": "Note",
+    "ratingAt": "Note au poste {position}",
+    "selectHint": "Sélectionne un poste sur le terrain, ou glisse un joueur sur un poste : sa note au poste s'affiche.",
+    "selectedSlot": "Poste sélectionné :",
+    "sendToBench": "Mettre sur le banc",
+    "injured": "Blessé",
+    "groups": {
+      "GK": "Gardiens",
+      "DF": "Défenseurs",
+      "MF": "Milieux",
+      "FW": "Attaquants"
+    }
+  },
+  "pitch": {
+    "empty": "Vide",
+    "emptySlot": "{position} : poste vide",
+    "slot": "{position} : {name}, {detail}",
+    "detail": "{position} {overall} · joue {slot} : {rating}",
+    "injured": "blessé",
+    "sentOff": "exclu",
+    "sentOffSlot": "{position} : poste vide, {name} exclu"
+  }
+}
