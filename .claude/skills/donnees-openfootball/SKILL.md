@@ -23,8 +23,8 @@ Deux années, à ne pas confondre :
   (`Club.initialRank`). Les graines du monde portent son nom (`world-2024-25`) : elles ne la suivent pas.
 - **Saison de jeu : 2026-27** (`WORLD_START_YEAR`, `src/engine/world.ts`), **seul endroit qui fixe l'année du
   jeu**. En dérivent la date de départ d'une partie (`WORLD_START_DATE`, 1er juillet 2026), l'âge de référence du
-  seed et du vivier, le premier samedi du calendrier (`firstMatchdayDate`) et les libellés « Saison 2026-27 »
-  (`seasonLabel`). `src/engine/world-year.test.ts` refuse toute autre année littérale dans le code.
+  seed et du vivier, le premier samedi du calendrier (`firstMatchdayDate`) et le libellé de la saison, « 2026-27 »
+  (`seasonLabel`, dans « Saison 2026-27 » ou « Season 2026-27 »). `src/engine/world-year.test.ts` refuse toute autre année littérale dans le code.
 
 Changer `WORLD_START_YEAR` de N ans demande une migration qui décale `birthDate` de N ans sur `Player` **et**
 `PlayerSave` (`+ interval 'N years'`) : les âges ne changent pas, et un seed relancé ensuite n'écrit aucun joueur.
@@ -106,9 +106,12 @@ Le seed calcule le classement final de chaque compétition avec `computeStanding
 `src/engine/data/names/<code>.json` = `{ nationality, firstNames, lastNames }`, chargées par **import
 statique** dans `src/engine/names.ts` (`NAME_BANK`) et validées par Zod au chargement (au moins 20 entrées,
 sans doublon). Elles partent avec le code : le seed les utilise pour le monde, la présaison pour les jeunes.
-`nationality` porte **le même libellé que `Club.country`** (`"Angleterre"`, `"Brésil"`…). Ajouter une
-nationalité = ajouter un fichier **et** son import, dans l'ordre alphabétique des fichiers : l'ordre fait
-partie des tirages.
+`nationality` porte **le même libellé que `Club.country`** (`"Angleterre"`, `"Brésil"`…), en français : c'est
+une donnée, l'écran la traduit. Ajouter une nationalité = ajouter un fichier **et** son import, dans l'ordre
+alphabétique des fichiers : l'ordre fait partie des tirages ; puis son code à trois lettres
+(`app/saves/[id]/_lib/nationalities.ts`) et son nom dans les deux langues (`world.nationalities`,
+`src/i18n/messages/{fr,en}/world.json`). Un pays de compétition nouveau s'ajoute de même à `COUNTRIES`
+(`src/i18n/countries.ts`) et à `world.countries` : l'écran nomme une compétition par son code (`competitionName`).
 
 Aucun nom de joueur réel n'est importé : les noms sont combinés depuis des listes de prénoms et noms
 courants. Quand une combinaison donnerait le nom d'un joueur célèbre, retirer le prénom ou le nom de sa
@@ -122,8 +125,9 @@ Le monde est le même pour toutes les parties : la graine est **fixe**, `WORLD_S
 - Un flux aléatoire par club : `makeRng(`${WORLD_SEED}:squad:${club.slug}`)`. Ajouter ou renommer un
   club ne modifie pas l'effectif des autres.
 - Postes : enum `Position` à 12 valeurs (`src/engine/positions.ts`) — GK, RB, CB, LB, CDM, CM, CAM, RM, LM,
-  RW, LW, ST ; libellés courts dans l'UI : G, DD, DC, DG, MDC, MC, MOC, MD, MG, AD, AG, BU
-  (`app/saves/[id]/_lib/positions.ts`). `positionGroup(position)` → GK | DF | MF | FW donne la ligne, qui porte
+  RW, LW, ST ; à l'écran, libellés courts et noms dans les messages `positions.short` / `positions.label`
+  (`src/i18n/messages/<langue>/catalogs.json`) : G, DD, DC, DG, MDC, MC, MOC, MD, MG, AD, AG, BU en français, les
+  codes eux-mêmes en anglais. `positionGroup(position)` → GK | DF | MF | FW donne la ligne, qui porte
   les couleurs, le groupement de l'effectif et les pondérations du moteur de match.
 - Effectif : `SQUAD_ROLES` (`balance.ts`) = GK 2, RB 2, CB 4, LB 2, CDM 2, CM 3, CAM 2, RM/RW 2, LM/LW 2, ST 2 ;
   `SQUAD_TEMPLATE = squadTemplate(23)`, rôle après rôle, un rôle à deux postes les alternant (RM puis RW) :

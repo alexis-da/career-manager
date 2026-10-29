@@ -1,6 +1,7 @@
 # Career Manager
 
-Jeu de gestion de carrière football en web. Projet personnel solo, développé avec Claude Code.
+Jeu de gestion de carrière football en web, en français et en anglais. Projet personnel solo, développé avec Claude
+Code.
 
 ## Stack
 
@@ -210,23 +211,38 @@ répond 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANC
 secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml`), `CHALLENGE_URL` et le même
 `MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à 05:00 UTC).
 
-**Langues : français et anglais.** next-intl 4, sans la langue dans l'adresse. La langue du joueur est celle qu'il a
-choisie (cookie de confort `lw_lang`, `fr` ou `en`, un an, posé seulement par le sélecteur « FR · EN »,
-`setLanguageAction`, `app/actions.ts`), sinon le français si `Accept-Language` le préfère à l'anglais, l'anglais sinon
-(`negotiateLocale`, `src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`) ; `<html lang>` la suit.
-Textes dans `src/i18n/messages/<langue>/<zone>.json` (un fichier par zone du jeu, chacun ses espaces de noms,
-assemblés par `src/i18n/messages/index.ts`), typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
-un test exige les mêmes clés et les mêmes arguments dans les deux langues. Serveur : `getTranslations` ; composant
-client ou serveur non async : `useTranslations` ; un utilitaire qui nomme (postes, tours, compétitions) reçoit un
-`Translator<"espace">` (`src/i18n/translator.ts`). Dates et montants : `src/lib/format.ts` prend la langue (fr-FR, en-GB ;
-français par défaut). Compétitions : les vues de `src/db` en donnent le code, l'écran les nomme par pays traduit et
-division (`competitionName`, `src/i18n/countries.ts` : « England — Division 2 », « France — Cup ») ; le nom en base reste
-français. Nationalités : nom français en base, code à trois lettres et nom traduit à l'écran (`nationalityName`,
-`app/saves/[id]/_lib/nationalities.ts`). Tout ce que voit le joueur est traduit, pages publiques et écrans d'une partie,
-carte PNG comprise ; seule `/admin/stats` reste en français. Le français tutoie partout. Anglais britannique ; une partie
-s'y dit « career ». Le sélecteur est aussi dans l'en-tête d'une partie, sauf sur téléphone. E2E : Playwright envoie
-`fr-FR` par défaut ; les contrôles se trouvent par `data-testid`, le parcours anglais est `e2e/english.spec.ts`
-(`locale: "en-GB"`), jusqu'au direct et au classement.
+**Langues : français et anglais.** Tout ce que voit un joueur existe dans les deux langues : pages publiques, écrans
+d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4, sans la langue dans l'adresse. La langue
+du joueur est celle qu'il a choisie (cookie de confort `lw_lang`, `fr` ou `en`, un an, posé seulement par le sélecteur
+« FR · EN », `setLanguageAction`, `app/actions.ts` : pied des pages publiques, en-tête d'une partie sauf sur téléphone),
+sinon le français si `Accept-Language` le préfère à l'anglais, l'anglais sinon (`negotiateLocale`,
+`src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`) ; `<html lang>` la suit.
+- **Messages** : `src/i18n/messages/<langue>/<zone>.json`, un fichier par zone et par langue, chacun ses espaces de
+  noms, assemblés par `src/i18n/messages/index.ts` (`ZONES`, puis les deux objets) : `public` (accueil, création,
+  compte, connexion, défi, 404, sélecteur), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
+  a.p./t.a.b., événements, lettres de résultat), `header` (en-tête, onglets, actions de jeu, simulation), `dashboard`,
+  `challenge-banner`, `squad` (effectif, fiche joueur, contrats), `lineup`, `transfers`, `fixtures` (calendrier,
+  feuille de match), `standings` (classement, coupe, palmarès, carte), `live` (direct, mi-temps), `actions` (messages
+  des Server Actions, refus), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
+  `src/i18n/messages.test.ts` exige les mêmes clés et les mêmes arguments ICU dans les deux langues, que tout message
+  se formate et qu'un espace de noms n'appartienne qu'à un fichier. Seule exception : la page de confidentialité, un
+  document, a ses deux versions en JSX (`app/privacy/_components/privacy-document.tsx`, une date commune).
+- **Ajouter une chaîne** : la clé dans le fichier de la zone, en français et en anglais, mêmes arguments (pluriels
+  `{count, plural, …}`, ordinaux `{rank, selectordinal, …}`, jamais d'apostrophe droite devant `{`) ; une zone
+  nouvelle, c'est un fichier par langue importé dans `index.ts`. Composant client ou serveur non async :
+  `useTranslations("espace")` ; composant async, Server Action, route : `await getTranslations("espace")`, après
+  `requireOwnedSave` ; un utilitaire qui nomme reçoit un `Translator<"espace">` (`src/i18n/translator.ts`), la carte PNG
+  ses traducteurs (satori dessine sans React). Dates, montants, nombres : `src/lib/format.ts` avec la langue
+  (`useLocale` / `getLocale` ; fr-FR, en-GB). Tests : `inLanguage` et `testTranslator` (`src/i18n/test-intl.tsx`) ;
+  vérifier avec `npx vitest run src/i18n/messages.test.ts` et `npx tsc --noEmit`.
+- **Noms** : une compétition est nommée par son code (`competitionName`, `src/i18n/countries.ts` : « England —
+  Division 2 », « France — Cup »), le nom en base reste français ; une nationalité, stockée en français, par son code à
+  trois lettres et son nom traduit (`nationalityName`, `app/saves/[id]/_lib/nationalities.ts`) ; une partie de défi par
+  sa semaine. Clubs et joueurs gardent leur nom.
+- **Écriture** : le français tutoie partout ; l'anglais est britannique (« €77.2m », « 3rd », « Table », « Honours »),
+  une partie s'y dit « career ».
+- **E2E** : Playwright envoie `fr-FR` par défaut, les contrôles se trouvent par `data-testid` ; le parcours anglais,
+  `e2e/english.spec.ts` (`locale: "en-GB"`), va des pages publiques au direct et au classement.
 
 **Pas de marques sous licence.** Aucune mention de FIFA, EA, ou des noms de compétitions officiels sous
 licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (CC0).
@@ -282,7 +298,8 @@ E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
 app/                  # routes App Router, à la racine ; UI en français et en anglais (src/i18n)
   _components/        # composants de la page d'accueil (liste et création de parties)
   admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
-  privacy/            # page de confidentialité, publique (hors mot de passe) ; à tenir à jour avec le code
+  privacy/            # page de confidentialité, publique (hors mot de passe), en français et en anglais ; à tenir à jour
+                      # avec le code (_components/privacy-document.tsx : les deux versions, une date de mise à jour)
   api/                # Auth.js et les routes de maintenance (purge, défi de la semaine), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
                       # palmarès (seasons/, et seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
@@ -297,8 +314,9 @@ src/
   db/                 # accès Prisma, toujours scopé par saveId ; *.slow.test.ts via npm run test:slow
   lib/                # utilitaires partagés (rng, dates, couleurs, formatage)
   config/             # constantes de configuration (CONTACT_EMAIL, règles du défi de la semaine)
-  i18n/               # langues : négociation (locale.ts), configuration next-intl (request.ts), messages fr et en,
-                      # pays des compétitions (countries.ts)
+  i18n/               # langues : négociation (locale.ts), configuration next-intl (request.ts), messages par zone
+                      # (messages/<langue>/<zone>.json, index.ts), traducteur des utilitaires (translator.ts), aides
+                      # de test (test-intl.tsx), pays et noms des compétitions (countries.ts)
   og/                 # images générées (ImageResponse) : polices, visage en SVG data URI
   assets/fonts/       # Barlow Condensed ExtraBold Italic et sa licence OFL, lues par src/og/fonts.ts
   generated/prisma/   # client Prisma généré, ignoré par git

@@ -45,7 +45,18 @@ pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0)
   (`Save.worldVersion` 1) ;
 - `npm run measure:balance` mesure l'équilibrage des deux divisions sur six saisons (base locale seulement) ;
 - un défi chaque semaine (`/challenge`) : le même club et le même monde pour tous, classement sur les 10 premières
-  journées de championnat, 20 parties par semaine au plus, supprimées le mardi qui suit.
+  journées de championnat, 20 parties par semaine au plus, supprimées le mardi qui suit ;
+- en français et en anglais : la langue choisie par le sélecteur « FR · EN » (cookie `lw_lang`), sinon celle que
+  préfère le navigateur ; tout l'écran, carte de fin de saison et page de confidentialité comprises.
+
+## Langues
+
+Les textes sont des messages next-intl, un fichier par zone du jeu et par langue :
+`src/i18n/messages/fr/<zone>.json` et `src/i18n/messages/en/<zone>.json`, assemblés par `src/i18n/messages/index.ts`.
+Seule la page de confidentialité, un document, a ses deux versions en JSX
+(`app/privacy/_components/privacy-document.tsx`). Ajouter une chaîne, les fichiers de zone et les règles d'écriture
+(tutoiement, anglais britannique, « career ») : `CLAUDE.md`, règle « Langues ». `npx vitest run
+src/i18n/messages.test.ts` vérifie que les deux langues ont les mêmes clés et les mêmes arguments.
 
 ## Déployer
 
