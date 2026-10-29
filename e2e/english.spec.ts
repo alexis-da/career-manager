@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createSave, deleteSave, saveRow } from "./helpers";
 
 // The game in English, for a browser that prefers it (Accept-Language en-GB): the public pages, the language switcher
-// and its cookie, and a career created up to its dashboard. The save's own screens are not translated yet.
+// and its cookie, a career created and found again on the home page, then played up to its live match and its table.
 test.use({ locale: "en-GB" });
 
 const LYON = "Olympique Lyonnais";
@@ -94,7 +94,7 @@ test("creates a career in English and finds it on the home page, its date in Bri
   saveName = name;
 
   await createSave(page, name, LYON);
-  // The save's screens: the language switcher is in their header, the rest is still French.
+  // The language switcher is in the save's header too.
   await expect(page.getByTestId("language-en")).toHaveAttribute("aria-pressed", "true");
 
   await page.goto("/");
@@ -105,4 +105,45 @@ test("creates a career in English and finds it on the home page, its date in Bri
   const notice = page.getByTestId("save-limit");
   await expect(notice).toContainText("You already have a career under way. Sign in with Google to run up to three.");
   await expect(notice.getByTestId("google-sign-in")).toHaveText("Continue with Google");
+});
+
+test("plays a career in English up to its live match, then reads the table", async ({ page }) => {
+  // A world of 198 clubs created, then a match played live.
+  test.setTimeout(240_000);
+  // A unique name to find this save again (not simulation code: the clock is fine here).
+  const name = `E2E English match ${Date.now()}`;
+  saveName = name;
+  await createSave(page, name, LYON);
+
+  // The save's screens in English: header, tabs, dashboard.
+  await expect(pageLanguage(page)).toHaveAttribute("lang", "en");
+  await expect(page.getByTestId("dashboard-title")).toHaveText("Dashboard");
+  await expect(page.getByTestId("header-competition")).toHaveText("France — Division 1 · Season 2026-27");
+  await expect(page.getByTestId("nav-squad")).toHaveText("Squad");
+  await expect(page.getByTestId("nav-standings")).toHaveText("Table");
+  await expect(page.getByTestId("next-match")).toHaveText("Next match");
+
+  // The next match, live: half-time, then the end of the match.
+  await page.getByTestId("next-match").click();
+  await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
+  await expect(page.getByTestId("live-caption")).toHaveText(/^France — Division 1 · Matchday 1 · \d{1,2} August 2026$/);
+  await page.getByTestId("live-skip").click();
+  await expect(page.getByTestId("half-time-title")).toHaveText("Half-time");
+  await expect(page.getByTestId("half-time-substitutions")).toContainText("Substitutions: 0/5");
+  await expect(page.getByTestId("half-time-resume-unchanged")).toHaveText("Resume without changes");
+  await page.getByTestId("half-time-resume-unchanged").click();
+  await page.getByTestId("live-skip").click();
+  await expect(page.getByTestId("live-status")).toHaveText("Full time");
+  await page.getByTestId("live-continue").click();
+  await expect(page.getByTestId("dashboard-title")).toHaveText("Dashboard");
+  await expect(page.getByTestId("dashboard-last-result")).toContainText("Last result");
+
+  // The table: France's, its first division, in English.
+  await page.getByTestId("nav-standings").click();
+  await expect(page.getByTestId("standings-title")).toHaveText("Table");
+  await expect(page.getByTestId("standings-country-fr")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("standings-division-1")).toHaveText("Division 1");
+  const table = page.locator('[data-testid="standings-table"]:visible');
+  await expect(table.locator("thead")).toContainText("GD");
+  await expect(table.locator("tbody tr")).toHaveCount(18);
 });

@@ -221,10 +221,11 @@ client ou serveur non async : `useTranslations` ; un utilitaire qui nomme (poste
 français par défaut). Compétitions : les vues de `src/db` en donnent le code, l'écran les nomme par pays traduit et
 division (`competitionName`, `src/i18n/countries.ts` : « England — Division 2 », « France — Cup ») ; le nom en base reste
 français. Nationalités : nom français en base, code à trois lettres et nom traduit à l'écran (`nationalityName`,
-`app/saves/[id]/_lib/nationalities.ts`). Traduits : accueil, création, compte,
-connexion, défi et son action, 404. Les écrans d'une partie restent en français (`lang="fr"` sur leur conteneur) ; le
-sélecteur est dans leur en-tête, sauf sur téléphone. E2E : Playwright envoie `fr-FR` par défaut ; les contrôles des pages
-publiques se trouvent par `data-testid`, le parcours anglais est `e2e/english.spec.ts` (`locale: "en-GB"`).
+`app/saves/[id]/_lib/nationalities.ts`). Tout ce que voit le joueur est traduit, pages publiques et écrans d'une partie,
+carte PNG comprise ; seule `/admin/stats` reste en français. Le français tutoie partout. Anglais britannique ; une partie
+s'y dit « career ». Le sélecteur est aussi dans l'en-tête d'une partie, sauf sur téléphone. E2E : Playwright envoie
+`fr-FR` par défaut ; les contrôles se trouvent par `data-testid`, le parcours anglais est `e2e/english.spec.ts`
+(`locale: "en-GB"`), jusqu'au direct et au classement.
 
 **Pas de marques sous licence.** Aucune mention de FIFA, EA, ou des noms de compétitions officiels sous
 licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (CC0).

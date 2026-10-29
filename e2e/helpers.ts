@@ -24,7 +24,7 @@ export async function createSave(page: Page, name: string, clubName: string, see
   await page.getByTestId("create-save").click();
 
   await expect(page).toHaveURL(/\/saves\/[^/]+$/);
-  await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
+  await expect(page.getByTestId("dashboard-title")).toBeVisible();
 }
 
 /** The row of a save in the home page's list, by the name it was created with. */
