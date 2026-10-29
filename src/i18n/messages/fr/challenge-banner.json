@@ -1,1 +1,13 @@
-{}
+{
+  "challengeBanner": {
+    "title": "Défi de la semaine",
+    "playing": "journée {played} / {horizon}",
+    "submitted": "{points, plural, one {# pt} other {# pts}} · {goalDiff} · {goals, plural, one {# but} other {# buts}} · {rank, selectordinal, one {#er} other {#e}} provisoire",
+    "tooLate": "Cette partie ne compte pas au classement : le défi s'est terminé avant sa dernière journée",
+    "notCounted": "Cette partie ne compte pas au classement",
+    "continues": "La partie continue mais ne compte plus.",
+    "signIn": "Connecte-toi pour apparaître au classement.",
+    "purgedOn": "Partie de défi supprimée le {day}",
+    "ranking": "Classement"
+  }
+}

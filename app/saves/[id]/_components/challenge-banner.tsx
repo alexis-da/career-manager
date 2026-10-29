@@ -1,22 +1,25 @@
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import type { ChallengeBannerView } from "@/src/db/challenge-view";
+import type { Translator } from "@/src/i18n/translator";
 import { formatGoalDifference, formatParisDay } from "@/src/lib/format";
 
-const plural = (count: number, singular: string, pluralForm: string): string => `${count} ${count > 1 ? pluralForm : singular}`;
-
-const ordinal = (rank: number): string => (rank === 1 ? "1er" : `${rank}e`);
-
 /** Where the save stands in its challenge, after « Défi de la semaine · ». */
-function standing({ status, horizon }: ChallengeBannerView): string {
+function standing({ status, horizon }: ChallengeBannerView, t: Translator<"challengeBanner">): string {
   switch (status.kind) {
     case "playing":
-      return `journée ${status.matchdaysPlayed} / ${horizon}`;
+      return t("playing", { played: status.matchdaysPlayed, horizon });
     case "submitted":
-      return `${plural(status.points, "pt", "pts")} · ${formatGoalDifference(status.goalDiff)} · ${plural(status.goalsFor, "but", "buts")} · ${ordinal(status.rank)} provisoire`;
+      return t("submitted", {
+        points: status.points,
+        goalDiff: formatGoalDifference(status.goalDiff),
+        goals: status.goalsFor,
+        rank: status.rank,
+      });
     case "too-late":
-      return "Cette partie ne compte pas au classement : le défi s'est terminé avant sa dernière journée";
+      return t("tooLate");
     case "not-counted":
-      return "Cette partie ne compte pas au classement";
+      return t("notCounted");
   }
 }
 
@@ -25,26 +28,32 @@ function standing({ status, horizon }: ChallengeBannerView): string {
  * rank, then that it no longer counts; or why it does not count. Always the day the purge deletes it, and the ranking.
  */
 export function ChallengeBanner({ view }: { view: ChallengeBannerView }) {
+  const t = useTranslations("challengeBanner");
+  const locale = useLocale();
   const { status } = view;
   return (
     <section
-      aria-label="Défi de la semaine"
+      aria-label={t("title")}
       data-testid="challenge-banner"
       className="brand flex items-center gap-3 rounded-lg border bg-background px-3 py-2 text-foreground"
     >
       <span aria-hidden className="h-8 w-1 shrink-0 rounded-full bg-(--brand-orange)" />
       <div className="min-w-0 flex-1 space-y-0.5">
         <p data-testid="challenge-standing" className="text-sm tabular-nums">
-          <span className="font-semibold">Défi de la semaine</span> · {standing(view)}
+          <span className="font-semibold">{t("title")}</span> · {standing(view, t)}
         </p>
         <p className="text-xs text-muted-foreground">
-          {status.kind === "submitted" && "La partie continue mais ne compte plus. "}
-          {status.kind === "submitted" && !status.inRanking && "Connecte-toi pour apparaître au classement. "}
-          Partie de défi supprimée le {formatParisDay(view.savesPurgedAt)}
+          {status.kind === "submitted" && `${t("continues")} `}
+          {status.kind === "submitted" && !status.inRanking && `${t("signIn")} `}
+          {t("purgedOn", { day: formatParisDay(view.savesPurgedAt, locale) })}
         </p>
       </div>
-      <Link href="/challenge" className="shrink-0 text-xs font-semibold text-(--brand-orange) underline-offset-4 hover:underline">
-        Classement
+      <Link
+        href="/challenge"
+        data-testid="challenge-banner-ranking"
+        className="shrink-0 text-xs font-semibold text-(--brand-orange) underline-offset-4 hover:underline"
+      >
+        {t("ranking")}
       </Link>
     </section>
   );
