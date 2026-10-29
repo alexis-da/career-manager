@@ -54,7 +54,9 @@ et `latewinner_test` (`.env.test`, `DATABASE_URL_TEST`, pour les E2E **et** les 
 commande locale** (`assertLocalDatabase` : client Prisma, `prisma.config.ts`, seed, mesures, tests en base,
 Playwright) ; une base distante n'est acceptée que sur Vercel (`VERCEL=1`) ou avec `ALLOW_REMOTE_DB=1` posée à la main,
 sciemment. Neon (`damp-rain`, production) n'est atteint que par Vercel ; la branche Neon de test (`sparkling-darkness`)
-n'existe plus pour nous.
+n'existe plus pour nous. **Seule `main` est déployée ; une branche ne doit jamais atteindre Neon** : prévisualisations
+Vercel désactivées (Ignored Build Step), aucune variable de base dans l'environnement Preview ; pousser une autre
+branche ne sert qu'à la sauvegarder sur GitHub.
 
 **Monde d'une partie (`Save.worldVersion`).** Fixé à la création, sans défaut en base : 1 = les cinq premières
 divisions (toutes les parties d'avant les deuxièmes divisions, inchangées), 2 = premières et deuxièmes divisions

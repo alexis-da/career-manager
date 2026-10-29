@@ -68,6 +68,10 @@ pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0)
 
 Le poste local travaille sur un PostgreSQL local ; Neon (la production) n'est touché que par Vercel.
 
+**Seule `main` est déployée ; une branche ne doit jamais atteindre Neon.** Les déploiements de prévisualisation sont
+désactivés (Ignored Build Step du projet Vercel) et l'environnement Preview n'a aucune variable de base de données :
+pousser une autre branche ne sert qu'à la sauvegarder sur GitHub.
+
 ## Développer en local
 
 1. PostgreSQL 17 sur le port 5432 par défaut (utilisateur `postgres`). Le port dépend de l'installation (5434 si un
