@@ -1,6 +1,7 @@
 "use client";
 
 import { EyeIcon } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/src/components/ui/sheet";
@@ -19,9 +20,11 @@ function SectionTitle({ children }: { children: string }) {
 
 /** His starters' mean rating against the managed club's, the higher one in the strong color. */
 function RatingComparison({ preview }: { preview: OpponentPreview }) {
+  const t = useTranslations("opponent");
+  const locale = useLocale();
   const rows = [
     { label: preview.clubName, value: preview.averageRating, mine: false },
-    { label: "Mon onze", value: preview.managedAverageRating, mine: true },
+    { label: t("myEleven"), value: preview.managedAverageRating, mine: true },
   ];
   const best = Math.max(preview.averageRating, preview.managedAverageRating);
   return (
@@ -37,7 +40,7 @@ function RatingComparison({ preview }: { preview: OpponentPreview }) {
             />
           </span>
           <dd className={cn("text-right font-heading font-bold tabular-nums", row.value === best && "text-win")}>
-            {formatDecimal(row.value)}
+            {formatDecimal(row.value, locale)}
           </dd>
         </div>
       ))}
@@ -50,6 +53,8 @@ function RatingComparison({ preview }: { preview: OpponentPreview }) {
  * rating against the managed club's, his last results and his top scorer.
  */
 export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
+  const t = useTranslations("opponent");
+  const locale = useLocale();
   const slots = FORMATIONS[preview.formation];
   const { starters, players } = useMemo(() => {
     const keys: (string | null)[] = slots.map(() => null);
@@ -64,10 +69,12 @@ export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
   return (
     <>
       <SheetHeader>
-        <SheetTitle className="font-heading text-2xl">{preview.clubName}</SheetTitle>
+        <SheetTitle className="font-heading text-2xl" data-testid="opponent-title">
+          {preview.clubName}
+        </SheetTitle>
         <SheetDescription className="first-letter:uppercase">
-          {formatShortDate(preview.matchDate)} · {preview.atHome ? "à domicile" : "à l'extérieur"} · onze probable en{" "}
-          {preview.formation}
+          {formatShortDate(preview.matchDate, locale)} · {preview.atHome ? t("atHome") : t("away")} ·{" "}
+          {t("likelyEleven", { formation: preview.formation })}
         </SheetDescription>
       </SheetHeader>
 
@@ -77,18 +84,18 @@ export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
           starters={starters}
           players={players}
           clubColors={preview.clubColors}
-          label={`Onze probable de ${preview.clubName}`}
+          label={t("pitchLabel", { club: preview.clubName })}
         />
 
         <section className="space-y-2">
-          <SectionTitle>Note moyenne des titulaires</SectionTitle>
+          <SectionTitle>{t("averageRating")}</SectionTitle>
           <RatingComparison preview={preview} />
         </section>
 
         <section className="space-y-2">
-          <SectionTitle>Derniers résultats</SectionTitle>
+          <SectionTitle>{t("recentResults")}</SectionTitle>
           {preview.recent.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun match joué.</p>
+            <p className="text-sm text-muted-foreground">{t("noMatch")}</p>
           ) : (
             <ol className="space-y-1.5" data-opponent="recent">
               {preview.recent.map((match) => (
@@ -98,9 +105,9 @@ export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
                     {match.scored}-{match.conceded}
                   </span>
                   <span className="min-w-0 flex-1 truncate">
-                    {match.atHome ? "contre" : "à"} {match.againstName}
+                    {match.atHome ? t("against", { club: match.againstName }) : t("at", { club: match.againstName })}
                   </span>
-                  <span className="text-xs text-muted-foreground">{formatShortDate(match.date)}</span>
+                  <span className="text-xs text-muted-foreground">{formatShortDate(match.date, locale)}</span>
                 </li>
               ))}
             </ol>
@@ -108,14 +115,14 @@ export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
         </section>
 
         <section className="space-y-2">
-          <SectionTitle>Meilleur buteur de la saison</SectionTitle>
+          <SectionTitle>{t("topScorer")}</SectionTitle>
           <p className="text-sm" data-opponent="top-scorer">
             {preview.topScorer === null ? (
-              <span className="text-muted-foreground">Aucun but cette saison.</span>
+              <span className="text-muted-foreground">{t("noGoal")}</span>
             ) : (
               <>
                 <span className="font-semibold">{preview.topScorer.name}</span> ·{" "}
-                {preview.topScorer.goals} but{preview.topScorer.goals > 1 ? "s" : ""}
+                {t("goals", { count: preview.topScorer.goals })}
               </>
             )}
           </p>
@@ -131,11 +138,12 @@ export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
  * opponent's, and only the close button or Escape closes it.
  */
 export function OpponentSheet({ preview, besidePage = false }: { preview: OpponentPreview; besidePage?: boolean }) {
+  const t = useTranslations("opponent");
   return (
     <Sheet modal={!besidePage} disablePointerDismissal={besidePage}>
-      <SheetTrigger render={<Button size="sm" variant="outline" />}>
+      <SheetTrigger render={<Button size="sm" variant="outline" />} data-testid="view-opponent">
         <EyeIcon />
-        Voir l&apos;adversaire
+        {t("view")}
       </SheetTrigger>
       <SheetContent showOverlay={!besidePage} className="w-full overflow-y-auto sm:max-w-md">
         <OpponentPanel preview={preview} />

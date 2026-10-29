@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { getTranslations } from "next-intl/server";
 import { GoogleSignInButton } from "@/app/_components/account-panel";
 import { ACCOUNT_BANNER_COOKIE } from "../_lib/account-banner";
 import { AccountBannerFrame } from "./account-banner-frame";
@@ -11,10 +12,11 @@ export async function AccountBanner({ show }: { show: boolean }) {
   if (!show || (await cookies()).has(ACCOUNT_BANNER_COOKIE)) {
     return null;
   }
+  const t = await getTranslations("accountBanner");
   return (
     <AccountBannerFrame>
       <span aria-hidden className="h-4 w-1 shrink-0 rounded-full bg-(--brand-orange)" />
-      <p className="min-w-0 flex-1 truncate text-sm">Crée un compte pour ne pas perdre ta carrière</p>
+      <p className="min-w-0 flex-1 truncate text-sm">{t("message")}</p>
       <GoogleSignInButton compact className="shrink-0" />
     </AccountBannerFrame>
   );

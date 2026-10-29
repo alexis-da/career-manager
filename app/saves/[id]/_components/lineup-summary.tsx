@@ -18,6 +18,7 @@ type LineupSummaryProps = {
  * the lineup page and of the half-time screen.
  */
 export function LineupSummary({ slots, starters, players, closedSlots = 0 }: LineupSummaryProps) {
+  const t = useTranslations("lineupSummary");
   const tPositions = useTranslations("positions");
   const placed = starters.flatMap((key, index) => {
     const player = key === null ? undefined : players.get(key);
@@ -29,19 +30,25 @@ export function LineupSummary({ slots, starters, players, closedSlots = 0 }: Lin
 
   return (
     <p data-lineup-summary className="text-sm text-muted-foreground">
-      <span className="text-foreground">
-        {atPosition === 1 ? "1 titulaire à son poste" : `${atPosition} titulaires à leur poste`}
-      </span>
+      <span className="text-foreground">{t("atPosition", { count: atPosition })}</span>
       {" · "}
-      <span className={cn(offPosition.length > 0 ? "text-warning" : "text-foreground")}>{offPosition.length} hors poste</span>
-      {offPosition.length > 0 && " : "}
+      <span className={cn(offPosition.length > 0 ? "text-warning" : "text-foreground")}>
+        {t("offPosition", { count: offPosition.length })}
+      </span>
+      {offPosition.length > 0 && t("namesIntro")}
       {offPosition.map(({ player, slot }, index) => (
         <Fragment key={player.id}>
           {index > 0 && ", "}
-          <span data-off-position={player.id}>{`${player.lastName} (${tPositions(`short.${player.position}`)} en ${tPositions(`short.${slot}`)})`}</span>
+          <span data-off-position={player.id}>
+            {t("player", {
+              name: player.lastName,
+              position: tPositions(`short.${player.position}`),
+              slot: tPositions(`short.${slot}`),
+            })}
+          </span>
         </Fragment>
       ))}
-      {emptySlots > 0 && ` · ${emptySlots === 1 ? "1 poste vide" : `${emptySlots} postes vides`}`}
+      {emptySlots > 0 && ` · ${t("emptySlots", { count: emptySlots })}`}
     </p>
   );
 }

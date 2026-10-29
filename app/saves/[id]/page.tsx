@@ -1,5 +1,6 @@
 import { competitionName } from "@/src/i18n/countries";
-import { getTranslations } from "next-intl/server";
+import { useLocale, useTranslations } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
@@ -11,6 +12,7 @@ import { getManagedLineup, type ManagedLineup } from "@/src/db/lineup";
 import { getOpponentPreview } from "@/src/db/opponent";
 import { hasPlayedMatch } from "@/src/db/saves";
 import { nextTransferWindowOpening, transferWindowCloseDate } from "@/src/engine/world";
+import type { Translator } from "@/src/i18n/translator";
 import { formatDayMonth, formatDecimal, formatMillions, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { AccountBanner } from "./_components/account-banner";
@@ -26,7 +28,9 @@ import { MANAGED_ROW, TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Tableau de bord" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getTranslations("dashboard"))("title") };
+}
 
 /** Below this many players under contract, the dashboard warns. */
 const SQUAD_ALERT_SIZE = 18;
@@ -38,6 +42,7 @@ const EXPIRING_NAMES_SHOWN = 3;
 type Severity = "warning" | "danger" | "ok";
 
 type Alert = {
+  id: "injured-starters" | "expiring-contracts" | "goalkeepers" | "small-squad" | "full-squad";
   severity: Severity;
   title: string;
   detail: string;
@@ -50,22 +55,31 @@ const SEVERITY_CLASSES: Record<Severity, { band: string; surface: string }> = {
   ok: { band: "bg-win", surface: "border-win/25 bg-win/5" },
 };
 
-const plural = (count: number, singular: string, pluralForm: string): string =>
-  `${count} ${count > 1 ? pluralForm : singular}`;
+/** The small table's columns after the club's name. */
+const TABLE_COLUMNS = ["played", "won", "drawn", "lost", "goalDifference", "points"] as const;
 
 const seasonOf = (startYear: number): string => `${startYear}-${String(startYear + 1).slice(2)}`;
 
-function alertsOf(dashboard: Dashboard, lineup: ManagedLineup, squadHref: string, lineupHref: string): Alert[] {
+function alertsOf(
+  dashboard: Dashboard,
+  lineup: ManagedLineup,
+  squadHref: string,
+  lineupHref: string,
+  t: Translator<"dashboard">,
+): Alert[] {
   const { club } = dashboard;
   const alerts: Alert[] = [];
 
   const injuredStarters = lineup.injuredStarters;
   if (injuredStarters.length > 0) {
     alerts.push({
+      id: "injured-starters",
       severity: "danger",
-      title: injuredStarters.length === 1 ? "Un titulaire est blessé" : `${injuredStarters.length} titulaires sont blessés`,
-      detail: `${injuredStarters.map((player) => `${player.firstName.charAt(0)}. ${player.lastName}`).join(", ")} : remplacement automatique au prochain match.`,
-      action: { label: "Composition", href: lineupHref },
+      title: t("alerts.injuredStarters", { count: injuredStarters.length }),
+      detail: t("alerts.injuredStartersDetail", {
+        players: injuredStarters.map((player) => `${player.firstName.charAt(0)}. ${player.lastName}`).join(", "),
+      }),
+      action: { label: t("alerts.lineup"), href: lineupHref },
     });
   }
 
@@ -74,52 +88,58 @@ function alertsOf(dashboard: Dashboard, lineup: ManagedLineup, squadHref: string
     const names = expiring.slice(0, EXPIRING_NAMES_SHOWN).join(", ");
     const others = expiring.length - EXPIRING_NAMES_SHOWN;
     alerts.push({
+      id: "expiring-contracts",
       severity: "warning",
-      title: `${plural(expiring.length, "contrat expire", "contrats expirent")} le 30 juin`,
-      detail: others > 0 ? `${names} et ${plural(others, "autre", "autres")}` : names,
-      action: { label: "Prolonger", href: squadHref },
+      title: t("alerts.expiringContracts", { count: expiring.length }),
+      detail: others > 0 ? t("alerts.expiringOthers", { players: names, count: others }) : names,
+      action: { label: t("alerts.extend"), href: squadHref },
     });
   }
   if (club.goalkeepers < MIN_GOALKEEPERS) {
     alerts.push({
+      id: "goalkeepers",
       severity: "danger",
-      title: club.goalkeepers === 0 ? "Aucun gardien sous contrat" : "Un seul gardien sous contrat",
-      detail: `${MIN_GOALKEEPERS} gardiens sont nécessaires pour faire tourner l'équipe.`,
-      action: { label: "Gérer", href: squadHref },
+      title: club.goalkeepers === 0 ? t("alerts.noGoalkeeper") : t("alerts.oneGoalkeeper"),
+      detail: t("alerts.goalkeepersNeeded", { count: MIN_GOALKEEPERS }),
+      action: { label: t("alerts.manage"), href: squadHref },
     });
   }
   if (club.players < SQUAD_ALERT_SIZE) {
     alerts.push({
+      id: "small-squad",
       severity: "warning",
-      title: "Effectif réduit",
-      detail: `${plural(club.players, "joueur", "joueurs")} sous contrat, ${SQUAD_ALERT_SIZE} au minimum.`,
-      action: { label: "Gérer", href: squadHref },
+      title: t("alerts.smallSquad"),
+      detail: t("alerts.smallSquadDetail", { count: club.players, minimum: SQUAD_ALERT_SIZE }),
+      action: { label: t("alerts.manage"), href: squadHref },
     });
   }
   if (club.players >= SQUAD_ALERT_SIZE && club.goalkeepers >= MIN_GOALKEEPERS) {
     alerts.push({
+      id: "full-squad",
       severity: "ok",
-      title: "Effectif complet",
-      detail: `${plural(club.players, "joueur", "joueurs")}, ${plural(club.goalkeepers, "gardien", "gardiens")} — rien à signaler`,
+      title: t("alerts.fullSquad"),
+      detail: t("alerts.fullSquadDetail", { players: club.players, goalkeepers: club.goalkeepers }),
     });
   }
   return alerts;
 }
 
 function TeamBlock({ team, align }: { team: ClubPreview; align: "left" | "right" }) {
+  const t = useTranslations("dashboard");
+  const locale = useLocale();
   return (
     <div className={cn("min-w-0 space-y-2", align === "right" ? "text-right" : "text-left")}>
       <p className="font-heading text-3xl leading-[0.95] font-bold text-balance xl:text-4xl">{team.name}</p>
       <div className={cn("flex gap-1", align === "right" && "justify-end")}>
         {team.form.length === 0 ? (
-          <span className="text-xs text-muted-foreground">Pas encore de match</span>
+          <span className="text-xs text-muted-foreground">{t("noMatchYet")}</span>
         ) : (
           team.form.map((result, index) => <ResultPill key={index} result={result} />)
         )}
       </div>
       <p className="text-xs text-muted-foreground tabular-nums">
-        {team.rank === null ? "—" : `${team.rank}e`} · {plural(team.points, "pt", "pts")}
-        {team.averageOverall !== null && ` · Note moy. ${formatDecimal(team.averageOverall)}`}
+        {team.rank === null ? "—" : t("teamRank", { rank: team.rank })} · {t("points", { count: team.points })}
+        {team.averageOverall !== null && ` · ${t("averageRating", { rating: formatDecimal(team.averageOverall, locale) })}`}
       </p>
     </div>
   );
@@ -135,12 +155,14 @@ function BigFigure({ value, unit }: { value: string; unit?: string }) {
 }
 
 export default async function DashboardPage({ params }: PageProps<"/saves/[id]">) {
-  const tWorld = await getTranslations("world");
-  const tPositions = await getTranslations("positions");
-  const tStage = await getTranslations("stage");
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
+  const t = await getTranslations("dashboard");
+  const tWorld = await getTranslations("world");
+  const tPositions = await getTranslations("positions");
+  const tStage = await getTranslations("stage");
+  const locale = await getLocale();
   const [dashboard, lineup, opponent, user, challenge] = await Promise.all([
     getDashboard(id),
     getManagedLineup(id),
@@ -153,7 +175,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   const askToSignIn = user?.kind === "ANONYMOUS" && (await hasPlayedMatch(id));
   const { club, nextMatch, lastResult, position } = dashboard;
   const base = `/saves/${id}`;
-  const alerts = alertsOf(dashboard, lineup, `${base}/squad`, `${base}/lineup`);
+  const alerts = alertsOf(dashboard, lineup, `${base}/squad`, `${base}/lineup`, t);
 
   const windowClose = transferWindowCloseDate(dashboard.currentDate);
   const payrollShare = club.wageBudget === 0 ? 0 : Math.min(1, club.payroll / club.wageBudget);
@@ -161,24 +183,29 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
 
   return (
     <div className="space-y-5">
-      <h1 className="sr-only">Tableau de bord</h1>
+      <h1 className="sr-only" data-testid="dashboard-title">
+        {t("title")}
+      </h1>
       {challenge !== null && <ChallengeBanner view={challenge} />}
       <AccountBanner show={askToSignIn} />
 
       <div className="grid gap-5 lg:grid-cols-12">
-        <Panel className="flex flex-col lg:col-span-7">
+        <Panel className="flex flex-col lg:col-span-7" data-testid="dashboard-next-match">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <PanelTitle>Prochain match{nextMatch !== null && ` · ${stageLabel(nextMatch.fixture, tStage)}`}</PanelTitle>
+            <PanelTitle>
+              {t("nextMatch")}
+              {nextMatch !== null && ` · ${stageLabel(nextMatch.fixture, tStage)}`}
+            </PanelTitle>
             {nextMatch !== null && (
               <p className="text-xs text-muted-foreground first-letter:uppercase">
-                {formatShortDate(nextMatch.fixture.scheduledAt)} · {nextMatch.fixture.home.isManaged ? "Domicile" : "Extérieur"}{" "}
-                · {competitionName(nextMatch.fixture.competitionCode, tWorld)}
+                {formatShortDate(nextMatch.fixture.scheduledAt, locale)} ·{" "}
+                {nextMatch.fixture.home.isManaged ? t("home") : t("away")} · {competitionName(nextMatch.fixture.competitionCode, tWorld)}
               </p>
             )}
           </div>
           {nextMatch === null ? (
             <p className="py-10 text-center text-muted-foreground">
-              {dashboard.seasonFinished ? "La saison est terminée." : "Aucun match à venir."}
+              {dashboard.seasonFinished ? t("seasonOver") : t("noUpcomingMatch")}
             </p>
           ) : (
             <>
@@ -193,16 +220,16 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
               <div className="space-y-1.5 border-t pt-4 text-xs text-muted-foreground">
                 <div className="flex items-baseline justify-between gap-3">
                   <p>
-                    Onze en <span className="font-heading text-sm font-bold text-foreground">{lineup.formation}</span>
+                    {t("formation")} <span className="font-heading text-sm font-bold text-foreground">{lineup.formation}</span>
                   </p>
                   <span className="flex items-center gap-3">
                     {opponent !== null && <OpponentSheet preview={opponent} />}
-                    <Link href={`${base}/lineup`} className="font-medium text-info hover:underline">
-                      Composition →
+                    <Link href={`${base}/lineup`} className="font-medium text-info hover:underline" data-testid="dashboard-lineup">
+                      {t("lineupLink")}
                     </Link>
                   </span>
                 </div>
-                <ol aria-label="Onze du prochain match" className="flex flex-wrap gap-x-3 gap-y-1 text-foreground">
+                <ol aria-label={t("startersLabel")} className="flex flex-wrap gap-x-3 gap-y-1 text-foreground">
                   {lineup.lineup.starters.map(({ player, slot, index }) => (
                     <li key={index}>
                       <span className={cn("font-heading font-bold", positionTextClass(slot))}>{tPositions(`short.${slot}`)}</span>{" "}
@@ -212,20 +239,26 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                 </ol>
                 <p>
                   {dashboard.injured.length === 0
-                    ? "Aucun blessé"
-                    : `${plural(dashboard.injured.length, "blessé", "blessés")} (${dashboard.injured
-                        .map((player) => `${player.name}, retour ${formatDayMonth(player.until)}`)
-                        .join(" ; ")})`}
+                    ? t("noInjured")
+                    : t("injured", {
+                        count: dashboard.injured.length,
+                        players: dashboard.injured
+                          .map((player) => t("injuredPlayer", { name: player.name, date: formatDayMonth(player.until, locale) }))
+                          .join(t("injuredSeparator")),
+                      })}
                 </p>
               </div>
             </>
           )}
         </Panel>
 
-        <Panel className="flex flex-col lg:col-span-5">
-          <PanelTitle>Dernier résultat{lastResult !== null && ` · ${stageLabel(lastResult.fixture, tStage)}`}</PanelTitle>
+        <Panel className="flex flex-col lg:col-span-5" data-testid="dashboard-last-result">
+          <PanelTitle>
+            {t("lastResult")}
+            {lastResult !== null && ` · ${stageLabel(lastResult.fixture, tStage)}`}
+          </PanelTitle>
           {lastResult === null ? (
-            <p className="py-10 text-center text-muted-foreground">Aucun match joué cette saison.</p>
+            <p className="py-10 text-center text-muted-foreground">{t("noMatchPlayed")}</p>
           ) : (
             <>
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 pt-5">
@@ -262,24 +295,24 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                   ))}
                 </ul>
               </div>
-              <Link href={`${base}/fixtures`} className="mt-4 text-sm text-info hover:underline">
-                Voir la feuille de match →
+              <Link href={`${base}/fixtures`} className="mt-4 text-sm text-info hover:underline" data-testid="dashboard-match-report">
+                {t("matchReport")}
               </Link>
             </>
           )}
         </Panel>
 
-        <Panel className="space-y-3 lg:col-span-3">
-          <PanelTitle>Classement</PanelTitle>
+        <Panel className="space-y-3 lg:col-span-3" data-testid="dashboard-position">
+          <PanelTitle>{t("position")}</PanelTitle>
           {position === null ? (
             <BigFigure value="—" />
           ) : (
             <>
               <p className="font-heading text-5xl leading-none font-bold tabular-nums">
                 {position.rank}
-                <span className="text-2xl">{position.rank === 1 ? "er" : "e"}</span>
+                <span className="text-2xl">{t("rankSuffix", { rank: position.rank })}</span>
                 <span className="ml-2 font-sans text-sm font-normal text-muted-foreground">
-                  {plural(position.points, "pt", "pts")} · {position.goalDifference > 0 ? "+" : ""}
+                  {t("points", { count: position.points })} · {position.goalDifference > 0 ? "+" : ""}
                   {position.goalDifference}
                 </span>
               </p>
@@ -291,32 +324,37 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                   )}
                 >
                   {movement > 0 ? "▲" : movement < 0 ? "▼" : "="}{" "}
-                  {movement === 0 ? "Stable" : plural(Math.abs(movement), "place", "places")} depuis la J{position.previousRound}
+                  {t("movement", {
+                    count: Math.abs(movement),
+                    matchday: tStage("matchdayShort", { round: position.previousRound }),
+                  })}
                 </p>
               )}
             </>
           )}
         </Panel>
 
-        <Panel className="space-y-3 lg:col-span-3">
-          <PanelTitle>Budget transferts</PanelTitle>
-          <BigFigure value={formatMillions(club.budget)} unit="M€" />
+        <Panel className="space-y-3 lg:col-span-3" data-testid="dashboard-budget">
+          <PanelTitle>{t("transferBudget")}</PanelTitle>
+          <BigFigure value={formatMillions(club.budget, locale)} unit={t("millions")} />
           <p className="text-xs text-muted-foreground">
             {windowClose === null
-              ? `Fenêtre fermée jusqu'au ${formatDayMonth(nextTransferWindowOpening(dashboard.currentDate))}`
-              : `Mercato ouvert jusqu'au ${formatDayMonth(windowClose)}`}
+              ? t("windowClosedUntil", { date: formatDayMonth(nextTransferWindowOpening(dashboard.currentDate), locale) })
+              : t("windowOpenUntil", { date: formatDayMonth(windowClose, locale) })}
           </p>
         </Panel>
 
-        <Panel className="space-y-3 lg:col-span-3">
-          <PanelTitle>Masse salariale</PanelTitle>
+        <Panel className="space-y-3 lg:col-span-3" data-testid="dashboard-payroll">
+          <PanelTitle>{t("payroll")}</PanelTitle>
           <p
             data-summary="payroll"
             data-value={club.payroll}
             className="font-heading text-5xl leading-none font-bold tabular-nums"
           >
-            {formatMillions(club.payroll)}
-            <span className="ml-1.5 text-2xl font-semibold text-muted-foreground">/ {formatMillions(club.wageBudget)} M€</span>
+            {formatMillions(club.payroll, locale)}
+            <span className="ml-1.5 text-2xl font-semibold text-muted-foreground">
+              / {formatMillions(club.wageBudget, locale)} {t("millions")}
+            </span>
           </p>
           <div className="h-1.5 rounded-full bg-border" aria-hidden>
             <div
@@ -326,21 +364,22 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           </div>
         </Panel>
 
-        <Panel className="space-y-3 lg:col-span-3">
-          <PanelTitle>Effectif</PanelTitle>
-          <BigFigure value={String(club.players)} unit="joueurs" />
+        <Panel className="space-y-3 lg:col-span-3" data-testid="dashboard-squad">
+          <PanelTitle>{t("squad")}</PanelTitle>
+          <BigFigure value={String(club.players)} unit={t("playersUnit")} />
           <p className="text-xs text-muted-foreground tabular-nums">
-            {plural(club.goalkeepers, "gardien", "gardiens")}
-            {club.averageAge !== null && ` · Âge moyen ${formatDecimal(club.averageAge)}`}
+            {t("goalkeepers", { count: club.goalkeepers })}
+            {club.averageAge !== null && ` · ${t("averageAge", { age: formatDecimal(club.averageAge, locale) })}`}
           </p>
         </Panel>
 
-        <Panel className="space-y-3 lg:col-span-5">
-          <PanelTitle>À traiter</PanelTitle>
+        <Panel className="space-y-3 lg:col-span-5" data-testid="dashboard-alerts">
+          <PanelTitle>{t("toDo")}</PanelTitle>
           <ul className="space-y-3">
             {alerts.map((alert) => (
               <li
-                key={alert.title}
+                key={alert.id}
+                data-testid={`alert-${alert.id}`}
                 className={cn("flex items-center gap-3 rounded-md border p-3", SEVERITY_CLASSES[alert.severity].surface)}
               >
                 <span aria-hidden className={cn("w-1 self-stretch rounded-full", SEVERITY_CLASSES[alert.severity].band)} />
@@ -349,7 +388,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                   <p className="truncate text-xs text-muted-foreground">{alert.detail}</p>
                 </div>
                 {alert.action !== undefined && (
-                  <Link href={alert.action.href} className="shrink-0 text-sm text-info hover:underline">
+                  <Link href={alert.action.href} className="shrink-0 text-sm text-info hover:underline" data-testid="alert-action">
                     {alert.action.label}
                   </Link>
                 )}
@@ -358,24 +397,24 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           </ul>
         </Panel>
 
-        <Panel className="space-y-2 lg:col-span-7">
+        <Panel className="space-y-2 lg:col-span-7" data-testid="dashboard-table">
           <div className="flex items-baseline justify-between gap-2">
             <PanelTitle>
-              {dashboard.competitionCode === null ? "Classement" : competitionName(dashboard.competitionCode, tWorld)}
+              {dashboard.competitionCode === null ? t("table") : competitionName(dashboard.competitionCode, tWorld)}
               {dashboard.startYear !== null && ` · ${seasonOf(dashboard.startYear)}`}
             </PanelTitle>
-            <Link href={`${base}/standings`} className="text-xs text-info hover:underline">
-              Tableau complet →
+            <Link href={`${base}/standings`} className="text-xs text-info hover:underline" data-testid="dashboard-full-table">
+              {t("fullTable")}
             </Link>
           </div>
           <Table className="tabular-nums">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className={cn(TABLE_HEAD, "w-10")}>#</TableHead>
-                <TableHead className={TABLE_HEAD}>Club</TableHead>
-                {["J", "G", "N", "P", "Diff", "Pts"].map((label) => (
-                  <TableHead key={label} className={cn(TABLE_HEAD, "text-right")}>
-                    {label}
+                <TableHead className={TABLE_HEAD}>{t("columns.club")}</TableHead>
+                {TABLE_COLUMNS.map((column) => (
+                  <TableHead key={column} className={cn(TABLE_HEAD, "text-right")}>
+                    {t(`columns.${column}`)}
                   </TableHead>
                 ))}
               </TableRow>

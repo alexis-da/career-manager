@@ -48,5 +48,25 @@ describe("the lineup summary", () => {
 
     expect(markup.replace(/<[^>]+>/g, "")).toBe("10 titulaires à leur poste · 1 hors poste : Richard (MOC en MC)");
     expect([...markup.matchAll(/data-off-position="([^"]+)"/g)].map((match) => match[1])).toEqual([offPosition.id]);
+
+    const english = renderToStaticMarkup(inLanguage(<LineupSummary slots={SLOTS} starters={starters} players={players} />, "en"));
+    expect(english.replace(/<[^>]+>/g, "")).toBe("10 starters in position · 1 out of position: Richard (CAM as CM)");
+  });
+
+  it("counts one starter at his position, none, and the empty slots, a sent-off player's left out", () => {
+    // A goalkeeper alone in goal, the rest of the eleven empty, one of them a sent-off player's.
+    const keeper = player("exact#0", "GK", "Martin");
+    const starters = SLOTS.map((_, index) => (index === 0 ? keeper.id : null));
+    const players = new Map([[keeper.id, keeper]]);
+    const summary = (locale: "fr" | "en") =>
+      renderToStaticMarkup(
+        inLanguage(<LineupSummary slots={SLOTS} starters={starters} players={players} closedSlots={1} />, locale),
+      ).replace(/<[^>]+>/g, "");
+
+    expect(summary("fr")).toBe("1 titulaire à son poste · 0 hors poste · 9 postes vides");
+    expect(summary("en")).toBe("1 starter in position · 0 out of position · 9 empty positions");
+
+    const empty = renderToStaticMarkup(inLanguage(<LineupSummary slots={SLOTS} starters={SLOTS.map(() => null)} players={new Map()} />));
+    expect(empty.replace(/<[^>]+>/g, "")).toBe("0 titulaires à leur poste · 0 hors poste · 11 postes vides");
   });
 });
