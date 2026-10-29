@@ -37,6 +37,19 @@ const COLUMNS: { key: SortKey; title?: "potential"; align: "left" | "right"; fir
   { key: "contractUntil", align: "left", firstDirection: "asc" },
 ];
 
+/** The columns a phone shows: the rest is in the player's sheet, a tap away. */
+const PHONE_COLUMNS: ReadonlySet<SortKey> = new Set(["position", "name", "age", "overall"]);
+
+/** On a phone, cells closer together; the header's still closer, with tighter letters, to hold in its columns. */
+const PHONE_CELL = "max-sm:px-1.5";
+const PHONE_HEAD = "max-sm:px-0.5 max-sm:tracking-normal";
+
+/**
+ * On a phone, a row is a grid of the same four columns as the header's (position, name, age, rating), and the status
+ * badges go under the name: their words would otherwise widen the table past the screen.
+ */
+const PHONE_ROW = "max-sm:grid max-sm:grid-cols-[3rem_minmax(0,1fr)_2.75rem_3.5rem] max-sm:items-center";
+
 /** The sorting shortcuts, named by their id in the squad messages (presets.<id>). */
 const PRESETS: { id: "position" | "overall" | "contracts"; sort: Sort }[] = [
   { id: "position", sort: { key: "position", direction: "asc" } },
@@ -157,9 +170,9 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
           </div>
         </div>
 
-        <Table className="tabular-nums" data-testid="squad-table">
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
+        <Table className="tabular-nums max-sm:block" data-testid="squad-table">
+          <TableHeader className="max-sm:block">
+            <TableRow className={cn("border-border hover:bg-transparent", PHONE_ROW)}>
               {COLUMNS.map((column) => {
                 const active = sort.key === column.key;
                 return (
@@ -167,15 +180,32 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                     key={column.key}
                     title={column.title === undefined ? undefined : t(`columnTitles.${column.title}`)}
                     aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
-                    className={cn(TABLE_HEAD, column.align === "right" && "text-right")}
+                    className={cn(
+                      TABLE_HEAD,
+                      PHONE_HEAD,
+                      column.align === "right" && "text-right",
+                      !PHONE_COLUMNS.has(column.key) && "max-sm:hidden",
+                    )}
                   >
                     <button
                       type="button"
                       onClick={() => sortBy(column.key, column.firstDirection)}
-                      className={cn("inline-flex items-center gap-1 uppercase hover:text-foreground", active && "text-foreground")}
+                      className={cn(
+                        "inline-flex items-center gap-1 uppercase hover:text-foreground max-sm:min-h-11 max-sm:min-w-11",
+                        column.align === "right" && "justify-end",
+                        active && "text-foreground",
+                      )}
                       data-testid={`squad-column-${kebabCase(column.key)}`}
                     >
-                      {t(`columns.${column.key}`)}
+                      {/* A phone's narrow position column has a shorter word for it (« Pos. » in English). */}
+                      {column.key === "position" ? (
+                        <>
+                          <span className="max-sm:hidden">{t("columns.position")}</span>
+                          <span className="sm:hidden">{t("phoneColumns.position")}</span>
+                        </>
+                      ) : (
+                        t(`columns.${column.key}`)
+                      )}
                       <span aria-hidden className="text-[0.5625rem]">
                         {active ? (sort.direction === "asc" ? "▲" : "▼") : ""}
                       </span>
@@ -183,39 +213,44 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                   </TableHead>
                 );
               })}
-              <TableHead className={TABLE_HEAD}>
+              <TableHead className={cn(TABLE_HEAD, "max-sm:hidden")}>
                 <span className="sr-only">{t("columns.status")}</span>
               </TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="max-sm:block">
             {sorted.map((player) => {
               const name = `${player.firstName} ${player.lastName}`;
               const isSelected = player.id === selectedId;
+              const hasBadges = player.injuredUntil !== null || player.contractExpiring || player.arrivedThisSeason;
               return (
                 <SquadRow
                   key={player.id}
                   player={player}
                   canHover={canHover}
                   onSelect={() => setSelectedId(player.id)}
-                  className={cn(TABLE_ROW, "cursor-pointer", isSelected && "bg-muted hover:bg-muted")}
+                  className={cn(TABLE_ROW, PHONE_ROW, "cursor-pointer max-sm:h-auto", isSelected && "bg-muted hover:bg-muted")}
                 >
                   <TableCell
                     title={tPositions(`label.${player.position}`)}
-                    className={cn(TABLE_CELL, "w-28 font-heading text-sm font-bold", positionTextClass(player.position))}
+                    className={cn(TABLE_CELL, PHONE_CELL, "w-28 font-heading text-sm font-bold max-sm:w-auto", positionTextClass(player.position))}
                   >
+                    {/* On a phone, the main position alone: the sheet has the others. */}
                     <span className="inline-flex items-center gap-1.5">
                       <span data-primary-position>{tPositions(`short.${player.position}`)}</span>
-                      <SecondaryPositionBadges playerKey={player.playerKey} position={player.position} />
+                      <span className="contents max-sm:hidden">
+                        <SecondaryPositionBadges playerKey={player.playerKey} position={player.position} />
+                      </span>
                     </span>
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+                  {/* On a phone, no face, and the name on two lines if need be. */}
+                  <TableCell className={cn(TABLE_CELL, PHONE_CELL, "whitespace-nowrap max-sm:whitespace-normal")}>
                     <PlayerFace
                       playerKey={player.playerKey}
                       age={player.age}
                       clubColors={player.clubColors}
                       size={28}
-                      className="mr-2 inline-block align-middle"
+                      className="mr-2 inline-block align-middle max-sm:hidden"
                     />
                     <button
                       type="button"
@@ -224,7 +259,7 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                         event.stopPropagation();
                         setSelectedId(player.id);
                       }}
-                      className="font-semibold hover:underline"
+                      className="text-left font-semibold hover:underline max-sm:min-h-11"
                       data-testid="squad-player-open"
                     >
                       {name}
@@ -233,8 +268,8 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                       {nationalityCode(player.nationality)}
                     </span>
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>{player.age}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>
+                  <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>{player.age}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>
                     <span
                       className={cn(
                         "inline-grid h-6 min-w-9 place-items-center rounded-sm px-1.5 font-heading text-sm font-bold",
@@ -244,19 +279,23 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                       {player.overall}
                     </span>
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{player.potential}</TableCell>
-                  <TableCell className={TABLE_CELL}>
+                  <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground max-sm:hidden")}>{player.potential}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "max-sm:hidden")}>
                     <FormGauge form={player.form} />
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>{formatMoney(player.marketValue, locale)}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>
+                  <TableCell className={cn(TABLE_CELL, "text-right max-sm:hidden")}>{formatMoney(player.marketValue, locale)}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground max-sm:hidden")}>
                     {formatMoney(player.wage, locale)}
                   </TableCell>
-                  <TableCell data-column="contractUntil" className={cn(TABLE_CELL, player.contractExpiring && "text-warning")}>
+                  <TableCell
+                    data-column="contractUntil"
+                    className={cn(TABLE_CELL, "max-sm:hidden", player.contractExpiring && "text-warning")}
+                  >
                     {player.contractUntil === null ? "—" : formatDate(player.contractUntil, locale)}
                   </TableCell>
-                  <TableCell className={TABLE_CELL}>
-                    <span className="flex gap-1">
+                  {/* On a phone, under the name, across the row's last three columns; nothing without a badge. */}
+                  <TableCell className={cn(TABLE_CELL, PHONE_CELL, "max-sm:col-span-3 max-sm:col-start-2 max-sm:pb-2", !hasBadges && "max-sm:hidden")}>
+                    <span className="flex gap-1 max-sm:flex-wrap">
                       <PlayerBadges player={player} />
                     </span>
                   </TableCell>

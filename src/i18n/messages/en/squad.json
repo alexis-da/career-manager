@@ -24,6 +24,9 @@
       "contractUntil": "Contract",
       "status": "Status"
     },
+    "phoneColumns": {
+      "position": "Pos."
+    },
     "columnTitles": {
       "potential": "Potential"
     },
