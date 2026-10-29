@@ -6,11 +6,13 @@ import {
   formatDecimal,
   formatGoalDifference,
   formatMillions,
+  formatMillionsAmount,
   formatMonth,
   formatMoney,
   formatParisDateTime,
   formatParisDay,
   formatShortDate,
+  millionsFigure,
 } from "./format";
 
 // fr-FR separates thousands with a narrow no-break space: normalise it to compare.
@@ -69,6 +71,13 @@ describe("real times", () => {
 });
 
 describe("in English", () => {
+  it("writes millions symbol first, as a large figure whole", () => {
+    expect([formatMillionsAmount(77_200_000, "en"), formatMillionsAmount(-1_250_000, "en")]).toEqual(["€77.2m", "-€1.3m"]);
+    expect(formatMillionsAmount(77_200_000)).toBe("77,2 M€");
+    expect(millionsFigure(45_000_000, "en")).toEqual({ value: "€45.0m", unit: null });
+    expect(millionsFigure(45_000_000)).toEqual({ value: "45,0", unit: "M€" });
+  });
+
   it("writes amounts and figures as in Britain", () => {
     expect([12_500_000, 150_000_000, 850_000, 1_500, 900, -2_300_000].map((euros) => formatMoney(euros, "en"))).toEqual([
       "€12.5m",

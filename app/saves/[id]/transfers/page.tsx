@@ -18,7 +18,7 @@ import { requireOwnedSave } from "@/src/auth/current-user";
 import { seasonStartYear } from "@/src/engine/world";
 import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
-import { formatDate, formatMillions, formatMoney } from "@/src/lib/format";
+import { formatDate, formatMillionsAmount, formatMoney, millionsFigure } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../_components/contract-actions";
 import { ClosedWindowNote } from "../_components/contract-fields";
@@ -47,6 +47,7 @@ const TABS: MarketTab[] = ["free", "clubs", "moves"];
 function MarketBanner({ overview }: { overview: MarketOverview }) {
   const t = useTranslations("transfers");
   const locale = useLocale();
+  const budget = millionsFigure(overview.budget, locale);
   const { windowOpen, windowClosesOn, nextWindowOpensOn } = overview;
   return (
     <Panel data-testid="market-banner" className="flex flex-wrap items-center gap-x-10 gap-y-4 py-4">
@@ -67,8 +68,13 @@ function MarketBanner({ overview }: { overview: MarketOverview }) {
         <div>
           <dt className="eyebrow">{t("banner.budget")}</dt>
           <dd data-summary="budget" data-value={overview.budget} className="font-heading text-2xl font-bold">
-            {formatMillions(overview.budget, locale)}{" "}
-            <span className="text-base font-semibold text-muted-foreground">{t("banner.millions")}</span>
+            {budget.value}
+            {budget.unit !== null && (
+              <>
+                {" "}
+                <span className="text-base font-semibold text-muted-foreground">{budget.unit}</span>
+              </>
+            )}
           </dd>
         </div>
         <div>
@@ -78,9 +84,9 @@ function MarketBanner({ overview }: { overview: MarketOverview }) {
             data-value={overview.wageRoom}
             className={cn("font-heading text-2xl font-bold", overview.wageRoom <= 0 && "text-loss")}
           >
-            {formatMillions(overview.wageRoom, locale)}{" "}
+            {millionsFigure(overview.wageRoom, locale).value}{" "}
             <span className="text-base font-semibold text-muted-foreground">
-              {t("banner.wageBudget", { amount: formatMillions(overview.wageBudget, locale) })}
+              {t("banner.wageBudget", { amount: formatMillionsAmount(overview.wageBudget, locale) })}
             </span>
           </dd>
         </div>

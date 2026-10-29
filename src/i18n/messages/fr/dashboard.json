@@ -24,7 +24,6 @@
     "rankSuffix": "{rank, selectordinal, one {er} other {e}}",
     "movement": "{count, plural, =0 {Stable} one {# place} other {# places}} depuis la {matchday}",
     "transferBudget": "Budget transferts",
-    "millions": "M€",
     "windowClosedUntil": "Fenêtre fermée jusqu'au {date}",
     "windowOpenUntil": "Mercato ouvert jusqu'au {date}",
     "payroll": "Masse salariale",

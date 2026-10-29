@@ -9,9 +9,8 @@
     },
     "banner": {
       "budget": "Transfer budget",
-      "millions": "€m",
       "wageRoom": "Wage room",
-      "wageBudget": "/ {amount} €m per season"
+      "wageBudget": "/ {amount} per season"
     },
     "tabs": {
       "label": "Market lists",

@@ -13,7 +13,7 @@ import { getOpponentPreview } from "@/src/db/opponent";
 import { hasPlayedMatch } from "@/src/db/saves";
 import { nextTransferWindowOpening, transferWindowCloseDate } from "@/src/engine/world";
 import type { Translator } from "@/src/i18n/translator";
-import { formatDayMonth, formatDecimal, formatMillions, formatShortDate } from "@/src/lib/format";
+import { formatDayMonth, formatDecimal, formatMillionsAmount, formatShortDate, millionsFigure } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { AccountBanner } from "./_components/account-banner";
 import { ChallengeBanner } from "./_components/challenge-banner";
@@ -145,11 +145,11 @@ function TeamBlock({ team, align }: { team: ClubPreview; align: "left" | "right"
   );
 }
 
-function BigFigure({ value, unit }: { value: string; unit?: string }) {
+function BigFigure({ value, unit = null }: { value: string; unit?: string | null }) {
   return (
     <p className="font-heading text-5xl leading-none font-bold tabular-nums">
       {value}
-      {unit !== undefined && <span className="ml-1.5 text-2xl font-semibold text-muted-foreground">{unit}</span>}
+      {unit !== null && <span className="ml-1.5 text-2xl font-semibold text-muted-foreground">{unit}</span>}
     </p>
   );
 }
@@ -336,7 +336,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
 
         <Panel className="space-y-3 lg:col-span-3" data-testid="dashboard-budget">
           <PanelTitle>{t("transferBudget")}</PanelTitle>
-          <BigFigure value={formatMillions(club.budget, locale)} unit={t("millions")} />
+          <BigFigure {...millionsFigure(club.budget, locale)} />
           <p className="text-xs text-muted-foreground">
             {windowClose === null
               ? t("windowClosedUntil", { date: formatDayMonth(nextTransferWindowOpening(dashboard.currentDate), locale) })
@@ -351,9 +351,9 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             data-value={club.payroll}
             className="font-heading text-5xl leading-none font-bold tabular-nums"
           >
-            {formatMillions(club.payroll, locale)}
+            {millionsFigure(club.payroll, locale).value}
             <span className="ml-1.5 text-2xl font-semibold text-muted-foreground">
-              / {formatMillions(club.wageBudget, locale)} {t("millions")}
+              / {formatMillionsAmount(club.wageBudget, locale)}
             </span>
           </p>
           <div className="h-1.5 rounded-full bg-border" aria-hidden>

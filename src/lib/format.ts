@@ -55,6 +55,24 @@ export function formatMillions(euros: number, locale: Locale = "fr"): string {
   return FORMATTERS[locale].oneDecimal.format(euros / 1_000_000);
 }
 
+/** Millions with one decimal and their unit: « 45,0 M€ »; in English « €45.0m », the symbol first. */
+export function formatMillionsAmount(euros: number, locale: Locale = "fr"): string {
+  if (locale === "fr") {
+    return `${formatMillions(euros, locale)} M€`;
+  }
+  return `${euros < 0 ? "-" : ""}€${formatMillions(Math.abs(euros), locale)}m`;
+}
+
+/**
+ * Millions as a large figure shows them: in French the number, its unit apart and smaller (« 45,0 » and « M€ »); in
+ * English the whole amount, « €45.0m », and no unit apart.
+ */
+export function millionsFigure(euros: number, locale: Locale = "fr"): { value: string; unit: string | null } {
+  return locale === "fr"
+    ? { value: formatMillions(euros, locale), unit: "M€" }
+    : { value: formatMillionsAmount(euros, locale), unit: null };
+}
+
 /** One decimal: « 68,2 » (« 68.2 » in English). */
 export function formatDecimal(value: number, locale: Locale = "fr"): string {
   return FORMATTERS[locale].oneDecimal.format(value);

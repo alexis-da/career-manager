@@ -9,9 +9,8 @@
     },
     "banner": {
       "budget": "Budget transferts",
-      "millions": "M€",
       "wageRoom": "Marge salariale",
-      "wageBudget": "/ {amount} M€ par saison"
+      "wageBudget": "/ {amount} par saison"
     },
     "tabs": {
       "label": "Listes du marché",

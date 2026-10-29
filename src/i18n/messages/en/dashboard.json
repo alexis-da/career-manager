@@ -24,7 +24,6 @@
     "rankSuffix": "{rank, selectordinal, one {st} two {nd} few {rd} other {th}}",
     "movement": "{count, plural, =0 {No change} one {# place} other {# places}} since {matchday}",
     "transferBudget": "Transfer budget",
-    "millions": "€m",
     "windowClosedUntil": "Window closed until {date}",
     "windowOpenUntil": "Window open until {date}",
     "payroll": "Wage bill",
