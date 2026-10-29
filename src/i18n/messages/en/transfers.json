@@ -56,7 +56,12 @@
       "askingPrice": "Asking price",
       "formerClub": "Former club",
       "contractUntil": "Contract ends",
-      "action": "Action"
+      "action": "Action",
+      "phone": {
+        "position": "Pos.",
+        "askedWage": "Wage",
+        "askingPrice": "Price"
+      }
     },
     "freeAgents": {
       "empty": "No free agents at the moment. Players come onto the market when a club releases them: clubs clear out their squads every preseason, and you can release a player from your squad.",

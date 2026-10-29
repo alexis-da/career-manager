@@ -7,8 +7,9 @@ import { Input } from "@/src/components/ui/input";
 import type { MarketFilters, MarketOverview } from "@/src/db/market";
 import { POSITION_ORDER } from "../../_lib/positions";
 
+// 44 px high on a phone, as the shared fields are.
 const SELECT_CLASS =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
+  "h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 max-sm:h-11";
 
 function Field({ id, label, aside, children }: { id: string; label: string; aside?: ReactNode; children: ReactNode }) {
   return (
@@ -63,14 +64,18 @@ export function MarketFiltersForm({ saveId, filters, competitions }: MarketFilte
         label={t("position")}
         aside={
           // On the label's line, so the select stays aligned with the other fields.
-          <label title={t("withSecondary")} className="flex items-center gap-1 text-xs text-muted-foreground">
+          // On a phone, the whole label is the target, 44 px high, its box larger.
+          <label
+            title={t("withSecondary")}
+            className="flex items-center gap-1 text-xs text-muted-foreground max-sm:-my-3 max-sm:min-h-11 max-sm:gap-2"
+          >
             <input
               type="checkbox"
               name="withSecondary"
               value="1"
               aria-label={t("withSecondary")}
               defaultChecked={filters.withSecondary !== undefined}
-              className="size-3.5 accent-(--club)"
+              className="size-3.5 accent-(--club) max-sm:size-5"
               data-testid="market-with-secondary"
             />
             {t("secondary")}

@@ -28,13 +28,34 @@ import { MakeOfferDialog, SignFreeAgentDialog } from "./market-dialogs";
 
 const ROW_ACTION = "h-7";
 
+/**
+ * On a phone (under 640 px), a list of players is a grid of five columns in every row, the header's included: the
+ * player, his position, age, rating, and his wage or price. Potential, contract and the action are in the player's
+ * sheet, a tap on his name away; a club player's club goes under his name.
+ */
+const PHONE_PLAYER_ROW =
+  "max-sm:grid max-sm:h-auto max-sm:grid-cols-[minmax(0,1fr)_2.75rem_2.25rem_3rem_4.5rem] max-sm:items-center max-sm:py-1";
+const PHONE_CELL = "max-sm:px-1.5";
+const PHONE_HEAD = "max-sm:px-0.5 max-sm:tracking-normal";
+const PHONE_HIDDEN = "max-sm:hidden";
+
 type ListProps = {
   saveId: string;
   values: SearchValues; // the current search params, kept by every link of the list
 };
 
 function Head({ children, className }: { children: ReactNode; className?: string }) {
-  return <TableHead className={cn(TABLE_HEAD, className)}>{children}</TableHead>;
+  return <TableHead className={cn(TABLE_HEAD, PHONE_HEAD, className)}>{children}</TableHead>;
+}
+
+/** A column's name, and the shorter one its narrow column has on a phone. */
+function HeadLabel({ full, phone }: { full: string; phone: string }) {
+  return (
+    <>
+      <span className="max-sm:hidden">{full}</span>
+      <span className="sm:hidden">{phone}</span>
+    </>
+  );
 }
 
 type FaceProps = { playerKey: string; age: number; clubColors: ClubColors | null };
@@ -49,14 +70,14 @@ function PlayerCell({
   const tWorld = useTranslations("world");
   const name = `${player.firstName} ${player.lastName}`;
   return (
-    <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
-      {face !== undefined && <PlayerFace {...face} size={28} className="mr-2 inline-block align-middle" />}
+    <TableCell className={cn(TABLE_CELL, PHONE_CELL, "whitespace-nowrap max-sm:whitespace-normal")}>
+      {face !== undefined && <PlayerFace {...face} size={28} className="mr-2 inline-block align-middle max-sm:hidden" />}
       <Link
         href={marketHref(saveId, values, { player: player.id })}
         scroll={false}
         aria-label={t("viewPlayer", { name })}
         data-testid="market-player"
-        className="font-semibold hover:underline"
+        className="font-semibold hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
       >
         {name}
       </Link>
@@ -72,10 +93,16 @@ function PlayerCell({
 function PositionCell({ position, playerKey }: { position: Position; playerKey: string }) {
   const tPositions = useTranslations("positions");
   return (
-    <TableCell title={tPositions(`label.${position}`)} className={cn(TABLE_CELL, "font-heading text-sm font-bold", positionTextClass(position))}>
+    <TableCell
+      title={tPositions(`label.${position}`)}
+      className={cn(TABLE_CELL, PHONE_CELL, "font-heading text-sm font-bold", positionTextClass(position))}
+    >
+      {/* On a phone, the main position alone: the sheet has the others. */}
       <span className="inline-flex items-center gap-1.5">
         <span data-primary-position>{tPositions(`short.${position}`)}</span>
-        <SecondaryPositionBadges playerKey={playerKey} position={position} />
+        <span className="contents max-sm:hidden">
+          <SecondaryPositionBadges playerKey={playerKey} position={position} />
+        </span>
       </span>
     </TableCell>
   );
@@ -83,7 +110,7 @@ function PositionCell({ position, playerKey }: { position: Position; playerKey: 
 
 function RatingCell({ overall }: { overall: number }) {
   return (
-    <TableCell className={cn(TABLE_CELL, "text-right")}>
+    <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>
       <span
         className={cn(
           "inline-grid h-6 min-w-9 place-items-center rounded-sm px-1.5 font-heading text-sm font-bold",
@@ -159,26 +186,30 @@ export function FreeAgentsTable({
   }
   return (
     <div className="space-y-3">
-      <Table className="tabular-nums" data-testid="free-agents-table">
-        <TableHeader>
-          <TableRow className="border-border hover:bg-transparent">
+      <Table className="tabular-nums max-sm:block" data-testid="free-agents-table">
+        <TableHeader className="max-sm:block">
+          <TableRow className={cn("border-border hover:bg-transparent", PHONE_PLAYER_ROW)}>
             <Head>{t("table.player")}</Head>
-            <Head>{t("table.position")}</Head>
+            <Head>
+              <HeadLabel full={t("table.position")} phone={t("table.phone.position")} />
+            </Head>
             <Head className="text-right">{t("table.age")}</Head>
             <Head className="text-right">{t("table.overall")}</Head>
-            <Head className="text-right">
+            <Head className={cn("text-right", PHONE_HIDDEN)}>
               <span title={t("table.potentialTitle")}>{t("table.potential")}</span>
             </Head>
-            <Head className="text-right">{t("table.askedWage")}</Head>
-            <Head>{t("table.formerClub")}</Head>
-            <Head>
+            <Head className="text-right">
+              <HeadLabel full={t("table.askedWage")} phone={t("table.phone.askedWage")} />
+            </Head>
+            <Head className={PHONE_HIDDEN}>{t("table.formerClub")}</Head>
+            <Head className={PHONE_HIDDEN}>
               <span className="sr-only">{t("table.action")}</span>
             </Head>
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <TableBody className="max-sm:block">
           {list.rows.map((player) => (
-            <TableRow key={player.id} data-player-id={player.id} className={TABLE_ROW}>
+            <TableRow key={player.id} data-player-id={player.id} className={cn(TABLE_ROW, PHONE_PLAYER_ROW)}>
               <PlayerCell
                 saveId={saveId}
                 values={values}
@@ -186,12 +217,12 @@ export function FreeAgentsTable({
                 face={{ playerKey: player.playerKey, age: player.age, clubColors: null }}
               />
               <PositionCell position={player.position} playerKey={player.playerKey} />
-              <TableCell className={cn(TABLE_CELL, "text-right")}>{player.age}</TableCell>
+              <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>{player.age}</TableCell>
               <RatingCell overall={player.overall} />
-              <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{player.potential}</TableCell>
-              <TableCell className={cn(TABLE_CELL, "text-right")}>{formatMoney(player.askedWage, locale)}</TableCell>
-              <TableCell className={cn(TABLE_CELL, "text-muted-foreground")}>{player.formerClubName ?? "—"}</TableCell>
-              <TableCell className={cn(TABLE_CELL, "text-right")}>
+              <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground", PHONE_HIDDEN)}>{player.potential}</TableCell>
+              <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>{formatMoney(player.askedWage, locale)}</TableCell>
+              <TableCell className={cn(TABLE_CELL, "text-muted-foreground", PHONE_HIDDEN)}>{player.formerClubName ?? "—"}</TableCell>
+              <TableCell className={cn(TABLE_CELL, "text-right", PHONE_HIDDEN)}>
                 <SignFreeAgentDialog
                   saveId={saveId}
                   player={{ id: player.id, name: `${player.firstName} ${player.lastName}` }}
@@ -219,20 +250,23 @@ function SortHeader({
   filters,
   sortKey,
   label,
-}: ListProps & { filters: MarketFilters; sortKey: MarketFilters["sort"]; label: string }) {
+}: ListProps & { filters: MarketFilters; sortKey: MarketFilters["sort"]; label: ReactNode }) {
   const active = filters.sort === sortKey;
   // A new column starts with the highest first; the active one flips.
   const dir = active && filters.dir === "desc" ? "asc" : "desc";
   return (
     <TableHead
       aria-sort={active ? (filters.dir === "asc" ? "ascending" : "descending") : "none"}
-      className={cn(TABLE_HEAD, "text-right")}
+      className={cn(TABLE_HEAD, PHONE_HEAD, "text-right")}
     >
       <Link
         href={marketHref(saveId, values, { sort: sortKey, dir, page: undefined, player: undefined })}
         scroll={false}
         data-testid={`market-sort-${sortKey}`}
-        className={cn("inline-flex items-center gap-1 hover:text-foreground", active && "text-foreground")}
+        className={cn(
+          "inline-flex items-center justify-end gap-1 hover:text-foreground max-sm:min-h-11 max-sm:min-w-11",
+          active && "text-foreground",
+        )}
       >
         {label}
         <span aria-hidden className="text-[0.5625rem]">
@@ -261,47 +295,63 @@ export function ClubPlayersTable({
   }
   return (
     <div className="space-y-3">
-      <Table className="tabular-nums" data-testid="club-players-table">
-        <TableHeader>
-          <TableRow className="border-border hover:bg-transparent">
+      <Table className="tabular-nums max-sm:block" data-testid="club-players-table">
+        <TableHeader className="max-sm:block">
+          <TableRow className={cn("border-border hover:bg-transparent", PHONE_PLAYER_ROW)}>
             <Head>{t("table.player")}</Head>
-            <Head>{t("table.club")}</Head>
-            <Head>{t("table.position")}</Head>
+            <Head className={PHONE_HIDDEN}>{t("table.club")}</Head>
+            <Head>
+              <HeadLabel full={t("table.position")} phone={t("table.phone.position")} />
+            </Head>
             <Head className="text-right">{t("table.age")}</Head>
             <SortHeader saveId={saveId} values={values} filters={filters} sortKey="overall" label={t("table.overall")} />
-            <Head className="text-right">
+            <Head className={cn("text-right", PHONE_HIDDEN)}>
               <span title={t("table.potentialTitle")}>{t("table.potential")}</span>
             </Head>
-            <SortHeader saveId={saveId} values={values} filters={filters} sortKey="price" label={t("table.askingPrice")} />
-            <Head className="text-right">{t("table.askedWage")}</Head>
-            <Head>{t("table.contractUntil")}</Head>
-            <Head>
+            <SortHeader
+              saveId={saveId}
+              values={values}
+              filters={filters}
+              sortKey="price"
+              label={<HeadLabel full={t("table.askingPrice")} phone={t("table.phone.askingPrice")} />}
+            />
+            <Head className={cn("text-right", PHONE_HIDDEN)}>{t("table.askedWage")}</Head>
+            <Head className={PHONE_HIDDEN}>{t("table.contractUntil")}</Head>
+            <Head className={PHONE_HIDDEN}>
               <span className="sr-only">{t("table.action")}</span>
             </Head>
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <TableBody className="max-sm:block">
           {list.rows.map((player) => (
-            <TableRow key={player.id} data-player-id={player.id} className={TABLE_ROW}>
+            <TableRow key={player.id} data-player-id={player.id} className={cn(TABLE_ROW, PHONE_PLAYER_ROW)}>
               <PlayerCell
                 saveId={saveId}
                 values={values}
                 player={player}
                 face={{ playerKey: player.playerKey, age: player.age, clubColors: player.clubColors }}
               />
-              <TableCell className={cn(TABLE_CELL, "max-w-44 truncate text-muted-foreground")} title={player.clubName}>
+              {/* On a phone, under the player's name, whole. */}
+              <TableCell
+                className={cn(
+                  TABLE_CELL,
+                  PHONE_CELL,
+                  "max-w-44 truncate text-muted-foreground max-sm:col-start-1 max-sm:row-start-2 max-sm:max-w-none max-sm:pb-1.5 max-sm:text-xs max-sm:whitespace-normal",
+                )}
+                title={player.clubName}
+              >
                 {player.clubName}
               </TableCell>
               <PositionCell position={player.position} playerKey={player.playerKey} />
-              <TableCell className={cn(TABLE_CELL, "text-right")}>{player.age}</TableCell>
+              <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>{player.age}</TableCell>
               <RatingCell overall={player.overall} />
-              <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{player.potential}</TableCell>
-              <TableCell className={cn(TABLE_CELL, "text-right font-semibold")}>{formatMoney(player.askingPrice, locale)}</TableCell>
-              <TableCell className={cn(TABLE_CELL, "text-right")}>{formatMoney(player.askedWage, locale)}</TableCell>
-              <TableCell className={cn(TABLE_CELL, "whitespace-nowrap text-muted-foreground")}>
+              <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground", PHONE_HIDDEN)}>{player.potential}</TableCell>
+              <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right font-semibold")}>{formatMoney(player.askingPrice, locale)}</TableCell>
+              <TableCell className={cn(TABLE_CELL, "text-right", PHONE_HIDDEN)}>{formatMoney(player.askedWage, locale)}</TableCell>
+              <TableCell className={cn(TABLE_CELL, "whitespace-nowrap text-muted-foreground", PHONE_HIDDEN)}>
                 {player.contractUntil === null ? "—" : formatDate(player.contractUntil, locale)}
               </TableCell>
-              <TableCell className={cn(TABLE_CELL, "text-right")}>
+              <TableCell className={cn(TABLE_CELL, "text-right", PHONE_HIDDEN)}>
                 <MakeOfferDialog
                   saveId={saveId}
                   player={{ id: player.id, name: `${player.firstName} ${player.lastName}` }}
@@ -367,8 +417,10 @@ export function MovementsTable({ saveId, values, mine, list }: ListProps & { min
           <p className="text-muted-foreground">{mine ? t("emptyMine") : t("empty")}</p>
         </Panel>
       ) : (
-        <Table className="tabular-nums" data-testid="movements-table">
-          <TableHeader>
+        // On a phone, each movement is a card: the player and the date, the club he leaves and the fee, the club he
+        // joins and the movement's kind. Same rows, laid out by CSS.
+        <Table className="tabular-nums max-sm:block" data-testid="movements-table">
+          <TableHeader className="max-sm:hidden">
             <TableRow className="border-border hover:bg-transparent">
               <Head>{t("date")}</Head>
               <Head>{tTable("player")}</Head>
@@ -378,14 +430,20 @@ export function MovementsTable({ saveId, values, mine, list }: ListProps & { min
               <Head>{t("type")}</Head>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="max-sm:block">
             {list.rows.map((movement) => (
               <TableRow
                 key={movement.id}
                 data-managed={movement.managedClubInvolved || undefined}
-                className={cn(TABLE_ROW, movement.managedClubInvolved && "bg-muted/40")}
+                className={cn(
+                  TABLE_ROW,
+                  "max-sm:grid max-sm:h-auto max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-3 max-sm:py-1.5",
+                  movement.managedClubInvolved && "bg-muted/40",
+                )}
               >
-                <TableCell className={cn(TABLE_CELL, "whitespace-nowrap text-muted-foreground")}>
+                <TableCell
+                  className={cn(TABLE_CELL, "whitespace-nowrap text-muted-foreground max-sm:col-start-2 max-sm:row-start-1 max-sm:px-0 max-sm:text-right max-sm:text-xs")}
+                >
                   {formatDate(movement.date, locale)}
                 </TableCell>
                 <PlayerCell
@@ -393,18 +451,25 @@ export function MovementsTable({ saveId, values, mine, list }: ListProps & { min
                   values={values}
                   player={{ id: movement.playerSaveId, firstName: movement.firstName, lastName: movement.lastName }}
                 />
-                <TableCell className={TABLE_CELL}>
+                <TableCell className={cn(TABLE_CELL, "max-sm:col-start-1 max-sm:row-start-2 max-sm:px-0 max-sm:whitespace-normal")}>
                   {movement.fromClubName ?? <span className="text-muted-foreground">{t("free")}</span>}
                 </TableCell>
-                <TableCell className={TABLE_CELL}>
+                <TableCell
+                  className={cn(
+                    TABLE_CELL,
+                    "max-sm:col-start-1 max-sm:row-start-3 max-sm:px-0 max-sm:whitespace-normal max-sm:before:mr-1 max-sm:before:text-muted-foreground max-sm:before:content-['→']",
+                  )}
+                >
                   {movement.toClubName ?? (
                     <span className="text-muted-foreground">{movement.type === "RETIREMENT" ? t("retired") : t("free")}</span>
                   )}
                 </TableCell>
-                <TableCell className={cn(TABLE_CELL, "text-right")}>
+                <TableCell className={cn(TABLE_CELL, "text-right max-sm:col-start-2 max-sm:row-start-2 max-sm:px-0")}>
                   {movement.fee > 0 ? formatMoney(movement.fee, locale) : "—"}
                 </TableCell>
-                <TableCell className={cn(TABLE_CELL, "text-muted-foreground")}>{movementType(movement, t)}</TableCell>
+                <TableCell className={cn(TABLE_CELL, "text-muted-foreground max-sm:col-start-2 max-sm:row-start-3 max-sm:px-0 max-sm:text-right")}>
+                  {movementType(movement, t)}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

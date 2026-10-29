@@ -56,7 +56,12 @@
       "askingPrice": "Prix demandé",
       "formerClub": "Ancien club",
       "contractUntil": "Fin de contrat",
-      "action": "Action"
+      "action": "Action",
+      "phone": {
+        "position": "Poste",
+        "askedWage": "Salaire",
+        "askingPrice": "Prix"
+      }
     },
     "freeAgents": {
       "empty": "Aucun joueur libre pour le moment. Les joueurs arrivent sur le marché quand un club les libère : les clubs font le tri à chaque présaison, et tu peux libérer un joueur depuis ton effectif.",

@@ -227,7 +227,7 @@ export default async function TransfersPage({ params, searchParams }: PageProps<
                 aria-current={active ? "page" : undefined}
                 data-testid={`market-tab-${tab}`}
                 className={cn(
-                  "relative rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors",
+                  "relative rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors max-sm:py-3",
                   active
                     ? "bg-(--club)/18 font-semibold text-foreground after:absolute after:inset-x-2 after:-bottom-[9px] after:h-0.5 after:rounded-full after:bg-(--club)"
                     : "font-medium text-muted-foreground hover:text-foreground",
