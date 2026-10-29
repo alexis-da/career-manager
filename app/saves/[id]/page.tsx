@@ -58,6 +58,9 @@ const SEVERITY_CLASSES: Record<Severity, { band: string; surface: string }> = {
 /** The small table's columns after the club's name. */
 const TABLE_COLUMNS = ["played", "won", "drawn", "lost", "goalDifference", "points"] as const;
 
+/** Its columns a phone leaves out: the full table has them. */
+const PHONE_HIDDEN_COLUMNS: ReadonlySet<(typeof TABLE_COLUMNS)[number]> = new Set(["won", "drawn", "lost"]);
+
 const seasonOf = (startYear: number): string => `${startYear}-${String(startYear + 1).slice(2)}`;
 
 function alertsOf(
@@ -129,7 +132,10 @@ function TeamBlock({ team, align }: { team: ClubPreview; align: "left" | "right"
   const locale = useLocale();
   return (
     <div className={cn("min-w-0 space-y-2", align === "right" ? "text-right" : "text-left")}>
-      <p className="font-heading text-3xl leading-[0.95] font-bold text-balance xl:text-4xl">{team.name}</p>
+      {/* Smaller on a phone, where two names share 120 to 135 px each; a word too long for that still wraps. */}
+      <p className="font-heading text-3xl leading-[0.95] font-bold text-balance wrap-break-word hyphens-auto max-sm:text-xl max-[380px]:text-lg xl:text-4xl">
+        {team.name}
+      </p>
       <div className={cn("flex gap-1", align === "right" && "justify-end")}>
         {team.form.length === 0 ? (
           <span className="text-xs text-muted-foreground">{t("noMatchYet")}</span>
@@ -189,7 +195,8 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
       {challenge !== null && <ChallengeBanner view={challenge} />}
       <AccountBanner show={askToSignIn} />
 
-      <div className="grid gap-5 lg:grid-cols-12">
+      {/* One column the screen's width under lg (minmax(0, 1fr)): never as wide as its widest content. */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <Panel className="flex flex-col lg:col-span-7" data-testid="dashboard-next-match">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <PanelTitle>
@@ -209,22 +216,26 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             </p>
           ) : (
             <>
-              <div className="grid flex-1 grid-cols-[1fr_auto_1fr] items-center gap-4 py-6 sm:gap-8">
+              <div className="grid flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 py-6 min-[380px]:gap-4 sm:gap-8">
                 <TeamBlock team={nextMatch.home} align="right" />
                 <div className="text-center">
-                  <p className="font-heading text-5xl font-bold text-muted-foreground/50">VS</p>
+                  <p className="font-heading text-5xl font-bold text-muted-foreground/50 max-sm:text-3xl">VS</p>
                   {nextMatch.stadium !== null && <p className="mt-1 text-xs text-muted-foreground">{nextMatch.stadium}</p>}
                 </div>
                 <TeamBlock team={nextMatch.away} align="left" />
               </div>
               <div className="space-y-1.5 border-t pt-4 text-xs text-muted-foreground">
-                <div className="flex items-baseline justify-between gap-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
                   <p>
                     {t("formation")} <span className="font-heading text-sm font-bold text-foreground">{lineup.formation}</span>
                   </p>
                   <span className="flex items-center gap-3">
                     {opponent !== null && <OpponentSheet preview={opponent} />}
-                    <Link href={`${base}/lineup`} className="font-medium text-info hover:underline" data-testid="dashboard-lineup">
+                    <Link
+                      href={`${base}/lineup`}
+                      className="font-medium text-info hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+                      data-testid="dashboard-lineup"
+                    >
                       {t("lineupLink")}
                     </Link>
                   </span>
@@ -261,11 +272,14 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             <p className="py-10 text-center text-muted-foreground">{t("noMatchPlayed")}</p>
           ) : (
             <>
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 pt-5">
-                <p className="truncate font-heading text-2xl font-bold">{lastResult.fixture.home.name}</p>
+              {/* On a phone, home, score and away one above the other, each name whole on the panel's width. */}
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 pt-5 max-sm:grid-cols-1 max-sm:justify-items-center max-sm:gap-1 max-sm:text-center">
+                <p className="truncate font-heading text-2xl font-bold max-sm:w-full max-sm:leading-tight max-sm:whitespace-normal">
+                  {lastResult.fixture.home.name}
+                </p>
                 <p
                   className={cn(
-                    "rounded-md px-4 py-1 font-heading text-5xl leading-tight font-bold tabular-nums",
+                    "rounded-md px-4 py-1 font-heading text-5xl leading-tight font-bold tabular-nums max-sm:text-4xl",
                     RESULT_CLASSES[
                       matchResultFor(
                         { ...lastResult.fixture, homeGoals: lastResult.fixture.homeGoals ?? 0, awayGoals: lastResult.fixture.awayGoals ?? 0 },
@@ -276,7 +290,9 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                 >
                   {lastResult.fixture.homeGoals} – {lastResult.fixture.awayGoals}
                 </p>
-                <p className="truncate text-right font-heading text-2xl font-bold">{lastResult.fixture.away.name}</p>
+                <p className="truncate text-right font-heading text-2xl font-bold max-sm:w-full max-sm:text-center max-sm:leading-tight max-sm:whitespace-normal">
+                  {lastResult.fixture.away.name}
+                </p>
               </div>
               <ScoreNotes match={lastResult.fixture} className="mt-1 block text-center" />
               <div className="grid flex-1 grid-cols-2 gap-4 pt-4 text-sm tabular-nums">
@@ -295,7 +311,11 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                   ))}
                 </ul>
               </div>
-              <Link href={`${base}/fixtures`} className="mt-4 text-sm text-info hover:underline" data-testid="dashboard-match-report">
+              <Link
+                href={`${base}/fixtures`}
+                className="mt-4 text-sm text-info hover:underline max-sm:flex max-sm:min-h-11 max-sm:items-center"
+                data-testid="dashboard-match-report"
+              >
                 {t("matchReport")}
               </Link>
             </>
@@ -385,10 +405,14 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                 <span aria-hidden className={cn("w-1 self-stretch rounded-full", SEVERITY_CLASSES[alert.severity].band)} />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{alert.title}</p>
-                  <p className="truncate text-xs text-muted-foreground">{alert.detail}</p>
+                  <p className="truncate text-xs text-muted-foreground max-sm:whitespace-normal">{alert.detail}</p>
                 </div>
                 {alert.action !== undefined && (
-                  <Link href={alert.action.href} className="shrink-0 text-sm text-info hover:underline" data-testid="alert-action">
+                  <Link
+                    href={alert.action.href}
+                    className="shrink-0 text-sm text-info hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+                    data-testid="alert-action"
+                  >
                     {alert.action.label}
                   </Link>
                 )}
@@ -403,17 +427,22 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
               {dashboard.competitionCode === null ? t("table") : competitionName(dashboard.competitionCode, tWorld)}
               {dashboard.startYear !== null && ` · ${seasonOf(dashboard.startYear)}`}
             </PanelTitle>
-            <Link href={`${base}/standings`} className="text-xs text-info hover:underline" data-testid="dashboard-full-table">
+            <Link
+              href={`${base}/standings`}
+              className="shrink-0 text-xs text-info hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+              data-testid="dashboard-full-table"
+            >
               {t("fullTable")}
             </Link>
           </div>
+          {/* On a phone, played, goal difference and points: wins, draws and losses are in the full table. */}
           <Table className="tabular-nums">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className={cn(TABLE_HEAD, "w-10")}>#</TableHead>
-                <TableHead className={TABLE_HEAD}>{t("columns.club")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "w-10 max-sm:px-2")}>#</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "max-sm:px-2")}>{t("columns.club")}</TableHead>
                 {TABLE_COLUMNS.map((column) => (
-                  <TableHead key={column} className={cn(TABLE_HEAD, "text-right")}>
+                  <TableHead key={column} className={cn(TABLE_HEAD, "text-right max-sm:px-2", PHONE_HIDDEN_COLUMNS.has(column) && "max-sm:hidden")}>
                     {t(`columns.${column}`)}
                   </TableHead>
                 ))}
@@ -422,16 +451,16 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             <TableBody>
               {dashboard.table.map((row) => (
                 <TableRow key={row.club} className={cn(TABLE_ROW, row.isManaged && MANAGED_ROW)}>
-                  <TableCell className={cn(TABLE_CELL, "text-muted-foreground")}>{row.rank}</TableCell>
-                  <TableCell className={TABLE_CELL}>{row.clubName}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>{row.played}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>{row.won}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>{row.drawn}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>{row.lost}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>
+                  <TableCell className={cn(TABLE_CELL, "text-muted-foreground max-sm:px-2")}>{row.rank}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "max-sm:px-2 max-sm:py-1.5 max-sm:whitespace-normal")}>{row.clubName}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right max-sm:px-2")}>{row.played}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right max-sm:hidden")}>{row.won}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right max-sm:hidden")}>{row.drawn}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right max-sm:hidden")}>{row.lost}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right max-sm:px-2")}>
                     {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right font-heading text-base font-bold")}>{row.points}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right font-heading text-base font-bold max-sm:px-2")}>{row.points}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

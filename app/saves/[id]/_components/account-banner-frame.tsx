@@ -30,7 +30,7 @@ export function AccountBannerFrame({ children }: { children: ReactNode }) {
         onClick={close}
         aria-label={tCommon("close")}
         data-testid="account-banner-close"
-        className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none max-sm:size-11"
       >
         <XIcon className="size-4" />
       </button>

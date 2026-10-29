@@ -51,7 +51,7 @@ export function ChallengeBanner({ view }: { view: ChallengeBannerView }) {
       <Link
         href="/challenge"
         data-testid="challenge-banner-ranking"
-        className="shrink-0 text-xs font-semibold text-(--brand-orange) underline-offset-4 hover:underline"
+        className="shrink-0 text-xs font-semibold text-(--brand-orange) underline-offset-4 hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center"
       >
         {t("ranking")}
       </Link>

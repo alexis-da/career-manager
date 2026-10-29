@@ -6,7 +6,7 @@ import { AccountBannerFrame } from "./account-banner-frame";
 
 /**
  * Asks an anonymous player to sign in once their save has a matchday played: their career lives in a cookie of this
- * browser until then. Closed, it stays away 7 days (ACCOUNT_BANNER_COOKIE). One line, on a phone too.
+ * browser until then. Closed, it stays away 7 days (ACCOUNT_BANNER_COOKIE). One line; two on a phone rather than cut.
  */
 export async function AccountBanner({ show }: { show: boolean }) {
   if (!show || (await cookies()).has(ACCOUNT_BANNER_COOKIE)) {
@@ -16,7 +16,7 @@ export async function AccountBanner({ show }: { show: boolean }) {
   return (
     <AccountBannerFrame>
       <span aria-hidden className="h-4 w-1 shrink-0 rounded-full bg-(--brand-orange)" />
-      <p className="min-w-0 flex-1 truncate text-sm">{t("message")}</p>
+      <p className="min-w-0 flex-1 truncate text-sm max-sm:whitespace-normal">{t("message")}</p>
       <GoogleSignInButton compact className="shrink-0" />
     </AccountBannerFrame>
   );

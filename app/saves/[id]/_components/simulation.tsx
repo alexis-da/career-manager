@@ -79,7 +79,8 @@ function MatchLine({ match, fresh = false }: { match: SimulatedMatch; fresh?: bo
       )}
     >
       <span className="text-xs text-muted-foreground tabular-nums first-letter:uppercase">{formatShortDate(match.scheduledAt, locale)}</span>
-      <span className="min-w-0 truncate">
+      {/* Wrapped on a phone rather than cut. */}
+      <span className="min-w-0 truncate max-sm:whitespace-normal">
         <span className="text-muted-foreground">{atHome ? t("home") : t("away")}</span> {opponent.name}
         {match.cup && <span className="ml-1.5 text-xs font-medium text-(--club)">{stageLabel(match, tStage)}</span>}
       </span>
