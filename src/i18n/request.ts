@@ -1,11 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
-import { isLocale, LOCALE_COOKIE, negotiateLocale, type Locale } from "./locale";
-import en from "./messages/en.json";
-import fr from "./messages/fr.json";
-
-/** Each language's messages: the English ones have the French ones' keys (src/i18n/messages.test.ts). */
-const MESSAGES: Record<Locale, typeof fr> = { fr, en };
+import { isLocale, LOCALE_COOKIE, negotiateLocale } from "./locale";
+import { MESSAGES } from "./messages";
 
 // next-intl's configuration of a request, without the language in the address: the player's language (negotiateLocale,
 // from the lw_lang cookie and Accept-Language), its messages, and UTC, the clock in-game dates are stored in

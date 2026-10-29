@@ -213,9 +213,11 @@ secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.
 choisie (cookie de confort `lw_lang`, `fr` ou `en`, un an, posé seulement par le sélecteur « FR · EN »,
 `setLanguageAction`, `app/actions.ts`), sinon le français si `Accept-Language` le préfère à l'anglais, l'anglais sinon
 (`negotiateLocale`, `src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`) ; `<html lang>` la suit.
-Textes dans `src/i18n/messages/{fr,en}.json`, typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
+Textes dans `src/i18n/messages/<langue>/<zone>.json` (un fichier par zone du jeu, chacun ses espaces de noms,
+assemblés par `src/i18n/messages/index.ts`), typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
 un test exige les mêmes clés et les mêmes arguments dans les deux langues. Serveur : `getTranslations` ; composant
-client ou serveur non async : `useTranslations`. Dates et montants : `src/lib/format.ts` prend la langue (fr-FR, en-GB ;
+client ou serveur non async : `useTranslations` ; un utilitaire qui nomme (postes, tours, compétitions) reçoit un
+`Translator<"espace">` (`src/i18n/translator.ts`). Dates et montants : `src/lib/format.ts` prend la langue (fr-FR, en-GB ;
 français par défaut). Compétitions : pays traduit par le code (`competitionCountry`, `src/i18n/countries.ts`) et
 « Division N » (« England — Division 2 ») ; le nom en base reste français. Traduits : accueil, création, compte,
 connexion, défi et son action, 404. Les écrans d'une partie restent en français (`lang="fr"` sur leur conteneur) ; le

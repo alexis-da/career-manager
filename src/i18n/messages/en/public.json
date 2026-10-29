@@ -23,16 +23,6 @@
   "brand": {
     "languages": "Playable in English and French."
   },
-  "countries": {
-    "de": "Germany",
-    "en": "England",
-    "es": "Spain",
-    "fr": "France",
-    "it": "Italy"
-  },
-  "competition": {
-    "league": "{country} — Division {tier}"
-  },
   "home": {
     "newSave": "New career",
     "seasonStart": "The {season} season starts on {date}.",

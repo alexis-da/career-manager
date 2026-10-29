@@ -1,0 +1,12 @@
+{
+  "competition": {
+    "league": "{country} — Division {tier}"
+  },
+  "countries": {
+    "de": "Germany",
+    "en": "England",
+    "es": "Spain",
+    "fr": "France",
+    "it": "Italy"
+  }
+}

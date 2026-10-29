@@ -1,10 +1,9 @@
 import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 import { LOCALES } from "./locale";
-import en from "./messages/en.json";
-import fr from "./messages/fr.json";
+import { MESSAGES, ZONES } from "./messages";
 
-const MESSAGES = { fr, en };
+const { fr, en } = MESSAGES;
 
 type Tree = { [key: string]: string | Tree };
 
@@ -59,6 +58,14 @@ const french = flatten(fr);
 const english = flatten(en);
 
 describe("the game's messages", () => {
+  it("gives each namespace to one zone file only, the same in both languages", () => {
+    const owners = Object.entries(ZONES).flatMap(([zone, { fr: zoneFr, en: zoneEn }]) => {
+      expect(Object.keys(zoneEn).sort(), zone).toEqual(Object.keys(zoneFr).sort());
+      return Object.keys(zoneFr);
+    });
+    expect(owners.length).toBe(new Set(owners).size);
+  });
+
   it("has the same keys in French and in English", () => {
     expect([...english.keys()].sort()).toEqual([...french.keys()].sort());
   });
