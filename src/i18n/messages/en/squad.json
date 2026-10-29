@@ -1,1 +1,118 @@
-{}
+{
+  "squad": {
+    "title": "Squad",
+    "players": "{count, plural, one {player} other {players}}",
+    "goalkeepers": "{count, plural, one {goalkeeper} other {goalkeepers}}",
+    "wageBill": "wage bill",
+    "payroll": "€{payroll}m / €{budget}m",
+    "windowClosed": "Transfer window closed: extensions, releases and sales will wait until it reopens.",
+    "sortLabel": "Sort the squad",
+    "presets": {
+      "position": "By position",
+      "overall": "By rating",
+      "contracts": "Contracts"
+    },
+    "columns": {
+      "position": "Position",
+      "name": "Player",
+      "age": "Age",
+      "overall": "Rating",
+      "potential": "Pot.",
+      "form": "Form",
+      "marketValue": "Value",
+      "wage": "Wage",
+      "contractUntil": "Contract",
+      "status": "Status"
+    },
+    "columnTitles": {
+      "potential": "Potential"
+    },
+    "formTitle": "Form {form}",
+    "openSheet": "View {name}'s profile"
+  },
+  "player": {
+    "sheetLabel": "{name}'s profile",
+    "close": "Close profile",
+    "rating": "Rating",
+    "potential": "Potential",
+    "potentialShort": "Pot. {potential}",
+    "age": "{age, plural, one {# year old} other {# years old}}",
+    "noClub": "No club",
+    "arrivedIn": "Joined in {year}",
+    "form": "Form",
+    "morale": "Morale",
+    "fitness": "Fitness",
+    "attributesLabel": "Attributes",
+    "attributes": {
+      "pace": "Pace",
+      "shooting": "Shooting",
+      "passing": "Passing",
+      "dribbling": "Dribbling",
+      "defending": "Defending",
+      "physical": "Physical",
+      "goalkeeping": "Goalkeeping"
+    },
+    "season": "Season {season}",
+    "stats": {
+      "appearances": "Matches",
+      "goals": "Goals",
+      "assists": "Assists",
+      "minutes": "Minutes"
+    },
+    "condition": "Form {form} · Morale {morale} · Fitness {fitness} · Cards {yellow} Y, {red} R",
+    "contract": "Contract",
+    "noContract": "No contract",
+    "contractUntil": "Contract until {date}",
+    "contractEnd": "Contract ends",
+    "wage": "Wage",
+    "wagePerSeason": "{wage} / season",
+    "wagePerYear": "{wage} / year",
+    "marketValue": "Market value {value}.",
+    "leavingFree": "Without an extension, he will leave on a free at the end of the season.",
+    "transfers": "Transfers",
+    "transfer": {
+      "transfer": "Transfer: {from} → {to}, {fee}",
+      "loan": "Loan: {from} → {to}",
+      "releasedBy": "Released by {club}",
+      "released": "Released by his club",
+      "signedFree": "Signed for {club} on a free",
+      "retirement": "Retired"
+    },
+    "badges": {
+      "injured": "Injured · {date}",
+      "injuredTitle": "Injured until {date}",
+      "expiring": "Expiring",
+      "expiringTitle": "Contract expires at the end of the season",
+      "young": "Youth",
+      "youngTitle": "Youngster who joined this season"
+    }
+  },
+  "contract": {
+    "renew": "Extend",
+    "renewTitle": "Extend {name}'s contract",
+    "renewDescription": "He accepts at least {wage} per season. Current contract: until {date}.",
+    "renewDescriptionNoContract": "He accepts at least {wage} per season. Current contract: none.",
+    "offeredWage": "Wage offered, in euros per season",
+    "negotiating": "Negotiating…",
+    "confirmRenewal": "Confirm extension",
+    "release": "Release",
+    "releaseTitle": "Release {name}",
+    "releaseDescription": "He will become a free agent. Cost: {cost}, half the wages still owed on his contract.",
+    "releasing": "Releasing…",
+    "confirmRelease": "Release player",
+    "sell": "Sell",
+    "sellTitle": "Sell {name}",
+    "bestOffer": "Best offer: {buyer} offers {fee}. The player will earn {wage} per season there, for {years, plural, one {# season} other {# seasons}}.",
+    "decline": "Decline",
+    "selling": "Selling…",
+    "acceptOffer": "Accept offer",
+    "closedActions": "extensions, sales and releases",
+    "done": "{label}: {message}",
+    "serverError": "The server could not process the request. Try again.",
+    "length": "Length",
+    "seasons": "{count, plural, one {# season} other {# seasons}}",
+    "until": "Until {date}",
+    "invalidAmount": "Invalid amount",
+    "windowClosed": "Transfer window closed: {actions} will resume on {date}."
+  }
+}

@@ -1,13 +1,15 @@
 "use client";
 
 import { nationalityName } from "../_lib/nationalities";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { XIcon } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
 import type { PlayerProfile, TransferHistoryItem } from "@/src/db/players";
 import { seasonLabel } from "@/src/engine/world";
+import type { Locale } from "@/src/i18n/locale";
+import type { Translator } from "@/src/i18n/translator";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 
@@ -16,18 +18,21 @@ import { ratingClasses } from "../_lib/ratings";
 import { AttributeBars } from "./attribute-bars";
 import { PlayerBadges } from "./player-badges";
 
-function transferLabel(transfer: TransferHistoryItem): string {
+function transferLabel(transfer: TransferHistoryItem, t: Translator<"player">, locale: Locale): string {
+  const from = transfer.fromClubName ?? "?";
+  const to = transfer.toClubName ?? "?";
   switch (transfer.type) {
     case "TRANSFER":
-      return `Transfert : ${transfer.fromClubName ?? "?"} → ${transfer.toClubName ?? "?"}, ${formatMoney(transfer.fee)}`;
+      return t("transfer.transfer", { from, to, fee: formatMoney(transfer.fee, locale) });
     case "LOAN":
-      return `Prêt : ${transfer.fromClubName ?? "?"} → ${transfer.toClubName ?? "?"}`;
+      return t("transfer.loan", { from, to });
     case "FREE":
-      return transfer.toClubName === null
-        ? `Libéré par ${transfer.fromClubName ?? "son club"}`
-        : `Signe libre à ${transfer.toClubName}`;
+      if (transfer.toClubName !== null) {
+        return t("transfer.signedFree", { club: transfer.toClubName });
+      }
+      return transfer.fromClubName === null ? t("transfer.released") : t("transfer.releasedBy", { club: transfer.fromClubName });
     case "RETIREMENT":
-      return "Fin de carrière";
+      return t("transfer.retirement");
   }
 }
 
@@ -49,8 +54,10 @@ type PlayerSheetProps = {
 
 /** A player's sheet, in a 400 px side panel next to the list it was opened from. */
 export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheetProps) {
+  const t = useTranslations("player");
   const tWorld = useTranslations("world");
   const tPositions = useTranslations("positions");
+  const locale = useLocale();
   // Escape closes the sheet, unless it is closing one of the dialogs opened from it.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -71,7 +78,8 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
 
   return (
     <aside
-      aria-label={`Fiche de ${name}`}
+      aria-label={t("sheetLabel", { name })}
+      data-testid="player-sheet"
       className={cn(
         "fixed inset-y-0 right-0 z-50 flex w-full max-w-[400px] flex-col border-l bg-card shadow-2xl",
         // Under the save's header (96 px: its row and its tabs), 24 px below it and above the window's bottom.
@@ -89,24 +97,34 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
           />
           <div className="flex-1" />
           <div className={cn("rounded-md px-3 py-1.5 text-center", ratingClasses(profile.overall))}>
-            <p className="font-heading text-4xl leading-none font-bold tabular-nums" title="Note">
+            <p className="font-heading text-4xl leading-none font-bold tabular-nums" title={t("rating")}>
               {profile.overall}
             </p>
-            <p className="mt-1 text-[0.625rem] font-semibold tracking-[0.12em] uppercase tabular-nums" title="Potentiel">
-              Pot. {profile.potential}
+            <p className="mt-1 text-[0.625rem] font-semibold tracking-[0.12em] uppercase tabular-nums" title={t("potential")}>
+              {t("potentialShort", { potential: profile.potential })}
             </p>
           </div>
-          <Button variant="ghost" size="icon-sm" aria-label="Fermer la fiche" onClick={onClose} className="-mt-1 -mr-2">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("close")}
+            onClick={onClose}
+            className="-mt-1 -mr-2"
+            data-testid="player-sheet-close"
+          >
             <XIcon />
           </Button>
         </div>
         <div className="min-w-0 space-y-1">
-          <p className="eyebrow truncate">{profile.clubName ?? "Sans club"}</p>
-          <h2 className="font-heading text-3xl leading-none font-bold">{name}</h2>
+          <p className="eyebrow truncate">{profile.clubName ?? t("noClub")}</p>
+          <h2 className="font-heading text-3xl leading-none font-bold" data-testid="player-sheet-name">
+            {name}
+          </h2>
           <p className="text-sm text-muted-foreground">
             <PositionBadges playerKey={profile.playerKey} position={profile.position} className="mr-1.5 align-[1px]" />
-            {tPositions(`label.${profile.position}`)} · {profile.age} ans · {nationalityName(profile.nationality, tWorld)}
-            {arrivalYear !== null && ` · Arrivé en ${arrivalYear}`}
+            {tPositions(`label.${profile.position}`)} · {t("age", { age: profile.age })} ·{" "}
+            {nationalityName(profile.nationality, tWorld)}
+            {arrivalYear !== null && ` · ${t("arrivedIn", { year: arrivalYear })}`}
           </p>
           <p className="flex flex-wrap gap-1 pt-1">
             <PlayerBadges player={profile} />
@@ -117,43 +135,53 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
       <div className="flex-1 space-y-5 overflow-y-auto px-5 pb-5 text-sm">
         <AttributeBars position={profile.position} attributes={profile.attributes} />
 
-        <section aria-label={`Saison ${seasonLabel(startYear)}`} className="space-y-2">
+        <section aria-label={t("season", { season: seasonLabel(startYear) })} className="space-y-2" data-testid="player-sheet-season">
           <dl className="grid grid-cols-4 gap-2">
-            <StatTile label="Matchs" value={seasonStats.appearances} />
-            <StatTile label="Buts" value={seasonStats.goals} />
-            <StatTile label="Passes D." value={seasonStats.assists} />
-            <StatTile label="Minutes" value={seasonStats.minutes} />
+            <StatTile label={t("stats.appearances")} value={seasonStats.appearances} />
+            <StatTile label={t("stats.goals")} value={seasonStats.goals} />
+            <StatTile label={t("stats.assists")} value={seasonStats.assists} />
+            <StatTile label={t("stats.minutes")} value={seasonStats.minutes} />
           </dl>
           <p className="text-xs text-muted-foreground tabular-nums">
-            Forme {profile.form} · Moral {profile.morale} · Condition {profile.fitness} · Cartons {seasonStats.yellowCards} J,{" "}
-            {seasonStats.redCards} R
+            {t("condition", {
+              form: profile.form,
+              morale: profile.morale,
+              fitness: profile.fitness,
+              yellow: seasonStats.yellowCards,
+              red: seasonStats.redCards,
+            })}
           </p>
         </section>
 
         <section
-          aria-label="Contrat"
+          aria-label={t("contract")}
+          data-testid="player-sheet-contract"
           className={cn("space-y-1.5 rounded-md border p-3.5", profile.contractExpiring && "border-warning/30 bg-warning/5")}
         >
           <p className="flex flex-wrap items-baseline justify-between gap-x-3 tabular-nums">
             <span className={cn("font-semibold", profile.contractExpiring && "text-warning")}>
-              {profile.contractUntil === null ? "Sans contrat" : `Contrat jusqu'au ${formatDate(profile.contractUntil)}`}
+              {profile.contractUntil === null
+                ? t("noContract")
+                : t("contractUntil", { date: formatDate(profile.contractUntil, locale) })}
             </span>
-            {profile.contractUntil !== null && <span className="text-muted-foreground">{formatMoney(profile.wage)} / an</span>}
+            {profile.contractUntil !== null && (
+              <span className="text-muted-foreground">{t("wagePerYear", { wage: formatMoney(profile.wage, locale) })}</span>
+            )}
           </p>
           <p className="text-xs text-muted-foreground">
-            Valeur marchande {formatMoney(profile.marketValue)}.
-            {profile.contractExpiring && " Sans prolongation, il partira libre en fin de saison."}
+            {t("marketValue", { value: formatMoney(profile.marketValue, locale) })}
+            {profile.contractExpiring && ` ${t("leavingFree")}`}
           </p>
         </section>
 
         {profile.transfers.length > 0 && (
-          <section className="space-y-1.5">
-            <h3 className="eyebrow">Transferts</h3>
+          <section className="space-y-1.5" data-testid="player-sheet-transfers">
+            <h3 className="eyebrow">{t("transfers")}</h3>
             <ol className="space-y-1 text-xs">
               {profile.transfers.map((transfer) => (
                 <li key={transfer.id} className="grid grid-cols-[5.5rem_1fr] gap-2">
-                  <span className="text-muted-foreground tabular-nums">{formatDate(transfer.date)}</span>
-                  <span>{transferLabel(transfer)}</span>
+                  <span className="text-muted-foreground tabular-nums">{formatDate(transfer.date, locale)}</span>
+                  <span>{transferLabel(transfer, t, locale)}</span>
                 </li>
               ))}
             </ol>

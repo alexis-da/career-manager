@@ -1,33 +1,29 @@
+import { useTranslations } from "next-intl";
 import type { AttributeName } from "@/src/engine/generation";
 import type { Position } from "@/src/engine/positions";
 import { cn } from "@/src/lib/utils";
 
-const OUTFIELD_ATTRIBUTES: { name: AttributeName; label: string }[] = [
-  { name: "pace", label: "Vitesse" },
-  { name: "shooting", label: "Tir" },
-  { name: "passing", label: "Passe" },
-  { name: "dribbling", label: "Dribble" },
-  { name: "defending", label: "Défense" },
-  { name: "physical", label: "Physique" },
-];
+// An attribute's name is a message: player.attributes.<name>.
+const OUTFIELD_ATTRIBUTES: readonly AttributeName[] = ["pace", "shooting", "passing", "dribbling", "defending", "physical"];
 
-const GOALKEEPING: { name: AttributeName; label: string } = { name: "goalkeeping", label: "Gardien" };
+const GOALKEEPING: AttributeName = "goalkeeping";
 
 /** Below this value an attribute bar is greyed: it is not a strength of the player. */
 const WEAK_ATTRIBUTE = 40;
 
 /** The six outfield attributes, the goalkeeping one first for a goalkeeper. */
-export function attributesShown(position: Position): { name: AttributeName; label: string }[] {
+export function attributesShown(position: Position): readonly AttributeName[] {
   return position === "GK" ? [GOALKEEPING, ...OUTFIELD_ATTRIBUTES] : OUTFIELD_ATTRIBUTES;
 }
 
-export function AttributeBar({ label, value, compact = false }: { label: string; value: number; compact?: boolean }) {
+export function AttributeBar({ name, value, compact = false }: { name: AttributeName; value: number; compact?: boolean }) {
+  const t = useTranslations("player");
   return (
     <div
-      data-attribute={label}
+      data-attribute={name}
       className={cn("grid items-center text-xs", compact ? "grid-cols-[4rem_1fr_1.5rem] gap-2" : "grid-cols-[5rem_1fr_2rem] gap-3")}
     >
-      <span className="text-muted-foreground">{label}</span>
+      <span className="text-muted-foreground">{t(`attributes.${name}`)}</span>
       <span className={cn("rounded-full bg-border", compact ? "h-1" : "h-1.5")} aria-hidden>
         <span
           className={cn(
@@ -53,10 +49,11 @@ export function AttributeBars({
   attributes: Record<AttributeName, number>;
   compact?: boolean;
 }) {
+  const t = useTranslations("player");
   return (
-    <section aria-label="Attributs" className={compact ? "space-y-1.5" : "space-y-2.5"}>
-      {attributesShown(position).map((attribute) => (
-        <AttributeBar key={attribute.name} label={attribute.label} value={attributes[attribute.name]} compact={compact} />
+    <section aria-label={t("attributesLabel")} className={compact ? "space-y-1.5" : "space-y-2.5"} data-testid="player-attributes">
+      {attributesShown(position).map((name) => (
+        <AttributeBar key={name} name={name} value={attributes[name]} compact={compact} />
       ))}
     </section>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { PreviewCard } from "@base-ui/react/preview-card";
+import { useLocale, useTranslations } from "next-intl";
 import { PlayerFace } from "@/src/components/player-face";
 import { HoverCardContent } from "@/src/components/ui/hover-card";
 import type { SquadPlayerView } from "@/src/db/squad";
@@ -32,8 +33,10 @@ function ConditionGauge({ label, value }: { label: string; value: number }) {
 }
 
 function PlayerCardBody({ player }: { player: SquadPlayerView }) {
+  const t = useTranslations("player");
+  const locale = useLocale();
   return (
-    <div className="space-y-3" data-player-card={player.playerKey}>
+    <div className="space-y-3" data-player-card={player.playerKey} data-testid="player-card">
       <div className="flex items-center gap-3">
         <PlayerFace playerKey={player.playerKey} age={player.age} clubColors={player.clubColors} size={48} className="shrink-0" />
         <div className="min-w-0 flex-1">
@@ -42,15 +45,15 @@ function PlayerCardBody({ player }: { player: SquadPlayerView }) {
           </p>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <PositionBadges playerKey={player.playerKey} position={player.position} />
-            {player.age} ans
+            {t("age", { age: player.age })}
           </p>
         </div>
         <div className={cn("rounded-md px-2 py-1 text-center", ratingClasses(player.overall))}>
-          <p className="font-heading text-2xl leading-none font-bold tabular-nums" title="Note">
+          <p className="font-heading text-2xl leading-none font-bold tabular-nums" title={t("rating")}>
             {player.overall}
           </p>
-          <p className="mt-0.5 text-[0.5625rem] font-semibold tracking-[0.12em] uppercase tabular-nums" title="Potentiel">
-            Pot. {player.potential}
+          <p className="mt-0.5 text-[0.5625rem] font-semibold tracking-[0.12em] uppercase tabular-nums" title={t("potential")}>
+            {t("potentialShort", { potential: player.potential })}
           </p>
         </div>
       </div>
@@ -58,21 +61,21 @@ function PlayerCardBody({ player }: { player: SquadPlayerView }) {
       <AttributeBars position={player.position} attributes={player.attributes} compact />
 
       <dl className="grid grid-cols-3 gap-3">
-        <ConditionGauge label="Forme" value={player.form} />
-        <ConditionGauge label="Moral" value={player.morale} />
-        <ConditionGauge label="Condition" value={player.fitness} />
+        <ConditionGauge label={t("form")} value={player.form} />
+        <ConditionGauge label={t("morale")} value={player.morale} />
+        <ConditionGauge label={t("fitness")} value={player.fitness} />
       </dl>
 
       <dl className="flex justify-between gap-3 border-t pt-2 text-xs">
         <div>
-          <dt className="text-muted-foreground">Fin de contrat</dt>
+          <dt className="text-muted-foreground">{t("contractEnd")}</dt>
           <dd className={cn("font-semibold", player.contractExpiring && "text-warning")}>
-            {player.contractUntil === null ? "—" : formatDate(player.contractUntil)}
+            {player.contractUntil === null ? "—" : formatDate(player.contractUntil, locale)}
           </dd>
         </div>
         <div className="text-right">
-          <dt className="text-muted-foreground">Salaire</dt>
-          <dd className="font-semibold tabular-nums">{formatMoney(player.wage)} / saison</dd>
+          <dt className="text-muted-foreground">{t("wage")}</dt>
+          <dd className="font-semibold tabular-nums">{t("wagePerSeason", { wage: formatMoney(player.wage, locale) })}</dd>
         </div>
       </dl>
     </div>

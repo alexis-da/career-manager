@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
@@ -16,6 +17,7 @@ export const DEFAULT_CONTRACT_LENGTH = 3;
  * the figures to change: the explanation of the refusal, never a generic failure.
  */
 export function usePlayerAction() {
+  const t = useTranslations("contract");
   const [pending, startTransition] = useTransition();
   const [refusal, setRefusal] = useState<string | null>(null);
 
@@ -25,13 +27,13 @@ export function usePlayerAction() {
       try {
         const result = await action();
         if (result.ok) {
-          toast.success(`${label} : ${result.message}`);
+          toast.success(t("done", { label, message: result.message }));
           onSuccess();
         } else {
           setRefusal(result.message);
         }
       } catch {
-        setRefusal("Le serveur n'a pas pu traiter la demande. Réessayez.");
+        setRefusal(t("serverError"));
       }
     });
   };
@@ -47,9 +49,11 @@ type DurationFieldProps = {
 
 /** Contract length, from 1 to 5 seasons, with the end date it gives. */
 export function DurationField({ years, onChange, currentDate }: DurationFieldProps) {
+  const t = useTranslations("contract");
+  const locale = useLocale();
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">Durée</legend>
+    <fieldset className="space-y-2" data-testid="contract-length">
+      <legend className="text-sm font-medium">{t("length")}</legend>
       <div className="flex flex-wrap gap-1">
         {CONTRACT_LENGTHS.map((length) => (
           <Button
@@ -59,12 +63,15 @@ export function DurationField({ years, onChange, currentDate }: DurationFieldPro
             variant={length === years ? "default" : "outline"}
             aria-pressed={length === years}
             onClick={() => onChange(length)}
+            data-testid={`contract-length-${length}`}
           >
-            {length} saison{length > 1 ? "s" : ""}
+            {t("seasons", { count: length })}
           </Button>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">Jusqu&apos;au {formatDate(contractEndDate(currentDate, years))}</p>
+      <p className="text-xs text-muted-foreground">
+        {t("until", { date: formatDate(contractEndDate(currentDate, years), locale) })}
+      </p>
     </fieldset>
   );
 }
@@ -77,10 +84,13 @@ type MoneyFieldProps = {
   step: number;
   min: number;
   hint?: string;
+  testId?: string; // the input's data-testid
 };
 
 /** An amount in euros, typed in full and read back in M€ or k€. */
-export function MoneyField({ id, label, value, onChange, step, min, hint }: MoneyFieldProps) {
+export function MoneyField({ id, label, value, onChange, step, min, hint, testId }: MoneyFieldProps) {
+  const t = useTranslations("contract");
+  const locale = useLocale();
   const amount = Number(value);
   const valid = value.trim() !== "" && Number.isInteger(amount) && amount >= min;
   return (
@@ -98,9 +108,10 @@ export function MoneyField({ id, label, value, onChange, step, min, hint }: Mone
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={!valid}
         className="tabular-nums"
+        data-testid={testId}
       />
       <p className="text-xs text-muted-foreground tabular-nums">
-        {valid ? formatMoney(amount) : "Montant invalide"}
+        {valid ? formatMoney(amount, locale) : t("invalidAmount")}
         {hint !== undefined && ` · ${hint}`}
       </p>
     </div>
@@ -113,17 +124,22 @@ export function RefusalAlert({ message }: { message: string | null }) {
     return null;
   }
   return (
-    <p role="alert" className="rounded-md border border-loss/30 bg-loss/10 px-3 py-2 text-sm text-loss">
+    <p role="alert" className="rounded-md border border-loss/30 bg-loss/10 px-3 py-2 text-sm text-loss" data-testid="refusal-alert">
       {message}
     </p>
   );
 }
 
-/** Why the actions below are disabled: the transfer window is closed until a date. */
+/**
+ * Why the actions below are disabled: the transfer window is closed until a date. `actions` names them, in the
+ * player's language, as the subject of the sentence: « les signatures ».
+ */
 export function ClosedWindowNote({ actions, reopensOn }: { actions: string; reopensOn: Date }) {
+  const t = useTranslations("contract");
+  const locale = useLocale();
   return (
-    <p className="text-xs text-warning">
-      Mercato fermé : {actions} reprendront le {formatDate(reopensOn)}.
+    <p className="text-xs text-warning" data-testid="window-closed-note">
+      {t("windowClosed", { actions, date: formatDate(reopensOn, locale) })}
     </p>
   );
 }

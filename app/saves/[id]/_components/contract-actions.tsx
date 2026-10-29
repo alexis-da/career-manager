@@ -45,11 +45,15 @@ export function RenewContractDialog({
   disabled = false,
   triggerClassName,
 }: ActionProps & { currentDate: Date }) {
+  const t = useTranslations("contract");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [years, setYears] = useState<number>(DEFAULT_CONTRACT_LENGTH);
   const [wage, setWage] = useState(String(terms.renewalMinimumWage));
   const { pending, refusal, clearRefusal, run } = usePlayerAction();
   const name = fullName(player);
+  const minimumWage = formatMoney(terms.renewalMinimumWage, locale);
 
   const onOpenChange = (next: boolean) => {
     if (next) {
@@ -63,15 +67,20 @@ export function RenewContractDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* The main action on a player of the managed club: in the club accent. */}
-      <DialogTrigger disabled={disabled} render={<Button variant="club" className={triggerClassName} />}>
-        Prolonger
+      <DialogTrigger
+        disabled={disabled}
+        render={<Button variant="club" className={triggerClassName} />}
+        data-testid="renew-contract"
+      >
+        {t("renew")}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-testid="renew-dialog">
         <DialogHeader>
-          <DialogTitle>Prolonger {name}</DialogTitle>
+          <DialogTitle>{t("renewTitle", { name })}</DialogTitle>
           <DialogDescription>
-            Il accepte au moins {formatMoney(terms.renewalMinimumWage)} par saison. Contrat actuel :{" "}
-            {player.contractUntil === null ? "aucun" : `jusqu'au ${formatDate(player.contractUntil)}`}.
+            {player.contractUntil === null
+              ? t("renewDescriptionNoContract", { wage: minimumWage })
+              : t("renewDescription", { wage: minimumWage, date: formatDate(player.contractUntil, locale) })}
           </DialogDescription>
         </DialogHeader>
 
@@ -79,17 +88,20 @@ export function RenewContractDialog({
           <DurationField years={years} onChange={setYears} currentDate={currentDate} />
           <MoneyField
             id={`renewal-wage-${player.id}`}
-            label="Salaire proposé, en euros par saison"
+            label={t("offeredWage")}
             value={wage}
             onChange={setWage}
             step={10_000}
             min={1}
+            testId="renewal-wage"
           />
           <RefusalAlert message={refusal} />
         </div>
 
         <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+          <DialogClose render={<Button variant="outline" />} data-testid="renew-cancel">
+            {tCommon("cancel")}
+          </DialogClose>
           <Button
             disabled={pending}
             onClick={() =>
@@ -99,8 +111,9 @@ export function RenewContractDialog({
                 () => setOpen(false),
               )
             }
+            data-testid="renew-confirm"
           >
-            {pending ? "Négociation…" : "Confirmer la prolongation"}
+            {pending ? t("negotiating") : t("confirmRenewal")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -109,6 +122,9 @@ export function RenewContractDialog({
 }
 
 export function ReleasePlayerDialog({ saveId, player, terms, disabled = false, triggerClassName }: ActionProps) {
+  const t = useTranslations("contract");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const { pending, refusal, clearRefusal, run } = usePlayerAction();
   const name = fullName(player);
@@ -122,26 +138,30 @@ export function ReleasePlayerDialog({ saveId, player, terms, disabled = false, t
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger disabled={disabled} render={<Button variant="outline" className={triggerClassName} />}>
-        Libérer
+      <DialogTrigger
+        disabled={disabled}
+        render={<Button variant="outline" className={triggerClassName} />}
+        data-testid="release-player"
+      >
+        {t("release")}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-testid="release-dialog">
         <DialogHeader>
-          <DialogTitle>Libérer {name}</DialogTitle>
-          <DialogDescription>
-            Il deviendra joueur libre. Coût : {formatMoney(terms.releaseCost)}, la moitié des salaires restant dus sur
-            son contrat.
-          </DialogDescription>
+          <DialogTitle>{t("releaseTitle", { name })}</DialogTitle>
+          <DialogDescription>{t("releaseDescription", { cost: formatMoney(terms.releaseCost, locale) })}</DialogDescription>
         </DialogHeader>
         <RefusalAlert message={refusal} />
         <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+          <DialogClose render={<Button variant="outline" />} data-testid="release-cancel">
+            {tCommon("cancel")}
+          </DialogClose>
           <Button
             variant="destructive"
             disabled={pending}
             onClick={() => run(name, () => releasePlayerAction({ saveId, playerSaveId: player.id }), () => setOpen(false))}
+            data-testid="release-confirm"
           >
-            {pending ? "Libération…" : "Libérer le joueur"}
+            {pending ? t("releasing") : t("confirmRelease")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -150,6 +170,8 @@ export function ReleasePlayerDialog({ saveId, player, terms, disabled = false, t
 }
 
 export function SellPlayerDialog({ saveId, player, terms, disabled = false, triggerClassName }: ActionProps) {
+  const t = useTranslations("contract");
+  const tCommon = useTranslations("common");
   const tRefusals = useTranslations("refusals");
   const locale = useLocale();
   const [open, setOpen] = useState(false);
@@ -166,27 +188,39 @@ export function SellPlayerDialog({ saveId, player, terms, disabled = false, trig
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger disabled={disabled} render={<Button variant="outline" className={triggerClassName} />}>
-        Vendre
+      <DialogTrigger
+        disabled={disabled}
+        render={<Button variant="outline" className={triggerClassName} />}
+        data-testid="sell-player"
+      >
+        {t("sell")}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-testid="sell-dialog">
         <DialogHeader>
-          <DialogTitle>Vendre {name}</DialogTitle>
+          <DialogTitle>{t("sellTitle", { name })}</DialogTitle>
           <DialogDescription>
             {sale.ok
-              ? `Meilleure offre : ${sale.buyerName} propose ${formatMoney(sale.fee)}. Le joueur y gagnera ${formatMoney(sale.wage)} par saison, pour ${sale.years} saison${sale.years > 1 ? "s" : ""}.`
+              ? t("bestOffer", {
+                  buyer: sale.buyerName,
+                  fee: formatMoney(sale.fee, locale),
+                  wage: formatMoney(sale.wage, locale),
+                  years: sale.years,
+                })
               : refusalMessage(sale.reason, tRefusals, locale)}
           </DialogDescription>
         </DialogHeader>
         <RefusalAlert message={refusal} />
         <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>{sale.ok ? "Refuser" : "Fermer"}</DialogClose>
+          <DialogClose render={<Button variant="outline" />} data-testid="sell-cancel">
+            {sale.ok ? t("decline") : tCommon("close")}
+          </DialogClose>
           {sale.ok && (
             <Button
               disabled={pending}
               onClick={() => run(name, () => sellPlayerAction({ saveId, playerSaveId: player.id }), () => setOpen(false))}
+              data-testid="sell-confirm"
             >
-              {pending ? "Transfert…" : "Accepter l'offre"}
+              {pending ? t("selling") : t("acceptOffer")}
             </Button>
           )}
         </DialogFooter>
@@ -206,10 +240,11 @@ type SquadPlayerActionsProps = {
 
 /** Actions of the player sheet for a player of the managed club; disabled, with the reason, while the window is closed. */
 export function SquadPlayerActions({ saveId, player, terms, currentDate, windowOpen, nextWindowOpensOn }: SquadPlayerActionsProps) {
+  const t = useTranslations("contract");
   const disabled = !windowOpen;
   return (
     <>
-      {disabled && <ClosedWindowNote actions="prolongations, ventes et libérations" reopensOn={nextWindowOpensOn} />}
+      {disabled && <ClosedWindowNote actions={t("closedActions")} reopensOn={nextWindowOpensOn} />}
       <RenewContractDialog
         saveId={saveId}
         player={player}
