@@ -1,1 +1,121 @@
-{}
+{
+  "standings": {
+    "title": "Table",
+    "season": "Season {season}",
+    "empty": "No season in this career.",
+    "countries": "Countries",
+    "divisions": "Division, {country}",
+    "division": "Division {tier}",
+    "club": "Club",
+    "managed": "your club",
+    "columns": {
+      "played": "P",
+      "won": "W",
+      "drawn": "D",
+      "lost": "L",
+      "goalsFor": "GF",
+      "goalsAgainst": "GA",
+      "goalDifference": "GD",
+      "points": "Pts"
+    },
+    "columnTitles": {
+      "played": "Played",
+      "won": "Won",
+      "drawn": "Drawn",
+      "lost": "Lost",
+      "goalsFor": "Goals for",
+      "goalsAgainst": "Goals against",
+      "goalDifference": "Goal difference",
+      "points": "Points"
+    },
+    "zone": {
+      "promotion": "promotion place",
+      "relegation": "relegation place"
+    },
+    "legend": {
+      "promotion": "Promotion to Division 1",
+      "relegation": "Relegation to Division 2"
+    }
+  },
+  "cup": {
+    "title": "Cup",
+    "subtitle": "{competition} · Season {season}",
+    "winner": "Winners",
+    "run": "Your cup run:",
+    "exempt": "Exempt from the preliminary round: your club comes in at the round of 32, drawn once the first round is over.",
+    "won": "Cup winners.",
+    "out": {
+      "1": "Knocked out in the preliminary round.",
+      "2": "Knocked out in the round of 32.",
+      "3": "Knocked out in the round of 16.",
+      "4": "Knocked out in the quarter-finals.",
+      "5": "Knocked out in the semi-finals.",
+      "6": "Beaten in the final."
+    },
+    "outOther": "Knocked out in round {round}.",
+    "in": "Still in: {round}, on {date}.",
+    "inExempt": "Exempt from the preliminary round · Still in: {round}, on {date}.",
+    "drawPending": "Drawn once the previous round is over."
+  },
+  "seasons": {
+    "title": "Honours",
+    "empty": "No completed season yet: each season's record will show here.",
+    "columns": {
+      "season": "Season",
+      "competition": "Competition",
+      "rank": "Position",
+      "points": "Pts",
+      "pointsTitle": "Points",
+      "record": "W-D-L",
+      "recordTitle": "Won, drawn, lost",
+      "bestPlayer": "Best player",
+      "card": "Card"
+    },
+    "bestPlayerStats": "{position} · {goals, plural, one {# goal} other {# goals}} · {assists, plural, one {# assist} other {# assists}} · rating {rating}",
+    "viewCard": "View card",
+    "viewCardLabel": "View the {season} season card",
+    "champion": "Champions",
+    "rank": "{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+    "promoted": "Promoted to Division 1",
+    "relegated": "Relegated to Division 2",
+    "cardFile": "late-winner-season-{season}.png",
+    "cardFileLandscape": "late-winner-season-{season}-landscape.png",
+    "completed": {
+      "title": "Season complete",
+      "summary": "Season {season} · {competition} · {rank} with {points, plural, one {# point} other {# points}} ({record})",
+      "cupWinner": "{cup} · winners: {club}",
+      "shareTitle": "My {season} season on Late Winner"
+    },
+    "cardPanel": {
+      "alt": "Season card: {title}",
+      "download": "Download",
+      "share": "Share",
+      "landscape": "Landscape version"
+    },
+    "moves": {
+      "title": "Promotion and relegation",
+      "promoted": "Promoted to Division 1",
+      "relegated": "Relegated to Division 2",
+      "rankIn": "{rank} in {competition}"
+    }
+  },
+  "seasonCard": {
+    "season": "SEASON {season}",
+    "points": "POINTS",
+    "record": "W-D-L",
+    "goals": "GOALS FOR-AGAINST",
+    "rankSuffix": "{rank, selectordinal, one {st} two {nd} few {rd} other {th}}",
+    "double": "DOUBLE",
+    "doubleLine": "League and Cup",
+    "doubleLinePromoted": "League and Cup · {move}",
+    "cup": "CUP",
+    "promoted": "PROMOTED",
+    "place": "{rank} place",
+    "placePromoted": "{rank} place · promoted",
+    "bestPlayer": "BEST PLAYER",
+    "noBestPlayer": "No player with 10 appearances",
+    "playerGoals": "GOALS",
+    "playerAssists": "ASSISTS",
+    "playerRating": "RATING"
+  }
+}

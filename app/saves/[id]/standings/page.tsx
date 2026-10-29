@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 import { competitionName } from "@/src/i18n/countries";
 import type { Metadata } from "next";
@@ -14,7 +15,9 @@ import { MANAGED_ROW, TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Classement" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getTranslations("standings"))("title") };
+}
 
 /** Active tab: the club accent at 18 % with an accent underline. */
 const ACTIVE_TAB = cn(
@@ -25,16 +28,8 @@ const ACTIVE_TAB = cn(
   "after:bg-(--club)",
 );
 
-const COLUMNS = [
-  { key: "played", label: "J", title: "Joués" },
-  { key: "won", label: "G", title: "Gagnés" },
-  { key: "drawn", label: "N", title: "Nuls" },
-  { key: "lost", label: "P", title: "Perdus" },
-  { key: "goalsFor", label: "BP", title: "Buts pour" },
-  { key: "goalsAgainst", label: "BC", title: "Buts contre" },
-  { key: "goalDifference", label: "Diff", title: "Différence de buts" },
-  { key: "points", label: "Pts", title: "Points" },
-] as const;
+/** The table's figures, in order: each has its short label and its full name in the standings messages. */
+const COLUMNS = ["played", "won", "drawn", "lost", "goalsFor", "goalsAgainst", "goalDifference", "points"] as const;
 
 type Zone = "promotion" | "relegation" | null;
 
@@ -50,22 +45,18 @@ function zoneOf(table: CompetitionTable, rank: number, divided: boolean): Zone {
   return table.tier === 1 && rank > table.rows.length - moves ? "relegation" : null;
 }
 
-const ZONE_LABEL: Record<Exclude<Zone, null>, string> = {
-  promotion: "place de montée",
-  relegation: "place de descente",
-};
-
 function StandingsTable({ table, divided }: { table: CompetitionTable; divided: boolean }) {
+  const t = useTranslations("standings");
   return (
     <Panel className="p-2 sm:p-3">
-      <Table className="tabular-nums">
+      <Table className="tabular-nums" data-testid="standings-table">
         <TableHeader>
           <TableRow className="border-border hover:bg-transparent">
             <TableHead className={cn(TABLE_HEAD, "w-12 text-right")}>#</TableHead>
-            <TableHead className={TABLE_HEAD}>Club</TableHead>
+            <TableHead className={TABLE_HEAD}>{t("club")}</TableHead>
             {COLUMNS.map((column) => (
-              <TableHead key={column.key} className={cn(TABLE_HEAD, "text-right")} title={column.title}>
-                {column.label}
+              <TableHead key={column} className={cn(TABLE_HEAD, "text-right")} title={t(`columnTitles.${column}`)}>
+                {t(`columns.${column}`)}
               </TableHead>
             ))}
           </TableRow>
@@ -90,19 +81,19 @@ function StandingsTable({ table, divided }: { table: CompetitionTable; divided: 
                   )}
                 >
                   {row.rank}
-                  {zone !== null && <span className="sr-only"> ({ZONE_LABEL[zone]})</span>}
+                  {zone !== null && <span className="sr-only"> ({t(`zone.${zone}`)})</span>}
                 </TableCell>
                 <TableCell className={TABLE_CELL}>
                   {row.clubName}
-                  {row.isManaged && <span className="sr-only"> (votre club)</span>}
+                  {row.isManaged && <span className="sr-only"> ({t("managed")})</span>}
                 </TableCell>
                 {COLUMNS.map((column) => (
                   <TableCell
-                    key={column.key}
-                    data-column={column.key}
-                    className={cn(TABLE_CELL, "text-right", column.key === "points" && "font-heading text-base font-bold")}
+                    key={column}
+                    data-column={column}
+                    className={cn(TABLE_CELL, "text-right", column === "points" && "font-heading text-base font-bold")}
                   >
-                    {column.key === "goalDifference" && row.goalDifference > 0 ? `+${row.goalDifference}` : row[column.key]}
+                    {column === "goalDifference" && row.goalDifference > 0 ? `+${row.goalDifference}` : row[column]}
                   </TableCell>
                 ))}
               </TableRow>
@@ -111,14 +102,14 @@ function StandingsTable({ table, divided }: { table: CompetitionTable; divided: 
         </TableBody>
       </Table>
       {divided && (
-        <p className="flex flex-wrap gap-x-4 gap-y-1 px-2 pt-3 text-xs text-muted-foreground">
+        <p data-testid="standings-legend" className="flex flex-wrap gap-x-4 gap-y-1 px-2 pt-3 text-xs text-muted-foreground">
           {table.tier === 2 ? (
             <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="h-3 w-[3px] rounded-full bg-(--club)" /> Montée en Division 1
+              <span aria-hidden className="h-3 w-[3px] rounded-full bg-(--club)" /> {t("legend.promotion")}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="h-3 w-[3px] rounded-full bg-muted-foreground/50" /> Descente en Division 2
+              <span aria-hidden className="h-3 w-[3px] rounded-full bg-muted-foreground/50" /> {t("legend.relegation")}
             </span>
           )}
         </p>
@@ -128,15 +119,19 @@ function StandingsTable({ table, divided }: { table: CompetitionTable; divided: 
 }
 
 export default async function StandingsPage({ params }: PageProps<"/saves/[id]/standings">) {
-  const [tWorld, locale] = await Promise.all([getTranslations("world"), getLocale()]);
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
+  const [t, tWorld, locale] = await Promise.all([getTranslations("standings"), getTranslations("world"), getLocale()]);
   const tables = await getLatestSeasonTables(id);
   const defaultTable = tables.find((table) => table.hasManagedClub) ?? tables[0];
 
   if (defaultTable === undefined) {
-    return <p className="text-muted-foreground">Aucune saison pour cette partie.</p>;
+    return (
+      <p data-testid="standings-empty" className="text-muted-foreground">
+        {t("empty")}
+      </p>
+    );
   }
 
   // A save with the second divisions: a tab per country, then Division 1 / Division 2; otherwise a tab per competition.
@@ -149,9 +144,11 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="font-heading text-4xl font-bold">Classement</h1>
-        <p className="text-sm text-muted-foreground tabular-nums">
-          Saison {seasonLabel(defaultTable.startYear)}
+        <h1 data-testid="standings-title" className="font-heading text-4xl font-bold">
+          {t("title")}
+        </h1>
+        <p data-testid="standings-season" className="text-sm text-muted-foreground tabular-nums">
+          {t("season", { season: seasonLabel(defaultTable.startYear) })}
         </p>
       </div>
 
@@ -159,11 +156,11 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
         <Tabs defaultValue={defaultTable.country} className="gap-4">
           <TabsList
             variant="line"
-            aria-label="Pays"
+            aria-label={t("countries")}
             className="h-auto flex-wrap gap-1 group-data-horizontal/tabs:h-auto"
           >
             {countries.map(([country]) => (
-              <TabsTrigger key={country} value={country} className={ACTIVE_TAB}>
+              <TabsTrigger key={country} value={country} className={ACTIVE_TAB} data-testid={`standings-country-${country}`}>
                 {tWorld(`countries.${country}`)}
               </TabsTrigger>
             ))}
@@ -174,10 +171,15 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
             return (
               <TabsContent key={country} value={country}>
                 <Tabs defaultValue={shown.code} className="gap-3">
-                  <TabsList aria-label={`Division, ${tWorld(`countries.${country}`)}`} className="w-fit">
+                  <TabsList aria-label={t("divisions", { country: tWorld(`countries.${country}`) })} className="w-fit">
                     {ordered.map((table) => (
-                      <TabsTrigger key={table.code} value={table.code} className="px-4">
-                        Division {table.tier}
+                      <TabsTrigger
+                        key={table.code}
+                        value={table.code}
+                        className="px-4"
+                        data-testid={`standings-division-${table.tier}`}
+                      >
+                        {t("division", { tier: table.tier })}
                       </TabsTrigger>
                     ))}
                   </TabsList>
@@ -195,7 +197,12 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
         <Tabs defaultValue={defaultTable.code} className="gap-4">
           <TabsList variant="line" className="h-auto flex-wrap gap-1 group-data-horizontal/tabs:h-auto">
             {tables.map((table) => (
-              <TabsTrigger key={table.code} value={table.code} className={ACTIVE_TAB}>
+              <TabsTrigger
+                key={table.code}
+                value={table.code}
+                className={ACTIVE_TAB}
+                data-testid={`standings-competition-${table.code}`}
+              >
                 {competitionName(table.code, tWorld)}
               </TabsTrigger>
             ))}

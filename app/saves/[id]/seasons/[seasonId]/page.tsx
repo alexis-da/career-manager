@@ -15,21 +15,26 @@ import { SeasonMovesPanel } from "../_components/season-moves-panel";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Saison terminée" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getTranslations("seasons"))("completed.title") };
+}
 
 /** The panel of a completed season: shown right after moving on to the next one, and from the palmarès. */
 export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seasons/[seasonId]">) {
-  const tWorld = await getTranslations("world");
-  const tStage = await getTranslations("stage");
   const { id, seasonId } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
+  const [t, tWorld, tStage] = await Promise.all([
+    getTranslations("seasons"),
+    getTranslations("world"),
+    getTranslations("stage"),
+  ]);
   const [result, moves] = await Promise.all([getSeasonResult(id, seasonId), getCountryMoves(id, seasonId)]);
   if (result === null) {
     notFound();
   }
   const { season } = result;
-  const move = moveLabel(season);
+  const move = moveLabel(season, t);
   const label = seasonLabel(season.startYear);
   // The cup's line: the managed club's run, and the winner when it is another club.
   const cup = cupLabel(season, tStage);
@@ -39,28 +44,40 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
     <div className="mx-auto max-w-3xl space-y-5">
       <Link
         href={`/saves/${id}/seasons`}
+        data-testid="season-back"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ChevronLeftIcon className="size-4" />
-        Palmarès
+        {t("title")}
       </Link>
       <div className="space-y-1">
-        <h1 className="font-heading text-4xl font-bold">Saison terminée</h1>
-        <p className="text-sm text-muted-foreground tabular-nums">
-          Saison {label} · {competitionName(season.competitionCode, tWorld)} · {rankLabel(season.rank)} avec {season.points} points (
-          {recordLabel(season)}){move === null ? "" : ` · ${move}`}
+        <h1 data-testid="season-title" className="font-heading text-4xl font-bold">
+          {t("completed.title")}
+        </h1>
+        <p data-testid="season-summary" className="text-sm text-muted-foreground tabular-nums">
+          {t("completed.summary", {
+            season: label,
+            competition: competitionName(season.competitionCode, tWorld),
+            rank: rankLabel(season.rank, t),
+            points: season.points,
+            record: recordLabel(season),
+          })}
+          {move === null ? "" : ` · ${move}`}
         </p>
         {cup !== null && (
-          <p data-season-cup="" className={season.cupWinner ? "text-sm font-semibold text-(--club)" : "text-sm text-muted-foreground"}>
-            {cup}
-            {cupWinner !== null && ` · vainqueur : ${cupWinner}`}
+          <p
+            data-season-cup=""
+            data-testid="season-cup"
+            className={season.cupWinner ? "text-sm font-semibold text-(--club)" : "text-sm text-muted-foreground"}
+          >
+            {cupWinner === null ? cup : t("completed.cupWinner", { cup, club: cupWinner })}
           </p>
         )}
       </div>
       <SeasonCardPanel
-        square={{ url: seasonCardPath(id, seasonId, "square"), fileName: seasonCardFileName(season.startYear, "square") }}
-        landscape={{ url: seasonCardPath(id, seasonId), fileName: seasonCardFileName(season.startYear, "landscape") }}
-        shareTitle={`Ma saison ${label} sur Late Winner`}
+        square={{ url: seasonCardPath(id, seasonId, "square"), fileName: seasonCardFileName(season.startYear, "square", t) }}
+        landscape={{ url: seasonCardPath(id, seasonId), fileName: seasonCardFileName(season.startYear, "landscape", t) }}
+        shareTitle={t("completed.shareTitle", { season: label })}
       />
       {moves.length > 0 && <SeasonMovesPanel moves={moves} />}
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { DownloadIcon, Share2Icon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button, buttonVariants } from "@/src/components/ui/button";
@@ -34,6 +35,7 @@ type SeasonCardPanelProps = {
  * must start right on the click.
  */
 export function SeasonCardPanel({ square, landscape, shareTitle }: SeasonCardPanelProps) {
+  const t = useTranslations("seasons.cardPanel");
   const shareable = useSyncExternalStore(subscribeToNothing, canShareFiles, () => false);
   const [file, setFile] = useState<File | null>(null);
 
@@ -68,37 +70,47 @@ export function SeasonCardPanel({ square, landscape, shareTitle }: SeasonCardPan
   };
 
   return (
-    <Panel className="space-y-4">
+    <Panel className="space-y-4" data-testid="season-card">
       <Image
         src={square.url}
-        alt={`Carte de la saison : ${shareTitle}`}
+        alt={t("alt", { title: shareTitle })}
         width={1080}
         height={1080}
         unoptimized
         priority
+        data-testid="season-card-image"
         className="h-auto w-full max-w-md rounded-md border"
       />
       <div className="flex flex-wrap items-center gap-2">
         <a
           href={square.url}
           download={square.fileName}
+          data-testid="season-card-download"
           className={buttonVariants({ variant: "club", size: "lg", className: "px-4" })}
         >
           <DownloadIcon data-icon="inline-start" />
-          Télécharger
+          {t("download")}
         </a>
         {shareable && (
-          <Button variant="outline" size="lg" className="px-4" disabled={file === null} onClick={share}>
+          <Button
+            variant="outline"
+            size="lg"
+            className="px-4"
+            disabled={file === null}
+            onClick={share}
+            data-testid="season-card-share"
+          >
             <Share2Icon data-icon="inline-start" />
-            Partager
+            {t("share")}
           </Button>
         )}
         <a
           href={landscape.url}
           download={landscape.fileName}
+          data-testid="season-card-landscape"
           className="ml-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
-          Version paysage
+          {t("landscape")}
         </a>
       </div>
     </Panel>

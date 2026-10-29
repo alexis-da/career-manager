@@ -1,1 +1,121 @@
-{}
+{
+  "standings": {
+    "title": "Classement",
+    "season": "Saison {season}",
+    "empty": "Aucune saison pour cette partie.",
+    "countries": "Pays",
+    "divisions": "Division, {country}",
+    "division": "Division {tier}",
+    "club": "Club",
+    "managed": "ton club",
+    "columns": {
+      "played": "J",
+      "won": "G",
+      "drawn": "N",
+      "lost": "P",
+      "goalsFor": "BP",
+      "goalsAgainst": "BC",
+      "goalDifference": "Diff",
+      "points": "Pts"
+    },
+    "columnTitles": {
+      "played": "Joués",
+      "won": "Gagnés",
+      "drawn": "Nuls",
+      "lost": "Perdus",
+      "goalsFor": "Buts pour",
+      "goalsAgainst": "Buts contre",
+      "goalDifference": "Différence de buts",
+      "points": "Points"
+    },
+    "zone": {
+      "promotion": "place de montée",
+      "relegation": "place de descente"
+    },
+    "legend": {
+      "promotion": "Montée en Division 1",
+      "relegation": "Descente en Division 2"
+    }
+  },
+  "cup": {
+    "title": "Coupe",
+    "subtitle": "{competition} · Saison {season}",
+    "winner": "Vainqueur",
+    "run": "Ton parcours :",
+    "exempt": "Exempté du tour préliminaire : ton club entre en 16es de finale, tirés à l'issue du premier tour.",
+    "won": "Vainqueur de la Coupe.",
+    "out": {
+      "1": "Éliminé au tour préliminaire.",
+      "2": "Éliminé en 16es de finale.",
+      "3": "Éliminé en 8es de finale.",
+      "4": "Éliminé en quarts de finale.",
+      "5": "Éliminé en demi-finale.",
+      "6": "Éliminé en finale."
+    },
+    "outOther": "Éliminé au tour {round}.",
+    "in": "En lice : {round}, le {date}.",
+    "inExempt": "Exempté du tour préliminaire · En lice : {round}, le {date}.",
+    "drawPending": "Tirage à l'issue du tour précédent."
+  },
+  "seasons": {
+    "title": "Palmarès",
+    "empty": "Aucune saison terminée pour l'instant : le bilan de chaque saison s'affichera ici.",
+    "columns": {
+      "season": "Saison",
+      "competition": "Compétition",
+      "rank": "Classement",
+      "points": "Pts",
+      "pointsTitle": "Points",
+      "record": "V-N-D",
+      "recordTitle": "Victoires, nuls, défaites",
+      "bestPlayer": "Meilleur joueur",
+      "card": "Carte"
+    },
+    "bestPlayerStats": "{position} · {goals, plural, one {# but} other {# buts}} · {assists, plural, one {# passe} other {# passes}} · note {rating}",
+    "viewCard": "Voir la carte",
+    "viewCardLabel": "Voir la carte de la saison {season}",
+    "champion": "Champion",
+    "rank": "{rank}e",
+    "promoted": "Promu en Division 1",
+    "relegated": "Relégué en Division 2",
+    "cardFile": "late-winner-saison-{season}.png",
+    "cardFileLandscape": "late-winner-saison-{season}-paysage.png",
+    "completed": {
+      "title": "Saison terminée",
+      "summary": "Saison {season} · {competition} · {rank} avec {points} points ({record})",
+      "cupWinner": "{cup} · vainqueur : {club}",
+      "shareTitle": "Ma saison {season} sur Late Winner"
+    },
+    "cardPanel": {
+      "alt": "Carte de la saison : {title}",
+      "download": "Télécharger",
+      "share": "Partager",
+      "landscape": "Version paysage"
+    },
+    "moves": {
+      "title": "Montées et descentes",
+      "promoted": "Montent en Division 1",
+      "relegated": "Descendent en Division 2",
+      "rankIn": "{rank} de {competition}"
+    }
+  },
+  "seasonCard": {
+    "season": "SAISON {season}",
+    "points": "POINTS",
+    "record": "V-N-D",
+    "goals": "BUTS POUR-CONTRE",
+    "rankSuffix": "{rank, selectordinal, one {er} other {e}}",
+    "double": "DOUBLÉ",
+    "doubleLine": "Championnat et Coupe",
+    "doubleLinePromoted": "Championnat et Coupe · {move}",
+    "cup": "COUPE",
+    "promoted": "PROMU",
+    "place": "{rank} place",
+    "placePromoted": "{rank} place · promu",
+    "bestPlayer": "MEILLEUR JOUEUR",
+    "noBestPlayer": "Aucun joueur à 10 matchs",
+    "playerGoals": "BUTS",
+    "playerAssists": "PASSES",
+    "playerRating": "NOTE"
+  }
+}

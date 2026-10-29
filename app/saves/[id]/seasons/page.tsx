@@ -1,5 +1,5 @@
 import { competitionName } from "@/src/i18n/countries";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireOwnedSave } from "@/src/auth/current-user";
@@ -16,45 +16,53 @@ import { cupLabel, moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Palmarès" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getTranslations("seasons"))("title") };
+}
 
 /** The managed club's completed seasons, most recent first, each with a link to its card. */
 export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/seasons">) {
-  const tWorld = await getTranslations("world");
-  const tPositions = await getTranslations("positions");
-  const tStage = await getTranslations("stage");
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
+  const [t, tWorld, tPositions, tStage, locale] = await Promise.all([
+    getTranslations("seasons"),
+    getTranslations("world"),
+    getTranslations("positions"),
+    getTranslations("stage"),
+    getLocale(),
+  ]);
   const { clubColors, seasons } = await getSeasonResults(id);
 
   return (
     <div className="space-y-5">
-      <h1 className="font-heading text-4xl font-bold">Palmarès</h1>
+      <h1 data-testid="seasons-title" className="font-heading text-4xl font-bold">
+        {t("title")}
+      </h1>
 
       {seasons.length === 0 ? (
         <Panel>
-          <p className="text-sm text-muted-foreground">
-            Aucune saison terminée pour l&apos;instant : le bilan de chaque saison s&apos;affichera ici.
+          <p data-testid="seasons-empty" className="text-sm text-muted-foreground">
+            {t("empty")}
           </p>
         </Panel>
       ) : (
         <Panel className="p-2 sm:p-3">
-          <Table className="tabular-nums">
+          <Table className="tabular-nums" data-testid="seasons-table">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className={TABLE_HEAD}>Saison</TableHead>
-                <TableHead className={TABLE_HEAD}>Compétition</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")}>Classement</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")} title="Points">
-                  Pts
+                <TableHead className={TABLE_HEAD}>{t("columns.season")}</TableHead>
+                <TableHead className={TABLE_HEAD}>{t("columns.competition")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right")}>{t("columns.rank")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right")} title={t("columns.pointsTitle")}>
+                  {t("columns.points")}
                 </TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")} title="Victoires, nuls, défaites">
-                  V-N-D
+                <TableHead className={cn(TABLE_HEAD, "text-right")} title={t("columns.recordTitle")}>
+                  {t("columns.record")}
                 </TableHead>
-                <TableHead className={TABLE_HEAD}>Meilleur joueur</TableHead>
+                <TableHead className={TABLE_HEAD}>{t("columns.bestPlayer")}</TableHead>
                 <TableHead className={TABLE_HEAD}>
-                  <span className="sr-only">Carte</span>
+                  <span className="sr-only">{t("columns.card")}</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -70,12 +78,12 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                   </TableCell>
                   <TableCell className={TABLE_CELL}>
                     {competitionName(season.competitionCode, tWorld)}
-                    {moveLabel(season) !== null && (
+                    {moveLabel(season, t) !== null && (
                       <span
                         data-column="move"
                         className={cn("block text-xs font-semibold", season.promoted ? "text-(--club)" : "text-muted-foreground")}
                       >
-                        {moveLabel(season)}
+                        {moveLabel(season, t)}
                       </span>
                     )}
                     {cupLabel(season, tStage) !== null && (
@@ -91,7 +99,7 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                     data-column="rank"
                     className={cn(TABLE_CELL, "text-right font-heading text-base font-bold", season.champion && "text-(--club)")}
                   >
-                    {rankLabel(season.rank)}
+                    {rankLabel(season.rank, t)}
                   </TableCell>
                   <TableCell className={cn(TABLE_CELL, "text-right")}>{season.points}</TableCell>
                   <TableCell className={cn(TABLE_CELL, "text-right")}>{recordLabel(season)}</TableCell>
@@ -109,8 +117,12 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                         />
                         <span className="font-semibold">{season.bestPlayer.name}</span>
                         <span className="ml-2 text-xs text-muted-foreground">
-                          {tPositions(`short.${season.bestPlayer.position}`)} · {season.bestPlayer.goals} buts ·{" "}
-                          {season.bestPlayer.assists} passes · note {formatDecimal(season.bestPlayer.rating)}
+                          {t("bestPlayerStats", {
+                            position: tPositions(`short.${season.bestPlayer.position}`),
+                            goals: season.bestPlayer.goals,
+                            assists: season.bestPlayer.assists,
+                            rating: formatDecimal(season.bestPlayer.rating, locale),
+                          })}
                         </span>
                       </>
                     )}
@@ -118,10 +130,11 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                   <TableCell className={cn(TABLE_CELL, "text-right")}>
                     <Link
                       href={`/saves/${id}/seasons/${season.seasonId}`}
-                      aria-label={`Voir la carte de la saison ${seasonLabel(season.startYear)}`}
+                      aria-label={t("viewCardLabel", { season: seasonLabel(season.startYear) })}
+                      data-testid={`seasons-card-link-${season.startYear}`}
                       className="font-semibold whitespace-nowrap text-(--club) hover:underline"
                     >
-                      Voir la carte
+                      {t("viewCard")}
                     </Link>
                   </TableCell>
                 </TableRow>

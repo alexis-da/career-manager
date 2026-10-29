@@ -13,7 +13,10 @@ vi.mock("../auth/current-user", async () => {
 // Nor its language: the card's words in French.
 vi.mock("next-intl/server", async () => {
   const { testTranslator } = await import("../i18n/test-intl");
-  return { getTranslations: async (namespace: "positions" | "world") => testTranslator("fr", namespace) };
+  return {
+    getTranslations: async (namespace: "positions" | "world" | "seasons" | "seasonCard") => testTranslator("fr", namespace),
+    getLocale: async () => "fr" as const,
+  };
 });
 
 // The palmarès of the demo save, against DATABASE_URL: its first season, completed before SeasonResult existed or

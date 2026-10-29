@@ -6,6 +6,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { SeasonResultView } from "@/src/db/season-results";
 import { seasonLabel } from "@/src/engine/world";
 import { competitionName } from "@/src/i18n/countries";
+import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
 import { clubAccentsOn, type ClubColors } from "@/src/lib/color";
 import { formatDecimal } from "@/src/lib/format";
@@ -20,7 +21,12 @@ import { moveLabel, rankLabel, recordLabel } from "../../../_lib/seasons";
 export type CardFormat = "landscape" | "square";
 
 /** What the card's words come from, in the player's language: satori draws it outside React, without its context. */
-export type CardTranslators = { positions: Translator<"positions">; world: Translator<"world"> };
+export type CardTranslators = {
+  positions: Translator<"positions">;
+  world: Translator<"world">;
+  seasons: Translator<"seasons">;
+  seasonCard: Translator<"seasonCard">;
+};
 
 export const CARD_SIZES: Record<CardFormat, { width: number; height: number }> = {
   landscape: { width: 1200, height: 630 },
@@ -59,18 +65,20 @@ function BestPlayer({
   accent,
   faceSize,
   square,
-  tPositions,
+  t,
+  locale,
 }: {
   season: SeasonResultView;
-  tPositions: CardTranslators["positions"];
   clubColors: ClubColors;
   accent: string;
   faceSize: number;
   square: boolean;
+  t: CardTranslators;
+  locale: Locale;
 }): ReactNode {
   const player = season.bestPlayer;
   if (player === null) {
-    return <div style={{ display: "flex", fontSize: 34, color: MUTED }}>Aucun joueur à 10 matchs</div>;
+    return <div style={{ display: "flex", fontSize: 34, color: MUTED }}>{t.seasonCard("noBestPlayer")}</div>;
   }
   const face = faceDataUri(player.playerKey, player.age, clubColors, faceSize, FACE_BACKGROUND);
   const ring = 8;
@@ -88,13 +96,13 @@ function BestPlayer({
         <img src={face} width={faceSize} height={faceSize} alt="" />
       </div>
       <div style={{ ...column, alignItems: square ? "flex-start" : "center", marginLeft: square ? 48 : 0, marginTop: square ? 0 : 20 }}>
-        <div style={{ fontSize: 26, color: ORANGE, letterSpacing: 2 }}>MEILLEUR JOUEUR</div>
+        <div style={{ fontSize: 26, color: ORANGE, letterSpacing: 2 }}>{t.seasonCard("bestPlayer")}</div>
         <div style={{ marginTop: 4, fontSize: 54, lineHeight: 1.05 }}>{player.name}</div>
-        <div style={{ marginTop: 2, fontSize: 28, color: MUTED }}>{tPositions(`label.${player.position}`)}</div>
+        <div style={{ marginTop: 2, fontSize: 28, color: MUTED }}>{t.positions(`label.${player.position}`)}</div>
         <div style={{ ...row, marginTop: 14 }}>
-          <Stat value={String(player.goals)} label="BUTS" size={44} />
-          <Stat value={String(player.assists)} label="PASSES" size={44} />
-          <Stat value={formatDecimal(player.rating)} label="NOTE" size={44} />
+          <Stat value={String(player.goals)} label={t.seasonCard("playerGoals")} size={44} />
+          <Stat value={String(player.assists)} label={t.seasonCard("playerAssists")} size={44} />
+          <Stat value={formatDecimal(player.rating, locale)} label={t.seasonCard("playerRating")} size={44} />
         </div>
       </div>
     </div>
@@ -104,31 +112,38 @@ function BestPlayer({
 /**
  * The word a card shows in place of the rank, underlined in orange, and the smaller line under it: « DOUBLÉ » for
  * the league and the cup the same season, « CHAMPION », « COUPE » for the cup alone (the rank under it), « PROMU »
- * (the rank under it); null for any other season, which shows its rank.
+ * (the rank under it); null for any other season, which shows its rank. In the player's language: « DOUBLE »,
+ * « CHAMPIONS », « CUP », « PROMOTED » in English.
  */
 export function cardBadge(
   season: Pick<SeasonResultView, "rank" | "promoted" | "relegated" | "cupWinner">,
+  t: Pick<CardTranslators, "seasons" | "seasonCard">,
 ): { badge: string; line: string | null } | null {
   const champion = season.rank === 1;
-  const promoted = season.promoted ? moveLabel(season) : null;
+  const promoted = season.promoted ? moveLabel(season, t.seasons) : null;
   if (champion && season.cupWinner) {
-    return { badge: "DOUBLÉ", line: promoted === null ? "Championnat et Coupe" : `Championnat et Coupe · ${promoted}` };
+    return {
+      badge: t.seasonCard("double"),
+      line: promoted === null ? t.seasonCard("doubleLine") : t.seasonCard("doubleLinePromoted", { move: promoted }),
+    };
   }
   if (champion) {
-    return { badge: rankLabel(1).toUpperCase(), line: promoted };
+    return { badge: rankLabel(1, t.seasons).toUpperCase(), line: promoted };
   }
+  const rank = rankLabel(season.rank, t.seasons);
   if (season.cupWinner) {
-    return { badge: "COUPE", line: `${rankLabel(season.rank)} place${season.promoted ? " · promu" : ""}` };
+    return { badge: t.seasonCard("cup"), line: t.seasonCard(season.promoted ? "placePromoted" : "place", { rank }) };
   }
-  return season.promoted ? { badge: "PROMU", line: `${rankLabel(season.rank)} place` } : null;
+  return season.promoted ? { badge: t.seasonCard("promoted"), line: t.seasonCard("place", { rank }) } : null;
 }
 
-/** The card of a season as a PNG response, 1200 × 630 or 1080 × 1080. */
+/** The card of a season as a PNG response, 1200 × 630 or 1080 × 1080, in the player's language. */
 export async function seasonCardResponse(
   season: SeasonResultView,
   clubColors: ClubColors,
   format: CardFormat,
   t: CardTranslators,
+  locale: Locale,
 ): Promise<ImageResponse> {
   const [fonts, logo] = await Promise.all([imageFonts(), brandIcon()]);
   const square = format === "square";
@@ -138,8 +153,9 @@ export async function seasonCardResponse(
   const rankSize = square ? 250 : 190;
   const statSize = square ? 72 : 60;
 
-  // The badge (cardBadge) underlined in orange, with its line; or the rank with its « e » raised: « 2e », never « 2E ».
-  const badge = cardBadge(season);
+  // The badge (cardBadge) underlined in orange, with its line; or the rank with its suffix raised: « 2e », « 2nd »,
+  // never « 2E ».
+  const badge = cardBadge(season, t);
   const rank =
     badge !== null ? (
       <div style={column}>
@@ -150,19 +166,23 @@ export async function seasonCardResponse(
     ) : (
       <div style={{ ...row, alignItems: "flex-start" }}>
         <div style={{ fontSize: rankSize, lineHeight: 0.95 }}>{String(season.rank)}</div>
-        <div style={{ marginTop: rankSize * 0.06, marginLeft: 6, fontSize: rankSize * 0.42, lineHeight: 1 }}>e</div>
+        <div style={{ marginTop: rankSize * 0.06, marginLeft: 6, fontSize: rankSize * 0.42, lineHeight: 1 }}>
+          {t.seasonCard("rankSuffix", { rank: season.rank })}
+        </div>
       </div>
     );
 
   const headline = (
     <div style={column}>
-      <div style={{ fontSize: 44, color: accent, letterSpacing: 2 }}>{`SAISON ${seasonLabel(season.startYear)}`}</div>
+      <div style={{ fontSize: 44, color: accent, letterSpacing: 2 }}>
+        {t.seasonCard("season", { season: seasonLabel(season.startYear) })}
+      </div>
       <div style={{ marginTop: 2, fontSize: 32, color: MUTED }}>{competitionName(season.competitionCode, t.world)}</div>
       <div style={{ display: "flex", marginTop: square ? 28 : 12 }}>{rank}</div>
       <div style={{ ...row, marginTop: square ? 40 : 26 }}>
-        <Stat value={String(season.points)} label="POINTS" size={statSize} />
-        <Stat value={recordLabel(season)} label="V-N-D" size={statSize} />
-        <Stat value={`${season.goalsFor}-${season.goalsAgainst}`} label="BUTS POUR-CONTRE" size={statSize} />
+        <Stat value={String(season.points)} label={t.seasonCard("points")} size={statSize} />
+        <Stat value={recordLabel(season)} label={t.seasonCard("record")} size={statSize} />
+        <Stat value={`${season.goalsFor}-${season.goalsAgainst}`} label={t.seasonCard("goals")} size={statSize} />
       </div>
     </div>
   );
@@ -175,7 +195,15 @@ export async function seasonCardResponse(
   );
 
   const player = (
-    <BestPlayer season={season} clubColors={clubColors} accent={accent} faceSize={square ? 300 : 250} square={square} tPositions={t.positions} />
+    <BestPlayer
+      season={season}
+      clubColors={clubColors}
+      accent={accent}
+      faceSize={square ? 300 : 250}
+      square={square}
+      t={t}
+      locale={locale}
+    />
   );
 
   return new ImageResponse(

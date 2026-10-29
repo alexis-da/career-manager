@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { SeasonResultView } from "@/src/db/season-results";
+import type { Locale } from "@/src/i18n/locale";
 import { testTranslator } from "@/src/i18n/test-intl";
-import { CARD_SIZES, cardBadge, seasonCardResponse, type CardFormat } from "./season-card";
+import { seasonCardFileName } from "../../../_lib/seasons";
+import { CARD_SIZES, cardBadge, seasonCardResponse, type CardFormat, type CardTranslators } from "./season-card";
+
+/** The card's words in a language, as its route gets them. */
+function translators(locale: Locale): CardTranslators {
+  return {
+    positions: testTranslator(locale, "positions"),
+    world: testTranslator(locale, "world"),
+    seasons: testTranslator(locale, "seasons"),
+    seasonCard: testTranslator(locale, "seasonCard"),
+  };
+}
 
 const LYON = { primary: "#1B3E8F", secondary: "#E2001A" };
 
@@ -35,11 +47,8 @@ function pngSize(bytes: Buffer): { width: number; height: number } {
 /** A test that draws a card: the first drawing loads the fonts and the image engine, more than 5 s on a busy machine. */
 const DRAWING_TIMEOUT_MS = 15_000;
 
-async function render(season: SeasonResultView, format: CardFormat): Promise<Buffer> {
-  const response = await seasonCardResponse(season, LYON, format, {
-    positions: testTranslator("fr", "positions"),
-    world: testTranslator("fr", "world"),
-  });
+async function render(season: SeasonResultView, format: CardFormat, locale: Locale = "fr"): Promise<Buffer> {
+  const response = await seasonCardResponse(season, LYON, format, translators(locale), locale);
   expect(response.headers.get("content-type")).toBe("image/png");
   expect(response.headers.get("cache-control")).toBe("private, max-age=0");
   return Buffer.from(await response.arrayBuffer());
@@ -64,16 +73,37 @@ describe("seasonCardResponse", () => {
 
   it("shows the double, the cup or the league, then a promotion", () => {
     const season = { rank: 1, promoted: false, relegated: false, cupWinner: false };
-    expect(cardBadge({ ...season, cupWinner: true })).toEqual({ badge: "DOUBLÉ", line: "Championnat et Coupe" });
-    expect(cardBadge({ ...season, cupWinner: true, promoted: true })).toEqual({
+    const t = translators("fr");
+    expect(cardBadge({ ...season, cupWinner: true }, t)).toEqual({ badge: "DOUBLÉ", line: "Championnat et Coupe" });
+    expect(cardBadge({ ...season, cupWinner: true, promoted: true }, t)).toEqual({
       badge: "DOUBLÉ",
       line: "Championnat et Coupe · Promu en Division 1",
     });
-    expect(cardBadge(season)).toEqual({ badge: "CHAMPION", line: null });
-    expect(cardBadge({ ...season, rank: 4, cupWinner: true })).toEqual({ badge: "COUPE", line: "4e place" });
-    expect(cardBadge({ ...season, rank: 2, cupWinner: true, promoted: true })).toEqual({ badge: "COUPE", line: "2e place · promu" });
-    expect(cardBadge({ ...season, rank: 3, promoted: true })).toEqual({ badge: "PROMU", line: "3e place" });
-    expect(cardBadge({ ...season, rank: 9 })).toBeNull();
+    expect(cardBadge(season, t)).toEqual({ badge: "CHAMPION", line: null });
+    expect(cardBadge({ ...season, rank: 4, cupWinner: true }, t)).toEqual({ badge: "COUPE", line: "4e place" });
+    expect(cardBadge({ ...season, rank: 2, cupWinner: true, promoted: true }, t)).toEqual({
+      badge: "COUPE",
+      line: "2e place · promu",
+    });
+    expect(cardBadge({ ...season, rank: 3, promoted: true }, t)).toEqual({ badge: "PROMU", line: "3e place" });
+    expect(cardBadge({ ...season, rank: 9 }, t)).toBeNull();
+  });
+
+  it("shows them in English too, the rank as an English ordinal", () => {
+    const season = { rank: 1, promoted: false, relegated: false, cupWinner: false };
+    const t = translators("en");
+    expect(cardBadge({ ...season, cupWinner: true, promoted: true }, t)).toEqual({
+      badge: "DOUBLE",
+      line: "League and Cup · Promoted to Division 1",
+    });
+    expect(cardBadge(season, t)).toEqual({ badge: "CHAMPIONS", line: null });
+    expect(cardBadge({ ...season, rank: 2, cupWinner: true, promoted: true }, t)).toEqual({
+      badge: "CUP",
+      line: "2nd place · promoted",
+    });
+    expect(cardBadge({ ...season, rank: 3, promoted: true }, t)).toEqual({ badge: "PROMOTED", line: "3rd place" });
+    expect(cardBadge({ ...season, rank: 11, cupWinner: true }, t)).toEqual({ badge: "CUP", line: "11th place" });
+    expect(cardBadge({ ...season, rank: 9 }, t)).toBeNull();
   });
 
   it("draws the cards of a double and of a cup winner in both formats", async () => {
@@ -88,4 +118,24 @@ describe("seasonCardResponse", () => {
     const season = { ...CHAMPION, rank: 14, champion: false, bestPlayer: null };
     expect(pngSize(await render(season, "landscape"))).toEqual(CARD_SIZES.landscape);
   }, DRAWING_TIMEOUT_MS);
+
+  it("draws the cards in English, a rank as a badge and as an ordinal, in both formats", async () => {
+    const cupWinner = { ...CHAMPION, rank: 2, champion: false, cupWinner: true };
+    const midTable = { ...CHAMPION, rank: 13, champion: false };
+    for (const season of [CHAMPION, cupWinner, midTable]) {
+      for (const format of ["landscape", "square"] as const) {
+        expect(pngSize(await render(season, format, "en"))).toEqual(CARD_SIZES[format]);
+      }
+    }
+  }, DRAWING_TIMEOUT_MS);
+});
+
+describe("seasonCardFileName", () => {
+  it("names a downloaded card in ASCII, in the player's language", () => {
+    const [fr, en] = [testTranslator("fr", "seasons"), testTranslator("en", "seasons")];
+    expect(seasonCardFileName(2026, "square", fr)).toBe("late-winner-saison-2026-27.png");
+    expect(seasonCardFileName(2026, "landscape", fr)).toBe("late-winner-saison-2026-27-paysage.png");
+    expect(seasonCardFileName(2026, "square", en)).toBe("late-winner-season-2026-27.png");
+    expect(seasonCardFileName(2026, "landscape", en)).toBe("late-winner-season-2026-27-landscape.png");
+  });
 });
