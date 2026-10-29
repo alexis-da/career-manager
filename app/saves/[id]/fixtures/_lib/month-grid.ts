@@ -3,8 +3,8 @@ import { INTL_LOCALES, type Locale } from "@/src/i18n/locale";
 
 const DAY_MS = 86_400_000;
 const MONTHS_PER_SEASON = 12;
-/** A Monday, 27 July 2026: the weekdays are named from its week. */
-const A_MONDAY = Date.UTC(2026, 6, 27);
+/** A Monday, the fifth day of the Unix epoch (which began on a Thursday): the weekdays are named from its week. */
+const A_MONDAY = 4 * DAY_MS;
 
 /** A month of the calendar; month is 0-based, as in Date.UTC. */
 export type Month = { year: number; month: number };

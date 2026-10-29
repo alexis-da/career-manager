@@ -358,7 +358,7 @@ export function SimulationProvider({
         router.refresh();
       })();
     },
-    [busy, locale, router, saveId, t],
+    [busy, locale, router, saveId, t, tLive],
   );
 
   const stop = () => {
