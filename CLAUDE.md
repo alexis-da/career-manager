@@ -155,8 +155,25 @@ l'en-tête (les onglets, propres à la partie, n'ont pas d'entrée « Défi »).
 **Barre d'onglets d'une partie.** Sur sa propre ligne sous l'en-tête (`SaveNav`) : tous les onglets à toutes les
 largeurs, sur une seule ligne sur ordinateur ; plus étroite, elle défile de côté, avec un dégradé du côté qui cache des
 onglets, et l'onglet actif est ramené en vue au chargement. L'en-tête d'une partie fait donc 96 px (sa ligne et celle des
-onglets) : les panneaux collants en tiennent compte (fiche joueur `lg:top-30`, banc de la composition `top-28`). Sur un
-téléphone, « Simuler jusqu'à… » n'y montre que ses icônes (son nom reste lu).
+onglets), 104 sur un téléphone (onglets de 44 px) : les panneaux collants en tiennent compte (fiche joueur `lg:top-30`,
+banc de la composition `top-28`). Sur un téléphone (sous 640 px), les actions de jeu (« Simuler jusqu'à… », en icônes,
+son nom reste lu ; « Prochain match », « Match en cours — reprendre », « Passer à la saison suivante ») quittent l'en-tête
+pour une barre fixée au pied de l'écran, sous le pouce, et le nom du club y tient entier, sur deux lignes au besoin ;
+l'en-tête y est opaque, sans flou (un flou retiendrait la barre dans l'en-tête), le contenu laisse la place de la barre
+(`pb-24`) et les toasts passent au-dessus.
+
+**Téléphone.** Aucun écran ne défile de côté à 390 ni à 360 px, en français comme en anglais (`e2e/mobile.spec.ts` :
+`scrollWidth ≤ innerWidth` à chaque étape, en 390 × 844). Sous 640 px (`max-sm:`), toute cible fait au moins 44 px :
+boutons, champs, listes, menus et onglets partagés (`src/components/ui`) le font d'eux-mêmes, les liens et contrôles
+propres à un écran avec `max-sm:min-h-11`. Une grille de page a `grid-cols-1` sous lg (`minmax(0, 1fr)`), jamais la
+largeur de son plus large contenu. Un tableau garde un seul DOM (testids et E2E de bureau inchangés) : sur téléphone,
+moins de colonnes, ses lignes en grilles des mêmes colonnes que l'en-tête (effectif, marché), ou des cartes (parties de
+l'accueil, mouvements, liste du calendrier, palmarès), disposées par CSS ; le reste est dans la fiche du joueur. Le
+classement complet est le seul à défiler de côté, dans son cadre, rang et club figés à gauche, points à droite. Aucun
+texte utile coupé : à la ligne, sous le nom, ou lu par les lecteurs d'écran et montré dans la fiche (cases de la grille
+du mois). Glisser-déposer (`usePointerDrag`) : au doigt, un appui maintenu de 250 ms soulève le joueur et un geste plus
+rapide fait défiler la page (aucun `touch-none` sur une source), la page défile seule près des bords pendant un glisser ;
+souris, clavier et toucher-toucher inchangés.
 
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade). Hors des
 tests, trois suppressions d'utilisateur sont autorisées, et aucune autre : **la purge** (ci-dessous) ; **la fusion** à
@@ -304,7 +321,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
                       # palmarès (seasons/, et seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
-e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais
+e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
+                      # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC ; challenge.yml : défi du lundi, 05:00 UTC
 src/
   components/ui/      # composants shadcn/ui (Base UI), générés par la CLI

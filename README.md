@@ -47,7 +47,10 @@ pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0)
 - un défi chaque semaine (`/challenge`) : le même club et le même monde pour tous, classement sur les 10 premières
   journées de championnat, 20 parties par semaine au plus, supprimées le mardi qui suit ;
 - en français et en anglais : la langue choisie par le sélecteur « FR · EN » (cookie `lw_lang`), sinon celle que
-  préfère le navigateur ; tout l'écran, carte de fin de saison et page de confidentialité comprises.
+  préfère le navigateur ; tout l'écran, carte de fin de saison et page de confidentialité comprises ;
+- sur téléphone : aucun écran ne défile de côté (390 et 360 px), les actions de jeu dans une barre au pied de l'écran,
+  des cibles d'au moins 44 px, des tableaux réduits ou en cartes, le glisser-déposer au doigt par un appui maintenu
+  (`e2e/mobile.spec.ts`).
 
 ## Langues
 
