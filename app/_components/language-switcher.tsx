@@ -26,7 +26,8 @@ export function LanguageSwitcher({ className }: { className?: string }) {
             aria-pressed={option === locale}
             data-testid={`language-${option}`}
             className={cn(
-              "rounded px-1.5 py-0.5 text-xs font-semibold tracking-wide transition-colors",
+              // 44 px to the touch on a phone.
+              "rounded px-1.5 py-0.5 text-xs font-semibold tracking-wide transition-colors max-sm:min-h-11 max-sm:min-w-11",
               option === locale ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >

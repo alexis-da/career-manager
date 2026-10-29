@@ -103,15 +103,18 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         </div>
 
         <p className="text-muted-foreground">{t("intro")}</p>
-        <div className="grid items-start gap-5 lg:grid-cols-[1fr_22rem]">
+        {/* One column the screen's width under lg (minmax(0, 1fr)): never as wide as the table of saves. */}
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_22rem]">
           <section className="space-y-3 rounded-lg border bg-card p-5" data-testid="saves">
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="eyebrow">{t("saves")}</h2>
               <p className="text-xs text-muted-foreground tabular-nums">{t("saveCount", { count: saves.length })}</p>
             </div>
+            {/* On a phone, each save is a card rather than a row: its name and the delete button, its club, then its
+                manager and date. Same rows, laid out by CSS. */}
             {saves.length > 0 && (
-              <Table>
-                <TableHeader>
+              <Table className="max-sm:block">
+                <TableHeader className="max-sm:hidden">
                   <TableRow className="border-border hover:bg-transparent">
                     <TableHead className={TABLE_HEAD}>{t("columns.name")}</TableHead>
                     <TableHead className={TABLE_HEAD}>{t("columns.manager")}</TableHead>
@@ -122,12 +125,20 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                     </TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <TableBody className="max-sm:block">
                   {saves.map((save) => (
-                    <TableRow key={save.id} data-save-name={save.name} className={TABLE_ROW}>
-                      <TableCell className={cn(TABLE_CELL, "font-semibold")}>
+                    <TableRow
+                      key={save.id}
+                      data-save-name={save.name}
+                      className={cn(TABLE_ROW, "max-sm:flex max-sm:h-auto max-sm:flex-wrap max-sm:items-center max-sm:gap-x-3 max-sm:py-2")}
+                    >
+                      <TableCell className={cn(TABLE_CELL, "font-semibold max-sm:min-w-0 max-sm:flex-1 max-sm:px-0 max-sm:whitespace-normal")}>
                         <span className="flex items-center gap-2">
-                          <Link href={`/saves/${save.id}`} className="hover:underline" data-testid="open-save">
+                          <Link
+                            href={`/saves/${save.id}`}
+                            className="hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+                            data-testid="open-save"
+                          >
                             {nameOf(save)}
                           </Link>
                           {save.challengeWeek !== null && (
@@ -137,8 +148,10 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                           )}
                         </span>
                       </TableCell>
-                      <TableCell className={TABLE_CELL}>{save.managerName}</TableCell>
-                      <TableCell className={TABLE_CELL}>
+                      <TableCell className={cn(TABLE_CELL, "max-sm:order-4 max-sm:px-0 max-sm:text-muted-foreground")}>
+                        {save.managerName}
+                      </TableCell>
+                      <TableCell className={cn(TABLE_CELL, "max-sm:order-3 max-sm:basis-full max-sm:px-0 max-sm:whitespace-normal")}>
                         <span className="flex items-center gap-2">
                           <span
                             aria-hidden
@@ -148,8 +161,15 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
                           {save.club.name}
                         </span>
                       </TableCell>
-                      <TableCell className={cn(TABLE_CELL, "tabular-nums")}>{formatDate(save.currentDate, locale)}</TableCell>
-                      <TableCell className={cn(TABLE_CELL, "text-right")}>
+                      <TableCell
+                        className={cn(
+                          TABLE_CELL,
+                          "tabular-nums max-sm:order-5 max-sm:px-0 max-sm:text-muted-foreground max-sm:before:mr-3 max-sm:before:content-['·']",
+                        )}
+                      >
+                        {formatDate(save.currentDate, locale)}
+                      </TableCell>
+                      <TableCell className={cn(TABLE_CELL, "text-right max-sm:order-2 max-sm:px-0")}>
                         <DeleteSaveDialog saveId={save.id} saveName={nameOf(save)} />
                       </TableCell>
                     </TableRow>
