@@ -30,7 +30,7 @@ export type Scorer = {
 export type Dashboard = {
   currentDate: Date;
   startYear: number | null;
-  competitionName: string | null;
+  competitionCode: string | null; // named by the screens
   windowOpen: boolean;
   club: {
     name: string;
@@ -103,7 +103,7 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
       budget: true,
       wageBudget: true,
       competitionId: true,
-      competition: { select: { name: true } },
+      competition: { select: { code: true } },
       club: { select: { slug: true, name: true } },
     },
   });
@@ -183,7 +183,7 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
   return {
     currentDate: save.currentDate,
     startYear: season?.startYear ?? null,
-    competitionName: club.competition.name,
+    competitionCode: club.competition.code,
     windowOpen: transferWindowAt(save.currentDate) !== null,
     club: {
       name: displayClubName(club.club),

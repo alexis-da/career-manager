@@ -69,11 +69,10 @@ export default async function ChallengePage() {
   const user: CurrentUser | null = await getCurrentUser();
   // Not simulation code: the real week.
   const challenge = await ensureCurrentChallenge(new Date());
-  const [view, t, countries, competition, locale] = await Promise.all([
+  const [view, t, world, locale] = await Promise.all([
     getChallengePage(challenge, user === null ? null : { id: user.id, kind: user.kind }),
     getTranslations("challenge"),
-    getTranslations("countries"),
-    getTranslations("competition"),
+    getTranslations("world"),
     getLocale(),
   ]);
   const ownOutsideRanking = view.ranking.some((row) => row.rank === null);
@@ -103,7 +102,7 @@ export default async function ChallengePage() {
             </p>
             {club.competition !== null && (
               <p className="text-sm text-muted-foreground" data-testid="challenge-competition">
-                {competition("league", { country: countries(club.competition.country), tier: club.competition.tier })}
+                {world("league", { country: world(`countries.${club.competition.country}`), tier: club.competition.tier })}
               </p>
             )}
           </div>

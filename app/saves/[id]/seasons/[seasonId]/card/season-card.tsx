@@ -5,6 +5,7 @@ import { ImageResponse } from "next/og";
 import type { CSSProperties, ReactNode } from "react";
 import type { SeasonResultView } from "@/src/db/season-results";
 import { seasonLabel } from "@/src/engine/world";
+import { competitionName } from "@/src/i18n/countries";
 import type { Translator } from "@/src/i18n/translator";
 import { clubAccentsOn, type ClubColors } from "@/src/lib/color";
 import { formatDecimal } from "@/src/lib/format";
@@ -17,6 +18,9 @@ import { moveLabel, rankLabel, recordLabel } from "../../../_lib/seasons";
 // or fictional (CLAUDE.md, « Communication sortante »). The competition keeps its neutral name.
 
 export type CardFormat = "landscape" | "square";
+
+/** What the card's words come from, in the player's language: satori draws it outside React, without its context. */
+export type CardTranslators = { positions: Translator<"positions">; world: Translator<"world"> };
 
 export const CARD_SIZES: Record<CardFormat, { width: number; height: number }> = {
   landscape: { width: 1200, height: 630 },
@@ -58,7 +62,7 @@ function BestPlayer({
   tPositions,
 }: {
   season: SeasonResultView;
-  tPositions: Translator<"positions">;
+  tPositions: CardTranslators["positions"];
   clubColors: ClubColors;
   accent: string;
   faceSize: number;
@@ -124,7 +128,7 @@ export async function seasonCardResponse(
   season: SeasonResultView,
   clubColors: ClubColors,
   format: CardFormat,
-  tPositions: Translator<"positions">,
+  t: CardTranslators,
 ): Promise<ImageResponse> {
   const [fonts, logo] = await Promise.all([imageFonts(), brandIcon()]);
   const square = format === "square";
@@ -153,7 +157,7 @@ export async function seasonCardResponse(
   const headline = (
     <div style={column}>
       <div style={{ fontSize: 44, color: accent, letterSpacing: 2 }}>{`SAISON ${seasonLabel(season.startYear)}`}</div>
-      <div style={{ marginTop: 2, fontSize: 32, color: MUTED }}>{season.competitionName}</div>
+      <div style={{ marginTop: 2, fontSize: 32, color: MUTED }}>{competitionName(season.competitionCode, t.world)}</div>
       <div style={{ display: "flex", marginTop: square ? 28 : 12 }}>{rank}</div>
       <div style={{ ...row, marginTop: square ? 40 : 26 }}>
         <Stat value={String(season.points)} label="POINTS" size={statSize} />
@@ -171,7 +175,7 @@ export async function seasonCardResponse(
   );
 
   const player = (
-    <BestPlayer season={season} clubColors={clubColors} accent={accent} faceSize={square ? 300 : 250} square={square} tPositions={tPositions} />
+    <BestPlayer season={season} clubColors={clubColors} accent={accent} faceSize={square ? 300 : 250} square={square} tPositions={t.positions} />
   );
 
   return new ImageResponse(

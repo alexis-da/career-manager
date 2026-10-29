@@ -1,3 +1,4 @@
+import { competitionName } from "@/src/i18n/countries";
 import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -134,6 +135,7 @@ function BigFigure({ value, unit }: { value: string; unit?: string }) {
 }
 
 export default async function DashboardPage({ params }: PageProps<"/saves/[id]">) {
+  const tWorld = await getTranslations("world");
   const tPositions = await getTranslations("positions");
   const tStage = await getTranslations("stage");
   const { id } = await params;
@@ -170,7 +172,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             {nextMatch !== null && (
               <p className="text-xs text-muted-foreground first-letter:uppercase">
                 {formatShortDate(nextMatch.fixture.scheduledAt)} · {nextMatch.fixture.home.isManaged ? "Domicile" : "Extérieur"}{" "}
-                · {nextMatch.fixture.competitionName}
+                · {competitionName(nextMatch.fixture.competitionCode, tWorld)}
               </p>
             )}
           </div>
@@ -359,7 +361,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
         <Panel className="space-y-2 lg:col-span-7">
           <div className="flex items-baseline justify-between gap-2">
             <PanelTitle>
-              {dashboard.competitionName ?? "Classement"}
+              {dashboard.competitionCode === null ? "Classement" : competitionName(dashboard.competitionCode, tWorld)}
               {dashboard.startYear !== null && ` · ${seasonOf(dashboard.startYear)}`}
             </PanelTitle>
             <Link href={`${base}/standings`} className="text-xs text-info hover:underline">

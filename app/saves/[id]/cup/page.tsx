@@ -1,3 +1,4 @@
+import { competitionName } from "@/src/i18n/countries";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TrophyIcon } from "lucide-react";
@@ -105,6 +106,7 @@ function RoundPanel({ round }: { round: CupRoundView }) {
  * the rounds still to draw, the managed club's run, and the winner on top once the final is played.
  */
 export default async function CupPage({ params }: PageProps<"/saves/[id]/cup">) {
+  const tWorld = await getTranslations("world");
   const tStage = await getTranslations("stage");
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
@@ -119,7 +121,7 @@ export default async function CupPage({ params }: PageProps<"/saves/[id]/cup">) 
       <div className="flex flex-wrap items-baseline gap-3">
         <h1 className="font-heading text-4xl font-bold">Coupe</h1>
         <p className="text-sm text-muted-foreground tabular-nums">
-          {bracket.name} · Saison {seasonLabel(bracket.startYear)}
+          {competitionName(bracket.competitionCode, tWorld)} · Saison {seasonLabel(bracket.startYear)}
         </p>
       </div>
 

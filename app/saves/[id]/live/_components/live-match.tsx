@@ -1,5 +1,6 @@
 "use client";
 
+import { competitionName } from "@/src/i18n/countries";
 import { useTranslations } from "next-intl";
 import { FastForwardIcon, SkipForwardIcon } from "lucide-react";
 import Link from "next/link";
@@ -66,6 +67,7 @@ type LiveMatchProps = {
  * (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the break or the end is shown at once.
  */
 export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause, startMinute }: LiveMatchProps) {
+  const tWorld = useTranslations("world");
   const tStage = useTranslations("stage");
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
   const router = useRouter();
@@ -264,7 +266,7 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
       {others.length > 0 && (
         <Panel>
           <PanelTitle>
-            Autres matchs · {match.competitionName}
+            Autres matchs · {competitionName(match.competitionCode, tWorld)}
             {match.cup && ` · ${stageLabel(match, tStage)}`}
           </PanelTitle>
           <ul className="mt-3 divide-y text-sm">

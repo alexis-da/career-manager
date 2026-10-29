@@ -26,7 +26,7 @@ export type ManagedCupRun = {
 export type CupBracket = {
   seasonId: string;
   startYear: number;
-  name: string; // « France — Coupe »
+  competitionCode: string; // « fr.cup », named by the screens
   rounds: CupRoundView[]; // all CUP_ROUNDS, drawn or not
   winner: TeamView | null; // once the final is played
   managedRun: ManagedCupRun | null; // null before the club is drawn
@@ -64,7 +64,7 @@ export async function getCupBracket(saveId: string): Promise<CupBracket | null> 
   const season = await prisma.season.findFirst({
     where: { saveId, competition: { code } },
     orderBy: { startYear: "desc" },
-    select: { id: true, startYear: true, competition: { select: { name: true } } },
+    select: { id: true, startYear: true, competition: { select: { code: true } } },
   });
   if (season === null) {
     return null;
@@ -92,7 +92,7 @@ export async function getCupBracket(saveId: string): Promise<CupBracket | null> 
   return {
     seasonId: season.id,
     startYear: season.startYear,
-    name: season.competition.name,
+    competitionCode: season.competition.code,
     rounds,
     winner,
     managedRun: runOf(ties, clubSaveId),

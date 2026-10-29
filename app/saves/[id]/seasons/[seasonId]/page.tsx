@@ -1,3 +1,4 @@
+import { competitionName } from "@/src/i18n/countries";
 import { getTranslations } from "next-intl/server";
 import { ChevronLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
@@ -18,6 +19,7 @@ export const metadata: Metadata = { title: "Saison terminée" };
 
 /** The panel of a completed season: shown right after moving on to the next one, and from the palmarès. */
 export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seasons/[seasonId]">) {
+  const tWorld = await getTranslations("world");
   const tStage = await getTranslations("stage");
   const { id, seasonId } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
@@ -45,7 +47,7 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
       <div className="space-y-1">
         <h1 className="font-heading text-4xl font-bold">Saison terminée</h1>
         <p className="text-sm text-muted-foreground tabular-nums">
-          Saison {label} · {season.competitionName} · {rankLabel(season.rank)} avec {season.points} points (
+          Saison {label} · {competitionName(season.competitionCode, tWorld)} · {rankLabel(season.rank)} avec {season.points} points (
           {recordLabel(season)}){move === null ? "" : ` · ${move}`}
         </p>
         {cup !== null && (

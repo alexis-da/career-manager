@@ -1,12 +1,29 @@
 {
-  "competition": {
-    "league": "{country} — Division {tier}"
-  },
-  "countries": {
-    "de": "Allemagne",
-    "en": "Angleterre",
-    "es": "Espagne",
-    "fr": "France",
-    "it": "Italie"
+  "world": {
+    "league": "{country} — Division {tier}",
+    "cup": "{country} — Coupe",
+    "countries": {
+      "de": "Allemagne",
+      "en": "Angleterre",
+      "es": "Espagne",
+      "fr": "France",
+      "it": "Italie"
+    },
+    "nationalities": {
+      "GER": "Allemagne",
+      "ENG": "Angleterre",
+      "ARG": "Argentine",
+      "BEL": "Belgique",
+      "BRA": "Brésil",
+      "CIV": "Côte d'Ivoire",
+      "CRO": "Croatie",
+      "ESP": "Espagne",
+      "FRA": "France",
+      "ITA": "Italie",
+      "MAR": "Maroc",
+      "NED": "Pays-Bas",
+      "POR": "Portugal",
+      "SEN": "Sénégal"
+    }
   }
 }

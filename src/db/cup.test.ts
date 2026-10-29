@@ -141,7 +141,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
     ]);
 
     expect(withCup).toBe(true);
-    expect(bracket?.name).toBe("France — Coupe");
+    expect(bracket?.competitionCode).toBe("fr.cup");
     expect(bracket?.rounds.map((round) => round.ties.length)).toEqual([0, 0, 0, 0, 0, 1]);
     expect(bracket?.rounds[5].ties[0]).toMatchObject({ played: true, decidedBy: "PENALTIES", homePenalties: 5, awayPenalties: 3 });
     expect(bracket?.winner?.clubSaveId).toBe(clubs.managed);

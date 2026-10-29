@@ -58,7 +58,7 @@ export type MarketOverview = {
   payroll: number; // euros per season
   wageRoom: number; // euros per season left under the wage budget
   freeAgents: number;
-  competitions: { code: string; name: string }[];
+  competitions: { code: string }[]; // named by the screens
 };
 
 /** The transfer window and the managed club's money, as the top of the transfer page shows them. */
@@ -69,8 +69,8 @@ export async function getMarketOverview(saveId: string): Promise<MarketOverview>
     prisma.playerSave.count({ where: freeAgentWhere(saveId) }),
     prisma.competition.findMany({
       where: { kind: "LEAGUE", seasons: { some: { saveId } } },
-      orderBy: { name: "asc" },
-      select: { code: true, name: true },
+      orderBy: { code: "asc" },
+      select: { code: true },
     }),
   ]);
   const wages = payroll._sum.wage ?? 0;

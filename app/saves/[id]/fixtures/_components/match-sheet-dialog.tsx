@@ -1,5 +1,6 @@
 "use client";
 
+import { competitionName } from "@/src/i18n/countries";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -89,6 +90,7 @@ type MatchSheetDialogProps = {
 };
 
 export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchSheetDialogProps) {
+  const tWorld = useTranslations("world");
   const tStage = useTranslations("stage");
   const homeGoals = fixture.homeGoals ?? 0;
   const awayGoals = fixture.awayGoals ?? 0;
@@ -121,7 +123,7 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
           {fixture.home.name} {score} {fixture.away.name}
         </DialogTitle>
         <DialogDescription className="eyebrow text-center">
-          {fixture.cup ? "" : `${fixture.competitionName} · `}
+          {fixture.cup ? "" : `${competitionName(fixture.competitionCode, tWorld)} · `}
           {stageLabel(fixture, tStage)} · {formatDate(fixture.scheduledAt)}
         </DialogDescription>
 

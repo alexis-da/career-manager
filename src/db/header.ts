@@ -11,7 +11,7 @@ export type SaveHeader = SaveSummary & {
   seasonFinished: boolean; // every fixture of the seasons in progress is played
   windowOpen: boolean;
   liveMatch: boolean; // the managed club's match waits at half-time
-  competitionName: string; // the managed club's competition now: « France — Division 2 »
+  competitionCode: string; // the managed club's competition now: « fr.2 », named by the screens
   worldVersion: WorldVersion;
   hasCup: boolean; // a worldVersion 2 save with the national cups: « Coupe » in its navigation
 };
@@ -24,7 +24,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
   }
   const managed = await prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
-    select: { id: true, competition: { select: { name: true } } },
+    select: { id: true, competition: { select: { code: true } } },
   });
   const [nextFixture, unplayed, seasonsInProgress, save, withCup] = await Promise.all([
     prisma.fixture.findFirst({
@@ -50,7 +50,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     seasonFinished: seasonsInProgress > 0 && unplayed === 0,
     windowOpen: transferWindowAt(summary.currentDate) !== null,
     liveMatch: save.liveFixtureId !== null,
-    competitionName: managed.competition.name,
+    competitionCode: managed.competition.code,
     worldVersion: worldVersionOf(save.worldVersion),
     hasCup: withCup,
   };

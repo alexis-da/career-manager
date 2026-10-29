@@ -1,3 +1,5 @@
+import { useTranslations } from "next-intl";
+import { competitionName } from "@/src/i18n/countries";
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import type { CountryMoveView } from "@/src/db/promotion";
 import { cn } from "@/src/lib/utils";
@@ -6,6 +8,7 @@ import { rankLabel } from "../../_lib/seasons";
 
 /** One side of the season's moves: the clubs going up, or the ones going down, each with its final rank. */
 function MoveList({ title, moves, up }: { title: string; moves: CountryMoveView[]; up: boolean }) {
+  const tWorld = useTranslations("world");
   const Icon = up ? ArrowUpIcon : ArrowDownIcon;
   return (
     <div className="space-y-2">
@@ -19,7 +22,7 @@ function MoveList({ title, moves, up }: { title: string; moves: CountryMoveView[
           >
             <Icon className={cn("size-4 shrink-0", up ? "text-(--club)" : "text-muted-foreground")} aria-hidden />
             <span>{move.clubName}</span>
-            <span className="ml-auto text-xs text-muted-foreground tabular-nums" title={`${rankLabel(move.rank)} de ${move.from}`}>
+            <span className="ml-auto text-xs text-muted-foreground tabular-nums" title={`${rankLabel(move.rank)} de ${competitionName(move.from, tWorld)}`}>
               {rankLabel(move.rank)}
             </span>
           </li>

@@ -1,3 +1,4 @@
+import { competitionName } from "@/src/i18n/countries";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -31,6 +32,7 @@ type MarketFiltersFormProps = {
 
 /** Filters of the AI clubs' players: a plain GET form, so every search lives in the URL. */
 export function MarketFiltersForm({ saveId, filters, competitions }: MarketFiltersFormProps) {
+  const tWorld = useTranslations("world");
   const tPositions = useTranslations("positions");
   return (
     <form
@@ -79,7 +81,7 @@ export function MarketFiltersForm({ saveId, filters, competitions }: MarketFilte
           <option value="">Tous</option>
           {competitions.map((competition) => (
             <option key={competition.code} value={competition.code}>
-              {competition.name}
+              {competitionName(competition.code, tWorld)}
             </option>
           ))}
         </select>

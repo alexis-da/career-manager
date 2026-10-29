@@ -1,5 +1,6 @@
 "use client";
 
+import { nationalityName } from "../_lib/nationalities";
 import { useTranslations } from "next-intl";
 import { XIcon } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
@@ -48,6 +49,7 @@ type PlayerSheetProps = {
 
 /** A player's sheet, in a 400 px side panel next to the list it was opened from. */
 export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheetProps) {
+  const tWorld = useTranslations("world");
   const tPositions = useTranslations("positions");
   // Escape closes the sheet, unless it is closing one of the dialogs opened from it.
   useEffect(() => {
@@ -103,7 +105,7 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
           <h2 className="font-heading text-3xl leading-none font-bold">{name}</h2>
           <p className="text-sm text-muted-foreground">
             <PositionBadges playerKey={profile.playerKey} position={profile.position} className="mr-1.5 align-[1px]" />
-            {tPositions(`label.${profile.position}`)} · {profile.age} ans · {profile.nationality}
+            {tPositions(`label.${profile.position}`)} · {profile.age} ans · {nationalityName(profile.nationality, tWorld)}
             {arrivalYear !== null && ` · Arrivé en ${arrivalYear}`}
           </p>
           <p className="flex flex-wrap gap-1 pt-1">

@@ -18,7 +18,7 @@ import type { ClubColors } from "@/src/lib/color";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../../_components/panel";
-import { nationalityCode } from "../../_lib/nationalities";
+import { nationalityCode, nationalityName } from "../../_lib/nationalities";
 import { positionTextClass } from "../../_lib/positions";
 import { SecondaryPositionBadges } from "../../_components/position-badge";
 import { ratingClasses } from "../../_lib/ratings";
@@ -44,6 +44,7 @@ function PlayerCell({
   player,
   face,
 }: ListProps & { player: { id: string; firstName: string; lastName: string; nationality?: string }; face?: FaceProps }) {
+  const tWorld = useTranslations("world");
   const name = `${player.firstName} ${player.lastName}`;
   return (
     <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
@@ -57,7 +58,7 @@ function PlayerCell({
         {name}
       </Link>
       {player.nationality !== undefined && (
-        <span className="ml-1.5 text-xs text-muted-foreground" title={player.nationality}>
+        <span className="ml-1.5 text-xs text-muted-foreground" title={nationalityName(player.nationality, tWorld)}>
           {nationalityCode(player.nationality)}
         </span>
       )}

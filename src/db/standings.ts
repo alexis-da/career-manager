@@ -1,4 +1,5 @@
 import { displayClubName } from "../engine/club-name";
+import { competitionCountry, type Country } from "../i18n/countries";
 import { computeStandings, type StandingRow } from "../engine/standings";
 import { prisma } from "./client";
 
@@ -10,9 +11,8 @@ export type ClubStandingRow = StandingRow & {
 export type CompetitionTable = {
   seasonId: string;
   startYear: number;
-  code: string;
-  name: string;
-  country: string; // « France »
+  code: string; // « fr.2 », named by the screens
+  country: Country;
   tier: number; // 1 or 2
   hasManagedClub: boolean;
   rows: ClubStandingRow[];
@@ -83,8 +83,8 @@ export async function getLatestSeasonTables(saveId: string): Promise<Competition
   }
   const seasons = await prisma.season.findMany({
     where: { saveId, startYear: latest.startYear, competition: { kind: "LEAGUE" } },
-    orderBy: { competition: { name: "asc" } },
-    select: { id: true, startYear: true, competition: { select: { code: true, name: true, country: true, tier: true } } },
+    orderBy: { competition: { code: "asc" } },
+    select: { id: true, startYear: true, competition: { select: { code: true, tier: true } } },
   });
 
   return Promise.all(
@@ -94,8 +94,7 @@ export async function getLatestSeasonTables(saveId: string): Promise<Competition
         seasonId: season.id,
         startYear: season.startYear,
         code: season.competition.code,
-        name: season.competition.name,
-        country: season.competition.country,
+        country: competitionCountry(season.competition.code),
         tier: season.competition.tier,
         hasManagedClub: rows.some((row) => row.isManaged),
         rows,

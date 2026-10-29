@@ -94,7 +94,7 @@ export type CountryMoveView = {
   isManaged: boolean;
   reason: MoveReason;
   rank: number; // final rank in the competition it left
-  from: string; // competition name
+  from: string; // competition code, named by the screens
   to: string;
 };
 
@@ -113,13 +113,12 @@ export async function getCountryMoves(saveId: string, seasonId: string): Promise
   const country = countryOf(season.competition.code);
   const seasons = await prisma.season.findMany({
     where: { saveId, startYear: season.startYear, competition: { kind: "LEAGUE", code: { startsWith: `${country}.` } } },
-    select: { movements: true, competition: { select: { code: true, name: true } } },
+    select: { movements: true, competition: { select: { code: true } } },
   });
   const moves = seasons.flatMap((row) => (row.movements === null ? [] : seasonMovementsSchema.parse(row.movements)));
   if (moves.length === 0) {
     return [];
   }
-  const nameByCode = new Map(seasons.map((row) => [row.competition.code, row.competition.name]));
   const clubs = await prisma.clubSave.findMany({
     where: { saveId, clubId: { in: moves.map((move) => move.clubId) } },
     select: { clubId: true, isManaged: true, club: { select: { slug: true, name: true } } },
@@ -134,8 +133,8 @@ export async function getCountryMoves(saveId: string, seasonId: string): Promise
         isManaged: club.isManaged,
         reason: move.reason,
         rank: move.rank,
-        from: getOrThrow(nameByCode, move.from, "competition"),
-        to: getOrThrow(nameByCode, move.to, "competition"),
+        from: move.from,
+        to: move.to,
       };
     })
     .sort((a, b) => (a.reason === b.reason ? a.rank - b.rank : a.reason === "PROMOTED" ? -1 : 1));

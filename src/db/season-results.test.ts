@@ -10,6 +10,12 @@ vi.mock("../auth/current-user", async () => {
   return { requireOwnedSave: (saveId: string) => loadOwnedSave(saveId, viewer.current) };
 });
 
+// Nor its language: the card's words in French.
+vi.mock("next-intl/server", async () => {
+  const { testTranslator } = await import("../i18n/test-intl");
+  return { getTranslations: async (namespace: "positions" | "world") => testTranslator("fr", namespace) };
+});
+
 // The palmarès of the demo save, against DATABASE_URL: its first season, completed before SeasonResult existed or
 // rebuilt here, and its card. Skipped without DATABASE_URL; modules are imported lazily because the client throws
 // without it.
@@ -68,7 +74,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("season results of the d
     const second = await results.getSeasonResults(saveId);
 
     expect(first.seasons.map((season) => season.seasonId)).toEqual([seasonId]);
-    expect(first.seasons[0]).toMatchObject({ startYear: 2026, played: 34, competitionName: "France — Division 1" });
+    expect(first.seasons[0]).toMatchObject({ startYear: 2026, played: 34, competitionCode: "fr.1" });
     expect(first.seasons[0].bestPlayer).not.toBeNull();
     expect(rows).toHaveLength(1);
     expect(await db.seasonResult.findMany({ where: { saveId }, select: { id: true, createdAt: true } })).toEqual(rows);

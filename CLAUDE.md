@@ -218,8 +218,10 @@ assemblés par `src/i18n/messages/index.ts`), typés (`src/i18n/next-intl.d.ts` 
 un test exige les mêmes clés et les mêmes arguments dans les deux langues. Serveur : `getTranslations` ; composant
 client ou serveur non async : `useTranslations` ; un utilitaire qui nomme (postes, tours, compétitions) reçoit un
 `Translator<"espace">` (`src/i18n/translator.ts`). Dates et montants : `src/lib/format.ts` prend la langue (fr-FR, en-GB ;
-français par défaut). Compétitions : pays traduit par le code (`competitionCountry`, `src/i18n/countries.ts`) et
-« Division N » (« England — Division 2 ») ; le nom en base reste français. Traduits : accueil, création, compte,
+français par défaut). Compétitions : les vues de `src/db` en donnent le code, l'écran les nomme par pays traduit et
+division (`competitionName`, `src/i18n/countries.ts` : « England — Division 2 », « France — Cup ») ; le nom en base reste
+français. Nationalités : nom français en base, code à trois lettres et nom traduit à l'écran (`nationalityName`,
+`app/saves/[id]/_lib/nationalities.ts`). Traduits : accueil, création, compte,
 connexion, défi et son action, 404. Les écrans d'une partie restent en français (`lang="fr"` sur leur conteneur) ; le
 sélecteur est dans leur en-tête, sauf sur téléphone. E2E : Playwright envoie `fr-FR` par défaut ; les contrôles des pages
 publiques se trouvent par `data-testid`, le parcours anglais est `e2e/english.spec.ts` (`locale: "en-GB"`).

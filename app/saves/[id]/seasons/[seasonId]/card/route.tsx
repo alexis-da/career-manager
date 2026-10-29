@@ -16,5 +16,6 @@ export async function GET(request: Request, { params }: RouteContext<"/saves/[id
     notFound();
   }
   const format = new URL(request.url).searchParams.get("format") === "square" ? "square" : "landscape";
-  return seasonCardResponse(result.season, result.clubColors, format, await getTranslations("positions"));
+  const [positions, world] = await Promise.all([getTranslations("positions"), getTranslations("world")]);
+  return seasonCardResponse(result.season, result.clubColors, format, { positions, world });
 }

@@ -1,3 +1,5 @@
+import { getLocale, getTranslations } from "next-intl/server";
+import { competitionName } from "@/src/i18n/countries";
 import type { Metadata } from "next";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
@@ -126,6 +128,7 @@ function StandingsTable({ table, divided }: { table: CompetitionTable; divided: 
 }
 
 export default async function StandingsPage({ params }: PageProps<"/saves/[id]/standings">) {
+  const [tWorld, locale] = await Promise.all([getTranslations("world"), getLocale()]);
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
@@ -137,7 +140,10 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
   }
 
   // A save with the second divisions: a tab per country, then Division 1 / Division 2; otherwise a tab per competition.
-  const countries = [...Map.groupBy(tables, (table) => table.country)].sort(([a], [b]) => a.localeCompare(b, "fr"));
+  // By country, sorted by its name in the player's language.
+  const countries = [...Map.groupBy(tables, (table) => table.country)].sort(([a], [b]) =>
+    tWorld(`countries.${a}`).localeCompare(tWorld(`countries.${b}`), locale),
+  );
   const divided = countries.some(([, divisions]) => divisions.length > 1);
 
   return (
@@ -158,7 +164,7 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
           >
             {countries.map(([country]) => (
               <TabsTrigger key={country} value={country} className={ACTIVE_TAB}>
-                {country}
+                {tWorld(`countries.${country}`)}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -168,7 +174,7 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
             return (
               <TabsContent key={country} value={country}>
                 <Tabs defaultValue={shown.code} className="gap-3">
-                  <TabsList aria-label={`Division, ${country}`} className="w-fit">
+                  <TabsList aria-label={`Division, ${tWorld(`countries.${country}`)}`} className="w-fit">
                     {ordered.map((table) => (
                       <TabsTrigger key={table.code} value={table.code} className="px-4">
                         Division {table.tier}
@@ -190,7 +196,7 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
           <TabsList variant="line" className="h-auto flex-wrap gap-1 group-data-horizontal/tabs:h-auto">
             {tables.map((table) => (
               <TabsTrigger key={table.code} value={table.code} className={ACTIVE_TAB}>
-                {table.name}
+                {competitionName(table.code, tWorld)}
               </TabsTrigger>
             ))}
           </TabsList>

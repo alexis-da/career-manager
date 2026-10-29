@@ -14,7 +14,7 @@ import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../../_components/contract-actions";
 import { PlayerBadges } from "../../_components/player-badges";
 import { PlayerSheet } from "../../_components/player-sheet";
-import { nationalityCode } from "../../_lib/nationalities";
+import { nationalityCode, nationalityName } from "../../_lib/nationalities";
 import { POSITION_ORDER, positionTextClass } from "../../_lib/positions";
 import { SecondaryPositionBadges } from "../../_components/position-badge";
 import { formBarClass, ratingClasses } from "../../_lib/ratings";
@@ -104,6 +104,7 @@ type SquadTableProps = {
 };
 
 export function SquadTable({ saveId, header, players, currentDate, startYear, windowOpen, nextWindowOpensOn }: SquadTableProps) {
+  const tWorld = useTranslations("world");
   const tPositions = useTranslations("positions");
   const [sort, setSort] = useState<Sort>({ key: "position", direction: "asc" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -217,7 +218,7 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                     >
                       {name}
                     </button>
-                    <span className="ml-1.5 text-xs text-muted-foreground" title={player.nationality}>
+                    <span className="ml-1.5 text-xs text-muted-foreground" title={nationalityName(player.nationality, tWorld)}>
                       {nationalityCode(player.nationality)}
                     </span>
                   </TableCell>

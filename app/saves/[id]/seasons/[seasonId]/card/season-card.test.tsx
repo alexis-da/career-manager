@@ -8,7 +8,7 @@ const LYON = { primary: "#1B3E8F", secondary: "#E2001A" };
 const CHAMPION: SeasonResultView = {
   seasonId: "season",
   startYear: 2027,
-  competitionName: "France — Division 1",
+  competitionCode: "fr.1",
   rank: 1,
   champion: true,
   promoted: false,
@@ -36,7 +36,10 @@ function pngSize(bytes: Buffer): { width: number; height: number } {
 const DRAWING_TIMEOUT_MS = 15_000;
 
 async function render(season: SeasonResultView, format: CardFormat): Promise<Buffer> {
-  const response = await seasonCardResponse(season, LYON, format, testTranslator("fr", "positions"));
+  const response = await seasonCardResponse(season, LYON, format, {
+    positions: testTranslator("fr", "positions"),
+    world: testTranslator("fr", "world"),
+  });
   expect(response.headers.get("content-type")).toBe("image/png");
   expect(response.headers.get("cache-control")).toBe("private, max-age=0");
   return Buffer.from(await response.arrayBuffer());
@@ -53,7 +56,7 @@ describe("seasonCardResponse", () => {
     ["a club promoted from second place", { rank: 2, champion: false, promoted: true }],
     ["a relegated club", { rank: 18, champion: false, relegated: true }],
   ] as const)("draws the card of %s in both formats", async (_, change) => {
-    const season = { ...CHAMPION, competitionName: "France — Division 2", ...change };
+    const season = { ...CHAMPION, competitionCode: "fr.2", ...change };
     for (const format of ["landscape", "square"] as const) {
       expect(pngSize(await render(season, format))).toEqual(CARD_SIZES[format]);
     }

@@ -1,5 +1,7 @@
-// The countries of the game's competitions, by the prefix of their codes (« fr.2 », « en.cup »). The screens name them
-// in the player's language (the countries messages): the competitions' own names, in the reference tables, are French.
+import type { Translator } from "./translator";
+
+// The countries of the game's competitions, by the prefix of their codes (« fr.2 », « en.cup »). The screens name them,
+// and the competitions, in the player's language (the world messages): the names in the reference tables are French.
 
 export const COUNTRIES = ["de", "en", "es", "fr", "it"] as const;
 
@@ -16,4 +18,11 @@ export function competitionCountry(code: string): Country {
     throw new Error(`Competition ${code} belongs to no country of the game`);
   }
   return prefix;
+}
+
+/** A competition's name in the player's language, from its code: « England — Division 2 », « France — Cup ». */
+export function competitionName(code: string, t: Translator<"world">): string {
+  const country = t(`countries.${competitionCountry(code)}`);
+  const [, level] = code.split(".");
+  return level === "cup" ? t("cup", { country }) : t("league", { country, tier: Number(level) });
 }

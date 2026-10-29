@@ -268,7 +268,7 @@ export type SeasonBestPlayer = {
 export type SeasonResultView = {
   seasonId: string;
   startYear: number;
-  competitionName: string;
+  competitionCode: string; // named by the screens
   rank: number;
   champion: boolean;
   promoted: boolean; // false for a row rebuilt lazily
@@ -300,7 +300,7 @@ export async function getSeasonResults(saveId: string, seasonId?: string): Promi
   const rows = await prisma.seasonResult.findMany({
     where: { saveId, ...(seasonId === undefined ? {} : { seasonId }) },
     orderBy: { season: { startYear: "desc" } },
-    include: { season: { select: { startYear: true } }, competition: { select: { name: true } } },
+    include: { season: { select: { startYear: true } }, competition: { select: { code: true } } },
   });
   const keys = rows.flatMap((row) => (row.bestPlayerKey === null ? [] : [row.bestPlayerKey]));
   const players = await prisma.playerSave.findMany({
@@ -331,7 +331,7 @@ export async function getSeasonResults(saveId: string, seasonId?: string): Promi
       return {
         seasonId: row.seasonId,
         startYear: row.season.startYear,
-        competitionName: row.competition.name,
+        competitionCode: row.competition.code,
         rank: row.rank,
         champion: row.trophies.includes(CHAMPION_TROPHY),
         promoted: row.promoted,

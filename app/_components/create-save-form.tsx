@@ -79,7 +79,7 @@ function CreateButton() {
 export function CreateSaveForm({ competitions }: { competitions: CreatableCompetition[] }) {
   const t = useTranslations("createSave");
   const common = useTranslations("common");
-  const competitionName = useTranslations("competition");
+  const world = useTranslations("world");
   const [state, formAction] = useActionState(async (previous: CreateSaveFormState, formData: FormData) => {
     try {
       return await createSaveAction(previous, formData);
@@ -146,7 +146,7 @@ export function CreateSaveForm({ competitions }: { competitions: CreatableCompet
                 {divisions.map((competition) => (
                   <SelectGroup
                     key={competition.code}
-                    aria-label={competitionName("league", { country, tier: competition.tier })}
+                    aria-label={world("league", { country, tier: competition.tier })}
                   >
                     <SelectLabel>{t("division", { tier: competition.tier })}</SelectLabel>
                     {competition.clubs.map((club) => (

@@ -17,7 +17,7 @@ export type FixtureView = {
   round: number; // the matchday; in a cup, the round (1 preliminary … 6 final)
   cup: boolean; // a national cup tie
   scheduledAt: Date;
-  competitionName: string;
+  competitionCode: string; // « fr.1 », named by the screens
   home: TeamView;
   away: TeamView;
   played: boolean;
@@ -66,7 +66,7 @@ export const FIXTURE_SELECT = {
   decidedBy: true,
   homePenalties: true,
   awayPenalties: true,
-  season: { select: { competition: { select: { name: true, kind: true } } } },
+  season: { select: { competition: { select: { code: true, kind: true } } } },
   homeClubSave: TEAM_SELECT,
   awayClubSave: TEAM_SELECT,
 } as const;
@@ -86,7 +86,7 @@ export function toFixtureView(row: FixtureRow): FixtureView {
     round: row.round,
     cup: row.season.competition.kind === "CUP",
     scheduledAt: row.scheduledAt,
-    competitionName: row.season.competition.name,
+    competitionCode: row.season.competition.code,
     home: toTeamView(row.homeClubSave),
     away: toTeamView(row.awayClubSave),
     played: row.played,

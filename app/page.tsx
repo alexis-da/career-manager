@@ -28,9 +28,9 @@ export const maxDuration = 60;
 
 /** The competitions a save can be created in, their countries named in the player's language and sorted by name. */
 async function creatableCompetitions(): Promise<CreatableCompetition[]> {
-  const [competitions, t, locale] = await Promise.all([listClubsByCompetition(), getTranslations("countries"), getLocale()]);
+  const [competitions, t, locale] = await Promise.all([listClubsByCompetition(), getTranslations("world"), getLocale()]);
   return competitions
-    .map((competition) => ({ ...competition, countryName: t(competition.country) }))
+    .map((competition) => ({ ...competition, countryName: t(`countries.${competition.country}`) }))
     .sort((a, b) => a.countryName.localeCompare(b.countryName, locale) || a.tier - b.tier);
 }
 

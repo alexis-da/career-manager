@@ -1,3 +1,4 @@
+import { competitionName } from "@/src/i18n/countries";
 import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -19,6 +20,7 @@ export const metadata: Metadata = { title: "Palmarès" };
 
 /** The managed club's completed seasons, most recent first, each with a link to its card. */
 export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/seasons">) {
+  const tWorld = await getTranslations("world");
   const tPositions = await getTranslations("positions");
   const tStage = await getTranslations("stage");
   const { id } = await params;
@@ -67,7 +69,7 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                     {seasonLabel(season.startYear)}
                   </TableCell>
                   <TableCell className={TABLE_CELL}>
-                    {season.competitionName}
+                    {competitionName(season.competitionCode, tWorld)}
                     {moveLabel(season) !== null && (
                       <span
                         data-column="move"
