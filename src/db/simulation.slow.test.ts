@@ -15,12 +15,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("simulateMatchdays, to t
     saveId = await support.createDemoTwin("Test simulation fin de saison");
   }, 120_000);
 
+  // 180 s: deleting a whole season's save takes over 60 s while the other slow files write to the database too.
   afterAll(async () => {
     if (saveId !== "") {
       await db?.save.delete({ where: { id: saveId } });
     }
     await db?.$disconnect();
-  }, 60_000);
+  }, 180_000);
 
   it("plays the season in calls of at most five matchdays, then stops: never into the next season", async () => {
     if (db === undefined) {
