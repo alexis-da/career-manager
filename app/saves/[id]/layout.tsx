@@ -1,5 +1,5 @@
 import { competitionName } from "@/src/i18n/countries";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { TrophyIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -22,8 +22,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export default async function SaveLayout({ children, params }: LayoutProps<"/saves/[id]">) {
-  const tWorld = await getTranslations("world");
-  const tStage = await getTranslations("stage");
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
@@ -31,22 +29,27 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
   if (header === null) {
     notFound();
   }
+  const t = await getTranslations("header");
+  const tWorld = await getTranslations("world");
+  const tStage = await getTranslations("stage");
+  const locale = await getLocale();
 
   const accent = clubAccentStyle(header.club.primaryColor);
   const season = seasonLabel(header.startYear);
 
   return (
     <SimulationProvider saveId={header.id} accent={accent}>
-      <div lang="fr" style={accent} className="flex min-h-full flex-1 flex-col">
+      <div style={accent} className="flex min-h-full flex-1 flex-col">
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
           <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-3 px-4 sm:gap-6 lg:px-7">
             {/* The game's mark, the only one in a save: the rest is in the club's colours. */}
-            <Link href="/" title="Late Winner · toutes les parties" className="-mr-1.5 shrink-0 rounded-md sm:-mr-3">
+            <Link href="/" title={t("home")} data-testid="header-home" className="-mr-1.5 shrink-0 rounded-md sm:-mr-3">
               <Image src="/brand/late-winner-icone.svg" alt="Late Winner" width={28} height={28} unoptimized />
             </Link>
             <Link
               href="/"
-              title={`Toutes les parties · Manager : ${header.managerName}`}
+              title={t("saves", { manager: header.managerName })}
+              data-testid="header-club"
               className="flex min-w-0 items-center gap-3"
             >
               <span aria-hidden className="h-8 w-1 shrink-0 rounded-full bg-(--club)" />
@@ -56,7 +59,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                 </span>
                 {/* The club's competition now: it changes with a promotion or a relegation. */}
                 <span data-testid="header-competition" className="block max-w-64 truncate text-[0.6875rem] text-muted-foreground">
-                  {competitionName(header.competitionCode, tWorld)} · Saison {season}
+                  {competitionName(header.competitionCode, tWorld)} · {t("season", { season })}
                 </span>
               </span>
             </Link>
@@ -67,19 +70,20 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               {/* The weekly challenge, outside the save: next to the game's actions rather than among its tabs. */}
               <Link
                 href="/challenge"
-                title="Défi de la semaine"
+                title={t("challenge")}
+                data-testid="header-challenge"
                 className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <TrophyIcon aria-hidden className="size-4" />
-                <span className="sr-only">Défi de la semaine</span>
+                <span className="sr-only">{t("challenge")}</span>
               </Link>
               <div className="hidden text-right leading-tight lg:block">
-                <p className="font-heading text-base font-semibold tabular-nums first-letter:uppercase">
-                  <time dateTime={header.currentDate.toISOString()}>{formatDayDate(header.currentDate)}</time>
+                <p data-testid="header-date" className="font-heading text-base font-semibold tabular-nums first-letter:uppercase">
+                  <time dateTime={header.currentDate.toISOString()}>{formatDayDate(header.currentDate, locale)}</time>
                 </p>
-                <p className="text-[0.6875rem] text-muted-foreground tabular-nums">
-                  {header.nextStage === null ? "Saison terminée" : stageLabel(header.nextStage, tStage)} · Mercato{" "}
-                  {header.windowOpen ? "ouvert" : "fermé"}
+                <p data-testid="header-status" className="text-[0.6875rem] text-muted-foreground tabular-nums">
+                  {header.nextStage === null ? t("seasonFinished") : stageLabel(header.nextStage, tStage)} ·{" "}
+                  {t(header.windowOpen ? "windowOpen" : "windowClosed")}
                 </p>
               </div>
               <GameActions

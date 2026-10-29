@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Progress } from "@base-ui/react/progress";
 import { ArrowRightIcon, SquareIcon } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -13,7 +13,6 @@ import type { SimulatedMatch, SimulationSummary } from "@/src/db/simulation";
 import { formatDate, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { planSimulationAction, simulateMatchdays, simulationSummaryAction, type SimulationTargetInput } from "../actions";
-import { MATCH_IN_PROGRESS_MESSAGE } from "../_lib/live-match";
 import { RESULT_CLASSES } from "../_lib/results";
 import { matchResultFor, stageLabel } from "../_lib/stage";
 import { ResultPill } from "./result-pill";
@@ -61,14 +60,11 @@ const dayParam = (date: Date): string => date.toISOString().slice(0, 10);
 /** Matches of the managed club shown in the running dialog, the latest first. */
 const TICKER_LENGTH = 3;
 
-const plural = (count: number, singular: string, pluralForm: string): string =>
-  `${count} ${count > 1 ? pluralForm : singular}`;
-
-const ordinal = (rank: number): string => (rank === 1 ? "1er" : `${rank}e`);
-
 /** A match of the managed club, its goals first: « contre Nice 3 – 2 », « à Montpellier 1 – 5 ». */
 function MatchLine({ match, fresh = false }: { match: SimulatedMatch; fresh?: boolean }) {
+  const t = useTranslations("simulation");
   const tStage = useTranslations("stage");
+  const locale = useLocale();
   const atHome = match.home.isManaged;
   const opponent = atHome ? match.away : match.home;
   const homeGoals = match.homeGoals ?? 0;
@@ -82,9 +78,9 @@ function MatchLine({ match, fresh = false }: { match: SimulatedMatch; fresh?: bo
         fresh && "animate-in duration-300 fade-in-0 slide-in-from-top-2",
       )}
     >
-      <span className="text-xs text-muted-foreground tabular-nums first-letter:uppercase">{formatShortDate(match.scheduledAt)}</span>
+      <span className="text-xs text-muted-foreground tabular-nums first-letter:uppercase">{formatShortDate(match.scheduledAt, locale)}</span>
       <span className="min-w-0 truncate">
-        <span className="text-muted-foreground">{atHome ? "contre" : "à"}</span> {opponent.name}
+        <span className="text-muted-foreground">{atHome ? t("home") : t("away")}</span> {opponent.name}
         {match.cup && <span className="ml-1.5 text-xs font-medium text-(--club)">{stageLabel(match, tStage)}</span>}
       </span>
       <span className={cn("rounded-sm px-2 font-heading text-base font-bold tabular-nums", RESULT_CLASSES[result])}>
@@ -107,58 +103,59 @@ function SummarySection({ title, children }: { title: string; children: ReactNod
 }
 
 function RankChange({ summary }: { summary: SimulationSummary }) {
+  const t = useTranslations("simulation");
   const { rankBefore, rankAfter } = summary;
   const trend =
     rankBefore === null || rankAfter === null || rankBefore === rankAfter ? null : rankAfter < rankBefore ? "up" : "down";
   return (
     <p className="flex items-center gap-3 font-heading text-2xl font-bold tabular-nums" data-simulation="rank">
-      <span className="text-muted-foreground">{rankBefore === null ? "–" : ordinal(rankBefore)}</span>
-      <ArrowRightIcon aria-label="puis" className="size-5 text-muted-foreground" />
+      <span className="text-muted-foreground">{rankBefore === null ? "–" : t("rank", { rank: rankBefore })}</span>
+      <ArrowRightIcon aria-label={t("then")} className="size-5 text-muted-foreground" />
       <span className={cn(trend === "up" && "text-win", trend === "down" && "text-loss")}>
-        {rankAfter === null ? "–" : ordinal(rankAfter)}
+        {rankAfter === null ? "–" : t("rank", { rank: rankAfter })}
       </span>
-      <span className="font-sans text-sm font-normal text-muted-foreground">sur {summary.clubCount}</span>
+      <span className="font-sans text-sm font-normal text-muted-foreground">{t("outOf", { count: summary.clubCount })}</span>
     </p>
   );
 }
 
 function Finished({ phase, onContinue }: { phase: Extract<Phase, { kind: "finished" }>; onContinue: () => void }) {
+  const t = useTranslations("simulation");
+  const locale = useLocale();
   const { summary, matches } = phase;
-  const period = `${plural(phase.played, "journée jouée", "journées jouées")} · jusqu'au ${formatDate(phase.untilDate)}`;
+  const period = t("period", { count: phase.played, date: formatDate(phase.untilDate, locale) });
   return (
     <>
       <div className="space-y-1">
-        <DialogTitle className="font-heading text-2xl">
-          {summary === null ? "Simulation interrompue" : phase.stopped ? "Simulation arrêtée" : "Simulation terminée"}
+        <DialogTitle className="font-heading text-2xl" data-testid="simulation-title">
+          {summary === null ? t("interrupted") : phase.stopped ? t("stopped") : t("finished")}
         </DialogTitle>
-        <DialogDescription>
+        <DialogDescription data-testid="simulation-description">
           {summary === null
-            ? `Une erreur a interrompu la simulation après ${plural(phase.played, "journée jouée", "journées jouées")}.`
+            ? t("interruptedAfter", { count: phase.played })
             : phase.stopped
-              ? `${plural(phase.played, "journée jouée", "journées jouées")} sur ${phase.total} prévues.`
+              ? t("stoppedAfter", { count: phase.played, total: phase.total })
               : period}
         </DialogDescription>
       </div>
 
       <div className="max-h-[60vh] space-y-5 overflow-y-auto pr-1">
         {summary !== null && (
-          <SummarySection title="Classement">
+          <SummarySection title={t("table")}>
             <RankChange summary={summary} />
           </SummarySection>
         )}
 
-        <SummarySection title="Mes matchs">
+        <SummarySection title={t("myMatches")}>
           {matches.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Votre club n&apos;a pas joué sur la période.</p>
+            <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
           ) : (
             <ol className="space-y-2" data-simulation="matches">
               {matches.map((match) => (
                 <li key={match.id} className="space-y-1">
                   <MatchLine match={match} />
                   {match.autoFilledSlots > 0 && (
-                    <p className="pl-[5.25rem] text-xs text-warning">
-                      Onze recomplété automatiquement ({plural(match.autoFilledSlots, "poste", "postes")})
-                    </p>
+                    <p className="pl-[5.25rem] text-xs text-warning">{t("autoFilled", { count: match.autoFilledSlots })}</p>
                   )}
                 </li>
               ))}
@@ -168,18 +165,18 @@ function Finished({ phase, onContinue }: { phase: Extract<Phase, { kind: "finish
 
         {summary !== null && (
           <>
-            <SummarySection title="Blessures">
+            <SummarySection title={t("injuries")}>
               {summary.injuries.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucune blessure dans votre effectif.</p>
+                <p className="text-sm text-muted-foreground">{t("noInjuries")}</p>
               ) : (
                 <ul className="space-y-1 text-sm">
                   {summary.injuries.map((injury, index) => (
                     <li key={`${injury.playerName}-${index}`} className="flex justify-between gap-3">
                       <span className="font-medium">{injury.playerName}</span>
                       <span className="text-muted-foreground tabular-nums">
-                        {formatShortDate(injury.date)}
+                        {formatShortDate(injury.date, locale)}
                         {injury.injuredUntil !== null && injury.injuredUntil > injury.date
-                          ? ` · absent jusqu'au ${formatDate(injury.injuredUntil)}`
+                          ? ` · ${t("outUntil", { date: formatDate(injury.injuredUntil, locale) })}`
                           : ""}
                       </span>
                     </li>
@@ -188,15 +185,15 @@ function Finished({ phase, onContinue }: { phase: Extract<Phase, { kind: "finish
               )}
             </SummarySection>
 
-            <SummarySection title="Contrats arrivés à expiration">
+            <SummarySection title={t("expiredContracts")}>
               {summary.expiredContracts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucun contrat n&apos;a expiré.</p>
+                <p className="text-sm text-muted-foreground">{t("noExpiredContracts")}</p>
               ) : (
                 <ul className="space-y-1 text-sm">
                   {summary.expiredContracts.map((contract) => (
                     <li key={contract.playerName} className="flex justify-between gap-3">
                       <span className="font-medium">{contract.playerName}</span>
-                      <span className="text-muted-foreground tabular-nums">{formatDate(contract.contractUntil)}</span>
+                      <span className="text-muted-foreground tabular-nums">{formatDate(contract.contractUntil, locale)}</span>
                     </li>
                   ))}
                 </ul>
@@ -206,24 +203,33 @@ function Finished({ phase, onContinue }: { phase: Extract<Phase, { kind: "finish
         )}
       </div>
 
-      <Button variant="club" className="h-9 justify-self-end px-5 font-heading text-base font-semibold" onClick={onContinue}>
-        Continuer
+      <Button
+        variant="club"
+        className="h-9 justify-self-end px-5 font-heading text-base font-semibold"
+        onClick={onContinue}
+        data-testid="simulation-continue"
+      >
+        {t("continue")}
       </Button>
     </>
   );
 }
 
 function Running({ phase, onStop }: { phase: Extract<Phase, { kind: "running" }>; onStop: () => void }) {
+  const t = useTranslations("simulation");
+  const locale = useLocale();
   const ticker = phase.matches.slice(-TICKER_LENGTH).reverse();
   return (
     <>
       <div className="space-y-1">
-        <DialogTitle className="font-heading text-2xl">Simulation en cours</DialogTitle>
-        <DialogDescription>Jusqu&apos;au {formatDate(phase.untilDate)}</DialogDescription>
+        <DialogTitle className="font-heading text-2xl" data-testid="simulation-title">
+          {t("running")}
+        </DialogTitle>
+        <DialogDescription data-testid="simulation-description">{t("until", { date: formatDate(phase.untilDate, locale) })}</DialogDescription>
       </div>
 
       <Progress.Root value={phase.played} max={phase.total} className="flex flex-wrap gap-2" data-simulation="progress">
-        <ProgressLabel>Journées</ProgressLabel>
+        <ProgressLabel>{t("matchdays")}</ProgressLabel>
         <span className="ml-auto text-sm text-muted-foreground tabular-nums">
           {phase.played} / {phase.total}
         </span>
@@ -233,9 +239,9 @@ function Running({ phase, onStop }: { phase: Extract<Phase, { kind: "running" }>
       </Progress.Root>
 
       <section className="min-h-24 space-y-2" aria-live="polite">
-        <h3 className="eyebrow">Mon club</h3>
+        <h3 className="eyebrow">{t("myClub")}</h3>
         {ticker.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Pas encore de match joué.</p>
+          <p className="text-sm text-muted-foreground">{t("noMatchYet")}</p>
         ) : (
           <ol className="space-y-1.5">
             {ticker.map((match, index) => (
@@ -247,9 +253,9 @@ function Running({ phase, onStop }: { phase: Extract<Phase, { kind: "running" }>
         )}
       </section>
 
-      <Button variant="outline" className="justify-self-end" disabled={phase.stopping} onClick={onStop}>
+      <Button variant="outline" className="justify-self-end" disabled={phase.stopping} onClick={onStop} data-testid="simulation-stop">
         <SquareIcon className="fill-current" />
-        {phase.stopping ? "Arrêt après la tranche en cours…" : "Arrêter"}
+        {phase.stopping ? t("stopping") : t("stop")}
       </Button>
     </>
   );
@@ -269,6 +275,8 @@ export function SimulationProvider({
   accent: CSSProperties; // the club accent, set again on the dialog: portaled out of the layout, it does not inherit it
   children: ReactNode;
 }) {
+  const t = useTranslations("simulation");
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -311,17 +319,17 @@ export function SimulationProvider({
           plan = await planSimulationAction(saveId, target);
         } catch {
           setPhase({ kind: "idle" });
-          toast.error("La simulation n'a pas pu démarrer. Réessayez.");
+          toast.error(t("startFailed"));
           return;
         }
         if (plan.matchInProgress) {
           setPhase({ kind: "idle" });
-          toast.error(MATCH_IN_PROGRESS_MESSAGE);
+          toast.error(t("matchInProgress"));
           return;
         }
         if (plan.matchdays === 0) {
           setPhase({ kind: "idle" });
-          toast.info(`Aucune journée à jouer d'ici au ${formatDate(plan.untilDate)}.`);
+          toast.info(t("nothingToPlay", { date: formatDate(plan.untilDate, locale) }));
           return;
         }
 
@@ -349,7 +357,7 @@ export function SimulationProvider({
         router.refresh();
       })();
     },
-    [busy, router, saveId],
+    [busy, locale, router, saveId, t],
   );
 
   const stop = () => {
@@ -376,7 +384,13 @@ export function SimulationProvider({
         onOpenChange={() => {}}
         disablePointerDismissal
       >
-        <DialogContent showCloseButton={false} style={accent} className="gap-5 p-6 sm:max-w-lg" data-simulation="dialog">
+        <DialogContent
+          showCloseButton={false}
+          style={accent}
+          className="gap-5 p-6 sm:max-w-lg"
+          data-simulation="dialog"
+          data-testid="simulation-dialog"
+        >
           {phase.kind === "running" && <Running phase={phase} onStop={stop} />}
           {phase.kind === "finished" && <Finished phase={phase} onContinue={finish} />}
         </DialogContent>

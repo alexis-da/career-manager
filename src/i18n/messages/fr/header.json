@@ -1,1 +1,75 @@
-{}
+{
+  "header": {
+    "home": "Late Winner · toutes les parties",
+    "saves": "Toutes les parties · Manager : {manager}",
+    "season": "Saison {season}",
+    "challenge": "Défi de la semaine",
+    "seasonFinished": "Saison terminée",
+    "windowOpen": "Mercato ouvert",
+    "windowClosed": "Mercato fermé"
+  },
+  "nav": {
+    "label": "Navigation de la partie",
+    "dashboard": "Tableau de bord",
+    "squad": "Effectif",
+    "lineup": "Composition",
+    "fixtures": "Calendrier",
+    "standings": "Classement",
+    "cup": "Coupe",
+    "transfers": "Transferts",
+    "seasons": "Palmarès"
+  },
+  "gameActions": {
+    "simulate": "Simuler jusqu'à…",
+    "targets": {
+      "next-match": "Prochain match de mon club",
+      "month-end": "Fin du mois",
+      "window-close": "Fermeture du mercato",
+      "season-end": "Fin de saison"
+    },
+    "pickDate": "Choisir une date dans le calendrier…",
+    "resumeMatch": "Match en cours — reprendre",
+    "nextSeason": "Passer à la saison suivante",
+    "preparingSeason": "Préparation de la saison…",
+    "nextMatch": "Prochain match",
+    "intermediate": "Journées intermédiaires…",
+    "kickOff": "Coup d'envoi…",
+    "playMatchday": "Jouer la journée",
+    "simulating": "Simulation…",
+    "intermediatePlayed": "{count, plural, one {# journée intermédiaire jouée.} other {# journées intermédiaires jouées.}}",
+    "failed": "L'action a échoué. Réessaie."
+  },
+  "simulation": {
+    "running": "Simulation en cours",
+    "until": "Jusqu'au {date}",
+    "matchdays": "Journées",
+    "myClub": "Mon club",
+    "noMatchYet": "Pas encore de match joué.",
+    "stop": "Arrêter",
+    "stopping": "Arrêt après la tranche en cours…",
+    "interrupted": "Simulation interrompue",
+    "stopped": "Simulation arrêtée",
+    "finished": "Simulation terminée",
+    "interruptedAfter": "Une erreur a interrompu la simulation après {count, plural, one {# journée jouée} other {# journées jouées}}.",
+    "stoppedAfter": "{count, plural, one {# journée jouée} other {# journées jouées}} sur {total} prévues.",
+    "period": "{count, plural, one {# journée jouée} other {# journées jouées}} · jusqu'au {date}",
+    "table": "Classement",
+    "rank": "{rank, selectordinal, one {#er} other {#e}}",
+    "then": "puis",
+    "outOf": "sur {count}",
+    "myMatches": "Mes matchs",
+    "noMatches": "Ton club n'a pas joué sur la période.",
+    "home": "contre",
+    "away": "à",
+    "autoFilled": "Onze recomplété automatiquement ({count, plural, one {# poste} other {# postes}})",
+    "injuries": "Blessures",
+    "noInjuries": "Aucune blessure dans ton effectif.",
+    "outUntil": "absent jusqu'au {date}",
+    "expiredContracts": "Contrats arrivés à expiration",
+    "noExpiredContracts": "Aucun contrat n'a expiré.",
+    "continue": "Continuer",
+    "startFailed": "La simulation n'a pas pu démarrer. Réessaie.",
+    "matchInProgress": "Ton match attend la reprise : joue la suite avant de continuer.",
+    "nothingToPlay": "Aucune journée à jouer d'ici au {date}."
+  }
+}

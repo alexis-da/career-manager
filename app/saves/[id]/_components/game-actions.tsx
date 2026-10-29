@@ -19,37 +19,40 @@ import { advanceSeasonAction, playMatchdayAction, playUntilNextMatchAction, type
 import { useSimulation, type SimulationTarget } from "./simulation";
 import { isNewVersionError } from "../../../_lib/new-version";
 
-const SIMULATION_TARGETS: { label: string; target: SimulationTarget }[] = [
-  { label: "Prochain match de mon club", target: { kind: "next-match" } },
-  { label: "Fin du mois", target: { kind: "month-end" } },
-  { label: "Fermeture du mercato", target: { kind: "window-close" } },
-  { label: "Fin de saison", target: { kind: "season-end" } },
+/** The menu's targets, each named in the messages by its kind; a day picked in the calendar is the last entry's. */
+const SIMULATION_TARGETS: Exclude<SimulationTarget, { kind: "date" }>[] = [
+  { kind: "next-match" },
+  { kind: "month-end" },
+  { kind: "window-close" },
+  { kind: "season-end" },
 ];
 
 /** « Simuler jusqu'à… » and its targets; the last one lets the manager pick a day in the calendar. */
 function SimulateMenu({ disabled }: { disabled: boolean }) {
+  const t = useTranslations("gameActions");
   const simulation = useSimulation();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={<Button variant="outline" className="h-9 px-2.5 font-heading text-base font-semibold sm:px-3" />}
         disabled={disabled || simulation.busy}
+        data-testid="simulate-menu"
       >
         <FastForwardIcon data-icon="inline-start" />
         {/* Its icons alone on a phone, its name still read: the header's first row must hold at 390 px. */}
-        <span className="max-sm:sr-only">Simuler jusqu&apos;à…</span>
+        <span className="max-sm:sr-only">{t("simulate")}</span>
         <ChevronDownIcon data-icon="inline-end" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-60">
-        {SIMULATION_TARGETS.map(({ label, target }) => (
-          <DropdownMenuItem key={label} onClick={() => simulation.start(target)}>
-            {label}
+        {SIMULATION_TARGETS.map((target) => (
+          <DropdownMenuItem key={target.kind} onClick={() => simulation.start(target)} data-testid={`simulate-${target.kind}`}>
+            {t(`targets.${target.kind}`)}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={simulation.beginPicking}>
+        <DropdownMenuItem onClick={simulation.beginPicking} data-testid="simulate-pick-date">
           <CalendarDaysIcon />
-          Choisir une date dans le calendrier…
+          {t("pickDate")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -69,6 +72,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
   const [intermediate, setIntermediate] = useState(0); // dates played so far by « Prochain match »
   const [kickOff, setKickOff] = useState(false); // « Prochain match » is playing the managed club's date
   const router = useRouter();
+  const t = useTranslations("gameActions");
   const common = useTranslations("common");
 
   const show = (result: GameActionResult) => {
@@ -89,7 +93,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
       try {
         show(await action(saveId));
       } catch (error) {
-        toast.error(isNewVersionError(error) ? common("newVersion") : "L'action a échoué. Réessayez.");
+        toast.error(isNewVersionError(error) ? common("newVersion") : t("failed"));
       }
     });
 
@@ -110,12 +114,12 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
           }
         }
         if (played > 0) {
-          toast.info(`${played} ${played > 1 ? "journées intermédiaires jouées" : "journée intermédiaire jouée"}.`);
+          toast.info(t("intermediatePlayed", { count: played }));
         }
         setKickOff(true);
         show(await playMatchdayAction(saveId));
       } catch (error) {
-        toast.error(isNewVersionError(error) ? common("newVersion") : "L'action a échoué. Réessayez.");
+        toast.error(isNewVersionError(error) ? common("newVersion") : t("failed"));
         router.refresh();
       }
     });
@@ -124,24 +128,31 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
 
   if (liveMatch) {
     return (
-      <Link href={`/saves/${saveId}/live`} className={buttonVariants({ variant: "club", className })}>
+      <Link href={`/saves/${saveId}/live`} className={buttonVariants({ variant: "club", className })} data-testid="resume-match">
         <PlayIcon data-icon="inline-start" className="fill-current" />
-        Match en cours — reprendre
+        {t("resumeMatch")}
       </Link>
     );
   }
 
   return seasonFinished ? (
-    <Button variant="club" className={className} disabled={pending} onClick={() => run(advanceSeasonAction)}>
+    <Button variant="club" className={className} disabled={pending} onClick={() => run(advanceSeasonAction)} data-testid="next-season">
       <FastForwardIcon data-icon="inline-start" className="fill-current" />
-      {pending ? "Préparation de la saison…" : "Passer à la saison suivante"}
+      {pending ? t("preparingSeason") : t("nextSeason")}
     </Button>
   ) : (
     <div className="flex items-center gap-2">
       <SimulateMenu disabled={pending} />
       {worldVersion === 2 ? (
         // Busy from the click: the dates in between first, counted as they are played, then the match's own.
-        <Button variant="club" className={className} disabled={pending} aria-busy={pending} onClick={playToNextMatch}>
+        <Button
+          variant="club"
+          className={className}
+          disabled={pending}
+          aria-busy={pending}
+          onClick={playToNextMatch}
+          data-testid="next-match"
+        >
           {pending ? (
             <LoaderCircleIcon data-icon="inline-start" aria-hidden className="animate-spin" />
           ) : (
@@ -149,14 +160,14 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
           )}
           {pending
             ? kickOff
-              ? "Coup d'envoi…"
-              : `Journées intermédiaires…${intermediate > 0 ? ` ${intermediate}` : ""}`
-            : "Prochain match"}
+              ? t("kickOff")
+              : `${t("intermediate")}${intermediate > 0 ? ` ${intermediate}` : ""}`
+            : t("nextMatch")}
         </Button>
       ) : (
-        <Button variant="club" className={className} disabled={pending} onClick={() => run(playMatchdayAction)}>
+        <Button variant="club" className={className} disabled={pending} onClick={() => run(playMatchdayAction)} data-testid="play-matchday">
           <PlayIcon data-icon="inline-start" className="fill-current" />
-          {pending ? "Simulation…" : "Jouer la journée"}
+          {pending ? t("simulating") : t("playMatchday")}
         </Button>
       )}
     </div>

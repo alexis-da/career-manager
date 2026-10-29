@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/src/lib/utils";
 
+/** The tabs, each named in the nav messages by its key, which is also its data-testid's: « nav-squad ». */
 const SECTIONS = [
-  { segment: "", label: "Tableau de bord" },
-  { segment: "/squad", label: "Effectif" },
-  { segment: "/lineup", label: "Composition" },
-  { segment: "/fixtures", label: "Calendrier" },
-  { segment: "/standings", label: "Classement" },
-  { segment: "/cup", label: "Coupe" },
-  { segment: "/transfers", label: "Transferts" },
-  { segment: "/seasons", label: "Palmarès" },
+  { segment: "", key: "dashboard" },
+  { segment: "/squad", key: "squad" },
+  { segment: "/lineup", key: "lineup" },
+  { segment: "/fixtures", key: "fixtures" },
+  { segment: "/standings", key: "standings" },
+  { segment: "/cup", key: "cup" },
+  { segment: "/transfers", key: "transfers" },
+  { segment: "/seasons", key: "seasons" },
 ] as const;
 
 /** The ends of the row that hide tabs: a gradient there says there is more. */
@@ -26,6 +28,7 @@ type HiddenEnds = { start: boolean; end: boolean };
  * accent underline.
  */
 export function SaveNav({ saveId, hasCup }: { saveId: string; hasCup: boolean }) {
+  const t = useTranslations("nav");
   const pathname = usePathname();
   const base = `/saves/${saveId}`;
   const row = useRef<HTMLDivElement>(null);
@@ -63,13 +66,13 @@ export function SaveNav({ saveId, hasCup }: { saveId: string; hasCup: boolean })
   }, [pathname]);
 
   return (
-    <nav aria-label="Navigation de la partie" className="relative mx-auto w-full max-w-[1440px]">
+    <nav aria-label={t("label")} data-testid="save-nav" className="relative mx-auto w-full max-w-[1440px]">
       {/* Positioned: the tabs' offsetLeft is measured from it. No scrollbar: the gradients say there is more. */}
       <div
         ref={row}
         className="relative flex h-10 items-center gap-1 overflow-x-auto px-4 [scrollbar-width:none] lg:px-7 [&::-webkit-scrollbar]:hidden"
       >
-        {SECTIONS.filter(({ segment }) => hasCup || segment !== "/cup").map(({ segment, label }) => {
+        {SECTIONS.filter(({ segment }) => hasCup || segment !== "/cup").map(({ segment, key }) => {
           const href = `${base}${segment}`;
           const active = segment === "" ? pathname === base : pathname.startsWith(href);
           return (
@@ -77,6 +80,7 @@ export function SaveNav({ saveId, hasCup }: { saveId: string; hasCup: boolean })
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
+              data-testid={`nav-${key}`}
               className={cn(
                 // The underline stays inside the row (4 px under a 32 px tab in a 40 px row): the row scrolls, and
                 // would clip anything hanging out.
@@ -86,7 +90,7 @@ export function SaveNav({ saveId, hasCup }: { saveId: string; hasCup: boolean })
                   : "font-medium text-muted-foreground hover:text-foreground",
               )}
             >
-              {label}
+              {t(key)}
             </Link>
           );
         })}
