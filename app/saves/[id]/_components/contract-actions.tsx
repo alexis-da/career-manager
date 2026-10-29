@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -149,6 +150,8 @@ export function ReleasePlayerDialog({ saveId, player, terms, disabled = false, t
 }
 
 export function SellPlayerDialog({ saveId, player, terms, disabled = false, triggerClassName }: ActionProps) {
+  const tRefusals = useTranslations("refusals");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const { pending, refusal, clearRefusal, run } = usePlayerAction();
   const name = fullName(player);
@@ -172,7 +175,7 @@ export function SellPlayerDialog({ saveId, player, terms, disabled = false, trig
           <DialogDescription>
             {sale.ok
               ? `Meilleure offre : ${sale.buyerName} propose ${formatMoney(sale.fee)}. Le joueur y gagnera ${formatMoney(sale.wage)} par saison, pour ${sale.years} saison${sale.years > 1 ? "s" : ""}.`
-              : refusalMessage(sale.reason)}
+              : refusalMessage(sale.reason, tRefusals, locale)}
           </DialogDescription>
         </DialogHeader>
         <RefusalAlert message={refusal} />

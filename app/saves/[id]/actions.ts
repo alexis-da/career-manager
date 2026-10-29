@@ -1,6 +1,6 @@
 "use server";
 
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import * as z from "zod";
 import { requireOwnedSave } from "@/src/auth/current-user";
@@ -24,9 +24,10 @@ import {
 import { EXTRA_TIME_SUBSTITUTIONS, MAX_SUBSTITUTIONS } from "@/src/engine/balance";
 import { HalfTimeChoiceError } from "@/src/engine/match";
 import { seasonLabel } from "@/src/engine/world";
+import type { Translator } from "@/src/i18n/translator";
 import { formatDate } from "@/src/lib/format";
-import { halfTimeRefusalMessage, MATCH_IN_PROGRESS_MESSAGE, NO_MATCH_IN_PROGRESS_MESSAGE } from "./_lib/live-match";
-import { extraTimeNote, penaltiesNote, stageLabel } from "./_lib/stage";
+import { halfTimeRefusalMessage } from "./_lib/live-match";
+import { extraTimeNote, penaltiesNote, stageLabel, type Decision } from "./_lib/stage";
 
 export type GameActionResult = {
   ok: boolean;
@@ -38,40 +39,67 @@ export type GameActionResult = {
 
 const saveIdSchema = z.string().min(1);
 
+/** « a.p., 5-3 t.a.b. » after a score, each note after a space; empty for a match decided in 90 minutes. */
+function scoreNotes(decision: Decision, t: Translator<"score">): string {
+  return [extraTimeNote(decision, t), penaltiesNote(decision, t)]
+    .filter((note) => note !== null)
+    .map((note) => ` ${note}`)
+    .join(",");
+}
+
 export async function playMatchdayAction(saveId: string): Promise<GameActionResult> {
-  const tScore = await getTranslations("score");
-  const tStage = await getTranslations("stage");
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
+  const [t, tLive, tScore, tStage, locale] = await Promise.all([
+    getTranslations("actions.matchday"),
+    getTranslations("liveMatch"),
+    getTranslations("score"),
+    getTranslations("stage"),
+    getLocale(),
+  ]);
   let matchday;
   try {
     // The managed club's match stops at half-time, for the manager's changes on the replay page.
     matchday = await playNextMatchday(id, { pauseManagedMatch: true });
   } catch (error) {
     if (error instanceof MatchInProgressError) {
-      return { ok: false, message: MATCH_IN_PROGRESS_MESSAGE };
+      return { ok: false, message: tLive("matchInProgress") };
     }
     throw error;
   }
   if (matchday === null) {
-    return { ok: false, message: "Tous les matchs de la saison sont joués." };
+    return { ok: false, message: t("seasonOver") };
   }
   const fixture = await getManagedClubFixtureOn(id, matchday.date);
   revalidatePath(`/saves/${id}`, "layout");
 
-  const day = fixture?.cup === true ? `${stageLabel(fixture, tStage)}, le ${formatDate(matchday.date)}` : `Journée du ${formatDate(matchday.date)}`;
+  const date = formatDate(matchday.date, locale);
+  const day = fixture?.cup === true ? t("cupDay", { stage: stageLabel(fixture, tStage), date }) : t("leagueDay", { date });
   if (matchday.managed?.halfTime === true && fixture !== null) {
     return {
       ok: true,
-      message: `${day} : mi-temps, ${fixture.home.name} ${fixture.homeHalfTimeGoals ?? 0} – ${fixture.awayHalfTimeGoals ?? 0} ${fixture.away.name}`,
+      message: t("halfTime", {
+        day,
+        home: fixture.home.name,
+        homeGoals: fixture.homeHalfTimeGoals ?? 0,
+        awayGoals: fixture.awayHalfTimeGoals ?? 0,
+        away: fixture.away.name,
+      }),
       redirectTo: `/saves/${id}/live?rejouer=1`,
     };
   }
   if (fixture === null || fixture.homeGoals === null || fixture.awayGoals === null) {
-    return { ok: true, message: `${day} : votre club ne jouait pas.` };
+    return { ok: true, message: t("notPlaying", { day }) };
   }
   return {
     ok: true,
-    message: `${day} : ${fixture.home.name} ${fixture.homeGoals} – ${fixture.awayGoals} ${fixture.away.name}${[extraTimeNote(fixture, tScore), penaltiesNote(fixture, tScore)].filter((note) => note !== null).map((note) => ` ${note}`).join(",")}`,
+    message: t("result", {
+      day,
+      home: fixture.home.name,
+      homeGoals: fixture.homeGoals,
+      awayGoals: fixture.awayGoals,
+      away: fixture.away.name,
+      notes: scoreNotes(fixture, tScore),
+    }),
     redirectTo: `/saves/${id}/live`,
   };
 }
@@ -87,13 +115,17 @@ export async function playUntilNextMatchAction(saveId: string): Promise<Intermed
 
 export async function advanceSeasonAction(saveId: string): Promise<GameActionResult> {
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
+  const [t, tLive] = await Promise.all([getTranslations("actions.season"), getTranslations("liveMatch")]);
   try {
     const transition = await advanceToNextSeason(id);
     revalidatePath(`/saves/${id}`, "layout");
-    const season = seasonLabel(transition.startYear);
     return {
       ok: true,
-      message: `Saison ${season} lancée : ${transition.retired} retraites, ${transition.preseason.youthPlayers} jeunes arrivés.`,
+      message: t("started", {
+        season: seasonLabel(transition.startYear),
+        retired: transition.retired,
+        youth: transition.preseason.youthPlayers,
+      }),
       // The season just closed, with its card.
       ...(transition.completedSeasonId === null
         ? {}
@@ -101,10 +133,10 @@ export async function advanceSeasonAction(saveId: string): Promise<GameActionRes
     };
   } catch (error) {
     if (error instanceof MatchInProgressError) {
-      return { ok: false, message: MATCH_IN_PROGRESS_MESSAGE };
+      return { ok: false, message: tLive("matchInProgress") };
     }
     if (error instanceof SeasonNotFinishedError) {
-      return { ok: false, message: "La saison n'est pas terminée." };
+      return { ok: false, message: t("notFinished") };
     }
     throw error;
   }
@@ -134,11 +166,15 @@ export type HalfTimeChoiceInput = z.input<typeof halfTimeChoiceSchema>;
  * page then shows what was just played: from 45' (?reprise=1), or from 90' (?reprise=2).
  */
 export async function resumeMatch(saveId: string, choice: HalfTimeChoiceInput): Promise<GameActionResult> {
-  const tScore = await getTranslations("score");
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
+  const [t, tLive, tScore] = await Promise.all([
+    getTranslations("actions.resume"),
+    getTranslations("liveMatch"),
+    getTranslations("score"),
+  ]);
   const parsed = halfTimeChoiceSchema.safeParse(choice);
   if (!parsed.success) {
-    return { ok: false, message: `Changements invalides : ${MAX_SUBSTITUTIONS} remplacements au maximum, 11 postes.` };
+    return { ok: false, message: t("invalid", { max: MAX_SUBSTITUTIONS }) };
   }
   try {
     const { from, result, score } = await resumeLiveMatch(
@@ -148,21 +184,21 @@ export async function resumeMatch(saveId: string, choice: HalfTimeChoiceInput): 
         : { formation: parsed.data.formation, starters: parsed.data.lineup, substitutions: parsed.data.substitutions },
     );
     revalidatePath(`/saves/${id}`, "layout");
-    const notes = result === null ? [] : [extraTimeNote(result, tScore), penaltiesNote(result, tScore)].filter((note) => note !== null);
+    const { homeGoals, awayGoals } = score;
     return {
       ok: true,
       message:
         result === null
-          ? `Fin du temps réglementaire : ${score.homeGoals} – ${score.awayGoals}, prolongation`
-          : `Score final : ${score.homeGoals} – ${score.awayGoals}${notes.map((note) => ` ${note}`).join(",")}`,
+          ? t("regulationEnd", { homeGoals, awayGoals })
+          : t("finalScore", { homeGoals, awayGoals, notes: scoreNotes(result, tScore) }),
       redirectTo: `/saves/${id}/live?reprise=${from === "HALF_TIME" ? 1 : 2}`,
     };
   } catch (error) {
     if (error instanceof HalfTimeChoiceError) {
-      return { ok: false, message: halfTimeRefusalMessage(error.issue) };
+      return { ok: false, message: halfTimeRefusalMessage(error.issue, tLive) };
     }
     if (error instanceof NoMatchInProgressError) {
-      return { ok: false, message: NO_MATCH_IN_PROGRESS_MESSAGE };
+      return { ok: false, message: tLive("noMatchInProgress") };
     }
     throw error;
   }

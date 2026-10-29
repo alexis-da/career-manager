@@ -238,11 +238,18 @@ export async function getSimulationSummary(saveId: string, fromDate: Date): Prom
     injuries: injuryEvents
       // An injury event of the managed club's side: the other side's injuries are the opponent's.
       .filter((event) => (event.side === "HOME") === (event.fixture.homeClubSaveId === managedId))
-      .map((event) => ({
-        playerName: event.playerSave === null ? "Joueur inconnu" : fullName(event.playerSave),
-        date: event.fixture.scheduledAt,
-        injuredUntil: event.playerSave?.injuredUntil ?? null,
-      })),
+      // Every match event is written with its player (matchEventRows): one without names no one to show.
+      .flatMap((event) =>
+        event.playerSave === null
+          ? []
+          : [
+              {
+                playerName: fullName(event.playerSave),
+                date: event.fixture.scheduledAt,
+                injuredUntil: event.playerSave.injuredUntil,
+              },
+            ],
+      ),
     expiredContracts: expired.flatMap((player) =>
       player.contractUntil === null ? [] : [{ playerName: fullName(player), contractUntil: player.contractUntil }],
     ),

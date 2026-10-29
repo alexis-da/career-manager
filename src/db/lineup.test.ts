@@ -5,13 +5,13 @@ const starters = (count: number) => Array.from({ length: count }, (_, slot) => (
 
 // The module creates the Prisma client on import, which needs DATABASE_URL; no query runs here.
 describe.skipIf(process.env.DATABASE_URL === undefined)("lineupInputSchema", () => {
-  it("accepts a full eleven and refuses an incomplete one with a clear message", async () => {
-    const { lineupInputSchema } = await import("./lineup");
+  it("accepts a full eleven and refuses an incomplete one with its issue", async () => {
+    const { lineupInputSchema, lineupIssueOf } = await import("./lineup");
 
     expect(lineupInputSchema.safeParse({ formation: "4-4-2", lineup: { starters: starters(11), benchOrder: [] } }).success).toBe(true);
     const incomplete = lineupInputSchema.safeParse({ formation: "4-4-2", lineup: { starters: starters(10), benchOrder: [] } });
     expect(incomplete.success).toBe(false);
-    expect(incomplete.error?.issues[0]?.message).toMatch(/^Onze incomplet/);
+    expect(incomplete.error === undefined ? null : lineupIssueOf(incomplete.error)).toBe("incomplete");
   });
 
   it("refuses a slot or a player given twice, and an unknown formation", async () => {

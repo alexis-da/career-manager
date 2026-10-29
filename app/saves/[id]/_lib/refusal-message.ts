@@ -1,5 +1,7 @@
 import type { TransferRefusal } from "@/src/db/transfers";
 import type { OfferRefusal } from "@/src/engine/transfer-ai";
+import type { Locale } from "@/src/i18n/locale";
+import type { Translator } from "@/src/i18n/translator";
 import { formatDate, formatMoney } from "@/src/lib/format";
 
 /** Figures that make a refusal precise. All optional: without them, the message stays general. */
@@ -15,43 +17,44 @@ export type RefusalContext = {
   nextWindowOpensOn?: Date;
 };
 
-/** The reason an action was refused, as the player of the game should read it. */
+/** The reason an action was refused, as the player of the game should read it, in their language. */
 export function refusalMessage(
   reason: TransferRefusal,
+  t: Translator<"refusals">,
+  locale: Locale,
   refusals: readonly OfferRefusal[] = [],
   context: RefusalContext = {},
 ): string {
+  const money = (euros: number): string => formatMoney(euros, locale);
   switch (reason) {
     case "window_closed":
       return context.nextWindowOpensOn === undefined
-        ? "Le mercato est fermé : contrats et transferts se traitent du 1er juillet au 31 août, puis en janvier."
-        : `Mercato fermé : la prochaine fenêtre ouvre le ${formatDate(context.nextWindowOpensOn)}.`;
+        ? t("windowClosed")
+        : t("windowClosedUntil", { date: formatDate(context.nextWindowOpensOn, locale) });
     case "not_available":
-      return context.target === "market"
-        ? "Ce joueur n'est plus disponible : il a changé de club ou quitté le monde."
-        : "Ce joueur ne fait plus partie de votre effectif.";
+      return context.target === "market" ? t("notAvailableMarket") : t("notAvailableSquad");
     case "insufficient_budget":
       return context.fee !== undefined && context.budget !== undefined
-        ? `Budget insuffisant : l'indemnité de ${formatMoney(context.fee)} dépasse votre budget transferts de ${formatMoney(context.budget)}.`
-        : "Budget insuffisant : votre budget transferts ne couvre pas cette opération.";
+        ? t("insufficientBudgetFor", { fee: money(context.fee), budget: money(context.budget) })
+        : t("insufficientBudget");
     case "wage_budget_exceeded":
       return context.wage !== undefined && context.wageRoom !== undefined
-        ? `Masse salariale dépassée : ${formatMoney(context.wage)} par saison, pour une marge restante de ${formatMoney(Math.max(0, context.wageRoom))}.`
-        : "Masse salariale dépassée : ce salaire ferait dépasser votre budget salarial.";
+        ? t("wageBudgetExceededBy", { wage: money(context.wage), wageRoom: money(Math.max(0, context.wageRoom)) })
+        : t("wageBudgetExceeded");
     case "club_refused": {
-      const club = context.clubName ?? "Le club vendeur";
+      const club = context.clubName ?? t("sellingClub");
       return context.askingPrice === undefined
-        ? `${club} refuse : l'indemnité proposée est inférieure à son prix.`
-        : `${club} refuse : il demande au moins ${formatMoney(context.askingPrice)}.`;
+        ? t("clubRefused", { club })
+        : t("clubRefusedAsking", { club, askingPrice: money(context.askingPrice) });
     }
     case "no_offer":
-      return "Aucun club ne peut acheter ce joueur pour le moment : réputation, budget ou masse salariale insuffisants.";
+      return t("noOffer");
     case "player_refused":
       if (refusals.includes("club_reputation_too_low")) {
-        return "Le joueur refuse : la réputation du club est trop faible à ses yeux.";
+        return t("playerRefusedReputation");
       }
       return context.minimumWage === undefined
-        ? "Le joueur refuse : le salaire proposé est trop bas."
-        : `Le joueur refuse : il demande au moins ${formatMoney(context.minimumWage)} par saison.`;
+        ? t("playerRefused")
+        : t("playerRefusedAsking", { minimumWage: money(context.minimumWage) });
   }
 }

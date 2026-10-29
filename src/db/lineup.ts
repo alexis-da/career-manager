@@ -20,24 +20,33 @@ export const savedLineupSchema = z.object({
   benchOrder: z.array(z.string().min(1).max(100)).max(BENCH_SIZE),
 });
 
+/** Why a well-formed lineup is refused: the message of its Zod issue, a code the action words for the manager. */
+export const LINEUP_ISSUES = ["incomplete", "duplicate-slot", "duplicate-player"] as const;
+
+export type LineupIssue = (typeof LINEUP_ISSUES)[number];
+
 /** A lineup sent by the manager: the stored shape, all 11 slots filled, each slot and each player once. */
 export const lineupInputSchema = z
   .object({ formation: formationSchema, lineup: savedLineupSchema })
-  .refine(({ lineup }) => lineup.starters.length === SLOT_COUNT, {
-    message: "Onze incomplet : placez un joueur sur chacun des 11 postes avant d'enregistrer.",
-  })
+  .refine(({ lineup }) => lineup.starters.length === SLOT_COUNT, { message: "incomplete" satisfies LineupIssue })
   .refine(({ lineup }) => new Set(lineup.starters.map((starter) => starter.slot)).size === lineup.starters.length, {
-    message: "Un poste est attribué deux fois.",
+    message: "duplicate-slot" satisfies LineupIssue,
   })
   .refine(
     ({ lineup }) => {
       const keys = [...lineup.starters.map((starter) => starter.playerKey), ...lineup.benchOrder];
       return new Set(keys).size === keys.length;
     },
-    { message: "Un joueur figure deux fois dans la composition." },
+    { message: "duplicate-player" satisfies LineupIssue },
   );
 
 export type LineupInput = z.output<typeof lineupInputSchema>;
+
+/** The first issue of a refused lineup, null when it is malformed rather than one of LINEUP_ISSUES. */
+export function lineupIssueOf(error: z.ZodError): LineupIssue | null {
+  const message = error.issues[0]?.message;
+  return LINEUP_ISSUES.find((issue) => issue === message) ?? null;
+}
 
 export function parseFormation(value: string): FormationName {
   const parsed = formationSchema.safeParse(value);

@@ -1,1 +1,77 @@
-{}
+{
+  "actions": {
+    "matchday": {
+      "seasonOver": "All the season's matches have been played.",
+      "leagueDay": "Matchday, {date}",
+      "cupDay": "{stage}, {date}",
+      "halfTime": "{day}: half-time, {home} {homeGoals} – {awayGoals} {away}",
+      "notPlaying": "{day}: your club wasn't playing.",
+      "result": "{day}: {home} {homeGoals} – {awayGoals} {away}{notes}"
+    },
+    "season": {
+      "started": "Season {season} under way: {retired, plural, one {# retirement} other {# retirements}}, {youth, plural, one {# new youth player} other {# new youth players}}.",
+      "notFinished": "The season isn't over yet."
+    },
+    "resume": {
+      "invalid": "Invalid changes: {max} substitutions at most, 11 positions.",
+      "regulationEnd": "End of normal time: {homeGoals} – {awayGoals}, extra time",
+      "finalScore": "Final score: {homeGoals} – {awayGoals}{notes}"
+    },
+    "lineup": {
+      "invalid": "Invalid line-up.",
+      "issues": {
+        "incomplete": "Incomplete eleven: put a player in each of the 11 positions before saving.",
+        "duplicate-slot": "A position is filled twice.",
+        "duplicate-player": "A player appears twice in the line-up."
+      },
+      "notInSquad": "A player in the line-up is no longer in the squad. Reload the page.",
+      "saved": "{formation} line-up saved."
+    },
+    "contracts": {
+      "invalid": "Invalid proposal: the length is 1 to 5 seasons and the wage must be an amount in euros.",
+      "renewed": "Contract extended until {until}, for {wage} per season.",
+      "renewedOpenEnded": "Contract extended, for {wage} per season.",
+      "released": "Player released. Compensation paid: {fee}.",
+      "sold": "Player sold for {fee}."
+    },
+    "market": {
+      "invalid": "Invalid proposal: the length is 1 to 5 seasons, and the fee and the wage are whole amounts in euros.",
+      "signed": "Contract signed until {until}, for {wage} per season.",
+      "signedOpenEnded": "Contract signed, for {wage} per season.",
+      "offerAccepted": "Offer accepted: transfer for {fee}, contract until {until} at {wage} per season.",
+      "offerAcceptedOpenEnded": "Offer accepted: transfer for {fee}, contract at {wage} per season."
+    }
+  },
+  "refusals": {
+    "windowClosed": "The transfer window is closed: contracts and transfers are done from 1 July to 31 August, then in January.",
+    "windowClosedUntil": "Transfer window closed: the next window opens on {date}.",
+    "notAvailableMarket": "This player is no longer available: he has changed clubs or left football.",
+    "notAvailableSquad": "This player is no longer in your squad.",
+    "insufficientBudget": "Insufficient budget: your transfer budget doesn't cover this deal.",
+    "insufficientBudgetFor": "Insufficient budget: the fee of {fee} exceeds your transfer budget of {budget}.",
+    "wageBudgetExceeded": "Wage bill exceeded: this wage would take you over your wage budget.",
+    "wageBudgetExceededBy": "Wage bill exceeded: {wage} per season, with {wageRoom} of wage room left.",
+    "sellingClub": "The selling club",
+    "clubRefused": "{club} refuses: the fee offered is below their price.",
+    "clubRefusedAsking": "{club} refuses: they want at least {askingPrice}.",
+    "noOffer": "No club can buy this player at the moment: not enough reputation, budget or wage room.",
+    "playerRefusedReputation": "The player refuses: the club's reputation is too low in his eyes.",
+    "playerRefused": "The player refuses: the wage offered is too low.",
+    "playerRefusedAsking": "The player refuses: he wants at least {minimumWage} per season."
+  },
+  "liveMatch": {
+    "matchInProgress": "Your match is waiting to resume: play it out before moving on.",
+    "noMatchInProgress": "No match is waiting to resume.",
+    "issues": {
+      "too-many-substitutions": "Too many substitutions: {max} at most per match, one more before extra time.",
+      "unknown-player-off": "The player being replaced isn't on the pitch.",
+      "sent-off-player": "A sent-off player can be neither replaced nor brought back: your team is down to ten.",
+      "unknown-substitute": "The incoming player isn't on the bench: a player who has gone off can't come back.",
+      "duplicate-player": "A player appears twice in your changes.",
+      "invalid-slot": "A position in the formation is filled twice or doesn't exist.",
+      "sent-off-slot": "A sent-off player's position stays empty.",
+      "lineup-mismatch": "The eleven doesn't match the players on the pitch after the substitutions.",
+      "incomplete-lineup": "A position is left empty while a substitute can still come on."
+    }
+  }
+}

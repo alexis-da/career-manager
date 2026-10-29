@@ -1,1 +1,77 @@
-{}
+{
+  "actions": {
+    "matchday": {
+      "seasonOver": "Tous les matchs de la saison sont joués.",
+      "leagueDay": "Journée du {date}",
+      "cupDay": "{stage}, le {date}",
+      "halfTime": "{day} : mi-temps, {home} {homeGoals} – {awayGoals} {away}",
+      "notPlaying": "{day} : ton club ne jouait pas.",
+      "result": "{day} : {home} {homeGoals} – {awayGoals} {away}{notes}"
+    },
+    "season": {
+      "started": "Saison {season} lancée : {retired, plural, one {# retraite} other {# retraites}}, {youth, plural, one {# jeune arrivé} other {# jeunes arrivés}}.",
+      "notFinished": "La saison n'est pas terminée."
+    },
+    "resume": {
+      "invalid": "Changements invalides : {max} remplacements au maximum, 11 postes.",
+      "regulationEnd": "Fin du temps réglementaire : {homeGoals} – {awayGoals}, prolongation",
+      "finalScore": "Score final : {homeGoals} – {awayGoals}{notes}"
+    },
+    "lineup": {
+      "invalid": "Composition invalide.",
+      "issues": {
+        "incomplete": "Onze incomplet : place un joueur sur chacun des 11 postes avant d'enregistrer.",
+        "duplicate-slot": "Un poste est attribué deux fois.",
+        "duplicate-player": "Un joueur figure deux fois dans la composition."
+      },
+      "notInSquad": "Un joueur de la composition ne fait plus partie de l'effectif. Recharge la page.",
+      "saved": "Composition en {formation} enregistrée."
+    },
+    "contracts": {
+      "invalid": "Proposition invalide : la durée va de 1 à 5 saisons et le salaire doit être un montant en euros.",
+      "renewed": "Contrat prolongé jusqu'au {until}, pour {wage} par saison.",
+      "renewedOpenEnded": "Contrat prolongé, pour {wage} par saison.",
+      "released": "Joueur libéré. Indemnité versée : {fee}.",
+      "sold": "Joueur vendu pour {fee}."
+    },
+    "market": {
+      "invalid": "Proposition invalide : la durée va de 1 à 5 saisons, l'indemnité et le salaire sont des montants entiers en euros.",
+      "signed": "Contrat signé jusqu'au {until}, pour {wage} par saison.",
+      "signedOpenEnded": "Contrat signé, pour {wage} par saison.",
+      "offerAccepted": "Offre acceptée : transfert pour {fee}, contrat jusqu'au {until} à {wage} par saison.",
+      "offerAcceptedOpenEnded": "Offre acceptée : transfert pour {fee}, contrat à {wage} par saison."
+    }
+  },
+  "refusals": {
+    "windowClosed": "Le mercato est fermé : contrats et transferts se traitent du 1er juillet au 31 août, puis en janvier.",
+    "windowClosedUntil": "Mercato fermé : la prochaine fenêtre ouvre le {date}.",
+    "notAvailableMarket": "Ce joueur n'est plus disponible : il a changé de club ou quitté le monde.",
+    "notAvailableSquad": "Ce joueur ne fait plus partie de ton effectif.",
+    "insufficientBudget": "Budget insuffisant : ton budget transferts ne couvre pas cette opération.",
+    "insufficientBudgetFor": "Budget insuffisant : l'indemnité de {fee} dépasse ton budget transferts de {budget}.",
+    "wageBudgetExceeded": "Masse salariale dépassée : ce salaire ferait dépasser ton budget salarial.",
+    "wageBudgetExceededBy": "Masse salariale dépassée : {wage} par saison, pour une marge restante de {wageRoom}.",
+    "sellingClub": "Le club vendeur",
+    "clubRefused": "{club} refuse : l'indemnité proposée est inférieure à son prix.",
+    "clubRefusedAsking": "{club} refuse : il demande au moins {askingPrice}.",
+    "noOffer": "Aucun club ne peut acheter ce joueur pour le moment : réputation, budget ou masse salariale insuffisants.",
+    "playerRefusedReputation": "Le joueur refuse : la réputation du club est trop faible à ses yeux.",
+    "playerRefused": "Le joueur refuse : le salaire proposé est trop bas.",
+    "playerRefusedAsking": "Le joueur refuse : il demande au moins {minimumWage} par saison."
+  },
+  "liveMatch": {
+    "matchInProgress": "Ton match attend la reprise : joue la suite avant de continuer.",
+    "noMatchInProgress": "Aucun match n'attend la reprise.",
+    "issues": {
+      "too-many-substitutions": "Trop de remplacements : {max} au maximum par match, un de plus avant la prolongation.",
+      "unknown-player-off": "Le joueur remplacé n'est pas sur le terrain.",
+      "sent-off-player": "Un joueur exclu ne peut être ni remplacé ni rappelé : ton équipe joue à dix.",
+      "unknown-substitute": "L'entrant n'est pas sur le banc : un joueur sorti ne peut pas revenir.",
+      "duplicate-player": "Un joueur figure deux fois dans tes changements.",
+      "invalid-slot": "Un poste du dispositif est attribué deux fois ou n'existe pas.",
+      "sent-off-slot": "Le poste d'un joueur exclu reste vide.",
+      "lineup-mismatch": "Le onze ne correspond pas aux joueurs sur le terrain après les remplacements.",
+      "incomplete-lineup": "Un poste reste vide alors qu'un remplaçant peut entrer."
+    }
+  }
+}

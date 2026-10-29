@@ -69,7 +69,6 @@
     "noExpiredContracts": "No contracts expired.",
     "continue": "Continue",
     "startFailed": "The simulation could not start. Try again.",
-    "matchInProgress": "Your match is waiting to resume: play it out before moving on.",
     "nothingToPlay": "No matchdays to play up to {date}."
   }
 }

@@ -276,6 +276,7 @@ export function SimulationProvider({
   children: ReactNode;
 }) {
   const t = useTranslations("simulation");
+  const tLive = useTranslations("liveMatch");
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
@@ -324,7 +325,7 @@ export function SimulationProvider({
         }
         if (plan.matchInProgress) {
           setPhase({ kind: "idle" });
-          toast.error(t("matchInProgress"));
+          toast.error(tLive("matchInProgress"));
           return;
         }
         if (plan.matchdays === 0) {

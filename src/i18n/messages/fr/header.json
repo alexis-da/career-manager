@@ -69,7 +69,6 @@
     "noExpiredContracts": "Aucun contrat n'a expiré.",
     "continue": "Continuer",
     "startFailed": "La simulation n'a pas pu démarrer. Réessaie.",
-    "matchInProgress": "Ton match attend la reprise : joue la suite avant de continuer.",
     "nothingToPlay": "Aucune journée à jouer d'ici au {date}."
   }
 }
