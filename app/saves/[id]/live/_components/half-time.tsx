@@ -157,7 +157,7 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
           data-testid="half-time-formation"
           value={state.formation}
           onChange={(event) => changeFormation(event.target.value)}
-          className="h-8 rounded-lg border border-input bg-input/30 px-2 font-heading text-base font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-8 rounded-lg border border-input bg-input/30 px-2 font-heading text-base font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:h-11"
         >
           {FORMATION_NAMES.map((name) => (
             <option key={name} value={name}>
@@ -176,7 +176,8 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
         </p>
       )}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]">
+      {/* One column the screen's width under lg (minmax(0, 1fr)): the pitch scales to it. */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]">
         <div className="space-y-2">
           <Pitch
             slots={slots}
@@ -221,14 +222,17 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
                       onClick={() => clickSubstitute(key)}
                       {...sourceProps({ kind: "reserve", key })}
                       className={cn(
-                        "grid w-full cursor-grab touch-none grid-cols-[5.5rem_2rem_minmax(0,1fr)_3rem] items-center gap-3 rounded-md px-2 py-1 text-left text-sm select-none",
+                        // A finger's long press lifts the player (usePointerDrag), never the browser's menu; a swipe
+                        // scrolls the page. On a phone, no face, and the name whole.
+                        "grid w-full cursor-grab grid-cols-[5.5rem_2rem_minmax(0,1fr)_3rem] items-center gap-3 rounded-md px-2 py-1 text-left text-sm select-none [-webkit-touch-callout:none]",
+                        "max-sm:min-h-11 max-sm:grid-cols-[3.75rem_minmax(0,1fr)_2rem] max-sm:gap-2",
                         selected !== null && "hover:bg-muted",
                         drag?.source.key === key && "opacity-50",
                       )}
                     >
-                      <PositionBadges playerKey={key} position={player.position} className="justify-self-start" />
-                      <PlayerFace playerKey={key} age={player.age} clubColors={team.clubColors} size={32} />
-                      <span className="truncate font-medium">
+                      <PositionBadges playerKey={key} position={player.position} className="justify-self-start max-sm:flex-wrap" />
+                      <PlayerFace playerKey={key} age={player.age} clubColors={team.clubColors} size={32} className="max-sm:hidden" />
+                      <span className="truncate font-medium max-sm:whitespace-normal">
                         {player.firstName} {player.lastName}
                       </span>
                       <span

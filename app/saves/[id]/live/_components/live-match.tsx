@@ -143,15 +143,16 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
     <div className="mx-auto max-w-4xl space-y-5">
       <h1 className="sr-only" data-testid="live-title">{t("title")}</h1>
 
-      <Panel className="space-y-5 p-6">
+      <Panel className="space-y-5 p-6 max-sm:p-4">
         <p className="eyebrow text-center" data-testid="live-caption">{caption}</p>
 
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 sm:gap-6">
+        {/* On a phone, a smaller score leaves each name about 100 px: enough for its longest word. */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 max-sm:gap-2 sm:gap-6">
           <TeamName team={match.home} align="right" />
           <p
             data-testid="live-score"
             className={cn(
-              "rounded-md px-5 py-1 font-heading text-5xl leading-tight font-bold tabular-nums sm:text-6xl",
+              "rounded-md px-5 py-1 font-heading text-5xl leading-tight font-bold tabular-nums max-sm:px-2 max-sm:text-4xl sm:text-6xl",
               finished && pause === null && RESULT_CLASSES[result],
             )}
           >
@@ -239,7 +240,7 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
               <li
                 key={event.id}
                 data-kick={scored ? "scored" : "missed"}
-                className="grid grid-cols-[1fr_4.5rem_1fr] items-center gap-3 rounded-md px-2 py-1.5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1"
+                className="grid grid-cols-[1fr_4.5rem_1fr] items-center gap-3 rounded-md px-2 py-1.5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 max-sm:grid-cols-[minmax(0,1fr)_3.5rem_minmax(0,1fr)] max-sm:gap-1.5 max-sm:px-1"
               >
                 <span className="text-right">{event.side === "home" && <KickText name={event.playerName} scored={scored} />}</span>
                 <span className="text-center font-heading font-bold tabular-nums">
@@ -263,7 +264,8 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
               <li
                 key={event.id}
                 className={cn(
-                  "grid grid-cols-[1fr_3.5rem_1fr] items-baseline gap-3 rounded-md px-2 py-1.5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1",
+                  // On a phone, a narrower minute and smaller gaps: the events' words need the room.
+                  "grid grid-cols-[1fr_3.5rem_1fr] items-baseline gap-3 rounded-md px-2 py-1.5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 max-sm:grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] max-sm:gap-1.5 max-sm:px-1",
                   event.type === "GOAL" && "bg-muted",
                 )}
               >
@@ -287,18 +289,19 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
               const otherGoals = other.goals.filter(isShown);
               const recent = !finished && otherGoals.some((goal) => minute - clockMinute(goal) < RECENT_GOAL_MINUTES);
               return (
-                <li key={other.id} className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-2">
-                  <span className="truncate text-right">{other.home.name}</span>
+                // On a phone, the names on two lines rather than cut.
+                <li key={other.id} className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-2 max-sm:gap-2">
+                  <span className="truncate text-right max-sm:whitespace-normal">{other.home.name}</span>
                   <span
                     className={cn(
-                      "rounded-md px-3 py-0.5 font-heading text-lg font-bold tabular-nums transition-colors",
+                      "rounded-md px-3 py-0.5 font-heading text-lg font-bold tabular-nums transition-colors max-sm:px-1.5",
                       recent && "bg-(--club)/18",
                     )}
                   >
                     {goalsOf(otherGoals, "home")} – {goalsOf(otherGoals, "away")}
                   </span>
-                  <span className="flex min-w-0 items-baseline gap-2">
-                    <span className="truncate">{other.away.name}</span>
+                  <span className="flex min-w-0 items-baseline gap-2 max-sm:flex-wrap">
+                    <span className="truncate max-sm:whitespace-normal">{other.away.name}</span>
                     {finished && pause === null && <ScoreNotes match={other} />}
                   </span>
                 </li>
@@ -315,12 +318,13 @@ function TeamName({ team, align }: { team: TeamView; align: "left" | "right" }) 
   return (
     <p
       className={cn(
-        "flex min-w-0 items-center gap-2 font-heading text-xl leading-tight font-bold sm:text-2xl",
+        "flex min-w-0 items-center gap-2 font-heading text-xl leading-tight font-bold max-sm:gap-1.5 max-sm:text-base sm:text-2xl",
         align === "right" && "flex-row-reverse text-right",
       )}
     >
       {team.isManaged && <span aria-hidden className="h-7 w-1 shrink-0 rounded-full bg-(--club)" />}
-      <span className="min-w-0">{team.name}</span>
+      {/* A word longer than the column wraps rather than run under the club's bar. */}
+      <span className="min-w-0 wrap-break-word hyphens-auto">{team.name}</span>
     </p>
   );
 }
