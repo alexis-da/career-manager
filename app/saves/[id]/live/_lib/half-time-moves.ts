@@ -1,6 +1,7 @@
 import { formationPositions, type FormationName } from "@/src/engine/formations";
 import { changeFormation, type LineupCandidate } from "@/src/engine/lineup";
 import { ratingAt } from "@/src/engine/positions";
+import type { Translator } from "@/src/i18n/translator";
 
 /** The managed club's changes being made at half-time. */
 export type HalfTimeState = {
@@ -24,8 +25,6 @@ export type HalfTimeRules = {
 
 export type Move = { ok: true; state: HalfTimeState } | { ok: false; message: string };
 
-const SENT_OFF_SLOT = "Le poste d'un joueur exclu reste vide : votre équipe joue à dix.";
-
 export const substitutionsMade = (state: HalfTimeState, rules: HalfTimeRules): number =>
   rules.substitutionsBefore + state.substitutions.length;
 
@@ -33,13 +32,19 @@ export const substitutionsMade = (state: HalfTimeState, rules: HalfTimeRules): n
  * A substitute dropped on a slot: its player goes off for good and the substitute comes on. On a player who came on
  * at this break, the substitute takes his place and he goes back to the bench, the substitution still counting once.
  */
-export function substitute(state: HalfTimeState, rules: HalfTimeRules, slot: number, incoming: string): Move {
+export function substitute(
+  state: HalfTimeState,
+  rules: HalfTimeRules,
+  slot: number,
+  incoming: string,
+  t: Translator<"halfTime">,
+): Move {
   if (rules.sentOffSlots.has(slot)) {
-    return { ok: false, message: SENT_OFF_SLOT };
+    return { ok: false, message: t("refusals.sentOffSlot") };
   }
   const outgoing = state.starters[slot];
   if (outgoing === null || outgoing === undefined || !state.bench.includes(incoming)) {
-    return { ok: false, message: "Faites entrer un remplaçant à la place d'un joueur sur le terrain." };
+    return { ok: false, message: t("refusals.substituteForPlayer") };
   }
   const starters = [...state.starters];
   starters[slot] = incoming;
@@ -60,7 +65,7 @@ export function substitute(state: HalfTimeState, rules: HalfTimeRules, slot: num
     };
   }
   if (substitutionsMade(state, rules) >= rules.maxSubstitutions) {
-    return { ok: false, message: `Plus de remplacement possible : ${rules.maxSubstitutions} sur ${rules.maxSubstitutions}.` };
+    return { ok: false, message: t("refusals.noSubstitutionLeft", { max: rules.maxSubstitutions }) };
   }
   return {
     ok: true,
@@ -75,9 +80,9 @@ export function substitute(state: HalfTimeState, rules: HalfTimeRules, slot: num
 }
 
 /** Two slots exchange their players: a free repositioning. A sent-off player's slot stays empty. */
-export function swapSlots(state: HalfTimeState, rules: HalfTimeRules, a: number, b: number): Move {
+export function swapSlots(state: HalfTimeState, rules: HalfTimeRules, a: number, b: number, t: Translator<"halfTime">): Move {
   if (rules.sentOffSlots.has(a) || rules.sentOffSlots.has(b)) {
-    return { ok: false, message: SENT_OFF_SLOT };
+    return { ok: false, message: t("refusals.sentOffSlot") };
   }
   if (a === b) {
     return { ok: true, state };

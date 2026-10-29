@@ -3,7 +3,12 @@ import { MAX_SUBSTITUTIONS } from "@/src/engine/balance";
 import { formationPositions } from "@/src/engine/formations";
 import type { LineupCandidate } from "@/src/engine/lineup";
 import type { Position } from "@/src/engine/positions";
+import { testTranslator } from "@/src/i18n/test-intl";
 import { halfTimeChoice, substitute, swapSlots, switchFormation, type HalfTimeRules, type HalfTimeState, type Move } from "./half-time-moves";
+
+// Refusals in French, the game's own language, and in English where a test says so.
+const t = testTranslator("fr", "halfTime");
+const tEnglish = testTranslator("en", "halfTime");
 
 // A 4-3-3 eleven, s0 to s10 in slot order, each at the slot's position, and seven substitutes.
 const SLOTS = formationPositions("4-3-3");
@@ -36,7 +41,7 @@ const applied = (move: Move): HalfTimeState => {
 
 describe("half-time changes", () => {
   it("takes the slot's player off for good when a substitute comes on", () => {
-    const state = applied(substitute(initial, rules(), 9, "b-st"));
+    const state = applied(substitute(initial, rules(), 9, "b-st", t));
 
     expect(state.starters[9]).toBe("b-st");
     expect(state.bench).not.toContain("b-st");
@@ -44,12 +49,15 @@ describe("half-time changes", () => {
     expect(state.off).toEqual(["s9"]);
     expect(state.substitutions).toEqual([{ in: "b-st", out: "s9" }]);
     // He cannot come back: he is not a substitute any more.
-    expect(substitute(state, rules(), 8, "s9").ok).toBe(false);
+    expect(substitute(state, rules(), 8, "s9", t)).toEqual({
+      ok: false,
+      message: "Fais entrer un remplaçant à la place d'un joueur sur le terrain.",
+    });
   });
 
   it("counts a substitute replaced at the same break once, and sends him back to the bench", () => {
-    const first = applied(substitute(initial, rules(), 9, "b-st"));
-    const second = applied(substitute(first, rules(), 9, "b-lw"));
+    const first = applied(substitute(initial, rules(), 9, "b-st", t));
+    const second = applied(substitute(first, rules(), 9, "b-lw", t));
 
     expect(second.substitutions).toEqual([{ in: "b-lw", out: "s9" }]);
     expect(second.bench[0]).toBe("b-st");
@@ -59,22 +67,29 @@ describe("half-time changes", () => {
   it("stops at five substitutions in the match", () => {
     let state = initial;
     ["b-rb", "b-cb", "b-cm", "b-st", "b-lw"].forEach((incoming, index) => {
-      state = applied(substitute(state, rules(), index + 1, incoming));
+      state = applied(substitute(state, rules(), index + 1, incoming, t));
     });
 
     expect(state.substitutions).toHaveLength(MAX_SUBSTITUTIONS);
-    expect(substitute(state, rules(), 8, "b-rw")).toEqual({ ok: false, message: "Plus de remplacement possible : 5 sur 5." });
-    expect(substitute(initial, rules({ substitutionsBefore: MAX_SUBSTITUTIONS }), 8, "b-rw").ok).toBe(false);
+    expect(substitute(state, rules(), 8, "b-rw", t)).toEqual({ ok: false, message: "Plus de remplacement possible : 5 sur 5." });
+    expect(substitute(state, rules(), 8, "b-rw", tEnglish)).toEqual({ ok: false, message: "No substitutions left: 5 of 5." });
+    expect(substitute(initial, rules({ substitutionsBefore: MAX_SUBSTITUTIONS }), 8, "b-rw", t).ok).toBe(false);
   });
 
   it("moves players between slots for free, never into a sent-off player's slot", () => {
-    const state = applied(swapSlots(initial, rules(), 6, 7));
+    const state = applied(swapSlots(initial, rules(), 6, 7, t));
 
     expect(state.starters.slice(6, 8)).toEqual(["s7", "s6"]);
     expect(state.substitutions).toEqual([]);
     const tenMen = { ...initial, starters: initial.starters.map((key, slot) => (slot === 7 ? null : key)) };
-    expect(swapSlots(tenMen, rules({ sentOffSlots: new Set([7]) }), 6, 7).ok).toBe(false);
-    expect(substitute(tenMen, rules({ sentOffSlots: new Set([7]) }), 7, "b-cm").ok).toBe(false);
+    expect(swapSlots(tenMen, rules({ sentOffSlots: new Set([7]) }), 6, 7, t)).toEqual({
+      ok: false,
+      message: "Le poste d'un joueur exclu reste vide : ton équipe joue à dix.",
+    });
+    expect(substitute(tenMen, rules({ sentOffSlots: new Set([7]) }), 7, "b-cm", tEnglish)).toEqual({
+      ok: false,
+      message: "A sent-off player's position stays empty: your team plays with ten men.",
+    });
   });
 
   it("switches to 4-4-2 among the players on the pitch, the sent-off player's slot left empty", () => {

@@ -45,6 +45,7 @@ type HalfTimeProps = {
  * is the lineup page's: a slot, then a substitute or another slot.
  */
 export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
+  const t = useTranslations("halfTime");
   const tPositions = useTranslations("positions");
   const [rules] = useState<HalfTimeRules>(() => ({
     injured: new Set(team.injured),
@@ -85,8 +86,8 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
     }
     apply(
       source.kind === "slot"
-        ? swapSlots(state, rules, source.index, target.index)
-        : substitute(state, rules, target.index, source.key),
+        ? swapSlots(state, rules, source.index, target.index, t)
+        : substitute(state, rules, target.index, source.key, t),
     );
   });
 
@@ -96,16 +97,16 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
     } else if (selected === index) {
       setSelected(null);
     } else {
-      apply(swapSlots(state, rules, selected, index));
+      apply(swapSlots(state, rules, selected, index, t));
     }
   };
 
   const clickSubstitute = (key: string): void => {
     if (selected === null) {
-      toast.info("Sélectionnez d'abord sur le terrain le joueur qui sort.");
+      toast.info(t("selectFirst"));
       return;
     }
-    apply(substitute(state, rules, selected, key));
+    apply(substitute(state, rules, selected, key, t));
   };
 
   const changeFormation = (value: string): void => {
@@ -125,7 +126,7 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
           toast.error(result.message);
         }
       } catch {
-        toast.error("La reprise a échoué. Réessayez.");
+        toast.error(t("resumeFailed"));
       }
     });
 
@@ -135,18 +136,25 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
   const injuredOnPitch = state.starters.filter((key): key is string => key !== null && rules.injured.has(key));
 
   return (
-    <Panel className="space-y-4" data-half-time={team.phase}>
+    <Panel className="space-y-4" data-half-time={team.phase} data-testid="half-time">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="font-heading text-2xl font-bold">{regulationEnd ? "Fin du temps réglementaire" : "Mi-temps"}</h2>
-        <p data-substitutions className={cn("text-sm", made >= team.maxSubstitutions ? "text-warning" : "text-muted-foreground")}>
-          Remplacements : {made}/{team.maxSubstitutions}
-          {regulationEnd && " · un de plus pour la prolongation"}
+        <h2 className="font-heading text-2xl font-bold" data-testid="half-time-title">
+          {regulationEnd ? t("title.regulationEnd") : t("title.halfTime")}
+        </h2>
+        <p
+          data-substitutions
+          data-testid="half-time-substitutions"
+          className={cn("text-sm", made >= team.maxSubstitutions ? "text-warning" : "text-muted-foreground")}
+        >
+          {t("substitutions", { made, max: team.maxSubstitutions })}
+          {regulationEnd && ` · ${t("oneMore")}`}
         </p>
         <label htmlFor="half-time-formation" className="eyebrow ml-auto">
-          Dispositif
+          {t("formation")}
         </label>
         <select
           id="half-time-formation"
+          data-testid="half-time-formation"
           value={state.formation}
           onChange={(event) => changeFormation(event.target.value)}
           className="h-8 rounded-lg border border-input bg-input/30 px-2 font-heading text-base font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -160,10 +168,11 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
       </div>
 
       {injuredOnPitch.length > 0 && (
-        <p className="rounded-lg border border-loss/25 bg-loss/5 px-4 py-2 text-sm text-loss">
-          {injuredOnPitch.map((key) => byKey.get(key)?.lastName).join(", ")}{" "}
-          {injuredOnPitch.length === 1 ? "est sorti blessé" : "sont sortis blessés"} : sans changement de votre part, le
-          meilleur remplaçant au poste entre.
+        <p data-testid="half-time-injured" className="rounded-lg border border-loss/25 bg-loss/5 px-4 py-2 text-sm text-loss">
+          {t("injured", {
+            count: injuredOnPitch.length,
+            names: injuredOnPitch.map((key) => byKey.get(key)?.lastName).join(", "),
+          })}
         </p>
       )}
 
@@ -174,7 +183,7 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
             starters={state.starters}
             players={byKey}
             clubColors={team.clubColors}
-            label="Mon onze à la mi-temps"
+            label={t("pitch")}
             sentOff={sentOff}
             editing={{
               selected,
@@ -190,10 +199,10 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
         </div>
 
         <div className="space-y-4">
-          <section aria-label="Banc">
+          <section aria-label={t("bench")} data-testid="half-time-bench">
             <div className="flex items-baseline justify-between gap-3">
-              <PanelTitle>Banc</PanelTitle>
-              <p className="text-xs text-muted-foreground">Glissez un remplaçant sur un joueur pour le faire entrer</p>
+              <PanelTitle>{t("bench")}</PanelTitle>
+              <p className="text-xs text-muted-foreground">{t("benchHint")}</p>
             </div>
             <ul className="mt-1.5 divide-y">
               {state.bench.map((key) => {
@@ -207,6 +216,7 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
                     <button
                       type="button"
                       data-bench-player-key={key}
+                      data-testid="half-time-bench-player"
                       aria-disabled={selected === null}
                       onClick={() => clickSubstitute(key)}
                       {...sourceProps({ kind: "reserve", key })}
@@ -222,7 +232,11 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
                         {player.firstName} {player.lastName}
                       </span>
                       <span
-                        title={selectedPosition === null ? "Note" : `Note au poste ${tPositions(`short.${selectedPosition}`)}`}
+                        title={
+                          selectedPosition === null
+                            ? t("rating")
+                            : t("ratingAt", { position: tPositions(`short.${selectedPosition}`) })
+                        }
                         className={cn(
                           "text-right font-heading font-bold tabular-nums",
                           selectedPosition !== null && isOffPosition(positionFit(player, selectedPosition)) && "text-warning",
@@ -235,12 +249,12 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
                 );
               })}
             </ul>
-            {state.bench.length === 0 && <p className="mt-1.5 text-sm text-muted-foreground">Plus aucun remplaçant.</p>}
+            {state.bench.length === 0 && <p className="mt-1.5 text-sm text-muted-foreground">{t("noSubstitutes")}</p>}
           </section>
 
           {state.off.length > 0 && (
-            <section aria-label="Sortis">
-              <PanelTitle>Sortis</PanelTitle>
+            <section aria-label={t("off")} data-testid="half-time-off">
+              <PanelTitle>{t("off")}</PanelTitle>
               <ul className="mt-1.5 flex flex-wrap gap-1.5">
                 {state.off.map((key) => {
                   const player = byKey.get(key);
@@ -248,7 +262,7 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
                     <li
                       key={key}
                       data-off-player-key={key}
-                      title="Ne peut plus revenir"
+                      title={t("cannotReturn")}
                       className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground line-through"
                     >
                       {player?.lastName}
@@ -262,19 +276,31 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
       </div>
 
       <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-        <Button variant="outline" className="h-9 px-3" disabled={pending} onClick={() => resume(false)}>
+        <Button
+          variant="outline"
+          className="h-9 px-3"
+          disabled={pending}
+          onClick={() => resume(false)}
+          data-testid="half-time-resume-unchanged"
+        >
           <SkipForwardIcon data-icon="inline-start" />
-          Reprendre sans changement
+          {t("resumeUnchanged")}
         </Button>
-        <Button variant="club" className="h-9 px-4 font-heading text-base font-semibold" disabled={pending} onClick={() => resume(true)}>
+        <Button
+          variant="club"
+          className="h-9 px-4 font-heading text-base font-semibold"
+          disabled={pending}
+          onClick={() => resume(true)}
+          data-testid="half-time-resume"
+        >
           <PlayIcon data-icon="inline-start" className="fill-current" />
           {pending
             ? regulationEnd
-              ? "Prolongation…"
-              : "Seconde période…"
+              ? t("resuming.regulationEnd")
+              : t("resuming.halfTime")
             : regulationEnd
-              ? "Jouer la prolongation"
-              : "Reprendre la seconde période"}
+              ? t("resume.regulationEnd")
+              : t("resume.halfTime")}
         </Button>
       </div>
 

@@ -1,1 +1,61 @@
-{}
+{
+  "live": {
+    "title": "Live match",
+    "status": {
+      "halfTime": "Half-time",
+      "regulationEnd": "End of normal time",
+      "finished": "Full time",
+      "shootout": "Penalties",
+      "extraTime": "Extra time"
+    },
+    "live": "Live",
+    "extraTimeLive": "Extra time · live",
+    "continue": "Continue",
+    "fastForward": "Speed up ×{factor}",
+    "skip": "Skip",
+    "shootout": "Penalty shoot-out",
+    "kick": {
+      "scored": "scored",
+      "missed": "missed"
+    },
+    "feed": "Timeline",
+    "kickOff": "Kick-off…",
+    "events": "Match events",
+    "eventLabel": "{type}, {team}: ",
+    "otherMatches": "Other matches · {competition}"
+  },
+  "halfTime": {
+    "title": {
+      "halfTime": "Half-time",
+      "regulationEnd": "End of normal time"
+    },
+    "substitutions": "Substitutions: {made}/{max}",
+    "oneMore": "one more for extra time",
+    "formation": "Formation",
+    "injured": "{count, plural, one {{names} has gone off injured} other {{names} have gone off injured}}: if you make no change, the best substitute for the position comes on.",
+    "pitch": "My eleven at half-time",
+    "bench": "Bench",
+    "benchHint": "Drag a substitute onto a player to bring him on",
+    "rating": "Rating",
+    "ratingAt": "Rating at {position}",
+    "noSubstitutes": "No substitutes left.",
+    "off": "Taken off",
+    "cannotReturn": "Cannot come back on",
+    "resumeUnchanged": "Resume without changes",
+    "resume": {
+      "halfTime": "Start the second half",
+      "regulationEnd": "Play extra time"
+    },
+    "resuming": {
+      "halfTime": "Second half…",
+      "regulationEnd": "Extra time…"
+    },
+    "selectFirst": "Select the player coming off on the pitch first.",
+    "resumeFailed": "The match could not resume. Try again.",
+    "refusals": {
+      "sentOffSlot": "A sent-off player's position stays empty: your team plays with ten men.",
+      "substituteForPlayer": "Bring a substitute on in place of a player on the pitch.",
+      "noSubstitutionLeft": "No substitutions left: {max} of {max}."
+    }
+  }
+}

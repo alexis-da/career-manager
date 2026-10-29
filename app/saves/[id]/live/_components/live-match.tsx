@@ -67,6 +67,7 @@ type LiveMatchProps = {
  * (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the break or the end is shown at once.
  */
 export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause, startMinute }: LiveMatchProps) {
+  const t = useTranslations("live");
   const tWorld = useTranslations("world");
   const tStage = useTranslations("stage");
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
@@ -128,26 +129,27 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
 
   const status = finished
     ? pause?.phase === "HALF_TIME"
-      ? "Mi-temps"
+      ? t("status.halfTime")
       : pause?.phase === "REGULATION_END"
-        ? "Fin du temps réglementaire"
-        : "Terminé"
+        ? t("status.regulationEnd")
+        : t("status.finished")
     : clockDone
-      ? "Tirs au but"
+      ? t("status.shootout")
       : inExtraTime
-        ? "Prolongation"
+        ? t("status.extraTime")
         : null;
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <h1 className="sr-only">Match en direct</h1>
+      <h1 className="sr-only" data-testid="live-title">{t("title")}</h1>
 
       <Panel className="space-y-5 p-6">
-        <p className="eyebrow text-center">{caption}</p>
+        <p className="eyebrow text-center" data-testid="live-caption">{caption}</p>
 
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 sm:gap-6">
           <TeamName team={match.home} align="right" />
           <p
+            data-testid="live-score"
             className={cn(
               "rounded-md px-5 py-1 font-heading text-5xl leading-tight font-bold tabular-nums sm:text-6xl",
               finished && pause === null && RESULT_CLASSES[result],
@@ -163,13 +165,17 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
           <div className="flex items-center gap-3">
             <span className="font-heading text-3xl font-bold tabular-nums">{minute}&apos;</span>
             {finished || clockDone ? (
-              <span className="eyebrow" data-live-status={status ?? ""}>
+              <span className="eyebrow" data-live-status={status ?? ""} data-testid="live-status">
                 {status}
               </span>
             ) : (
-              <span className="eyebrow flex items-center gap-1.5 text-loss" data-live-status={status ?? "En direct"}>
+              <span
+                className="eyebrow flex items-center gap-1.5 text-loss"
+                data-live-status={status ?? t("live")}
+                data-testid="live-status"
+              >
                 <span aria-hidden className="size-2 rounded-full bg-loss motion-safe:animate-pulse" />
-                {inExtraTime ? "Prolongation · en direct" : "En direct"}
+                {inExtraTime ? t("extraTimeLive") : t("live")}
               </span>
             )}
           </div>
@@ -186,19 +192,26 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
             <Link
               ref={continueRef}
               href={dashboardHref}
+              data-testid="live-continue"
               className={buttonVariants({ variant: "club", className: "h-9 px-4 font-heading text-base font-semibold" })}
             >
-              Continuer
+              {t("continue")}
             </Link>
           ) : (
             <>
-              <Button variant={fast ? "secondary" : "outline"} className="h-9 px-3" aria-pressed={fast} onClick={() => setFast(!fast)}>
+              <Button
+                variant={fast ? "secondary" : "outline"}
+                className="h-9 px-3"
+                aria-pressed={fast}
+                onClick={() => setFast(!fast)}
+                data-testid="live-fast-forward"
+              >
                 <FastForwardIcon data-icon="inline-start" />
-                Accélérer ×{FAST_FORWARD_FACTOR}
+                {t("fastForward", { factor: FAST_FORWARD_FACTOR })}
               </Button>
-              <Button variant="outline" className="h-9 px-3" onClick={skip}>
+              <Button variant="outline" className="h-9 px-3" onClick={skip} data-testid="live-skip">
                 <SkipForwardIcon data-icon="inline-start" />
-                Passer
+                {t("skip")}
               </Button>
             </>
           )}
@@ -214,14 +227,14 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
       )}
 
       {kicks.length > 0 && clockDone && (
-        <Panel data-shootout="">
+        <Panel data-shootout="" data-testid="live-shootout">
           <div className="flex items-baseline justify-between gap-3">
-            <PanelTitle>Tirs au but</PanelTitle>
+            <PanelTitle>{t("shootout")}</PanelTitle>
             <p className="font-heading text-2xl font-bold tabular-nums" data-shootout-score="">
               {kickScore.home} – {kickScore.away}
             </p>
           </div>
-          <ol aria-label="Tirs au but" className="mt-3 space-y-1 text-sm">
+          <ol aria-label={t("shootout")} className="mt-3 space-y-1 text-sm">
             {taken.map(({ event, scored, home, away }) => (
               <li
                 key={event.id}
@@ -239,13 +252,13 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
         </Panel>
       )}
 
-      <Panel>
-        <PanelTitle>Fil du match</PanelTitle>
+      <Panel data-testid="live-events">
+        <PanelTitle>{t("feed")}</PanelTitle>
         {events.length === 0 ? (
-          <p className="mt-3 text-center text-sm text-muted-foreground">Coup d&apos;envoi…</p>
+          <p className="mt-3 text-center text-sm text-muted-foreground">{t("kickOff")}</p>
         ) : (
           // Newest first: the latest event is always in view.
-          <ol role="log" aria-label="Événements du match" className="mt-3 space-y-1 text-sm">
+          <ol role="log" aria-label={t("events")} className="mt-3 space-y-1 text-sm">
             {events.toReversed().map((event) => (
               <li
                 key={event.id}
@@ -264,9 +277,9 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
       </Panel>
 
       {others.length > 0 && (
-        <Panel>
+        <Panel data-testid="live-other-matches">
           <PanelTitle>
-            Autres matchs · {competitionName(match.competitionCode, tWorld)}
+            {t("otherMatches", { competition: competitionName(match.competitionCode, tWorld) })}
             {match.cup && ` · ${stageLabel(match, tStage)}`}
           </PanelTitle>
           <ul className="mt-3 divide-y text-sm">
@@ -323,16 +336,20 @@ function Goals({ value }: { value: number }) {
 
 /** A shoot-out kick: the kicker, scored or missed. */
 function KickText({ name, scored }: { name: string; scored: boolean }) {
+  const t = useTranslations("live");
   return (
     <span>
       {name}{" "}
-      <span className={cn("text-xs font-semibold", scored ? "text-win" : "text-loss")}>{scored ? "réussi" : "manqué"}</span>
+      <span className={cn("text-xs font-semibold", scored ? "text-win" : "text-loss")}>
+        {scored ? t("kick.scored") : t("kick.missed")}
+      </span>
     </span>
   );
 }
 
 /** An event of one side; a goal shows the scorer's face, in his club's colors. */
 function EventText({ event, team, align }: { event: MatchEventView; team: TeamView; align: "left" | "right" }) {
+  const t = useTranslations("live");
   const tEvents = useTranslations("events");
   return (
     <span className={cn("inline-flex items-center gap-2", align === "right" && "flex-row-reverse")}>
@@ -341,9 +358,7 @@ function EventText({ event, team, align }: { event: MatchEventView; team: TeamVi
         <PlayerFace playerKey={event.playerKey} age={event.playerAge} clubColors={team.colors} size={20} className="shrink-0" />
       )}
       <span>
-        <span className="sr-only">
-          {tEvents(`type.${event.type}`)}, {team.name} :{" "}
-        </span>
+        <span className="sr-only">{t("eventLabel", { type: tEvents(`type.${event.type}`), team: team.name })}</span>
         <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event, tEvents)}</span>
       </span>
     </span>
