@@ -13,6 +13,9 @@ export default defineConfig({
     env: testDatabaseEnv(),
     // Same as vitest.config.mts: database hooks get 30 s, test timeouts keep the default.
     hookTimeout: 30_000,
+    // One file at a time: in parallel, each file's seasons of database writes slowed the others past their timeouts
+    // (deleting a whole season's save: 22 s alone, over 60 s in parallel).
+    fileParallelism: false,
     // Deletes the throwaway owners of the database tests' saves once every file has run.
     globalSetup: ["./src/db/test-global-setup.ts"],
     // A query sent on a busy pg connection fails the test (src/db/test-pg-guard.ts).
