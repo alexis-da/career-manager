@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -46,6 +47,9 @@ export function SignFreeAgentDialog({
   primary = false,
   triggerClassName,
 }: SignFreeAgentDialogProps) {
+  const t = useTranslations("transfers.dialogs");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [years, setYears] = useState<number>(DEFAULT_CONTRACT_LENGTH);
   const [wage, setWage] = useState(String(askedWage));
@@ -65,35 +69,35 @@ export function SignFreeAgentDialog({
       <DialogTrigger
         disabled={disabled}
         render={<Button variant={primary ? "club" : "outline"} size={primary ? "default" : "sm"} className={triggerClassName} />}
+        data-testid="sign-free-agent"
       >
-        Signer
+        {t("sign")}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-testid="sign-free-agent-dialog">
         <DialogHeader>
-          <DialogTitle>Signer {player.name}</DialogTitle>
-          <DialogDescription>
-            Joueur libre : aucune indemnité à verser. Il accepte au moins {formatMoney(askedWage)} par saison.
-          </DialogDescription>
+          <DialogTitle>{t("signTitle", { name: player.name })}</DialogTitle>
+          <DialogDescription>{t("signDescription", { wage: formatMoney(askedWage, locale) })}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <DurationField years={years} onChange={setYears} currentDate={currentDate} />
           <MoneyField
             id={`signing-wage-${player.id}`}
-            label="Salaire proposé, en euros par saison"
+            label={t("wage")}
             value={wage}
             onChange={setWage}
             step={10_000}
             min={1}
-            hint={`marge salariale ${formatMoney(Math.max(0, wageRoom))}`}
+            hint={t("wageRoom", { amount: formatMoney(Math.max(0, wageRoom), locale) })}
           />
           <RefusalAlert message={refusal} />
         </div>
 
         <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+          <DialogClose render={<Button variant="outline" />}>{tCommon("cancel")}</DialogClose>
           <Button
             disabled={pending}
+            data-testid="confirm-signing"
             onClick={() =>
               run(
                 player.name,
@@ -102,7 +106,7 @@ export function SignFreeAgentDialog({
               )
             }
           >
-            {pending ? "Signature…" : "Confirmer la signature"}
+            {pending ? t("signing") : t("confirmSigning")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -134,6 +138,9 @@ export function MakeOfferDialog({
   primary = false,
   triggerClassName,
 }: MakeOfferDialogProps) {
+  const t = useTranslations("transfers");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [years, setYears] = useState<number>(DEFAULT_CONTRACT_LENGTH);
   const [fee, setFee] = useState(String(askingPrice));
@@ -155,44 +162,50 @@ export function MakeOfferDialog({
       <DialogTrigger
         disabled={disabled}
         render={<Button variant={primary ? "club" : "outline"} size={primary ? "default" : "sm"} className={triggerClassName} />}
+        data-testid="make-offer"
       >
-        Faire une offre
+        {t("dialogs.offer")}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-testid="make-offer-dialog">
         <DialogHeader>
-          <DialogTitle>Offre pour {player.name}</DialogTitle>
+          <DialogTitle>{t("dialogs.offerTitle", { name: player.name })}</DialogTitle>
           <DialogDescription>
-            {clubName} demande {formatMoney(askingPrice)} ; le joueur veut au moins {formatMoney(askedWage)} par saison.
+            {t("asking", {
+              club: clubName,
+              price: formatMoney(askingPrice, locale),
+              wage: formatMoney(askedWage, locale),
+            })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <MoneyField
             id={`offer-fee-${player.id}`}
-            label="Indemnité proposée, en euros"
+            label={t("dialogs.fee")}
             value={fee}
             onChange={setFee}
             step={100_000}
             min={0}
-            hint={`budget ${formatMoney(budget)}`}
+            hint={t("dialogs.budget", { amount: formatMoney(budget, locale) })}
           />
           <MoneyField
             id={`offer-wage-${player.id}`}
-            label="Salaire proposé, en euros par saison"
+            label={t("dialogs.wage")}
             value={wage}
             onChange={setWage}
             step={10_000}
             min={1}
-            hint={`marge salariale ${formatMoney(Math.max(0, wageRoom))}`}
+            hint={t("dialogs.wageRoom", { amount: formatMoney(Math.max(0, wageRoom), locale) })}
           />
           <DurationField years={years} onChange={setYears} currentDate={currentDate} />
           <RefusalAlert message={refusal} />
         </div>
 
         <DialogFooter>
-          <DialogClose render={<Button variant="outline" />}>Annuler</DialogClose>
+          <DialogClose render={<Button variant="outline" />}>{tCommon("cancel")}</DialogClose>
           <Button
             disabled={pending}
+            data-testid="send-offer"
             onClick={() =>
               run(
                 player.name,
@@ -202,7 +215,7 @@ export function MakeOfferDialog({
               )
             }
           >
-            {pending ? "Négociation…" : "Envoyer l'offre"}
+            {pending ? t("dialogs.negotiating") : t("dialogs.sendOffer")}
           </Button>
         </DialogFooter>
       </DialogContent>

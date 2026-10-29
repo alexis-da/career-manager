@@ -1,1 +1,114 @@
-{}
+{
+  "transfers": {
+    "title": "Transfers",
+    "window": {
+      "open": "Transfer window open",
+      "closed": "Transfer window closed",
+      "until": "until {date}",
+      "nextOpens": "next window opens on {date}"
+    },
+    "banner": {
+      "budget": "Transfer budget",
+      "millions": "€m",
+      "wageRoom": "Wage room",
+      "wageBudget": "/ {amount} €m per season"
+    },
+    "tabs": {
+      "label": "Market lists",
+      "free": "Free agents",
+      "clubs": "Other clubs",
+      "moves": "Moves"
+    },
+    "closedWindow": {
+      "signings": "signings",
+      "offers": "offers",
+      "both": "signings and offers"
+    },
+    "sheet": {
+      "freeAgent": "Free agent: he accepts at least {wage} per season.",
+      "retired": "This player has left football: no action possible."
+    },
+    "asking": "{club} asks {price}; the player wants at least {wage} per season.",
+    "filters": {
+      "label": "Filter players",
+      "name": "Name",
+      "namePlaceholder": "First or last name",
+      "position": "Position",
+      "withSecondary": "Include secondary positions",
+      "secondary": "Secondary",
+      "all": "All",
+      "competition": "League",
+      "minOverall": "Min. rating",
+      "maxAge": "Max. age",
+      "maxPrice": "Max. price (€m)",
+      "submit": "Filter",
+      "reset": "Reset"
+    },
+    "table": {
+      "player": "Player",
+      "viewPlayer": "View {name}’s profile",
+      "club": "Club",
+      "position": "Position",
+      "age": "Age",
+      "overall": "Rating",
+      "potential": "Pot.",
+      "potentialTitle": "Potential",
+      "askedWage": "Wage demand",
+      "askingPrice": "Asking price",
+      "formerClub": "Former club",
+      "contractUntil": "Contract ends",
+      "action": "Action"
+    },
+    "freeAgents": {
+      "empty": "No free agents at the moment. Players come onto the market when a club releases them: clubs clear out their squads every preseason, and you can release a player from your squad.",
+      "count": "{count, plural, one {{count} free agent} other {{count} free agents}}"
+    },
+    "clubPlayers": {
+      "empty": "No player matches these filters.",
+      "count": "{count, plural, one {{count} player} other {{count} players}}"
+    },
+    "movements": {
+      "filter": "Clubs involved",
+      "all": "All clubs",
+      "mine": "My club only",
+      "empty": "No moves yet.",
+      "emptyMine": "Your club hasn't made any moves yet.",
+      "count": "{count, plural, one {{count} move} other {{count} moves}}",
+      "date": "Date",
+      "from": "From",
+      "to": "To",
+      "fee": "Fee",
+      "type": "Type",
+      "free": "Free agent",
+      "retired": "Retired",
+      "types": {
+        "TRANSFER": "Transfer",
+        "LOAN": "Loan",
+        "RELEASE": "Release",
+        "FREE": "Free signing",
+        "RETIREMENT": "Retirement"
+      }
+    },
+    "pagination": {
+      "label": "Pagination",
+      "paged": "{summary} · page {page} of {pageCount}",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "dialogs": {
+      "sign": "Sign",
+      "signTitle": "Sign {name}",
+      "signDescription": "Free agent: no fee to pay. He accepts at least {wage} per season.",
+      "wage": "Wage offered, in euros per season",
+      "wageRoom": "wage room {amount}",
+      "signing": "Signing…",
+      "confirmSigning": "Confirm signing",
+      "offer": "Make an offer",
+      "offerTitle": "Offer for {name}",
+      "fee": "Fee offered, in euros",
+      "budget": "budget {amount}",
+      "negotiating": "Negotiating…",
+      "sendOffer": "Send offer"
+    }
+  }
+}

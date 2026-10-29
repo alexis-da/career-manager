@@ -1,1 +1,114 @@
-{}
+{
+  "transfers": {
+    "title": "Transferts",
+    "window": {
+      "open": "Mercato ouvert",
+      "closed": "Mercato fermé",
+      "until": "jusqu'au {date}",
+      "nextOpens": "prochaine fenêtre le {date}"
+    },
+    "banner": {
+      "budget": "Budget transferts",
+      "millions": "M€",
+      "wageRoom": "Marge salariale",
+      "wageBudget": "/ {amount} M€ par saison"
+    },
+    "tabs": {
+      "label": "Listes du marché",
+      "free": "Joueurs libres",
+      "clubs": "Autres clubs",
+      "moves": "Mouvements"
+    },
+    "closedWindow": {
+      "signings": "les signatures",
+      "offers": "les offres",
+      "both": "signatures et offres"
+    },
+    "sheet": {
+      "freeAgent": "Joueur libre : il accepte au moins {wage} par saison.",
+      "retired": "Ce joueur a quitté le monde du football : aucune action possible."
+    },
+    "asking": "{club} demande {price} ; le joueur veut au moins {wage} par saison.",
+    "filters": {
+      "label": "Filtrer les joueurs",
+      "name": "Nom",
+      "namePlaceholder": "Prénom ou nom",
+      "position": "Poste",
+      "withSecondary": "Inclure les postes secondaires",
+      "secondary": "Secondaires",
+      "all": "Tous",
+      "competition": "Championnat",
+      "minOverall": "Note min.",
+      "maxAge": "Âge max.",
+      "maxPrice": "Prix max. (M€)",
+      "submit": "Filtrer",
+      "reset": "Réinitialiser"
+    },
+    "table": {
+      "player": "Joueur",
+      "viewPlayer": "Voir la fiche de {name}",
+      "club": "Club",
+      "position": "Poste",
+      "age": "Âge",
+      "overall": "Note",
+      "potential": "Pot.",
+      "potentialTitle": "Potentiel",
+      "askedWage": "Salaire demandé",
+      "askingPrice": "Prix demandé",
+      "formerClub": "Ancien club",
+      "contractUntil": "Fin de contrat",
+      "action": "Action"
+    },
+    "freeAgents": {
+      "empty": "Aucun joueur libre pour le moment. Les joueurs arrivent sur le marché quand un club les libère : les clubs font le tri à chaque présaison, et tu peux libérer un joueur depuis ton effectif.",
+      "count": "{count, plural, one {{count} joueur libre} other {{count} joueurs libres}}"
+    },
+    "clubPlayers": {
+      "empty": "Aucun joueur ne correspond à ces filtres.",
+      "count": "{count, plural, one {{count} joueur} other {{count} joueurs}}"
+    },
+    "movements": {
+      "filter": "Clubs concernés",
+      "all": "Tous les clubs",
+      "mine": "Mon club seulement",
+      "empty": "Aucun mouvement pour le moment.",
+      "emptyMine": "Ton club n'a encore fait aucun mouvement.",
+      "count": "{count, plural, one {{count} mouvement} other {{count} mouvements}}",
+      "date": "Date",
+      "from": "De",
+      "to": "Vers",
+      "fee": "Indemnité",
+      "type": "Type",
+      "free": "Libre",
+      "retired": "Fin de carrière",
+      "types": {
+        "TRANSFER": "Transfert",
+        "LOAN": "Prêt",
+        "RELEASE": "Libération",
+        "FREE": "Signature libre",
+        "RETIREMENT": "Retraite"
+      }
+    },
+    "pagination": {
+      "label": "Pagination",
+      "paged": "{summary} · page {page} sur {pageCount}",
+      "previous": "Précédent",
+      "next": "Suivant"
+    },
+    "dialogs": {
+      "sign": "Signer",
+      "signTitle": "Signer {name}",
+      "signDescription": "Joueur libre : aucune indemnité à verser. Il accepte au moins {wage} par saison.",
+      "wage": "Salaire proposé, en euros par saison",
+      "wageRoom": "marge salariale {amount}",
+      "signing": "Signature…",
+      "confirmSigning": "Confirmer la signature",
+      "offer": "Faire une offre",
+      "offerTitle": "Offre pour {name}",
+      "fee": "Indemnité proposée, en euros",
+      "budget": "budget {amount}",
+      "negotiating": "Négociation…",
+      "sendOffer": "Envoyer l'offre"
+    }
+  }
+}

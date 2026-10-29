@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import * as z from "zod";
 import {
@@ -14,6 +16,8 @@ import {
 } from "@/src/db/market";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { seasonStartYear } from "@/src/engine/world";
+import type { Locale } from "@/src/i18n/locale";
+import type { Translator } from "@/src/i18n/translator";
 import { formatDate, formatMillions, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../_components/contract-actions";
@@ -27,7 +31,9 @@ import { marketHref, singleValues, type MarketTab } from "./_lib/market-url";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Transferts" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getTranslations("transfers"))("title") };
+}
 
 const querySchema = z.object({
   tab: z.enum(["free", "clubs", "moves"]).catch("free"),
@@ -36,44 +42,45 @@ const querySchema = z.object({
   player: z.string().min(1).max(64).optional().catch(undefined), // PlayerSave.id of the open sheet
 });
 
-const TABS: { key: MarketTab; label: string }[] = [
-  { key: "free", label: "Joueurs libres" },
-  { key: "clubs", label: "Autres clubs" },
-  { key: "moves", label: "Mouvements" },
-];
+const TABS: MarketTab[] = ["free", "clubs", "moves"];
 
 function MarketBanner({ overview }: { overview: MarketOverview }) {
+  const t = useTranslations("transfers");
+  const locale = useLocale();
   const { windowOpen, windowClosesOn, nextWindowOpensOn } = overview;
   return (
-    <Panel className="flex flex-wrap items-center gap-x-10 gap-y-4 py-4">
+    <Panel data-testid="market-banner" className="flex flex-wrap items-center gap-x-10 gap-y-4 py-4">
       <div className="flex items-center gap-3">
         <span aria-hidden className={cn("size-2.5 rounded-full", windowOpen ? "bg-win" : "bg-warning")} />
         <div>
-          <p className="font-heading text-xl leading-tight font-bold">{windowOpen ? "Mercato ouvert" : "Mercato fermé"}</p>
+          <p data-testid="market-window" className="font-heading text-xl leading-tight font-bold">
+            {windowOpen ? t("window.open") : t("window.closed")}
+          </p>
           <p className="text-xs text-muted-foreground">
             {windowOpen && windowClosesOn !== null
-              ? `jusqu'au ${formatDate(windowClosesOn)}`
-              : `prochaine fenêtre le ${formatDate(nextWindowOpensOn)}`}
+              ? t("window.until", { date: formatDate(windowClosesOn, locale) })
+              : t("window.nextOpens", { date: formatDate(nextWindowOpensOn, locale) })}
           </p>
         </div>
       </div>
       <dl className="flex flex-wrap gap-x-10 gap-y-3 tabular-nums sm:ml-auto">
         <div>
-          <dt className="eyebrow">Budget transferts</dt>
+          <dt className="eyebrow">{t("banner.budget")}</dt>
           <dd data-summary="budget" data-value={overview.budget} className="font-heading text-2xl font-bold">
-            {formatMillions(overview.budget)} <span className="text-base font-semibold text-muted-foreground">M€</span>
+            {formatMillions(overview.budget, locale)}{" "}
+            <span className="text-base font-semibold text-muted-foreground">{t("banner.millions")}</span>
           </dd>
         </div>
         <div>
-          <dt className="eyebrow">Marge salariale</dt>
+          <dt className="eyebrow">{t("banner.wageRoom")}</dt>
           <dd
             data-summary="wage-room"
             data-value={overview.wageRoom}
             className={cn("font-heading text-2xl font-bold", overview.wageRoom <= 0 && "text-loss")}
           >
-            {formatMillions(overview.wageRoom)}{" "}
+            {formatMillions(overview.wageRoom, locale)}{" "}
             <span className="text-base font-semibold text-muted-foreground">
-              / {formatMillions(overview.wageBudget)} M€ par saison
+              {t("banner.wageBudget", { amount: formatMillions(overview.wageBudget, locale) })}
             </span>
           </dd>
         </div>
@@ -83,7 +90,13 @@ function MarketBanner({ overview }: { overview: MarketOverview }) {
 }
 
 /** The sheet's actions depend on where the player plays: free, at an AI club, or at the managed club. */
-function sheetFooter(saveId: string, sheet: PlayerSheet, overview: MarketOverview): ReactNode {
+function sheetFooter(
+  saveId: string,
+  sheet: PlayerSheet,
+  overview: MarketOverview,
+  t: Translator<"transfers">,
+  locale: Locale,
+): ReactNode {
   const { profile, status } = sheet;
   const player = { id: profile.id, name: `${profile.firstName} ${profile.lastName}` };
   const mainAction = "h-10 w-full font-heading text-base font-semibold";
@@ -104,9 +117,9 @@ function sheetFooter(saveId: string, sheet: PlayerSheet, overview: MarketOvervie
     case "free":
       return (
         <>
-          {closed && <ClosedWindowNote actions="les signatures" reopensOn={overview.nextWindowOpensOn} />}
-          <p className="text-xs text-muted-foreground">
-            Joueur libre : il accepte au moins {formatMoney(status.quote.minimumWage)} par saison.
+          {closed && <ClosedWindowNote actions={t("closedWindow.signings")} reopensOn={overview.nextWindowOpensOn} />}
+          <p data-testid="market-sheet-terms" className="text-xs text-muted-foreground">
+            {t("sheet.freeAgent", { wage: formatMoney(status.quote.minimumWage, locale) })}
           </p>
           <SignFreeAgentDialog
             saveId={saveId}
@@ -123,10 +136,13 @@ function sheetFooter(saveId: string, sheet: PlayerSheet, overview: MarketOvervie
     case "club":
       return (
         <>
-          {closed && <ClosedWindowNote actions="les offres" reopensOn={overview.nextWindowOpensOn} />}
-          <p className="text-xs text-muted-foreground">
-            {status.clubName} demande {formatMoney(status.quote.askingPrice)} ; le joueur veut au moins{" "}
-            {formatMoney(status.quote.minimumWage)} par saison.
+          {closed && <ClosedWindowNote actions={t("closedWindow.offers")} reopensOn={overview.nextWindowOpensOn} />}
+          <p data-testid="market-sheet-terms" className="text-xs text-muted-foreground">
+            {t("asking", {
+              club: status.clubName,
+              price: formatMoney(status.quote.askingPrice, locale),
+              wage: formatMoney(status.quote.minimumWage, locale),
+            })}
           </p>
           <MakeOfferDialog
             saveId={saveId}
@@ -144,7 +160,11 @@ function sheetFooter(saveId: string, sheet: PlayerSheet, overview: MarketOvervie
         </>
       );
     case "retired":
-      return <p className="text-sm text-muted-foreground">Ce joueur a quitté le monde du football : aucune action possible.</p>;
+      return (
+        <p data-testid="market-sheet-retired" className="text-sm text-muted-foreground">
+          {t("sheet.retired")}
+        </p>
+      );
   }
 }
 
@@ -152,6 +172,7 @@ export default async function TransfersPage({ params, searchParams }: PageProps<
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
+  const [t, locale] = await Promise.all([getTranslations("transfers"), getLocale()]);
   const values = singleValues(await searchParams);
   const query = querySchema.parse(values);
   const [overview, sheet] = await Promise.all([
@@ -183,19 +204,22 @@ export default async function TransfersPage({ params, searchParams }: PageProps<
   return (
     <div className={cn("grid items-start gap-6", sheet !== null && "lg:grid-cols-[minmax(0,1fr)_400px]")}>
       <div className="min-w-0 space-y-5">
-        <h1 className="font-heading text-4xl font-bold">Transferts</h1>
+        <h1 data-testid="transfers-title" className="font-heading text-4xl font-bold">
+          {t("title")}
+        </h1>
         <MarketBanner overview={overview} />
 
-        <nav aria-label="Listes du marché" className="flex flex-wrap gap-1 border-b pb-2">
+        <nav aria-label={t("tabs.label")} data-testid="market-tabs" className="flex flex-wrap gap-1 border-b pb-2">
           {TABS.map((tab) => {
-            const active = tab.key === query.tab;
+            const active = tab === query.tab;
             return (
               <Link
-                key={tab.key}
+                key={tab}
                 // Keeps the other params, filters included, so that coming back to a tab finds its search again;
                 // the page and the open sheet belong to the list being left.
-                href={marketHref(id, values, { tab: tab.key === "free" ? undefined : tab.key, page: undefined, player: undefined })}
+                href={marketHref(id, values, { tab: tab === "free" ? undefined : tab, page: undefined, player: undefined })}
                 aria-current={active ? "page" : undefined}
+                data-testid={`market-tab-${tab}`}
                 className={cn(
                   "relative rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors",
                   active
@@ -203,8 +227,8 @@ export default async function TransfersPage({ params, searchParams }: PageProps<
                     : "font-medium text-muted-foreground hover:text-foreground",
                 )}
               >
-                {tab.label}
-                {tab.key === "free" && (
+                {t(`tabs.${tab}`)}
+                {tab === "free" && (
                   <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">{overview.freeAgents}</span>
                 )}
               </Link>
@@ -213,7 +237,7 @@ export default async function TransfersPage({ params, searchParams }: PageProps<
         </nav>
 
         {!overview.windowOpen && query.tab !== "moves" && (
-          <ClosedWindowNote actions="signatures et offres" reopensOn={overview.nextWindowOpensOn} />
+          <ClosedWindowNote actions={t("closedWindow.both")} reopensOn={overview.nextWindowOpensOn} />
         )}
         {list}
       </div>
@@ -224,7 +248,7 @@ export default async function TransfersPage({ params, searchParams }: PageProps<
           profile={sheet.profile}
           startYear={seasonStartYear(overview.currentDate)}
           closeHref={marketHref(id, values, { player: undefined })}
-          footer={sheetFooter(id, sheet, overview)}
+          footer={sheetFooter(id, sheet, overview, t, locale)}
         />
       )}
     </div>

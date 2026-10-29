@@ -1,4 +1,4 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
@@ -14,6 +14,7 @@ import type {
   Paginated,
 } from "@/src/db/market";
 import type { Position } from "@/src/engine/positions";
+import type { Translator } from "@/src/i18n/translator";
 import type { ClubColors } from "@/src/lib/color";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
@@ -44,6 +45,7 @@ function PlayerCell({
   player,
   face,
 }: ListProps & { player: { id: string; firstName: string; lastName: string; nationality?: string }; face?: FaceProps }) {
+  const t = useTranslations("transfers.table");
   const tWorld = useTranslations("world");
   const name = `${player.firstName} ${player.lastName}`;
   return (
@@ -52,7 +54,8 @@ function PlayerCell({
       <Link
         href={marketHref(saveId, values, { player: player.id })}
         scroll={false}
-        aria-label={`Voir la fiche de ${name}`}
+        aria-label={t("viewPlayer", { name })}
+        data-testid="market-player"
         className="font-semibold hover:underline"
       >
         {name}
@@ -93,32 +96,45 @@ function RatingCell({ overall }: { overall: number }) {
   );
 }
 
-function Pagination<T>({ saveId, values, list, noun }: ListProps & { list: Paginated<T>; noun: [string, string] }) {
-  const summary = `${list.total} ${list.total > 1 ? noun[1] : noun[0]}`;
+/** How a list counts its rows: « 1 joueur libre », « 12 mouvements ». */
+type CountMessage = "freeAgents.count" | "clubPlayers.count" | "movements.count";
+
+function Pagination<T>({ saveId, values, list, count }: ListProps & { list: Paginated<T>; count: CountMessage }) {
+  const t = useTranslations("transfers");
+  const summary = t(count, { count: list.total });
   if (list.pageCount <= 1) {
-    return <p className="text-xs text-muted-foreground tabular-nums">{summary}</p>;
+    return (
+      <p data-testid="market-count" className="text-xs text-muted-foreground tabular-nums">
+        {summary}
+      </p>
+    );
   }
-  const pageLink = (page: number, label: string, disabled: boolean) =>
+  const pageLink = (page: number, label: string, disabled: boolean, testId: string) =>
     disabled ? (
-      <span aria-disabled className={cn(buttonVariants({ variant: "outline", size: "sm" }), "pointer-events-none opacity-50")}>
+      <span
+        aria-disabled
+        data-testid={testId}
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "pointer-events-none opacity-50")}
+      >
         {label}
       </span>
     ) : (
       <Link
         href={marketHref(saveId, values, { page: page === 1 ? undefined : String(page), player: undefined })}
+        data-testid={testId}
         className={buttonVariants({ variant: "outline", size: "sm" })}
       >
         {label}
       </Link>
     );
   return (
-    <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-xs text-muted-foreground tabular-nums">
-        {summary} · page {list.page} sur {list.pageCount}
+    <nav aria-label={t("pagination.label")} data-testid="market-pagination" className="flex flex-wrap items-center justify-between gap-3">
+      <p data-testid="market-count" className="text-xs text-muted-foreground tabular-nums">
+        {t("pagination.paged", { summary, page: list.page, pageCount: list.pageCount })}
       </p>
       <div className="flex gap-2">
-        {pageLink(list.page - 1, "Précédent", list.page === 1)}
-        {pageLink(list.page + 1, "Suivant", list.page === list.pageCount)}
+        {pageLink(list.page - 1, t("pagination.previous"), list.page === 1, "market-previous")}
+        {pageLink(list.page + 1, t("pagination.next"), list.page === list.pageCount, "market-next")}
       </div>
     </nav>
   );
@@ -132,32 +148,31 @@ export function FreeAgentsTable({
   list,
   overview,
 }: ListProps & { list: Paginated<FreeAgentRow>; overview: MarketOverview }) {
+  const t = useTranslations("transfers");
+  const locale = useLocale();
   if (list.total === 0) {
     return (
-      <Panel>
-        <p className="text-muted-foreground">
-          Aucun joueur libre pour le moment. Les joueurs arrivent sur le marché quand un club les libère : les clubs
-          font le tri à chaque présaison, et vous pouvez libérer un joueur depuis votre effectif.
-        </p>
+      <Panel data-testid="free-agents-empty">
+        <p className="text-muted-foreground">{t("freeAgents.empty")}</p>
       </Panel>
     );
   }
   return (
     <div className="space-y-3">
-      <Table className="tabular-nums">
+      <Table className="tabular-nums" data-testid="free-agents-table">
         <TableHeader>
           <TableRow className="border-border hover:bg-transparent">
-            <Head>Joueur</Head>
-            <Head>Poste</Head>
-            <Head className="text-right">Âge</Head>
-            <Head className="text-right">Note</Head>
+            <Head>{t("table.player")}</Head>
+            <Head>{t("table.position")}</Head>
+            <Head className="text-right">{t("table.age")}</Head>
+            <Head className="text-right">{t("table.overall")}</Head>
             <Head className="text-right">
-              <span title="Potentiel">Pot.</span>
+              <span title={t("table.potentialTitle")}>{t("table.potential")}</span>
             </Head>
-            <Head className="text-right">Salaire demandé</Head>
-            <Head>Ancien club</Head>
+            <Head className="text-right">{t("table.askedWage")}</Head>
+            <Head>{t("table.formerClub")}</Head>
             <Head>
-              <span className="sr-only">Action</span>
+              <span className="sr-only">{t("table.action")}</span>
             </Head>
           </TableRow>
         </TableHeader>
@@ -174,7 +189,7 @@ export function FreeAgentsTable({
               <TableCell className={cn(TABLE_CELL, "text-right")}>{player.age}</TableCell>
               <RatingCell overall={player.overall} />
               <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{player.potential}</TableCell>
-              <TableCell className={cn(TABLE_CELL, "text-right")}>{formatMoney(player.askedWage)}</TableCell>
+              <TableCell className={cn(TABLE_CELL, "text-right")}>{formatMoney(player.askedWage, locale)}</TableCell>
               <TableCell className={cn(TABLE_CELL, "text-muted-foreground")}>{player.formerClubName ?? "—"}</TableCell>
               <TableCell className={cn(TABLE_CELL, "text-right")}>
                 <SignFreeAgentDialog
@@ -191,7 +206,7 @@ export function FreeAgentsTable({
           ))}
         </TableBody>
       </Table>
-      <Pagination saveId={saveId} values={values} list={list} noun={["joueur libre", "joueurs libres"]} />
+      <Pagination saveId={saveId} values={values} list={list} count="freeAgents.count" />
     </div>
   );
 }
@@ -216,6 +231,7 @@ function SortHeader({
       <Link
         href={marketHref(saveId, values, { sort: sortKey, dir, page: undefined, player: undefined })}
         scroll={false}
+        data-testid={`market-sort-${sortKey}`}
         className={cn("inline-flex items-center gap-1 hover:text-foreground", active && "text-foreground")}
       >
         {label}
@@ -234,31 +250,33 @@ export function ClubPlayersTable({
   list,
   overview,
 }: ListProps & { filters: MarketFilters; list: Paginated<ClubPlayerRow>; overview: MarketOverview }) {
+  const t = useTranslations("transfers");
+  const locale = useLocale();
   if (list.total === 0) {
     return (
-      <Panel>
-        <p className="text-muted-foreground">Aucun joueur ne correspond à ces filtres.</p>
+      <Panel data-testid="club-players-empty">
+        <p className="text-muted-foreground">{t("clubPlayers.empty")}</p>
       </Panel>
     );
   }
   return (
     <div className="space-y-3">
-      <Table className="tabular-nums">
+      <Table className="tabular-nums" data-testid="club-players-table">
         <TableHeader>
           <TableRow className="border-border hover:bg-transparent">
-            <Head>Joueur</Head>
-            <Head>Club</Head>
-            <Head>Poste</Head>
-            <Head className="text-right">Âge</Head>
-            <SortHeader saveId={saveId} values={values} filters={filters} sortKey="overall" label="Note" />
+            <Head>{t("table.player")}</Head>
+            <Head>{t("table.club")}</Head>
+            <Head>{t("table.position")}</Head>
+            <Head className="text-right">{t("table.age")}</Head>
+            <SortHeader saveId={saveId} values={values} filters={filters} sortKey="overall" label={t("table.overall")} />
             <Head className="text-right">
-              <span title="Potentiel">Pot.</span>
+              <span title={t("table.potentialTitle")}>{t("table.potential")}</span>
             </Head>
-            <SortHeader saveId={saveId} values={values} filters={filters} sortKey="price" label="Prix demandé" />
-            <Head className="text-right">Salaire demandé</Head>
-            <Head>Fin de contrat</Head>
+            <SortHeader saveId={saveId} values={values} filters={filters} sortKey="price" label={t("table.askingPrice")} />
+            <Head className="text-right">{t("table.askedWage")}</Head>
+            <Head>{t("table.contractUntil")}</Head>
             <Head>
-              <span className="sr-only">Action</span>
+              <span className="sr-only">{t("table.action")}</span>
             </Head>
           </TableRow>
         </TableHeader>
@@ -278,10 +296,10 @@ export function ClubPlayersTable({
               <TableCell className={cn(TABLE_CELL, "text-right")}>{player.age}</TableCell>
               <RatingCell overall={player.overall} />
               <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground")}>{player.potential}</TableCell>
-              <TableCell className={cn(TABLE_CELL, "text-right font-semibold")}>{formatMoney(player.askingPrice)}</TableCell>
-              <TableCell className={cn(TABLE_CELL, "text-right")}>{formatMoney(player.askedWage)}</TableCell>
+              <TableCell className={cn(TABLE_CELL, "text-right font-semibold")}>{formatMoney(player.askingPrice, locale)}</TableCell>
+              <TableCell className={cn(TABLE_CELL, "text-right")}>{formatMoney(player.askedWage, locale)}</TableCell>
               <TableCell className={cn(TABLE_CELL, "whitespace-nowrap text-muted-foreground")}>
-                {player.contractUntil === null ? "—" : formatDate(player.contractUntil)}
+                {player.contractUntil === null ? "—" : formatDate(player.contractUntil, locale)}
               </TableCell>
               <TableCell className={cn(TABLE_CELL, "text-right")}>
                 <MakeOfferDialog
@@ -301,31 +319,27 @@ export function ClubPlayersTable({
           ))}
         </TableBody>
       </Table>
-      <Pagination saveId={saveId} values={values} list={list} noun={["joueur", "joueurs"]} />
+      <Pagination saveId={saveId} values={values} list={list} count="clubPlayers.count" />
     </div>
   );
 }
 
 // -------------------------------------------------------------- movements
 
-function movementType(movement: MovementRow): string {
-  switch (movement.type) {
-    case "TRANSFER":
-      return "Transfert";
-    case "LOAN":
-      return "Prêt";
-    case "FREE":
-      return movement.toClubName === null ? "Libération" : "Signature libre";
-    case "RETIREMENT":
-      return "Retraite";
-  }
+/** A movement's kind: a free move without a destination is a release. */
+function movementType(movement: MovementRow, t: Translator<"transfers.movements">): string {
+  return movement.type === "FREE" && movement.toClubName === null ? t("types.RELEASE") : t(`types.${movement.type}`);
 }
 
 export function MovementsTable({ saveId, values, mine, list }: ListProps & { mine: boolean; list: Paginated<MovementRow> }) {
-  const toggle = (label: string, active: boolean, href: string) => (
+  const t = useTranslations("transfers.movements");
+  const tTable = useTranslations("transfers.table");
+  const locale = useLocale();
+  const toggle = (label: string, active: boolean, href: string, testId: string) => (
     <Link
       href={href}
       aria-current={active ? "true" : undefined}
+      data-testid={testId}
       className={cn(
         buttonVariants({ variant: "outline", size: "sm" }),
         "text-muted-foreground",
@@ -338,27 +352,30 @@ export function MovementsTable({ saveId, values, mine, list }: ListProps & { min
 
   return (
     <div className="space-y-3">
-      <div role="group" aria-label="Clubs concernés" className="flex gap-1.5">
-        {toggle("Tous les clubs", !mine, marketHref(saveId, values, { mine: undefined, page: undefined, player: undefined }))}
-        {toggle("Mon club seulement", mine, marketHref(saveId, values, { mine: "1", page: undefined, player: undefined }))}
+      <div role="group" aria-label={t("filter")} data-testid="movements-filter" className="flex gap-1.5">
+        {toggle(
+          t("all"),
+          !mine,
+          marketHref(saveId, values, { mine: undefined, page: undefined, player: undefined }),
+          "movements-all",
+        )}
+        {toggle(t("mine"), mine, marketHref(saveId, values, { mine: "1", page: undefined, player: undefined }), "movements-mine")}
       </div>
 
       {list.total === 0 ? (
-        <Panel>
-          <p className="text-muted-foreground">
-            {mine ? "Votre club n'a encore fait aucun mouvement." : "Aucun mouvement pour le moment."}
-          </p>
+        <Panel data-testid="movements-empty">
+          <p className="text-muted-foreground">{mine ? t("emptyMine") : t("empty")}</p>
         </Panel>
       ) : (
-        <Table className="tabular-nums">
+        <Table className="tabular-nums" data-testid="movements-table">
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <Head>Date</Head>
-              <Head>Joueur</Head>
-              <Head>De</Head>
-              <Head>Vers</Head>
-              <Head className="text-right">Indemnité</Head>
-              <Head>Type</Head>
+              <Head>{t("date")}</Head>
+              <Head>{tTable("player")}</Head>
+              <Head>{t("from")}</Head>
+              <Head>{t("to")}</Head>
+              <Head className="text-right">{t("fee")}</Head>
+              <Head>{t("type")}</Head>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -368,26 +385,32 @@ export function MovementsTable({ saveId, values, mine, list }: ListProps & { min
                 data-managed={movement.managedClubInvolved || undefined}
                 className={cn(TABLE_ROW, movement.managedClubInvolved && "bg-muted/40")}
               >
-                <TableCell className={cn(TABLE_CELL, "whitespace-nowrap text-muted-foreground")}>{formatDate(movement.date)}</TableCell>
+                <TableCell className={cn(TABLE_CELL, "whitespace-nowrap text-muted-foreground")}>
+                  {formatDate(movement.date, locale)}
+                </TableCell>
                 <PlayerCell
                   saveId={saveId}
                   values={values}
                   player={{ id: movement.playerSaveId, firstName: movement.firstName, lastName: movement.lastName }}
                 />
-                <TableCell className={TABLE_CELL}>{movement.fromClubName ?? <span className="text-muted-foreground">Libre</span>}</TableCell>
+                <TableCell className={TABLE_CELL}>
+                  {movement.fromClubName ?? <span className="text-muted-foreground">{t("free")}</span>}
+                </TableCell>
                 <TableCell className={TABLE_CELL}>
                   {movement.toClubName ?? (
-                    <span className="text-muted-foreground">{movement.type === "RETIREMENT" ? "Fin de carrière" : "Libre"}</span>
+                    <span className="text-muted-foreground">{movement.type === "RETIREMENT" ? t("retired") : t("free")}</span>
                   )}
                 </TableCell>
-                <TableCell className={cn(TABLE_CELL, "text-right")}>{movement.fee > 0 ? formatMoney(movement.fee) : "—"}</TableCell>
-                <TableCell className={cn(TABLE_CELL, "text-muted-foreground")}>{movementType(movement)}</TableCell>
+                <TableCell className={cn(TABLE_CELL, "text-right")}>
+                  {movement.fee > 0 ? formatMoney(movement.fee, locale) : "—"}
+                </TableCell>
+                <TableCell className={cn(TABLE_CELL, "text-muted-foreground")}>{movementType(movement, t)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       )}
-      <Pagination saveId={saveId} values={values} list={list} noun={["mouvement", "mouvements"]} />
+      <Pagination saveId={saveId} values={values} list={list} count="movements.count" />
     </div>
   );
 }
