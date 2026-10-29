@@ -1,7 +1,10 @@
 import { SEASON_START_MONTH } from "@/src/engine/world";
+import { INTL_LOCALES, type Locale } from "@/src/i18n/locale";
 
 const DAY_MS = 86_400_000;
 const MONTHS_PER_SEASON = 12;
+/** A Monday, 27 July 2026: the weekdays are named from its week. */
+const A_MONDAY = Date.UTC(2026, 6, 27);
 
 /** A month of the calendar; month is 0-based, as in Date.UTC. */
 export type Month = { year: number; month: number };
@@ -34,6 +37,15 @@ export function monthFromParam(value: string | undefined, months: readonly Month
     }
   }
   return months.find((month) => sameMonth(month, fallback)) ?? months[0];
+}
+
+/** The grid's column headers, Monday first, in the player's language: « Lun. », « Mar. »…, « Mon », « Tue »… */
+export function weekdayNames(locale: Locale): string[] {
+  const format = new Intl.DateTimeFormat(INTL_LOCALES[locale], { weekday: "short", timeZone: "UTC" });
+  return Array.from({ length: 7 }, (_, day) => {
+    const name = format.format(new Date(A_MONDAY + day * DAY_MS));
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  });
 }
 
 /**

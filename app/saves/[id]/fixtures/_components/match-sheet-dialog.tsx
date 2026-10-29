@@ -1,7 +1,7 @@
 "use client";
 
 import { competitionName } from "@/src/i18n/countries";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/src/components/ui/dialog";
@@ -14,9 +14,10 @@ import { RESULT_CLASSES } from "../../_lib/results";
 import { matchResultFor, stageLabel } from "../../_lib/stage";
 
 function EventColumn({ events, align }: { events: MatchEventView[]; align: "left" | "right" }) {
+  const t = useTranslations("matchSheet");
   const tEvents = useTranslations("events");
   if (events.length === 0) {
-    return <p className={cn("text-xs text-muted-foreground", align === "right" && "text-right")}>Aucun événement</p>;
+    return <p className={cn("text-xs text-muted-foreground", align === "right" && "text-right")}>{t("noEvents")}</p>;
   }
   return (
     <ol className="space-y-1">
@@ -35,7 +36,7 @@ function EventColumn({ events, align }: { events: MatchEventView[]; align: "left
           <span className="w-10 shrink-0 tabular-nums text-muted-foreground">{formatMinute(event.minute, event.period)}</span>
           <span aria-hidden>{EVENT_MARKS[event.type]}</span>
           <span className="min-w-0">
-            <span className="sr-only">{tEvents(`type.${event.type}`)} : </span>
+            <span className="sr-only">{t("eventLabel", { type: tEvents(`type.${event.type}`) })}</span>
             <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event, tEvents)}</span>
           </span>
         </li>
@@ -56,6 +57,7 @@ function EventColumns({ events }: { events: MatchEventView[] }) {
 
 /** The shoot-out kick by kick: who took it, scored or missed, and the shoot-out's score after it. */
 function ShootoutList({ fixture }: { fixture: FixtureWithEvents }) {
+  const t = useTranslations("matchSheet");
   const kicks = shootoutKicks(fixture.events);
   return (
     <ol className="space-y-1" data-match-sheet="shootout">
@@ -71,7 +73,7 @@ function ShootoutList({ fixture }: { fixture: FixtureWithEvents }) {
           </span>
           <span className={cn("text-xs font-semibold", scored ? "text-win" : "text-loss")}>
             <span aria-hidden>{EVENT_MARKS[event.type]} </span>
-            {scored ? "Réussi" : "Manqué"}
+            {scored ? t("kick.scored") : t("kick.missed")}
           </span>
           <span className="text-right font-heading font-bold tabular-nums">
             {home}-{away}
@@ -90,8 +92,10 @@ type MatchSheetDialogProps = {
 };
 
 export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchSheetDialogProps) {
+  const t = useTranslations("matchSheet");
   const tWorld = useTranslations("world");
   const tStage = useTranslations("stage");
+  const locale = useLocale();
   const homeGoals = fixture.homeGoals ?? 0;
   const awayGoals = fixture.awayGoals ?? 0;
   const score = `${homeGoals} – ${awayGoals}`;
@@ -105,6 +109,7 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
     <Dialog>
       {children === undefined ? (
         <DialogTrigger
+          data-testid="match-sheet-trigger"
           render={
             <Button
               variant="ghost"
@@ -116,15 +121,15 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
           {score}
         </DialogTrigger>
       ) : (
-        <DialogTrigger className={triggerClassName}>{children}</DialogTrigger>
+        <DialogTrigger className={triggerClassName} data-testid="match-sheet-trigger">{children}</DialogTrigger>
       )}
-      <DialogContent className="gap-5 p-6 sm:max-w-2xl">
+      <DialogContent className="gap-5 p-6 sm:max-w-2xl" data-testid="match-sheet">
         <DialogTitle className="sr-only">
           {fixture.home.name} {score} {fixture.away.name}
         </DialogTitle>
         <DialogDescription className="eyebrow text-center">
           {fixture.cup ? "" : `${competitionName(fixture.competitionCode, tWorld)} · `}
-          {stageLabel(fixture, tStage)} · {formatDate(fixture.scheduledAt)}
+          {stageLabel(fixture, tStage)} · {formatDate(fixture.scheduledAt, locale)}
         </DialogDescription>
 
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
@@ -137,7 +142,7 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
         <ScoreNotes match={fixture} className="-mt-3 block text-center text-sm" />
         {fixture.homeHalfTimeGoals !== null && fixture.awayHalfTimeGoals !== null && (
           <p className="-mt-3 text-center text-sm text-muted-foreground tabular-nums" data-match-sheet="half-time">
-            Mi-temps : {fixture.homeHalfTimeGoals} – {fixture.awayHalfTimeGoals}
+            {t("halfTime", { home: fixture.homeHalfTimeGoals, away: fixture.awayHalfTimeGoals })}
           </p>
         )}
 
@@ -145,13 +150,13 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
           <EventColumns events={regular} />
           {playedExtraTime && (
             <section className="space-y-2 border-t pt-3" data-match-sheet="extra-time">
-              <h3 className="eyebrow text-center">Prolongation</h3>
+              <h3 className="eyebrow text-center">{t("extraTime")}</h3>
               <EventColumns events={extraTime} />
             </section>
           )}
           {hasShootout && (
             <section className="space-y-2 border-t pt-3">
-              <h3 className="eyebrow text-center">Tirs au but</h3>
+              <h3 className="eyebrow text-center">{t("shootout")}</h3>
               <ShootoutList fixture={fixture} />
             </section>
           )}

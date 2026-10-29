@@ -1,1 +1,56 @@
-{}
+{
+  "fixtures": {
+    "title": "Calendrier",
+    "subtitle": "Saison {season} · clique sur un match pour sa feuille ou son adversaire",
+    "views": {
+      "label": "Vue du calendrier",
+      "calendar": "Calendrier",
+      "list": "Liste"
+    },
+    "previousMonth": "Mois précédent",
+    "nextMonth": "Mois suivant",
+    "monthGrid": "Calendrier de {month}",
+    "landmarks": {
+      "windowOpens": "Ouverture du mercato",
+      "windowCloses": "Fermeture du mercato",
+      "seasonEnd": "Fin de saison"
+    },
+    "venueShort": {
+      "home": "Dom.",
+      "away": "Ext."
+    },
+    "venue": {
+      "home": "Domicile",
+      "away": "Extérieur"
+    },
+    "upcoming": "À venir",
+    "columns": {
+      "match": "Match",
+      "date": "Date",
+      "opponent": "Adversaire",
+      "venue": "Lieu",
+      "score": "Score",
+      "result": "Résultat"
+    },
+    "pick": {
+      "day": "Simuler jusqu'au {date}",
+      "title": "Simuler jusqu'à une date :",
+      "hint": "clique sur un jour à venir de la saison."
+    },
+    "opponent": {
+      "loading": "Chargement de l'adversaire…",
+      "unavailable": "Adversaire indisponible"
+    }
+  },
+  "matchSheet": {
+    "noEvents": "Aucun événement",
+    "eventLabel": "{type} : ",
+    "halfTime": "Mi-temps : {home} – {away}",
+    "extraTime": "Prolongation",
+    "shootout": "Tirs au but",
+    "kick": {
+      "scored": "Réussi",
+      "missed": "Manqué"
+    }
+  }
+}

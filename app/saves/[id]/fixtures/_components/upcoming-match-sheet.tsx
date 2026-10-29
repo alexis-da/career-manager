@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState, type ReactNode } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/src/components/ui/sheet";
 import type { OpponentPreview } from "@/src/db/opponent";
@@ -23,6 +24,7 @@ export function UpcomingMatchSheet({
   className?: string;
   children: ReactNode;
 }) {
+  const t = useTranslations("fixtures");
   const [loaded, setLoaded] = useState<Loaded | null>(null);
 
   const load = async () => {
@@ -43,14 +45,14 @@ export function UpcomingMatchSheet({
         }
       }}
     >
-      <SheetTrigger className={className}>{children}</SheetTrigger>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+      <SheetTrigger className={className} data-testid="upcoming-match-trigger">{children}</SheetTrigger>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md" data-testid="upcoming-match-sheet">
         {loaded?.kind === "ready" ? (
           <OpponentPanel preview={loaded.preview} />
         ) : (
           <SheetHeader>
             <SheetTitle className="font-heading text-2xl">
-              {loaded?.kind === "failed" ? "Adversaire indisponible" : "Chargement de l'adversaire…"}
+              {loaded?.kind === "failed" ? t("opponent.unavailable") : t("opponent.loading")}
             </SheetTitle>
           </SheetHeader>
         )}

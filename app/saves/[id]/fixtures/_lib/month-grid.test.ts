@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayKey, monthFromParam, monthParam, monthWeeks, seasonMonths } from "./month-grid";
+import { dayKey, monthFromParam, monthParam, monthWeeks, seasonMonths, weekdayNames } from "./month-grid";
 
 describe("month grid", () => {
   it("lays out a month in whole weeks, Monday first", () => {
@@ -19,6 +19,11 @@ describe("month grid", () => {
     expect(weeks).toHaveLength(4);
     expect(dayKey(weeks[0][0])).toBe("2027-02-01");
     expect(dayKey(weeks[3][6])).toBe("2027-02-28");
+  });
+
+  it("names the weekdays Monday first, in the player's language", () => {
+    expect(weekdayNames("fr")).toEqual(["Lun.", "Mar.", "Mer.", "Jeu.", "Ven.", "Sam.", "Dim."]);
+    expect(weekdayNames("en")).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
   });
 
   it("lists the season's months from July to June", () => {

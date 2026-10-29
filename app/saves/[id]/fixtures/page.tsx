@@ -1,4 +1,5 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -9,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getManagedClubCalendar, type FixtureWithEvents } from "@/src/db/calendar";
 import { getSaveSummary } from "@/src/db/saves";
 import { seasonEndDate, seasonLabel, seasonStartYear, transferWindowBounds } from "@/src/engine/world";
+import type { Translator } from "@/src/i18n/translator";
 import { formatMonth, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../_components/panel";
@@ -20,15 +22,25 @@ import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles
 import { CalendarDay, PickBanner } from "./_components/calendar-day";
 import { MatchSheetDialog } from "./_components/match-sheet-dialog";
 import { UpcomingMatchSheet } from "./_components/upcoming-match-sheet";
-import { dayKey, firstDayOf, monthFromParam, monthOf, monthParam, monthWeeks, seasonMonths, type Month } from "./_lib/month-grid";
+import {
+  dayKey,
+  firstDayOf,
+  monthFromParam,
+  monthOf,
+  monthParam,
+  monthWeeks,
+  seasonMonths,
+  weekdayNames,
+  type Month,
+} from "./_lib/month-grid";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Calendrier" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getTranslations("fixtures"))("title") };
+}
 
 type View = "calendar" | "list";
-
-const WEEKDAYS = ["Lun.", "Mar.", "Mer.", "Jeu.", "Ven.", "Sam.", "Dim."];
 
 /** A day's landmarks besides the match: the transfer windows' bounds and the season's end. */
 type Landmark = { label: string; tone: "window" | "season" };
@@ -52,23 +64,24 @@ const fixturesHref = (saveId: string, view: View, month?: Month): string => {
 
 const single = (value: string | string[] | undefined): string | undefined => (Array.isArray(value) ? value[0] : value);
 
-function landmarksOf(startYear: number): Map<string, Landmark[]> {
+function landmarksOf(startYear: number, t: Translator<"fixtures">): Map<string, Landmark[]> {
   const landmarks = new Map<string, Landmark[]>();
   const add = (date: Date, landmark: Landmark) => landmarks.set(dayKey(date), [...(landmarks.get(dayKey(date)) ?? []), landmark]);
   for (const { date, bound } of transferWindowBounds(startYear)) {
-    add(date, { label: bound === "open" ? "Ouverture du mercato" : "Fermeture du mercato", tone: "window" });
+    add(date, { label: t(bound === "open" ? "landmarks.windowOpens" : "landmarks.windowCloses"), tone: "window" });
   }
-  add(seasonEndDate(startYear), { label: "Fin de saison", tone: "season" });
+  add(seasonEndDate(startYear), { label: t("landmarks.seasonEnd"), tone: "season" });
   return landmarks;
 }
 
 function MatchCell({ saveId, fixture }: { saveId: string; fixture: FixtureWithEvents }) {
+  const t = useTranslations("fixtures");
   const tStage = useTranslations("stage");
   const atHome = fixture.home.isManaged;
   const opponent = atHome ? fixture.away : fixture.home;
   const venue = (
     <span className="text-[0.625rem] font-semibold tracking-wide text-muted-foreground uppercase">
-      {atHome ? "Dom." : "Ext."}
+      {atHome ? t("venueShort.home") : t("venueShort.away")}
     </span>
   );
   // A cup tie says so: its round instead of a matchday.
@@ -109,7 +122,7 @@ function MatchCell({ saveId, fixture }: { saveId: string; fixture: FixtureWithEv
         <span className="min-w-0 flex-1 truncate text-xs font-medium">{opponent.name}</span>
       </span>
       {/* Matchdays have a date but no kickoff time. */}
-      <span className="text-xs text-muted-foreground">À venir</span>
+      <span className="text-xs text-muted-foreground">{t("upcoming")}</span>
     </UpcomingMatchSheet>
   );
 }
@@ -131,14 +144,16 @@ function MonthCalendar({
   startYear: number;
   pickableUntil: Date | null; // last day a simulation may stop at; null when nothing is left to play
 }) {
+  const t = useTranslations("fixtures");
+  const locale = useLocale();
   const index = months.findIndex((candidate) => monthParam(candidate) === monthParam(month));
   const previous = months[index - 1];
   const next = months[index + 1];
   const fixturesByDay = new Map(fixtures.map((fixture) => [dayKey(fixture.scheduledAt), fixture]));
-  const landmarks = landmarksOf(startYear);
+  const landmarks = landmarksOf(startYear, t);
   const today = dayKey(currentDate);
 
-  const navLink = (target: Month | undefined, label: string, icon: ReactNode) =>
+  const navLink = (target: Month | undefined, label: string, icon: ReactNode, testId: string) =>
     target === undefined ? (
       <span aria-hidden className="grid size-8 place-items-center rounded-md text-muted-foreground/40">
         {icon}
@@ -147,6 +162,7 @@ function MonthCalendar({
       <Link
         href={fixturesHref(saveId, "calendar", target)}
         aria-label={label}
+        data-testid={testId}
         scroll={false}
         className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
@@ -157,19 +173,28 @@ function MonthCalendar({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        {navLink(previous, "Mois précédent", <ChevronLeftIcon className="size-4" />)}
-        <h2 className="min-w-40 text-center font-heading text-2xl font-bold first-letter:uppercase" data-calendar="month">
-          {formatMonth(firstDayOf(month))}
+        {navLink(previous, t("previousMonth"), <ChevronLeftIcon className="size-4" />, "fixtures-previous-month")}
+        <h2
+          className="min-w-40 text-center font-heading text-2xl font-bold first-letter:uppercase"
+          data-calendar="month"
+          data-testid="fixtures-month"
+        >
+          {formatMonth(firstDayOf(month), locale)}
         </h2>
-        {navLink(next, "Mois suivant", <ChevronRightIcon className="size-4" />)}
+        {navLink(next, t("nextMonth"), <ChevronRightIcon className="size-4" />, "fixtures-next-month")}
       </div>
 
       <PickBanner />
 
       <Panel className="overflow-x-auto p-2 sm:p-3">
-        <div role="grid" aria-label={`Calendrier de ${formatMonth(firstDayOf(month))}`} className="min-w-[44rem]">
+        <div
+          role="grid"
+          aria-label={t("monthGrid", { month: formatMonth(firstDayOf(month), locale) })}
+          data-testid="fixtures-calendar"
+          className="min-w-[44rem]"
+        >
           <div role="row" className="grid grid-cols-7 gap-1.5 pb-1.5">
-            {WEEKDAYS.map((weekday) => (
+            {weekdayNames(locale).map((weekday) => (
               <div key={weekday} role="columnheader" className="eyebrow px-1.5">
                 {weekday}
               </div>
@@ -231,19 +256,21 @@ function MonthCalendar({
 }
 
 function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
+  const t = useTranslations("fixtures");
   const tStage = useTranslations("stage");
+  const locale = useLocale();
   return (
-    <Panel className="p-2 sm:p-3">
+    <Panel className="p-2 sm:p-3" data-testid="fixtures-list">
       <Table className="tabular-nums">
         <TableHeader>
           <TableRow className="border-border hover:bg-transparent">
-            <TableHead className={cn(TABLE_HEAD, "w-36")}>Match</TableHead>
-            <TableHead className={TABLE_HEAD}>Date</TableHead>
-            <TableHead className={TABLE_HEAD}>Adversaire</TableHead>
-            <TableHead className={TABLE_HEAD}>Lieu</TableHead>
-            <TableHead className={cn(TABLE_HEAD, "text-center")}>Score</TableHead>
+            <TableHead className={cn(TABLE_HEAD, "w-36")}>{t("columns.match")}</TableHead>
+            <TableHead className={TABLE_HEAD}>{t("columns.date")}</TableHead>
+            <TableHead className={TABLE_HEAD}>{t("columns.opponent")}</TableHead>
+            <TableHead className={TABLE_HEAD}>{t("columns.venue")}</TableHead>
+            <TableHead className={cn(TABLE_HEAD, "text-center")}>{t("columns.score")}</TableHead>
             <TableHead className={cn(TABLE_HEAD, "w-14 text-center")}>
-              <span className="sr-only">Résultat</span>
+              <span className="sr-only">{t("columns.result")}</span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -259,10 +286,12 @@ function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
                 <TableCell className={cn(TABLE_CELL, fixture.cup ? "font-medium text-(--club)" : "text-muted-foreground")}>
                   {stageShortLabel(fixture, tStage)}
                 </TableCell>
-                <TableCell className={cn(TABLE_CELL, "first-letter:uppercase")}>{formatShortDate(fixture.scheduledAt)}</TableCell>
+                <TableCell className={cn(TABLE_CELL, "first-letter:uppercase")}>
+                  {formatShortDate(fixture.scheduledAt, locale)}
+                </TableCell>
                 <TableCell className={cn(TABLE_CELL, "font-medium")}>{opponent.name}</TableCell>
                 <TableCell className={cn(TABLE_CELL, "text-muted-foreground")}>
-                  {fixture.home.isManaged ? "Domicile" : "Extérieur"}
+                  {fixture.home.isManaged ? t("venue.home") : t("venue.away")}
                 </TableCell>
                 <TableCell className={cn(TABLE_CELL, "text-center")}>
                   {fixture.played ? (
@@ -288,6 +317,7 @@ export default async function FixturesPage({ params, searchParams }: PageProps<"
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
+  const t = await getTranslations("fixtures");
   const query = await searchParams;
   const [save, calendar] = await Promise.all([getSaveSummary(id), getManagedClubCalendar(id)]);
   if (save === null) {
@@ -305,23 +335,29 @@ export default async function FixturesPage({ params, searchParams }: PageProps<"
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
         <div className="flex flex-wrap items-baseline gap-3">
-          <h1 className="font-heading text-4xl font-bold">Calendrier</h1>
+          <h1 className="font-heading text-4xl font-bold" data-testid="fixtures-title">{t("title")}</h1>
           {calendar.startYear !== null && (
             <p className="text-sm text-muted-foreground tabular-nums">
-              Saison {seasonLabel(calendar.startYear)} · cliquez sur un match pour sa feuille ou son adversaire
+              {t("subtitle", { season: seasonLabel(calendar.startYear) })}
             </p>
           )}
         </div>
-        <nav aria-label="Vue du calendrier" className="ml-auto flex gap-1">
+        <nav aria-label={t("views.label")} className="ml-auto flex gap-1">
           <Link
             href={fixturesHref(id, "calendar", month)}
             aria-current={view === "calendar" ? "page" : undefined}
             className={VIEW_TAB}
+            data-testid="fixtures-view-calendar"
           >
-            Calendrier
+            {t("views.calendar")}
           </Link>
-          <Link href={fixturesHref(id, "list")} aria-current={view === "list" ? "page" : undefined} className={VIEW_TAB}>
-            Liste
+          <Link
+            href={fixturesHref(id, "list")}
+            aria-current={view === "list" ? "page" : undefined}
+            className={VIEW_TAB}
+            data-testid="fixtures-view-list"
+          >
+            {t("views.list")}
           </Link>
         </nav>
       </div>

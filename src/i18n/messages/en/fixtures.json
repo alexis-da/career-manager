@@ -1,1 +1,56 @@
-{}
+{
+  "fixtures": {
+    "title": "Fixtures",
+    "subtitle": "Season {season} · click a match for its report or the opponent",
+    "views": {
+      "label": "Fixtures view",
+      "calendar": "Calendar",
+      "list": "List"
+    },
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "monthGrid": "Calendar for {month}",
+    "landmarks": {
+      "windowOpens": "Transfer window opens",
+      "windowCloses": "Transfer window closes",
+      "seasonEnd": "End of season"
+    },
+    "venueShort": {
+      "home": "Home",
+      "away": "Away"
+    },
+    "venue": {
+      "home": "Home",
+      "away": "Away"
+    },
+    "upcoming": "Upcoming",
+    "columns": {
+      "match": "Match",
+      "date": "Date",
+      "opponent": "Opponent",
+      "venue": "Venue",
+      "score": "Score",
+      "result": "Result"
+    },
+    "pick": {
+      "day": "Simulate until {date}",
+      "title": "Simulate until a date:",
+      "hint": "click an upcoming day of the season."
+    },
+    "opponent": {
+      "loading": "Loading the opponent…",
+      "unavailable": "Opponent unavailable"
+    }
+  },
+  "matchSheet": {
+    "noEvents": "No events",
+    "eventLabel": "{type}: ",
+    "halfTime": "Half-time: {home} – {away}",
+    "extraTime": "Extra time",
+    "shootout": "Penalty shoot-out",
+    "kick": {
+      "scored": "Scored",
+      "missed": "Missed"
+    }
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { XIcon } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import { formatDate } from "@/src/lib/format";
@@ -24,8 +25,10 @@ export function CalendarDay({
   className?: string;
   children: ReactNode;
 }) {
+  const t = useTranslations("fixtures");
+  const locale = useLocale();
   const { picking, start } = useSimulation();
-  const label = formatDate(new Date(`${day}T00:00:00.000Z`));
+  const label = formatDate(new Date(`${day}T00:00:00.000Z`), locale);
 
   return (
     <div
@@ -38,7 +41,8 @@ export function CalendarDay({
       {picking && pickable && (
         <button
           type="button"
-          aria-label={`Simuler jusqu'au ${label}`}
+          aria-label={t("pick.day", { date: label })}
+          data-testid="calendar-day-pick"
           className="absolute inset-0 z-10 cursor-pointer rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-(--club)"
           onClick={() => start({ kind: "date", date: day })}
         />
@@ -49,6 +53,8 @@ export function CalendarDay({
 
 /** Above the grid while the manager picks a day: what to do, and how to give up. Escape gives up too. */
 export function PickBanner() {
+  const t = useTranslations("fixtures");
+  const tCommon = useTranslations("common");
   const { picking, cancelPicking } = useSimulation();
 
   useEffect(() => {
@@ -70,14 +76,15 @@ export function PickBanner() {
   return (
     <div
       role="status"
+      data-testid="fixtures-pick-banner"
       className="flex items-center gap-3 rounded-lg border border-(--club)/40 bg-(--club)/10 px-4 py-2.5 text-sm"
     >
       <span className="flex-1">
-        <span className="font-semibold">Simuler jusqu&apos;à une date :</span> cliquez sur un jour à venir de la saison.
+        <span className="font-semibold">{t("pick.title")}</span> {t("pick.hint")}
       </span>
-      <Button variant="ghost" size="sm" onClick={cancelPicking}>
+      <Button variant="ghost" size="sm" onClick={cancelPicking} data-testid="fixtures-pick-cancel">
         <XIcon />
-        Annuler
+        {tCommon("cancel")}
       </Button>
     </div>
   );
