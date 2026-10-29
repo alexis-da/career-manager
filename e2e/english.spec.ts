@@ -55,6 +55,12 @@ test("speaks English to a browser that prefers it, on every public page", async 
   await expect(page).toHaveTitle("Sign in · Late Winner");
   await expect(page.getByText("Find your careers on all your devices.")).toBeVisible();
 
+  // The privacy page in full in English, not the French one and its summary.
+  await page.goto("/privacy");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Privacy · Late Winner");
+  await expect(page.getByRole("heading", { name: "Your rights" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "English summary" })).toHaveCount(0);
+
   const missing = await page.goto("/no-such-page");
   expect(missing?.status()).toBe(404);
   await expect(pageLanguage(page)).toHaveAttribute("lang", "en");
