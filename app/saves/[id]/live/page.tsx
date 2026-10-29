@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireOwnedSave } from "@/src/auth/current-user";
@@ -20,6 +21,7 @@ export const metadata: Metadata = { title: "Match en direct" };
  * from 90', the shoot-out included.
  */
 export default async function LivePage({ params, searchParams }: PageProps<"/saves/[id]/live">) {
+  const tStage = await getTranslations("stage");
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
@@ -52,7 +54,7 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
       saveId={id}
       dashboardHref={`/saves/${id}`}
       // A cup tie names its cup in its stage: « Coupe — Finale ».
-      caption={`${match.cup ? "" : `${match.competitionName} · `}${stageLabel(match)} · ${formatDate(match.scheduledAt)}`}
+      caption={`${match.cup ? "" : `${match.competitionName} · `}${stageLabel(match, tStage)} · ${formatDate(match.scheduledAt)}`}
       match={match}
       others={matchday.others}
       pause={pause}

@@ -1,9 +1,10 @@
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Button, buttonVariants } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import type { MarketFilters, MarketOverview } from "@/src/db/market";
-import { POSITION_LABEL, POSITION_ORDER, POSITION_SHORT } from "../../_lib/positions";
+import { POSITION_ORDER } from "../../_lib/positions";
 
 const SELECT_CLASS =
   "h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30";
@@ -30,6 +31,7 @@ type MarketFiltersFormProps = {
 
 /** Filters of the AI clubs' players: a plain GET form, so every search lives in the URL. */
 export function MarketFiltersForm({ saveId, filters, competitions }: MarketFiltersFormProps) {
+  const tPositions = useTranslations("positions");
   return (
     <form
       method="get"
@@ -67,7 +69,7 @@ export function MarketFiltersForm({ saveId, filters, competitions }: MarketFilte
           <option value="">Tous</option>
           {POSITION_ORDER.map((position) => (
             <option key={position} value={position}>
-              {POSITION_SHORT[position]} · {POSITION_LABEL[position]}
+              {tPositions(`short.${position}`)} · {tPositions(`label.${position}`)}
             </option>
           ))}
         </select>

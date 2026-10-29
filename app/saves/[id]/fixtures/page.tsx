@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -62,6 +63,7 @@ function landmarksOf(startYear: number): Map<string, Landmark[]> {
 }
 
 function MatchCell({ saveId, fixture }: { saveId: string; fixture: FixtureWithEvents }) {
+  const tStage = useTranslations("stage");
   const atHome = fixture.home.isManaged;
   const opponent = atHome ? fixture.away : fixture.home;
   const venue = (
@@ -72,7 +74,7 @@ function MatchCell({ saveId, fixture }: { saveId: string; fixture: FixtureWithEv
   // A cup tie says so: its round instead of a matchday.
   const stage = fixture.cup && (
     <span data-cup-stage="" className="w-full truncate text-[0.625rem] leading-tight font-semibold text-(--club)">
-      {stageLabel(fixture)}
+      {stageLabel(fixture, tStage)}
     </span>
   );
   const className =
@@ -229,6 +231,7 @@ function MonthCalendar({
 }
 
 function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
+  const tStage = useTranslations("stage");
   return (
     <Panel className="p-2 sm:p-3">
       <Table className="tabular-nums">
@@ -254,7 +257,7 @@ function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
             return (
               <TableRow key={fixture.id} className={TABLE_ROW}>
                 <TableCell className={cn(TABLE_CELL, fixture.cup ? "font-medium text-(--club)" : "text-muted-foreground")}>
-                  {stageShortLabel(fixture)}
+                  {stageShortLabel(fixture, tStage)}
                 </TableCell>
                 <TableCell className={cn(TABLE_CELL, "first-letter:uppercase")}>{formatShortDate(fixture.scheduledAt)}</TableCell>
                 <TableCell className={cn(TABLE_CELL, "font-medium")}>{opponent.name}</TableCell>

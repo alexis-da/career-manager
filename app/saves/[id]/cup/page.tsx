@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TrophyIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import type { TeamView } from "@/src/db/calendar";
 import { getCupBracket, type CupBracket, type CupRoundView, type CupTieView } from "@/src/db/cup-view";
 import { seasonLabel } from "@/src/engine/world";
+import type { Translator } from "@/src/i18n/translator";
 import { formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "../_components/panel";
 import { ScoreNotes } from "../_components/score-notes";
-import { CUP_ROUND_NAMES, CUP_ROUND_REACHED } from "../_lib/stage";
+import { cupRoundName, cupRoundReached } from "../_lib/stage";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +29,7 @@ const OUT_AT: Readonly<Record<number, string>> = {
 };
 
 /** The managed club's cup in one sentence. */
-function runSentence(bracket: CupBracket): string {
+function runSentence(bracket: CupBracket, tStage: Translator<"stage">): string {
   const run = bracket.managedRun;
   if (run === null) {
     return "Exempté du tour préliminaire : votre club entre en 16es de finale, tirés à l'issue du premier tour.";
@@ -39,7 +42,7 @@ function runSentence(bracket: CupBracket): string {
   }
   const next = bracket.rounds[run.lastRound - 1];
   const exempt = run.firstRound > 1 && run.firstRound === run.lastRound ? "Exempté du tour préliminaire · " : "";
-  return `${exempt}En lice : ${CUP_ROUND_REACHED[run.lastRound] ?? `tour ${run.lastRound}`}, le ${formatShortDate(next.date)}.`;
+  return `${exempt}En lice : ${cupRoundReached(run.lastRound, tStage)}, le ${formatShortDate(next.date)}.`;
 }
 
 function TeamCell({ team, tie, align }: { team: TeamView; tie: CupTieView; align: "left" | "right" }) {
@@ -60,10 +63,11 @@ function TeamCell({ team, tie, align }: { team: TeamView; tie: CupTieView; align
 }
 
 function RoundPanel({ round }: { round: CupRoundView }) {
+  const tStage = useTranslations("stage");
   return (
     <Panel data-cup-round={round.round} className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="font-heading text-xl font-bold">{CUP_ROUND_NAMES[round.round]}</h2>
+        <h2 className="font-heading text-xl font-bold">{cupRoundName(round.round, tStage)}</h2>
         <p className="text-xs text-muted-foreground first-letter:uppercase">{formatShortDate(round.date)}</p>
       </div>
       {round.ties.length === 0 ? (
@@ -101,6 +105,7 @@ function RoundPanel({ round }: { round: CupRoundView }) {
  * the rounds still to draw, the managed club's run, and the winner on top once the final is played.
  */
 export default async function CupPage({ params }: PageProps<"/saves/[id]/cup">) {
+  const tStage = await getTranslations("stage");
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
@@ -131,7 +136,7 @@ export default async function CupPage({ params }: PageProps<"/saves/[id]/cup">) 
       <Panel data-cup-run="" className="py-3">
         <p className="text-sm">
           <span className="font-semibold">Votre parcours : </span>
-          {runSentence(bracket)}
+          {runSentence(bracket, tStage)}
         </p>
       </Panel>
 

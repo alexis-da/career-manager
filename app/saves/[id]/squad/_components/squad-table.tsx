@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useMemo, useState, type ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
@@ -14,7 +15,7 @@ import { SquadPlayerActions } from "../../_components/contract-actions";
 import { PlayerBadges } from "../../_components/player-badges";
 import { PlayerSheet } from "../../_components/player-sheet";
 import { nationalityCode } from "../../_lib/nationalities";
-import { POSITION_LABEL, POSITION_ORDER, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
+import { POSITION_ORDER, positionTextClass } from "../../_lib/positions";
 import { SecondaryPositionBadges } from "../../_components/position-badge";
 import { formBarClass, ratingClasses } from "../../_lib/ratings";
 import { PLAYER_CARD_DELAY_MS, playerCardHandle, PlayerHoverCard } from "./player-hover-card";
@@ -103,6 +104,7 @@ type SquadTableProps = {
 };
 
 export function SquadTable({ saveId, header, players, currentDate, startYear, windowOpen, nextWindowOpensOn }: SquadTableProps) {
+  const tPositions = useTranslations("positions");
   const [sort, setSort] = useState<Sort>({ key: "position", direction: "asc" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // No card on a touch screen: a tap opens the sheet, nothing else.
@@ -188,11 +190,11 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                   className={cn(TABLE_ROW, "cursor-pointer", isSelected && "bg-muted hover:bg-muted")}
                 >
                   <TableCell
-                    title={POSITION_LABEL[player.position]}
+                    title={tPositions(`label.${player.position}`)}
                     className={cn(TABLE_CELL, "w-28 font-heading text-sm font-bold", positionTextClass(player.position))}
                   >
                     <span className="inline-flex items-center gap-1.5">
-                      <span data-primary-position>{POSITION_SHORT[player.position]}</span>
+                      <span data-primary-position>{tPositions(`short.${player.position}`)}</span>
                       <SecondaryPositionBadges playerKey={player.playerKey} position={player.position} />
                     </span>
                   </TableCell>

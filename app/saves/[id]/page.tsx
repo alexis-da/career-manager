@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
@@ -17,7 +18,7 @@ import { OpponentSheet } from "./_components/opponent-sheet";
 import { Panel, PanelTitle } from "./_components/panel";
 import { ResultPill } from "./_components/result-pill";
 import { ScoreNotes } from "./_components/score-notes";
-import { POSITION_SHORT, positionTextClass } from "./_lib/positions";
+import { positionTextClass } from "./_lib/positions";
 import { RESULT_CLASSES } from "./_lib/results";
 import { matchResultFor, stageLabel } from "./_lib/stage";
 import { MANAGED_ROW, TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
@@ -133,6 +134,8 @@ function BigFigure({ value, unit }: { value: string; unit?: string }) {
 }
 
 export default async function DashboardPage({ params }: PageProps<"/saves/[id]">) {
+  const tPositions = await getTranslations("positions");
+  const tStage = await getTranslations("stage");
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
@@ -163,7 +166,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
       <div className="grid gap-5 lg:grid-cols-12">
         <Panel className="flex flex-col lg:col-span-7">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <PanelTitle>Prochain match{nextMatch !== null && ` · ${stageLabel(nextMatch.fixture)}`}</PanelTitle>
+            <PanelTitle>Prochain match{nextMatch !== null && ` · ${stageLabel(nextMatch.fixture, tStage)}`}</PanelTitle>
             {nextMatch !== null && (
               <p className="text-xs text-muted-foreground first-letter:uppercase">
                 {formatShortDate(nextMatch.fixture.scheduledAt)} · {nextMatch.fixture.home.isManaged ? "Domicile" : "Extérieur"}{" "}
@@ -200,7 +203,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                 <ol aria-label="Onze du prochain match" className="flex flex-wrap gap-x-3 gap-y-1 text-foreground">
                   {lineup.lineup.starters.map(({ player, slot, index }) => (
                     <li key={index}>
-                      <span className={cn("font-heading font-bold", positionTextClass(slot))}>{POSITION_SHORT[slot]}</span>{" "}
+                      <span className={cn("font-heading font-bold", positionTextClass(slot))}>{tPositions(`short.${slot}`)}</span>{" "}
                       {player.lastName}
                     </li>
                   ))}
@@ -218,7 +221,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
         </Panel>
 
         <Panel className="flex flex-col lg:col-span-5">
-          <PanelTitle>Dernier résultat{lastResult !== null && ` · ${stageLabel(lastResult.fixture)}`}</PanelTitle>
+          <PanelTitle>Dernier résultat{lastResult !== null && ` · ${stageLabel(lastResult.fixture, tStage)}`}</PanelTitle>
           {lastResult === null ? (
             <p className="py-10 text-center text-muted-foreground">Aucun match joué cette saison.</p>
           ) : (

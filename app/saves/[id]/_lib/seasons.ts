@@ -1,5 +1,6 @@
 import { seasonLabel } from "@/src/engine/world";
-import { CUP_ROUND_REACHED } from "./stage";
+import type { Translator } from "@/src/i18n/translator";
+import { cupRoundReached } from "./stage";
 
 /** « Champion » for the first, « 3e » otherwise. */
 export function rankLabel(rank: number): string {
@@ -15,11 +16,11 @@ export function moveLabel(season: { promoted: boolean; relegated: boolean }): st
 }
 
 /** « Vainqueur de la Coupe », or the round reached: « Coupe : quarts de finale »; null without a cup that season. */
-export function cupLabel(season: { cupRound: number | null; cupWinner: boolean }): string | null {
+export function cupLabel(season: { cupRound: number | null; cupWinner: boolean }, t: Translator<"stage">): string | null {
   if (season.cupWinner) {
-    return "Vainqueur de la Coupe";
+    return t("cupWinner");
   }
-  return season.cupRound === null ? null : `Coupe : ${CUP_ROUND_REACHED[season.cupRound] ?? `tour ${season.cupRound}`}`;
+  return season.cupRound === null ? null : t("cupReached", { round: cupRoundReached(season.cupRound, t) });
 }
 
 /** Won, drawn, lost: « 24-8-6 ». */

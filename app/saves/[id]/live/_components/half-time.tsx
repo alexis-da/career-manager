@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { PlayIcon, SkipForwardIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -13,7 +14,7 @@ import { LineupSummary } from "../../_components/lineup-summary";
 import { Panel, PanelTitle } from "../../_components/panel";
 import { Pitch } from "../../_components/pitch";
 import { PositionBadges } from "../../_components/position-badge";
-import { isOffPosition, POSITION_SHORT, positionFit } from "../../_lib/positions";
+import { isOffPosition, positionFit } from "../../_lib/positions";
 import { resumeMatch } from "../../actions";
 import { slotTarget, usePointerDrag, type DragSource, type DropTarget } from "../../lineup/_components/use-pointer-drag";
 import {
@@ -44,6 +45,7 @@ type HalfTimeProps = {
  * is the lineup page's: a slot, then a substitute or another slot.
  */
 export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
+  const tPositions = useTranslations("positions");
   const [rules] = useState<HalfTimeRules>(() => ({
     injured: new Set(team.injured),
     sentOffSlots: new Set(team.sentOff.map((entry) => entry.slot)),
@@ -220,7 +222,7 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
                         {player.firstName} {player.lastName}
                       </span>
                       <span
-                        title={selectedPosition === null ? "Note" : `Note au poste ${POSITION_SHORT[selectedPosition]}`}
+                        title={selectedPosition === null ? "Note" : `Note au poste ${tPositions(`short.${selectedPosition}`)}`}
                         className={cn(
                           "text-right font-heading font-bold tabular-nums",
                           selectedPosition !== null && isOffPosition(positionFit(player, selectedPosition)) && "text-warning",

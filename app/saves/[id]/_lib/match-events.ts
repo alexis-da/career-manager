@@ -1,17 +1,10 @@
 import type { MatchEventView } from "@/src/db/calendar";
 import type { MatchEventType } from "@/src/engine/match";
+import type { Translator } from "@/src/i18n/translator";
 
 export const REGULATION_MINUTES = 90;
 
-export const EVENT_LABELS: Record<MatchEventType, string> = {
-  GOAL: "But",
-  YELLOW_CARD: "Carton jaune",
-  RED_CARD: "Carton rouge",
-  INJURY: "Blessure",
-  SUBSTITUTION: "Remplacement",
-  SHOOTOUT_GOAL: "Tir au but réussi",
-  SHOOTOUT_MISS: "Tir au but manqué",
-};
+// An event's name (« But », « Carton jaune »…) is a message: events.type.
 
 export const EVENT_MARKS: Record<MatchEventType, string> = {
   GOAL: "⚽",
@@ -50,14 +43,16 @@ export function shootoutKicks(events: readonly MatchEventView[]): ShootoutKick[]
 }
 
 /** The players of an event: scorer and assist provider, player coming on and going off, or the player alone. */
-export function describeEvent(event: MatchEventView): string {
+export function describeEvent(event: MatchEventView, t: Translator<"events">): string {
   if (event.type === "GOAL") {
-    return event.relatedPlayerName === null ? event.playerName : `${event.playerName} (passe de ${event.relatedPlayerName})`;
+    return event.relatedPlayerName === null
+      ? event.playerName
+      : t("goal", { player: event.playerName, assist: event.relatedPlayerName });
   }
   if (event.type === "SUBSTITUTION") {
     return event.relatedPlayerName === null
-      ? `Entrée de ${event.playerName}`
-      : `${event.playerName} remplace ${event.relatedPlayerName}`;
+      ? t("substitutionOn", { player: event.playerName })
+      : t("substitution", { player: event.playerName, replaced: event.relatedPlayerName });
   }
   return event.playerName;
 }

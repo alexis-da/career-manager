@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/src/components/ui/dialog";
@@ -7,11 +8,12 @@ import type { FixtureWithEvents, MatchEventView } from "@/src/db/calendar";
 import { formatDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { ScoreNotes } from "../../_components/score-notes";
-import { describeEvent, EVENT_LABELS, EVENT_MARKS, formatMinute, shootoutKicks } from "../../_lib/match-events";
+import { describeEvent, EVENT_MARKS, formatMinute, shootoutKicks } from "../../_lib/match-events";
 import { RESULT_CLASSES } from "../../_lib/results";
 import { matchResultFor, stageLabel } from "../../_lib/stage";
 
 function EventColumn({ events, align }: { events: MatchEventView[]; align: "left" | "right" }) {
+  const tEvents = useTranslations("events");
   if (events.length === 0) {
     return <p className={cn("text-xs text-muted-foreground", align === "right" && "text-right")}>Aucun événement</p>;
   }
@@ -32,8 +34,8 @@ function EventColumn({ events, align }: { events: MatchEventView[]; align: "left
           <span className="w-10 shrink-0 tabular-nums text-muted-foreground">{formatMinute(event.minute, event.period)}</span>
           <span aria-hidden>{EVENT_MARKS[event.type]}</span>
           <span className="min-w-0">
-            <span className="sr-only">{EVENT_LABELS[event.type]} : </span>
-            <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event)}</span>
+            <span className="sr-only">{tEvents(`type.${event.type}`)} : </span>
+            <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event, tEvents)}</span>
           </span>
         </li>
       ))}
@@ -87,6 +89,7 @@ type MatchSheetDialogProps = {
 };
 
 export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchSheetDialogProps) {
+  const tStage = useTranslations("stage");
   const homeGoals = fixture.homeGoals ?? 0;
   const awayGoals = fixture.awayGoals ?? 0;
   const score = `${homeGoals} – ${awayGoals}`;
@@ -119,7 +122,7 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
         </DialogTitle>
         <DialogDescription className="eyebrow text-center">
           {fixture.cup ? "" : `${fixture.competitionName} · `}
-          {stageLabel(fixture)} · {formatDate(fixture.scheduledAt)}
+          {stageLabel(fixture, tStage)} · {formatDate(fixture.scheduledAt)}
         </DialogDescription>
 
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">

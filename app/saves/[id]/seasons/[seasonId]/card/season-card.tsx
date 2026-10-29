@@ -5,11 +5,12 @@ import { ImageResponse } from "next/og";
 import type { CSSProperties, ReactNode } from "react";
 import type { SeasonResultView } from "@/src/db/season-results";
 import { seasonLabel } from "@/src/engine/world";
+import type { Translator } from "@/src/i18n/translator";
 import { clubAccentsOn, type ClubColors } from "@/src/lib/color";
 import { formatDecimal } from "@/src/lib/format";
 import { faceDataUri } from "@/src/og/face-image";
 import { DISPLAY_FONT, imageFonts } from "@/src/og/fonts";
-import { POSITION_LABEL } from "../../../_lib/positions";
+
 import { moveLabel, rankLabel, recordLabel } from "../../../_lib/seasons";
 
 // The shareable card of a season: the brand's midnight blue, the club's colors as accents, and never a club name, real
@@ -54,8 +55,10 @@ function BestPlayer({
   accent,
   faceSize,
   square,
+  tPositions,
 }: {
   season: SeasonResultView;
+  tPositions: Translator<"positions">;
   clubColors: ClubColors;
   accent: string;
   faceSize: number;
@@ -83,7 +86,7 @@ function BestPlayer({
       <div style={{ ...column, alignItems: square ? "flex-start" : "center", marginLeft: square ? 48 : 0, marginTop: square ? 0 : 20 }}>
         <div style={{ fontSize: 26, color: ORANGE, letterSpacing: 2 }}>MEILLEUR JOUEUR</div>
         <div style={{ marginTop: 4, fontSize: 54, lineHeight: 1.05 }}>{player.name}</div>
-        <div style={{ marginTop: 2, fontSize: 28, color: MUTED }}>{POSITION_LABEL[player.position]}</div>
+        <div style={{ marginTop: 2, fontSize: 28, color: MUTED }}>{tPositions(`label.${player.position}`)}</div>
         <div style={{ ...row, marginTop: 14 }}>
           <Stat value={String(player.goals)} label="BUTS" size={44} />
           <Stat value={String(player.assists)} label="PASSES" size={44} />
@@ -121,6 +124,7 @@ export async function seasonCardResponse(
   season: SeasonResultView,
   clubColors: ClubColors,
   format: CardFormat,
+  tPositions: Translator<"positions">,
 ): Promise<ImageResponse> {
   const [fonts, logo] = await Promise.all([imageFonts(), brandIcon()]);
   const square = format === "square";
@@ -167,7 +171,7 @@ export async function seasonCardResponse(
   );
 
   const player = (
-    <BestPlayer season={season} clubColors={clubColors} accent={accent} faceSize={square ? 300 : 250} square={square} />
+    <BestPlayer season={season} clubColors={clubColors} accent={accent} faceSize={square ? 300 : 250} square={square} tPositions={tPositions} />
   );
 
   return new ImageResponse(

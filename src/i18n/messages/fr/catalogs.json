@@ -1,1 +1,94 @@
-{}
+{
+  "positions": {
+    "short": {
+      "GK": "G",
+      "RB": "DD",
+      "CB": "DC",
+      "LB": "DG",
+      "CDM": "MDC",
+      "CM": "MC",
+      "CAM": "MOC",
+      "RM": "MD",
+      "LM": "MG",
+      "RW": "AD",
+      "LW": "AG",
+      "ST": "BU"
+    },
+    "label": {
+      "GK": "Gardien",
+      "RB": "Arrière droit",
+      "CB": "Défenseur central",
+      "LB": "Arrière gauche",
+      "CDM": "Milieu défensif",
+      "CM": "Milieu central",
+      "CAM": "Milieu offensif",
+      "RM": "Milieu droit",
+      "LM": "Milieu gauche",
+      "RW": "Ailier droit",
+      "LW": "Ailier gauche",
+      "ST": "Buteur"
+    },
+    "fit": {
+      "secondary": "poste secondaire",
+      "line": "hors poste",
+      "other-line": "hors de sa ligne"
+    },
+    "withFit": "{position} — {fit}",
+    "secondaryList": ", postes secondaires : "
+  },
+  "stage": {
+    "matchday": "Journée {round}",
+    "matchdayShort": "J{round}",
+    "cup": "Coupe — {round}",
+    "rounds": {
+      "1": "Tour préliminaire",
+      "2": "16es",
+      "3": "8es",
+      "4": "Quarts",
+      "5": "Demi-finale",
+      "6": "Finale"
+    },
+    "otherRound": "Tour {round}",
+    "reached": {
+      "1": "tour préliminaire",
+      "2": "16es de finale",
+      "3": "8es de finale",
+      "4": "quarts de finale",
+      "5": "demi-finale",
+      "6": "finale"
+    },
+    "otherRoundReached": "tour {round}",
+    "cupWinner": "Vainqueur de la Coupe",
+    "cupReached": "Coupe : {round}"
+  },
+  "score": {
+    "extraTime": "a.p.",
+    "penalties": "{home}-{away} t.a.b."
+  },
+  "events": {
+    "type": {
+      "GOAL": "But",
+      "YELLOW_CARD": "Carton jaune",
+      "RED_CARD": "Carton rouge",
+      "INJURY": "Blessure",
+      "SUBSTITUTION": "Remplacement",
+      "SHOOTOUT_GOAL": "Tir au but réussi",
+      "SHOOTOUT_MISS": "Tir au but manqué"
+    },
+    "goal": "{player} (passe de {assist})",
+    "substitutionOn": "Entrée de {player}",
+    "substitution": "{player} remplace {replaced}"
+  },
+  "results": {
+    "letter": {
+      "W": "V",
+      "D": "N",
+      "L": "D"
+    },
+    "label": {
+      "W": "Victoire",
+      "D": "Match nul",
+      "L": "Défaite"
+    }
+  }
+}

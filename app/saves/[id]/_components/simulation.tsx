@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Progress } from "@base-ui/react/progress";
 import { ArrowRightIcon, SquareIcon } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -67,6 +68,7 @@ const ordinal = (rank: number): string => (rank === 1 ? "1er" : `${rank}e`);
 
 /** A match of the managed club, its goals first: « contre Nice 3 – 2 », « à Montpellier 1 – 5 ». */
 function MatchLine({ match, fresh = false }: { match: SimulatedMatch; fresh?: boolean }) {
+  const tStage = useTranslations("stage");
   const atHome = match.home.isManaged;
   const opponent = atHome ? match.away : match.home;
   const homeGoals = match.homeGoals ?? 0;
@@ -83,7 +85,7 @@ function MatchLine({ match, fresh = false }: { match: SimulatedMatch; fresh?: bo
       <span className="text-xs text-muted-foreground tabular-nums first-letter:uppercase">{formatShortDate(match.scheduledAt)}</span>
       <span className="min-w-0 truncate">
         <span className="text-muted-foreground">{atHome ? "contre" : "à"}</span> {opponent.name}
-        {match.cup && <span className="ml-1.5 text-xs font-medium text-(--club)">{stageLabel(match)}</span>}
+        {match.cup && <span className="ml-1.5 text-xs font-medium text-(--club)">{stageLabel(match, tStage)}</span>}
       </span>
       <span className={cn("rounded-sm px-2 font-heading text-base font-bold tabular-nums", RESULT_CLASSES[result])}>
         {scored} – {conceded}

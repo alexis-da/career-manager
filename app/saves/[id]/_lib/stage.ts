@@ -1,39 +1,35 @@
 import type { DecidedBy } from "@/src/engine/match";
+import type { Translator } from "@/src/i18n/translator";
 import type { ResultKind } from "./results";
 
 /** Where a match stands in its competition: a league matchday, or a cup round (1 preliminary … 6 final). */
 export type Stage = { round: number; cup: boolean };
 
-/** The rounds of a cup as a match is named: « Coupe — Quarts ». */
-export const CUP_ROUND_NAMES: Readonly<Record<number, string>> = {
-  1: "Tour préliminaire",
-  2: "16es",
-  3: "8es",
-  4: "Quarts",
-  5: "Demi-finale",
-  6: "Finale",
-};
+/** A cup's rounds, from the preliminary round to the final: each is named in the stage messages. */
+const CUP_ROUNDS = [1, 2, 3, 4, 5, 6] as const;
 
-/** The round a club reached, as a sentence ends: « Coupe : quarts de finale ». */
-export const CUP_ROUND_REACHED: Readonly<Record<number, string>> = {
-  1: "tour préliminaire",
-  2: "16es de finale",
-  3: "8es de finale",
-  4: "quarts de finale",
-  5: "demi-finale",
-  6: "finale",
-};
+type CupRound = (typeof CUP_ROUNDS)[number];
 
-const cupRoundName = (round: number): string => CUP_ROUND_NAMES[round] ?? `Tour ${round}`;
+const isCupRound = (round: number): round is CupRound => (CUP_ROUNDS as readonly number[]).includes(round);
+
+/** A cup round as a match is named: « Quarts », in « Coupe — Quarts ». */
+export function cupRoundName(round: number, t: Translator<"stage">): string {
+  return isCupRound(round) ? t(`rounds.${round}`) : t("otherRound", { round });
+}
+
+/** The round a club reached, as a sentence ends: « quarts de finale », in « Coupe : quarts de finale ». */
+export function cupRoundReached(round: number, t: Translator<"stage">): string {
+  return isCupRound(round) ? t(`reached.${round}`) : t("otherRoundReached", { round });
+}
 
 /** « Journée 12 », or « Coupe — 16es » for a cup tie: a cup round is never a matchday. */
-export function stageLabel(stage: Stage): string {
-  return stage.cup ? `Coupe — ${cupRoundName(stage.round)}` : `Journée ${stage.round}`;
+export function stageLabel(stage: Stage, t: Translator<"stage">): string {
+  return stage.cup ? t("cup", { round: cupRoundName(stage.round, t) }) : t("matchday", { round: stage.round });
 }
 
 /** A short form for a table column: « J12 », « Coupe — 16es ». */
-export function stageShortLabel(stage: Stage): string {
-  return stage.cup ? stageLabel(stage) : `J${stage.round}`;
+export function stageShortLabel(stage: Stage, t: Translator<"stage">): string {
+  return stage.cup ? stageLabel(stage, t) : t("matchdayShort", { round: stage.round });
 }
 
 /** How a played cup tie ended, beyond its score. */
@@ -44,14 +40,14 @@ export type Decision = {
 };
 
 /** « a.p. » after extra time (a shoot-out included), null otherwise. */
-export function extraTimeNote(decision: Decision): string | null {
-  return decision.decidedBy === "EXTRA_TIME" || decision.decidedBy === "PENALTIES" ? "a.p." : null;
+export function extraTimeNote(decision: Decision, t: Translator<"score">): string | null {
+  return decision.decidedBy === "EXTRA_TIME" || decision.decidedBy === "PENALTIES" ? t("extraTime") : null;
 }
 
 /** « 5-3 t.a.b. », home first, after a shoot-out; null otherwise. */
-export function penaltiesNote(decision: Decision): string | null {
+export function penaltiesNote(decision: Decision, t: Translator<"score">): string | null {
   return decision.decidedBy === "PENALTIES" && decision.homePenalties != null && decision.awayPenalties != null
-    ? `${decision.homePenalties}-${decision.awayPenalties} t.a.b.`
+    ? t("penalties", { home: decision.homePenalties, away: decision.awayPenalties })
     : null;
 }
 

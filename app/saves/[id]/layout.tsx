@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { TrophyIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -20,6 +21,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export default async function SaveLayout({ children, params }: LayoutProps<"/saves/[id]">) {
+  const tStage = await getTranslations("stage");
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
@@ -74,7 +76,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                   <time dateTime={header.currentDate.toISOString()}>{formatDayDate(header.currentDate)}</time>
                 </p>
                 <p className="text-[0.6875rem] text-muted-foreground tabular-nums">
-                  {header.nextStage === null ? "Saison terminée" : stageLabel(header.nextStage)} · Mercato{" "}
+                  {header.nextStage === null ? "Saison terminée" : stageLabel(header.nextStage, tStage)} · Mercato{" "}
                   {header.windowOpen ? "ouvert" : "fermé"}
                 </p>
               </div>

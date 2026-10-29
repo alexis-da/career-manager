@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
@@ -18,7 +19,7 @@ import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../../_components/panel";
 import { nationalityCode } from "../../_lib/nationalities";
-import { POSITION_LABEL, POSITION_SHORT, positionTextClass } from "../../_lib/positions";
+import { positionTextClass } from "../../_lib/positions";
 import { SecondaryPositionBadges } from "../../_components/position-badge";
 import { ratingClasses } from "../../_lib/ratings";
 import { marketHref, type SearchValues } from "../_lib/market-url";
@@ -65,10 +66,11 @@ function PlayerCell({
 }
 
 function PositionCell({ position, playerKey }: { position: Position; playerKey: string }) {
+  const tPositions = useTranslations("positions");
   return (
-    <TableCell title={POSITION_LABEL[position]} className={cn(TABLE_CELL, "font-heading text-sm font-bold", positionTextClass(position))}>
+    <TableCell title={tPositions(`label.${position}`)} className={cn(TABLE_CELL, "font-heading text-sm font-bold", positionTextClass(position))}>
       <span className="inline-flex items-center gap-1.5">
-        <span data-primary-position>{POSITION_SHORT[position]}</span>
+        <span data-primary-position>{tPositions(`short.${position}`)}</span>
         <SecondaryPositionBadges playerKey={playerKey} position={position} />
       </span>
     </TableCell>

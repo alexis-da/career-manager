@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { DOMAttributes, ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import type { LineupPlayer } from "@/src/db/lineup";
@@ -5,7 +6,7 @@ import type { FormationSlot } from "@/src/engine/formations";
 import { ratingAt } from "@/src/engine/positions";
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
-import { isOffPosition, POSITION_LABEL, POSITION_SHORT, positionFit } from "../_lib/positions";
+import { isOffPosition, positionFit } from "../_lib/positions";
 import { PositionBadge, SecondaryPositionBadges } from "./position-badge";
 
 /** Pitch markings in metres, on a 68 × 105 pitch. */
@@ -87,6 +88,7 @@ type PitchProps = {
  * editor, the half-time screen and, read-only, the opponent's preview.
  */
 export function Pitch({ slots, starters, players, clubColors, label, editing, sentOff }: PitchProps) {
+  const tPositions = useTranslations("positions");
   const selected = editing?.selected ?? null;
   const dragged = editing?.dragged ?? null;
   return (
@@ -108,11 +110,11 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
               <div
                 data-slot-index={index}
                 data-slot-sent-off={sentOffPlayer.id}
-                aria-label={`${POSITION_LABEL[slot.position]} : poste vide, ${sentOffPlayer.firstName} ${sentOffPlayer.lastName} exclu`}
+                aria-label={`${tPositions(`label.${slot.position}`)} : poste vide, ${sentOffPlayer.firstName} ${sentOffPlayer.lastName} exclu`}
                 className="flex w-28 flex-col items-center gap-0.5 select-none"
               >
                 <span className="text-[0.625rem] leading-3 font-semibold tracking-wide text-white/55 uppercase">
-                  {POSITION_SHORT[slot.position]}
+                  {tPositions(`short.${slot.position}`)}
                 </span>
                 <span aria-hidden className="grid size-10 place-items-center rounded-full border-2 border-dashed border-loss bg-background/60 text-lg font-bold text-loss">
                   ✕
@@ -137,11 +139,11 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
         const detail =
           player === undefined || rating === null
             ? null
-            : `${POSITION_SHORT[player.position]} ${player.overall} · joue ${POSITION_SHORT[slot.position]} : ${Math.round(rating)}`;
+            : `${tPositions(`short.${player.position}`)} ${player.overall} · joue ${tPositions(`short.${slot.position}`)} : ${Math.round(rating)}`;
         const slotLabel =
           player === undefined
-            ? `${POSITION_LABEL[slot.position]} : poste vide`
-            : `${POSITION_LABEL[slot.position]} : ${player.firstName} ${player.lastName}, ${detail ?? ""}` +
+            ? `${tPositions(`label.${slot.position}`)} : poste vide`
+            : `${tPositions(`label.${slot.position}`)} : ${player.firstName} ${player.lastName}, ${detail ?? ""}` +
               (player.injured
                 ? ", blessé"
                 : fit === "other-line"
@@ -171,7 +173,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
           >
             {/* The role to fill, in gray: the player's own position is the badge next to his name. */}
             <span data-slot-position className="text-[0.625rem] leading-3 font-semibold tracking-wide text-white/55 uppercase">
-              {POSITION_SHORT[slot.position]}
+              {tPositions(`short.${slot.position}`)}
             </span>
             <span
               className={cn(

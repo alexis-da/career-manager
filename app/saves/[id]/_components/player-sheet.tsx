@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { XIcon } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
@@ -8,7 +9,7 @@ import type { PlayerProfile, TransferHistoryItem } from "@/src/db/players";
 import { seasonLabel } from "@/src/engine/world";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { POSITION_LABEL } from "../_lib/positions";
+
 import { PositionBadges } from "./position-badge";
 import { ratingClasses } from "../_lib/ratings";
 import { AttributeBars } from "./attribute-bars";
@@ -47,6 +48,7 @@ type PlayerSheetProps = {
 
 /** A player's sheet, in a 400 px side panel next to the list it was opened from. */
 export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheetProps) {
+  const tPositions = useTranslations("positions");
   // Escape closes the sheet, unless it is closing one of the dialogs opened from it.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -101,7 +103,7 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
           <h2 className="font-heading text-3xl leading-none font-bold">{name}</h2>
           <p className="text-sm text-muted-foreground">
             <PositionBadges playerKey={profile.playerKey} position={profile.position} className="mr-1.5 align-[1px]" />
-            {POSITION_LABEL[profile.position]} · {profile.age} ans · {profile.nationality}
+            {tPositions(`label.${profile.position}`)} · {profile.age} ans · {profile.nationality}
             {arrivalYear !== null && ` · Arrivé en ${arrivalYear}`}
           </p>
           <p className="flex flex-wrap gap-1 pt-1">

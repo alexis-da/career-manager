@@ -1,10 +1,12 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/src/lib/utils";
-import { extraTimeNote, penaltiesNote, type Decision } from "../_lib/stage";
+import { type Decision, extraTimeNote, penaltiesNote } from "../_lib/stage";
 
 /** What a cup tie's score does not say: « a.p. », and « 5-3 t.a.b. » after a shoot-out. Nothing for any other match. */
 export function ScoreNotes({ match, className }: { match: Decision; className?: string }) {
-  const extraTime = extraTimeNote(match);
-  const penalties = penaltiesNote(match);
+  const tScore = useTranslations("score");
+  const extraTime = extraTimeNote(match, tScore);
+  const penalties = penaltiesNote(match, tScore);
   if (extraTime === null && penalties === null) {
     return null;
   }

@@ -1,5 +1,6 @@
 "use server";
 
+import { getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import * as z from "zod";
 import { requireOwnedSave } from "@/src/auth/current-user";
@@ -38,6 +39,8 @@ export type GameActionResult = {
 const saveIdSchema = z.string().min(1);
 
 export async function playMatchdayAction(saveId: string): Promise<GameActionResult> {
+  const tScore = await getTranslations("score");
+  const tStage = await getTranslations("stage");
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   let matchday;
   try {
@@ -55,7 +58,7 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
   const fixture = await getManagedClubFixtureOn(id, matchday.date);
   revalidatePath(`/saves/${id}`, "layout");
 
-  const day = fixture?.cup === true ? `${stageLabel(fixture)}, le ${formatDate(matchday.date)}` : `Journée du ${formatDate(matchday.date)}`;
+  const day = fixture?.cup === true ? `${stageLabel(fixture, tStage)}, le ${formatDate(matchday.date)}` : `Journée du ${formatDate(matchday.date)}`;
   if (matchday.managed?.halfTime === true && fixture !== null) {
     return {
       ok: true,
@@ -68,7 +71,7 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
   }
   return {
     ok: true,
-    message: `${day} : ${fixture.home.name} ${fixture.homeGoals} – ${fixture.awayGoals} ${fixture.away.name}${[extraTimeNote(fixture), penaltiesNote(fixture)].filter((note) => note !== null).map((note) => ` ${note}`).join(",")}`,
+    message: `${day} : ${fixture.home.name} ${fixture.homeGoals} – ${fixture.awayGoals} ${fixture.away.name}${[extraTimeNote(fixture, tScore), penaltiesNote(fixture, tScore)].filter((note) => note !== null).map((note) => ` ${note}`).join(",")}`,
     redirectTo: `/saves/${id}/live`,
   };
 }
@@ -131,6 +134,7 @@ export type HalfTimeChoiceInput = z.input<typeof halfTimeChoiceSchema>;
  * page then shows what was just played: from 45' (?reprise=1), or from 90' (?reprise=2).
  */
 export async function resumeMatch(saveId: string, choice: HalfTimeChoiceInput): Promise<GameActionResult> {
+  const tScore = await getTranslations("score");
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   const parsed = halfTimeChoiceSchema.safeParse(choice);
   if (!parsed.success) {
@@ -144,7 +148,7 @@ export async function resumeMatch(saveId: string, choice: HalfTimeChoiceInput): 
         : { formation: parsed.data.formation, starters: parsed.data.lineup, substitutions: parsed.data.substitutions },
     );
     revalidatePath(`/saves/${id}`, "layout");
-    const notes = result === null ? [] : [extraTimeNote(result), penaltiesNote(result)].filter((note) => note !== null);
+    const notes = result === null ? [] : [extraTimeNote(result, tScore), penaltiesNote(result, tScore)].filter((note) => note !== null);
     return {
       ok: true,
       message:

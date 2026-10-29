@@ -1,1 +1,94 @@
-{}
+{
+  "positions": {
+    "short": {
+      "GK": "GK",
+      "RB": "RB",
+      "CB": "CB",
+      "LB": "LB",
+      "CDM": "CDM",
+      "CM": "CM",
+      "CAM": "CAM",
+      "RM": "RM",
+      "LM": "LM",
+      "RW": "RW",
+      "LW": "LW",
+      "ST": "ST"
+    },
+    "label": {
+      "GK": "Goalkeeper",
+      "RB": "Right back",
+      "CB": "Centre back",
+      "LB": "Left back",
+      "CDM": "Defensive midfielder",
+      "CM": "Central midfielder",
+      "CAM": "Attacking midfielder",
+      "RM": "Right midfielder",
+      "LM": "Left midfielder",
+      "RW": "Right winger",
+      "LW": "Left winger",
+      "ST": "Striker"
+    },
+    "fit": {
+      "secondary": "secondary position",
+      "line": "out of position",
+      "other-line": "out of his line"
+    },
+    "withFit": "{position} — {fit}",
+    "secondaryList": ", secondary positions: "
+  },
+  "stage": {
+    "matchday": "Matchday {round}",
+    "matchdayShort": "MD{round}",
+    "cup": "Cup — {round}",
+    "rounds": {
+      "1": "Preliminary round",
+      "2": "Round of 32",
+      "3": "Round of 16",
+      "4": "Quarter-final",
+      "5": "Semi-final",
+      "6": "Final"
+    },
+    "otherRound": "Round {round}",
+    "reached": {
+      "1": "preliminary round",
+      "2": "round of 32",
+      "3": "round of 16",
+      "4": "quarter-finals",
+      "5": "semi-finals",
+      "6": "final"
+    },
+    "otherRoundReached": "round {round}",
+    "cupWinner": "Cup winners",
+    "cupReached": "Cup: {round}"
+  },
+  "score": {
+    "extraTime": "a.e.t.",
+    "penalties": "{home}-{away} pens"
+  },
+  "events": {
+    "type": {
+      "GOAL": "Goal",
+      "YELLOW_CARD": "Yellow card",
+      "RED_CARD": "Red card",
+      "INJURY": "Injury",
+      "SUBSTITUTION": "Substitution",
+      "SHOOTOUT_GOAL": "Penalty scored",
+      "SHOOTOUT_MISS": "Penalty missed"
+    },
+    "goal": "{player} (assist {assist})",
+    "substitutionOn": "{player} comes on",
+    "substitution": "{player} replaces {replaced}"
+  },
+  "results": {
+    "letter": {
+      "W": "W",
+      "D": "D",
+      "L": "L"
+    },
+    "label": {
+      "W": "Win",
+      "D": "Draw",
+      "L": "Defeat"
+    }
+  }
+}

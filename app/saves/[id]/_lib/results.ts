@@ -1,8 +1,6 @@
 export type ResultKind = "W" | "D" | "L";
 
-export const RESULT_LETTER: Record<ResultKind, string> = { W: "V", D: "N", L: "D" };
-
-export const RESULT_LABEL: Record<ResultKind, string> = { W: "Victoire", D: "Match nul", L: "Défaite" };
+// A result's letter (V, N, D; W, D, L in English) and name are messages: results.letter and results.label.
 
 /** Fixed colors of a result, whatever the managed club. */
 export const RESULT_CLASSES: Record<ResultKind, string> = {

@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireOwnedSave } from "@/src/auth/current-user";
@@ -9,7 +10,7 @@ import { seasonLabel } from "@/src/engine/world";
 import { formatDecimal } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "../_components/panel";
-import { POSITION_SHORT } from "../_lib/positions";
+
 import { cupLabel, moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,8 @@ export const metadata: Metadata = { title: "Palmarès" };
 
 /** The managed club's completed seasons, most recent first, each with a link to its card. */
 export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/seasons">) {
+  const tPositions = await getTranslations("positions");
+  const tStage = await getTranslations("stage");
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
@@ -73,12 +76,12 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                         {moveLabel(season)}
                       </span>
                     )}
-                    {cupLabel(season) !== null && (
+                    {cupLabel(season, tStage) !== null && (
                       <span
                         data-column="cup"
                         className={cn("block text-xs font-semibold", season.cupWinner ? "text-(--club)" : "text-muted-foreground")}
                       >
-                        {cupLabel(season)}
+                        {cupLabel(season, tStage)}
                       </span>
                     )}
                   </TableCell>
@@ -104,7 +107,7 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                         />
                         <span className="font-semibold">{season.bestPlayer.name}</span>
                         <span className="ml-2 text-xs text-muted-foreground">
-                          {POSITION_SHORT[season.bestPlayer.position]} · {season.bestPlayer.goals} buts ·{" "}
+                          {tPositions(`short.${season.bestPlayer.position}`)} · {season.bestPlayer.goals} buts ·{" "}
                           {season.bestPlayer.assists} passes · note {formatDecimal(season.bestPlayer.rating)}
                         </span>
                       </>

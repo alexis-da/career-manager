@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { LineupPlayer } from "@/src/db/lineup";
 import { FORMATIONS } from "@/src/engine/formations";
 import { secondaryPositions, type Position } from "@/src/engine/positions";
+import { inLanguage } from "@/src/i18n/test-intl";
 import { LineupSummary } from "./lineup-summary";
 
 const SLOTS = FORMATIONS["4-3-3"]; // GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW
@@ -43,7 +44,7 @@ describe("the lineup summary", () => {
     );
     const players = new Map([...others, secondary, offPosition].map((candidate) => [candidate.id, candidate]));
 
-    const markup = renderToStaticMarkup(<LineupSummary slots={SLOTS} starters={starters} players={players} />);
+    const markup = renderToStaticMarkup(inLanguage(<LineupSummary slots={SLOTS} starters={starters} players={players} />));
 
     expect(markup.replace(/<[^>]+>/g, "")).toBe("10 titulaires à leur poste · 1 hors poste : Richard (MOC en MC)");
     expect([...markup.matchAll(/data-off-position="([^"]+)"/g)].map((match) => match[1])).toEqual([offPosition.id]);

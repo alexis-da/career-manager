@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SeasonResultView } from "@/src/db/season-results";
+import { testTranslator } from "@/src/i18n/test-intl";
 import { CARD_SIZES, cardBadge, seasonCardResponse, type CardFormat } from "./season-card";
 
 const LYON = { primary: "#1B3E8F", secondary: "#E2001A" };
@@ -35,7 +36,7 @@ function pngSize(bytes: Buffer): { width: number; height: number } {
 const DRAWING_TIMEOUT_MS = 15_000;
 
 async function render(season: SeasonResultView, format: CardFormat): Promise<Buffer> {
-  const response = await seasonCardResponse(season, LYON, format);
+  const response = await seasonCardResponse(season, LYON, format, testTranslator("fr", "positions"));
   expect(response.headers.get("content-type")).toBe("image/png");
   expect(response.headers.get("cache-control")).toBe("private, max-age=0");
   return Buffer.from(await response.arrayBuffer());

@@ -1,8 +1,9 @@
+import { useTranslations } from "next-intl";
 import { Fragment } from "react";
 import type { LineupPlayer } from "@/src/db/lineup";
 import type { FormationSlot } from "@/src/engine/formations";
 import { cn } from "@/src/lib/utils";
-import { isOffPosition, POSITION_SHORT, positionFit } from "../_lib/positions";
+import { isOffPosition, positionFit } from "../_lib/positions";
 
 type LineupSummaryProps = {
   slots: readonly FormationSlot[];
@@ -17,6 +18,7 @@ type LineupSummaryProps = {
  * the lineup page and of the half-time screen.
  */
 export function LineupSummary({ slots, starters, players, closedSlots = 0 }: LineupSummaryProps) {
+  const tPositions = useTranslations("positions");
   const placed = starters.flatMap((key, index) => {
     const player = key === null ? undefined : players.get(key);
     return player === undefined ? [] : [{ player, slot: slots[index].position }];
@@ -36,7 +38,7 @@ export function LineupSummary({ slots, starters, players, closedSlots = 0 }: Lin
       {offPosition.map(({ player, slot }, index) => (
         <Fragment key={player.id}>
           {index > 0 && ", "}
-          <span data-off-position={player.id}>{`${player.lastName} (${POSITION_SHORT[player.position]} en ${POSITION_SHORT[slot]})`}</span>
+          <span data-off-position={player.id}>{`${player.lastName} (${tPositions(`short.${player.position}`)} en ${tPositions(`short.${slot}`)})`}</span>
         </Fragment>
       ))}
       {emptySlots > 0 && ` · ${emptySlots === 1 ? "1 poste vide" : `${emptySlots} postes vides`}`}

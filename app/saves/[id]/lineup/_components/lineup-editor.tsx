@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { ArmchairIcon, SaveIcon, SparklesIcon } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -15,7 +16,7 @@ import { Panel, PanelTitle } from "../../_components/panel";
 import { LineupSummary } from "../../_components/lineup-summary";
 import { Pitch } from "../../_components/pitch";
 import { PositionBadges } from "../../_components/position-badge";
-import { isOffPosition, POSITION_LABEL, POSITION_SHORT, positionFit, positionTextClass } from "../../_lib/positions";
+import { isOffPosition, positionFit, positionTextClass } from "../../_lib/positions";
 import { saveLineupAction } from "../actions";
 import {
   moveToBenchFront,
@@ -87,6 +88,7 @@ type LineupEditorProps = {
  * keyboard way), or drag a player onto a slot or onto the bench.
  */
 export function LineupEditor({ saveId, formation, saved, clubColors, players }: LineupEditorProps) {
+  const tPositions = useTranslations("positions");
   const [initial] = useState(() => initialState(formation, saved, players));
   const [state, setState] = useState(initial);
   const [selected, setSelected] = useState<number | null>(null);
@@ -305,7 +307,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                     <PositionBadges playerKey={key} position={player.position} />
                     {player.lastName}
                     <span
-                      title={selectedPosition === null ? "Note" : `Note au poste ${POSITION_SHORT[selectedPosition]}`}
+                      title={selectedPosition === null ? "Note" : `Note au poste ${tPositions(`short.${selectedPosition}`)}`}
                       className={cn(
                         "font-heading font-bold tabular-nums",
                         selectedPosition === null ? "text-muted-foreground" : offAtSelected(player) && "text-warning",
@@ -330,9 +332,9 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                   <p className="text-sm">
                     Poste sélectionné :{" "}
                     <span className={cn("font-heading font-bold", positionTextClass(selectedPosition))}>
-                      {POSITION_SHORT[selectedPosition]}
+                      {tPositions(`short.${selectedPosition}`)}
                     </span>{" "}
-                    {POSITION_LABEL[selectedPosition]}
+                    {tPositions(`label.${selectedPosition}`)}
                     {selectedPlayer !== undefined && ` · ${selectedPlayer.firstName} ${selectedPlayer.lastName}`}
                   </p>
                   {selectedPlayer !== undefined && (
@@ -393,7 +395,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                               {player.overall}
                             </span>
                             <span
-                              title={selectedPosition === null ? "Note" : `Note au poste ${POSITION_SHORT[selectedPosition]}`}
+                              title={selectedPosition === null ? "Note" : `Note au poste ${tPositions(`short.${selectedPosition}`)}`}
                               className={cn(
                                 "text-right font-heading font-bold tabular-nums",
                                 offAtSelected(player) && "text-warning",

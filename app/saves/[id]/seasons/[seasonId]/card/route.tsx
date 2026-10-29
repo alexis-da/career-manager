@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getSeasonResult } from "@/src/db/season-results";
 import { seasonCardResponse } from "./season-card";
@@ -15,5 +16,5 @@ export async function GET(request: Request, { params }: RouteContext<"/saves/[id
     notFound();
   }
   const format = new URL(request.url).searchParams.get("format") === "square" ? "square" : "landscape";
-  return seasonCardResponse(result.season, result.clubColors, format);
+  return seasonCardResponse(result.season, result.clubColors, format, await getTranslations("positions"));
 }

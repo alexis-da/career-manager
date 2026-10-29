@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { ChevronLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -17,6 +18,7 @@ export const metadata: Metadata = { title: "Saison terminée" };
 
 /** The panel of a completed season: shown right after moving on to the next one, and from the palmarès. */
 export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seasons/[seasonId]">) {
+  const tStage = await getTranslations("stage");
   const { id, seasonId } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
@@ -28,7 +30,7 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
   const move = moveLabel(season);
   const label = seasonLabel(season.startYear);
   // The cup's line: the managed club's run, and the winner when it is another club.
-  const cup = cupLabel(season);
+  const cup = cupLabel(season, tStage);
   const cupWinner = cup === null || season.cupWinner ? null : await getCupWinnerName(id, season.startYear);
 
   return (

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { FastForwardIcon, SkipForwardIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -13,7 +14,7 @@ import type { Side } from "@/src/engine/match";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "../../_components/panel";
 import { ScoreNotes } from "../../_components/score-notes";
-import { describeEvent, EVENT_LABELS, EVENT_MARKS, formatMinute, REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
+import { describeEvent, EVENT_MARKS, formatMinute, REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
 import { RESULT_CLASSES } from "../../_lib/results";
 import { matchResultFor, stageLabel } from "../../_lib/stage";
 import { HalfTime } from "./half-time";
@@ -65,6 +66,7 @@ type LiveMatchProps = {
  * (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the break or the end is shown at once.
  */
 export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause, startMinute }: LiveMatchProps) {
+  const tStage = useTranslations("stage");
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
   const router = useRouter();
   const [clock, setClock] = useState(startMinute); // match minutes, fractional
@@ -263,7 +265,7 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
         <Panel>
           <PanelTitle>
             Autres matchs · {match.competitionName}
-            {match.cup && ` · ${stageLabel(match)}`}
+            {match.cup && ` · ${stageLabel(match, tStage)}`}
           </PanelTitle>
           <ul className="mt-3 divide-y text-sm">
             {others.map((other) => {
@@ -329,6 +331,7 @@ function KickText({ name, scored }: { name: string; scored: boolean }) {
 
 /** An event of one side; a goal shows the scorer's face, in his club's colors. */
 function EventText({ event, team, align }: { event: MatchEventView; team: TeamView; align: "left" | "right" }) {
+  const tEvents = useTranslations("events");
   return (
     <span className={cn("inline-flex items-center gap-2", align === "right" && "flex-row-reverse")}>
       <span aria-hidden>{EVENT_MARKS[event.type]}</span>
@@ -337,9 +340,9 @@ function EventText({ event, team, align }: { event: MatchEventView; team: TeamVi
       )}
       <span>
         <span className="sr-only">
-          {EVENT_LABELS[event.type]}, {team.name} :{" "}
+          {tEvents(`type.${event.type}`)}, {team.name} :{" "}
         </span>
-        <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event)}</span>
+        <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event, tEvents)}</span>
       </span>
     </span>
   );
