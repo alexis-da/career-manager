@@ -48,7 +48,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider>
           {children}
-          <Toaster theme="dark" position="bottom-right" />
+          {/* On a phone, above a save's action bar, fixed to the foot of the screen. */}
+          <Toaster theme="dark" position="bottom-right" mobileOffset={{ bottom: 80 }} />
         </NextIntlClientProvider>
       </body>
     </html>

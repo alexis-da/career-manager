@@ -124,7 +124,8 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
       }
     });
 
-  const className = "h-9 px-4 font-heading text-base font-semibold";
+  // On a phone, in the action bar at the foot of the screen: as wide as the bar allows.
+  const className = "h-9 px-4 font-heading text-base font-semibold max-sm:flex-1";
 
   if (liveMatch) {
     return (

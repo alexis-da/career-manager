@@ -70,7 +70,7 @@ export function SaveNav({ saveId, hasCup }: { saveId: string; hasCup: boolean })
       {/* Positioned: the tabs' offsetLeft is measured from it. No scrollbar: the gradients say there is more. */}
       <div
         ref={row}
-        className="relative flex h-10 items-center gap-1 overflow-x-auto px-4 [scrollbar-width:none] lg:px-7 [&::-webkit-scrollbar]:hidden"
+        className="relative flex h-10 items-center gap-1 overflow-x-auto px-4 [scrollbar-width:none] max-sm:h-12 lg:px-7 [&::-webkit-scrollbar]:hidden"
       >
         {SECTIONS.filter(({ segment }) => hasCup || segment !== "/cup").map(({ segment, key }) => {
           const href = `${base}${segment}`;
@@ -82,11 +82,11 @@ export function SaveNav({ saveId, hasCup }: { saveId: string; hasCup: boolean })
               aria-current={active ? "page" : undefined}
               data-testid={`nav-${key}`}
               className={cn(
-                // The underline stays inside the row (4 px under a 32 px tab in a 40 px row): the row scrolls, and
-                // would clip anything hanging out.
-                "relative shrink-0 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors",
+                // The underline stays inside the row (4 px under a 32 px tab in a 40 px row; 2 px under a 44 px tab in
+                // a 48 px row on a phone, for the thumb): the row scrolls, and would clip anything hanging out.
+                "relative shrink-0 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors max-sm:py-3",
                 active
-                  ? "bg-(--club)/18 font-semibold text-foreground after:absolute after:inset-x-2 after:-bottom-1 after:h-0.5 after:rounded-full after:bg-(--club)"
+                  ? "bg-(--club)/18 font-semibold text-foreground after:absolute after:inset-x-2 after:-bottom-1 after:h-0.5 after:rounded-full after:bg-(--club) max-sm:after:-bottom-0.5"
                   : "font-medium text-muted-foreground hover:text-foreground",
               )}
             >

@@ -40,25 +40,35 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
   return (
     <SimulationProvider saveId={header.id} accent={accent}>
       <div style={accent} className="flex min-h-full flex-1 flex-col">
-        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+        {/* Opaque on a phone, without the blur: a blur would hold the action bar, fixed to the screen, in the header. */}
+        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur max-sm:bg-background max-sm:backdrop-filter-none">
           <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-3 px-4 sm:gap-6 lg:px-7">
-            {/* The game's mark, the only one in a save: the rest is in the club's colours. */}
-            <Link href="/" title={t("home")} data-testid="header-home" className="-mr-1.5 shrink-0 rounded-md sm:-mr-3">
+            {/* The game's mark, the only one in a save: the rest is in the club's colours. 44 px to the touch on a phone. */}
+            <Link
+              href="/"
+              title={t("home")}
+              data-testid="header-home"
+              className="-mr-1.5 shrink-0 rounded-md sm:-mr-3 max-sm:-mx-2 max-sm:grid max-sm:size-11 max-sm:place-items-center"
+            >
               <Image src="/brand/late-winner-icone.svg" alt="Late Winner" width={28} height={28} unoptimized />
             </Link>
             <Link
               href="/"
               title={t("saves", { manager: header.managerName })}
               data-testid="header-club"
-              className="flex min-w-0 items-center gap-3"
+              className="flex min-w-0 items-center gap-3 max-sm:min-h-11"
             >
               <span aria-hidden className="h-8 w-1 shrink-0 rounded-full bg-(--club)" />
               <span className="min-w-0 leading-tight">
-                <span className="block max-w-56 truncate font-heading text-lg font-bold tracking-wide uppercase">
+                {/* On a phone, two lines if need be rather than cut: the game's actions have left this row. */}
+                <span className="block max-w-56 truncate font-heading text-lg font-bold tracking-wide uppercase max-sm:line-clamp-2 max-sm:max-w-none max-sm:text-base max-sm:leading-tight max-sm:whitespace-normal">
                   {header.club.name}
                 </span>
                 {/* The club's competition now: it changes with a promotion or a relegation. */}
-                <span data-testid="header-competition" className="block max-w-64 truncate text-[0.6875rem] text-muted-foreground">
+                <span
+                  data-testid="header-competition"
+                  className="block max-w-64 truncate text-[0.6875rem] text-muted-foreground max-sm:max-w-none"
+                >
                   {competitionName(header.competitionCode, tWorld)} · {t("season", { season })}
                 </span>
               </span>
@@ -72,7 +82,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                 href="/challenge"
                 title={t("challenge")}
                 data-testid="header-challenge"
-                className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-sm:size-11"
               >
                 <TrophyIcon aria-hidden className="size-4" />
                 <span className="sr-only">{t("challenge")}</span>
@@ -86,18 +96,23 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                   {t(header.windowOpen ? "windowOpen" : "windowClosed")}
                 </p>
               </div>
-              <GameActions
-                saveId={header.id}
-                seasonFinished={header.seasonFinished}
-                liveMatch={header.liveMatch}
-                worldVersion={header.worldVersion}
-              />
+              {/* On a phone, the game's actions leave this row for a bar fixed to the foot of the screen, under the thumb. */}
+              <div className="contents max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-40 max-sm:flex max-sm:border-t max-sm:bg-background max-sm:px-4 max-sm:py-2 max-sm:*:flex-1">
+                <GameActions
+                  saveId={header.id}
+                  seasonFinished={header.seasonFinished}
+                  liveMatch={header.liveMatch}
+                  worldVersion={header.worldVersion}
+                />
+              </div>
             </div>
           </div>
-          {/* The tabs on a row of their own: the header is 56 + 40 px high, which the sticky panels below it allow for. */}
+          {/* The tabs on a row of their own: the header is 56 + 40 px high (56 + 48 on a phone, for tabs of 44 px), which
+              the sticky panels below it allow for. */}
           <SaveNav saveId={header.id} hasCup={header.hasCup} />
         </header>
-        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 lg:px-7">{children}</main>
+        {/* On a phone, room at the foot for the action bar. */}
+        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 lg:px-7 max-sm:pb-24">{children}</main>
       </div>
     </SimulationProvider>
   );
