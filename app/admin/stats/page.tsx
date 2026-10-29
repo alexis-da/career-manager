@@ -1,21 +1,22 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getLocale, getTranslations } from "next-intl/server";
 import { getCurrentUser, isAdmin } from "@/src/auth/current-user";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { prisma } from "@/src/db/client";
 import { getAdminStats, STATS_DAYS } from "@/src/db/stats";
+import { INTL_LOCALES } from "@/src/i18n/locale";
 import { cn } from "@/src/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Statistiques", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getTranslations("adminStats"))("title"), robots: { index: false } };
+}
 
 const MB = 1024 * 1024;
-const megabytes = (bytes: number): string => `${(bytes / MB).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo`;
-const share = (part: number | null, whole: number): string =>
-  part === null ? "—" : whole === 0 ? "0" : `${part} (${Math.round((part / whole) * 100)} %)`;
-/** « 2026-10-09 » as « 09/10 ». */
+/** « 2026-10-09 » as « 09/10 », day first in both languages. */
 const shortDay = (day: string): string => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 
 function Figure({ label, value }: { label: string; value: string | number }) {
@@ -36,32 +37,36 @@ export default async function AdminStatsPage() {
   // Not simulation code: the figures are about real days.
   const stats = await getAdminStats(prisma, new Date());
   const users = stats.usersByKind.anonymous + stats.usersByKind.registered;
+  const [t, locale] = await Promise.all([getTranslations("adminStats"), getLocale()]);
+  const size = new Intl.NumberFormat(INTL_LOCALES[locale], { maximumFractionDigits: 1 });
+  const megabytes = (bytes: number): string => t("megabytes", { size: size.format(bytes / MB) });
+  const share = (part: number | null, whole: number): string =>
+    part === null ? "—" : whole === 0 ? "0" : t("share", { part, percent: Math.round((part / whole) * 100) });
 
   return (
-    <main lang="fr" className="brand flex-1 bg-background text-foreground">
+    <main className="brand flex-1 bg-background text-foreground">
       <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-10">
-        <h1 className="font-heading text-3xl font-bold">Statistiques</h1>
+        <h1 className="font-heading text-3xl font-bold" data-testid="admin-stats-title">
+          {t("title")}
+        </h1>
 
         <section className="grid gap-3 sm:grid-cols-4">
-          <Figure label="Utilisateurs" value={users} />
-          <Figure label="Anonymes" value={stats.usersByKind.anonymous} />
-          <Figure label="Comptes Google" value={stats.usersByKind.registered} />
-          <Figure label="Parties" value={stats.saves} />
+          <Figure label={t("figures.users")} value={users} />
+          <Figure label={t("figures.anonymous")} value={stats.usersByKind.anonymous} />
+          <Figure label={t("figures.registered")} value={stats.usersByKind.registered} />
+          <Figure label={t("figures.saves")} value={stats.saves} />
         </section>
 
         <section className="space-y-3 rounded-lg border bg-card p-5">
-          <h2 className="eyebrow">Nouveaux utilisateurs et rétention, {STATS_DAYS} derniers jours (UTC)</h2>
-          <p className="text-xs text-muted-foreground">
-            Par jour de création : revenus le lendemain (J+1) et une semaine après (J+7). « — » : inconnu, tant que le
-            jour de retour n&apos;est pas terminé, ou pour un jour antérieur au premier enregistrement des visites (UserDay).
-          </p>
-          <Table>
+          <h2 className="eyebrow">{t("retention", { days: STATS_DAYS })}</h2>
+          <p className="text-xs text-muted-foreground">{t("retentionNote")}</p>
+          <Table data-testid="admin-stats-cohorts">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className={TABLE_HEAD}>Jour</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")}>Nouveaux</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")}>J+1</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")}>J+7</TableHead>
+                <TableHead className={TABLE_HEAD}>{t("cohortColumns.day")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right")}>{t("cohortColumns.users")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right")}>{t("cohortColumns.day1")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right")}>{t("cohortColumns.day7")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -78,14 +83,14 @@ export default async function AdminStatsPage() {
         </section>
 
         <section className="space-y-3 rounded-lg border bg-card p-5">
-          <h2 className="eyebrow">Base de données : {megabytes(stats.databaseBytes)}</h2>
-          <Table>
+          <h2 className="eyebrow">{t("database", { size: megabytes(stats.databaseBytes) })}</h2>
+          <Table data-testid="admin-stats-tables">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className={TABLE_HEAD}>Table</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")}>Données</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")}>Index</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")}>Total</TableHead>
+                <TableHead className={TABLE_HEAD}>{t("tableColumns.table")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right")}>{t("tableColumns.data")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right")}>{t("tableColumns.indexes")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right")}>{t("tableColumns.total")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

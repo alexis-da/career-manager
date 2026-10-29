@@ -1,5 +1,6 @@
 import type { Locale } from "../locale";
 import enActions from "./en/actions.json";
+import enAdmin from "./en/admin.json";
 import enCatalogs from "./en/catalogs.json";
 import enChallengeBanner from "./en/challenge-banner.json";
 import enDashboard from "./en/dashboard.json";
@@ -13,6 +14,7 @@ import enStandings from "./en/standings.json";
 import enTransfers from "./en/transfers.json";
 import enWorld from "./en/world.json";
 import frActions from "./fr/actions.json";
+import frAdmin from "./fr/admin.json";
 import frCatalogs from "./fr/catalogs.json";
 import frChallengeBanner from "./fr/challenge-banner.json";
 import frDashboard from "./fr/dashboard.json";
@@ -29,7 +31,10 @@ import frWorld from "./fr/world.json";
 // The game's messages, one file per zone of the game and per language: src/i18n/messages/<language>/<zone>.json. Each
 // file holds namespaces of its own (« positions », « squad »…), never one of another file's.
 
-/** Each zone's messages in both languages: the public pages, the shared catalogs and names, then a save's screens. */
+/**
+ * Each zone's messages in both languages: the public pages, the shared catalogs and names, a save's screens, the
+ * administrator's page.
+ */
 export const ZONES = {
   public: { fr: frPublic, en: enPublic },
   world: { fr: frWorld, en: enWorld },
@@ -44,6 +49,7 @@ export const ZONES = {
   standings: { fr: frStandings, en: enStandings },
   live: { fr: frLive, en: enLive },
   actions: { fr: frActions, en: enActions },
+  admin: { fr: frAdmin, en: enAdmin },
 } as const;
 
 const fr = {
@@ -60,6 +66,7 @@ const fr = {
   ...frStandings,
   ...frLive,
   ...frActions,
+  ...frAdmin,
 };
 
 /** The game's messages, typed by the French ones: the English ones must have every key (src/i18n/messages.test.ts). */
@@ -81,5 +88,6 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enStandings,
     ...enLive,
     ...enActions,
+    ...enAdmin,
   },
 };

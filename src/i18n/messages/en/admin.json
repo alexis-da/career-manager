@@ -1,0 +1,28 @@
+{
+  "adminStats": {
+    "title": "Statistics",
+    "figures": {
+      "users": "Users",
+      "anonymous": "Anonymous",
+      "registered": "Google accounts",
+      "saves": "Careers"
+    },
+    "retention": "New users and retention, last {days} days (UTC)",
+    "retentionNote": "By day of creation: back the next day (D+1) and a week later (D+7). “—”: unknown, until the return day is over, or for a day before visits were first recorded (UserDay).",
+    "cohortColumns": {
+      "day": "Day",
+      "users": "New",
+      "day1": "D+1",
+      "day7": "D+7"
+    },
+    "database": "Database: {size}",
+    "tableColumns": {
+      "table": "Table",
+      "data": "Data",
+      "indexes": "Indexes",
+      "total": "Total"
+    },
+    "megabytes": "{size} MB",
+    "share": "{part} ({percent}%)"
+  }
+}

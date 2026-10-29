@@ -1,0 +1,28 @@
+{
+  "adminStats": {
+    "title": "Statistiques",
+    "figures": {
+      "users": "Utilisateurs",
+      "anonymous": "Anonymes",
+      "registered": "Comptes Google",
+      "saves": "Parties"
+    },
+    "retention": "Nouveaux utilisateurs et rétention, {days} derniers jours (UTC)",
+    "retentionNote": "Par jour de création : revenus le lendemain (J+1) et une semaine après (J+7). « — » : inconnu, tant que le jour de retour n'est pas terminé, ou pour un jour antérieur au premier enregistrement des visites (UserDay).",
+    "cohortColumns": {
+      "day": "Jour",
+      "users": "Nouveaux",
+      "day1": "J+1",
+      "day7": "J+7"
+    },
+    "database": "Base de données : {size}",
+    "tableColumns": {
+      "table": "Table",
+      "data": "Données",
+      "indexes": "Index",
+      "total": "Total"
+    },
+    "megabytes": "{size} Mo",
+    "share": "{part} ({percent} %)"
+  }
+}
