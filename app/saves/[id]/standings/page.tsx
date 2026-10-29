@@ -45,6 +45,14 @@ function zoneOf(table: CompetitionTable, rank: number, divided: boolean): Zone {
   return table.tier === 1 && rank > table.rows.length - moves ? "relegation" : null;
 }
 
+/**
+ * On a phone, the full table scrolls sideways in its frame, the only one to: its rank and club stay at the left, its
+ * points at the right, the other columns scroll between them. Opaque, those cells hide what passes under them; the
+ * managed club's keep its tint.
+ */
+const PHONE_STICKY = "max-sm:sticky max-sm:z-10 max-sm:bg-card";
+const PHONE_STICKY_MANAGED = "max-sm:bg-[color-mix(in_oklab,var(--card),var(--club)_18%)]";
+
 function StandingsTable({ table, divided }: { table: CompetitionTable; divided: boolean }) {
   const t = useTranslations("standings");
   return (
@@ -52,10 +60,14 @@ function StandingsTable({ table, divided }: { table: CompetitionTable; divided: 
       <Table className="tabular-nums" data-testid="standings-table">
         <TableHeader>
           <TableRow className="border-border hover:bg-transparent">
-            <TableHead className={cn(TABLE_HEAD, "w-12 text-right")}>#</TableHead>
-            <TableHead className={TABLE_HEAD}>{t("club")}</TableHead>
+            <TableHead className={cn(TABLE_HEAD, "w-12 text-right", PHONE_STICKY, "max-sm:left-0 max-sm:w-9 max-sm:px-1.5")}>#</TableHead>
+            <TableHead className={cn(TABLE_HEAD, PHONE_STICKY, "max-sm:left-9 max-sm:px-1.5")}>{t("club")}</TableHead>
             {COLUMNS.map((column) => (
-              <TableHead key={column} className={cn(TABLE_HEAD, "text-right")} title={t(`columnTitles.${column}`)}>
+              <TableHead
+                key={column}
+                className={cn(TABLE_HEAD, "text-right", column === "points" && cn(PHONE_STICKY, "max-sm:right-0"))}
+                title={t(`columnTitles.${column}`)}
+              >
                 {t(`columns.${column}`)}
               </TableHead>
             ))}
@@ -64,6 +76,7 @@ function StandingsTable({ table, divided }: { table: CompetitionTable; divided: 
         <TableBody>
           {table.rows.map((row) => {
             const zone = zoneOf(table, row.rank, divided);
+            const sticky = cn(PHONE_STICKY, row.isManaged && PHONE_STICKY_MANAGED);
             return (
               <TableRow
                 key={row.club}
@@ -75,6 +88,8 @@ function StandingsTable({ table, divided }: { table: CompetitionTable; divided: 
                   className={cn(
                     TABLE_CELL,
                     "text-right text-muted-foreground",
+                    sticky,
+                    "max-sm:left-0 max-sm:w-9 max-sm:px-1.5",
                     divided && "border-l-[3px] border-l-transparent",
                     zone === "promotion" && "border-l-(--club)",
                     zone === "relegation" && "border-l-muted-foreground/50",
@@ -83,7 +98,8 @@ function StandingsTable({ table, divided }: { table: CompetitionTable; divided: 
                   {row.rank}
                   {zone !== null && <span className="sr-only"> ({t(`zone.${zone}`)})</span>}
                 </TableCell>
-                <TableCell className={TABLE_CELL}>
+                {/* On a phone, on two lines if need be, 9rem at most: the columns after it need the room. */}
+                <TableCell className={cn(TABLE_CELL, sticky, "max-sm:left-9 max-sm:max-w-36 max-sm:px-1.5 max-sm:py-1 max-sm:whitespace-normal")}>
                   {row.clubName}
                   {row.isManaged && <span className="sr-only"> ({t("managed")})</span>}
                 </TableCell>
@@ -91,7 +107,11 @@ function StandingsTable({ table, divided }: { table: CompetitionTable; divided: 
                   <TableCell
                     key={column}
                     data-column={column}
-                    className={cn(TABLE_CELL, "text-right", column === "points" && "font-heading text-base font-bold")}
+                    className={cn(
+                      TABLE_CELL,
+                      "text-right",
+                      column === "points" && cn("font-heading text-base font-bold", sticky, "max-sm:right-0"),
+                    )}
                   >
                     {column === "goalDifference" && row.goalDifference > 0 ? `+${row.goalDifference}` : row[column]}
                   </TableCell>

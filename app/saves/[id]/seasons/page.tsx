@@ -47,9 +47,11 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
           </p>
         </Panel>
       ) : (
+        // On a phone, each season is a card: its season and competition, its rank, points and record on the right,
+        // then its best player and the way to its card. Same rows, laid out by CSS.
         <Panel className="p-2 sm:p-3">
-          <Table className="tabular-nums" data-testid="seasons-table">
-            <TableHeader>
+          <Table className="tabular-nums max-sm:block" data-testid="seasons-table">
+            <TableHeader className="max-sm:hidden">
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className={TABLE_HEAD}>{t("columns.season")}</TableHead>
                 <TableHead className={TABLE_HEAD}>{t("columns.competition")}</TableHead>
@@ -66,17 +68,21 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className="max-sm:block">
               {seasons.map((season) => (
                 <TableRow
                   key={season.seasonId}
                   data-season={season.startYear}
-                  className={cn(TABLE_ROW, (season.champion || season.cupWinner) && MANAGED_ROW)}
+                  className={cn(
+                    TABLE_ROW,
+                    "max-sm:grid max-sm:h-auto max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:items-start max-sm:gap-x-3 max-sm:px-2 max-sm:py-2",
+                    (season.champion || season.cupWinner) && MANAGED_ROW,
+                  )}
                 >
-                  <TableCell className={cn(TABLE_CELL, "font-heading text-base font-semibold")}>
+                  <TableCell className={cn(TABLE_CELL, "font-heading text-base font-semibold max-sm:col-start-1 max-sm:row-start-1 max-sm:px-0")}>
                     {seasonLabel(season.startYear)}
                   </TableCell>
-                  <TableCell className={TABLE_CELL}>
+                  <TableCell className={cn(TABLE_CELL, "max-sm:col-start-1 max-sm:row-start-2 max-sm:row-span-2 max-sm:px-0 max-sm:whitespace-normal")}>
                     {competitionName(season.competitionCode, tWorld)}
                     {moveLabel(season, t) !== null && (
                       <span
@@ -97,13 +103,24 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                   </TableCell>
                   <TableCell
                     data-column="rank"
-                    className={cn(TABLE_CELL, "text-right font-heading text-base font-bold", season.champion && "text-(--club)")}
+                    className={cn(
+                      TABLE_CELL,
+                      "text-right font-heading text-base font-bold max-sm:col-start-2 max-sm:row-start-1 max-sm:px-0",
+                      season.champion && "text-(--club)",
+                    )}
                   >
                     {rankLabel(season.rank, t)}
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>{season.points}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>{recordLabel(season)}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "whitespace-nowrap")}>
+                  {/* On a phone, without the header, each figure says what it is. */}
+                  <TableCell className={cn(TABLE_CELL, "text-right max-sm:col-start-2 max-sm:row-start-2 max-sm:px-0")}>
+                    {season.points}
+                    <span className="text-xs text-muted-foreground sm:hidden"> {t("columns.points")}</span>
+                  </TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right max-sm:col-start-2 max-sm:row-start-3 max-sm:px-0")}>
+                    {recordLabel(season)}
+                    <span className="text-xs text-muted-foreground sm:hidden"> {t("columns.record")}</span>
+                  </TableCell>
+                  <TableCell className={cn(TABLE_CELL, "whitespace-nowrap max-sm:col-span-2 max-sm:row-start-4 max-sm:px-0 max-sm:pt-1.5 max-sm:whitespace-normal")}>
                     {season.bestPlayer === null ? (
                       <span className="text-muted-foreground">—</span>
                     ) : (
@@ -127,12 +144,12 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                       </>
                     )}
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right")}>
+                  <TableCell className={cn(TABLE_CELL, "text-right max-sm:col-span-2 max-sm:row-start-5 max-sm:px-0")}>
                     <Link
                       href={`/saves/${id}/seasons/${season.seasonId}`}
                       aria-label={t("viewCardLabel", { season: seasonLabel(season.startYear) })}
                       data-testid={`seasons-card-link-${season.startYear}`}
-                      className="font-semibold whitespace-nowrap text-(--club) hover:underline"
+                      className="font-semibold whitespace-nowrap text-(--club) hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
                     >
                       {t("viewCard")}
                     </Link>

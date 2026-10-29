@@ -108,7 +108,7 @@ export function SeasonCardPanel({ square, landscape, shareTitle }: SeasonCardPan
           href={landscape.url}
           download={landscape.fileName}
           data-testid="season-card-landscape"
-          className="ml-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          className="ml-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
         >
           {t("landscape")}
         </a>

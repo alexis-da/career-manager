@@ -51,9 +51,10 @@ function TeamCell({ team, tie, align }: { team: TeamView; tie: CupTieView; align
   const played = tie.played;
   const won = played && tie.winnerClubSaveId === team.clubSaveId;
   return (
+    // On a phone, on two lines rather than cut.
     <span
       className={cn(
-        "min-w-0 truncate",
+        "min-w-0 truncate max-sm:whitespace-normal",
         align === "right" && "text-right",
         team.isManaged && "text-(--club)",
         won ? "font-semibold" : played && "text-muted-foreground",
@@ -85,7 +86,10 @@ function RoundPanel({ round }: { round: CupRoundView }) {
                 key={tie.id}
                 data-cup-tie=""
                 data-managed={managed || undefined}
-                className={cn("grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-2 py-1.5", managed && "rounded-md bg-(--club)/12")}
+                className={cn(
+                  "grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-2 py-1.5 max-sm:gap-2 max-sm:px-1",
+                  managed && "rounded-md bg-(--club)/12",
+                )}
               >
                 <TeamCell team={tie.home} tie={tie} align="right" />
                 <span className="flex flex-col items-center">

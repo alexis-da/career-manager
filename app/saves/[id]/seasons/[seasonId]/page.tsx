@@ -45,7 +45,7 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
       <Link
         href={`/saves/${id}/seasons`}
         data-testid="season-back"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:min-h-11"
       >
         <ChevronLeftIcon className="size-4" />
         {t("title")}
