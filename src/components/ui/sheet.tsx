@@ -6,6 +6,7 @@ import { cn } from "@/src/lib/utils"
 
 import { Button } from "@/src/components/ui/button"
 import { XIcon } from "lucide-react"
+import { useTranslations } from "next-intl"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -48,6 +49,7 @@ function SheetContent({
   showCloseButton?: boolean
   showOverlay?: boolean // false for a non-modal sheet, next to a page that stays usable
 }) {
+  const t = useTranslations("common")
   return (
     <SheetPortal>
       {showOverlay && <SheetOverlay />}
@@ -74,7 +76,7 @@ function SheetContent({
           >
             <XIcon
             />
-            <span className="sr-only">Fermer</span>
+            <span className="sr-only">{t("close")}</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>
