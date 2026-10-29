@@ -206,7 +206,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
           id="lineup-formation"
           value={state.formation}
           onChange={(event) => switchFormation(event.target.value)}
-          className="h-8 rounded-lg border border-input bg-input/30 px-2 font-heading text-base font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-8 rounded-lg border border-input bg-input/30 px-2 font-heading text-base font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:h-11"
           data-testid="lineup-formation"
         >
           {FORMATION_NAMES.map((name) => (
@@ -255,7 +255,8 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
         </div>
       )}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(320px,460px)_minmax(0,1fr)]">
+      {/* One column the screen's width under lg (minmax(0, 1fr)): the pitch scales to it. */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(320px,460px)_minmax(0,1fr)]">
         <div className="space-y-2">
           <Pitch
             slots={slots}
@@ -282,7 +283,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
             data-drop-target={BENCH_TARGET}
             data-testid="lineup-bench"
             className={cn(
-              // 16 px under the save's header, 96 px high with its tabs.
+              // 16 px under the save's header, 96 px high with its tabs (104 on a phone, 8 px under it).
               "sticky top-28 z-10 rounded-lg border-2 border-dashed bg-card p-3 transition-colors",
               drag === null ? "border-border" : overBench ? "border-solid border-(--club) bg-(--club)/25" : "border-(--club)/70",
             )}
@@ -375,17 +376,25 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                             onClick={() => placePlayer(player.id)}
                             {...sourceProps({ kind: "reserve", key: player.id })}
                             className={cn(
-                              "grid w-full cursor-grab touch-none grid-cols-[5.5rem_2rem_minmax(0,1fr)_auto_3rem_3rem] items-center gap-3 rounded-md px-2 py-1 text-left text-sm select-none",
+                              // A finger's long press lifts the player (usePointerDrag), never the browser's menu; a
+                              // swipe scrolls the list. On a phone, no face, and the injury or substitute's number
+                              // under the name, which stays whole.
+                              "grid w-full cursor-grab grid-cols-[5.5rem_2rem_minmax(0,1fr)_auto_3rem_3rem] items-center gap-3 rounded-md px-2 py-1 text-left text-sm select-none [-webkit-touch-callout:none]",
+                              "max-sm:min-h-11 max-sm:grid-cols-[3.75rem_minmax(0,1fr)_2rem_2rem] max-sm:gap-x-2 max-sm:gap-y-0.5",
                               selected !== null && "hover:bg-muted",
                               drag?.source.key === player.id && "opacity-50",
                             )}
                           >
-                            <PositionBadges playerKey={player.id} position={player.position} className="justify-self-start" />
-                            <PlayerFace playerKey={player.id} age={player.age} clubColors={clubColors} size={32} />
-                            <span data-reserve-name className="truncate font-medium">
+                            <PositionBadges
+                              playerKey={player.id}
+                              position={player.position}
+                              className="justify-self-start max-sm:col-start-1 max-sm:row-span-2 max-sm:row-start-1 max-sm:flex-wrap"
+                            />
+                            <PlayerFace playerKey={player.id} age={player.age} clubColors={clubColors} size={32} className="max-sm:hidden" />
+                            <span data-reserve-name className="truncate font-medium max-sm:col-start-2 max-sm:row-start-1 max-sm:whitespace-normal">
                               {player.firstName} {player.lastName}
                             </span>
-                            <span className="flex gap-1">
+                            <span className="flex gap-1 max-sm:col-start-2 max-sm:row-start-2">
                               {player.injured && (
                                 <span className="rounded-sm bg-loss/15 px-1.5 text-xs font-semibold text-loss">{t("injured")}</span>
                               )}
@@ -395,13 +404,16 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
                                 </span>
                               )}
                             </span>
-                            <span className="text-right text-muted-foreground tabular-nums" title={t("rating")}>
+                            <span
+                              className="text-right text-muted-foreground tabular-nums max-sm:col-start-3 max-sm:row-span-2 max-sm:row-start-1"
+                              title={t("rating")}
+                            >
                               {player.overall}
                             </span>
                             <span
                               title={ratingTitle}
                               className={cn(
-                                "text-right font-heading font-bold tabular-nums",
+                                "text-right font-heading font-bold tabular-nums max-sm:col-start-4 max-sm:row-span-2 max-sm:row-start-1",
                                 offAtSelected(player) && "text-warning",
                               )}
                             >

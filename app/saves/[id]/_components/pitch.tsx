@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import type { DOMAttributes, ReactNode } from "react";
+import type { DOMAttributes, ReactNode, RefCallback } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import type { LineupPlayer } from "@/src/db/lineup";
 import type { FormationSlot } from "@/src/engine/formations";
@@ -51,11 +51,12 @@ export type PitchEditing = {
   dragged: LineupPlayer | null; // the player being dragged, whose rating every slot then shows
   draggedFrom: number | null; // his slot, when he is a starter
   over: number | null; // the slot under the pointer during a drag
-  dragProps: (index: number, key: string) => DOMAttributes<HTMLElement>;
+  dragProps: (index: number, key: string) => DOMAttributes<HTMLElement> & { ref: RefCallback<HTMLElement> };
   dropTarget: (index: number) => string; // value of the slot's data-drop-target
 };
 
 type SlotElementProps = DOMAttributes<HTMLElement> & {
+  ref?: RefCallback<HTMLElement>;
   editing: PitchEditing | undefined;
   className: string;
   children: ReactNode;
@@ -183,7 +184,8 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
             onClick={editing === undefined ? undefined : () => editing.onSelect(index)}
             className={cn(
               "group flex w-28 flex-col items-center gap-0.5 outline-none select-none",
-              editing !== undefined && "touch-none",
+              // A finger's long press lifts the player (usePointerDrag), never the browser's menu; a swipe scrolls.
+              editing !== undefined && "[-webkit-touch-callout:none]",
               editing !== undefined && key !== null && "cursor-grab",
               editing?.draggedFrom === index && "opacity-50",
             )}
