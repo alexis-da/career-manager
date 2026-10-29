@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  challengeSaveName,
   challengeSavesPurgedAt,
   challengeScore,
   drawChallengeClub,
@@ -47,11 +46,6 @@ describe("the club of a challenge", () => {
 });
 
 describe("a challenge's saves", () => {
-  it("all bear the week's name", () => {
-    expect(challengeSaveName("2026-W45")).toBe("Défi — semaine 45");
-    expect(challengeSaveName("2027-W05")).toBe("Défi — semaine 5");
-  });
-
   it("are purged 24 hours after the challenge ends: on the Tuesday", () => {
     expect(challengeSavesPurgedAt(new Date("2026-11-09T00:00:00.000Z"))).toEqual(new Date("2026-11-10T00:00:00.000Z"));
   });

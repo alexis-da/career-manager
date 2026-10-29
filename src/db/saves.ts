@@ -1,6 +1,5 @@
 import * as z from "zod";
 import { MAX_CHALLENGE_SAVES_PER_WEEK } from "../config/challenge";
-import { challengeSaveName } from "../engine/challenge";
 import { displayClubName } from "../engine/club-name";
 import { clubFinances, generateContract, marketValueFor } from "../engine/economy";
 import { FREE_AGENT_POOL_SLUG, freeAgentPlayerKey, generateFreeAgentAttributes } from "../engine/free-agents";
@@ -75,7 +74,8 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
 
 /**
  * Creates a user's save of a week's challenge: the save createSave makes in a worldVersion 2 world, cups included, with
- * the challenge's seed, club and name (challengeSaveName), the same for every player of the week, and the user's entry
+ * the challenge's seed and club, the same for every player of the week, and no name of its own (the screens name it from
+ * its week, in the player's language: SaveSummary.challengeWeek), and the user's entry
  * (ChallengeEntry) in the same transaction. Outside the save limits; before writing anything, throws
  * ChallengeEntryExistsError when the user already has an entry this week (even if they deleted its save: the entry
  * stays), and ChallengeFullError when the week has maxSaves challenge saves. Whether the challenge is still open is the
@@ -91,7 +91,7 @@ export async function createChallengeSave(
     select: { weekKey: true, seed: true, clubId: true },
   });
   return timedWriteSave({
-    name: challengeSaveName(challenge.weekKey),
+    name: "",
     managerName,
     clubId: challenge.clubId,
     seed: challenge.seed,
@@ -335,7 +335,7 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
 
 export type SaveSummary = {
   id: string;
-  name: string;
+  name: string; // the player's; empty for a challenge save, named from its week
   managerName: string;
   currentDate: Date;
   // A save of the weekly challenge: the number of its week, which names it in the player's language; null otherwise.

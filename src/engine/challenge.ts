@@ -1,5 +1,4 @@
 import { CHALLENGE_FIRST_DIVISION_RANKS, CHALLENGE_SAVE_RETENTION_HOURS } from "../config/challenge";
-import { isoWeekNumber } from "../lib/iso-week";
 import { makeRng, pick } from "../lib/rng";
 import { POINTS_FOR_DRAW, POINTS_FOR_WIN } from "./standings";
 
@@ -33,10 +32,6 @@ export function drawChallengeClub(
   return pick(makeRng(`${seed}:club`), pool);
 }
 
-/** The name of every save of a week's challenge: « Défi — semaine 45 ». */
-export function challengeSaveName(weekKey: string): string {
-  return `Défi — semaine ${isoWeekNumber(weekKey)}`;
-}
 
 /** When the purge deletes a challenge's saves: CHALLENGE_SAVE_RETENTION_HOURS after the challenge ends. */
 export function challengeSavesPurgedAt(endsAt: Date): Date {

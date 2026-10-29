@@ -122,9 +122,10 @@ club est tiré par la graine parmi la deuxième division et les 12e à 18e de pr
 semaine précédente (`drawChallengeClub`, `src/engine/challenge.ts`). Règles dans `src/config/challenge.ts` : horizon de
 10 journées, `MAX_CHALLENGE_SAVES_PER_WEEK` = 20 (une partie de défi pèse 7,7 Mo compactée, 25,9 Mo réels à la
 10e journée), parties gardées 24 h après la fin du défi. Une partie de défi
-(`Save.challengeId`, `createChallengeSave`, `src/db/saves.ts`) est une partie 2 avec la graine, le club et le nom du
-défi (« Défi — semaine 45 », stocké en français, affiché dans la langue du joueur par `SaveSummary.challengeWeek`), les
-mêmes pour tous ; **hors des limites de parties**, mais une par joueur et par semaine
+(`Save.challengeId`, `createChallengeSave`, `src/db/saves.ts`) est une partie 2 avec la graine et le club du défi, les
+mêmes pour tous, sans nom stocké (`Save.name` vide) : l'écran la nomme depuis sa semaine, dans la langue du joueur
+(« Défi — semaine 45 », « Challenge — week 45 », `SaveSummary.challengeWeek`) ; les noms stockés par les parties
+d'avant restent en base, plus affichés ; **hors des limites de parties**, mais une par joueur et par semaine
 (`ChallengeEntryExistsError`) et 20 par semaine (`ChallengeFullError`). L'entrée du joueur (`ChallengeEntry`, unique
 par défi et utilisateur) naît avec la partie, dans sa transaction, et lui survit (`saveId` en SetNull) : supprimer sa
 partie ne permet pas de recommencer, et le classement survit à la purge ; elle part avec son utilisateur (Cascade). Le

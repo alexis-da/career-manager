@@ -61,7 +61,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a challenge save, in th
       select: { name: true, seed: true, worldVersion: true, challengeId: true, clubSaves: { where: { isManaged: true }, select: { clubId: true } } },
     });
     expect(save).toEqual({
-      name: `Défi — semaine 20`,
+      name: "",
       seed: challenge.seed,
       worldVersion: 2,
       challengeId,
