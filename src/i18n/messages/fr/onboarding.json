@@ -13,6 +13,12 @@
     "match": {
       "title": "Jouer le premier match",
       "hint": "Clique sur « {button} » : il se joue en direct."
+    },
+    "tips": {
+      "rating": "La note, de 1 à 99, résume le niveau actuel d'un joueur. Le potentiel (Pot.) est le plafond estimé qu'il peut atteindre.",
+      "secondary": "Les petits badges entourés sont les postes secondaires d'un joueur : il y joue à {percent} % de sa note, moins bien ailleurs.",
+      "money": "Le budget transferts paie les achats. La masse salariale additionne les salaires d'une saison : toute signature qui dépasse son plafond est refusée.",
+      "simulation": "« {button} » joue plusieurs journées d'un coup, sans direct, et te donne le bilan."
     }
   }
 }

@@ -3,13 +3,32 @@ import { useTranslations } from "next-intl";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { managedMatchesPlayed } from "@/src/db/first-steps";
+import { SECONDARY_POSITION_FAMILIARITY } from "@/src/engine/balance";
 import { cn } from "@/src/lib/utils";
-import { FIRST_STEPS_MATCHES, seenItems, type FirstSteps, type SeenItem } from "../_lib/first-steps";
+import { FIRST_STEPS_MATCHES, seenItems, type FirstSteps, type SeenItem, type Tip } from "../_lib/first-steps";
+import { TipFrame } from "./tip-frame";
 
 /** Where a save's first steps are at: its club's matches, from the game, and what the player has seen, from the cookies. */
 export async function getFirstSteps(saveId: string): Promise<FirstSteps> {
   const [matches, store] = await Promise.all([managedMatchesPlayed(saveId, FIRST_STEPS_MATCHES), cookies()]);
   return { matches, seen: seenItems((name) => store.has(name)) };
+}
+
+/** A short tip of a save's screens: the page decides whether to show it (showsTip). */
+export function FirstStepTip({ saveId, tip, className }: { saveId: string; tip: Tip; className?: string }) {
+  const t = useTranslations("firstSteps.tips");
+  const tGame = useTranslations("gameActions");
+  const text =
+    tip === "secondary"
+      ? t("secondary", { percent: Math.round(SECONDARY_POSITION_FAMILIARITY * 100) })
+      : tip === "simulation"
+        ? t("simulation", { button: tGame("simulate") })
+        : t(tip);
+  return (
+    <TipFrame saveId={saveId} tip={tip} className={className}>
+      {text}
+    </TipFrame>
+  );
 }
 
 type ActionRowProps = {

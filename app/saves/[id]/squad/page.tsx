@@ -4,9 +4,9 @@ import { requireOwnedSave } from "@/src/auth/current-user";
 import { getSquadView } from "@/src/db/squad";
 import { formatMillions } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { getFirstSteps } from "../_components/first-steps";
+import { FirstStepTip, getFirstSteps } from "../_components/first-steps";
 import { MarkSeen } from "../_components/mark-seen";
-import { showsFirstActions } from "../_lib/first-steps";
+import { showsFirstActions, showsTip } from "../_lib/first-steps";
 import { SquadTable } from "./_components/squad-table";
 
 export const dynamic = "force-dynamic";
@@ -54,8 +54,9 @@ export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad
   );
 
   return (
-    <>
+    <div className="space-y-4">
       {showsFirstActions(firstSteps) && !firstSteps.seen.has("squad") && <MarkSeen saveId={id} item="squad" />}
+      {showsTip("rating", firstSteps) && <FirstStepTip saveId={id} tip="rating" />}
       <SquadTable
         saveId={id}
         header={header}
@@ -65,6 +66,6 @@ export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad
         windowOpen={squad.windowOpen}
         nextWindowOpensOn={squad.nextWindowOpensOn}
       />
-    </>
+    </div>
   );
 }

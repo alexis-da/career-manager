@@ -17,12 +17,12 @@ import { formatDayMonth, formatDecimal, formatMillionsAmount, formatShortDate, m
 import { cn } from "@/src/lib/utils";
 import { AccountBanner } from "./_components/account-banner";
 import { ChallengeBanner } from "./_components/challenge-banner";
-import { FirstActions, getFirstSteps } from "./_components/first-steps";
+import { FirstActions, FirstStepTip, getFirstSteps } from "./_components/first-steps";
 import { OpponentSheet } from "./_components/opponent-sheet";
 import { Panel, PanelTitle } from "./_components/panel";
 import { ResultPill } from "./_components/result-pill";
 import { ScoreNotes } from "./_components/score-notes";
-import { showsFirstActions } from "./_lib/first-steps";
+import { showsFirstActions, showsTip } from "./_lib/first-steps";
 import { positionTextClass } from "./_lib/positions";
 import { RESULT_CLASSES } from "./_lib/results";
 import { matchResultFor, stageLabel } from "./_lib/stage";
@@ -202,6 +202,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
       </h1>
       {challenge !== null && <ChallengeBanner view={challenge} />}
       <AccountBanner show={askToSignIn} />
+      {showsTip("simulation", firstSteps) && <FirstStepTip saveId={id} tip="simulation" />}
 
       {/* One column the screen's width under lg (minmax(0, 1fr)): never as wide as its widest content. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
@@ -335,6 +336,8 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             </>
           )}
         </Panel>
+
+        {showsTip("money", firstSteps) && <FirstStepTip saveId={id} tip="money" className="lg:col-span-12" />}
 
         <Panel className="space-y-3 lg:col-span-3" data-testid="dashboard-position">
           <PanelTitle>{t("position")}</PanelTitle>

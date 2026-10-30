@@ -8,8 +8,13 @@ const SEEN_COOKIE_PREFIX = "lw_seen_";
 
 export const SEEN_COOKIE_SECONDS = 30 * 24 * 60 * 60;
 
-/** The screens of the first actions, ticked once opened. */
-const SEEN_ITEMS = ["squad", "lineup"] as const;
+/** The short tips of a save's screens, closed one by one. */
+const TIPS = ["rating", "secondary", "money", "simulation"] as const;
+
+export type Tip = (typeof TIPS)[number];
+
+/** What is remembered: the screens of the first actions, ticked once opened, and the tips closed. */
+const SEEN_ITEMS = ["squad", "lineup", ...TIPS] as const;
 
 export type SeenItem = (typeof SEEN_ITEMS)[number];
 
@@ -29,6 +34,17 @@ export function seenItems(hasCookie: (name: string) => boolean): Set<SeenItem> {
 
 /** The list stays until the club has played: its first result then takes the panel. */
 export const showsFirstActions = ({ matches }: FirstSteps): boolean => matches === 0;
+
+/**
+ * Whether a screen shows a tip: until it is closed, and until the club's FIRST_STEPS_MATCHES-th match at most, closed or
+ * not. The dashboard shows one at a time: the money before the first match, the simulation after it.
+ */
+export function showsTip(tip: Tip, { matches, seen }: FirstSteps): boolean {
+  if (seen.has(tip) || matches >= FIRST_STEPS_MATCHES) {
+    return false;
+  }
+  return tip === "money" ? matches === 0 : tip === "simulation" ? matches > 0 : true;
+}
 
 /** In the browser: remembers an item for this save, on the save's paths, so that it is this save's alone. */
 export function rememberSeen(saveId: string, item: SeenItem): void {

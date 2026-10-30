@@ -4,10 +4,10 @@ import { requireOwnedSave } from "@/src/auth/current-user";
 import { getLineupEditor } from "@/src/db/lineup";
 import { getOpponentPreview } from "@/src/db/opponent";
 import { formatShortDate } from "@/src/lib/format";
-import { getFirstSteps } from "../_components/first-steps";
+import { FirstStepTip, getFirstSteps } from "../_components/first-steps";
 import { MarkSeen } from "../_components/mark-seen";
 import { OpponentSheet } from "../_components/opponent-sheet";
-import { showsFirstActions } from "../_lib/first-steps";
+import { showsFirstActions, showsTip } from "../_lib/first-steps";
 import { LineupEditor } from "./_components/lineup-editor";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +40,7 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
           </div>
         )}
       </div>
+      {showsTip("secondary", firstSteps) && <FirstStepTip saveId={id} tip="secondary" />}
       {/* A new key after each save: the editor starts again from what is now saved. */}
       <LineupEditor
         key={`${editor.formation}:${JSON.stringify(editor.saved)}`}
