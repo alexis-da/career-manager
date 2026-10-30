@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type MouseEvent, type PointerEvent, type RefCallback } from "react";
+import { useCallback, useRef, useState, type MouseEvent, type PointerEvent, type RefCallback } from "react";
 
 /** What is dragged: a starter from his slot, or a player from outside the eleven. */
 export type DragSource = { kind: "slot"; index: number; key: string } | { kind: "reserve"; key: string };
@@ -20,11 +20,12 @@ const DRAG_THRESHOLD_PX = 6;
 const TOUCH_HOLD_MS = 250;
 
 /**
- * During a finger's drag, how close to the top or the bottom of the screen the page scrolls by itself, and by how much
- * a frame: under the save's header, above a phone's action bar, a player can be carried from the list to the pitch.
+ * During a finger's drag, how close to the top or the bottom of the screen the page scrolls by itself, and how fast,
+ * whatever the screen's refresh rate: under the save's header, above a phone's action bar, a player can be carried from
+ * the list to the pitch.
  */
 const AUTO_SCROLL_EDGE_PX = { top: 140, bottom: 110 };
-const AUTO_SCROLL_STEP_PX = 12;
+const AUTO_SCROLL_PX_PER_MS = 0.5;
 
 /** Attribute marking a drop target: data-drop-target="slot:3" or "bench". */
 const DROP_TARGET_ATTRIBUTE = "data-drop-target";
@@ -56,15 +57,15 @@ type Press = {
   holdTimer: number | null;
 };
 
-/** The page's own scrolling a frame during a finger's drag, up or down: none away from the screen's edges. */
-function autoScrollStep({ touch, dragging, y }: Press): number {
+/** The way the page scrolls by itself during a finger's drag: up, down, or not at all away from the screen's edges. */
+function autoScrollDirection({ touch, dragging, y }: Press): -1 | 0 | 1 {
   if (!touch || !dragging) {
     return 0;
   }
   if (y < AUTO_SCROLL_EDGE_PX.top) {
-    return -AUTO_SCROLL_STEP_PX;
+    return -1;
   }
-  return y > window.innerHeight - AUTO_SCROLL_EDGE_PX.bottom ? AUTO_SCROLL_STEP_PX : 0;
+  return y > window.innerHeight - AUTO_SCROLL_EDGE_PX.bottom ? 1 : 0;
 }
 
 /**
@@ -79,6 +80,7 @@ export function usePointerDrag(onDrop: (source: DragSource, target: DropTarget) 
   const press = useRef<Press | null>(null);
   const swallowClick = useRef(false);
   const scrollFrame = useRef<number | null>(null);
+  const lastFrameAt = useRef<number | null>(null);
 
   const follow = (current: Press): void => {
     current.over = targetAt(current.x, current.y);
@@ -86,14 +88,16 @@ export function usePointerDrag(onDrop: (source: DragSource, target: DropTarget) 
   };
 
   // Near an edge, the page scrolls under the resting finger, and what is under it changes.
-  const keepScrolling = (): void => {
+  const keepScrolling = (now: number): void => {
     const current = press.current;
-    const step = current === null ? 0 : autoScrollStep(current);
-    if (current === null || step === 0) {
+    const direction = current === null ? 0 : autoScrollDirection(current);
+    if (current === null || direction === 0) {
       scrollFrame.current = null;
+      lastFrameAt.current = null;
       return;
     }
-    window.scrollBy(0, step);
+    window.scrollBy(0, direction * AUTO_SCROLL_PX_PER_MS * (now - (lastFrameAt.current ?? now)));
+    lastFrameAt.current = now;
     follow(current);
     scrollFrame.current = requestAnimationFrame(keepScrolling);
   };
@@ -106,23 +110,23 @@ export function usePointerDrag(onDrop: (source: DragSource, target: DropTarget) 
     if (scrollFrame.current !== null) {
       cancelAnimationFrame(scrollFrame.current);
       scrollFrame.current = null;
+      lastFrameAt.current = null;
     }
     press.current = null;
     setDrag(null);
   };
 
   // Once a finger holds a player, its moves carry him instead of scrolling the page. Not passive, hence a native
-  // listener: React's touch listeners are.
-  const keepFromScrolling = (event: TouchEvent): void => {
-    if (press.current?.touch === true && press.current.held) {
-      event.preventDefault();
-    }
-  };
-
-  const holdOnTouch: RefCallback<HTMLElement> = (element) => {
+  // listener: React's touch listeners are. The same one all along: a drag renders at every move.
+  const holdOnTouch = useCallback<RefCallback<HTMLElement>>((element) => {
+    const keepFromScrolling = (event: TouchEvent): void => {
+      if (press.current?.touch === true && press.current.held) {
+        event.preventDefault();
+      }
+    };
     element?.addEventListener("touchmove", keepFromScrolling, { passive: false });
     return () => element?.removeEventListener("touchmove", keepFromScrolling);
-  };
+  }, []);
 
   const sourceProps = (source: DragSource) => ({
     ref: holdOnTouch,
@@ -179,7 +183,7 @@ export function usePointerDrag(onDrop: (source: DragSource, target: DropTarget) 
         current.dragging = true;
       }
       follow(current);
-      if (scrollFrame.current === null && autoScrollStep(current) !== 0) {
+      if (scrollFrame.current === null && autoScrollDirection(current) !== 0) {
         scrollFrame.current = requestAnimationFrame(keepScrolling);
       }
     },
