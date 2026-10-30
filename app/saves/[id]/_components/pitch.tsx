@@ -100,7 +100,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
       aria-label={label}
       data-pitch={editing === undefined ? "read-only" : "editable"}
       data-testid="pitch"
-      className="relative aspect-[68/105] w-full overflow-hidden rounded-lg border bg-pitch"
+      className="relative aspect-[68/105] w-full overflow-hidden rounded-card border bg-pitch"
       style={{
         backgroundImage: "repeating-linear-gradient(to bottom, transparent 0 10%, rgb(255 255 255 / 0.025) 10% 20%)",
       }}

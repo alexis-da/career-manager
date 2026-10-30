@@ -83,7 +83,7 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
       className={cn(
         "fixed inset-y-0 right-0 z-50 flex w-full max-w-[400px] flex-col border-l bg-card shadow-2xl",
         // Under the save's header (96 px: its row and its tabs), 24 px below it and above the window's bottom.
-        "lg:sticky lg:top-30 lg:z-auto lg:h-[calc(100dvh-9rem)] lg:rounded-lg lg:border lg:shadow-none",
+        "lg:sticky lg:top-30 lg:z-auto lg:h-[calc(100dvh-9rem)] lg:rounded-card lg:border lg:shadow-none",
       )}
     >
       <div className="space-y-3 p-5 pb-4">

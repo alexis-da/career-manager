@@ -198,7 +198,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-card border bg-card p-3">
         <label htmlFor="lineup-formation" className="eyebrow">
           {t("formation")}
         </label>
@@ -284,7 +284,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
             data-testid="lineup-bench"
             className={cn(
               // 16 px under the save's header, 96 px high with its tabs (104 on a phone, 8 px under it).
-              "sticky top-28 z-10 rounded-lg border-2 border-dashed bg-card p-3 transition-colors",
+              "sticky top-28 z-10 rounded-card border-2 border-dashed bg-card p-3 transition-colors",
               drag === null ? "border-border" : overBench ? "border-solid border-(--club) bg-(--club)/25" : "border-(--club)/70",
             )}
           >
