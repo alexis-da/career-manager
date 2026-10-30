@@ -19,15 +19,6 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getTranslations("standings"))("title") };
 }
 
-/** Active tab: the club accent at 18 % with an accent underline. */
-const ACTIVE_TAB = cn(
-  "h-9 flex-none rounded-md px-3 text-sm",
-  "data-active:bg-(--club)/18 data-active:font-semibold data-active:text-foreground",
-  "dark:data-active:bg-(--club)/18 dark:data-active:border-transparent",
-  "group-data-[variant=line]/tabs-list:data-active:bg-(--club)/18 dark:group-data-[variant=line]/tabs-list:data-active:bg-(--club)/18",
-  "after:bg-(--club)",
-);
-
 /** The table's figures, in order: each has its short label and its full name in the standings messages. */
 const COLUMNS = ["played", "won", "drawn", "lost", "goalsFor", "goalsAgainst", "goalDifference", "points"] as const;
 
@@ -174,13 +165,9 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
 
       {divided ? (
         <Tabs defaultValue={defaultTable.country} className="gap-4">
-          <TabsList
-            variant="line"
-            aria-label={t("countries")}
-            className="h-auto flex-wrap gap-1 group-data-horizontal/tabs:h-auto"
-          >
+          <TabsList aria-label={t("countries")} className="flex-wrap">
             {countries.map(([country]) => (
-              <TabsTrigger key={country} value={country} className={ACTIVE_TAB} data-testid={`standings-country-${country}`}>
+              <TabsTrigger key={country} value={country} data-testid={`standings-country-${country}`}>
                 {tWorld(`countries.${country}`)}
               </TabsTrigger>
             ))}
@@ -215,14 +202,9 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
         </Tabs>
       ) : (
         <Tabs defaultValue={defaultTable.code} className="gap-4">
-          <TabsList variant="line" className="h-auto flex-wrap gap-1 group-data-horizontal/tabs:h-auto">
+          <TabsList className="flex-wrap">
             {tables.map((table) => (
-              <TabsTrigger
-                key={table.code}
-                value={table.code}
-                className={ACTIVE_TAB}
-                data-testid={`standings-competition-${table.code}`}
-              >
+              <TabsTrigger key={table.code} value={table.code} data-testid={`standings-competition-${table.code}`}>
                 {competitionName(table.code, tWorld)}
               </TabsTrigger>
             ))}

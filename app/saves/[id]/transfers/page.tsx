@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
@@ -15,6 +14,8 @@ import {
   type PlayerSheet,
 } from "@/src/db/market";
 import { requireOwnedSave } from "@/src/auth/current-user";
+import { SegmentedLinks } from "@/src/components/segmented";
+import { Badge } from "@/src/components/ui/badge";
 import { seasonStartYear } from "@/src/engine/world";
 import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
@@ -215,32 +216,27 @@ export default async function TransfersPage({ params, searchParams }: PageProps<
         </h1>
         <MarketBanner overview={overview} />
 
-        <nav aria-label={t("tabs.label")} data-testid="market-tabs" className="flex flex-wrap gap-1 border-b pb-2">
-          {TABS.map((tab) => {
-            const active = tab === query.tab;
-            return (
-              <Link
-                key={tab}
-                // Keeps the other params, filters included, so that coming back to a tab finds its search again;
-                // the page and the open sheet belong to the list being left.
-                href={marketHref(id, values, { tab: tab === "free" ? undefined : tab, page: undefined, player: undefined })}
-                aria-current={active ? "page" : undefined}
-                data-testid={`market-tab-${tab}`}
-                className={cn(
-                  "relative rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors max-sm:py-3",
-                  active
-                    ? "bg-(--club)/18 font-semibold text-foreground after:absolute after:inset-x-2 after:-bottom-[9px] after:h-0.5 after:rounded-full after:bg-(--club)"
-                    : "font-medium text-muted-foreground hover:text-foreground",
-                )}
-              >
+        <SegmentedLinks
+          label={t("tabs.label")}
+          testId="market-tabs"
+          links={TABS.map((tab) => ({
+            // Keeps the other params, filters included, so that coming back to a tab finds its search again;
+            // the page and the open sheet belong to the list being left.
+            href: marketHref(id, values, { tab: tab === "free" ? undefined : tab, page: undefined, player: undefined }),
+            label: (
+              <>
                 {t(`tabs.${tab}`)}
                 {tab === "free" && (
-                  <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">{overview.freeAgents}</span>
+                  <Badge variant="secondary" className="tabular-nums">
+                    {overview.freeAgents}
+                  </Badge>
                 )}
-              </Link>
-            );
-          })}
-        </nav>
+              </>
+            ),
+            active: tab === query.tab,
+            testId: `market-tab-${tab}`,
+          }))}
+        />
 
         {!overview.windowOpen && query.tab !== "moves" && (
           <ClosedWindowNote actions={t("closedWindow.both")} reopensOn={overview.nextWindowOpensOn} />

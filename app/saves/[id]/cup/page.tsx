@@ -142,7 +142,7 @@ export default async function CupPage({ params }: PageProps<"/saves/[id]/cup">) 
       </div>
 
       {bracket.winner !== null && (
-        <Panel data-cup-winner="" data-testid="cup-winner" className="flex items-center gap-4 border-(--club)/50 bg-(--club)/10">
+        <Panel data-cup-winner="" data-testid="cup-winner" className="flex items-center gap-4 border border-(--club)/50 bg-(--club)/10">
           <TrophyIcon aria-hidden className="size-8 shrink-0 text-(--club)" />
           <div>
             <PanelTitle>{t("winner")}</PanelTitle>

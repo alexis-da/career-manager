@@ -6,6 +6,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { requireOwnedSave } from "@/src/auth/current-user";
+import { SegmentedLinks } from "@/src/components/segmented";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { getManagedClubCalendar, type FixtureWithEvents } from "@/src/db/calendar";
 import { getSaveSummary } from "@/src/db/saves";
@@ -47,11 +48,6 @@ type Landmark = { label: string; tone: "window" | "season" };
 
 const LANDMARK_CLASSES: Record<Landmark["tone"], string> = { window: "bg-info/15 text-info", season: "bg-warning/15 text-warning" };
 const LANDMARK_DOTS: Record<Landmark["tone"], string> = { window: "bg-info", season: "bg-warning" };
-
-const VIEW_TAB = cn(
-  "relative rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground max-sm:py-3",
-  "aria-[current=page]:bg-(--club)/18 aria-[current=page]:font-semibold aria-[current=page]:text-foreground",
-);
 
 const fixturesHref = (saveId: string, view: View, month?: Month): string => {
   const params = new URLSearchParams();
@@ -393,24 +389,19 @@ export default async function FixturesPage({ params, searchParams }: PageProps<"
             </p>
           )}
         </div>
-        <nav aria-label={t("views.label")} className="ml-auto flex gap-1">
-          <Link
-            href={fixturesHref(id, "calendar", month)}
-            aria-current={view === "calendar" ? "page" : undefined}
-            className={VIEW_TAB}
-            data-testid="fixtures-view-calendar"
-          >
-            {t("views.calendar")}
-          </Link>
-          <Link
-            href={fixturesHref(id, "list")}
-            aria-current={view === "list" ? "page" : undefined}
-            className={VIEW_TAB}
-            data-testid="fixtures-view-list"
-          >
-            {t("views.list")}
-          </Link>
-        </nav>
+        <SegmentedLinks
+          label={t("views.label")}
+          className="ml-auto"
+          links={[
+            {
+              href: fixturesHref(id, "calendar", month),
+              label: t("views.calendar"),
+              active: view === "calendar",
+              testId: "fixtures-view-calendar",
+            },
+            { href: fixturesHref(id, "list"), label: t("views.list"), active: view === "list", testId: "fixtures-view-list" },
+          ]}
+        />
       </div>
 
       {view === "list" ? (

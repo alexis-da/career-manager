@@ -96,6 +96,7 @@ export function SignFreeAgentDialog({
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>{tCommon("cancel")}</DialogClose>
           <Button
+            variant="club"
             disabled={pending}
             data-testid="confirm-signing"
             onClick={() =>
@@ -204,6 +205,7 @@ export function MakeOfferDialog({
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>{tCommon("cancel")}</DialogClose>
           <Button
+            variant="club"
             disabled={pending}
             data-testid="send-offer"
             onClick={() =>

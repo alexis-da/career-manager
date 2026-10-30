@@ -6,6 +6,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LanguageSwitcher } from "@/app/_components/language-switcher";
 import { requireOwnedSave } from "@/src/auth/current-user";
+import { ClubInitials } from "@/src/components/club-initials";
 import { getSaveHeader } from "@/src/db/header";
 import { seasonLabel } from "@/src/engine/world";
 import { formatDayDate } from "@/src/lib/format";
@@ -56,7 +57,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               data-testid="header-club"
               className="flex min-w-0 items-center gap-3 max-sm:min-h-11"
             >
-              <span aria-hidden className="h-8 w-1 shrink-0 rounded-full bg-(--club)" />
+              <ClubInitials name={header.club.name} className="size-9 text-base" />
               <span className="min-w-0 leading-tight">
                 {/* On a phone, two lines if need be rather than cut: the game's actions have left this row. */}
                 <span className="block max-w-56 truncate font-heading text-lg font-bold tracking-wide uppercase max-sm:line-clamp-2 max-sm:max-w-none max-sm:text-base max-sm:leading-tight max-sm:whitespace-normal">

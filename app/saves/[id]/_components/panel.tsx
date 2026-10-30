@@ -3,7 +3,7 @@ import { cn } from "@/src/lib/utils";
 
 /** A surface of the dashboard and of the game's pages. */
 export function Panel({ className, ...props }: ComponentProps<"section">) {
-  return <section className={cn("rounded-card border bg-card p-5", className)} {...props} />;
+  return <section className={cn("rounded-card bg-card p-5", className)} {...props} />;
 }
 
 /** Small uppercase title of a panel. */

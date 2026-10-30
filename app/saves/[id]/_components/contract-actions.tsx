@@ -103,6 +103,7 @@ export function RenewContractDialog({
             {tCommon("cancel")}
           </DialogClose>
           <Button
+            variant="club"
             disabled={pending}
             onClick={() =>
               run(
@@ -216,6 +217,7 @@ export function SellPlayerDialog({ saveId, player, terms, disabled = false, trig
           </DialogClose>
           {sale.ok && (
             <Button
+              variant="club"
               disabled={pending}
               onClick={() => run(name, () => sellPlayerAction({ saveId, playerSaveId: player.id }), () => setOpen(false))}
               data-testid="sell-confirm"
