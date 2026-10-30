@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircleIcon } from "lucide-react";
+import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useActionState, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
@@ -92,9 +92,13 @@ export function CreateSaveForm({ competitions }: { competitions: CreatableCompet
     }
   }, INITIAL_STATE);
   const [clubId, setClubId] = useState(INITIAL_STATE.values.clubId);
+  // What the player typed as the save's name: until then, the name comes from the club.
+  const [typedName, setTypedName] = useState<string | null>(null);
   const items = competitions.flatMap((competition) =>
     competition.clubs.map((club) => ({ value: club.id, label: club.name })),
   );
+  const clubName = items.find((item) => item.value === clubId)?.label;
+  const name = typedName ?? (clubName === undefined ? "" : t("defaultName", { club: clubName }));
   // By country, then by division: the competitions come sorted that way.
   const countries = [...Map.groupBy(competitions, (competition) => competition.countryName)];
 
@@ -105,7 +109,8 @@ export function CreateSaveForm({ competitions }: { competitions: CreatableCompet
           id="save-name"
           name="name"
           maxLength={100}
-          defaultValue={state.values.name}
+          value={name}
+          onChange={(event) => setTypedName(event.target.value)}
           placeholder={t("namePlaceholder")}
           aria-invalid={state.errors.name !== undefined}
           data-testid="save-name"
@@ -163,16 +168,28 @@ export function CreateSaveForm({ competitions }: { competitions: CreatableCompet
         <input type="hidden" name="clubId" value={clubId} />
       </Field>
 
-      <Field id="seed" label={t("seed")} hint={t("seedHint")} errors={state.errors.seed}>
-        <Input
-          id="seed"
-          name="seed"
-          maxLength={200}
-          defaultValue={state.values.seed}
-          placeholder={t("seedPlaceholder")}
-          data-testid="seed"
-        />
-      </Field>
+      {/* Folded: a new player has no use for a seed. Opened by a refused one, so that its error shows. */}
+      <details className="group" open={state.errors.seed !== undefined}>
+        <summary
+          className="flex cursor-pointer list-none items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:min-h-11 [&::-webkit-details-marker]:hidden"
+          data-testid="create-save-options"
+        >
+          <ChevronRightIcon aria-hidden className="size-4 transition-transform group-open:rotate-90" />
+          {t("options")}
+        </summary>
+        <div className="pt-2">
+          <Field id="seed" label={t("seed")} hint={t("seedHint")} errors={state.errors.seed}>
+            <Input
+              id="seed"
+              name="seed"
+              maxLength={200}
+              defaultValue={state.values.seed}
+              placeholder={t("seedPlaceholder")}
+              data-testid="seed"
+            />
+          </Field>
+        </div>
+      </details>
 
       {state.message !== null && (
         <p className="text-sm text-destructive" data-testid="create-save-message">

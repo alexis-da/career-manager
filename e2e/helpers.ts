@@ -14,6 +14,7 @@ export async function fillCreateSaveForm(page: Page, name: string, clubName: str
   await page.getByTestId("manager-name").fill("Test E2E");
   await page.getByTestId("club").click();
   await page.getByRole("option", { name: clubName, exact: true }).click();
+  await page.getByTestId("create-save-options").click();
   await page.getByTestId("seed").fill(seed);
 }
 
