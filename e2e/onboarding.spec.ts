@@ -1,0 +1,167 @@
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { deleteUsers, userIdOf } from "./db";
+import { E2E_SEED, expectNoSidewaysScroll } from "./helpers";
+
+// The first visit of a new player, without a cookie: a club card, the first actions that tick themselves, the tips, the
+// first match, its result. In French on a computer, in English on a phone, never wider than the screen. Each test
+// deletes the user it made, and their saves with them.
+
+const JOURNEYS = [
+  {
+    name: "in French, on a computer",
+    locale: "fr-FR",
+    viewport: { width: 1280, height: 800 },
+    clubs: { favourite: "Paris Saint-Germain FC", "mid-table": "Toulouse FC", comeback: "Grenoble Foot 38" },
+    careerName: "Carrière Toulouse FC",
+  },
+  {
+    name: "in English, on a phone",
+    locale: "en-GB",
+    viewport: { width: 390, height: 844 },
+    clubs: { favourite: "Liverpool FC", "mid-table": "Fulham FC", comeback: "Sheffield Wednesday FC" },
+    careerName: "Fulham FC career",
+  },
+];
+
+const firstAction = (page: Page, id: "squad" | "lineup" | "match") => page.getByTestId(`first-action-${id}`);
+
+/** Once a screen has ticked its action: its cookie is written, and the refresh that follows it is over. */
+async function waitForSeen(page: Page, context: BrowserContext, item: string): Promise<void> {
+  await expect.poll(async () => (await context.cookies()).some((cookie) => cookie.name === `lw_seen_${item}`)).toBe(true);
+  await page.waitForLoadState("networkidle");
+}
+
+for (const journey of JOURNEYS) {
+  test.describe(`a new player, ${journey.name}`, () => {
+    test.use({ locale: journey.locale, viewport: journey.viewport });
+
+    test("goes from a club card to a first result, guided and never blocked", async ({ page, context }) => {
+      // A world of 198 clubs created, then a match played live.
+      test.setTimeout(300_000);
+      try {
+        await page.goto("/");
+        await expectNoSidewaysScroll(page, "home page");
+
+        // Three clubs of their country. A card fills the list, and the name of the career follows the club.
+        for (const [kind, club] of Object.entries(journey.clubs)) {
+          await expect(page.getByTestId(`club-suggestion-${kind}`)).toContainText(club);
+        }
+        await expect(page.getByTestId("seed")).toBeHidden();
+        await page.getByTestId("club-suggestion-mid-table").click();
+        await expect(page.getByTestId("club")).toContainText(journey.clubs["mid-table"]);
+        await expect(page.getByTestId("save-name")).toHaveValue(journey.careerName);
+        await page.getByTestId("manager-name").fill("Test E2E");
+        await page.getByTestId("create-save-options").click();
+        await page.getByTestId("seed").fill(E2E_SEED);
+        await page.getByTestId("create-save").click();
+        await expect(page).toHaveURL(/\/saves\/[^/]+$/);
+
+        // The new dashboard: the three actions to do, one tip, and no rank yet.
+        await expect(page.getByTestId("first-actions")).toBeVisible();
+        for (const id of ["squad", "lineup", "match"] as const) {
+          await expect(firstAction(page, id)).toHaveAttribute("data-done", "false");
+        }
+        await expect(page.getByTestId("tip-money")).toBeVisible();
+        await expect(page.getByTestId("tip-simulation")).toHaveCount(0);
+        await expect(page.getByTestId("dashboard-position")).not.toContainText(/\d/);
+        await expectNoSidewaysScroll(page, "new dashboard");
+
+        // The squad ticks itself; its tip, closed, stays closed.
+        await firstAction(page, "squad").getByRole("link").click();
+        await expect(page.getByTestId("squad-title")).toBeVisible();
+        await expect(page.getByTestId("tip-rating")).toBeVisible();
+        await expectNoSidewaysScroll(page, "squad and its tip");
+        await waitForSeen(page, context, "squad");
+        await page.getByTestId("tip-rating-close").click();
+        await expect(page.getByTestId("tip-rating")).toHaveCount(0);
+        await waitForSeen(page, context, "rating");
+        await page.reload();
+        await expect(page.getByTestId("squad-title")).toBeVisible();
+        await expect(page.getByTestId("tip-rating")).toHaveCount(0);
+
+        await page.getByTestId("nav-dashboard").click();
+        await expect(firstAction(page, "squad")).toHaveAttribute("data-done", "true");
+        await expect(firstAction(page, "lineup")).toHaveAttribute("data-done", "false");
+
+        // The line-up ticks itself without saving anything, and the browser's Back shows it.
+        await firstAction(page, "lineup").getByRole("link").click();
+        await expect(page.getByTestId("lineup-title")).toBeVisible();
+        await expect(page.getByTestId("tip-secondary")).toBeVisible();
+        await expectNoSidewaysScroll(page, "line-up and its tip");
+        await waitForSeen(page, context, "lineup");
+        await page.goBack();
+        await expect(firstAction(page, "lineup")).toHaveAttribute("data-done", "true");
+        await expect(firstAction(page, "squad")).toHaveAttribute("data-done", "true");
+
+        // The first match: the break's real buttons in view at once, and no button that leads nowhere.
+        await page.getByTestId("next-match").click();
+        await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/, { timeout: 120_000 });
+        await expect(page.getByTestId("live-skip")).toBeVisible();
+        await expect(page.getByTestId("resume-match")).toHaveCount(0);
+        await page.getByTestId("live-skip").click();
+        await expect(page.getByTestId("half-time-title")).toBeVisible();
+        await expect(page.getByTestId("resume-match")).toHaveCount(0);
+        await expect(page.getByTestId("half-time-resume-unchanged")).toBeInViewport({ ratio: 1 });
+        await expect(page.getByTestId("half-time-resume")).toBeInViewport({ ratio: 1 });
+        await expectNoSidewaysScroll(page, "half-time");
+
+        // At half-time the other clubs have played, the player's club has not: the list stays, the way back too.
+        await page.getByTestId("nav-dashboard").click();
+        await expect(firstAction(page, "match")).toHaveAttribute("data-done", "false");
+        await page.getByTestId("resume-match").click();
+        await expect(page.getByTestId("half-time-title")).toBeVisible();
+        await page.getByTestId("half-time-resume-unchanged").click();
+        await page.getByTestId("live-skip").click();
+        await page.getByTestId("live-continue").click();
+
+        // The first result takes the list's place, with a rank, and the next tip comes.
+        await expect(page.getByTestId("dashboard-last-result")).toContainText(journey.clubs["mid-table"]);
+        await expect(page.getByTestId("first-actions")).toHaveCount(0);
+        await expect(page.getByTestId("dashboard-position")).toContainText(/\d/);
+        await expect(page.getByTestId("tip-simulation")).toBeVisible();
+        await expect(page.getByTestId("tip-money")).toHaveCount(0);
+        await expectNoSidewaysScroll(page, "dashboard after the first match");
+      } finally {
+        await deleteUsers([await userIdOf(context)]);
+      }
+    });
+  });
+}
+
+test("remembers what a player has seen career by career", async ({ page, context }) => {
+  // Two worlds of 198 clubs created.
+  test.setTimeout(300_000);
+  try {
+    await page.goto("/");
+    await page.getByTestId("club-suggestion-comeback").click();
+    await page.getByTestId("manager-name").fill("Test E2E");
+    await page.getByTestId("create-save").click();
+    await expect(page).toHaveURL(/\/saves\/[^/]+$/);
+    const career = page.url();
+
+    await firstAction(page, "squad").getByRole("link").click();
+    await expect(page.getByTestId("tip-rating")).toBeVisible();
+    await waitForSeen(page, context, "squad");
+    await page.getByTestId("tip-rating-close").click();
+    await waitForSeen(page, context, "rating");
+
+    // The same player's challenge career starts from nothing.
+    await page.goto("/challenge");
+    await page.getByTestId("challenge-play").click();
+    await expect(page).toHaveURL(/\/saves\/[^/]+$/);
+    expect(page.url()).not.toBe(career);
+    await expect(firstAction(page, "squad")).toHaveAttribute("data-done", "false");
+    await page.getByTestId("nav-squad").click();
+    await expect(page.getByTestId("tip-rating")).toBeVisible();
+
+    // The first one has kept everything.
+    await page.goto(career);
+    await expect(firstAction(page, "squad")).toHaveAttribute("data-done", "true");
+    await page.getByTestId("nav-squad").click();
+    await expect(page.getByTestId("squad-title")).toBeVisible();
+    await expect(page.getByTestId("tip-rating")).toHaveCount(0);
+  } finally {
+    // Even when a step failed: a leftover challenge save would count against the week's cap.
+    await deleteUsers([await userIdOf(context)]);
+  }
+});

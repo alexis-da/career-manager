@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { demoSaveId, DEMO_USER_ID, signedUserCookie, USER_COOKIE } from "./db";
-import { createSave, deleteSave, saveRow } from "./helpers";
+import { createSave, deleteSave, expectNoSidewaysScroll, saveRow } from "./helpers";
 
 // The game on a phone's screen, 390 × 844: at every step, the page is never wider than the window, so nothing scrolls
 // sideways. The career's club has the longest name of the game, the one most likely to push a screen wider.
@@ -8,16 +8,6 @@ const PHONE = { width: 390, height: 844 };
 test.use({ viewport: PHONE });
 
 const WOLVERHAMPTON = "Wolverhampton Wanderers FC";
-
-/** The page as wide as the window, never wider: document.documentElement.scrollWidth ≤ window.innerWidth. */
-async function expectNoSidewaysScroll(page: Page, step: string): Promise<void> {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }));
-  expect(innerWidth, step).toBe(PHONE.width);
-  expect(scrollWidth, step).toBeLessThanOrEqual(innerWidth);
-}
 
 // Name of the save the running test created, until it is deleted.
 let saveName: string | undefined;

@@ -8,6 +8,16 @@ export const E2E_SEED = "e2e";
 
 // The public pages' controls are found by their data-testid, the same in French and in English.
 
+/** The page as wide as the window, never wider: document.documentElement.scrollWidth ≤ window.innerWidth. */
+export async function expectNoSidewaysScroll(page: Page, step: string): Promise<void> {
+  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    innerWidth: window.innerWidth,
+  }));
+  expect(innerWidth, step).toBe(page.viewportSize()?.width);
+  expect(scrollWidth, step).toBeLessThanOrEqual(innerWidth);
+}
+
 /** Fills the home page's creation form: name, manager, club, and a fixed seed. */
 export async function fillCreateSaveForm(page: Page, name: string, clubName: string, seed: string = E2E_SEED): Promise<void> {
   await page.getByTestId("save-name").fill(name);
