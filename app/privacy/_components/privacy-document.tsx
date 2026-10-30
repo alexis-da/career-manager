@@ -5,7 +5,7 @@ import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 
 /** The day this page last changed, the same in both versions: to update with their content. */
-const UPDATED_ON = new Date(Date.UTC(2026, 9, 29));
+const UPDATED_ON = new Date(Date.UTC(2026, 9, 30));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -64,9 +64,10 @@ function FrenchPrivacy() {
               joueurs reviennent.
             </li>
             <li>
-              Trois cookies de confort : la langue que tu choisis, lw_lang (un an), la fermeture du bandeau qui invite à
-              créer un compte (sept jours) et, si l&apos;accès au site est protégé par un mot de passe, la session
-              correspondante.
+              Des cookies de confort : la langue que tu choisis, lw_lang (un an), la fermeture du bandeau qui invite à
+              créer un compte (sept jours), ce que tu as déjà vu des premiers pas d&apos;une partie, lw_seen_… (trente
+              jours, envoyés pour cette partie seulement) et, si l&apos;accès au site est protégé par un mot de passe, la
+              session correspondante.
             </li>
           </ul>
           <p>Aucun cookie tiers, aucune publicité, aucun suivi entre sites, aucune revente de données.</p>
@@ -120,8 +121,9 @@ function FrenchPrivacy() {
               you visited, to measure how many players come back. If you play the weekly challenge, your score; signed in
               with Google, your first name (the first word of your Google account&apos;s name) is shown with it in the
               challenge&apos;s public ranking, to everyone. Comfort cookies keep the language you choose (lw_lang, one
-              year) and the closing of the banner inviting you to sign in (seven days). No third-party cookie, no
-              advertising, no cross-site tracking, no sale of data.
+              year), the closing of the banner inviting you to sign in (seven days) and what you have seen of a
+              career&apos;s first steps (lw_seen_…, thirty days). No third-party cookie, no advertising, no cross-site
+              tracking, no sale of data.
             </p>
             <p>
               Purposes: running the game and finding your saves again; showing the weekly challenge&apos;s ranking; internal
@@ -185,8 +187,9 @@ function EnglishPrivacy() {
               players come back.
             </li>
             <li>
-              Three comfort cookies: the language you choose, lw_lang (one year), the closing of the banner inviting you to
-              create an account (seven days) and, if access to the site is protected by a password, the matching session.
+              Comfort cookies: the language you choose, lw_lang (one year), the closing of the banner inviting you to create
+              an account (seven days), what you have already seen of a career&apos;s first steps, lw_seen_… (thirty days,
+              sent for that career only) and, if access to the site is protected by a password, the matching session.
             </li>
           </ul>
           <p>No third-party cookies, no advertising, no cross-site tracking, no sale of data.</p>
