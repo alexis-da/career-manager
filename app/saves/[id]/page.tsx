@@ -132,9 +132,10 @@ function TeamBlock({ team, align }: { team: ClubPreview; align: "left" | "right"
   const locale = useLocale();
   return (
     <div className={cn("min-w-0 space-y-2", align === "right" ? "text-right" : "text-left")}>
-      {/* Smaller on a phone, where two names share 120 to 135 px each; a word too long for that still wraps, hyphenated
-          on a phone only: on a wider screen a long name just goes to the next line. */}
-      <p className="font-heading text-3xl leading-[0.95] font-bold text-balance wrap-break-word max-sm:text-xl max-sm:hyphens-auto max-[380px]:text-lg xl:text-4xl">
+      {/* Smaller on a phone, where two names share 120 to 135 px each: the longest word holds on one line from 360 px.
+          Two ranges that do not overlap: a width in px and one in rem do not sort reliably. A word too long still wraps,
+          hyphenated on a phone only: on a wider screen a long name just goes to the next line. */}
+      <p className="font-heading text-3xl leading-[0.95] font-bold text-balance wrap-break-word max-[380px]:text-lg min-[380px]:max-sm:text-xl max-sm:hyphens-auto xl:text-4xl">
         {team.name}
       </p>
       <div className={cn("flex gap-1", align === "right" && "justify-end")}>
@@ -217,7 +218,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             </p>
           ) : (
             <>
-              <div className="grid flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 py-6 min-[380px]:gap-4 sm:gap-8">
+              <div className="grid flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 py-6 min-[400px]:gap-4 sm:gap-8">
                 <TeamBlock team={nextMatch.home} align="right" />
                 <div className="text-center">
                   <p className="font-heading text-5xl font-bold text-muted-foreground/50 max-sm:text-3xl">VS</p>

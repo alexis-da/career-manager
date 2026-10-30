@@ -152,7 +152,7 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
           <p
             data-testid="live-score"
             className={cn(
-              "rounded-md px-5 py-1 font-heading text-5xl leading-tight font-bold tabular-nums max-sm:px-2 max-sm:text-4xl sm:text-6xl",
+              "rounded-md px-5 py-1 font-heading text-5xl leading-tight font-bold tabular-nums max-sm:px-1 max-sm:text-4xl sm:text-6xl",
               finished && pause === null && RESULT_CLASSES[result],
             )}
           >
@@ -318,7 +318,9 @@ function TeamName({ team, align }: { team: TeamView; align: "left" | "right" }) 
   return (
     <p
       className={cn(
-        "flex min-w-0 items-center gap-2 font-heading text-xl leading-tight font-bold max-sm:gap-1.5 max-sm:text-base sm:text-2xl",
+        // On a phone, the longest word holds on one line from 360 px. Two ranges that do not overlap: a width in px and
+        // one in rem do not sort reliably.
+        "flex min-w-0 items-center gap-2 font-heading text-xl leading-tight font-bold max-sm:gap-1.5 max-[390px]:text-sm min-[390px]:max-sm:text-base sm:text-2xl",
         align === "right" && "flex-row-reverse text-right",
       )}
     >
