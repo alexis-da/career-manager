@@ -8,6 +8,7 @@ import enFixtures from "./en/fixtures.json";
 import enHeader from "./en/header.json";
 import enLineup from "./en/lineup.json";
 import enLive from "./en/live.json";
+import enOnboarding from "./en/onboarding.json";
 import enPublic from "./en/public.json";
 import enSquad from "./en/squad.json";
 import enStandings from "./en/standings.json";
@@ -22,6 +23,7 @@ import frFixtures from "./fr/fixtures.json";
 import frHeader from "./fr/header.json";
 import frLineup from "./fr/lineup.json";
 import frLive from "./fr/live.json";
+import frOnboarding from "./fr/onboarding.json";
 import frPublic from "./fr/public.json";
 import frSquad from "./fr/squad.json";
 import frStandings from "./fr/standings.json";
@@ -41,6 +43,7 @@ export const ZONES = {
   catalogs: { fr: frCatalogs, en: enCatalogs },
   header: { fr: frHeader, en: enHeader },
   dashboard: { fr: frDashboard, en: enDashboard },
+  onboarding: { fr: frOnboarding, en: enOnboarding },
   "challenge-banner": { fr: frChallengeBanner, en: enChallengeBanner },
   squad: { fr: frSquad, en: enSquad },
   lineup: { fr: frLineup, en: enLineup },
@@ -58,6 +61,7 @@ const fr = {
   ...frCatalogs,
   ...frHeader,
   ...frDashboard,
+  ...frOnboarding,
   ...frChallengeBanner,
   ...frSquad,
   ...frLineup,
@@ -80,6 +84,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enCatalogs,
     ...enHeader,
     ...enDashboard,
+    ...enOnboarding,
     ...enChallengeBanner,
     ...enSquad,
     ...enLineup,

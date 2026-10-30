@@ -1,5 +1,6 @@
 import { displayClubName } from "../engine/club-name";
 import { seasonEndDate, transferWindowAt } from "../engine/world";
+import { worldVersionOf, type WorldVersion } from "../engine/world-version";
 import { ageInYears } from "../lib/dates";
 import { FIXTURE_SELECT, toFixtureView, type FixtureView } from "./calendar";
 import { prisma } from "./client";
@@ -29,6 +30,7 @@ export type Scorer = {
 
 export type Dashboard = {
   currentDate: Date;
+  worldVersion: WorldVersion;
   startYear: number | null;
   competitionCode: string | null; // named by the screens
   windowOpen: boolean;
@@ -96,7 +98,7 @@ async function clubPreview(
 
 /** Everything the dashboard of a save shows, for its managed club. */
 export async function getDashboard(saveId: string): Promise<Dashboard> {
-  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true, worldVersion: true } });
   const club = await prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
     select: {
@@ -183,6 +185,7 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
 
   return {
     currentDate: save.currentDate,
+    worldVersion: worldVersionOf(save.worldVersion),
     startYear: season?.startYear ?? null,
     competitionCode: club.competition.code,
     windowOpen: transferWindowAt(save.currentDate) !== null,

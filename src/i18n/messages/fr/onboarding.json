@@ -1,0 +1,18 @@
+{
+  "firstSteps": {
+    "title": "Tes trois premières actions",
+    "done": "fait",
+    "squad": {
+      "title": "Voir l'effectif",
+      "hint": "Découvre tes joueurs, leur note et leur salaire."
+    },
+    "lineup": {
+      "title": "Choisir ta composition",
+      "hint": "Ton onze est déjà aligné : change-le ou garde-le."
+    },
+    "match": {
+      "title": "Jouer le premier match",
+      "hint": "Clique sur « {button} » : il se joue en direct."
+    }
+  }
+}

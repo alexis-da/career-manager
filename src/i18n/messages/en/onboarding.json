@@ -1,0 +1,18 @@
+{
+  "firstSteps": {
+    "title": "Your first three moves",
+    "done": "done",
+    "squad": {
+      "title": "See your squad",
+      "hint": "Meet your players, their ratings and their wages."
+    },
+    "lineup": {
+      "title": "Pick your lineup",
+      "hint": "Your eleven is already set: change it or keep it."
+    },
+    "match": {
+      "title": "Play your first match",
+      "hint": "Hit “{button}”: it plays live."
+    }
+  }
+}

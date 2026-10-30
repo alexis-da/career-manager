@@ -17,10 +17,12 @@ import { formatDayMonth, formatDecimal, formatMillionsAmount, formatShortDate, m
 import { cn } from "@/src/lib/utils";
 import { AccountBanner } from "./_components/account-banner";
 import { ChallengeBanner } from "./_components/challenge-banner";
+import { FirstActions, getFirstSteps } from "./_components/first-steps";
 import { OpponentSheet } from "./_components/opponent-sheet";
 import { Panel, PanelTitle } from "./_components/panel";
 import { ResultPill } from "./_components/result-pill";
 import { ScoreNotes } from "./_components/score-notes";
+import { showsFirstActions } from "./_lib/first-steps";
 import { positionTextClass } from "./_lib/positions";
 import { RESULT_CLASSES } from "./_lib/results";
 import { matchResultFor, stageLabel } from "./_lib/stage";
@@ -170,20 +172,24 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   const tWorld = await getTranslations("world");
   const tPositions = await getTranslations("positions");
   const tStage = await getTranslations("stage");
+  const tFirstSteps = await getTranslations("firstSteps");
+  const tGame = await getTranslations("gameActions");
   const locale = await getLocale();
-  const [dashboard, lineup, opponent, user, challenge] = await Promise.all([
+  const [dashboard, lineup, opponent, user, challenge, firstSteps] = await Promise.all([
     getDashboard(id),
     getManagedLineup(id),
     getOpponentPreview(id),
     getCurrentUser(),
     // Not simulation code: whether the challenge is over is real time.
     getChallengeBanner(id, new Date()),
+    getFirstSteps(id),
   ]);
   // Only an anonymous player's save is at risk: it lives in this browser's cookie.
   const askToSignIn = user?.kind === "ANONYMOUS" && (await hasPlayedMatch(id));
   const { club, nextMatch, lastResult, position } = dashboard;
   const base = `/saves/${id}`;
   const alerts = alertsOf(dashboard, lineup, `${base}/squad`, `${base}/lineup`, t);
+  const firstActions = showsFirstActions(firstSteps);
 
   const windowClose = transferWindowCloseDate(dashboard.currentDate);
   const payrollShare = club.wageBudget === 0 ? 0 : Math.min(1, club.payroll / club.wageBudget);
@@ -267,10 +273,16 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
 
         <Panel className="flex flex-col lg:col-span-5" data-testid="dashboard-last-result">
           <PanelTitle>
-            {t("lastResult")}
+            {firstActions ? tFirstSteps("title") : t("lastResult")}
             {lastResult !== null && ` · ${stageLabel(lastResult.fixture, tStage)}`}
           </PanelTitle>
-          {lastResult === null ? (
+          {firstActions ? (
+            <FirstActions
+              saveId={id}
+              seen={firstSteps.seen}
+              button={tGame(dashboard.worldVersion === 2 ? "nextMatch" : "playMatchday")}
+            />
+          ) : lastResult === null ? (
             <p className="py-10 text-center text-muted-foreground">{t("noMatchPlayed")}</p>
           ) : (
             <>

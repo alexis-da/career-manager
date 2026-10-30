@@ -4,6 +4,9 @@ import { requireOwnedSave } from "@/src/auth/current-user";
 import { getSquadView } from "@/src/db/squad";
 import { formatMillions } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { getFirstSteps } from "../_components/first-steps";
+import { MarkSeen } from "../_components/mark-seen";
+import { showsFirstActions } from "../_lib/first-steps";
 import { SquadTable } from "./_components/squad-table";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +23,7 @@ export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
   const [t, locale] = await Promise.all([getTranslations("squad"), getLocale()]);
-  const squad = await getSquadView(id);
+  const [squad, firstSteps] = await Promise.all([getSquadView(id), getFirstSteps(id)]);
   const players = squad.players.length;
   const goalkeepers = squad.players.filter((player) => player.position === "GK").length;
   const payrollShare = squad.club.wageBudget === 0 ? 0 : squad.club.payroll / squad.club.wageBudget;
@@ -51,14 +54,17 @@ export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad
   );
 
   return (
-    <SquadTable
-      saveId={id}
-      header={header}
-      players={squad.players}
-      currentDate={squad.currentDate}
-      startYear={squad.startYear}
-      windowOpen={squad.windowOpen}
-      nextWindowOpensOn={squad.nextWindowOpensOn}
-    />
+    <>
+      {showsFirstActions(firstSteps) && !firstSteps.seen.has("squad") && <MarkSeen saveId={id} item="squad" />}
+      <SquadTable
+        saveId={id}
+        header={header}
+        players={squad.players}
+        currentDate={squad.currentDate}
+        startYear={squad.startYear}
+        windowOpen={squad.windowOpen}
+        nextWindowOpensOn={squad.nextWindowOpensOn}
+      />
+    </>
   );
 }
