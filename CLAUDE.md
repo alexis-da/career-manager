@@ -160,7 +160,28 @@ banc de la composition `top-28`). Sur un téléphone (sous 640 px), les actions 
 son nom reste lu ; « Prochain match », « Match en cours — reprendre », « Passer à la saison suivante ») quittent l'en-tête
 pour une barre fixée au pied de l'écran, sous le pouce, et le nom du club y tient entier, sur deux lignes au besoin ;
 l'en-tête y est opaque, sans flou (un flou retiendrait la barre dans l'en-tête), le contenu laisse la place de la barre
-(`pb-24`) et les toasts passent au-dessus.
+(`pb-24`) et les toasts passent au-dessus. Sur la page du direct d'un match en suspens, ni « Match en cours — reprendre »
+(il n'y mènerait nulle part) ni barre : les boutons de reprise restent collés au bas de l'écran, à toutes les largeurs.
+
+**Premiers pas.** Création d'une partie : trois cartes de club au-dessus de la liste, le club passant en tête du
+formulaire (`suggestClubs`, `src/engine/club-suggestions.ts`, pure, sans hasard : le 1er de D1, le début de la moitié
+basse de D1, la fin de la moitié haute de D2, dans le pays de la langue du joueur, `app/page.tsx` ; budget de
+`clubFinances`) ; la dernière se nomme « Remontée », « Défi » étant le défi de la semaine. Le nom de la partie vient du
+club tant que le joueur n'en tape pas un, la graine est repliée sous « Options ». Tableau de bord : tant que le club
+n'a pas joué, aucun rang (« — ») et « Tes trois premières actions » (`FirstActions`,
+`app/saves/[id]/_components/first-steps.tsx`) à la place du panneau vide du dernier résultat. Effectif et Composition se
+cochent à l'ouverture de leur page (`MarkSeen`) : on ne peut pas enregistrer une composition sans la changer. Le match se
+lit dans le jeu (`managedMatchesPlayed`, `src/db/first-steps.ts`) : les matchs du club, jamais `hasPlayedMatch`, déjà vrai
+à la mi-temps avec ceux des autres clubs. Bulles (`showsTip`, `app/saves/[id]/_lib/first-steps.ts`, `FirstStepTip`) : note
+sur l'effectif, poste secondaire sur la composition, argent sur le tableau de bord avant le premier match, simulation
+après lui ; une par écran, dans le flux de la page (elles ne recouvrent aucun bouton), fermables, et finies d'elles-mêmes
+au 5e match du club ; rien n'est bloquant et tout s'applique aussi à une partie de défi. Ce qui est vu n'est pas en base :
+un cookie de confort par élément (`lw_seen_squad`…, 30 jours, `Path=/saves/<id>`, écrit dans le navigateur par
+`rememberSeen`), donc propre à chaque partie, sans lecture avant écriture : une page atteinte par navigation interne ne
+voit pas dans `document.cookie` un cookie de son propre chemin. Après chaque écriture, `router.refresh()` vide le cache
+du routeur, pour le retour du navigateur. Mesure : section « Premiers pas » de `/admin/stats` (`firstStepsByCohort`,
+`src/db/stats.ts`), 14 jours complets par jour de création, hors défi, sur les seules tables du jeu ; à comparer avant et
+après un changement sur moins de 30 jours, la purge retirant les parties anonymes abandonnées.
 
 **Téléphone.** Aucun écran ne défile de côté à 390 ni à 360 px, en français comme en anglais (`e2e/mobile.spec.ts` :
 `scrollWidth ≤ innerWidth` à chaque étape, en 390 × 844). Sous 640 px (`max-sm:`), toute cible fait au moins 44 px :
@@ -238,7 +259,8 @@ sinon le français si `Accept-Language` le préfère à l'anglais, l'anglais sin
   noms, assemblés par `src/i18n/messages/index.ts` (`ZONES`, puis les deux objets) : `public` (accueil, création,
   compte, connexion, défi, 404, sélecteur), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
   a.p./t.a.b., événements, lettres de résultat), `header` (en-tête, onglets, actions de jeu, simulation), `dashboard`,
-  `challenge-banner`, `squad` (effectif, fiche joueur, contrats), `lineup`, `transfers`, `fixtures` (calendrier,
+  `onboarding` (premières actions, bulles), `challenge-banner`, `squad` (effectif, fiche joueur, contrats), `lineup`,
+  `transfers`, `fixtures` (calendrier,
   feuille de match), `standings` (classement, coupe, palmarès, carte), `live` (direct, mi-temps), `actions` (messages
   des Server Actions, refus), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
   `src/i18n/messages.test.ts` exige les mêmes clés et les mêmes arguments ICU dans les deux langues, que tout message
@@ -322,7 +344,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # palmarès (seasons/, et seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
-                      # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran
+                      # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
+                      # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC ; challenge.yml : défi du lundi, 05:00 UTC
 src/
   components/ui/      # composants shadcn/ui (Base UI), générés par la CLI

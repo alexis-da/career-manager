@@ -50,7 +50,10 @@ pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0)
   préfère le navigateur ; tout l'écran, carte de fin de saison et page de confidentialité comprises ;
 - sur téléphone : aucun écran ne défile de côté (390 et 360 px), les actions de jeu dans une barre au pied de l'écran,
   des cibles d'au moins 44 px, des tableaux réduits ou en cartes, le glisser-déposer au doigt par un appui maintenu
-  (`e2e/mobile.spec.ts`).
+  (`e2e/mobile.spec.ts`) ;
+- pour un nouveau joueur : trois clubs suggérés à la création, une liste de trois premières actions qui se coche
+  toute seule, quatre bulles d'aide fermables, rien de bloquant et tout mémorisé par partie
+  (`e2e/onboarding.spec.ts`).
 
 ## Langues
 
@@ -132,6 +135,9 @@ rien de plus (`created: false`).
   la croix la masque sept jours (cookie `lw_banner_closed`).
 - **Purge** (`src/db/purge.ts`) : anonymes non vus depuis 30 jours (avec leurs parties) et anonymes sans partie
   non vus depuis 24 h, par lots de 25. Jamais un compte Google. Seule suppression automatique d'utilisateurs.
+- **Premiers pas** : ce qu'un joueur a vu d'une partie reste dans de petits cookies de confort (`lw_seen_…`,
+  30 jours), sur les chemins de cette partie, jamais en base.
 - **Mesure** : la table `UserDay` note chaque jour où un utilisateur vient ; `/admin/stats`, réservée à
   `ADMIN_EMAIL` (404 sinon), montre utilisateurs, parties, nouveaux utilisateurs et rétention J+1 et J+7 sur
-  14 jours, et la taille de la base.
+  14 jours, les premiers pas des nouvelles parties (composition enregistrée, 1er match joué, 10 matchs joués) et la
+  taille de la base.
