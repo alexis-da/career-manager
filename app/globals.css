@@ -4,12 +4,17 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/*
- * The game is dark only: one neutral, slightly cold palette, read by every shadcn component.
- * The managed club's accent (--club, --club-fg) is set by the save layout, not here.
- */
+/* The game is dark only: one palette, read by every shadcn component. */
 :root,
 .dark {
+  /*
+   * The accent of the game's screens, the same for every club: the main action, what is active, the managed club's
+   * marks. The club itself shows by its initials, never by its colours.
+   */
+  --club: #ff9f1c;
+  --club-fg: #0b1340;
+  --club-hover: #ffb54d;
+
   --background: #0b0d10;
   --foreground: #f2f3f5;
   --card: #14171b;

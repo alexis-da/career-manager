@@ -9,8 +9,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
-        // Primary action inside a save: the managed club's accent, set as --club / --club-fg by the save layout.
-        club: "bg-(--club) text-(--club-fg) hover:bg-(--club)/85",
+        // The main action of a screen, inside a save: the orange of --club, whatever the managed club.
+        club: "bg-(--club) text-(--club-fg) hover:bg-(--club-hover)",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

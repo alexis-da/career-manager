@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Progress } from "@base-ui/react/progress";
 import { ArrowRightIcon, SquareIcon } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/src/components/ui/dialog";
@@ -267,15 +267,7 @@ function Running({ phase, onStop }: { phase: Extract<Phase, { kind: "running" }>
  * one, a modal follows it call after call, then sums it up. Each call plays at most five matchdays; « Arrêter »
  * lets the call in flight finish and stops there.
  */
-export function SimulationProvider({
-  saveId,
-  accent,
-  children,
-}: {
-  saveId: string;
-  accent: CSSProperties; // the club accent, set again on the dialog: portaled out of the layout, it does not inherit it
-  children: ReactNode;
-}) {
+export function SimulationProvider({ saveId, children }: { saveId: string; children: ReactNode }) {
   const t = useTranslations("simulation");
   const tLive = useTranslations("liveMatch");
   const locale = useLocale();
@@ -388,7 +380,6 @@ export function SimulationProvider({
       >
         <DialogContent
           showCloseButton={false}
-          style={accent}
           className="gap-5 p-6 sm:max-w-lg"
           data-simulation="dialog"
           data-testid="simulation-dialog"

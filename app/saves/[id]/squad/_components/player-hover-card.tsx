@@ -9,7 +9,6 @@ import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { AttributeBars } from "../../_components/attribute-bars";
 import { PositionBadges } from "../../_components/position-badge";
-import { clubAccentStyle } from "../../_lib/club-accent";
 import { formBarClass, ratingClasses } from "../../_lib/ratings";
 
 /** Wait before the card opens on a hovered row: long enough not to flash while the mouse crosses the table. */
@@ -96,8 +95,6 @@ export function PlayerHoverCard() {
             side="right"
             align="start"
             sideOffset={12}
-            // Portaled out of the save layout: the club accent of the attribute bars is set again here.
-            style={payload.clubColors === null ? undefined : clubAccentStyle(payload.clubColors.primary)}
             className="w-72 p-3.5"
           >
             <PlayerCardBody player={payload} />
