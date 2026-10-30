@@ -103,8 +103,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         </div>
 
         <p className="text-muted-foreground">{t("intro")}</p>
-        {/* One column the screen's width under lg (minmax(0, 1fr)): never as wide as the table of saves. */}
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_22rem]">
+        {/* One column the screen's width under lg, two from lg: the saves' is minmax(0, 1fr), never as wide as their table. */}
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <section className="space-y-3 rounded-lg border bg-card p-5" data-testid="saves">
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="eyebrow">{t("saves")}</h2>
