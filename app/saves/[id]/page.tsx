@@ -410,7 +410,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                 {alert.action !== undefined && (
                   <Link
                     href={alert.action.href}
-                    className="shrink-0 text-sm text-info hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+                    className="shrink-0 text-sm text-info hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center"
                     data-testid="alert-action"
                   >
                     {alert.action.label}
