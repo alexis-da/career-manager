@@ -324,7 +324,7 @@ function TeamName({ team, align }: { team: TeamView; align: "left" | "right" }) 
     >
       {team.isManaged && <span aria-hidden className="h-7 w-1 shrink-0 rounded-full bg-(--club)" />}
       {/* A word longer than the column wraps rather than run under the club's bar. */}
-      <span className="min-w-0 wrap-break-word hyphens-auto">{team.name}</span>
+      <span className="min-w-0 wrap-break-word max-sm:hyphens-auto">{team.name}</span>
     </p>
   );
 }

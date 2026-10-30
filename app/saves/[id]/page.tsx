@@ -132,8 +132,9 @@ function TeamBlock({ team, align }: { team: ClubPreview; align: "left" | "right"
   const locale = useLocale();
   return (
     <div className={cn("min-w-0 space-y-2", align === "right" ? "text-right" : "text-left")}>
-      {/* Smaller on a phone, where two names share 120 to 135 px each; a word too long for that still wraps. */}
-      <p className="font-heading text-3xl leading-[0.95] font-bold text-balance wrap-break-word hyphens-auto max-sm:text-xl max-[380px]:text-lg xl:text-4xl">
+      {/* Smaller on a phone, where two names share 120 to 135 px each; a word too long for that still wraps, hyphenated
+          on a phone only: on a wider screen a long name just goes to the next line. */}
+      <p className="font-heading text-3xl leading-[0.95] font-bold text-balance wrap-break-word max-sm:text-xl max-sm:hyphens-auto max-[380px]:text-lg xl:text-4xl">
         {team.name}
       </p>
       <div className={cn("flex gap-1", align === "right" && "justify-end")}>
