@@ -47,8 +47,23 @@
     "defaultName": "Carrière {club}",
     "manager": "Manager",
     "managerPlaceholder": "Ton nom",
-    "club": "Club",
-    "clubHint": "Prends un club de Division 2 et amène-le au sommet.",
+    "club": "Choisis ton club",
+    "allClubs": "Ou parmi les {count} clubs du jeu",
+    "suggestions": {
+      "budget": "Budget {amount}",
+      "favourite": {
+        "label": "Favori",
+        "pitch": "Un effectif fort, un gros budget : tu joues le titre."
+      },
+      "mid-table": {
+        "label": "Milieu de tableau",
+        "pitch": "Un club solide, à toi de le faire grimper."
+      },
+      "comeback": {
+        "label": "Remontée",
+        "pitch": "Un club de Division 2, un petit budget : vise la montée."
+      }
+    },
     "clubPlaceholder": "Choisir un club",
     "division": "Division {tier}",
     "options": "Options",

@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useActionState, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/src/components/ui/button";
@@ -16,6 +16,9 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import type { CompetitionClubs } from "@/src/db/clubs";
+import type { ClubSuggestion } from "@/src/engine/club-suggestions";
+import { formatMillionsAmount } from "@/src/lib/format";
+import { cn } from "@/src/lib/utils";
 import { createSaveAction, type CreateSaveFormState } from "../actions";
 import { isNewVersionError } from "../_lib/new-version";
 
@@ -76,7 +79,43 @@ function CreateButton() {
   );
 }
 
-export function CreateSaveForm({ competitions }: { competitions: CreatableCompetition[] }) {
+type SuggestionCardProps = {
+  suggestion: ClubSuggestion;
+  checked: boolean;
+  onChoose: () => void;
+};
+
+/** A club suggested to a new player, a radio button that picks the same club as the list under it. */
+function SuggestionCard({ suggestion, checked, onChoose }: SuggestionCardProps) {
+  const t = useTranslations("createSave.suggestions");
+  const locale = useLocale();
+  return (
+    <label
+      data-testid={`club-suggestion-${suggestion.kind}`}
+      className={cn(
+        "block cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
+        checked && "border-(--brand-orange) bg-(--brand-orange)/10 hover:bg-(--brand-orange)/10",
+      )}
+    >
+      <input type="radio" name="clubSuggestion" className="sr-only" checked={checked} onChange={onChoose} />
+      <span className="flex items-baseline justify-between gap-3">
+        <span className="eyebrow">{t(`${suggestion.kind}.label`)}</span>
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+          {t("budget", { amount: formatMillionsAmount(suggestion.budget, locale) })}
+        </span>
+      </span>
+      <span className="mt-0.5 block font-heading text-lg leading-tight font-bold">{suggestion.name}</span>
+      <span className="block text-xs text-muted-foreground">{t(`${suggestion.kind}.pitch`)}</span>
+    </label>
+  );
+}
+
+type CreateSaveFormProps = {
+  competitions: CreatableCompetition[];
+  suggestions: ClubSuggestion[];
+};
+
+export function CreateSaveForm({ competitions, suggestions }: CreateSaveFormProps) {
   const t = useTranslations("createSave");
   const common = useTranslations("common");
   const world = useTranslations("world");
@@ -104,32 +143,21 @@ export function CreateSaveForm({ competitions }: { competitions: CreatableCompet
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
-      <Field id="save-name" label={t("name")} errors={state.errors.name}>
-        <Input
-          id="save-name"
-          name="name"
-          maxLength={100}
-          value={name}
-          onChange={(event) => setTypedName(event.target.value)}
-          placeholder={t("namePlaceholder")}
-          aria-invalid={state.errors.name !== undefined}
-          data-testid="save-name"
-        />
-      </Field>
+      <fieldset>
+        <legend className="mb-1.5 text-sm font-medium">{t("club")}</legend>
+        <div className="space-y-2">
+          {suggestions.map((suggestion) => (
+            <SuggestionCard
+              key={suggestion.kind}
+              suggestion={suggestion}
+              checked={clubId === suggestion.clubId}
+              onChoose={() => setClubId(suggestion.clubId)}
+            />
+          ))}
+        </div>
+      </fieldset>
 
-      <Field id="manager-name" label={t("manager")} errors={state.errors.managerName}>
-        <Input
-          id="manager-name"
-          name="managerName"
-          maxLength={100}
-          defaultValue={state.values.managerName}
-          placeholder={t("managerPlaceholder")}
-          aria-invalid={state.errors.managerName !== undefined}
-          data-testid="manager-name"
-        />
-      </Field>
-
-      <Field id="club" label={t("club")} hint={t("clubHint")} errors={state.errors.clubId}>
+      <Field id="club" label={t("allClubs", { count: items.length })} errors={state.errors.clubId}>
         <Select
           items={items}
           value={clubId === "" ? null : clubId}
@@ -166,6 +194,31 @@ export function CreateSaveForm({ competitions }: { competitions: CreatableCompet
           </SelectContent>
         </Select>
         <input type="hidden" name="clubId" value={clubId} />
+      </Field>
+
+      <Field id="manager-name" label={t("manager")} errors={state.errors.managerName}>
+        <Input
+          id="manager-name"
+          name="managerName"
+          maxLength={100}
+          defaultValue={state.values.managerName}
+          placeholder={t("managerPlaceholder")}
+          aria-invalid={state.errors.managerName !== undefined}
+          data-testid="manager-name"
+        />
+      </Field>
+
+      <Field id="save-name" label={t("name")} errors={state.errors.name}>
+        <Input
+          id="save-name"
+          name="name"
+          maxLength={100}
+          value={name}
+          onChange={(event) => setTypedName(event.target.value)}
+          placeholder={t("namePlaceholder")}
+          aria-invalid={state.errors.name !== undefined}
+          data-testid="save-name"
+        />
       </Field>
 
       {/* Folded: a new player has no use for a seed. Opened by a refused one, so that its error shows. */}

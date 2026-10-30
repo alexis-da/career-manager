@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
+import type { ComponentProps } from "react";
 import { getCurrentUser } from "@/src/auth/current-user";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Badge } from "@/src/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { listClubsByCompetition } from "@/src/db/clubs";
 import { countOwnedSaves, listSaves } from "@/src/db/saves";
+import { suggestClubs } from "@/src/engine/club-suggestions";
 import { seasonLabel, WORLD_START_DATE, WORLD_START_YEAR } from "@/src/engine/world";
+import type { Country } from "@/src/i18n/countries";
+import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 import { canCreateSave } from "@/src/lib/limits";
 import { cn } from "@/src/lib/utils";
@@ -14,7 +18,7 @@ import { AccountPanel } from "./_components/account-panel";
 import { BrandFooter } from "./_components/brand-footer";
 import { BrandHeader } from "./_components/brand-header";
 import { ChallengeTeaser } from "./_components/challenge-teaser";
-import { CreateSaveForm, type CreatableCompetition } from "./_components/create-save-form";
+import { CreateSaveForm } from "./_components/create-save-form";
 import { DeleteAccountDialog } from "./_components/delete-account-dialog";
 import { DeleteSaveDialog } from "./_components/delete-save-dialog";
 import { SaveLimitNotice } from "./_components/save-limit-notice";
@@ -26,12 +30,19 @@ export const dynamic = "force-dynamic";
 // transaction: up to 60 s, as the purge route.
 export const maxDuration = 60;
 
-/** The competitions a save can be created in, their countries named in the player's language and sorted by name. */
-async function creatableCompetitions(): Promise<CreatableCompetition[]> {
-  const [competitions, t, locale] = await Promise.all([listClubsByCompetition(), getTranslations("world"), getLocale()]);
-  return competitions
+/** The country whose clubs a player is suggested: the one of their language. */
+const SUGGESTED_COUNTRY: Record<Locale, Country> = { fr: "fr", en: "en" };
+
+/**
+ * What the creation form offers: the competitions a save can be created in, their countries named in the player's
+ * language and sorted by name, and the three clubs suggested to a player of that language.
+ */
+async function creationChoices(): Promise<ComponentProps<typeof CreateSaveForm>> {
+  const [listed, t, locale] = await Promise.all([listClubsByCompetition(), getTranslations("world"), getLocale()]);
+  const competitions = listed
     .map((competition) => ({ ...competition, countryName: t(`countries.${competition.country}`) }))
     .sort((a, b) => a.countryName.localeCompare(b.countryName, locale) || a.tier - b.tier);
+  return { competitions, suggestions: suggestClubs(listed.filter(({ country }) => country === SUGGESTED_COUNTRY[locale])) };
 }
 
 /** The season a new save starts, above the creation form. */
@@ -52,7 +63,7 @@ async function NewSaveIntro() {
  * at once (the first save creates the anonymous player), and Google second, for a player coming back on another device.
  */
 async function WelcomePage({ accountDeleted }: { accountDeleted: boolean }) {
-  const [competitions, t] = await Promise.all([creatableCompetitions(), getTranslations("home")]);
+  const [choices, t] = await Promise.all([creationChoices(), getTranslations("home")]);
   return (
     <main className="brand flex-1 bg-background text-foreground">
       <div className="mx-auto w-full max-w-md space-y-8 px-4 py-10">
@@ -64,7 +75,7 @@ async function WelcomePage({ accountDeleted }: { accountDeleted: boolean }) {
         )}
         <section className="space-y-4 rounded-lg border bg-card p-5">
           <NewSaveIntro />
-          <CreateSaveForm competitions={competitions} />
+          <CreateSaveForm {...choices} />
         </section>
         <ChallengeTeaser />
         <section className="space-y-3">
@@ -82,9 +93,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   if (user === null) {
     return <WelcomePage accountDeleted={(await searchParams)[ACCOUNT_DELETED_PARAM] === "1"} />;
   }
-  const [saves, competitions, ownedSaves, t, locale] = await Promise.all([
+  const [saves, choices, ownedSaves, t, locale] = await Promise.all([
     listSaves(user),
-    creatableCompetitions(),
+    creationChoices(),
     countOwnedSaves(user.id),
     getTranslations("home"),
     getLocale(),
@@ -182,7 +193,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
           <div className="space-y-5">
             <section className="space-y-4 rounded-lg border bg-card p-5">
               <NewSaveIntro />
-              {atLimit ? <SaveLimitNotice user={user} /> : <CreateSaveForm competitions={competitions} />}
+              {atLimit ? <SaveLimitNotice user={user} /> : <CreateSaveForm {...choices} />}
             </section>
             <ChallengeTeaser />
           </div>

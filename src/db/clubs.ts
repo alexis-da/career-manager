@@ -7,6 +7,7 @@ import { prisma } from "./client";
 export type ClubOption = {
   id: string;
   name: string;
+  rank: number; // in the source season, within its competition: what the suggestions read
 };
 
 export type CompetitionClubs = {
@@ -24,14 +25,14 @@ export async function listClubsByCompetition(worldVersion: WorldVersion = DEFAUL
   const competitions = await prisma.competition.findMany({
     where: { kind: "LEAGUE", tier: { in: worldTiers(worldVersion) } },
     orderBy: { code: "asc" },
-    select: { code: true, tier: true, clubs: { select: { id: true, slug: true, name: true } } },
+    select: { code: true, tier: true, clubs: { select: { id: true, slug: true, name: true, initialRank: true } } },
   });
   return competitions.map((competition) => ({
     code: competition.code,
     country: competitionCountry(competition.code),
     tier: competitionTier(competition.tier),
     clubs: competition.clubs
-      .map((club) => ({ id: club.id, name: displayClubName(club) }))
+      .map((club) => ({ id: club.id, name: displayClubName(club), rank: club.initialRank }))
       .sort((a, b) => a.name.localeCompare(b.name, "fr")),
   }));
 }

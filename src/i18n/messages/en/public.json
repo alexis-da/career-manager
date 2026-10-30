@@ -47,8 +47,23 @@
     "defaultName": "{club} career",
     "manager": "Manager",
     "managerPlaceholder": "Your name",
-    "club": "Club",
-    "clubHint": "Take a Division 2 club and lead it to the top.",
+    "club": "Choose your club",
+    "allClubs": "Or pick from all {count} clubs",
+    "suggestions": {
+      "budget": "Budget {amount}",
+      "favourite": {
+        "label": "Favourite",
+        "pitch": "A strong squad and a big budget: you're playing for the title."
+      },
+      "mid-table": {
+        "label": "Mid-table",
+        "pitch": "A solid club, yours to take higher."
+      },
+      "comeback": {
+        "label": "Comeback",
+        "pitch": "A Division 2 club on a small budget: go for promotion."
+      }
+    },
     "clubPlaceholder": "Choose a club",
     "division": "Division {tier}",
     "options": "Options",
