@@ -81,7 +81,8 @@ async function clubPreview(
   return {
     clubSaveId: team.clubSaveId,
     name: team.name,
-    rank: row?.rank ?? null,
+    // Before a club's first match, its place in the table is only the alphabet's: no rank yet.
+    rank: row === undefined || row.played === 0 ? null : row.rank,
     points: row?.points ?? 0,
     form: recent.reverse().map(({ homeClubSaveId, homeGoals, awayGoals }) => {
       const atHome = homeClubSaveId === team.clubSaveId;
@@ -221,7 +222,7 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
             .filter((player) => player.contractUntil !== null && player.contractUntil <= lastContractDay)
             .map(shortName),
     position:
-      managedRow === undefined
+      managedRow === undefined || managedRow.played === 0
         ? null
         : {
             rank: managedRow.rank,

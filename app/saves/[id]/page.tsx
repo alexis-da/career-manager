@@ -453,7 +453,8 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             <TableBody>
               {dashboard.table.map((row) => (
                 <TableRow key={row.club} className={cn(TABLE_ROW, row.isManaged && MANAGED_ROW)}>
-                  <TableCell className={cn(TABLE_CELL, "text-muted-foreground max-sm:px-2")}>{row.rank}</TableCell>
+                  {/* Before a club's first match, its place is only the alphabet's. */}
+                  <TableCell className={cn(TABLE_CELL, "text-muted-foreground max-sm:px-2")}>{row.played === 0 ? "—" : row.rank}</TableCell>
                   <TableCell className={cn(TABLE_CELL, "max-sm:px-2 max-sm:py-1.5 max-sm:whitespace-normal")}>{row.clubName}</TableCell>
                   <TableCell className={cn(TABLE_CELL, "text-right max-sm:px-2")}>{row.played}</TableCell>
                   <TableCell className={cn(TABLE_CELL, "text-right max-sm:hidden")}>{row.won}</TableCell>
