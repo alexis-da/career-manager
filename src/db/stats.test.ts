@@ -10,6 +10,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("admin statistics, in th
   let db: typeof prismaClient | undefined;
   let stats: typeof import("./stats") | undefined;
   let userDays: typeof import("./user-days") | undefined;
+  let challengeId = "";
   // Real time, not simulation code: a unique suffix keeps parallel runs apart.
   const run = `${Date.now()}`;
   const id = (name: string) => `test-stats-${name}-${run}`;
@@ -83,14 +84,112 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("admin statistics, in th
     ]);
   });
 
+  describe("first steps of new saves", () => {
+    /** A throwaway save of a day of April 2001: its managed club, an opponent and a third club, `played` matches of the managed one. */
+    const addSave = async (
+      name: string,
+      createdAt: Date,
+      { played = 0, others = 0, lineup = false, challengeId = null }: { played?: number; others?: number; lineup?: boolean; challengeId?: string | null },
+    ) => {
+      const { db } = loaded();
+      const [managed, opponent, third] = await db.club.findMany({ take: 3, orderBy: { slug: "asc" }, select: { id: true, competitionId: true } });
+      const competitionId = managed.competitionId ?? "";
+      const save = await db.save.create({
+        data: {
+          ownerId: users[1].id,
+          name,
+          managerName: "Test",
+          seed: name,
+          worldVersion: 2,
+          currentDate: createdAt,
+          createdAt,
+          challengeId,
+          clubSaves: {
+            create: [
+              { clubId: managed.id, competitionId, isManaged: true, lineup: lineup ? { starters: [], benchOrder: [] } : undefined },
+              { clubId: opponent.id, competitionId },
+              { clubId: third.id, competitionId },
+            ],
+          },
+          seasons: { create: { competitionId, startYear: 2026 } },
+        },
+        select: { id: true, seasons: { select: { id: true } }, clubSaves: { orderBy: { isManaged: "desc" }, select: { id: true, isManaged: true } } },
+      });
+      const [own, against, otherClub] = save.clubSaves;
+      const fixture = (homeClubSaveId: string, awayClubSaveId: string, round: number, played: boolean) => ({
+        saveId: save.id,
+        seasonId: save.seasons[0].id,
+        round,
+        scheduledAt: createdAt,
+        homeClubSaveId,
+        awayClubSaveId,
+        played,
+        status: played ? ("PLAYED" as const) : ("SCHEDULED" as const),
+      });
+      await db.fixture.createMany({
+        data: [
+          ...Array.from({ length: played }, (_, index) => fixture(own.id, against.id, index + 1, true)),
+          // Another club's matches and a match of its own yet to play: neither counts.
+          ...Array.from({ length: others }, (_, index) => fixture(against.id, otherClub.id, index + 1, true)),
+          fixture(own.id, otherClub.id, played + 1, false),
+        ],
+      });
+    };
+
+    beforeAll(async () => {
+      const { db } = loaded();
+      const [club] = await db.club.findMany({ take: 1, orderBy: { slug: "asc" }, select: { id: true } });
+      const challenge = await db.challenge.create({
+        data: {
+          weekKey: `test-${run}`,
+          seed: run,
+          clubId: club.id,
+          horizonMatchdays: 10,
+          startsAt: at("2001-04-02"),
+          endsAt: at("2001-04-09"),
+        },
+        select: { id: true },
+      });
+      challengeId = challenge.id;
+      await addSave("ten", at("2001-04-01"), { played: 10, others: 3, lineup: true });
+      await addSave("nine", at("2001-04-01"), { played: 9 });
+      await addSave("others only", at("2001-04-01"), { others: 4 });
+      await addSave("late at night", new Date("2001-04-01T23:59:00.000Z"), { played: 1 });
+      await addSave("the challenge's", at("2001-04-01"), { played: 12, challengeId });
+      await addSave("two days later", at("2001-04-03"), {});
+    }, 60_000);
+
+    afterAll(async () => {
+      // Before the challenge, which a save restricts.
+      await db?.save.deleteMany({ where: { ownerId: users[1].id } });
+      await db?.challenge.deleteMany({ where: { id: challengeId } });
+    }, 60_000);
+
+    it("counts how far the saves of each day went, only their own club's matches, the challenge's left out", async () => {
+      const { db, stats } = loaded();
+
+      const cohorts = await stats.firstStepsByCohort(db, { first: "2001-04-01", last: "2001-04-03" });
+
+      expect(cohorts).toEqual([
+        { day: "2001-04-01", saves: 4, lineups: 1, firstMatches: 3, tenMatches: 1 },
+        { day: "2001-04-02", saves: 0, lineups: 0, firstMatches: 0, tenMatches: 0 },
+        { day: "2001-04-03", saves: 1, lineups: 0, firstMatches: 0, tenMatches: 0 },
+      ]);
+    });
+  });
+
   it("gives every figure of the page", async () => {
     const { db, stats } = loaded();
 
     // Not simulation code: the page's real time.
-    const result = await stats.getAdminStats(db, new Date());
+    const now = new Date();
+    const result = await stats.getAdminStats(db, now);
 
     expect(result.newUsersPerDay).toHaveLength(stats.STATS_DAYS);
     expect(result.cohorts.at(-1)).toMatchObject({ day1: null, day7: null });
+    // The first steps stop the day before: a save of today still has time to play.
+    expect(result.firstSteps).toHaveLength(stats.STATS_DAYS);
+    expect(result.firstSteps.at(-1)?.day).toBe(new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
     expect(result.usersByKind.anonymous).toBeGreaterThanOrEqual(users.length);
     expect(result.databaseBytes).toBeGreaterThan(0);
     expect(result.largestTables).toHaveLength(5);

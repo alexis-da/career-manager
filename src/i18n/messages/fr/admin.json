@@ -15,6 +15,16 @@
       "day1": "J+1",
       "day7": "J+7"
     },
+    "firstSteps": "Premiers pas des nouvelles parties, {days} derniers jours complets (UTC)",
+    "firstStepsNote": "Par jour de création, hors défi : où en sont ces parties aujourd'hui. Une partie supprimée par son joueur n'y est plus ; une partie de plus de 30 jours pourrait avoir été purgée.",
+    "firstStepsSummary": "Sur ces {days} jours : {saves, plural, =0 {aucune partie} one {# partie} other {# parties}}, 1er match joué : {share}",
+    "firstStepsColumns": {
+      "day": "Jour",
+      "saves": "Parties",
+      "lineups": "Compo.",
+      "firstMatches": "1er match",
+      "tenMatches": "10 matchs"
+    },
     "database": "Base de données : {size}",
     "tableColumns": {
       "table": "Table",

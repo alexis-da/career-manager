@@ -15,6 +15,10 @@ vi.mock("@/src/db/stats", () => ({
     saves: 7,
     newUsersPerDay: [{ day: "2026-10-27", users: 4 }],
     cohorts: [{ day: "2026-10-27", users: 4, day1: 1, day7: null }],
+    firstSteps: [
+      { day: "2026-10-26", saves: 8, lineups: 3, firstMatches: 6, tenMatches: 2 },
+      { day: "2026-10-27", saves: 2, lineups: 0, firstMatches: 1, tenMatches: 0 },
+    ],
     databaseBytes: 3.5 * 1024 * 1024,
     largestTables: [{ table: "PlayerSave", data: 1024 * 1024, indexes: 512 * 1024, toast: 0, total: 1.5 * 1024 * 1024, dead: 0 }],
   }),
@@ -41,6 +45,17 @@ describe("the administrator's statistics", () => {
     }
     expect(markup).toContain("Base de données : 3,5 Mo");
     expect(markup).toContain("1 (25 %)");
+  });
+
+  it("show how far new saves went, and the share of them that played a match over all the days", async () => {
+    const fr = await render("fr");
+    expect(fr).toContain("Premiers pas des nouvelles parties, 14 derniers jours complets (UTC)");
+    expect(fr).toContain("Sur ces 14 jours : 10 parties, 1er match joué : 7 (70 %)");
+    expect(fr).toContain("6 (75 %)");
+
+    const en = await render("en");
+    expect(en).toContain("First steps of new careers, last 14 complete days (UTC)");
+    expect(en).toContain("Over these 14 days: 10 careers, first match played: 7 (70%)");
   });
 
   it("are in English, sizes in MB", async () => {

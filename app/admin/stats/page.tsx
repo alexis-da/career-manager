@@ -18,6 +18,8 @@ export async function generateMetadata(): Promise<Metadata> {
 const MB = 1024 * 1024;
 /** « 2026-10-09 » as « 09/10 », day first in both languages. */
 const shortDay = (day: string): string => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
+/** The first steps' table on a phone: narrower gutters, so that it holds in its frame at 360 px, in both languages. */
+const TIGHT_ON_PHONE = "max-sm:px-1.5";
 
 function Figure({ label, value }: { label: string; value: string | number }) {
   return (
@@ -42,6 +44,8 @@ export default async function AdminStatsPage() {
   const megabytes = (bytes: number): string => t("megabytes", { size: size.format(bytes / MB) });
   const share = (part: number | null, whole: number): string =>
     part === null ? "—" : whole === 0 ? "0" : t("share", { part, percent: Math.round((part / whole) * 100) });
+  const newSaves = stats.firstSteps.reduce((sum, cohort) => sum + cohort.saves, 0);
+  const firstMatches = stats.firstSteps.reduce((sum, cohort) => sum + cohort.firstMatches, 0);
 
   return (
     <main className="brand flex-1 bg-background text-foreground">
@@ -76,6 +80,37 @@ export default async function AdminStatsPage() {
                   <TableCell className={cn(TABLE_CELL, "text-right tabular-nums")}>{cohort.users}</TableCell>
                   <TableCell className={cn(TABLE_CELL, "text-right tabular-nums")}>{share(cohort.day1, cohort.users)}</TableCell>
                   <TableCell className={cn(TABLE_CELL, "text-right tabular-nums")}>{share(cohort.day7, cohort.users)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+
+        <section className="space-y-3 rounded-lg border bg-card p-5">
+          <h2 className="eyebrow">{t("firstSteps", { days: STATS_DAYS })}</h2>
+          <p className="text-xs text-muted-foreground">{t("firstStepsNote")}</p>
+          <p className="font-semibold tabular-nums" data-testid="admin-stats-first-steps-summary">
+            {t("firstStepsSummary", { days: STATS_DAYS, saves: newSaves, share: share(firstMatches, newSaves) })}
+          </p>
+          {/* On a phone, without the lineups: five columns do not hold at 390 px. */}
+          <Table data-testid="admin-stats-first-steps">
+            <TableHeader>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE)}>{t("firstStepsColumns.day")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE, "text-right")}>{t("firstStepsColumns.saves")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right max-sm:hidden")}>{t("firstStepsColumns.lineups")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE, "text-right")}>{t("firstStepsColumns.firstMatches")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE, "text-right")}>{t("firstStepsColumns.tenMatches")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stats.firstSteps.toReversed().map((cohort) => (
+                <TableRow key={cohort.day} data-day={cohort.day} className={TABLE_ROW}>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "tabular-nums")}>{shortDay(cohort.day)}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "text-right tabular-nums")}>{cohort.saves}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right tabular-nums max-sm:hidden")}>{share(cohort.lineups, cohort.saves)}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "text-right tabular-nums")}>{share(cohort.firstMatches, cohort.saves)}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "text-right tabular-nums")}>{share(cohort.tenMatches, cohort.saves)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

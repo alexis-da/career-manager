@@ -15,6 +15,16 @@
       "day1": "D+1",
       "day7": "D+7"
     },
+    "firstSteps": "First steps of new careers, last {days} complete days (UTC)",
+    "firstStepsNote": "By day of creation, weekly challenge left out: how far these careers have gone today. A career its player deleted is no longer counted; one over 30 days old may have been purged.",
+    "firstStepsSummary": "Over these {days} days: {saves, plural, =0 {no career} one {# career} other {# careers}}, first match played: {share}",
+    "firstStepsColumns": {
+      "day": "Day",
+      "saves": "Careers",
+      "lineups": "Lineup",
+      "firstMatches": "1st match",
+      "tenMatches": "10 matches"
+    },
     "database": "Database: {size}",
     "tableColumns": {
       "table": "Table",
