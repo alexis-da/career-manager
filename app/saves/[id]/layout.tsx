@@ -96,8 +96,9 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                   {t(header.windowOpen ? "windowOpen" : "windowClosed")}
                 </p>
               </div>
-              {/* On a phone, the game's actions leave this row for a bar fixed to the foot of the screen, under the thumb. */}
-              <div className="contents max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-40 max-sm:flex max-sm:border-t max-sm:bg-background max-sm:px-4 max-sm:py-2 max-sm:*:flex-1">
+              {/* On a phone, the game's actions leave this row for a bar fixed to the foot of the screen, under the thumb;
+                  no bar at all when there is no action, on the live page of a paused match. */}
+              <div className="contents max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-40 max-sm:flex max-sm:border-t max-sm:bg-background max-sm:px-4 max-sm:py-2 max-sm:*:flex-1 max-sm:empty:hidden">
                 <GameActions
                   saveId={header.id}
                   seasonFinished={header.seasonFinished}

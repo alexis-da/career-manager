@@ -2,7 +2,7 @@
 
 import { CalendarDaysIcon, ChevronDownIcon, FastForwardIcon, LoaderCircleIcon, PlayIcon } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -72,6 +72,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
   const [intermediate, setIntermediate] = useState(0); // dates played so far by « Prochain match »
   const [kickOff, setKickOff] = useState(false); // « Prochain match » is playing the managed club's date
   const router = useRouter();
+  const pathname = usePathname();
   const t = useTranslations("gameActions");
   const common = useTranslations("common");
 
@@ -128,6 +129,10 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
   const className = "h-9 px-4 font-heading text-base font-semibold max-sm:flex-1";
 
   if (liveMatch) {
+    // On the live page it would lead nowhere: the way on is that page's own buttons, stuck to the foot of the screen.
+    if (pathname === `/saves/${saveId}/live`) {
+      return null;
+    }
     return (
       <Link href={`/saves/${saveId}/live`} className={buttonVariants({ variant: "club", className })} data-testid="resume-match">
         <PlayIcon data-icon="inline-start" className="fill-current" />
