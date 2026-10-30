@@ -164,6 +164,11 @@
 }
 
 @layer components {
+  /* Titles and figures are in capitals; normal-case, a utility, wins where words must stay as they are written. */
+  .font-heading {
+    text-transform: uppercase;
+  }
+
   /* Small uppercase label above a card or a table column. */
   .eyebrow {
     @apply text-[0.6875rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase;

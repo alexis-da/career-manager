@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed } from "next/font/google";
+import { Barlow } from "next/font/google";
+import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { Toaster } from "@/src/components/ui/sonner";
 import "./globals.css";
 
-// Barlow for text; Barlow Condensed for titles, scores and large figures (Tailwind's font-heading).
+// Barlow for text; Barlow Condensed for titles, scores and large figures (Tailwind's font-heading): one face, the file the
+// share images draw with, so whatever weight or style a class asks for gets its 800 italic.
 const barlow = Barlow({
   variable: "--font-barlow",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const barlowCondensed = Barlow_Condensed({
+const barlowCondensed = localFont({
   variable: "--font-barlow-condensed",
-  subsets: ["latin"],
-  weight: ["600", "700"],
+  src: "../src/assets/fonts/BarlowCondensed-ExtraBoldItalic.ttf",
+  weight: "800",
+  style: "italic",
 });
 
 // What the outside world sees of the game: no club name, no third-party brand (CLAUDE.md, « Marque et règles produit »).
