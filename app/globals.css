@@ -15,38 +15,42 @@
   --club-fg: #0b1340;
   --club-hover: #ffb54d;
 
-  --background: #0b0d10;
-  --foreground: #f2f3f5;
-  --card: #14171b;
-  --card-foreground: #f2f3f5;
-  --popover: #14171b;
-  --popover-foreground: #f2f3f5;
-  --primary: #f2f3f5;
-  --primary-foreground: #0b0d10;
-  --secondary: #1b1f24;
-  --secondary-foreground: #f2f3f5;
-  --muted: #1b1f24;
-  --muted-foreground: #9aa3ad;
-  --accent: #1b1f24;
-  --accent-foreground: #f2f3f5;
+  --background: #0b1340;
+  --foreground: #ffffff;
+  --card: #16205a;
+  --card-foreground: #ffffff;
+  --popover: #16205a;
+  --popover-foreground: #ffffff;
+  --primary: #1f3bff;
+  --primary-foreground: #ffffff;
+  --secondary: #2a3678;
+  --secondary-foreground: #ffffff;
+  --muted: #2a3678;
+  --muted-foreground: #b9c1e6;
+  --accent: #2a3678;
+  --accent-foreground: #ffffff;
   --destructive: #f87171;
-  --border: #23272e;
-  --input: #23272e;
-  --ring: #9aa3ad;
-  --chart-1: #f2f3f5;
-  --chart-2: #9aa3ad;
-  --chart-3: #6b7480;
-  --chart-4: #4a515b;
-  --chart-5: #23272e;
+  --border: #2a3678;
+  --input: #2a3678;
+  --ring: #8fa0ff;
+  --chart-1: #ffffff;
+  --chart-2: #b9c1e6;
+  --chart-3: #8fa0ff;
+  --chart-4: #1f3bff;
+  --chart-5: #2a3678;
   --radius: 0.5rem;
-  --sidebar: #14171b;
-  --sidebar-foreground: #f2f3f5;
-  --sidebar-primary: #f2f3f5;
-  --sidebar-primary-foreground: #0b0d10;
-  --sidebar-accent: #1b1f24;
-  --sidebar-accent-foreground: #f2f3f5;
-  --sidebar-border: #23272e;
-  --sidebar-ring: #9aa3ad;
+  --sidebar: #0e1850;
+  --sidebar-foreground: #dce2ff;
+  --sidebar-primary: #ff9f1c;
+  --sidebar-primary-foreground: #0b1340;
+  --sidebar-accent: #16205a;
+  --sidebar-accent-foreground: #ff9f1c;
+  --sidebar-border: #1c2766;
+  --sidebar-ring: #8fa0ff;
+
+  /* Text on the bright blue, and the second accent. */
+  --on-blue: #dce2ff;
+  --highlight: #8fa0ff;
 
   /* Fixed meanings, whatever the managed club. */
   --win: #4ade80;
@@ -64,7 +68,7 @@
 
 /*
  * Late Winner's colours, for the pages outside a save (sign-in, list and creation of saves): midnight blue,
- * bright blue for actions, orange as the touch of light. Inside a save, the neutral palette and the club's accent.
+ * bright blue for actions, orange as the touch of light. The screens of a save have the palette above.
  */
 .brand {
   --brand-blue: #1f3bff;
@@ -124,6 +128,8 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-on-blue: var(--on-blue);
+  --color-highlight: var(--highlight);
   --color-win: var(--win);
   --color-draw: var(--draw);
   --color-loss: var(--loss);

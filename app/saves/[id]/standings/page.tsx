@@ -51,7 +51,7 @@ function zoneOf(table: CompetitionTable, rank: number, divided: boolean): Zone {
  * managed club's keep its tint.
  */
 const PHONE_STICKY = "max-sm:sticky max-sm:z-10 max-sm:bg-card";
-const PHONE_STICKY_MANAGED = "max-sm:bg-[color-mix(in_oklab,var(--card),var(--club)_18%)]";
+const PHONE_STICKY_MANAGED = "max-sm:bg-secondary";
 
 function StandingsTable({ table, divided }: { table: CompetitionTable; divided: boolean }) {
   const t = useTranslations("standings");

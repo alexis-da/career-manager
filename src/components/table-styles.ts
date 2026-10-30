@@ -5,5 +5,5 @@ export const TABLE_ROW = "h-10 border-border hover:bg-muted/40";
 
 export const TABLE_CELL = "px-3 py-0";
 
-/** The managed club's row in a league table: the club accent at 18 %. */
-export const MANAGED_ROW = "bg-(--club)/18 font-semibold hover:bg-(--club)/18";
+/** The managed club's row in a table: the palette's highlighted line. */
+export const MANAGED_ROW = "bg-secondary font-semibold hover:bg-secondary";
