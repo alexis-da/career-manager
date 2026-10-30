@@ -83,6 +83,35 @@ Référence : maquettes validées le 30/10/2026 (artefact « Late Winner — Pis
 ### Choix du club (création de partie)
 - Titre « Choisis ton défi », champ nom du manager, 3 clubs proposés par niveau (Facile · favori / Équilibré · conseillé / Défi · Division 2), recherche parmi tous les clubs, bouton **Lancer ma carrière**.
 
+## Décisions après l'audit du 30/10
+
+Ces décisions complètent le cahier et, en cas de conflit, priment sur ce qui précède.
+
+### Général
+- Base : `refonte-piste-a` part d'`i18n` avec l'onboarding (fait, 949c661).
+- Jetons : valeurs du tableau, écrites dans les variables sémantiques existantes ; `.brand` reste pour les pages publiques jusqu'à l'étape 8. Sombre uniquement. Cartes PNG inchangées.
+- Couleurs de résultat et d'alerte (`--win`, `--draw`, `--loss`, `--warning`, `--info`) : gardées.
+- Teinte du club : abandonnée, `--club` devient l'orange. Le club est représenté par ses **initiales seules** (pas d'écusson, règle de CLAUDE.md).
+- Polices : `next/font/local` avec la Barlow Condensed 800 italique du dépôt, Barlow 400 à 700.
+- Libellés EN : **Home · Squad · Match · Market · Club**. « Accueil » garde `nav-dashboard` et la page garde le titre « Tableau de bord ».
+- Barres : barre du bas sous 1024 px ; barre latérale de 256 px au-dessus. Sous `xl`, la fiche latérale de 400 px passe en surimpression. Un seul `<nav>`, libellé « Navigation de la partie » conservé.
+- En-tête : supprimé sur ordinateur (date et statut en haut de `main`, langue et trophée en pied de barre latérale jusqu'à l'étape 7) ; sur téléphone, une ligne compacte garde `header-club` et `header-competition`.
+- Actions de jeu : ordinateur dans la carte « Prochain match » de la barre latérale (avec Simuler) ; téléphone au-dessus de la barre du bas jusqu'à l'étape 3, puis dans le héros de l'Accueil et en tête de Match.
+- `/live` sur téléphone : barre du bas gardée jusqu'à l'étape 5 (seule sortie à la mi-temps), boutons collés au-dessus.
+- Une seule action orange pleine par écran, y compris sur ordinateur : sur l'Accueil, « Jouer » est orange, « Préparer » et « Simuler » sont secondaires.
+
+### Marché (étape 2)
+- Prix suggéré = prix et salaire minimaux déjà préremplis par les dialogues, 3 saisons. `evaluateOffer` ne change pas.
+- Refus pour réputation calculé avant le clic (lecture seule, ajouté à `getMarketOverview`) : les propositions (Mes besoins, Pépites, Bonnes affaires, Stars) n'affichent que des joueurs qui accepteraient ; l'écran avancé affiche la raison du refus **avant** l'envoi et désactive le bouton.
+- Recruter ouvre une confirmation courte (prix, salaire, durée, budget restant) puis « Signé ! ».
+- **Exception autorisée aux règles économiques** : interdire de revendre un joueur acheté pendant le même mercato (lecture de `Transfer`, sans migration), commit à part avec son test, message FR/EN.
+- Vendre : il n'y a pas d'offres reçues. L'onglet liste tes joueurs hors du onze avec la meilleure offre IA existante (si acheteur) et **Vendre** ; pas de bouton Refuser (rien à enregistrer). Le compteur compte ces offres. Vente toujours possible depuis la fiche.
+
+### Autres étapes
+- Classement (étape 4) : on suit le cahier — ta ligne en `#2A3678`, pastille bleue en haut, orange pour la relégation.
+- Direct (étape 5) : pas de changement de moteur. Le panneau Coaching ne propose que ce qui existe déjà (changements, schéma ou consignes si le moteur les gère) ; pas d'attitude Attaquer / Équilibré / Fermer si elle n'existe pas.
+- Club (étape 7) : pas d'objectifs du président ni de recettes (aucune donnée). Finances en lecture seule avec ce qui existe (budget, masse et marge salariales). Défi : classement et « Jouer le défi » seulement si la partie de la semaine n'est pas jouée, pas de « Relancer ». En attendant, l'entrée Club mène à `/seasons`.
+
 ## Ordre de réalisation
 
 1. Jetons, polices, composants de base (bouton, carte, pastille, bascule) + navigation (barre du bas et barre latérale).
