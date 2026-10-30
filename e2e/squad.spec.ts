@@ -19,7 +19,7 @@ test("renews a contract and releases a player from the squad page", async ({ pag
   try {
     await createSave(page, name, "Olympique Lyonnais");
 
-    await page.getByRole("link", { name: "Effectif" }).click();
+    await page.getByTestId("nav-squad").click();
     await expect(page.getByRole("heading", { name: "Effectif" })).toBeVisible();
     const rows = page.locator("tbody tr[data-player-key]");
     await expect(rows.first()).toBeVisible();

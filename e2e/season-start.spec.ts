@@ -28,7 +28,7 @@ test("starts a save on 1 July 2026, shows a squad player's card on hover and the
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 
     // The squad: hovering a row shows the player's card after a short delay; a click still opens the full sheet.
-    await page.getByRole("link", { name: "Effectif" }).click();
+    await page.getByTestId("nav-squad").click();
     const goalkeeper = page.locator("tbody tr[data-player-key]").first();
     const playerKey = (await goalkeeper.getAttribute("data-player-key")) ?? "";
     await goalkeeper.hover();

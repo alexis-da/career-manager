@@ -29,7 +29,11 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     await expect(halfTime.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
     await expect(halfTime.locator("[data-substitutions]")).toHaveText("Remplacements : 0/5");
 
-    // While the match waits, the main button leads back to it, and the page opens on the break.
+    // While the match waits, no main button on its page, where it would lead nowhere; from any other, it leads back to
+    // the match, and the page opens on the break.
+    await expect(page.getByRole("button", { name: "Prochain match" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Match en cours — reprendre" })).toHaveCount(0);
+    await page.getByTestId("nav-dashboard").click();
     await expect(page.getByRole("button", { name: "Prochain match" })).toHaveCount(0);
     await page.getByRole("link", { name: "Match en cours — reprendre" }).click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live$/);

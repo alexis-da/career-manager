@@ -28,7 +28,7 @@ test("signs a free agent, then shows why an offer above the budget is refused", 
     await createSave(page, name, "Olympique Lyonnais");
     const payrollBefore = await dashboardPayroll(page);
 
-    await page.getByRole("link", { name: "Effectif" }).click();
+    await page.getByTestId("nav-squad").click();
     const rows = page.locator("tbody tr[data-player-key]");
     await expect(rows.first()).toBeVisible();
     const squadSize = await rows.count();
