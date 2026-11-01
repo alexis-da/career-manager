@@ -110,7 +110,7 @@ Finale », jamais « Journée N » (`stageLabel`, `app/saves/[id]/_lib/stage.ts`
 fois sur un match de coupe nul après 90 minutes : mi-temps (`Fixture.status` HALF_TIME), puis « Fin du temps
 réglementaire » (REGULATION_END, un remplacement de plus) ; `resumeLiveMatch` reprend à la bonne phase, et sans
 changement le match est celui joué sans pause. Page Coupe (`app/saves/[id]/cup`, `getCupBracket`,
-`src/db/cup-view.ts`) et entrée « Coupe » de la navigation pour une partie qui a une coupe ; palmarès (« Vainqueur de la
+`src/db/cup-view.ts`) et onglet « Coupe » sous Match pour une partie qui a une coupe ; palmarès (« Vainqueur de la
 Coupe », « Coupe : quarts de finale »), carte (« COUPE », « DOUBLÉ », `cardBadge`) et panneau « Saison terminée ».
 
 **Défi de la semaine.** Un défi par semaine ISO en UTC (`Challenge`, `weekKey` « 2026-W45 », `src/lib/iso-week.ts`),
@@ -149,19 +149,33 @@ propre ligne grisée, sans rang, avec « Connecte-toi pour apparaître au classe
 premier chargement (`ensureCurrentChallenge`). Tableau de bord d'une partie de défi : bannière (`getChallengeBanner`)
 « Défi de la semaine · journée X / 10 », puis score et rang provisoire et « La partie continue mais ne compte plus », ou
 « Cette partie ne compte pas au classement » ; toujours « Partie de défi supprimée le mardi JJ/MM ». Accueil : encart
-« Défi de la semaine » et marque « Défi » sur une partie de défi ; dans une partie, une icône trophée à droite de
-l'en-tête (les onglets, propres à la partie, n'ont pas d'entrée « Défi »).
+« Défi de la semaine » et marque « Défi » sur une partie de défi ; dans une partie, une icône trophée (`header-challenge`)
+en pied de colonne, à droite de la ligne du club sous 1024 px (la navigation, propre à la partie, n'a pas d'entrée
+« Défi »).
 
-**Barre d'onglets d'une partie.** Sur sa propre ligne sous l'en-tête (`SaveNav`) : tous les onglets à toutes les
-largeurs, sur une seule ligne sur ordinateur ; plus étroite, elle défile de côté, avec un dégradé du côté qui cache des
-onglets, et l'onglet actif est ramené en vue au chargement. L'en-tête d'une partie fait donc 96 px (sa ligne et celle des
-onglets), 104 sur un téléphone (onglets de 44 px) : les panneaux collants en tiennent compte (fiche joueur `lg:top-30`,
-banc de la composition `top-28`). Sur un téléphone (sous 640 px), les actions de jeu (« Simuler jusqu'à… », en icônes,
-son nom reste lu ; « Prochain match », « Match en cours — reprendre », « Passer à la saison suivante ») quittent l'en-tête
-pour une barre fixée au pied de l'écran, sous le pouce, et le nom du club y tient entier, sur deux lignes au besoin ;
-l'en-tête y est opaque, sans flou (un flou retiendrait la barre dans l'en-tête), le contenu laisse la place de la barre
-(`pb-24`) et les toasts passent au-dessus. Sur la page du direct d'un match en suspens, ni « Match en cours — reprendre »
-(il n'y mènerait nulle part) ni barre : les boutons de reprise restent collés au bas de l'écran, à toutes les largeurs.
+**Navigation d'une partie.** Cinq entrées, dans `SECTIONS` (`app/saves/[id]/_lib/sections.ts`, pur et testé) : Accueil ·
+Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
+`nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement et Coupe
+(seulement avec une coupe) ; le direct est sous Match, sans onglet ; l'entrée Club mène au Palmarès (`/seasons`) en
+attendant ses finances. Ces sous-onglets sont une bascule en tête de contenu (`SectionTabs`, `SegmentedLinks`,
+`src/components/segmented.tsx`), testids `nav-squad`, `nav-lineup`, `nav-fixtures`, `nav-standings`, `nav-cup`, présents
+sur les seuls écrans de leur entrée (`openScreen`, `e2e/helpers.ts`, passe par elle). Les entrées ne touchent pas aux
+adresses : chaque écran garde la sienne (`/squad`, `/standings`…). Une seule navigation dans le DOM (`SaveNav`,
+`save-nav`, `<nav>` libellé « Navigation de la partie » ; la bascule et la pagination du marché sont d'autres `<nav>`,
+dans le contenu) et un seul `<header>` : à partir de 1024 px, une colonne fixe de 256 px (logo, seule marque du jeu dans
+une partie ; carte du club avec initiales, nom, compétition et saison, journée ; les cinq entrées ; la carte « Prochain
+match » en bleu avec le bouton orange et Simuler ; en pied, langue et trophée) ; sous 1024 px, la ligne du club en haut
+de page, non collante (`header-club`, `header-competition`, le trophée, la langue seulement à partir de 640 px), la barre
+de navigation fixée au pied de l'écran et les actions de jeu juste au-dessus, sous le pouce (« Simuler jusqu'à… », en
+icônes sous 640 px, son nom reste lu ; « Prochain match », « Match en cours — reprendre », « Passer à la saison
+suivante »). Le nom du club tient entier, sur deux lignes au besoin. Aucun flou sur l'en-tête : il contient les deux
+barres fixes, un flou les y retiendrait. La date et le statut sont en haut du contenu à partir de 1024 px (`header-date`,
+`header-status`). Hauteurs des deux barres : `--save-nav-height` et `--save-actions-height` (`globals.css`, avec la place
+du témoin d'accueil, `viewportFit: "cover"`), reprises par la marge du contenu et par `--toast-bottom` pour les toasts.
+Rien ne colle en haut de l'écran sauf les panneaux : fiche joueur `xl:top-8`, banc de la composition `top-2`, `lg:top-8`.
+Sur la page du direct d'un match en suspens, ni « Match en cours — reprendre » (il n'y mènerait nulle part) ni barre
+d'actions, mais la barre de navigation reste sous 1024 px (seule sortie à la mi-temps) et les boutons de reprise restent
+collés au bas de l'écran, juste au-dessus d'elle sous 1024 px.
 
 **Premiers pas.** Création d'une partie : trois cartes de club au-dessus de la liste, le club passant en tête du
 formulaire (`suggestClubs`, `src/engine/club-suggestions.ts`, pure, sans hasard : le 1er de D1, le début de la moitié
@@ -184,17 +198,21 @@ du routeur, pour le retour du navigateur. Mesure : section « Premiers pas » de
 après un changement sur moins de 30 jours, la purge retirant les parties anonymes abandonnées.
 
 **Téléphone.** Aucun écran ne défile de côté à 390 ni à 360 px, en français comme en anglais (`e2e/mobile.spec.ts` :
-`scrollWidth ≤ innerWidth` à chaque étape, en 390 × 844). Sous 640 px (`max-sm:`), toute cible fait au moins 44 px :
-boutons, champs, listes, menus et onglets partagés (`src/components/ui`) le font d'eux-mêmes, les liens et contrôles
-propres à un écran avec `max-sm:min-h-11`. Une grille de page a `grid-cols-1` sous lg (`minmax(0, 1fr)`), jamais la
-largeur de son plus large contenu. Un tableau garde un seul DOM (testids et E2E de bureau inchangés) : sur téléphone,
-moins de colonnes, ses lignes en grilles des mêmes colonnes que l'en-tête (effectif, marché), ou des cartes (parties de
-l'accueil, mouvements, liste du calendrier, palmarès), disposées par CSS ; le reste est dans la fiche du joueur. Le
-classement complet est le seul à défiler de côté, dans son cadre, rang et club figés à gauche, points à droite. Aucun
-texte utile coupé : à la ligne, sous le nom, ou lu par les lecteurs d'écran et montré dans la fiche (cases de la grille
-du mois). Glisser-déposer (`usePointerDrag`) : au doigt, un appui maintenu de 250 ms soulève le joueur et un geste plus
-rapide fait défiler la page (aucun `touch-none` sur une source), la page défile seule près des bords pendant un glisser ;
-souris, clavier et toucher-toucher inchangés.
+`scrollWidth ≤ innerWidth` à chaque étape, en 390 × 844). La barre du bas et ses actions valent sous 1024 px (`max-lg:`),
+tablettes comprises ; les règles `max-sm:` valent sous 640 px. Sous 640 px, toute cible fait au moins 44 px : boutons,
+champs, listes, menus et onglets partagés (`src/components/ui`) et la bascule (`src/components/segmented.tsx`) le font
+d'eux-mêmes, les liens et contrôles propres à un écran avec `max-sm:min-h-11`. Une grille de page a `grid-cols-1` sous lg
+(`minmax(0, 1fr)`), jamais la largeur de son plus large contenu ; une grille avec la fiche latérale de 400 px (effectif,
+marché) ne passe en deux colonnes qu'à partir de `xl`, la fiche étant en surimpression en dessous ; la composition et la
+mi-temps n'ont aussi leurs deux colonnes qu'à partir de `xl`, et le tableau de bord ses douze colonnes (six à partir de
+`lg`). Un tableau garde un seul DOM (testids et E2E de bureau inchangés) : sur téléphone, moins de colonnes, ses lignes
+en grilles des mêmes colonnes que l'en-tête (effectif, marché), ou des cartes (parties de l'accueil, mouvements, liste
+du calendrier, palmarès), disposées par CSS ; le reste est dans la fiche du joueur. Le classement complet est le seul à
+défiler de côté, dans son cadre, rang et club figés à gauche, points à droite. Aucun texte utile coupé : à la ligne, sous
+le nom, ou lu par les lecteurs d'écran et montré dans la fiche (cases de la grille du mois). Glisser-déposer
+(`usePointerDrag`) : au doigt, un appui maintenu de 250 ms soulève le joueur et un geste plus rapide fait défiler la page
+(aucun `touch-none` sur une source), la page défile seule près des bords pendant un glisser ; souris, clavier et
+toucher-toucher inchangés. `e2e/navigation.spec.ts` couvre les cinq entrées à 390 et 1280 px.
 
 **Une partie appartient à un `User` (`Save.ownerId`).** Supprimer un `User` emporte ses parties (cascade). Hors des
 tests, trois suppressions d'utilisateur sont autorisées, et aucune autre : **la purge** (ci-dessous) ; **la fusion** à
@@ -252,13 +270,14 @@ secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.
 **Langues : français et anglais.** Tout ce que voit un joueur existe dans les deux langues : pages publiques, écrans
 d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4, sans la langue dans l'adresse. La langue
 du joueur est celle qu'il a choisie (cookie de confort `lw_lang`, `fr` ou `en`, un an, posé seulement par le sélecteur
-« FR · EN », `setLanguageAction`, `app/actions.ts` : pied des pages publiques, en-tête d'une partie sauf sur téléphone),
-sinon le français si `Accept-Language` le préfère à l'anglais, l'anglais sinon (`negotiateLocale`,
-`src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`) ; `<html lang>` la suit.
+« FR · EN », `setLanguageAction`, `app/actions.ts` : pied des pages publiques ; dans une partie, pied de la colonne à
+partir de 1024 px, ligne du club de 640 à 1024 px, jamais sous 640 px), sinon le français si `Accept-Language` le préfère
+à l'anglais, l'anglais sinon (`negotiateLocale`, `src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`) ;
+`<html lang>` la suit.
 - **Messages** : `src/i18n/messages/<langue>/<zone>.json`, un fichier par zone et par langue, chacun ses espaces de
   noms, assemblés par `src/i18n/messages/index.ts` (`ZONES`, puis les deux objets) : `public` (accueil, création,
   compte, connexion, défi, 404, sélecteur), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
-  a.p./t.a.b., événements, lettres de résultat), `header` (en-tête, onglets, actions de jeu, simulation), `dashboard`,
+  a.p./t.a.b., événements, lettres de résultat), `header` (en-tête, navigation, actions de jeu, simulation), `dashboard`,
   `onboarding` (premières actions, bulles), `challenge-banner`, `squad` (effectif, fiche joueur, contrats), `lineup`,
   `transfers`, `fixtures` (calendrier,
   feuille de match), `standings` (classement, coupe, palmarès, carte), `live` (direct, mi-temps), `actions` (messages
@@ -294,9 +313,22 @@ to the top ». Adresse canonique : https://www.latewinner.app. « Career Manager
 le jeu lui-même est en français et en anglais (règle « Langues »). Fichiers de marque dans `public/brand/` (logo clair, logo pour fond sombre,
 icône), icônes du site dans `app/` (`favicon.ico`, `icon.svg`, `apple-icon.png`) et `public/icons/`.
 
-**Couleurs.** Bleu vif `#1F3BFF`, bleu nuit `#0B1340`, orange `#FF9F1C`, blanc, fond clair `#EEF1F7`. Elles
-habillent les pages hors partie (connexion, accueil) via la classe `.brand` (`app/globals.css`). Dans une partie,
-rien ne change : le club garde son accent, seule l'icône Late Winner est en tête de la barre de navigation.
+**Couleurs.** Marque : bleu vif `#1F3BFF`, bleu nuit `#0B1340`, orange `#FF9F1C`, blanc, fond clair `#EEF1F7`. La palette
+de la piste A habille les écrans d'une partie (`:root` de `app/globals.css`, sombre uniquement) : fond `#0B1340`, cartes
+`#16205A`, bordures et ligne mise en avant `#2A3678`, navigation `#0E1850`, bleu principal `#1F3BFF` (cartes héros, état
+actif, dont la bascule), orange `#FF9F1C` (`--club` : action principale, entrée active de la navigation, survol
+`#FFB54D`), accent secondaire `#8FA0FF`. La classe `.brand` garde les pages hors partie (connexion, accueil, défi,
+confidentialité, `/admin/stats`, 404) jusqu'à leur étape (`docs/design/refonte-piste-a.md`), et les bandeaux du compte et
+du défi sur le tableau de bord. Les couleurs de club ne teintent pas l'interface : `--club` est l'orange, partout ; le
+club se montre par ses initiales (`ClubInitials`, `src/components/club-initials.tsx` ; `clubInitials`,
+`src/lib/club-initials.ts`), jamais par un écusson, et ses couleurs ne restent que sur les maillots des visages, sur la
+carte PNG (`clubAccentsOn`) et dans le trait devant son nom sur l'accueil et `/challenge`. Une seule action orange pleine
+par écran (`variant="club"`), tenue écran par écran au fil des étapes de la refonte : la fiche joueur, la composition, le
+direct terminé et la carte de saison ont encore la leur à côté de celle de la colonne. Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
+`--loss`, `--warning`, `--info`, `--position-*`). Titres et chiffres en Barlow Condensed 800 italique (le fichier de
+`src/assets/fonts`, chargé par `next/font/local`, une seule graisse), en majuscules par la règle `.font-heading` de
+`globals.css` (`normal-case` là où des unités et des ordinaux doivent garder leur casse : « 16e », « €11.4m ») ; texte
+courant en Barlow 400 à 700 ; rayons 14 px, cartes 22 px (`rounded-card`), pastilles `rounded-full`.
 
 **Communication sortante.** Titres de page, descriptions, images de partage (`app/opengraph-image.tsx`) et
 cartes partageables ne contiennent aucun nom de club, ni « FIFA », ni « EA FC », ni le nom d'un jeu concurrent.
@@ -345,10 +377,12 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
+                      # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC ; challenge.yml : défi du lundi, 05:00 UTC
 src/
-  components/ui/      # composants shadcn/ui (Base UI), générés par la CLI
+  components/         # composants partagés : visage du joueur, initiales du club, bascule, styles de tableau
+    ui/               # composants shadcn/ui (Base UI), générés par la CLI
   engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes, coupes, défi ;
                       # club-name.ts : nom affiché des clubs (CLUB_NAMES)
     data/names/       # listes de noms, importées statiquement
@@ -359,7 +393,7 @@ src/
                       # (messages/<langue>/<zone>.json, index.ts), traducteur des utilitaires (translator.ts), aides
                       # de test (test-intl.tsx), pays et noms des compétitions (countries.ts)
   og/                 # images générées (ImageResponse) : polices, visage en SVG data URI
-  assets/fonts/       # Barlow Condensed ExtraBold Italic et sa licence OFL, lues par src/og/fonts.ts
+  assets/fonts/       # Barlow Condensed ExtraBold Italic et sa licence OFL, lues par src/og/fonts.ts et app/layout.tsx
   generated/prisma/   # client Prisma généré, ignoré par git
 prisma/
   schema.prisma
