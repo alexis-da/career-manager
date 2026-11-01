@@ -146,12 +146,13 @@ partie », ou « Défi complet cette semaine, reviens lundi » au plafond ; les 
 précédente : entrées soumises avant `endsAt`, comptes Google seulement, prénom (`rankingName`, null sans prénom :
 « Anonyme » à l'écran) ; un anonyme voit sa
 propre ligne grisée, sans rang, avec « Connecte-toi pour apparaître au classement ». Le défi de la semaine y est créé au
-premier chargement (`ensureCurrentChallenge`). Tableau de bord d'une partie de défi : bannière (`getChallengeBanner`)
-« Défi de la semaine · journée X / 10 », puis score et rang provisoire et « La partie continue mais ne compte plus », ou
-« Cette partie ne compte pas au classement » ; toujours « Partie de défi supprimée le mardi JJ/MM ». Accueil : encart
-« Défi de la semaine » et marque « Défi » sur une partie de défi ; dans une partie, une icône trophée (`header-challenge`)
-en pied de colonne, à droite de la ligne du club sous 1024 px (la navigation, propre à la partie, n'a pas d'entrée
-« Défi »).
+premier chargement (`ensureCurrentChallenge`). Tableau de bord d'une partie de défi : une carte (`ChallengeCard`,
+`getChallengeBanner`) « Défi · semaine 45 », « journée X / 10 », puis score et rang provisoire et « La partie continue
+mais ne compte plus », ou « Cette partie ne compte pas au classement » ; toujours « Partie de défi supprimée le mardi
+JJ/MM » et le lien du classement ; sur toute autre partie, la même carte présente le défi et y mène, sans son club.
+Accueil des parties : encart « Défi de la semaine » et marque « Défi » sur une partie de défi ; dans une partie, une icône
+trophée (`header-challenge`) en pied de colonne, à droite de la ligne du club sous 1024 px (la navigation, propre à la
+partie, n'a pas d'entrée « Défi »).
 
 **Navigation d'une partie.** Cinq entrées, dans `SECTIONS` (`app/saves/[id]/_lib/sections.ts`, pur et testé) : Accueil ·
 Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
@@ -164,18 +165,35 @@ adresses : chaque écran garde la sienne (`/squad`, `/standings`…). Une seule 
 `save-nav`, `<nav>` libellé « Navigation de la partie » ; la bascule et la pagination du marché sont d'autres `<nav>`,
 dans le contenu) et un seul `<header>` : à partir de 1024 px, une colonne fixe de 256 px (logo, seule marque du jeu dans
 une partie ; carte du club avec initiales, nom, compétition et saison, journée ; les cinq entrées ; la carte « Prochain
-match » en bleu avec le bouton orange et Simuler ; en pied, langue et trophée) ; sous 1024 px, la ligne du club en haut
-de page, non collante (`header-club`, `header-competition`, le trophée, la langue seulement à partir de 640 px), la barre
-de navigation fixée au pied de l'écran et les actions de jeu juste au-dessus, sous le pouce (« Simuler jusqu'à… », en
-icônes sous 640 px, son nom reste lu ; « Prochain match », « Match en cours — reprendre », « Passer à la saison
-suivante »). Le nom du club tient entier, sur deux lignes au besoin. Aucun flou sur l'en-tête : il contient les deux
-barres fixes, un flou les y retiendrait. La date et le statut sont en haut du contenu à partir de 1024 px (`header-date`,
-`header-status`). Hauteurs des deux barres : `--save-nav-height` et `--save-actions-height` (`globals.css`, avec la place
-du témoin d'accueil, `viewportFit: "cover"`), reprises par la marge du contenu et par `--toast-bottom` pour les toasts.
-Rien ne colle en haut de l'écran sauf les panneaux : fiche joueur `xl:top-8`, banc de la composition `top-2`, `lg:top-8`.
-Sur la page du direct d'un match en suspens, ni « Match en cours — reprendre » (il n'y mènerait nulle part) ni barre
-d'actions, mais la barre de navigation reste sous 1024 px (seule sortie à la mi-temps) et les boutons de reprise restent
+match » en bleu ; en pied, langue et trophée) ; sous 1024 px, la ligne du club en haut de page, non collante
+(`header-club`, `header-competition`, le trophée, la langue seulement à partir de 640 px), et la barre de navigation
+fixée au pied de l'écran, seule barre fixe. Actions de jeu (`GameActions` : « Simuler jusqu'à… », « Prochain match »,
+« Match en cours — reprendre », « Passer à la saison suivante ») : dans le héros de l'Accueil à toutes les largeurs ;
+hors de lui (`SaveBarActions`, un seul élément, donc des testids uniques), dans la carte « Prochain match » de la colonne
+à partir de 1024 px, en tête des écrans de Match en dessous, sous la ligne du club, et nulle part ailleurs sous 1024 px
+(« Simuler jusqu'à… » en icônes sous 640 px, son nom reste lu). Le nom du club tient entier, sur deux lignes au besoin.
+Aucun flou sur l'en-tête : il contient la barre fixe, un flou l'y retiendrait. La date et le statut sont en haut du
+contenu à partir de 1024 px (`header-date`, `header-status`). Hauteur de la barre : `--save-nav-height` (`globals.css`,
+avec la place du témoin d'accueil, `viewportFit: "cover"`), reprise par la marge du contenu et par `--toast-bottom` pour
+les toasts. Rien ne colle en haut de l'écran sauf les panneaux : fiche joueur `xl:top-8`, banc de la composition `top-2`,
+`lg:top-8`. Sur la page du direct d'un match en suspens, ni « Match en cours — reprendre » (il n'y mènerait nulle part) ni
+actions, mais la barre de navigation reste sous 1024 px (seule sortie à la mi-temps) et les boutons de reprise restent
 collés au bas de l'écran, juste au-dessus d'elle sous 1024 px.
+
+**Accueil d'une partie.** L'entrée Accueil (`nav-dashboard`), le titre de la page reste « Tableau de bord » (masqué
+visuellement sous 1024 px) : budget, salaires et mercato en pastilles (`DashboardPills`), bandeau du compte, puis une
+grille d'une colonne sous `lg`, deux à partir de `lg`, trois à partir de `xl`. Le héros bleu (`NextMatchHero`,
+`dashboard-next-match`) : la date, le lieu et la compétition du prochain match, les deux clubs (rang et points ; note
+moyenne et forme à partir de 1024 px), « Jouer le match » (`GameActions` avec `hero`, seule action orange pleine de
+l'écran, même `next-match`, « Jouer la journée » dans une partie 1), « Préparer » vers la composition et « Simuler »,
+secondaires, le onze et « Voir l'adversaire ». Sa colonne de droite à partir de `xl`, en fin de page sur téléphone : le
+mini-classement (`DashboardTable`, `tableAround`, six lignes autour du club, rang, club et points). Puis quatre tuiles
+(`DashboardTiles` : classement et mouvement, points et différence, forme, effectif ; « — » avant le premier match), « À
+faire » (`DashboardTodo`, du plus pressant au reste : titulaires blessés, autres blessés, meilleure offre reçue, point
+faible, contrats, gardiens, effectif ; toute la ligne est un lien, sauf « Effectif complet »), le dernier match
+(`LastMatchCard`, ou les premières actions avant lui) et la carte du défi. Aucune offre hors mercato (`getMarketSales` non
+lu), le point faible n'est jamais une alerte. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
+couvre l'écran à 390 et 1280 px.
 
 **Premiers pas.** Création d'une partie : trois cartes de club au-dessus de la liste, le club passant en tête du
 formulaire (`suggestClubs`, `src/engine/club-suggestions.ts`, pure, sans hasard : le 1er de D1, le début de la moitié
@@ -183,7 +201,7 @@ basse de D1, la fin de la moitié haute de D2, dans le pays de la langue du joue
 `clubFinances`) ; la dernière se nomme « Remontée », « Défi » étant le défi de la semaine. Le nom de la partie vient du
 club tant que le joueur n'en tape pas un, la graine est repliée sous « Options ». Tableau de bord : tant que le club
 n'a pas joué, aucun rang (« — ») et « Tes trois premières actions » (`FirstActions`,
-`app/saves/[id]/_components/first-steps.tsx`) à la place du panneau vide du dernier résultat. Effectif et Composition se
+`app/saves/[id]/_components/first-steps.tsx`) dans la carte du dernier match (`LastMatchCard`). Effectif et Composition se
 cochent à l'ouverture de leur page (`MarkSeen`) : on ne peut pas enregistrer une composition sans la changer. Le match se
 lit dans le jeu (`managedMatchesPlayed`, `src/db/first-steps.ts`) : les matchs du club, jamais `hasPlayedMatch`, déjà vrai
 à la mi-temps avec ceux des autres clubs. Bulles (`showsTip`, `app/saves/[id]/_lib/first-steps.ts`, `FirstStepTip`) : note
@@ -213,17 +231,17 @@ IA de `quoteSquad` ; le compteur compte ces offres. Écran avancé (`/transfers/
 joueur qui refuserait le club pour sa réputation le dit dans la fiche et le dialogue, l'envoi désactivé. Un joueur arrivé
 au club dirigé pendant le mercato ouvert (ligne `Transfer` vers le club, `TRANSFER` ou `FREE`) ne se vend pas avant le
 suivant (`bought_this_window`, `transferWindowOpenDate`, `src/engine/world.ts`) : seule règle économique ajoutée par la
-refonte, elle borne la fréquence d'une revente, pas sa marge. Sur les écrans du Marché, l'action de jeu de la colonne et
-de la barre est secondaire (`GameActions`) : l'orange plein y reste à « Recruter » ou « Vendre ».
+refonte, elle borne la fréquence d'une revente, pas sa marge. Sur les écrans du Marché, l'action de jeu de la colonne est
+secondaire (`GameActions`) : l'orange plein y reste à « Recruter » ou « Vendre ».
 
 **Téléphone.** Aucun écran ne défile de côté à 390 ni à 360 px, en français comme en anglais (`e2e/mobile.spec.ts` :
-`scrollWidth ≤ innerWidth` à chaque étape, en 390 × 844). La barre du bas et ses actions valent sous 1024 px (`max-lg:`),
-tablettes comprises ; les règles `max-sm:` valent sous 640 px. Sous 640 px, toute cible fait au moins 44 px : boutons,
+`scrollWidth ≤ innerWidth` à chaque étape, en 390 × 844). La barre du bas vaut sous 1024 px (`max-lg:`), tablettes
+comprises ; les règles `max-sm:` valent sous 640 px. Sous 640 px, toute cible fait au moins 44 px : boutons,
 champs, listes, menus et onglets partagés (`src/components/ui`) et la bascule (`src/components/segmented.tsx`) le font
 d'eux-mêmes, les liens et contrôles propres à un écran avec `max-sm:min-h-11`. Une grille de page a `grid-cols-1` sous lg
 (`minmax(0, 1fr)`), jamais la largeur de son plus large contenu ; une grille avec la fiche latérale de 400 px (effectif,
 marché) ne passe en deux colonnes qu'à partir de `xl`, la fiche étant en surimpression en dessous ; la composition et la
-mi-temps n'ont aussi leurs deux colonnes qu'à partir de `xl`, et le tableau de bord ses douze colonnes (six à partir de
+mi-temps n'ont aussi leurs deux colonnes qu'à partir de `xl`, et le tableau de bord ses trois colonnes (deux à partir de
 `lg`). Un tableau garde un seul DOM (testids et E2E de bureau inchangés) : sur téléphone, moins de colonnes, ses lignes
 en grilles des mêmes colonnes que l'en-tête (effectif, marché), ou des cartes (parties de l'accueil, mouvements, liste
 du calendrier, palmarès), disposées par CSS ; le reste est dans la fiche du joueur. Le classement complet est le seul à
@@ -297,7 +315,8 @@ partir de 1024 px, ligne du club de 640 à 1024 px, jamais sous 640 px), sinon l
   noms, assemblés par `src/i18n/messages/index.ts` (`ZONES`, puis les deux objets) : `public` (accueil, création,
   compte, connexion, défi, 404, sélecteur), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
   a.p./t.a.b., événements, lettres de résultat), `header` (en-tête, navigation, actions de jeu, simulation), `dashboard`,
-  `onboarding` (premières actions, bulles), `challenge-banner`, `squad` (effectif, fiche joueur, contrats), `lineup`,
+  `dashboard-hero` (héros de l'Accueil), `dashboard-todo` (« À faire »), `onboarding` (premières actions, bulles),
+  `challenge-banner` (carte du défi), `squad` (effectif, fiche joueur, contrats), `lineup`,
   `market` (Acheter, confirmation), `market-sell` (Vendre), `transfers` (marché avancé), `fixtures` (calendrier,
   feuille de match), `standings` (classement, coupe, palmarès, carte), `live` (direct, mi-temps), `actions` (messages
   des Server Actions, refus), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
@@ -337,13 +356,14 @@ de la piste A habille les écrans d'une partie (`:root` de `app/globals.css`, so
 `#16205A`, bordures et ligne mise en avant `#2A3678`, navigation `#0E1850`, bleu principal `#1F3BFF` (cartes héros, état
 actif, dont la bascule), orange `#FF9F1C` (`--club` : action principale, entrée active de la navigation, survol
 `#FFB54D`), accent secondaire `#8FA0FF`. La classe `.brand` garde les pages hors partie (connexion, accueil, défi,
-confidentialité, `/admin/stats`, 404) jusqu'à leur étape (`docs/design/refonte-piste-a.md`), et les bandeaux du compte et
-du défi sur le tableau de bord. Les couleurs de club ne teintent pas l'interface : `--club` est l'orange, partout ; le
-club se montre par ses initiales (`ClubInitials`, `src/components/club-initials.tsx` ; `clubInitials`,
+confidentialité, `/admin/stats`, 404) jusqu'à leur étape (`docs/design/refonte-piste-a.md`). Les couleurs de club ne
+teintent pas l'interface : `--club` est l'orange, partout ; le club se montre par ses initiales (`ClubInitials`,
+`src/components/club-initials.tsx`, orange pour le club dirigé, blanc pour un autre ; `clubInitials`,
 `src/lib/club-initials.ts`), jamais par un écusson, et ses couleurs ne restent que sur les maillots des visages, sur la
 carte PNG (`clubAccentsOn`) et dans le trait devant son nom sur l'accueil et `/challenge`. Une seule action orange pleine
-par écran (`variant="club"`), tenue écran par écran au fil des étapes de la refonte : la fiche joueur, la composition, le
-direct terminé et la carte de saison ont encore la leur à côté de celle de la colonne. Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
+par écran (`variant="club"`), tenue écran par écran au fil des étapes de la refonte : sur l'Accueil, celle du héros, la
+colonne n'en ayant aucune ; la fiche joueur, la composition, le direct terminé et la carte de saison ont encore la leur à
+côté de celle de la colonne. Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
 `--loss`, `--warning`, `--info`, `--position-*`). Titres et chiffres en Barlow Condensed 800 italique (le fichier de
 `src/assets/fonts`, chargé par `next/font/local`, une seule graisse), en majuscules par la règle `.font-heading` de
 `globals.css` (`normal-case` là où des unités et des ordinaux doivent garder leur casse : « 16e », « €11.4m ») ; texte
