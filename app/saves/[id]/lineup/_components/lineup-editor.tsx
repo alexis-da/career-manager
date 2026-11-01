@@ -257,7 +257,7 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
 
       {/* One column the content's width under xl (minmax(0, 1fr)), where the sidebar leaves no room for two: the pitch
           scales to it, up to a height that still fits a screen. */}
-      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(320px,460px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(320px,460px)_minmax(0,1fr)]">
         <div className="mx-auto w-full max-w-lg space-y-2 xl:max-w-none">
           <Pitch
             slots={slots}
