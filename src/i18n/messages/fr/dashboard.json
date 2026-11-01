@@ -19,7 +19,7 @@
     "injuredSeparator": " ; ",
     "lastResult": "Dernier résultat",
     "noMatchPlayed": "Aucun match joué cette saison.",
-    "matchReport": "Voir la feuille de match →",
+    "matchReport": "Voir la feuille de match",
     "position": "Classement",
     "rankSuffix": "{rank, selectordinal, one {er} other {e}}",
     "movement": "{count, plural, =0 {Stable} one {# place} other {# places}} depuis la {matchday}",
@@ -33,7 +33,7 @@
     "averageAge": "Âge moyen {age}",
     "toDo": "À traiter",
     "table": "Classement",
-    "fullTable": "Tableau complet →",
+    "fullTable": "Tableau complet",
     "columns": {
       "club": "Club",
       "played": "J",
@@ -58,7 +58,14 @@
       "lineup": "Composition",
       "extend": "Prolonger",
       "manage": "Gérer"
-    }
+    },
+    "movementUp": "Gagne",
+    "movementDown": "Perd",
+    "pointsLabel": "Points",
+    "goalDifference": "Diff. {difference}",
+    "form": "Forme",
+    "budgetPill": "Budget {amount}",
+    "payrollPill": "Salaires {payroll} / {wageBudget}"
   },
   "lineupSummary": {
     "atPosition": "{count, plural, =1 {# titulaire à son poste} other {# titulaires à leur poste}}",

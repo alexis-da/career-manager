@@ -19,7 +19,7 @@
     "injuredSeparator": "; ",
     "lastResult": "Last result",
     "noMatchPlayed": "No match played this season.",
-    "matchReport": "See the match report →",
+    "matchReport": "See the match report",
     "position": "Position",
     "rankSuffix": "{rank, selectordinal, one {st} two {nd} few {rd} other {th}}",
     "movement": "{count, plural, =0 {No change} one {# place} other {# places}} since {matchday}",
@@ -33,7 +33,7 @@
     "averageAge": "Average age {age}",
     "toDo": "To do",
     "table": "Table",
-    "fullTable": "Full table →",
+    "fullTable": "Full table",
     "columns": {
       "club": "Club",
       "played": "P",
@@ -58,7 +58,14 @@
       "lineup": "Line-up",
       "extend": "Extend",
       "manage": "Manage"
-    }
+    },
+    "movementUp": "Up",
+    "movementDown": "Down",
+    "pointsLabel": "Points",
+    "goalDifference": "GD {difference}",
+    "form": "Form",
+    "budgetPill": "Budget {amount}",
+    "payrollPill": "Wages {payroll} / {wageBudget}"
   },
   "lineupSummary": {
     "atPosition": "{count, plural, one {# starter in position} other {# starters in position}}",
