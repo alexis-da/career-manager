@@ -283,8 +283,8 @@ export function LineupEditor({ saveId, formation, saved, clubColors, players }: 
             data-drop-target={BENCH_TARGET}
             data-testid="lineup-bench"
             className={cn(
-              // 16 px under the save's header, 96 px high with its tabs (104 on a phone, 8 px under it).
-              "sticky top-28 z-10 rounded-card border-2 border-dashed bg-card p-3 transition-colors",
+              // The header no longer holds at the top of the screen: 8 px under its top, 32 px on a computer.
+              "sticky top-2 z-10 rounded-card border-2 border-dashed bg-card p-3 transition-colors lg:top-8",
               drag === null ? "border-border" : overBench ? "border-solid border-(--club) bg-(--club)/25" : "border-(--club)/70",
             )}
           >

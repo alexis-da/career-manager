@@ -68,10 +68,21 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
           </Link>
           <SaveNav saveId={header.id} />
 
-          <div className="flex shrink-0 items-center gap-2 lg:mt-auto lg:flex-col lg:items-stretch">
+          {/* Under lg, the game's actions go to a bar above the navigation, under the thumb; no bar at all when there is
+              no action, on the live page of a paused match. */}
+          <div className="lg:mt-auto max-lg:fixed max-lg:inset-x-0 max-lg:bottom-(--save-nav-height) max-lg:z-40 max-lg:flex max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-4 max-lg:py-2 max-lg:*:flex-1 max-lg:empty:hidden">
+            <GameActions
+              saveId={header.id}
+              seasonFinished={header.seasonFinished}
+              liveMatch={header.liveMatch}
+              worldVersion={header.worldVersion}
+            />
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2 lg:justify-between lg:px-1">
             {/* Not on a phone, where the club's name needs the room: the home page's foot has it. */}
             <LanguageSwitcher className="max-sm:hidden" />
-            {/* The weekly challenge, outside the save: next to the game's actions rather than among its tabs. */}
+            {/* The weekly challenge, outside the save, among neither its entries nor their tabs. */}
             <Link
               href="/challenge"
               title={t("challenge")}
@@ -81,28 +92,20 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               <TrophyIcon aria-hidden className="size-4" />
               <span className="sr-only">{t("challenge")}</span>
             </Link>
-            <div className="hidden text-right leading-tight lg:block">
-              <p data-testid="header-date" className="font-heading text-base font-semibold tabular-nums first-letter:uppercase">
-                <time dateTime={header.currentDate.toISOString()}>{formatDayDate(header.currentDate, locale)}</time>
-              </p>
-              <p data-testid="header-status" className="text-[0.6875rem] text-muted-foreground tabular-nums">
-                {stage} · {t(header.windowOpen ? "windowOpen" : "windowClosed")}
-              </p>
-            </div>
-            {/* Under lg, the game's actions leave this row for a bar above the navigation, under the thumb; no bar at
-                all when there is no action, on the live page of a paused match. */}
-            <div className="contents max-lg:fixed max-lg:inset-x-0 max-lg:bottom-(--save-nav-height) max-lg:z-40 max-lg:flex max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-4 max-lg:py-2 max-lg:*:flex-1 max-lg:empty:hidden">
-              <GameActions
-                saveId={header.id}
-                seasonFinished={header.seasonFinished}
-                liveMatch={header.liveMatch}
-                worldVersion={header.worldVersion}
-              />
-            </div>
           </div>
         </header>
         {/* Under lg, room at the foot for the two bars. */}
         <main className="mx-auto w-full max-w-296 flex-1 px-4 py-6 lg:p-8 max-lg:pb-[calc(var(--save-nav-height)+var(--save-actions-height)+1.5rem)]">
+          {/* The day and what comes next, on a computer: the sidebar's column has no room for them. */}
+          <div className="mb-5 flex flex-wrap gap-x-1.5 text-sm text-muted-foreground tabular-nums max-lg:hidden">
+            <p data-testid="header-date" className="first-letter:uppercase">
+              <time dateTime={header.currentDate.toISOString()}>{formatDayDate(header.currentDate, locale)}</time>
+            </p>
+            <span aria-hidden>·</span>
+            <p data-testid="header-status">
+              {stage} · {t(header.windowOpen ? "windowOpen" : "windowClosed")}
+            </p>
+          </div>
           <SectionTabs saveId={header.id} hasCup={header.hasCup} />
           {children}
         </main>
