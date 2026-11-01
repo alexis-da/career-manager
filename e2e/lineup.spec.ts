@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, openScreen } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 
@@ -24,7 +24,7 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
   try {
     await createSave(page, name, LYON);
 
-    await page.getByRole("navigation", { name: "Navigation de la partie" }).getByRole("link", { name: "Composition" }).click();
+    await openScreen(page, "lineup");
     await expect(page.getByRole("heading", { name: "Composition" })).toBeVisible();
     const formation = page.getByLabel("Dispositif");
     await expect(formation).toHaveValue("4-3-3");
@@ -65,7 +65,7 @@ test("drags a substitute onto a slot and a starter to the bench, refuses an inco
   saveName = name;
   try {
     await createSave(page, name, LYON);
-    await page.getByRole("navigation", { name: "Navigation de la partie" }).getByRole("link", { name: "Composition" }).click();
+    await openScreen(page, "lineup");
     await expect(page.getByLabel("Dispositif")).toHaveValue("4-3-3");
 
     // 4-3-3 slots: GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW.
@@ -116,7 +116,7 @@ test("shows a centre-back dragged up front with his DC badge outlined in red, an
   saveName = name;
   try {
     await createSave(page, name, LYON);
-    await page.getByRole("navigation", { name: "Navigation de la partie" }).getByRole("link", { name: "Composition" }).click();
+    await openScreen(page, "lineup");
     await expect(page.getByLabel("Dispositif")).toHaveValue("4-3-3");
 
     // 4-3-3 slots: GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW. Take a centre-back slot held by a real centre-back.

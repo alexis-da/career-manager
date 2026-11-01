@@ -1,6 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { deleteUsers, userIdOf } from "./db";
-import { E2E_SEED, expectNoSidewaysScroll } from "./helpers";
+import { E2E_SEED, expectClearOfNav, expectNoSidewaysScroll, openScreen } from "./helpers";
 
 // The first visit of a new player, without a cookie: a club card, the first actions that tick themselves, the tips, the
 // first match, its result. In French on a computer, in English on a phone, never wider than the screen. Each test
@@ -79,7 +79,7 @@ for (const journey of JOURNEYS) {
         await expect(page.getByTestId("squad-title")).toBeVisible();
         await expect(page.getByTestId("tip-rating")).toHaveCount(0);
 
-        await page.getByTestId("nav-dashboard").click();
+        await openScreen(page, "dashboard");
         await expect(firstAction(page, "squad")).toHaveAttribute("data-done", "true");
         await expect(firstAction(page, "lineup")).toHaveAttribute("data-done", "false");
 
@@ -103,10 +103,12 @@ for (const journey of JOURNEYS) {
         await expect(page.getByTestId("resume-match")).toHaveCount(0);
         await expect(page.getByTestId("half-time-resume-unchanged")).toBeInViewport({ ratio: 1 });
         await expect(page.getByTestId("half-time-resume")).toBeInViewport({ ratio: 1 });
+        await expectClearOfNav(page, page.getByTestId("half-time-resume-unchanged"));
+        await expectClearOfNav(page, page.getByTestId("half-time-resume"));
         await expectNoSidewaysScroll(page, "half-time");
 
         // At half-time the other clubs have played, the player's club has not: the list stays, the way back too.
-        await page.getByTestId("nav-dashboard").click();
+        await openScreen(page, "dashboard");
         await expect(firstAction(page, "match")).toHaveAttribute("data-done", "false");
         await page.getByTestId("resume-match").click();
         await expect(page.getByTestId("half-time-title")).toBeVisible();
@@ -151,13 +153,13 @@ test("remembers what a player has seen career by career", async ({ page, context
     await expect(page).toHaveURL(/\/saves\/[^/]+$/);
     expect(page.url()).not.toBe(career);
     await expect(firstAction(page, "squad")).toHaveAttribute("data-done", "false");
-    await page.getByTestId("nav-squad").click();
+    await openScreen(page, "squad");
     await expect(page.getByTestId("tip-rating")).toBeVisible();
 
     // The first one has kept everything.
     await page.goto(career);
     await expect(firstAction(page, "squad")).toHaveAttribute("data-done", "true");
-    await page.getByTestId("nav-squad").click();
+    await openScreen(page, "squad");
     await expect(page.getByTestId("squad-title")).toBeVisible();
     await expect(page.getByTestId("tip-rating")).toHaveCount(0);
   } finally {

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, openScreen } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 const FRANCE = "France";
@@ -33,7 +33,7 @@ test("creates a save with Lyon, plays a matchday, replays its match, and shows o
     await page.getByRole("link", { name: "Continuer" }).click();
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 
-    await page.getByRole("link", { name: "Classement" }).click();
+    await openScreen(page, "standings");
     await page.getByRole("tab", { name: FRANCE }).click();
     await page.getByRole("tab", { name: "Division 1" }).click();
     const panel = page.getByRole("tabpanel", { name: "Division 1" });

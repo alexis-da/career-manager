@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, openScreen } from "./helpers";
 
 // Name of the save the running test created, until it is deleted.
 let saveName: string | undefined;
@@ -19,7 +19,7 @@ test("renews a contract and releases a player from the squad page", async ({ pag
   try {
     await createSave(page, name, "Olympique Lyonnais");
 
-    await page.getByTestId("nav-squad").click();
+    await openScreen(page, "squad");
     await expect(page.getByRole("heading", { name: "Effectif" })).toBeVisible();
     const rows = page.locator("tbody tr[data-player-key]");
     await expect(rows.first()).toBeVisible();

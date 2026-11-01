@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, openScreen } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 
@@ -33,7 +33,7 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     // the match, and the page opens on the break.
     await expect(page.getByRole("button", { name: "Prochain match" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Match en cours — reprendre" })).toHaveCount(0);
-    await page.getByTestId("nav-dashboard").click();
+    await openScreen(page, "dashboard");
     await expect(page.getByRole("button", { name: "Prochain match" })).toHaveCount(0);
     await page.getByRole("link", { name: "Match en cours — reprendre" }).click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live$/);

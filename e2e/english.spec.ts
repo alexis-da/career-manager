@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createSave, deleteSave, saveRow } from "./helpers";
+import { createSave, deleteSave, openScreen, saveRow } from "./helpers";
 
 // The game in English, for a browser that prefers it (Accept-Language en-GB): the public pages, the language switcher
 // and its cookie, a career created and found again on the home page, then played up to its live match and its table.
@@ -121,12 +121,15 @@ test("plays a career in English up to its live match, then reads the table", asy
   saveName = name;
   await createSave(page, name, LYON);
 
-  // The save's screens in English: header, tabs, dashboard.
+  // The save's screens in English: header, navigation, dashboard.
   await expect(pageLanguage(page)).toHaveAttribute("lang", "en");
   await expect(page.getByTestId("dashboard-title")).toHaveText("Dashboard");
   await expect(page.getByTestId("header-competition")).toHaveText("France — Division 1 · Season 2026-27");
-  await expect(page.getByTestId("nav-squad")).toHaveText("Squad");
-  await expect(page.getByTestId("nav-standings")).toHaveText("Table");
+  await expect(page.getByTestId("nav-dashboard")).toHaveText("Home");
+  await expect(page.getByTestId("nav-team")).toHaveText("Squad");
+  await expect(page.getByTestId("nav-match")).toHaveText("Match");
+  await expect(page.getByTestId("nav-transfers")).toHaveText("Market");
+  await expect(page.getByTestId("nav-club")).toHaveText("Club");
   await expect(page.getByTestId("next-match")).toHaveText("Next match");
 
   // The next match, live: half-time, then the end of the match.
@@ -145,11 +148,16 @@ test("plays a career in English up to its live match, then reads the table", asy
   await expect(page.getByTestId("dashboard-last-result")).toContainText("Last result");
 
   // The table: France's, its first division, in English.
-  await page.getByTestId("nav-standings").click();
+  await openScreen(page, "standings");
+  await expect(page.getByTestId("nav-standings")).toHaveText("Table");
   await expect(page.getByTestId("standings-title")).toHaveText("Table");
   await expect(page.getByTestId("standings-country-fr")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("standings-division-1")).toHaveText("Division 1");
   const table = page.locator('[data-testid="standings-table"]:visible');
   await expect(table.locator("thead")).toContainText("GD");
   await expect(table.locator("tbody tr")).toHaveCount(18);
+
+  // The squad's tab, in English: tabs exist only under their entry.
+  await openScreen(page, "squad");
+  await expect(page.getByTestId("nav-squad")).toHaveText("Squad");
 });

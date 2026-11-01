@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, openScreen } from "./helpers";
 
 // A second division club, chosen in the creation form like any other.
 const PARIS_FC = "Paris FC";
@@ -56,7 +56,7 @@ test("creates a save with a second division club, plays the dates in between wit
     await finishLiveMatch(page);
 
     // The table opens on the club's country and division; Paris FC's has played four matchdays.
-    await page.getByRole("link", { name: "Classement" }).click();
+    await openScreen(page, "standings");
     await expect(page.getByRole("tab", { name: "France" })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("tab", { name: "Division 2" })).toHaveAttribute("aria-selected", "true");
     const frenchSecond = page.getByRole("tabpanel", { name: "Division 2" });

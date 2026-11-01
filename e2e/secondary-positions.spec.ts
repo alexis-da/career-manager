@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, openScreen } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 
@@ -43,13 +43,12 @@ test("shows secondary positions in the squad, and a player at his secondary posi
   saveName = name;
   try {
     await createSave(page, name, LYON, SEED);
-    const nav = page.getByRole("navigation", { name: "Navigation de la partie" });
 
     // Three players in four have at least one: a squad of 25 always shows some.
-    await nav.getByRole("link", { name: "Effectif" }).click();
+    await openScreen(page, "squad");
     await expect(page.locator("tbody [data-secondary-position]").first()).toBeVisible();
 
-    await nav.getByRole("link", { name: "Composition" }).click();
+    await openScreen(page, "lineup");
     await expect(page.getByLabel("Dispositif")).toHaveValue("4-3-3");
 
     // The eleven as the pitch shows it: each slot's position, its starter's key and how he fits it.
@@ -102,7 +101,7 @@ test("shows secondary positions in the squad, and a player at his secondary posi
     await expect(summary.locator(`[data-off-position="${offStarter.key}"]`)).toHaveCount(1);
 
     // Transfers: « Inclure les postes secondaires » adds the players with ST as a secondary position.
-    await nav.getByRole("link", { name: "Transferts" }).click();
+    await openScreen(page, "transfers");
     await page.getByRole("link", { name: "Autres clubs" }).click();
     await page.getByLabel("Poste", { exact: true }).selectOption("ST");
     await page.getByRole("button", { name: "Filtrer" }).click();

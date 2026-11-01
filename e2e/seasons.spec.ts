@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { demoSaveId, DEMO_USER_ID, signedUserCookie, USER_COOKIE } from "./db";
+import { openScreen } from "./helpers";
 
 test("shows the demo save's palmarès, its completed season and the season's card", async ({ page, context, request, baseURL }) => {
   const saveId = await demoSaveId();
@@ -7,7 +8,7 @@ test("shows the demo save's palmarès, its completed season and the season's car
   await context.addCookies([{ name: USER_COOKIE, value: signedUserCookie(DEMO_USER_ID), url: baseURL ?? "" }]);
 
   await page.goto(`/saves/${saveId}`);
-  await page.getByRole("link", { name: "Palmarès" }).click();
+  await openScreen(page, "club");
   await expect(page.getByRole("heading", { name: "Palmarès" })).toBeVisible();
   const season = page.locator('tr[data-season="2026"]');
   await expect(season).toContainText("2026-27");

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { parse } from "dotenv";
 import { createAnonymousUser, deleteUsers, signedUserCookie, USER_COOKIE } from "./db";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, openScreen } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 
@@ -12,7 +12,8 @@ test("opens the cup of a new worldVersion 2 save: « Coupe » in the navigation,
   const name = `E2E coupe ${Date.now()}`;
   try {
     await createSave(page, name, LYON);
-    await page.getByRole("navigation", { name: "Navigation de la partie" }).getByRole("link", { name: "Coupe" }).click();
+    await openScreen(page, "cup");
+    await expect(page.getByTestId("nav-cup")).toHaveText("Coupe");
 
     await expect(page.getByRole("heading", { name: "Coupe", level: 1 })).toBeVisible();
     await expect(page.getByText("France — Coupe · Saison 2026-27")).toBeVisible();

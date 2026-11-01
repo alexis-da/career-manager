@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { demoSaveId, DEMO_USER_ID, signedUserCookie, USER_COOKIE } from "./db";
-import { createSave, deleteSave, expectNoSidewaysScroll, saveRow } from "./helpers";
+import { boxOf, createSave, deleteSave, expectNavAtFootOfScreen, expectNoSidewaysScroll, openScreen, saveRow } from "./helpers";
 
 // The game on a phone's screen, 390 × 844: at every step, the page is never wider than the window, so nothing scrolls
 // sideways. The career's club has the longest name of the game, the one most likely to push a screen wider.
@@ -35,12 +35,14 @@ test("plays a career on a phone, from the home page to the honours, never wider 
 
   await createSave(page, name, WOLVERHAMPTON);
   await expectNoSidewaysScroll(page, "dashboard");
-  // The club's name whole in the header, the game's actions in a bar at the foot of the screen, under the thumb.
+  // The club's name whole in the header, the game's actions above the navigation, itself at the foot of the screen.
   await expect(page.getByTestId("header-club")).toContainText(WOLVERHAMPTON);
   const nextMatch = page.getByTestId("next-match");
-  const button = await nextMatch.boundingBox();
-  expect(button?.height ?? 0).toBeGreaterThanOrEqual(44);
-  expect(button?.y ?? 0).toBeGreaterThan(PHONE.height - 100);
+  const button = await boxOf(nextMatch);
+  const nav = await boxOf(page.getByTestId("save-nav"));
+  expect(button.height).toBeGreaterThanOrEqual(44);
+  expect(button.y + button.height).toBeLessThanOrEqual(nav.y);
+  await expectNavAtFootOfScreen(page);
 
   // The next match, live: the first half, the break, the second half, the final whistle.
   await nextMatch.click();
@@ -59,12 +61,12 @@ test("plays a career on a phone, from the home page to the honours, never wider 
   await expectNoSidewaysScroll(page, "dashboard after the match");
 
   // The table: only the full table scrolls sideways, inside its own frame.
-  await page.getByTestId("nav-standings").click();
+  await openScreen(page, "standings");
   await expect(page.getByTestId("standings-title")).toBeVisible();
   await expect(page.locator('[data-testid="standings-table"]:visible tbody tr')).toHaveCount(20);
   await expectNoSidewaysScroll(page, "table");
 
-  await page.getByTestId("nav-seasons").click();
+  await openScreen(page, "club");
   await expect(page.getByTestId("seasons-title")).toBeVisible();
   await expectNoSidewaysScroll(page, "honours");
 

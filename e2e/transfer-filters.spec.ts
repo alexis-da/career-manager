@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, openScreen } from "./helpers";
 
 // Columns of the « Autres clubs » table.
 const COLUMN = { name: 0, club: 1, position: 2, age: 3, overall: 4, price: 6 } as const;
@@ -74,7 +74,7 @@ test("filters the AI clubs' players one filter at a time, then three together wi
   saveName = name;
   try {
     await createSave(page, name, "Olympique Lyonnais");
-    await page.getByRole("link", { name: "Transferts" }).click();
+    await openScreen(page, "transfers");
     await page.getByRole("link", { name: "Autres clubs" }).click();
     const everyone = await total(page);
     expect(everyone).toBeGreaterThan(1000);

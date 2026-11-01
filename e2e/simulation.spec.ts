@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, openScreen } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 const FRANCE = "France";
@@ -34,7 +34,7 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 
     // The calendar opens on the month of the save's current date, the current day highlighted with its match.
-    await page.getByRole("navigation", { name: "Navigation de la partie" }).getByRole("link", { name: "Calendrier" }).click();
+    await openScreen(page, "fixtures");
     // « août 2026 » in the page: only CSS capitalises it.
     await expect(page.locator('[data-calendar="month"]')).toHaveText("août 2026");
     const today = page.locator('[role="gridcell"][aria-current="date"]');
@@ -56,7 +56,7 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
     await dialog.getByRole("button", { name: "Continuer" }).click();
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 
-    await page.getByRole("link", { name: "Classement" }).click();
+    await openScreen(page, "standings");
     await page.getByRole("tab", { name: FRANCE }).click();
     await page.getByRole("tab", { name: "Division 1" }).click();
     const panel = page.getByRole("tabpanel", { name: "Division 1" });

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSave, deleteSave, saveRow } from "./helpers";
+import { createSave, deleteSave, openScreen, saveRow } from "./helpers";
 
 // Name of the save the running test created, until it is deleted.
 let saveName: string | undefined;
@@ -28,7 +28,7 @@ test("starts a save on 1 July 2026, shows a squad player's card on hover and the
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 
     // The squad: hovering a row shows the player's card after a short delay; a click still opens the full sheet.
-    await page.getByTestId("nav-squad").click();
+    await openScreen(page, "squad");
     const goalkeeper = page.locator("tbody tr[data-player-key]").first();
     const playerKey = (await goalkeeper.getAttribute("data-player-key")) ?? "";
     await goalkeeper.hover();
@@ -41,7 +41,7 @@ test("starts a save on 1 July 2026, shows a squad player's card on hover and the
     await expect(page.getByRole("complementary", { name: /^Fiche de / })).toBeVisible();
 
     // The dashboard: the next opponent's probable eleven, on the read-only pitch.
-    await page.getByRole("link", { name: "Tableau de bord" }).click();
+    await openScreen(page, "dashboard");
     await page.getByRole("button", { name: "Voir l'adversaire" }).click();
     const panel = page.getByRole("dialog");
     await expect(panel.getByRole("list", { name: /^Onze probable de / })).toBeVisible();

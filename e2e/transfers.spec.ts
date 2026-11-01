@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createSave, deleteSave } from "./helpers";
+import { createSave, deleteSave, openScreen } from "./helpers";
 
 // Name of the save the running test created, until it is deleted.
 let saveName: string | undefined;
@@ -14,7 +14,7 @@ test.afterEach(async ({ page }) => {
 
 /** Payroll of the managed club in euros, as the dashboard shows it. */
 async function dashboardPayroll(page: Page): Promise<number> {
-  await page.getByRole("link", { name: "Tableau de bord" }).click();
+  await openScreen(page, "dashboard");
   await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
   return Number(await page.locator('[data-summary="payroll"]').getAttribute("data-value"));
 }
@@ -28,13 +28,14 @@ test("signs a free agent, then shows why an offer above the budget is refused", 
     await createSave(page, name, "Olympique Lyonnais");
     const payrollBefore = await dashboardPayroll(page);
 
-    await page.getByTestId("nav-squad").click();
+    await openScreen(page, "squad");
     const rows = page.locator("tbody tr[data-player-key]");
     await expect(rows.first()).toBeVisible();
     const squadSize = await rows.count();
 
     // Sign the best free agent, at the prefilled minimum wage.
-    await page.getByRole("link", { name: "Transferts" }).click();
+    await openScreen(page, "transfers");
+    await expect(page.getByTestId("transfers-title")).toHaveText("Transferts");
     await page.getByRole("link", { name: /^Joueurs libres/ }).click();
     const freeAgent = page.locator("tbody tr").first();
     const playerName = ((await freeAgent.getByRole("link", { name: /^Voir la fiche de / }).getAttribute("aria-label")) ?? "").replace(
@@ -45,13 +46,13 @@ test("signs a free agent, then shows why an offer above the budget is refused", 
     await page.getByRole("dialog", { name: `Signer ${playerName}` }).getByRole("button", { name: "Confirmer la signature" }).click();
     await expect(page.getByText(`${playerName} : Contrat signé`, { exact: false })).toBeVisible();
 
-    await page.getByRole("link", { name: "Effectif" }).click();
+    await openScreen(page, "squad");
     await expect(rows).toHaveCount(squadSize + 1);
     await expect(page.locator('[data-summary="players"]')).toHaveText(String(squadSize + 1));
     expect(await dashboardPayroll(page)).toBeGreaterThan(payrollBefore);
 
     // The most expensive player of the AI clubs costs more than the whole budget: the refusal says so.
-    await page.getByRole("link", { name: "Transferts" }).click();
+    await openScreen(page, "transfers");
     await page.getByRole("link", { name: "Autres clubs" }).click();
     await page.getByRole("link", { name: "Prix demandé" }).click();
     await expect(page).toHaveURL(/sort=price/);
