@@ -47,6 +47,7 @@
     "windowClosedUntil": "Mercato fermé : la prochaine fenêtre ouvre le {date}.",
     "notAvailableMarket": "Ce joueur n'est plus disponible : il a changé de club ou quitté le monde.",
     "notAvailableSquad": "Ce joueur ne fait plus partie de ton effectif.",
+    "boughtThisWindow": "Tu viens de le recruter à ce mercato : il ne peut pas repartir avant le prochain.",
     "insufficientBudget": "Budget insuffisant : ton budget transferts ne couvre pas cette opération.",
     "insufficientBudgetFor": "Budget insuffisant : l'indemnité de {fee} dépasse ton budget transferts de {budget}.",
     "wageBudgetExceeded": "Masse salariale dépassée : ce salaire ferait dépasser ton budget salarial.",

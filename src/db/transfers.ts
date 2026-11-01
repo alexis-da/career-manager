@@ -15,7 +15,7 @@ import {
   type OfferRefusal,
   type SaleBid,
 } from "../engine/transfer-ai";
-import { seasonStartYear, transferWindowAt } from "../engine/world";
+import { seasonStartYear, transferWindowAt, transferWindowOpenDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
@@ -46,6 +46,7 @@ export type RenewContractInput = z.input<typeof renewContractSchema>;
 export type TransferRefusal =
   | "window_closed"
   | "not_available"
+  | "bought_this_window"
   | "insufficient_budget"
   | "wage_budget_exceeded"
   | "club_refused"
@@ -72,7 +73,7 @@ export type TransferQuote = {
 /** Best AI bid for a player of the managed club today, or why there is none. */
 export type SaleQuote =
   | { ok: true; fee: number; wage: number; years: number; buyerName: string }
-  | { ok: false; reason: Extract<TransferRefusal, "window_closed" | "no_offer"> };
+  | { ok: false; reason: Extract<TransferRefusal, "window_closed" | "bought_this_window" | "no_offer"> };
 
 /** What each action would take today for a player of the managed club. */
 export type ContractTerms = {
@@ -144,6 +145,22 @@ async function managedContext(tx: Tx, saveId: string) {
   });
   const { _sum } = await tx.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } });
   return { save, club, payroll: _sum.wage ?? 0, windowOpen: transferWindowAt(save.currentDate) !== null };
+}
+
+/**
+ * Players who joined a club, bought or signed free, since the first day of the transfer window open on a date: they
+ * cannot be sold before the next window. Empty when no window is open.
+ */
+async function boughtThisWindow(tx: Tx, saveId: string, clubId: string, date: Date): Promise<Set<string>> {
+  const opensOn = transferWindowOpenDate(date);
+  if (opensOn === null) {
+    return new Set();
+  }
+  const arrivals = await tx.transfer.findMany({
+    where: { saveId, toClubId: clubId, type: { in: ["TRANSFER", "FREE"] }, date: { gte: opensOn } },
+    select: { playerSaveId: true },
+  });
+  return new Set(arrivals.map((arrival) => arrival.playerSaveId));
 }
 
 /** AI clubs able to bid, with the wage room left under their wage budget. */
@@ -231,11 +248,14 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
   const { save, club, windowOpen } = await managedContext(prisma, saveId);
   const players = await prisma.playerSave.findMany({ where: { saveId, clubSaveId: club.id }, select: PLAYER_SELECT });
   const market = windowOpen ? await loadSaleMarket(prisma, saveId) : null;
+  const bought = await boughtThisWindow(prisma, saveId, club.clubId, save.currentDate);
 
   return new Map(
     players.map((player) => {
       let sale: SaleQuote = { ok: false, reason: "window_closed" };
-      if (market !== null) {
+      if (market !== null && bought.has(player.id)) {
+        sale = { ok: false, reason: "bought_this_window" };
+      } else if (market !== null) {
         const best = bestSaleBid(save, club.reputation, player, market);
         sale =
           best === undefined
@@ -407,7 +427,7 @@ export async function releasePlayer(input: PlayerActionInput): Promise<TransferO
   }, TRANSACTION_OPTIONS);
 }
 
-/** Puts a player of the managed club on sale and accepts the best AI bid at once. */
+/** Puts a player of the managed club on sale and accepts the best AI bid at once, unless he arrived in this window. */
 export async function sellPlayer(input: PlayerActionInput): Promise<TransferOutcome> {
   const { saveId, playerSaveId } = sellPlayerSchema.parse(input);
   return prisma.$transaction(async (tx) => {
@@ -418,6 +438,9 @@ export async function sellPlayer(input: PlayerActionInput): Promise<TransferOutc
     const player = await tx.playerSave.findFirst({ where: { id: playerSaveId, saveId, clubSaveId: club.id }, select: PLAYER_SELECT });
     if (player === null) {
       return refused("not_available");
+    }
+    if ((await boughtThisWindow(tx, saveId, club.clubId, save.currentDate)).has(player.id)) {
+      return refused("bought_this_window");
     }
 
     const market = await loadSaleMarket(tx, saveId);

@@ -33,6 +33,8 @@ export function refusalMessage(
         : t("windowClosedUntil", { date: formatDate(context.nextWindowOpensOn, locale) });
     case "not_available":
       return context.target === "market" ? t("notAvailableMarket") : t("notAvailableSquad");
+    case "bought_this_window":
+      return t("boughtThisWindow");
     case "insufficient_budget":
       return context.fee !== undefined && context.budget !== undefined
         ? t("insufficientBudgetFor", { fee: money(context.fee), budget: money(context.budget) })

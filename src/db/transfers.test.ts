@@ -67,6 +67,62 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
       select: { id: true, playerKey: true, wage: true, clubSaveId: true, contractUntil: true },
     });
 
+  /** Buys the n-th best player of the selling club at his price and his minimum wage; returns his id. */
+  const buyPlayer = async (saveId: string, rank: number): Promise<string> => {
+    const { id: playerSaveId } = await rankedPlayer(saveId, SELLER_SLUG, rank);
+    const quote = await api().quoteTransfer({ saveId, playerSaveId });
+    const outcome = await api().makeTransferOffer({ saveId, playerSaveId, fee: quote.askingPrice, wage: quote.minimumWage, years: 3 });
+    if (!outcome.ok) {
+      throw new Error(`Purchase refused: ${outcome.reason}`);
+    }
+    return playerSaveId;
+  };
+
+  /** Signs the best free agent at his minimum wage; returns his id. */
+  const signBestFreeAgent = async (saveId: string): Promise<string> => {
+    const { id: playerSaveId } = await database().playerSave.findFirstOrThrow({
+      where: api().freeAgentWhere(saveId),
+      orderBy: [{ overall: "desc" }, { playerKey: "asc" }],
+      select: { id: true },
+    });
+    const quote = await api().quoteTransfer({ saveId, playerSaveId });
+    const outcome = await api().signFreeAgent({ saveId, playerSaveId, wage: quote.minimumWage, years: 2 });
+    if (!outcome.ok) {
+      throw new Error(`Signing refused: ${outcome.reason}`);
+    }
+    return playerSaveId;
+  };
+
+  const saleQuote = async (saveId: string, playerSaveId: string) => (await api().quoteSquad(saveId)).get(playerSaveId)?.sale;
+
+  const setDate = (saveId: string, date: Date) => database().save.update({ where: { id: saveId }, data: { currentDate: date } });
+
+  /** The sale of a player who arrived in this window is refused and changes nothing, and the squad quotes say the same. */
+  const expectBoughtThisWindow = async (saveId: string, playerSaveId: string) => {
+    const before = await clubState(saveId, MANAGED_SLUG);
+    const squadSize = () => database().playerSave.count({ where: { saveId, clubSaveId: before.id } });
+    const transferCount = () => database().transfer.count({ where: { saveId } });
+    const squadBefore = await squadSize();
+    const transfersBefore = await transferCount();
+
+    const outcome = await api().sellPlayer({ saveId, playerSaveId });
+
+    expect(outcome).toEqual({ ok: false, reason: "bought_this_window", refusals: [] });
+    expect(await clubState(saveId, MANAGED_SLUG)).toEqual(before);
+    expect(await squadSize()).toBe(squadBefore);
+    expect(await transferCount()).toBe(transfersBefore);
+    expect(await saleQuote(saveId, playerSaveId)).toEqual({ ok: false, reason: "bought_this_window" });
+  };
+
+  /** The squad quotes offer a sale, and it goes through at the fee they announced. */
+  const expectSold = async (saveId: string, playerSaveId: string) => {
+    const quote = await saleQuote(saveId, playerSaveId);
+    if (quote === undefined || !quote.ok) {
+      throw new Error(`No sale on offer: ${JSON.stringify(quote)}`);
+    }
+    expect(await api().sellPlayer({ saveId, playerSaveId })).toMatchObject({ ok: true, fee: quote.fee, budgetChange: quote.fee });
+  };
+
   it("sells a player to the best AI bid, identically in two saves with the same seed", async () => {
     const outcomes = [];
     for (const saveId of saveIds) {
@@ -218,6 +274,48 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
     expect(renewal).toMatchObject({ ok: true, budgetChange: 0, payrollChange: renewalQuote.minimumWage + 100_000 - renewed.wage });
     expect(renewal.ok && renewal.contractUntil?.toISOString()).toBe("2030-06-30T00:00:00.000Z");
     expect(afterRenewal.payroll - afterSigning.payroll).toBe(renewalQuote.minimumWage + 100_000 - renewed.wage);
+  });
+
+  // No other test uses the second save after the first one. The last of these moves its date on for good.
+  it("refuses to sell a player bought on the same day, and the squad quotes say so", async () => {
+    const [, saveId] = saveIds;
+    await expectBoughtThisWindow(saveId, await buyPlayer(saveId, 8));
+  });
+
+  it("refuses to sell a free agent signed on the same day, and the squad quotes say so", async () => {
+    const [, saveId] = saveIds;
+    await expectBoughtThisWindow(saveId, await signBestFreeAgent(saveId));
+  });
+
+  it("still sells a player who was at the club before the window", async () => {
+    const [, saveId] = saveIds;
+    await buyPlayer(saveId, 9);
+    const settled = await database().playerSave.findFirstOrThrow({
+      where: { saveId, clubSave: { club: { slug: MANAGED_SLUG } }, transfers: { none: { saveId } } },
+      orderBy: [{ overall: "desc" }, { playerKey: "asc" }],
+      skip: 9,
+      select: { id: true },
+    });
+
+    await expectSold(saveId, settled.id);
+  });
+
+  it("keeps new players until their window ends, puts the closed window first, and lets them go at the next one", async () => {
+    const [, saveId] = saveIds;
+    const bought = await buyPlayer(saveId, 10);
+    const signed = await signBestFreeAgent(saveId);
+
+    await setDate(saveId, new Date(Date.UTC(WORLD_START_YEAR, 7, 31)));
+    await expectBoughtThisWindow(saveId, bought);
+    await expectBoughtThisWindow(saveId, signed);
+
+    await setDate(saveId, new Date(Date.UTC(WORLD_START_YEAR, 9, 1)));
+    expect(await api().sellPlayer({ saveId, playerSaveId: bought })).toEqual({ ok: false, reason: "window_closed", refusals: [] });
+    expect(await saleQuote(saveId, bought)).toEqual({ ok: false, reason: "window_closed" });
+
+    await setDate(saveId, new Date(Date.UTC(WORLD_START_YEAR + 1, 0, 1)));
+    await expectSold(saveId, bought);
+    await expectSold(saveId, signed);
   });
 
   it("refuses every operation outside a transfer window", async () => {

@@ -13,6 +13,7 @@ const REASONS: TransferRefusal[] = [
   "club_refused",
   "player_refused",
   "no_offer",
+  "bought_this_window",
 ];
 
 /** The refusal as a player reads it in a language, French unless told otherwise. */

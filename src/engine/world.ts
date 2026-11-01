@@ -54,6 +54,16 @@ export function isTransferWindowOpen(date: Date): boolean {
   return transferWindowAt(date) !== null;
 }
 
+/** First day of the transfer window open on a date (1 July or 1 January), or null when none is open. */
+export function transferWindowOpenDate(date: Date): Date | null {
+  const window = transferWindowAt(date);
+  if (window === null) {
+    return null;
+  }
+  const year = date.getUTCFullYear();
+  return window === "summer" ? seasonStartDate(year) : new Date(Date.UTC(year, JANUARY, 1));
+}
+
 /** Last day of the transfer window open on a date (31 August or 31 January), or null when none is open. */
 export function transferWindowCloseDate(date: Date): Date | null {
   const window = transferWindowAt(date);

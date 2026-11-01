@@ -11,6 +11,7 @@ import {
   transferWindowAt,
   transferWindowBounds,
   transferWindowCloseDate,
+  transferWindowOpenDate,
   upcomingWindowCloseDate,
   WORLD_START_DATE,
   WORLD_START_YEAR,
@@ -69,6 +70,20 @@ describe("transfer windows", () => {
     expect(isTransferWindowOpen(utc("2025-10-15"))).toBe(false);
     expect(isTransferWindowOpen(utc("2026-04-04"))).toBe(false);
     expect(isTransferWindowOpen(WORLD_START_DATE)).toBe(true);
+  });
+
+  it("tells when the open window opened, from its first day to its last", () => {
+    expect(transferWindowOpenDate(utc("2024-07-01"))?.toISOString()).toBe("2024-07-01T00:00:00.000Z");
+    expect(transferWindowOpenDate(utc("2024-08-31"))?.toISOString()).toBe("2024-07-01T00:00:00.000Z");
+    expect(transferWindowOpenDate(utc("2025-01-01"))?.toISOString()).toBe("2025-01-01T00:00:00.000Z");
+    expect(transferWindowOpenDate(utc("2025-01-31"))?.toISOString()).toBe("2025-01-01T00:00:00.000Z");
+  });
+
+  it("has no opening day when no window is open", () => {
+    expect(transferWindowOpenDate(utc("2024-06-30"))).toBeNull();
+    expect(transferWindowOpenDate(utc("2024-09-01"))).toBeNull();
+    expect(transferWindowOpenDate(utc("2024-12-31"))).toBeNull();
+    expect(transferWindowOpenDate(utc("2025-02-01"))).toBeNull();
   });
 
   it("tells when the open window closes", () => {
