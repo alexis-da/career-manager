@@ -10,6 +10,7 @@ import {
   openScreen,
   pinnedToScreen,
   saveRow,
+  sidewaysOverflow,
 } from "./helpers";
 
 // The game on a phone's screen, 390 × 844: at every step, the page is never wider than the window, so nothing scrolls
@@ -82,12 +83,20 @@ test("plays a career on a phone, from the home page to the honours, never wider 
   expect(await pinnedToScreen(page)).toEqual(["save-nav"]);
   await expectNoSidewaysScroll(page, "calendar");
 
-  // The table: only the full table scrolls sideways, inside its own frame.
+  // The table: compact, it holds in its frame, the club's long name included; full, it scrolls sideways in that frame, and
+  // the page does not.
   await openScreen(page, "standings");
   await expect(page.getByTestId("standings-title")).toBeVisible();
-  await expect(page.locator('[data-testid="standings-table"]:visible tbody tr')).toHaveCount(20);
+  const table = page.locator('[data-testid="standings-table"]:visible');
+  await expect(table.locator("tbody tr")).toHaveCount(20);
   await expect(atHead).toBeVisible();
   await expectNoSidewaysScroll(page, "table");
+  const frame = table.locator("xpath=..");
+  expect(await sidewaysOverflow(frame)).toBeLessThanOrEqual(0);
+  await page.getByTestId("standings-full-toggle").click();
+  await expect(table.locator('td[data-column="won"]').first()).toBeVisible();
+  expect(await sidewaysOverflow(frame)).toBeGreaterThan(0);
+  await expectNoSidewaysScroll(page, "full table");
 
   await openScreen(page, "cup");
   await expect(page.getByTestId("cup-title")).toBeVisible();

@@ -33,8 +33,9 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
     await page.getByRole("link", { name: "Continuer" }).click();
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 
-    // The calendar opens on the month of the save's current date, the current day highlighted with its match.
+    // The calendar's grid opens on the month of the save's current date, the current day highlighted with its match.
     await openScreen(page, "fixtures");
+    await page.getByTestId("fixtures-view-calendar").click();
     // « août 2026 » in the page: only CSS capitalises it.
     await expect(page.locator('[data-calendar="month"]')).toHaveText("août 2026");
     const today = page.locator('[role="gridcell"][aria-current="date"]');

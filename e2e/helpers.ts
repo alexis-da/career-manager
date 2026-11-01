@@ -62,6 +62,10 @@ export async function expectNoSidewaysScroll(page: Page, step: string): Promise<
   expect(scrollWidth, step).toBeLessThanOrEqual(innerWidth);
 }
 
+/** How much wider an element's content is than its box: positive when it scrolls sideways, in its own frame. */
+export const sidewaysOverflow = (locator: Locator): Promise<number> =>
+  locator.evaluate((element) => element.scrollWidth - element.clientWidth);
+
 /** The box of a visible element, in the window. */
 export async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
   const box = await locator.boundingBox();

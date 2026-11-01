@@ -77,10 +77,11 @@ test("plays a cup final live: half-time, the end of regulation time, extra time 
     await expect(page.locator('[data-score-note="penalties"]').first()).toHaveText("5-3 t.a.b.");
 
     // The match sheet: « a.p. », « t.a.b. », extra time and the shoot-out kick by kick.
-    await page.goto(`/saves/${saveId}/fixtures?vue=liste`);
-    const row = page.getByRole("row").filter({ hasText: "Coupe — Finale" });
+    await page.goto(`/saves/${saveId}/fixtures`);
+    const row = page.getByTestId("fixture-row").filter({ hasText: "Coupe — Finale" });
     await expect(row).toContainText("a.p. · 5-3 t.a.b.");
-    await row.getByRole("button", { name: "2 – 2" }).click();
+    await expect(row.locator("[data-result]")).toContainText("2 – 2");
+    await row.getByTestId("match-sheet-trigger").click();
     const sheet = page.getByRole("dialog");
     await expect(sheet.locator('[data-score-note="extra-time"]')).toHaveText("a.p.");
     await expect(sheet.locator('[data-score-note="penalties"]')).toHaveText("5-3 t.a.b.");

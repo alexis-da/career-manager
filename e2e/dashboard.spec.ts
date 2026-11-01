@@ -255,8 +255,10 @@ test("plays the match from the hero, offers only to resume it at the break, then
   await expect(page.getByTestId("dashboard-form").locator("span[title]")).toHaveCount(1);
 
   await lastResult.getByTestId("dashboard-match-report").click();
-  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/fixtures$`));
+  // On the month of the match played: the calendar alone would open on the next one's.
+  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/fixtures\\?mois=2026-08$`));
   await expect(page.getByTestId("fixtures-title")).toBeVisible();
+  await expect(page.getByTestId("fixtures-month")).toHaveText("août 2026");
 });
 
 // Last: nothing is left to play after it.

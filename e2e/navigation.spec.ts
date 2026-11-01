@@ -118,12 +118,12 @@ async function expectColumnAtLeft(page: Page, stop: Stop): Promise<void> {
 }
 
 const WALKS = [
-  { name: "on a computer, in French", locale: "fr-FR", viewport: COMPUTER, labels: FRENCH, expectLayout: expectColumnAtLeft },
-  { name: "on a phone, in French", locale: "fr-FR", viewport: PHONE, labels: FRENCH, expectLayout: expectBarAtFoot },
-  { name: "on a phone, in English", locale: "en-GB", viewport: PHONE, labels: ENGLISH, expectLayout: expectBarAtFoot },
-];
+  { name: "on a computer, in French", locale: "fr-FR", viewport: COMPUTER, labels: FRENCH, matchHome: "standings", expectLayout: expectColumnAtLeft },
+  { name: "on a phone, in French", locale: "fr-FR", viewport: PHONE, labels: FRENCH, matchHome: "fixtures", expectLayout: expectBarAtFoot },
+  { name: "on a phone, in English", locale: "en-GB", viewport: PHONE, labels: ENGLISH, matchHome: "fixtures", expectLayout: expectBarAtFoot },
+] as const;
 
-for (const { name, locale, viewport, labels, expectLayout } of WALKS) {
+for (const { name, locale, viewport, labels, matchHome, expectLayout } of WALKS) {
   test.describe(`a save's navigation, ${name}`, () => {
     test.use({ locale, viewport });
 
@@ -144,9 +144,13 @@ for (const { name, locale, viewport, labels, expectLayout } of WALKS) {
       await page.goto(`/saves/${saveId}`);
       await expectStop(STOPS.dashboard);
 
-      // Each entry straight from the bar: Team opens on the squad, Match on the calendar, the dashboard comes back last.
-      for (const screen of ["squad", "fixtures", "transfers", "club", "dashboard"] as const) {
-        await page.getByTestId(STOPS[screen].entry).click();
+      // Each entry straight from the bar: Team opens on the squad, Match on the table on a computer and on the calendar on
+      // a phone, the dashboard comes back last. Its address read first: the server answers for a phone, and on a computer
+      // the entry changes once the page has hydrated.
+      for (const screen of ["squad", matchHome, "transfers", "club", "dashboard"] as const) {
+        const entry = page.getByTestId(STOPS[screen].entry);
+        await expect(entry).toHaveAttribute("href", `/saves/${saveId}${STOPS[screen].path}`);
+        await entry.click();
         await expectStop(STOPS[screen]);
       }
 

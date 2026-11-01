@@ -66,8 +66,8 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     await expect(page.getByTestId("next-match")).toBeVisible();
 
     // The match sheet: the half-time score, and the substitution at 46'.
-    await page.goto(`${page.url()}/fixtures?vue=liste`);
-    await page.getByRole("button", { name: /^\d+ – \d+$/ }).first().click();
+    await page.goto(`${page.url()}/fixtures`);
+    await page.getByTestId("fixture-row").getByTestId("match-sheet-trigger").first().click();
     const sheet = page.getByRole("dialog");
     await expect(sheet.locator('[data-match-sheet="half-time"]')).toHaveText(/^Mi-temps : \d+ – \d+$/);
     // By key, not by name: two players of a match may share a name.
