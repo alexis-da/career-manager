@@ -109,7 +109,7 @@ function RankChange({ summary }: { summary: SimulationSummary }) {
   const trend =
     rankBefore === null || rankAfter === null || rankBefore === rankAfter ? null : rankAfter < rankBefore ? "up" : "down";
   return (
-    <p className="flex items-center gap-3 font-heading text-2xl font-bold tabular-nums" data-simulation="rank">
+    <p className="flex items-center gap-3 font-heading text-2xl font-bold normal-case tabular-nums" data-simulation="rank">
       <span className="text-muted-foreground">{rankBefore === null ? "–" : t("rank", { rank: rankBefore })}</span>
       <ArrowRightIcon aria-label={t("then")} className="size-5 text-muted-foreground" />
       <span className={cn(trend === "up" && "text-win", trend === "down" && "text-loss")}>

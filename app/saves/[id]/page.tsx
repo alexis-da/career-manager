@@ -157,7 +157,7 @@ function TeamBlock({ team, align }: { team: ClubPreview; align: "left" | "right"
 
 function BigFigure({ value, unit = null }: { value: string; unit?: string | null }) {
   return (
-    <p className="font-heading text-5xl leading-none font-bold tabular-nums">
+    <p className="font-heading text-5xl leading-none font-bold normal-case tabular-nums xl:max-2xl:text-4xl">
       {value}
       {unit !== null && <span className="ml-1.5 text-2xl font-semibold text-muted-foreground">{unit}</span>}
     </p>
@@ -346,7 +346,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             <BigFigure value="—" />
           ) : (
             <>
-              <p className="font-heading text-5xl leading-none font-bold tabular-nums">
+              <p className="font-heading text-5xl leading-none font-bold normal-case tabular-nums xl:max-2xl:text-4xl">
                 {position.rank}
                 <span className="text-2xl">{t("rankSuffix", { rank: position.rank })}</span>
                 <span className="ml-2 font-sans text-sm font-normal text-muted-foreground">
@@ -387,10 +387,10 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           <p
             data-summary="payroll"
             data-value={club.payroll}
-            className="font-heading text-5xl leading-none font-bold tabular-nums"
+            className="font-heading text-5xl leading-none font-bold normal-case tabular-nums xl:max-2xl:text-3xl"
           >
             {millionsFigure(club.payroll, locale).value}
-            <span className="ml-1.5 text-2xl font-semibold text-muted-foreground">
+            <span className="ml-1.5 text-2xl font-semibold text-muted-foreground xl:max-2xl:text-lg">
               / {formatMillionsAmount(club.wageBudget, locale)}
             </span>
           </p>

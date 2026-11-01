@@ -68,7 +68,7 @@ function MarketBanner({ overview }: { overview: MarketOverview }) {
       <dl className="flex flex-wrap gap-x-10 gap-y-3 tabular-nums sm:ml-auto">
         <div>
           <dt className="eyebrow">{t("banner.budget")}</dt>
-          <dd data-summary="budget" data-value={overview.budget} className="font-heading text-2xl font-bold">
+          <dd data-summary="budget" data-value={overview.budget} className="font-heading text-2xl font-bold normal-case">
             {budget.value}
             {budget.unit !== null && (
               <>
@@ -83,7 +83,7 @@ function MarketBanner({ overview }: { overview: MarketOverview }) {
           <dd
             data-summary="wage-room"
             data-value={overview.wageRoom}
-            className={cn("font-heading text-2xl font-bold", overview.wageRoom <= 0 && "text-loss")}
+            className={cn("font-heading text-2xl font-bold normal-case", overview.wageRoom <= 0 && "text-loss")}
           >
             {millionsFigure(overview.wageRoom, locale).value}{" "}
             <span className="text-base font-semibold text-muted-foreground">

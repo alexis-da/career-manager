@@ -105,7 +105,7 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                     data-column="rank"
                     className={cn(
                       TABLE_CELL,
-                      "text-right font-heading text-base font-bold max-sm:col-start-2 max-sm:row-start-1 max-sm:px-0",
+                      "text-right font-heading text-base font-bold normal-case max-sm:col-start-2 max-sm:row-start-1 max-sm:px-0",
                       season.champion && "text-(--club)",
                     )}
                   >
