@@ -3,7 +3,6 @@
 import { competitionName } from "@/src/i18n/countries";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/src/components/ui/dialog";
 import type { FixtureWithEvents, MatchEventView } from "@/src/db/calendar";
 import { formatDate } from "@/src/lib/format";
@@ -86,9 +85,8 @@ function ShootoutList({ fixture }: { fixture: FixtureWithEvents }) {
 
 type MatchSheetDialogProps = {
   fixture: FixtureWithEvents;
-  // What opens the sheet, in place of the score button: a calendar cell's match.
-  children?: ReactNode;
-  triggerClassName?: string;
+  children: ReactNode; // what opens the sheet: a calendar row, or the match in a day of the grid
+  triggerClassName: string;
 };
 
 export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchSheetDialogProps) {
@@ -107,22 +105,7 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
 
   return (
     <Dialog>
-      {children === undefined ? (
-        <DialogTrigger
-          data-testid="match-sheet-trigger"
-          render={
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn("font-heading text-base font-bold tabular-nums", RESULT_CLASSES[result])}
-            />
-          }
-        >
-          {score}
-        </DialogTrigger>
-      ) : (
-        <DialogTrigger className={triggerClassName} data-testid="match-sheet-trigger">{children}</DialogTrigger>
-      )}
+      <DialogTrigger className={triggerClassName} data-testid="match-sheet-trigger">{children}</DialogTrigger>
       <DialogContent className="gap-5 p-6 sm:max-w-2xl max-sm:p-4" data-testid="match-sheet">
         <DialogTitle className="sr-only">
           {fixture.home.name} {score} {fixture.away.name}

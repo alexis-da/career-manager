@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayKey, monthFromParam, monthParam, monthWeeks, seasonMonths, weekdayNames } from "./month-grid";
+import { dayKey, monthFromParam, monthParam, monthWeeks, sameMonth, seasonMonths, weekdayAbbreviation, weekdayNames } from "./month-grid";
 
 describe("month grid", () => {
   it("lays out a month in whole weeks, Monday first", () => {
@@ -24,6 +24,18 @@ describe("month grid", () => {
   it("names the weekdays Monday first, in the player's language", () => {
     expect(weekdayNames("fr")).toEqual(["Lun.", "Mar.", "Mer.", "Jeu.", "Ven.", "Sam.", "Dim."]);
     expect(weekdayNames("en")).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+  });
+
+  it("abbreviates a match's weekday in the player's language, in UTC", () => {
+    const saturday = new Date(Date.UTC(2026, 7, 15));
+    expect(weekdayAbbreviation(saturday, "fr")).toBe("sam");
+    expect(weekdayAbbreviation(saturday, "en")).toBe("Sat");
+  });
+
+  it("compares months by year and month", () => {
+    expect(sameMonth({ year: 2026, month: 7 }, { year: 2026, month: 7 })).toBe(true);
+    expect(sameMonth({ year: 2026, month: 7 }, { year: 2027, month: 7 })).toBe(false);
+    expect(sameMonth({ year: 2026, month: 7 }, { year: 2026, month: 8 })).toBe(false);
   });
 
   it("lists the season's months from July to June", () => {

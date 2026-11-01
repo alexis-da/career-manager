@@ -19,7 +19,7 @@ export const monthOf = (date: Date): Month => ({ year: date.getUTCFullYear(), mo
 
 export const firstDayOf = ({ year, month }: Month): Date => new Date(Date.UTC(year, month, 1));
 
-const sameMonth = (a: Month, b: Month): boolean => a.year === b.year && a.month === b.month;
+export const sameMonth = (a: Month, b: Month): boolean => a.year === b.year && a.month === b.month;
 
 /** The twelve months of the season starting in startYear, July to June. */
 export function seasonMonths(startYear: number): Month[] {
@@ -39,13 +39,20 @@ export function monthFromParam(value: string | undefined, months: readonly Month
   return months.find((month) => sameMonth(month, fallback)) ?? months[0];
 }
 
+const weekdayFormat = (locale: Locale) => new Intl.DateTimeFormat(INTL_LOCALES[locale], { weekday: "short", timeZone: "UTC" });
+
 /** The grid's column headers, Monday first, in the player's language: « Lun. », « Mar. »…, « Mon », « Tue »… */
 export function weekdayNames(locale: Locale): string[] {
-  const format = new Intl.DateTimeFormat(INTL_LOCALES[locale], { weekday: "short", timeZone: "UTC" });
+  const format = weekdayFormat(locale);
   return Array.from({ length: 7 }, (_, day) => {
     const name = format.format(new Date(A_MONDAY + day * DAY_MS));
     return name.charAt(0).toUpperCase() + name.slice(1);
   });
+}
+
+/** The weekday of a calendar row, without the French dot: « sam », « Sat ». */
+export function weekdayAbbreviation(date: Date, locale: Locale): string {
+  return weekdayFormat(locale).format(date).replace(".", "");
 }
 
 /**

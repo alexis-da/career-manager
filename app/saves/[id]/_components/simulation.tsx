@@ -288,12 +288,12 @@ export function SimulationProvider({ saveId, children }: { saveId: string; child
     }
   }
 
-  // To the calendar view, from the list view too; the month shown stays when the calendar is already open.
+  // To the grid, from the list too; the month shown stays when the grid is already open.
   const beginPicking = useCallback(() => {
     setPicking(true);
-    const onCalendarView = pathname === calendar && !new URLSearchParams(window.location.search).has("vue");
-    if (!onCalendarView) {
-      router.push(calendar);
+    const onGrid = pathname === calendar && new URLSearchParams(window.location.search).get("vue") === "grille";
+    if (!onGrid) {
+      router.push(`${calendar}?vue=grille`);
     }
   }, [calendar, pathname, router]);
   const cancelPicking = useCallback(() => setPicking(false), []);

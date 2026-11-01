@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Dashboard, Scorer } from "@/src/db/dashboard";
 import { cn } from "@/src/lib/utils";
+import { monthOf, monthParam } from "../fixtures/_lib/month-grid";
 import { RESULT_CLASSES } from "../_lib/results";
 import { matchResultFor, stageLabel } from "../_lib/stage";
 import { Panel, PanelTitle } from "./panel";
@@ -49,7 +50,8 @@ function LastResult({ saveId, lastResult }: { saveId: string; lastResult: NonNul
         <Scorers scorers={awayScorers} className="text-right" />
       </div>
       <Link
-        href={`/saves/${saveId}/fixtures`}
+        // The month of this match: the calendar opens on the next one's, which may be another.
+        href={`/saves/${saveId}/fixtures?mois=${monthParam(monthOf(fixture.scheduledAt))}`}
         data-testid="dashboard-match-report"
         className="mt-4 inline-flex items-center gap-0.5 self-start text-sm font-semibold text-(--club) hover:text-(--club-hover) max-sm:min-h-11"
       >

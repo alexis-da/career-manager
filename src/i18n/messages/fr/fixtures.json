@@ -4,12 +4,14 @@
     "subtitle": "Saison {season} · clique sur un match pour sa feuille ou son adversaire",
     "views": {
       "label": "Vue du calendrier",
-      "calendar": "Calendrier",
-      "list": "Liste"
+      "list": "Liste",
+      "grid": "Grille"
     },
     "previousMonth": "Mois précédent",
     "nextMonth": "Mois suivant",
     "monthGrid": "Calendrier de {month}",
+    "noMatches": "Aucun match ce mois-ci.",
+    "allFixtures": "Tout le calendrier",
     "landmarks": {
       "windowOpens": "Ouverture du mercato",
       "windowCloses": "Fermeture du mercato",
@@ -19,19 +21,12 @@
       "home": "Dom.",
       "away": "Ext."
     },
-    "venue": {
-      "home": "Domicile",
-      "away": "Extérieur"
+    "tag": {
+      "league": "D{tier}",
+      "cup": "Coupe"
     },
+    "next": "Suivant",
     "upcoming": "À venir",
-    "columns": {
-      "match": "Match",
-      "date": "Date",
-      "opponent": "Adversaire",
-      "venue": "Lieu",
-      "score": "Score",
-      "result": "Résultat"
-    },
     "pick": {
       "day": "Simuler jusqu'au {date}",
       "title": "Simuler jusqu'à une date :",

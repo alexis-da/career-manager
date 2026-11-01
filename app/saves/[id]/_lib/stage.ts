@@ -27,11 +27,6 @@ export function stageLabel(stage: Stage, t: Translator<"stage">): string {
   return stage.cup ? t("cup", { round: cupRoundName(stage.round, t) }) : t("matchday", { round: stage.round });
 }
 
-/** A short form for a table column: « J12 », « Coupe — 16es ». */
-export function stageShortLabel(stage: Stage, t: Translator<"stage">): string {
-  return stage.cup ? stageLabel(stage, t) : t("matchdayShort", { round: stage.round });
-}
-
 /** How a played cup tie ended, beyond its score. */
 export type Decision = {
   decidedBy?: DecidedBy | null; // null in the database, absent from the engine's result of a league match

@@ -4,12 +4,14 @@
     "subtitle": "Season {season} · click a match for its report or the opponent",
     "views": {
       "label": "Fixtures view",
-      "calendar": "Calendar",
-      "list": "List"
+      "list": "List",
+      "grid": "Grid"
     },
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
     "monthGrid": "Calendar for {month}",
+    "noMatches": "No matches this month.",
+    "allFixtures": "All fixtures",
     "landmarks": {
       "windowOpens": "Transfer window opens",
       "windowCloses": "Transfer window closes",
@@ -19,19 +21,12 @@
       "home": "Home",
       "away": "Away"
     },
-    "venue": {
-      "home": "Home",
-      "away": "Away"
+    "tag": {
+      "league": "D{tier}",
+      "cup": "Cup"
     },
+    "next": "Next",
     "upcoming": "Upcoming",
-    "columns": {
-      "match": "Match",
-      "date": "Date",
-      "opponent": "Opponent",
-      "venue": "Venue",
-      "score": "Score",
-      "result": "Result"
-    },
     "pick": {
       "day": "Simulate until {date}",
       "title": "Simulate until a date:",

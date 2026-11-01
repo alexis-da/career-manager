@@ -7,19 +7,18 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { SegmentedLinks } from "@/src/components/segmented";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { getManagedClubCalendar, type FixtureWithEvents } from "@/src/db/calendar";
 import { getSaveSummary } from "@/src/db/saves";
 import { seasonEndDate, seasonLabel, seasonStartYear, transferWindowBounds } from "@/src/engine/world";
 import type { Translator } from "@/src/i18n/translator";
 import { formatMonth, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { FixtureRow } from "../_components/fixture-row";
 import { Panel } from "../_components/panel";
-import { ResultPill } from "../_components/result-pill";
 import { ScoreNotes } from "../_components/score-notes";
+import { nextFixture } from "../_lib/fixture-window";
 import { RESULT_CLASSES } from "../_lib/results";
-import { matchResultFor, stageLabel, stageShortLabel } from "../_lib/stage";
-import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
+import { matchResultFor, stageLabel } from "../_lib/stage";
 import { CalendarDay, PickBanner } from "./_components/calendar-day";
 import { MatchSheetDialog } from "./_components/match-sheet-dialog";
 import { UpcomingMatchSheet } from "./_components/upcoming-match-sheet";
@@ -30,6 +29,7 @@ import {
   monthOf,
   monthParam,
   monthWeeks,
+  sameMonth,
   seasonMonths,
   weekdayNames,
   type Month,
@@ -41,7 +41,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getTranslations("fixtures"))("title") };
 }
 
-type View = "calendar" | "list";
+/** The month's matches as a list, the default, or as a grid: `?vue=grille`. */
+type View = "list" | "grid";
 
 /** A day's landmarks besides the match: the transfer windows' bounds and the season's end. */
 type Landmark = { label: string; tone: "window" | "season" };
@@ -49,10 +50,12 @@ type Landmark = { label: string; tone: "window" | "season" };
 const LANDMARK_CLASSES: Record<Landmark["tone"], string> = { window: "bg-info/15 text-info", season: "bg-warning/15 text-warning" };
 const LANDMARK_DOTS: Record<Landmark["tone"], string> = { window: "bg-info", season: "bg-warning" };
 
+const MONTH_ARROW = "grid size-11 place-items-center rounded-lg bg-card";
+
 const fixturesHref = (saveId: string, view: View, month?: Month): string => {
   const params = new URLSearchParams();
-  if (view === "list") {
-    params.set("vue", "liste");
+  if (view === "grid") {
+    params.set("vue", "grille");
   }
   if (month !== undefined) {
     params.set("mois", monthParam(month));
@@ -131,10 +134,111 @@ function MatchCell({ saveId, fixture }: { saveId: string; fixture: FixtureWithEv
   );
 }
 
+/** The month shown, in both views, and the arrows to its neighbours in the season: they stay in the view. */
+function MonthHeader({ saveId, view, month, months }: { saveId: string; view: View; month: Month; months: Month[] }) {
+  const t = useTranslations("fixtures");
+  const locale = useLocale();
+  const index = months.findIndex((candidate) => sameMonth(candidate, month));
+
+  const navLink = (target: Month | undefined, label: string, icon: ReactNode, testId: string) =>
+    target === undefined ? (
+      <span aria-hidden className={cn(MONTH_ARROW, "text-muted-foreground/40")}>
+        {icon}
+      </span>
+    ) : (
+      <Link
+        href={fixturesHref(saveId, view, target)}
+        aria-label={label}
+        data-testid={testId}
+        scroll={false}
+        className={cn(MONTH_ARROW, "transition-colors hover:bg-secondary")}
+      >
+        {icon}
+      </Link>
+    );
+
+  return (
+    <div className="flex items-center gap-2 max-sm:justify-between">
+      {navLink(months[index - 1], t("previousMonth"), <ChevronLeftIcon className="size-5" />, "fixtures-previous-month")}
+      <h2 className="min-w-40 text-center font-heading text-2xl font-bold" data-calendar="month" data-testid="fixtures-month">
+        {formatMonth(firstDayOf(month), locale)}
+      </h2>
+      {navLink(months[index + 1], t("nextMonth"), <ChevronRightIcon className="size-5" />, "fixtures-next-month")}
+    </div>
+  );
+}
+
+/** The month's landmarks in order: under the list, and under the grid on a phone, where a day only has room for a dot. */
+function MonthLandmarks({
+  month,
+  landmarks,
+  underGrid = false,
+}: {
+  month: Month;
+  landmarks: Map<string, Landmark[]>;
+  underGrid?: boolean;
+}) {
+  const locale = useLocale();
+  const monthLandmarks = [...landmarks]
+    .filter(([day]) => day.startsWith(`${monthParam(month)}-`))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([day, list]) => list.map((landmark) => ({ day, landmark })));
+  if (monthLandmarks.length === 0) {
+    return null;
+  }
+  return (
+    // The grid's days say them to a screen reader already.
+    <ul aria-hidden={underGrid || undefined} className={cn("space-y-1 text-xs", underGrid && "sm:hidden")} data-testid="fixtures-landmarks">
+      {monthLandmarks.map(({ day, landmark }) => (
+        <li key={`${day}-${landmark.label}`} className="flex items-center gap-2">
+          <span className={cn("size-2 shrink-0 rounded-full", LANDMARK_DOTS[landmark.tone])} />
+          <span className="text-muted-foreground tabular-nums first-letter:uppercase">
+            {formatShortDate(new Date(`${day}T00:00:00.000Z`), locale)}
+          </span>
+          <span className="font-semibold">{landmark.label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The month's matches, one row each, then its landmarks. */
+function MonthList({
+  saveId,
+  month,
+  fixtures,
+  next,
+  startYear,
+}: {
+  saveId: string;
+  month: Month;
+  fixtures: FixtureWithEvents[];
+  next: FixtureWithEvents | undefined;
+  startYear: number;
+}) {
+  const t = useTranslations("fixtures");
+  const monthFixtures = fixtures.filter((fixture) => sameMonth(monthOf(fixture.scheduledAt), month));
+  return (
+    <>
+      <div data-testid="fixtures-list">
+        {monthFixtures.length === 0 ? (
+          <Panel className="text-center text-muted-foreground">{t("noMatches")}</Panel>
+        ) : (
+          <ol className="space-y-2">
+            {monthFixtures.map((fixture) => (
+              <FixtureRow key={fixture.id} saveId={saveId} fixture={fixture} next={fixture.id === next?.id} />
+            ))}
+          </ol>
+        )}
+      </div>
+      <MonthLandmarks month={month} landmarks={landmarksOf(startYear, t)} />
+    </>
+  );
+}
+
 function MonthCalendar({
   saveId,
   month,
-  months,
   fixtures,
   currentDate,
   startYear,
@@ -142,7 +246,6 @@ function MonthCalendar({
 }: {
   saveId: string;
   month: Month;
-  months: Month[];
   fixtures: FixtureWithEvents[];
   currentDate: Date;
   startYear: number;
@@ -150,49 +253,12 @@ function MonthCalendar({
 }) {
   const t = useTranslations("fixtures");
   const locale = useLocale();
-  const index = months.findIndex((candidate) => monthParam(candidate) === monthParam(month));
-  const previous = months[index - 1];
-  const next = months[index + 1];
   const fixturesByDay = new Map(fixtures.map((fixture) => [dayKey(fixture.scheduledAt), fixture]));
   const landmarks = landmarksOf(startYear, t);
-  // The month's landmarks in order, listed under the grid on a phone.
-  const monthLandmarks = [...landmarks]
-    .filter(([day]) => day.startsWith(`${monthParam(month)}-`))
-    .sort(([a], [b]) => a.localeCompare(b))
-    .flatMap(([day, list]) => list.map((landmark) => ({ day, landmark })));
   const today = dayKey(currentDate);
 
-  const navLink = (target: Month | undefined, label: string, icon: ReactNode, testId: string) =>
-    target === undefined ? (
-      <span aria-hidden className="grid size-8 place-items-center rounded-md text-muted-foreground/40 max-sm:size-11">
-        {icon}
-      </span>
-    ) : (
-      <Link
-        href={fixturesHref(saveId, "calendar", target)}
-        aria-label={label}
-        data-testid={testId}
-        scroll={false}
-        className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:size-11"
-      >
-        {icon}
-      </Link>
-    );
-
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        {navLink(previous, t("previousMonth"), <ChevronLeftIcon className="size-4" />, "fixtures-previous-month")}
-        <h2
-          className="min-w-40 text-center font-heading text-2xl font-bold first-letter:uppercase"
-          data-calendar="month"
-          data-testid="fixtures-month"
-        >
-          {formatMonth(firstDayOf(month), locale)}
-        </h2>
-        {navLink(next, t("nextMonth"), <ChevronRightIcon className="size-4" />, "fixtures-next-month")}
-      </div>
-
+    <>
       <PickBanner />
 
       {/* On a phone, the week holds in the screen: seven columns a thumb wide, side by side, no scrolling sideways. */}
@@ -265,98 +331,8 @@ function MonthCalendar({
         </div>
       </Panel>
 
-      {monthLandmarks.length > 0 && (
-        <ul aria-hidden className="space-y-1 text-xs sm:hidden" data-testid="fixtures-landmarks">
-          {monthLandmarks.map(({ day, landmark }) => (
-            <li key={`${day}-${landmark.label}`} className="flex items-center gap-2">
-              <span className={cn("size-2 shrink-0 rounded-full", LANDMARK_DOTS[landmark.tone])} />
-              <span className="text-muted-foreground tabular-nums first-letter:uppercase">
-                {formatShortDate(new Date(`${day}T00:00:00.000Z`), locale)}
-              </span>
-              <span className="font-semibold">{landmark.label}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function FixtureList({ fixtures }: { fixtures: FixtureWithEvents[] }) {
-  const t = useTranslations("fixtures");
-  const tStage = useTranslations("stage");
-  const locale = useLocale();
-  return (
-    // On a phone, each match is a two-line card: its matchday or round over its venue, its date over its opponent, then
-    // the score and the result. Same rows, laid out by CSS.
-    <Panel className="p-2 sm:p-3" data-testid="fixtures-list">
-      <Table className="tabular-nums max-sm:block">
-        <TableHeader className="max-sm:hidden">
-          <TableRow className="border-border hover:bg-transparent">
-            <TableHead className={cn(TABLE_HEAD, "w-36")}>{t("columns.match")}</TableHead>
-            <TableHead className={TABLE_HEAD}>{t("columns.date")}</TableHead>
-            <TableHead className={TABLE_HEAD}>{t("columns.opponent")}</TableHead>
-            <TableHead className={TABLE_HEAD}>{t("columns.venue")}</TableHead>
-            <TableHead className={cn(TABLE_HEAD, "text-center")}>{t("columns.score")}</TableHead>
-            <TableHead className={cn(TABLE_HEAD, "w-14 text-center")}>
-              <span className="sr-only">{t("columns.result")}</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody className="max-sm:block">
-          {fixtures.map((fixture) => {
-            const opponent = fixture.home.isManaged ? fixture.away : fixture.home;
-            const result =
-              fixture.played && fixture.homeGoals !== null && fixture.awayGoals !== null
-                ? matchResultFor({ ...fixture, homeGoals: fixture.homeGoals, awayGoals: fixture.awayGoals }, fixture.home.isManaged)
-                : null;
-            return (
-              <TableRow
-                key={fixture.id}
-                className={cn(
-                  TABLE_ROW,
-                  "max-sm:grid max-sm:h-auto max-sm:grid-cols-[4rem_minmax(0,1fr)_auto_2rem] max-sm:items-center max-sm:gap-x-2 max-sm:py-1",
-                )}
-              >
-                <TableCell
-                  className={cn(
-                    TABLE_CELL,
-                    "max-sm:col-start-1 max-sm:row-start-1 max-sm:px-0 max-sm:text-xs max-sm:whitespace-normal",
-                    fixture.cup ? "font-medium text-(--club)" : "text-muted-foreground",
-                  )}
-                >
-                  {stageShortLabel(fixture, tStage)}
-                </TableCell>
-                <TableCell
-                  className={cn(TABLE_CELL, "first-letter:uppercase max-sm:col-start-2 max-sm:row-start-1 max-sm:px-0 max-sm:text-xs max-sm:text-muted-foreground")}
-                >
-                  {formatShortDate(fixture.scheduledAt, locale)}
-                </TableCell>
-                <TableCell className={cn(TABLE_CELL, "font-medium max-sm:col-start-2 max-sm:row-start-2 max-sm:px-0 max-sm:whitespace-normal")}>
-                  {opponent.name}
-                </TableCell>
-                <TableCell className={cn(TABLE_CELL, "text-muted-foreground max-sm:col-start-1 max-sm:row-start-2 max-sm:px-0 max-sm:text-xs")}>
-                  {fixture.home.isManaged ? t("venue.home") : t("venue.away")}
-                </TableCell>
-                <TableCell className={cn(TABLE_CELL, "text-center max-sm:col-start-3 max-sm:row-span-2 max-sm:row-start-1 max-sm:px-0")}>
-                  {fixture.played ? (
-                    <span className="inline-flex items-baseline gap-1.5">
-                      <MatchSheetDialog fixture={fixture} />
-                      <ScoreNotes match={fixture} />
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">–</span>
-                  )}
-                </TableCell>
-                <TableCell className={cn(TABLE_CELL, "text-center max-sm:col-start-4 max-sm:row-span-2 max-sm:row-start-1 max-sm:px-0")}>
-                  {result !== null && <ResultPill result={result} />}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </Panel>
+      <MonthLandmarks month={month} landmarks={landmarks} underGrid />
+    </>
   );
 }
 
@@ -371,10 +347,16 @@ export default async function FixturesPage({ params, searchParams }: PageProps<"
     notFound();
   }
 
-  const view: View = single(query.vue) === "liste" ? "list" : "calendar";
+  const view: View = single(query.vue) === "grille" ? "grid" : "list";
   const startYear = calendar.startYear ?? seasonStartYear(save.currentDate);
   const months = seasonMonths(startYear);
-  const month = monthFromParam(single(query.mois), months, monthOf(save.currentDate));
+  const next = nextFixture(calendar.fixtures);
+  // The list opens on the next match (a new save is in July, its first match in August), the grid on the save's date.
+  const opening = view === "list" && next !== undefined ? next.scheduledAt : save.currentDate;
+  const requested = single(query.mois);
+  const month = monthFromParam(requested, months, monthOf(opening));
+  // The switch keeps a month the player went to; otherwise each view opens on its own.
+  const chosenMonth = requested === monthParam(month) ? month : undefined;
   const lastUnplayed = calendar.fixtures.findLast((fixture) => !fixture.played);
   const pickableUntil = lastUnplayed === undefined ? null : seasonEndDate(startYear);
 
@@ -394,29 +376,36 @@ export default async function FixturesPage({ params, searchParams }: PageProps<"
           className="ml-auto"
           links={[
             {
-              href: fixturesHref(id, "calendar", month),
-              label: t("views.calendar"),
-              active: view === "calendar",
+              href: fixturesHref(id, "list", chosenMonth),
+              label: t("views.list"),
+              active: view === "list",
+              testId: "fixtures-view-list",
+            },
+            {
+              href: fixturesHref(id, "grid", chosenMonth),
+              label: t("views.grid"),
+              active: view === "grid",
               testId: "fixtures-view-calendar",
             },
-            { href: fixturesHref(id, "list"), label: t("views.list"), active: view === "list", testId: "fixtures-view-list" },
           ]}
         />
       </div>
 
-      {view === "list" ? (
-        <FixtureList fixtures={calendar.fixtures} />
-      ) : (
-        <MonthCalendar
-          saveId={id}
-          month={month}
-          months={months}
-          fixtures={calendar.fixtures}
-          currentDate={save.currentDate}
-          startYear={startYear}
-          pickableUntil={pickableUntil}
-        />
-      )}
+      <div className="space-y-3">
+        <MonthHeader saveId={id} view={view} month={month} months={months} />
+        {view === "list" ? (
+          <MonthList saveId={id} month={month} fixtures={calendar.fixtures} next={next} startYear={startYear} />
+        ) : (
+          <MonthCalendar
+            saveId={id}
+            month={month}
+            fixtures={calendar.fixtures}
+            currentDate={save.currentDate}
+            startYear={startYear}
+            pickableUntil={pickableUntil}
+          />
+        )}
+      </div>
     </div>
   );
 }

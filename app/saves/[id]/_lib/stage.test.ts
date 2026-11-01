@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { testTranslator } from "@/src/i18n/test-intl";
 import { cupLabel } from "./seasons";
-import { cupRoundReached, extraTimeNote, matchResultFor, penaltiesNote, stageLabel, stageShortLabel } from "./stage";
+import { cupRoundReached, extraTimeNote, matchResultFor, penaltiesNote, stageLabel } from "./stage";
 
 const regulation = { decidedBy: null, homePenalties: null, awayPenalties: null };
 const stage = { fr: testTranslator("fr", "stage"), en: testTranslator("en", "stage") };
@@ -18,8 +18,6 @@ describe("match stage and cup notes", () => {
       "Coupe — Demi-finale",
       "Coupe — Finale",
     ]);
-    expect(stageShortLabel({ round: 7, cup: false }, stage.fr)).toBe("J7");
-    expect(stageShortLabel({ round: 4, cup: true }, stage.fr)).toBe("Coupe — Quarts");
   });
 
   it("names them in English too", () => {
@@ -32,7 +30,6 @@ describe("match stage and cup notes", () => {
       "Cup — Semi-final",
       "Cup — Final",
     ]);
-    expect(stageShortLabel({ round: 7, cup: false }, stage.en)).toBe("MD7");
     expect([cupRoundReached(4, stage.en), cupRoundReached(9, stage.en)]).toEqual(["quarter-finals", "round 9"]);
   });
 
