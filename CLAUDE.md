@@ -197,6 +197,25 @@ du routeur, pour le retour du navigateur. Mesure : section « Premiers pas » de
 `src/db/stats.ts`), 14 jours complets par jour de création, hors défi, sur les seules tables du jeu ; à comparer avant et
 après un changement sur moins de 30 jours, la purge retirant les parties anonymes abandonnées.
 
+**Marché.** Deux écrans sous l'entrée Marché. `/transfers` : budget (et marge salariale à partir de 1024 px), bascule
+Acheter / Vendre · N offres (`?tab=sell`). Acheter : quatre entrées (Mes besoins, Pépites, Bonnes affaires, Stars),
+`proposeSignings` (`src/engine/market-proposals.ts`, pur, sans hasard) et `getMarketProposals`
+(`src/db/market-proposals.ts`). Le point faible est le titulaire à la note la plus basse à son poste. Une proposition
+n'est que d'un joueur qui accepterait (`quoteFor` donne `minimumReputation`, comparée à `MarketOverview.reputation`) et
+que le club peut payer (prix sous le budget, salaire sous la marge) : 10 par entrée, une à la fois, « Passer » sans
+mémoire ; à partir de `xl`, les trois suivantes (« Repérés pour toi ») et la meilleure offre (`SaleOfferCard`).
+« Recruter » ouvre une confirmation (prix, salaire, durée, budget restant) et passe par `makeTransferOfferAction` ou
+`signFreeAgentAction` au prix et au salaire minimaux, `DEFAULT_CONTRACT_LENGTH` saisons, `evaluateOffer` inchangé, puis
+« Signé ! ». Vendre : il n'y a pas d'offres reçues ni de bouton Refuser, rien à enregistrer : `getMarketSales`
+(`src/db/market-sales.ts`) liste les joueurs hors du onze, un titulaire blessé restant du onze, avec la meilleure offre
+IA de `quoteSquad` ; le compteur compte ces offres. Écran avancé (`/transfers/advanced`, liens « Marché complet » et
+« Détails du contrat · ajuster l'offre ») : filtres, joueurs libres, mouvements, fiche et dialogues de toujours ; un
+joueur qui refuserait le club pour sa réputation le dit dans la fiche et le dialogue, l'envoi désactivé. Un joueur arrivé
+au club dirigé pendant le mercato ouvert (ligne `Transfer` vers le club, `TRANSFER` ou `FREE`) ne se vend pas avant le
+suivant (`bought_this_window`, `transferWindowOpenDate`, `src/engine/world.ts`) : seule règle économique ajoutée par la
+refonte, elle borne la fréquence d'une revente, pas sa marge. Sur les écrans du Marché, l'action de jeu de la colonne et
+de la barre est secondaire (`GameActions`) : l'orange plein y reste à « Recruter » ou « Vendre ».
+
 **Téléphone.** Aucun écran ne défile de côté à 390 ni à 360 px, en français comme en anglais (`e2e/mobile.spec.ts` :
 `scrollWidth ≤ innerWidth` à chaque étape, en 390 × 844). La barre du bas et ses actions valent sous 1024 px (`max-lg:`),
 tablettes comprises ; les règles `max-sm:` valent sous 640 px. Sous 640 px, toute cible fait au moins 44 px : boutons,
@@ -279,7 +298,7 @@ partir de 1024 px, ligne du club de 640 à 1024 px, jamais sous 640 px), sinon l
   compte, connexion, défi, 404, sélecteur), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
   a.p./t.a.b., événements, lettres de résultat), `header` (en-tête, navigation, actions de jeu, simulation), `dashboard`,
   `onboarding` (premières actions, bulles), `challenge-banner`, `squad` (effectif, fiche joueur, contrats), `lineup`,
-  `transfers`, `fixtures` (calendrier,
+  `market` (Acheter, confirmation), `market-sell` (Vendre), `transfers` (marché avancé), `fixtures` (calendrier,
   feuille de match), `standings` (classement, coupe, palmarès, carte), `live` (direct, mi-temps), `actions` (messages
   des Server Actions, refus), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
   `src/i18n/messages.test.ts` exige les mêmes clés et les mêmes arguments ICU dans les deux langues, que tout message
