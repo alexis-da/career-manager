@@ -2,12 +2,18 @@
   "standings": {
     "title": "Table",
     "season": "Season {season}",
+    "summary": "Matchday {played} of {matchdays} · {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} · {points, plural, one {# pt} other {# pts}}",
     "empty": "No season in this career.",
     "countries": "Countries",
     "divisions": "Division, {country}",
     "division": "Division {tier}",
     "club": "Club",
     "managed": "your club",
+    "noForm": "No match played",
+    "fullTable": {
+      "show": "Full table",
+      "hide": "Compact table"
+    },
     "columns": {
       "played": "P",
       "won": "W",
@@ -16,6 +22,7 @@
       "goalsFor": "GF",
       "goalsAgainst": "GA",
       "goalDifference": "GD",
+      "form": "Form",
       "points": "Pts"
     },
     "columnTitles": {
@@ -26,13 +33,16 @@
       "goalsFor": "Goals for",
       "goalsAgainst": "Goals against",
       "goalDifference": "Goal difference",
+      "form": "Last five matches",
       "points": "Points"
     },
     "zone": {
+      "title": "title place",
       "promotion": "promotion place",
       "relegation": "relegation place"
     },
     "legend": {
+      "title": "Champion",
       "promotion": "Promotion to Division 1",
       "relegation": "Relegation to Division 2"
     }

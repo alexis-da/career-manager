@@ -2,12 +2,18 @@
   "standings": {
     "title": "Classement",
     "season": "Saison {season}",
+    "summary": "Journée {played} sur {matchdays} · {rank, selectordinal, one {#er} other {#e}} · {points, plural, one {# pt} other {# pts}}",
     "empty": "Aucune saison pour cette partie.",
     "countries": "Pays",
     "divisions": "Division, {country}",
     "division": "Division {tier}",
     "club": "Club",
     "managed": "ton club",
+    "noForm": "Aucun match joué",
+    "fullTable": {
+      "show": "Classement complet",
+      "hide": "Classement réduit"
+    },
     "columns": {
       "played": "J",
       "won": "G",
@@ -16,6 +22,7 @@
       "goalsFor": "BP",
       "goalsAgainst": "BC",
       "goalDifference": "Diff",
+      "form": "Forme",
       "points": "Pts"
     },
     "columnTitles": {
@@ -26,13 +33,16 @@
       "goalsFor": "Buts pour",
       "goalsAgainst": "Buts contre",
       "goalDifference": "Différence de buts",
+      "form": "Cinq derniers matchs",
       "points": "Points"
     },
     "zone": {
+      "title": "place de champion",
       "promotion": "place de montée",
       "relegation": "place de descente"
     },
     "legend": {
+      "title": "Champion",
       "promotion": "Montée en Division 1",
       "relegation": "Descente en Division 2"
     }

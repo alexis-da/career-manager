@@ -1,132 +1,22 @@
-import { useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 import { competitionName } from "@/src/i18n/countries";
 import type { Metadata } from "next";
 import { requireOwnedSave } from "@/src/auth/current-user";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { getLatestSeasonTables, type CompetitionTable } from "@/src/db/standings";
-import { PROMOTION_RELEGATION } from "@/src/engine/balance";
-import { countryOf } from "@/src/engine/promotion";
+import { getManagedClubCalendar } from "@/src/db/calendar";
+import { getCupBracket } from "@/src/db/cup-view";
+import { getLatestSeasonTables } from "@/src/db/standings";
 import { seasonLabel } from "@/src/engine/world";
-import { cn } from "@/src/lib/utils";
-import { Panel } from "../_components/panel";
-import { MANAGED_ROW, TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
+import { CupCard } from "../_components/cup-card";
+import { MatchCalendarCard } from "../_components/match-calendar-card";
+import { FullTableFrame } from "./_components/full-table";
+import { StandingsCard } from "./_components/standings-card";
+import { StandingsTable } from "./_components/standings-table";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getTranslations("standings"))("title") };
-}
-
-/** The table's figures, in order: each has its short label and its full name in the standings messages. */
-const COLUMNS = ["played", "won", "drawn", "lost", "goalsFor", "goalsAgainst", "goalDifference", "points"] as const;
-
-type Zone = "promotion" | "relegation" | null;
-
-/** Where a rank stands when the country has two divisions: the places going up from the second, down from the first. */
-function zoneOf(table: CompetitionTable, rank: number, divided: boolean): Zone {
-  const moves = PROMOTION_RELEGATION[countryOf(table.code)];
-  if (!divided || moves === undefined) {
-    return null;
-  }
-  if (table.tier === 2 && rank <= moves) {
-    return "promotion";
-  }
-  return table.tier === 1 && rank > table.rows.length - moves ? "relegation" : null;
-}
-
-/**
- * On a phone, the full table scrolls sideways in its frame, the only one to: its rank and club stay at the left, its
- * points at the right, the other columns scroll between them. Opaque, those cells hide what passes under them; the
- * managed club's keep its tint.
- */
-const PHONE_STICKY = "max-sm:sticky max-sm:z-10 max-sm:bg-card";
-const PHONE_STICKY_MANAGED = "max-sm:bg-secondary";
-
-function StandingsTable({ table, divided }: { table: CompetitionTable; divided: boolean }) {
-  const t = useTranslations("standings");
-  return (
-    <Panel className="p-2 sm:p-3">
-      <Table className="tabular-nums" data-testid="standings-table">
-        <TableHeader>
-          <TableRow className="border-border hover:bg-transparent">
-            <TableHead className={cn(TABLE_HEAD, "w-12 text-right", PHONE_STICKY, "max-sm:left-0 max-sm:w-9 max-sm:px-1.5")}>#</TableHead>
-            <TableHead className={cn(TABLE_HEAD, PHONE_STICKY, "max-sm:left-9 max-sm:px-1.5")}>{t("club")}</TableHead>
-            {COLUMNS.map((column) => (
-              <TableHead
-                key={column}
-                className={cn(TABLE_HEAD, "text-right", column === "points" && cn(PHONE_STICKY, "max-sm:right-0"))}
-                title={t(`columnTitles.${column}`)}
-              >
-                {t(`columns.${column}`)}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {table.rows.map((row) => {
-            const zone = zoneOf(table, row.rank, divided);
-            const sticky = cn(PHONE_STICKY, row.isManaged && PHONE_STICKY_MANAGED);
-            return (
-              <TableRow
-                key={row.club}
-                data-managed={row.isManaged || undefined}
-                data-zone={zone ?? undefined}
-                className={cn(TABLE_ROW, row.isManaged && MANAGED_ROW)}
-              >
-                <TableCell
-                  className={cn(
-                    TABLE_CELL,
-                    "text-right text-muted-foreground",
-                    sticky,
-                    "max-sm:left-0 max-sm:w-9 max-sm:px-1.5",
-                    divided && "border-l-[3px] border-l-transparent",
-                    zone === "promotion" && "border-l-(--club)",
-                    zone === "relegation" && "border-l-muted-foreground/50",
-                  )}
-                >
-                  {row.rank}
-                  {zone !== null && <span className="sr-only"> ({t(`zone.${zone}`)})</span>}
-                </TableCell>
-                {/* On a phone, on two lines if need be, 9rem at most: the columns after it need the room. */}
-                <TableCell className={cn(TABLE_CELL, sticky, "max-sm:left-9 max-sm:max-w-36 max-sm:px-1.5 max-sm:py-1 max-sm:whitespace-normal")}>
-                  {row.clubName}
-                  {row.isManaged && <span className="sr-only"> ({t("managed")})</span>}
-                </TableCell>
-                {COLUMNS.map((column) => (
-                  <TableCell
-                    key={column}
-                    data-column={column}
-                    className={cn(
-                      TABLE_CELL,
-                      "text-right",
-                      column === "points" && cn("font-heading text-base font-bold", sticky, "max-sm:right-0"),
-                    )}
-                  >
-                    {column === "goalDifference" && row.goalDifference > 0 ? `+${row.goalDifference}` : row[column]}
-                  </TableCell>
-                ))}
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-      {divided && (
-        <p data-testid="standings-legend" className="flex flex-wrap gap-x-4 gap-y-1 px-2 pt-3 text-xs text-muted-foreground">
-          {table.tier === 2 ? (
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="h-3 w-[3px] rounded-full bg-(--club)" /> {t("legend.promotion")}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="h-3 w-[3px] rounded-full bg-muted-foreground/50" /> {t("legend.relegation")}
-            </span>
-          )}
-        </p>
-      )}
-    </Panel>
-  );
 }
 
 export default async function StandingsPage({ params }: PageProps<"/saves/[id]/standings">) {
@@ -145,77 +35,112 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
     );
   }
 
+  const [calendar, bracket] = await Promise.all([getManagedClubCalendar(id), getCupBracket(id)]);
+
   // A save with the second divisions: a tab per country, then Division 1 / Division 2; otherwise a tab per competition.
   // By country, sorted by its name in the player's language.
   const countries = [...Map.groupBy(tables, (table) => table.country)].sort(([a], [b]) =>
     tWorld(`countries.${a}`).localeCompare(tWorld(`countries.${b}`), locale),
   );
   const divided = countries.some(([, divisions]) => divisions.length > 1);
+  const managed = defaultTable.rows.find((row) => row.isManaged);
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 data-testid="standings-title" className="font-heading text-4xl font-bold">
-          {t("title")}
-        </h1>
-        <p data-testid="standings-season" className="text-sm text-muted-foreground tabular-nums">
-          {t("season", { season: seasonLabel(defaultTable.startYear) })}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h1 data-testid="standings-title" className="font-heading text-4xl font-bold">
+            {t("title")}
+          </h1>
+          <p data-testid="standings-season" className="text-sm text-muted-foreground tabular-nums">
+            {t("season", { season: seasonLabel(defaultTable.startYear) })}
+          </p>
+        </div>
+        {managed !== undefined && managed.played > 0 && (
+          <p data-testid="standings-summary" className="rounded-full bg-card px-3.5 py-2 text-sm font-bold tabular-nums">
+            {t("summary", {
+              played: managed.played,
+              matchdays: 2 * (defaultTable.rows.length - 1),
+              rank: managed.rank,
+              points: managed.points,
+            })}
+          </p>
+        )}
       </div>
 
-      {divided ? (
-        <Tabs defaultValue={defaultTable.country} className="gap-4">
-          <TabsList aria-label={t("countries")} className="flex-wrap">
-            {countries.map(([country]) => (
-              <TabsTrigger key={country} value={country} data-testid={`standings-country-${country}`}>
-                {tWorld(`countries.${country}`)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {countries.map(([country, divisions]) => {
-            const ordered = [...divisions].sort((a, b) => a.tier - b.tier);
-            const shown = ordered.find((table) => table.hasManagedClub) ?? ordered[0];
-            return (
-              <TabsContent key={country} value={country}>
-                <Tabs defaultValue={shown.code} className="gap-3">
-                  <TabsList aria-label={t("divisions", { country: tWorld(`countries.${country}`) })} className="w-fit">
-                    {ordered.map((table) => (
-                      <TabsTrigger
-                        key={table.code}
-                        value={table.code}
-                        className="px-4"
-                        data-testid={`standings-division-${table.tier}`}
+      <FullTableFrame className="grid grid-cols-1 gap-5 xl:grid-cols-5 data-full:xl:grid-cols-1">
+        <div className="xl:col-span-3 xl:group-data-full/standings:col-span-1">
+          {divided ? (
+            <Tabs defaultValue={defaultTable.country} className="gap-4">
+              <TabsList aria-label={t("countries")} className="flex-wrap">
+                {countries.map(([country]) => (
+                  <TabsTrigger key={country} value={country} data-testid={`standings-country-${country}`}>
+                    {tWorld(`countries.${country}`)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {countries.map(([country, divisions]) => {
+                const countryLabel = tWorld(`countries.${country}`);
+                const ordered = [...divisions].sort((a, b) => a.tier - b.tier);
+                const shown = ordered.find((table) => table.hasManagedClub) ?? ordered[0];
+                return (
+                  <TabsContent key={country} value={country}>
+                    <Tabs defaultValue={shown.code}>
+                      <StandingsCard
+                        title={countryLabel}
+                        divisions={
+                          <TabsList aria-label={t("divisions", { country: countryLabel })} className="bg-background">
+                            {ordered.map((table) => (
+                              <TabsTrigger
+                                key={table.code}
+                                value={table.code}
+                                className="px-4 max-sm:px-2.5 sm:min-h-9.5"
+                                data-testid={`standings-division-${table.tier}`}
+                              >
+                                {t("division", { tier: table.tier })}
+                              </TabsTrigger>
+                            ))}
+                          </TabsList>
+                        }
                       >
-                        {t("division", { tier: table.tier })}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                  {ordered.map((table) => (
-                    <TabsContent key={table.code} value={table.code}>
-                      <StandingsTable table={table} divided />
-                    </TabsContent>
-                  ))}
-                </Tabs>
-              </TabsContent>
-            );
-          })}
-        </Tabs>
-      ) : (
-        <Tabs defaultValue={defaultTable.code} className="gap-4">
-          <TabsList className="flex-wrap">
-            {tables.map((table) => (
-              <TabsTrigger key={table.code} value={table.code} data-testid={`standings-competition-${table.code}`}>
-                {competitionName(table.code, tWorld)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {tables.map((table) => (
-            <TabsContent key={table.code} value={table.code}>
-              <StandingsTable table={table} divided={false} />
-            </TabsContent>
-          ))}
-        </Tabs>
-      )}
+                        {ordered.map((table) => (
+                          <TabsContent key={table.code} value={table.code}>
+                            <StandingsTable table={table} divided />
+                          </TabsContent>
+                        ))}
+                      </StandingsCard>
+                    </Tabs>
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
+          ) : (
+            <Tabs defaultValue={defaultTable.code} className="gap-4">
+              <TabsList className="flex-wrap">
+                {tables.map((table) => (
+                  <TabsTrigger key={table.code} value={table.code} data-testid={`standings-competition-${table.code}`}>
+                    {competitionName(table.code, tWorld)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {tables.map((table) => (
+                <TabsContent key={table.code} value={table.code}>
+                  <StandingsCard title={competitionName(table.code, tWorld)}>
+                    <StandingsTable table={table} divided={false} />
+                  </StandingsCard>
+                </TabsContent>
+              ))}
+            </Tabs>
+          )}
+        </div>
+
+        {/* Beside the table on a wide screen, under it side by side on a smaller one, one taking the whole width if alone;
+            on a phone, the Calendrier and Coupe tabs have them. The full table takes their place. */}
+        <div className="grid content-start items-start gap-5 group-data-full/standings:hidden max-lg:hidden lg:auto-cols-fr lg:grid-flow-col xl:col-span-2 xl:grid-flow-row">
+          {calendar.fixtures.length > 0 && <MatchCalendarCard saveId={id} fixtures={calendar.fixtures} />}
+          {bracket !== null && <CupCard saveId={id} bracket={bracket} linked />}
+        </div>
+      </FullTableFrame>
     </div>
   );
 }
