@@ -280,8 +280,9 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
         </div>
       </div>
 
-      {/* Stuck to the foot of the screen: the panel is taller than a screen, and these are the only way on. */}
-      <div className="sticky bottom-0 z-20 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 rounded-b-card border-t bg-card px-5 py-4 max-sm:py-2">
+      {/* Stuck to the foot of the screen, above the navigation under lg: the panel is taller than a screen, and these are
+          the only way on. */}
+      <div className="sticky bottom-0 z-20 max-lg:bottom-(--save-nav-height) -mx-5 -mb-5 flex flex-wrap justify-end gap-2 rounded-b-card border-t bg-card px-5 py-4 max-sm:py-2">
         <Button
           variant="outline"
           className="h-9 px-3"
