@@ -39,9 +39,9 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
 
   return (
     <SimulationProvider saveId={header.id}>
-      <div className="flex min-h-full flex-1 flex-col">
-        {/* Opaque on a phone, without the blur: a blur would hold the action bar, fixed to the screen, in the header. */}
-        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur max-sm:bg-background max-sm:backdrop-filter-none">
+      <div data-save-shell className="flex min-h-full flex-1 flex-col">
+        {/* Opaque under lg, without the blur: a blur would hold the bars, fixed to the screen, in the header. */}
+        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur max-lg:bg-background max-lg:backdrop-filter-none">
           <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-3 px-4 sm:gap-6 lg:px-7">
             {/* The game's mark, the only one in a save: the rest is in the club's colours. 44 px to the touch on a phone. */}
             <Link
@@ -96,9 +96,9 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                   {t(header.windowOpen ? "windowOpen" : "windowClosed")}
                 </p>
               </div>
-              {/* On a phone, the game's actions leave this row for a bar fixed to the foot of the screen, under the thumb;
-                  no bar at all when there is no action, on the live page of a paused match. */}
-              <div className="contents max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-40 max-sm:flex max-sm:border-t max-sm:bg-background max-sm:px-4 max-sm:py-2 max-sm:*:flex-1 max-sm:empty:hidden">
+              {/* Under lg, the game's actions leave this row for a bar above the navigation, under the thumb; no bar at
+                  all when there is no action, on the live page of a paused match. */}
+              <div className="contents max-lg:fixed max-lg:inset-x-0 max-lg:bottom-(--save-nav-height) max-lg:z-40 max-lg:flex max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-4 max-lg:py-2 max-lg:*:flex-1 max-lg:empty:hidden">
                 <GameActions
                   saveId={header.id}
                   seasonFinished={header.seasonFinished}
@@ -112,8 +112,8 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               the sticky panels below it allow for. */}
           <SaveNav saveId={header.id} />
         </header>
-        {/* On a phone, room at the foot for the action bar. */}
-        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 lg:px-7 max-sm:pb-24">
+        {/* Under lg, room at the foot for the two bars. */}
+        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 lg:px-7 max-lg:pb-[calc(var(--save-nav-height)+var(--save-actions-height)+1.5rem)]">
           <SectionTabs saveId={header.id} hasCup={header.hasCup} />
           {children}
         </main>

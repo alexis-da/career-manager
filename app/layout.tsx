@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Barlow } from "next/font/google";
 import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
@@ -44,6 +44,9 @@ export const metadata: Metadata = {
   },
 };
 
+// To the screen's edges: the bars at the foot of a save keep the home indicator's room themselves (safe-area-inset-bottom).
+export const viewport: Viewport = { viewportFit: "cover" };
+
 // Each page in the player's language (src/i18n/request.ts), its messages handed down to the client components.
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -51,8 +54,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider>
           {children}
-          {/* On a phone, above a save's action bar, fixed to the foot of the screen. */}
-          <Toaster theme="dark" position="bottom-right" mobileOffset={{ bottom: 80 }} />
+          {/* Above a save's bars, fixed to the foot of the screen under lg (--toast-bottom). */}
+          <Toaster
+            theme="dark"
+            position="bottom-right"
+            offset={{ bottom: "var(--toast-bottom, 1.5rem)" }}
+            mobileOffset={{ bottom: "var(--toast-bottom, 1rem)" }}
+          />
         </NextIntlClientProvider>
       </body>
     </html>

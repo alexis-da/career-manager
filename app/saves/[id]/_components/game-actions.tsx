@@ -125,8 +125,8 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
       }
     });
 
-  // On a phone, in the action bar at the foot of the screen: as wide as the bar allows.
-  const className = "h-9 px-4 font-heading text-base font-semibold max-sm:flex-1";
+  // Under lg, in the action bar at the foot of the screen: as wide as the bar allows.
+  const className = "h-9 px-4 font-heading text-base font-semibold max-lg:flex-1";
 
   if (liveMatch) {
     // On the live page it would lead nowhere: the way on is that page's own buttons, stuck to the foot of the screen.

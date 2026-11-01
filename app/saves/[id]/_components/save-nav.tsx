@@ -21,14 +21,21 @@ const ICONS: Record<Section["key"], ReactNode> = {
   club: <path d="M7 4h10v4a5 5 0 01-10 0zM5 5H3v2a3 3 0 003 3M19 5h2v2a3 3 0 01-3 3M10 14h4v4h-4zM8 20h8" />,
 };
 
-/** The five entries of a save, the current one in orange; the tabs of an entry that has several are in SectionTabs. */
+/**
+ * The five entries of a save, the current one in orange; the tabs of an entry that has several are in SectionTabs. Under
+ * lg, a bar fixed to the foot of the screen, an icon over a word in each of its five columns.
+ */
 export function SaveNav({ saveId }: { saveId: string }) {
   const t = useTranslations("nav");
   const base = `/saves/${saveId}`;
   const current = sectionAt(usePathname().slice(base.length));
 
   return (
-    <nav aria-label={t("label")} data-testid="save-nav" className="mx-auto flex w-full max-w-[1440px] gap-1 px-4 lg:px-7">
+    <nav
+      aria-label={t("label")}
+      data-testid="save-nav"
+      className="mx-auto flex w-full max-w-[1440px] gap-1 px-4 lg:px-7 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:grid max-lg:grid-cols-5 max-lg:gap-0 max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-2 max-lg:pt-2 max-lg:pb-[max(1.125rem,env(safe-area-inset-bottom))]"
+    >
       {SECTIONS.map(({ key, home }) => {
         const active = key === current.key;
         return (
@@ -38,11 +45,11 @@ export function SaveNav({ saveId }: { saveId: string }) {
             aria-current={active ? "page" : undefined}
             data-testid={`nav-${key}`}
             className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors",
+              "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors max-lg:min-h-12 max-lg:flex-col max-lg:justify-center max-lg:gap-1 max-lg:p-0 max-lg:text-[0.6875rem]",
               active ? "font-bold text-(--club)" : "font-semibold text-muted-foreground hover:text-foreground",
             )}
           >
-            <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-5 shrink-0">
+            <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-5 shrink-0 max-lg:size-6">
               {ICONS[key]}
             </svg>
             {t(key)}

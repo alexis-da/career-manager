@@ -15,6 +15,13 @@
   --club-fg: #0b1340;
   --club-hover: #ffb54d;
 
+  /*
+   * A save's bars at the foot of the screen, under lg: the navigation (1 px of border, 8 px above its 48 px tabs, at least
+   * 18 px under them, the phone's home indicator's) and the game's actions above it (a 44 px button, 8 px around it).
+   */
+  --save-nav-height: calc(3.5625rem + max(1.125rem, env(safe-area-inset-bottom)));
+  --save-actions-height: 3.8125rem;
+
   --background: #0b1340;
   --foreground: #ffffff;
   --card: #16205a;
@@ -92,6 +99,13 @@
   --border: #27347f;
   --input: #27347f;
   --ring: var(--brand-orange);
+}
+
+/* Toasts above a save's bars; elsewhere, their default place. */
+@media (width < 64rem) {
+  :root:has([data-save-shell]) {
+    --toast-bottom: calc(var(--save-nav-height) + var(--save-actions-height) + 0.5rem);
+  }
 }
 
 @theme inline {
