@@ -12,6 +12,7 @@ import { seasonLabel } from "@/src/engine/world";
 import { formatDayDate } from "@/src/lib/format";
 import { GameActions } from "./_components/game-actions";
 import { SaveNav } from "./_components/save-nav";
+import { SectionTabs } from "./_components/section-tabs";
 import { SimulationProvider } from "./_components/simulation";
 import { stageLabel } from "./_lib/stage";
 
@@ -109,10 +110,13 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
           </div>
           {/* The tabs on a row of their own: the header is 56 + 40 px high (56 + 48 on a phone, for tabs of 44 px), which
               the sticky panels below it allow for. */}
-          <SaveNav saveId={header.id} hasCup={header.hasCup} />
+          <SaveNav saveId={header.id} />
         </header>
         {/* On a phone, room at the foot for the action bar. */}
-        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 lg:px-7 max-sm:pb-24">{children}</main>
+        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 lg:px-7 max-sm:pb-24">
+          <SectionTabs saveId={header.id} hasCup={header.hasCup} />
+          {children}
+        </main>
       </div>
     </SimulationProvider>
   );

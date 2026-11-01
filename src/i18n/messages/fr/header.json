@@ -10,14 +10,17 @@
   },
   "nav": {
     "label": "Navigation de la partie",
-    "dashboard": "Tableau de bord",
+    "dashboard": "Accueil",
+    "team": "Équipe",
+    "match": "Match",
+    "transfers": "Marché",
+    "club": "Club",
+    "sectionTabs": "Écrans : {section}",
     "squad": "Effectif",
     "lineup": "Composition",
     "fixtures": "Calendrier",
     "standings": "Classement",
-    "cup": "Coupe",
-    "transfers": "Transferts",
-    "seasons": "Palmarès"
+    "cup": "Coupe"
   },
   "gameActions": {
     "simulate": "Simuler jusqu'à…",

@@ -3,104 +3,52 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/src/lib/utils";
+import { sectionAt, SECTIONS, type Section } from "../_lib/sections";
 
-/** The tabs, each named in the nav messages by its key, which is also its data-testid's: « nav-squad ». */
-const SECTIONS = [
-  { segment: "", key: "dashboard" },
-  { segment: "/squad", key: "squad" },
-  { segment: "/lineup", key: "lineup" },
-  { segment: "/fixtures", key: "fixtures" },
-  { segment: "/standings", key: "standings" },
-  { segment: "/cup", key: "cup" },
-  { segment: "/transfers", key: "transfers" },
-  { segment: "/seasons", key: "seasons" },
-] as const;
+/** Each entry's icon, as the design draws it. */
+const ICONS: Record<Section["key"], ReactNode> = {
+  dashboard: <path d="M3 11l9-7 9 7v9H3z" />,
+  team: <path d="M8 3l-5 3 2 5 3-1v11h8V10l3 1 2-5-5-3c-1 2-2.5 3-4 3S9 5 8 3z" />,
+  match: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7l4 3-1.5 5h-5L8 10z" />
+    </>
+  ),
+  transfers: <path d="M4 8h14l-3-3M20 16H6l3 3" />,
+  club: <path d="M7 4h10v4a5 5 0 01-10 0zM5 5H3v2a3 3 0 003 3M19 5h2v2a3 3 0 01-3 3M10 14h4v4h-4zM8 20h8" />,
+};
 
-/** The ends of the row that hide tabs: a gradient there says there is more. */
-type HiddenEnds = { start: boolean; end: boolean };
-
-/**
- * Tabs of a save, « Coupe » only with a cup, on a row of their own under the header, so that every tab is there at
- * every width: on a computer they hold on one line; narrower, the row scrolls sideways, with a gradient at an end that
- * hides tabs, and the active tab is brought into view on load. The active one gets the club accent at 18 % and an
- * accent underline.
- */
-export function SaveNav({ saveId, hasCup }: { saveId: string; hasCup: boolean }) {
+/** The five entries of a save, the current one in orange; the tabs of an entry that has several are in SectionTabs. */
+export function SaveNav({ saveId }: { saveId: string }) {
   const t = useTranslations("nav");
-  const pathname = usePathname();
   const base = `/saves/${saveId}`;
-  const row = useRef<HTMLDivElement>(null);
-  const [hidden, setHidden] = useState<HiddenEnds>({ start: false, end: false });
-
-  // The gradients follow the scrolling and the row's width; the observer's first call gives the initial state.
-  useEffect(() => {
-    const element = row.current;
-    if (element === null) {
-      return;
-    }
-    const update = () =>
-      setHidden({
-        start: element.scrollLeft > 1,
-        end: element.scrollLeft + element.clientWidth < element.scrollWidth - 1,
-      });
-    element.addEventListener("scroll", update, { passive: true });
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => {
-      element.removeEventListener("scroll", update);
-      observer.disconnect();
-    };
-  }, []);
-
-  // The active tab in view, centred when the row scrolls, on load and on every page of the save. The row's own
-  // scrolling only: scrollIntoView would move the page too.
-  useEffect(() => {
-    const element = row.current;
-    const active = element?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (element === null || element === undefined || active === null || active === undefined) {
-      return;
-    }
-    element.scrollLeft = active.offsetLeft - (element.clientWidth - active.offsetWidth) / 2;
-  }, [pathname]);
+  const current = sectionAt(usePathname().slice(base.length));
 
   return (
-    <nav aria-label={t("label")} data-testid="save-nav" className="relative mx-auto w-full max-w-[1440px]">
-      {/* Positioned: the tabs' offsetLeft is measured from it. No scrollbar: the gradients say there is more. */}
-      <div
-        ref={row}
-        className="relative flex h-10 items-center gap-1 overflow-x-auto px-4 [scrollbar-width:none] max-sm:h-12 lg:px-7 [&::-webkit-scrollbar]:hidden"
-      >
-        {SECTIONS.filter(({ segment }) => hasCup || segment !== "/cup").map(({ segment, key }) => {
-          const href = `${base}${segment}`;
-          const active = segment === "" ? pathname === base : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={active ? "page" : undefined}
-              data-testid={`nav-${key}`}
-              className={cn(
-                // The underline stays inside the row (4 px under a 32 px tab in a 40 px row; 2 px under a 44 px tab in
-                // a 48 px row on a phone, for the thumb): the row scrolls, and would clip anything hanging out.
-                "relative shrink-0 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors max-sm:py-3",
-                active
-                  ? "bg-(--club)/18 font-semibold text-foreground after:absolute after:inset-x-2 after:-bottom-1 after:h-0.5 after:rounded-full after:bg-(--club) max-sm:after:-bottom-0.5"
-                  : "font-medium text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t(key)}
-            </Link>
-          );
-        })}
-      </div>
-      {hidden.start && (
-        <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-linear-to-r from-background to-transparent" />
-      )}
-      {hidden.end && (
-        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-linear-to-l from-background to-transparent" />
-      )}
+    <nav aria-label={t("label")} data-testid="save-nav" className="mx-auto flex w-full max-w-[1440px] gap-1 px-4 lg:px-7">
+      {SECTIONS.map(({ key, home }) => {
+        const active = key === current.key;
+        return (
+          <Link
+            key={key}
+            href={`${base}${home}`}
+            aria-current={active ? "page" : undefined}
+            data-testid={`nav-${key}`}
+            className={cn(
+              "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors",
+              active ? "font-bold text-(--club)" : "font-semibold text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-5 shrink-0">
+              {ICONS[key]}
+            </svg>
+            {t(key)}
+          </Link>
+        );
+      })}
     </nav>
   );
 }
