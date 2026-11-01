@@ -37,6 +37,13 @@ describe("a save's sections", () => {
     expect(SECTIONS.map(({ key }) => key)).toEqual(["dashboard", "team", "match", "transfers", "club"]);
     for (const section of SECTIONS) {
       expect(sectionAt(section.home).key).toBe(section.key);
+      expect(sectionAt(section.computerHome ?? section.home).key).toBe(section.key);
     }
+  });
+
+  it("leads Match to the calendar on a phone, to the table with the calendar beside it on a computer", () => {
+    const match = sectionAt("/fixtures");
+    expect(match.home).toBe("/fixtures");
+    expect(match.computerHome).toBe("/standings");
   });
 });

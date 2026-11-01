@@ -4,6 +4,7 @@ export type SectionTab = "squad" | "lineup" | "fixtures" | "standings" | "cup";
 export type Section = {
   key: "dashboard" | "team" | "match" | "transfers" | "club"; // in the nav messages, and in its data-testid: « nav-team »
   home: string; // the path the entry leads to, within the save
+  computerHome?: string; // where it leads to instead from 1024 px, when one of its screens has the others beside it
   tabs: readonly SectionTab[];
 };
 
@@ -11,7 +12,7 @@ export type Section = {
 export const SECTIONS: readonly Section[] = [
   { key: "dashboard", home: "", tabs: [] },
   { key: "team", home: "/squad", tabs: ["squad", "lineup"] },
-  { key: "match", home: "/fixtures", tabs: ["fixtures", "standings", "cup"] },
+  { key: "match", home: "/fixtures", computerHome: "/standings", tabs: ["fixtures", "standings", "cup"] },
   { key: "transfers", home: "/transfers", tabs: [] },
   { key: "club", home: "/seasons", tabs: [] },
 ];

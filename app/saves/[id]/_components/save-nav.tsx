@@ -3,9 +3,23 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { cn } from "@/src/lib/utils";
 import { sectionAt, SECTIONS, type Section } from "../_lib/sections";
+
+/** The width from which the navigation is a sidebar: Tailwind's lg. */
+const COMPUTER = "(min-width: 64rem)";
+
+function subscribeToWidth(onChange: () => void): () => void {
+  const query = window.matchMedia(COMPUTER);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+const isComputer = (): boolean => window.matchMedia(COMPUTER).matches;
+
+/** Whether the screen is a computer's: the server does not know, and answers for a phone until the page hydrates. */
+const useComputer = (): boolean => useSyncExternalStore(subscribeToWidth, isComputer, () => false);
 
 /** Each entry's icon, as the design draws it. */
 const ICONS: Record<Section["key"], ReactNode> = {
@@ -30,6 +44,7 @@ export function SaveNav({ saveId }: { saveId: string }) {
   const t = useTranslations("nav");
   const base = `/saves/${saveId}`;
   const current = sectionAt(usePathname().slice(base.length));
+  const computer = useComputer();
 
   return (
     <nav
@@ -37,12 +52,12 @@ export function SaveNav({ saveId }: { saveId: string }) {
       data-testid="save-nav"
       className="flex flex-col gap-1 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:grid max-lg:grid-cols-5 max-lg:gap-0 max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-2 max-lg:pt-2 max-lg:pb-[max(1.125rem,env(safe-area-inset-bottom))]"
     >
-      {SECTIONS.map(({ key, home }) => {
+      {SECTIONS.map(({ key, home, computerHome }) => {
         const active = key === current.key;
         return (
           <Link
             key={key}
-            href={`${base}${home}`}
+            href={`${base}${computer ? (computerHome ?? home) : home}`}
             aria-current={active ? "page" : undefined}
             data-testid={`nav-${key}`}
             className={cn(
