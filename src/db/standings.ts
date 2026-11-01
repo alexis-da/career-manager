@@ -1,11 +1,16 @@
 import { displayClubName } from "../engine/club-name";
 import { competitionCountry, type Country } from "../i18n/countries";
-import { computeStandings, type StandingRow } from "../engine/standings";
+import { computeForm, computeStandings, type FormResult, type MatchScore, type StandingRow } from "../engine/standings";
 import { prisma } from "./client";
 
 export type ClubStandingRow = StandingRow & {
   clubName: string;
   isManaged: boolean;
+};
+
+/** A row of a table on screen. */
+export type ClubTableRow = ClubStandingRow & {
+  form: FormResult[]; // the club's last results of the season, oldest first
 };
 
 export type CompetitionTable = {
@@ -15,7 +20,7 @@ export type CompetitionTable = {
   country: Country;
   tier: number; // 1 or 2
   hasManagedClub: boolean;
-  rows: ClubStandingRow[];
+  rows: ClubTableRow[];
 };
 
 export type StandingsOptions = {
@@ -24,18 +29,15 @@ export type StandingsOptions = {
 
 const STANDINGS_CLUB_SELECT = { select: { isManaged: true, club: { select: { slug: true, name: true } } } } as const;
 
-/**
- * League table of a season from its played fixtures, every club of the season included. The clubs are the ones of its
- * fixtures, played or not, never the clubs' current competition (ClubSave.competitionId): a club promoted or relegated
- * since still shows in the table of the season it played.
- */
-export async function getStandings(
-  saveId: string,
-  seasonId: string,
-  options: StandingsOptions = {},
-): Promise<ClubStandingRow[]> {
+type SeasonScores = {
+  clubBySlug: Map<string, { name: string; isManaged: boolean }>; // every club of the season
+  scores: MatchScore[]; // its counted fixtures, in chronological order
+};
+
+async function readSeasonScores(saveId: string, seasonId: string, options: StandingsOptions = {}): Promise<SeasonScores> {
   const fixtures = await prisma.fixture.findMany({
     where: { saveId, seasonId },
+    orderBy: { scheduledAt: "asc" },
     select: {
       id: true,
       played: true,
@@ -65,13 +67,33 @@ export async function getStandings(
     return { home: homeClubSave.club.slug, away: awayClubSave.club.slug, homeGoals, awayGoals };
   });
 
+  return { clubBySlug, scores };
+}
+
+function standingRows({ clubBySlug, scores }: SeasonScores): ClubStandingRow[] {
   return computeStandings(scores, [...clubBySlug.keys()]).map((row) => {
     const club = clubBySlug.get(row.club);
     return { ...row, clubName: club?.name ?? row.club, isManaged: club?.isManaged ?? false };
   });
 }
 
-/** Tables of the save's latest season, one per league (the cups have none), in alphabetical order of competition. */
+/**
+ * League table of a season from its played fixtures, every club of the season included. The clubs are the ones of its
+ * fixtures, played or not, never the clubs' current competition (ClubSave.competitionId): a club promoted or relegated
+ * since still shows in the table of the season it played.
+ */
+export async function getStandings(
+  saveId: string,
+  seasonId: string,
+  options: StandingsOptions = {},
+): Promise<ClubStandingRow[]> {
+  return standingRows(await readSeasonScores(saveId, seasonId, options));
+}
+
+/**
+ * Tables of the save's latest season, one per league (the cups have none), in alphabetical order of competition, with
+ * each club's form.
+ */
 export async function getLatestSeasonTables(saveId: string): Promise<CompetitionTable[]> {
   const latest = await prisma.season.findFirst({
     where: { saveId, competition: { kind: "LEAGUE" } },
@@ -89,7 +111,9 @@ export async function getLatestSeasonTables(saveId: string): Promise<Competition
 
   return Promise.all(
     seasons.map(async (season) => {
-      const rows = await getStandings(saveId, season.id);
+      const seasonScores = await readSeasonScores(saveId, season.id);
+      const form = computeForm(seasonScores.scores);
+      const rows = standingRows(seasonScores).map((row) => ({ ...row, form: form.get(row.club) ?? [] }));
       return {
         seasonId: season.id,
         startYear: season.startYear,

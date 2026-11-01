@@ -18,8 +18,13 @@ export type StandingRow = {
   points: number;
 };
 
+export type FormResult = "W" | "D" | "L";
+
 export const POINTS_FOR_WIN = 3;
 export const POINTS_FOR_DRAW = 1;
+
+/** Results of a club shown in a league table. */
+export const TABLE_FORM_LENGTH = 5;
 
 type Tally = Omit<StandingRow, "rank" | "goalDifference" | "points">;
 
@@ -81,4 +86,23 @@ export function computeStandings(matches: readonly MatchScore[], clubs: readonly
     }))
     .sort(compareRows)
     .map((row, index) => ({ ...row, rank: index + 1 }));
+}
+
+const resultOf = (scored: number, conceded: number): FormResult => (scored > conceded ? "W" : scored < conceded ? "L" : "D");
+
+/**
+ * Each club's last results, oldest first, from the final scores of a season in chronological order. A club without a
+ * played match has no entry.
+ */
+export function computeForm(matches: readonly MatchScore[]): Map<string, FormResult[]> {
+  const form = new Map<string, FormResult[]>();
+  const record = (club: string, result: FormResult): void => {
+    form.set(club, [...(form.get(club) ?? []), result].slice(-TABLE_FORM_LENGTH));
+  };
+
+  for (const { home, away, homeGoals, awayGoals } of matches) {
+    record(home, resultOf(homeGoals, awayGoals));
+    record(away, resultOf(awayGoals, homeGoals));
+  }
+  return form;
 }

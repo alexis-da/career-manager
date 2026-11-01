@@ -1,4 +1,5 @@
 import { displayClubName } from "../engine/club-name";
+import type { FormResult } from "../engine/standings";
 import { seasonEndDate, transferWindowAt } from "../engine/world";
 import { worldVersionOf, type WorldVersion } from "../engine/world-version";
 import { ageInYears } from "../lib/dates";
@@ -12,7 +13,7 @@ const FORM_LENGTH = 4;
 /** Rows of the league table shown on the dashboard. */
 const TABLE_PREVIEW_ROWS = 6;
 
-export type FormResult = "W" | "D" | "L";
+export type { FormResult };
 
 export type ClubPreview = {
   clubSaveId: string;
