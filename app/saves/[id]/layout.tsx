@@ -36,84 +36,73 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
   const locale = await getLocale();
 
   const season = seasonLabel(header.startYear);
+  const stage = header.nextStage === null ? t("seasonFinished") : stageLabel(header.nextStage, tStage);
 
   return (
     <SimulationProvider saveId={header.id}>
-      <div data-save-shell className="flex min-h-full flex-1 flex-col">
-        {/* Opaque under lg, without the blur: a blur would hold the bars, fixed to the screen, in the header. */}
-        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur max-lg:bg-background max-lg:backdrop-filter-none">
-          <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-3 px-4 sm:gap-6 lg:px-7">
-            {/* The game's mark, the only one in a save: the rest is in the club's colours. 44 px to the touch on a phone. */}
-            <Link
-              href="/"
-              title={t("home")}
-              data-testid="header-home"
-              className="-mr-1.5 shrink-0 rounded-md sm:-mr-3 max-sm:-mx-2 max-sm:grid max-sm:size-11 max-sm:place-items-center"
-            >
-              <Image src="/brand/late-winner-icone.svg" alt="Late Winner" width={28} height={28} unoptimized />
-            </Link>
-            <Link
-              href="/"
-              title={t("saves", { manager: header.managerName })}
-              data-testid="header-club"
-              className="flex min-w-0 items-center gap-3 max-sm:min-h-11"
-            >
-              <ClubInitials name={header.club.name} className="size-9 text-base" />
-              <span className="min-w-0 leading-tight">
-                {/* On a phone, two lines if need be rather than cut: the game's actions have left this row. */}
-                <span className="block max-w-56 truncate font-heading text-lg font-bold tracking-wide uppercase max-sm:line-clamp-2 max-sm:max-w-none max-sm:text-base max-sm:leading-tight max-sm:whitespace-normal">
-                  {header.club.name}
-                </span>
-                {/* The club's competition now: it changes with a promotion or a relegation. */}
-                <span
-                  data-testid="header-competition"
-                  className="block max-w-64 truncate text-[0.6875rem] text-muted-foreground max-sm:max-w-none"
-                >
-                  {competitionName(header.competitionCode, tWorld)} · {t("season", { season })}
-                </span>
+      <div data-save-shell className="flex min-h-full flex-1 flex-col lg:pl-64">
+        {/* One header at every width: a column fixed to the left of the screen on a computer; under lg, the club's line at
+            the top of the page, its navigation and actions fixed to the foot of the screen. */}
+        <header className="flex items-center gap-3 px-4 pt-3 lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:w-64 lg:flex-col lg:items-stretch lg:gap-4 lg:overflow-y-auto lg:border-r lg:border-sidebar-border lg:bg-sidebar lg:p-4">
+          {/* The game's mark, the only one in a save. */}
+          <Link href="/" title={t("home")} data-testid="header-home" className="flex items-center gap-2.5 px-2 max-lg:hidden">
+            <Image src="/brand/late-winner-icone.svg" alt="" width={34} height={34} unoptimized />
+            <span className="font-heading text-[1.375rem] leading-none">Late Winner</span>
+          </Link>
+          <Link
+            href="/"
+            title={t("saves", { manager: header.managerName })}
+            data-testid="header-club"
+            className="flex min-w-0 flex-1 items-center gap-3 lg:flex-none lg:rounded-2xl lg:bg-card lg:p-3"
+          >
+            <ClubInitials name={header.club.name} />
+            {/* On two lines if need be, never cut. */}
+            <span className="min-w-0 leading-tight">
+              <span className="block text-[1.0625rem] font-bold wrap-break-word lg:text-[0.9375rem]">{header.club.name}</span>
+              {/* The club's competition now: it changes with a promotion or a relegation. */}
+              <span data-testid="header-competition" className="block text-xs text-muted-foreground">
+                {competitionName(header.competitionCode, tWorld)} · {t("season", { season })}
               </span>
-            </Link>
+              <span className="block text-xs text-muted-foreground max-lg:hidden">{stage}</span>
+            </span>
+          </Link>
+          <SaveNav saveId={header.id} />
 
-            <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-4">
-              {/* Not on a phone, where the club's name needs the room: the home page's foot has it. */}
-              <LanguageSwitcher className="max-sm:hidden" />
-              {/* The weekly challenge, outside the save: next to the game's actions rather than among its tabs. */}
-              <Link
-                href="/challenge"
-                title={t("challenge")}
-                data-testid="header-challenge"
-                className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-sm:size-11"
-              >
-                <TrophyIcon aria-hidden className="size-4" />
-                <span className="sr-only">{t("challenge")}</span>
-              </Link>
-              <div className="hidden text-right leading-tight lg:block">
-                <p data-testid="header-date" className="font-heading text-base font-semibold tabular-nums first-letter:uppercase">
-                  <time dateTime={header.currentDate.toISOString()}>{formatDayDate(header.currentDate, locale)}</time>
-                </p>
-                <p data-testid="header-status" className="text-[0.6875rem] text-muted-foreground tabular-nums">
-                  {header.nextStage === null ? t("seasonFinished") : stageLabel(header.nextStage, tStage)} ·{" "}
-                  {t(header.windowOpen ? "windowOpen" : "windowClosed")}
-                </p>
-              </div>
-              {/* Under lg, the game's actions leave this row for a bar above the navigation, under the thumb; no bar at
-                  all when there is no action, on the live page of a paused match. */}
-              <div className="contents max-lg:fixed max-lg:inset-x-0 max-lg:bottom-(--save-nav-height) max-lg:z-40 max-lg:flex max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-4 max-lg:py-2 max-lg:*:flex-1 max-lg:empty:hidden">
-                <GameActions
-                  saveId={header.id}
-                  seasonFinished={header.seasonFinished}
-                  liveMatch={header.liveMatch}
-                  worldVersion={header.worldVersion}
-                />
-              </div>
+          <div className="flex shrink-0 items-center gap-2 lg:mt-auto lg:flex-col lg:items-stretch">
+            {/* Not on a phone, where the club's name needs the room: the home page's foot has it. */}
+            <LanguageSwitcher className="max-sm:hidden" />
+            {/* The weekly challenge, outside the save: next to the game's actions rather than among its tabs. */}
+            <Link
+              href="/challenge"
+              title={t("challenge")}
+              data-testid="header-challenge"
+              className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-sm:size-11"
+            >
+              <TrophyIcon aria-hidden className="size-4" />
+              <span className="sr-only">{t("challenge")}</span>
+            </Link>
+            <div className="hidden text-right leading-tight lg:block">
+              <p data-testid="header-date" className="font-heading text-base font-semibold tabular-nums first-letter:uppercase">
+                <time dateTime={header.currentDate.toISOString()}>{formatDayDate(header.currentDate, locale)}</time>
+              </p>
+              <p data-testid="header-status" className="text-[0.6875rem] text-muted-foreground tabular-nums">
+                {stage} · {t(header.windowOpen ? "windowOpen" : "windowClosed")}
+              </p>
+            </div>
+            {/* Under lg, the game's actions leave this row for a bar above the navigation, under the thumb; no bar at
+                all when there is no action, on the live page of a paused match. */}
+            <div className="contents max-lg:fixed max-lg:inset-x-0 max-lg:bottom-(--save-nav-height) max-lg:z-40 max-lg:flex max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-4 max-lg:py-2 max-lg:*:flex-1 max-lg:empty:hidden">
+              <GameActions
+                saveId={header.id}
+                seasonFinished={header.seasonFinished}
+                liveMatch={header.liveMatch}
+                worldVersion={header.worldVersion}
+              />
             </div>
           </div>
-          {/* The tabs on a row of their own: the header is 56 + 40 px high (56 + 48 on a phone, for tabs of 44 px), which
-              the sticky panels below it allow for. */}
-          <SaveNav saveId={header.id} />
         </header>
         {/* Under lg, room at the foot for the two bars. */}
-        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 lg:px-7 max-lg:pb-[calc(var(--save-nav-height)+var(--save-actions-height)+1.5rem)]">
+        <main className="mx-auto w-full max-w-296 flex-1 px-4 py-6 lg:p-8 max-lg:pb-[calc(var(--save-nav-height)+var(--save-actions-height)+1.5rem)]">
           <SectionTabs saveId={header.id} hasCup={header.hasCup} />
           {children}
         </main>
