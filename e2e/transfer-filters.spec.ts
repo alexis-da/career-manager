@@ -47,7 +47,7 @@ async function submit(page: Page): Promise<void> {
 
 async function reset(page: Page): Promise<void> {
   await page.getByRole("link", { name: "Réinitialiser" }).click();
-  await expect(page).toHaveURL(/\/transfers\?tab=clubs$/);
+  await expect(page).toHaveURL(/\/transfers\/advanced\?tab=clubs$/);
 }
 
 const field = {
@@ -74,7 +74,7 @@ test("filters the AI clubs' players one filter at a time, then three together wi
   saveName = name;
   try {
     await createSave(page, name, "Olympique Lyonnais");
-    await openScreen(page, "transfers");
+    await openScreen(page, "advanced");
     await page.getByRole("link", { name: "Autres clubs" }).click();
     const everyone = await total(page);
     expect(everyone).toBeGreaterThan(1000);

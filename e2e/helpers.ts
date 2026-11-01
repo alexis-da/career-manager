@@ -42,6 +42,28 @@ export async function expectClearOfNav(page: Page, locator: Locator): Promise<vo
   expect(clear, `${locator} under the navigation`).toBe(true);
 }
 
+/**
+ * A control whole on the screen, nothing over it, a fixed bar included: the middle of each of its sides is the control
+ * itself. Not its corners, which are rounded: there, what lies under the pointer is the page.
+ */
+export async function expectUncovered(locator: Locator): Promise<void> {
+  const uncovered = await locator.evaluate((element) => {
+    const { left, right, top, bottom } = element.getBoundingClientRect();
+    const [middleX, middleY] = [(left + right) / 2, (top + bottom) / 2];
+    const sides = [
+      { x: middleX, y: top + 1 },
+      { x: middleX, y: bottom - 1 },
+      { x: left + 1, y: middleY },
+      { x: right - 1, y: middleY },
+    ];
+    return sides.every(({ x, y }) => {
+      const found = document.elementFromPoint(x, y);
+      return found !== null && element.contains(found);
+    });
+  });
+  expect(uncovered, `${locator} covered`).toBe(true);
+}
+
 /** Fills the home page's creation form: name, manager, club, and a fixed seed. */
 export async function fillCreateSaveForm(page: Page, name: string, clubName: string, seed: string = E2E_SEED): Promise<void> {
   await page.getByTestId("save-name").fill(name);
@@ -83,8 +105,11 @@ export async function deleteSave(page: Page, name: string): Promise<void> {
   await expect(row).toHaveCount(0);
 }
 
-/** A screen of a save, as its navigation opens it: « club » is the entry of that name, on the honours for now. */
-export type SaveScreen = "dashboard" | "squad" | "lineup" | "fixtures" | "standings" | "cup" | "transfers" | "club";
+/**
+ * A screen of a save, as its navigation opens it: « club » is the entry of that name, on the honours for now, and
+ * « advanced » the advanced market, a link away from the market.
+ */
+export type SaveScreen = "dashboard" | "squad" | "lineup" | "fixtures" | "standings" | "cup" | "transfers" | "advanced" | "club";
 
 /** The entry of each tab: a tab exists only on the screens of its entry. */
 const ENTRY_OF_TAB: Partial<Record<SaveScreen, "team" | "match">> = {
@@ -95,8 +120,13 @@ const ENTRY_OF_TAB: Partial<Record<SaveScreen, "team" | "match">> = {
   cup: "match",
 };
 
-/** Opens a screen of a save from its navigation: its entry, then its tab when it is one. */
+/** Opens a screen of a save from its navigation: its entry, then its tab when it is one, or the market's link. */
 export async function openScreen(page: Page, screen: SaveScreen): Promise<void> {
+  if (screen === "advanced") {
+    await page.getByTestId("nav-transfers").click();
+    await page.getByTestId("market-advanced").click();
+    return;
+  }
   const entry = ENTRY_OF_TAB[screen];
   if (entry !== undefined) {
     await page.getByTestId(`nav-${entry}`).click();

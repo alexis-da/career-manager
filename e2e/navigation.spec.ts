@@ -27,8 +27,12 @@ const STOPS: Record<Exclude<SaveScreen, "cup">, Stop> = {
   fixtures: { path: "/fixtures", title: "fixtures-title", entry: "nav-match", tab: "nav-fixtures" },
   standings: { path: "/standings", title: "standings-title", entry: "nav-match", tab: "nav-standings" },
   transfers: { path: "/transfers", title: "transfers-title", entry: "nav-transfers" },
+  advanced: { path: "/transfers/advanced", title: "advanced-title", entry: "nav-transfers" },
   club: { path: "/seasons", title: "seasons-title", entry: "nav-club" },
 };
+
+/** The market's tab of sales: the same address but for its query, known by its list rather than by the screen's title. */
+const SALES: Stop = { ...STOPS.transfers, title: "market-sell" };
 
 /** What the navigation says in a language: its name, its five entries in order, its tabs by data-testid. */
 type Labels = { name: string; entries: string[]; tabs: Record<string, string> };
@@ -122,6 +126,16 @@ for (const { name, locale, viewport, labels, expectLayout } of WALKS) {
         await openScreen(page, screen);
         await expectStop(STOPS[screen]);
       }
+
+      // The market's other views, under the same entry: its sales by a tab, the advanced market by a link, and back.
+      await openScreen(page, "transfers");
+      await expectStop(STOPS.transfers);
+      await page.getByTestId("market-tab-sell").click();
+      await expectStop(SALES);
+      await page.getByTestId("market-advanced").click();
+      await expectStop(STOPS.advanced);
+      await page.getByTestId("market-back").click();
+      await expectStop(STOPS.transfers);
     });
   });
 }

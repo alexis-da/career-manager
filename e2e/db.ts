@@ -91,6 +91,20 @@ export async function deleteUsersLeftSince(since: Date): Promise<number> {
   return result.rowCount ?? 0;
 }
 
+/**
+ * Moves a save to another day without playing the days in between, for a screen that reads no more than the date: the
+ * market once its window has closed. Their fixtures stay unplayed: a test that does this plays nothing afterwards.
+ */
+export async function setSaveDate(saveId: string, date: Date): Promise<void> {
+  await withTestDatabase((client) =>
+    client.query(
+      `UPDATE "Save" SET "currentDate" = $1::timestamp(3) WHERE "id" = $2`,
+      // An ISO string: a Date parameter would be sent in the local time zone, and the columns hold UTC.
+      [date.toISOString(), saveId],
+    ),
+  );
+}
+
 /** The demo user's id and the demo save's seed: src/db/test-support.ts, which Playwright's loader cannot import. */
 export const DEMO_USER_ID = "demo-user";
 const DEMO_SEED = "demo-2026-27";

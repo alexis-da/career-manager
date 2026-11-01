@@ -101,7 +101,7 @@ test("shows secondary positions in the squad, and a player at his secondary posi
     await expect(summary.locator(`[data-off-position="${offStarter.key}"]`)).toHaveCount(1);
 
     // Transfers: « Inclure les postes secondaires » adds the players with ST as a secondary position.
-    await openScreen(page, "transfers");
+    await openScreen(page, "advanced");
     await page.getByRole("link", { name: "Autres clubs" }).click();
     await page.getByLabel("Poste", { exact: true }).selectOption("ST");
     await page.getByRole("button", { name: "Filtrer" }).click();
