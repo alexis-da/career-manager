@@ -27,7 +27,7 @@ const clampPage = (page: number, total: number): number => Math.min(Math.max(1, 
 const managedClub = (saveId: string) =>
   prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
-    select: { id: true, clubId: true, budget: true, wageBudget: true },
+    select: { id: true, clubId: true, budget: true, wageBudget: true, reputation: true, club: { select: { slug: true, name: true } } },
   });
 
 const currentDateOf = async (saveId: string): Promise<Date> =>
@@ -53,6 +53,8 @@ export type MarketOverview = {
   windowOpen: boolean;
   windowClosesOn: Date | null; // last day of the open window
   nextWindowOpensOn: Date; // first day of the next window
+  clubName: string; // the managed club
+  reputation: number; // its reputation: a player whose minimumReputation is higher refuses it, before any offer
   budget: number; // euros
   wageBudget: number; // euros per season
   payroll: number; // euros per season
@@ -79,6 +81,8 @@ export async function getMarketOverview(saveId: string): Promise<MarketOverview>
     windowOpen: transferWindowAt(currentDate) !== null,
     windowClosesOn: transferWindowCloseDate(currentDate),
     nextWindowOpensOn: nextTransferWindowOpening(currentDate),
+    clubName: displayClubName(club.club),
+    reputation: club.reputation,
     budget: club.budget,
     wageBudget: club.wageBudget,
     payroll: wages,
@@ -101,6 +105,7 @@ export type FreeAgentRow = {
   overall: number;
   potential: number;
   askedWage: number; // lowest wage he accepts, euros per season
+  minimumReputation: number; // the lowest reputation of a club he joins
   formerClubName: string | null; // the club that released him
 };
 
@@ -140,19 +145,23 @@ export async function listFreeAgents(saveId: string, page: number): Promise<Pagi
     total,
     page: current,
     pageCount: pageCountOf(total),
-    rows: players.map((player) => ({
-      id: player.id,
-      playerKey: player.playerKey,
-      firstName: player.firstName,
-      lastName: player.lastName,
-      nationality: player.nationality,
-      position: player.position,
-      age: ageInYears(player.birthDate, currentDate),
-      overall: player.overall,
-      potential: player.potential,
-      askedWage: quoteFor(player, null, currentDate).minimumWage,
-      formerClubName: nameOf(names, player.transfers.at(0)?.fromClubId),
-    })),
+    rows: players.map((player) => {
+      const quote = quoteFor(player, null, currentDate);
+      return {
+        id: player.id,
+        playerKey: player.playerKey,
+        firstName: player.firstName,
+        lastName: player.lastName,
+        nationality: player.nationality,
+        position: player.position,
+        age: ageInYears(player.birthDate, currentDate),
+        overall: player.overall,
+        potential: player.potential,
+        askedWage: quote.minimumWage,
+        minimumReputation: quote.minimumReputation,
+        formerClubName: nameOf(names, player.transfers.at(0)?.fromClubId),
+      };
+    }),
   };
 }
 
@@ -191,6 +200,7 @@ export type ClubPlayerRow = {
   potential: number;
   askingPrice: number; // euros, what his club asks today
   askedWage: number; // lowest wage he accepts to move, euros per season
+  minimumReputation: number; // the lowest reputation of a club he joins
   contractUntil: Date | null;
 };
 
@@ -287,6 +297,7 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
       potential: player.potential,
       askingPrice: quote.askingPrice,
       askedWage: quote.minimumWage,
+      minimumReputation: quote.minimumReputation,
       contractUntil: player.contractUntil,
     };
     return [{ key: player.playerKey, row }];

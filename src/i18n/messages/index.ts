@@ -8,6 +8,8 @@ import enFixtures from "./en/fixtures.json";
 import enHeader from "./en/header.json";
 import enLineup from "./en/lineup.json";
 import enLive from "./en/live.json";
+import enMarket from "./en/market.json";
+import enMarketSell from "./en/market-sell.json";
 import enOnboarding from "./en/onboarding.json";
 import enPublic from "./en/public.json";
 import enSquad from "./en/squad.json";
@@ -23,6 +25,8 @@ import frFixtures from "./fr/fixtures.json";
 import frHeader from "./fr/header.json";
 import frLineup from "./fr/lineup.json";
 import frLive from "./fr/live.json";
+import frMarket from "./fr/market.json";
+import frMarketSell from "./fr/market-sell.json";
 import frOnboarding from "./fr/onboarding.json";
 import frPublic from "./fr/public.json";
 import frSquad from "./fr/squad.json";
@@ -47,6 +51,8 @@ export const ZONES = {
   "challenge-banner": { fr: frChallengeBanner, en: enChallengeBanner },
   squad: { fr: frSquad, en: enSquad },
   lineup: { fr: frLineup, en: enLineup },
+  market: { fr: frMarket, en: enMarket },
+  "market-sell": { fr: frMarketSell, en: enMarketSell },
   transfers: { fr: frTransfers, en: enTransfers },
   fixtures: { fr: frFixtures, en: enFixtures },
   standings: { fr: frStandings, en: enStandings },
@@ -65,6 +71,8 @@ const fr = {
   ...frChallengeBanner,
   ...frSquad,
   ...frLineup,
+  ...frMarket,
+  ...frMarketSell,
   ...frTransfers,
   ...frFixtures,
   ...frStandings,
@@ -88,6 +96,8 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enChallengeBanner,
     ...enSquad,
     ...enLineup,
+    ...enMarket,
+    ...enMarketSell,
     ...enTransfers,
     ...enFixtures,
     ...enStandings,

@@ -6,6 +6,7 @@ import {
   askingPrice,
   evaluateOffer,
   evaluateRenewal,
+  minimumReputation,
   minimumWage,
   saleBids,
   saleRngSeed,
@@ -65,6 +66,7 @@ export type TransferOutcome =
 export type TransferQuote = {
   askingPrice: number; // euros; 0 for a free agent or a player of the managed club
   minimumWage: number; // euros per season the player accepts, renewal included
+  minimumReputation: number; // the lowest reputation of a club he joins; 0 for a player of the managed club
 };
 
 /** Best AI bid for a player of the managed club today, or why there is none. */
@@ -185,8 +187,8 @@ function bestSaleBid(
 
 /**
  * Terms of a player on a date, from his club: nothing to pay and his free-agent wage without a club, his renewal
- * wage at the managed club, his club's asking price and his raise elsewhere. Pure: the market lists and
- * quoteTransfer share it.
+ * wage at the managed club, his club's asking price and his raise elsewhere, and the reputation he asks of a club. Pure:
+ * the market lists and quoteTransfer share it.
  */
 export function quoteFor(
   player: QuotedPlayer,
@@ -195,12 +197,17 @@ export function quoteFor(
 ): TransferQuote {
   const terms = offerPlayer(player, date);
   if (club === null) {
-    return { askingPrice: 0, minimumWage: minimumWage(terms, null) };
+    return { askingPrice: 0, minimumWage: minimumWage(terms, null), minimumReputation: minimumReputation(terms, null) };
   }
   if (club.isManaged) {
-    return { askingPrice: 0, minimumWage: evaluateRenewal(terms, 0).minimumWage };
+    return { askingPrice: 0, minimumWage: evaluateRenewal(terms, 0).minimumWage, minimumReputation: 0 };
   }
-  return { askingPrice: askingPrice(terms), minimumWage: minimumWage(terms, { reputation: club.reputation }) };
+  const selling = { reputation: club.reputation };
+  return {
+    askingPrice: askingPrice(terms),
+    minimumWage: minimumWage(terms, selling),
+    minimumReputation: minimumReputation(terms, selling),
+  };
 }
 
 /** Terms a player would accept today: the asking price of his club and his minimum wage. Read only. */
