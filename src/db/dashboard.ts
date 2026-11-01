@@ -55,7 +55,9 @@ export type Dashboard = {
     previousRank: number | null; // rank before the managed club's last matchday
     previousRound: number | null;
   } | null;
-  table: ClubStandingRow[]; // top of the managed club's league, the managed club always included
+  table: ClubStandingRow[]; // the managed club's league around it: its neighbours, in table order (tableAround)
+  managedForm: FormResult[]; // last matches of the managed club in the season, oldest first, with or without a next match
+  liveMatch: boolean; // a match of the managed club waits at a break
   seasonFinished: boolean;
 };
 
@@ -64,19 +66,40 @@ const shortName = (player: { firstName: string; lastName: string }): string =>
 
 const involving = (clubSaveId: string) => ({ OR: [{ homeClubSaveId: clubSaveId }, { awayClubSaveId: clubSaveId }] });
 
+/**
+ * A window of a league table around the managed club, in table order: centred on it, with the extra row above it when the
+ * window is even, and held inside the table at its edges. The whole table when it is shorter; its top without a managed club.
+ */
+export function tableAround<Row extends { isManaged: boolean }>(rows: readonly Row[], size: number): Row[] {
+  const managed = rows.findIndex((row) => row.isManaged);
+  const start = Math.max(0, Math.min(managed - Math.floor(size / 2), rows.length - size));
+  return rows.slice(start, start + size);
+}
+
+/** A club's last matches of a season, oldest first. */
+async function recentForm(saveId: string, seasonId: string, clubSaveId: string): Promise<FormResult[]> {
+  const recent = await prisma.fixture.findMany({
+    where: { saveId, seasonId, played: true, ...involving(clubSaveId) },
+    orderBy: { scheduledAt: "desc" },
+    take: FORM_LENGTH,
+    select: { homeClubSaveId: true, homeGoals: true, awayGoals: true },
+  });
+  return recent.reverse().map(({ homeClubSaveId, homeGoals, awayGoals }): FormResult => {
+    const atHome = homeClubSaveId === clubSaveId;
+    const scored = (atHome ? homeGoals : awayGoals) ?? 0;
+    const conceded = (atHome ? awayGoals : homeGoals) ?? 0;
+    return scored > conceded ? "W" : scored < conceded ? "L" : "D";
+  });
+}
+
 async function clubPreview(
   saveId: string,
   seasonId: string,
   team: FixtureView["home"],
   table: readonly ClubStandingRow[],
 ): Promise<ClubPreview> {
-  const [recent, average] = await Promise.all([
-    prisma.fixture.findMany({
-      where: { saveId, seasonId, played: true, ...involving(team.clubSaveId) },
-      orderBy: { scheduledAt: "desc" },
-      take: FORM_LENGTH,
-      select: { homeClubSaveId: true, homeGoals: true, awayGoals: true },
-    }),
+  const [form, average] = await Promise.all([
+    recentForm(saveId, seasonId, team.clubSaveId),
     prisma.playerSave.aggregate({ where: { saveId, clubSaveId: team.clubSaveId }, _avg: { overall: true } }),
   ]);
   const row = table.find((candidate) => candidate.clubName === team.name);
@@ -86,19 +109,17 @@ async function clubPreview(
     // Before a club's first match, its place in the table is only the alphabet's: no rank yet.
     rank: row === undefined || row.played === 0 ? null : row.rank,
     points: row?.points ?? 0,
-    form: recent.reverse().map(({ homeClubSaveId, homeGoals, awayGoals }) => {
-      const atHome = homeClubSaveId === team.clubSaveId;
-      const scored = (atHome ? homeGoals : awayGoals) ?? 0;
-      const conceded = (atHome ? awayGoals : homeGoals) ?? 0;
-      return scored > conceded ? "W" : scored < conceded ? "L" : "D";
-    }),
+    form,
     averageOverall: average._avg.overall,
   };
 }
 
 /** Everything the dashboard of a save shows, for its managed club. */
 export async function getDashboard(saveId: string): Promise<Dashboard> {
-  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true, worldVersion: true } });
+  const save = await prisma.save.findUniqueOrThrow({
+    where: { id: saveId },
+    select: { currentDate: true, worldVersion: true, liveFixtureId: true },
+  });
   const club = await prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
     select: {
@@ -166,6 +187,9 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
           clubPreview(saveId, season.id, nextFixture.home, table),
           clubPreview(saveId, season.id, nextFixture.away, table),
         ]);
+  // The next match's preview has the managed club's form; without a next match, it is read on its own.
+  const managedPreview = nextFixture?.home.isManaged ? homePreview : awayPreview;
+  const managedForm = managedPreview?.form ?? (season === null ? [] : await recentForm(saveId, season.id, club.id));
 
   const managedRow = table.find((row) => row.isManaged);
   const previousRound = lastLeagueRow === null ? null : lastLeagueRow.round - 1;
@@ -177,11 +201,6 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
   const secondHalf = season !== null && save.currentDate >= new Date(Date.UTC(season.startYear + 1, 0, 1));
   const lastContractDay = season === null ? null : seasonEndDate(season.startYear);
   const ages = squad.map((player) => ageInYears(player.birthDate, save.currentDate));
-
-  const preview = table.slice(0, TABLE_PREVIEW_ROWS);
-  if (managedRow !== undefined && !preview.includes(managedRow)) {
-    preview[preview.length - 1] = managedRow;
-  }
 
   return {
     currentDate: save.currentDate,
@@ -235,7 +254,9 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
             previousRank: previousTable?.find((row) => row.isManaged)?.rank ?? null,
             previousRound: previousTable === null ? null : previousRound,
           },
-    table: preview,
+    table: tableAround(table, TABLE_PREVIEW_ROWS),
+    managedForm,
+    liveMatch: save.liveFixtureId !== null,
     seasonFinished: season !== null && unplayed === 0,
   };
 }
