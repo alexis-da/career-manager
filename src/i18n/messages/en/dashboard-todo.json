@@ -1,5 +1,23 @@
 {
   "dashboardTodo": {
-    "title": "To do"
+    "title": "To do",
+    "injuredStarters": "{count, plural, one {A starter is injured} other {# starters are injured}}",
+    "injuredStartersDetail": "{players}: replaced automatically in the next match.",
+    "injured": "{count} injured",
+    "injuredPlayer": "{name}, back {date}",
+    "injuredSeparator": "; ",
+    "offers": "{club} offers {fee} for {player}",
+    "offersDetail": "{count, plural, one {# offer} other {# offers}} for your substitutes",
+    "weakSpot": "Your weak spot: {position}",
+    "weakSpotDetail": "Rated {rating} · see the market",
+    "expiringContracts": "{count, plural, one {# contract expires} other {# contracts expire}} on 30 June",
+    "expiringOthers": "{players} and {count, plural, one {# other} other {# others}}",
+    "noGoalkeeper": "No goalkeeper under contract",
+    "oneGoalkeeper": "Only one goalkeeper under contract",
+    "goalkeepersNeeded": "{count} goalkeepers are needed to keep the team going.",
+    "smallSquad": "Thin squad",
+    "smallSquadDetail": "{count, plural, one {# player} other {# players}} under contract, {minimum} minimum.",
+    "fullSquad": "Full squad",
+    "fullSquadDetail": "{players, plural, one {# player} other {# players}}, {goalkeepers, plural, one {# goalkeeper} other {# goalkeepers}} — nothing to report"
   }
 }
