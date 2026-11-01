@@ -4,6 +4,8 @@ import enAdmin from "./en/admin.json";
 import enCatalogs from "./en/catalogs.json";
 import enChallengeBanner from "./en/challenge-banner.json";
 import enDashboard from "./en/dashboard.json";
+import enDashboardHero from "./en/dashboard-hero.json";
+import enDashboardTodo from "./en/dashboard-todo.json";
 import enFixtures from "./en/fixtures.json";
 import enHeader from "./en/header.json";
 import enLineup from "./en/lineup.json";
@@ -21,6 +23,8 @@ import frAdmin from "./fr/admin.json";
 import frCatalogs from "./fr/catalogs.json";
 import frChallengeBanner from "./fr/challenge-banner.json";
 import frDashboard from "./fr/dashboard.json";
+import frDashboardHero from "./fr/dashboard-hero.json";
+import frDashboardTodo from "./fr/dashboard-todo.json";
 import frFixtures from "./fr/fixtures.json";
 import frHeader from "./fr/header.json";
 import frLineup from "./fr/lineup.json";
@@ -47,6 +51,8 @@ export const ZONES = {
   catalogs: { fr: frCatalogs, en: enCatalogs },
   header: { fr: frHeader, en: enHeader },
   dashboard: { fr: frDashboard, en: enDashboard },
+  "dashboard-hero": { fr: frDashboardHero, en: enDashboardHero },
+  "dashboard-todo": { fr: frDashboardTodo, en: enDashboardTodo },
   onboarding: { fr: frOnboarding, en: enOnboarding },
   "challenge-banner": { fr: frChallengeBanner, en: enChallengeBanner },
   squad: { fr: frSquad, en: enSquad },
@@ -67,6 +73,8 @@ const fr = {
   ...frCatalogs,
   ...frHeader,
   ...frDashboard,
+  ...frDashboardHero,
+  ...frDashboardTodo,
   ...frOnboarding,
   ...frChallengeBanner,
   ...frSquad,
@@ -92,6 +100,8 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enCatalogs,
     ...enHeader,
     ...enDashboard,
+    ...enDashboardHero,
+    ...enDashboardTodo,
     ...enOnboarding,
     ...enChallengeBanner,
     ...enSquad,
