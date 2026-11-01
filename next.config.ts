@@ -8,8 +8,9 @@ const nextConfig: NextConfig = {
   // Playwright starts its own `next dev` with NEXT_DIST_DIR=.next-e2e: Next allows one dev server per build
   // directory, so the tests never collide with a development server started by hand.
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
-  // Development only: at the bottom left, the indicator covers « Simuler jusqu'à… » in a phone's action bar.
-  devIndicators: { position: "bottom-right" },
+  // Development only: in any corner, the indicator would cover an entry of a save's bottom bar or its club's line, and
+  // take the clicks of the end-to-end tests, which run on `next dev`.
+  devIndicators: false,
   outputFileTracingIncludes: {
     "/opengraph-image": IMAGE_FILES,
     "/saves/**/card": IMAGE_FILES,
