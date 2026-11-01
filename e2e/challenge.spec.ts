@@ -5,9 +5,9 @@ import { createAnonymousUser, deleteUsers, fillWeekChallenge, userIdOf } from ".
 // The weekly challenge of the real week, on the test database: the page creates it when missing. Each test deletes the
 // users it made, their challenge saves and entries with them, so that the week's cap stays free for the next run.
 
-/** Simulates through the menu of the navigation bar, then closes the summary. */
+/** Simulates through the menu of the dashboard's hero, then closes the summary. */
 async function simulate(page: Page, target: string): Promise<void> {
-  await page.getByRole("button", { name: "Simuler jusqu'à…" }).click();
+  await page.getByTestId("simulate-menu").click();
   await page.getByRole("menuitem", { name: target }).click();
   const dialog = page.locator('[data-simulation="dialog"]');
   await expect(dialog.getByRole("heading", { name: "Simulation terminée" })).toBeVisible();
@@ -34,7 +34,9 @@ test("plays the week's challenge from the home page to its tenth matchday, then 
     const banner = page.getByTestId("challenge-banner");
     const standing = banner.getByTestId("challenge-standing");
     await expect(standing).toHaveText("Défi de la semaine · journée 0 / 10");
+    await expect(banner).toContainText(/Défi · semaine \d+/);
     await expect(banner).toContainText(/Partie de défi supprimée le mardi \d{2}\/\d{2}/);
+    await expect(banner.getByTestId("challenge-banner-ranking")).toHaveAttribute("href", "/challenge");
 
     // Match after match of the club, cup ties included, until its tenth league matchday. « Fin du mois » would not do:
     // the save's date stays on the last date played, and the same month's end has nothing more to play.

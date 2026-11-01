@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { formatMoney } from "../src/lib/format";
 import { setSaveDate } from "./db";
-import { createSave, deleteSave, expectNoSidewaysScroll, expectUncovered, openScreen } from "./helpers";
+import { createSave, deleteSave, expectNoSidewaysScroll, expectUncovered, openScreen, saveIdOf, textOf } from "./helpers";
 
 // The market's main screen, on a Lyon just created: what to buy, one proposal at a time, the signing in two steps, then
 // what to sell. The advanced market has its own specs (transfers, transfer-filters).
@@ -36,17 +36,6 @@ async function createLyonSave(page: Page): Promise<void> {
   saveName = `E2E marché ${Date.now()}`;
   await createSave(page, saveName, LYON);
 }
-
-/** The id of the save a page shows, from its address. */
-function saveIdOf(page: Page): string {
-  const id = /\/saves\/([^/?]+)/.exec(page.url())?.[1];
-  if (id === undefined) {
-    throw new Error(`Not a save's page: ${page.url()}`);
-  }
-  return id;
-}
-
-const textOf = async (locator: Locator): Promise<string> => ((await locator.textContent()) ?? "").trim();
 
 /** The managed club's budget in euros, from the market's header. */
 const budgetOf = async (page: Page): Promise<number> => Number(await page.locator('[data-summary="budget"]').getAttribute("data-value"));
@@ -296,7 +285,7 @@ test("keeps showing proposals but lets nobody sign or sell while the window is c
 test.describe("on a phone, in English", () => {
   test.use({ locale: "en-GB", viewport: PHONE });
 
-  test("speaks English, stays within the screen, and keeps the main button clear of the bars", async ({ page }) => {
+  test("speaks English, stays within the screen, and keeps the main button clear of the navigation", async ({ page }) => {
     await createLyonSave(page);
     await openScreen(page, "transfers");
 
@@ -315,7 +304,7 @@ test.describe("on a phone, in English", () => {
     await expect(page.getByTestId("market-spotted-player").first()).toBeHidden();
     await expect(page.getByTestId("market-sale-offer")).toBeHidden();
 
-    // Scrolled to the middle of the screen: toBeInViewport alone would pass for a button under the bars at its foot.
+    // Scrolled to the middle of the screen: toBeInViewport alone would pass for a button under the bar at its foot.
     await sign.evaluate((button) => button.scrollIntoView({ block: "center" }));
     await expect(sign).toBeInViewport({ ratio: 1 });
     await expectUncovered(sign);

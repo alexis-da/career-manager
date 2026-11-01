@@ -23,7 +23,7 @@ test("creates a save with Lyon, plays a matchday, replays its match, and shows o
   try {
     await createSave(page, name, LYON);
 
-    await page.getByRole("button", { name: "Prochain match" }).click();
+    await page.getByTestId("next-match").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
     await expect(page.getByText(/Journée 1 · 15 août 2026$/)).toBeVisible();
     // To the break, on through the second half without a change, to the final whistle.

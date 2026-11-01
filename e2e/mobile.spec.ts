@@ -1,6 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { demoSaveId, DEMO_USER_ID, signedUserCookie, USER_COOKIE } from "./db";
-import { boxOf, createSave, deleteSave, expectNavAtFootOfScreen, expectNoSidewaysScroll, openScreen, saveRow } from "./helpers";
+import {
+  boxOf,
+  createSave,
+  deleteSave,
+  expectNavAtFootOfScreen,
+  expectNoSidewaysScroll,
+  expectUncovered,
+  openScreen,
+  pinnedToScreen,
+  saveRow,
+} from "./helpers";
 
 // The game on a phone's screen, 390 × 844: at every step, the page is never wider than the window, so nothing scrolls
 // sideways. The career's club has the longest name of the game, the one most likely to push a screen wider.
@@ -35,19 +45,19 @@ test("plays a career on a phone, from the home page to the honours, never wider 
 
   await createSave(page, name, WOLVERHAMPTON);
   await expectNoSidewaysScroll(page, "dashboard");
-  // The club's name whole in the header, the game's actions above the navigation, itself at the foot of the screen.
+  // The club's name whole in the header, the navigation at the foot of the screen, the game's actions in the hero: no
+  // bar of actions stays above the navigation any more, nothing but it is pinned to the screen.
   await expect(page.getByTestId("header-club")).toContainText(WOLVERHAMPTON);
-  const nextMatch = page.getByTestId("next-match");
-  const button = await boxOf(nextMatch);
-  const nav = await boxOf(page.getByTestId("save-nav"));
-  expect(button.height).toBeGreaterThanOrEqual(44);
-  expect(button.y + button.height).toBeLessThanOrEqual(nav.y);
+  const nextMatch = page.getByTestId("dashboard-next-match").getByTestId("next-match");
+  expect((await boxOf(nextMatch)).height).toBeGreaterThanOrEqual(44);
+  expect(await pinnedToScreen(page)).toEqual(["save-nav"]);
   await expectNavAtFootOfScreen(page);
 
   // The next match, live: the first half, the break, the second half, the final whistle.
   await nextMatch.click();
   await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/, { timeout: 120_000 });
   await expect(page.getByTestId("live-skip")).toBeVisible();
+  await expect(page.getByTestId("next-match")).toBeHidden();
   await expectNoSidewaysScroll(page, "live match");
   await page.getByTestId("live-skip").click();
   await expect(page.getByTestId("half-time-title")).toBeVisible();
@@ -60,14 +70,41 @@ test("plays a career on a phone, from the home page to the honours, never wider 
   await expect(page.getByTestId("dashboard-last-result")).toBeVisible();
   await expectNoSidewaysScroll(page, "dashboard after the match");
 
+  // The head of Match has the game's actions, under the club's line and above the screen's tabs, in the flow of the page.
+  await openScreen(page, "fixtures");
+  await expect(page.getByTestId("fixtures-title")).toBeVisible();
+  const atHead = page.getByTestId("next-match");
+  await expect(atHead).toBeInViewport({ ratio: 1 });
+  await expectUncovered(atHead);
+  const button = await boxOf(atHead);
+  expect(button.height).toBeGreaterThanOrEqual(44);
+  expect(button.y + button.height).toBeLessThanOrEqual((await boxOf(page.getByTestId("section-tabs"))).y);
+  expect(await pinnedToScreen(page)).toEqual(["save-nav"]);
+  await expectNoSidewaysScroll(page, "calendar");
+
   // The table: only the full table scrolls sideways, inside its own frame.
   await openScreen(page, "standings");
   await expect(page.getByTestId("standings-title")).toBeVisible();
   await expect(page.locator('[data-testid="standings-table"]:visible tbody tr')).toHaveCount(20);
+  await expect(atHead).toBeVisible();
   await expectNoSidewaysScroll(page, "table");
+
+  await openScreen(page, "cup");
+  await expect(page.getByTestId("cup-title")).toBeVisible();
+  await expect(atHead).toBeVisible();
+  await expectNoSidewaysScroll(page, "cup");
+
+  // The other screens leave the game's actions to the dashboard and to Match.
+  await openScreen(page, "squad");
+  await expect(page.getByTestId("squad-title")).toBeVisible();
+  await expect(atHead).toBeHidden();
+  await openScreen(page, "transfers");
+  await expect(page.getByTestId("transfers-title")).toBeVisible();
+  await expect(atHead).toBeHidden();
 
   await openScreen(page, "club");
   await expect(page.getByTestId("seasons-title")).toBeVisible();
+  await expect(atHead).toBeHidden();
   await expectNoSidewaysScroll(page, "honours");
 
   // Back home, the career is a card of the list.

@@ -1,16 +1,29 @@
 import { expect, test, type Page } from "@playwright/test";
-import { demoSaveId, DEMO_USER_ID, signedUserCookie, USER_COOKIE } from "./db";
-import { boxOf, expectNavAtFootOfScreen, expectNoSidewaysScroll, openScreen, type SaveScreen } from "./helpers";
+import { demoSaveId, DEMO_USER_ID, deleteUsers, signedUserCookie, USER_COOKIE, userIdOf } from "./db";
+import {
+  ACTION_ORANGE,
+  boxOf,
+  createSave,
+  expectNavAtFootOfScreen,
+  expectNoSidewaysScroll,
+  openScreen,
+  saveHeader,
+  type SaveScreen,
+} from "./helpers";
 
 // A save's navigation, on the demo save, which has no cup and which nothing here changes: its five entries, then the
 // tabs of the two that have several. One <nav> in the DOM at every width: at the foot of the screen on a phone, in a
-// column at the left of the screen on a computer.
+// column at the left of the screen on a computer. The game's actions follow it: the demo save's world has one division a
+// country, so its main action is « Jouer la journée »; the last test creates a save with two, for « Prochain match ».
 
 const COMPUTER = { width: 1280, height: 720 };
 const PHONE = { width: 390, height: 844 };
 
 /** On a computer, the navigation ends within this many pixels of the left of the screen. */
 const MAX_COLUMN_WIDTH = 260;
+
+/** The demo save's main action. */
+const MAIN_ACTION = "play-matchday";
 
 /** Where a screen is, and how the navigation shows it. */
 type Stop = {
@@ -74,18 +87,34 @@ async function expectNavigationOn(page: Page, saveId: string, stop: Stop, labels
   await expect(page.getByTestId("nav-cup")).toHaveCount(0);
 }
 
-/** On a phone, the navigation is at the foot of the screen, and no screen is wider than the window. */
+/**
+ * On a phone, the navigation is at the foot of the screen, and no screen is wider than the window. The main action is in
+ * the dashboard's hero and at the head of the Match screens, and shows nowhere else.
+ */
 async function expectBarAtFoot(page: Page, stop: Stop): Promise<void> {
   await expectNavAtFootOfScreen(page);
   await expectNoSidewaysScroll(page, stop.title);
+  if (stop.path === "") {
+    await expect(page.getByTestId("dashboard-next-match").getByTestId(MAIN_ACTION)).toBeVisible();
+  } else if (stop.entry === "nav-match") {
+    await expect(saveHeader(page).getByTestId(MAIN_ACTION)).toBeVisible();
+  } else {
+    await expect(page.getByTestId(MAIN_ACTION)).toBeHidden();
+  }
 }
 
-/** On a computer, the navigation is a column at the left of the screen, the page to its right. */
+/**
+ * On a computer, the navigation is a column at the left of the screen, the page to its right. The main action, one in the
+ * page, is the hero's on the dashboard and the sidebar's everywhere else.
+ */
 async function expectColumnAtLeft(page: Page, stop: Stop): Promise<void> {
   const nav = await boxOf(page.getByTestId("save-nav"));
   const title = await boxOf(page.getByTestId(stop.title));
   expect(nav.x + nav.width).toBeLessThan(MAX_COLUMN_WIDTH);
   expect(title.x).toBeGreaterThanOrEqual(nav.x + nav.width);
+  const holder = stop.path === "" ? page.getByTestId("dashboard-next-match") : saveHeader(page);
+  await expect(holder.getByTestId(MAIN_ACTION)).toBeVisible();
+  await expect(page.getByTestId(MAIN_ACTION)).toHaveCount(1);
 }
 
 const WALKS = [
@@ -139,3 +168,43 @@ for (const { name, locale, viewport, labels, expectLayout } of WALKS) {
     });
   });
 }
+
+test.describe("the game's actions, on a computer", () => {
+  test.use({ viewport: COMPUTER });
+
+  test("are in the sidebar's card but on the dashboard, whose hero alone has them, and leave the orange to the market", async ({
+    page,
+    context,
+  }) => {
+    try {
+      // A unique name, for a career the test deletes with its user (not simulation code: the clock is fine here).
+      await createSave(page, `E2E navigation ${Date.now()}`, "Olympique Lyonnais");
+      const sidebar = saveHeader(page);
+
+      // One button in the page, the hero's: the sidebar's card only names the match.
+      await expect(page.getByTestId("next-match")).toHaveCount(1);
+      await expect(page.getByTestId("dashboard-next-match").getByTestId("next-match")).toBeVisible();
+      await expect(sidebar.getByTestId("next-match")).toHaveCount(0);
+      await expect(sidebar.getByTestId("simulate-menu")).toHaveCount(0);
+
+      // One button again, the sidebar's, beside the navigation and not in it, nor in the page.
+      await openScreen(page, "squad");
+      await expect(page.getByTestId("squad-title")).toBeVisible();
+      await expect(sidebar.getByTestId("next-match")).toHaveText("Prochain match");
+      await expect(sidebar.getByTestId("next-match")).toHaveCSS("background-color", ACTION_ORANGE);
+      await expect(sidebar.getByTestId("simulate-menu")).toHaveText("Simuler jusqu'à…");
+      await expect(page.getByTestId("next-match")).toHaveCount(1);
+      await expect(page.getByTestId("save-nav").getByTestId("next-match")).toHaveCount(0);
+      await expect(page.getByRole("main").getByTestId("next-match")).toHaveCount(0);
+
+      // On the market, the orange is its own action's: the sidebar's button steps back.
+      await openScreen(page, "transfers");
+      await expect(page.getByTestId("market-recruit")).toHaveCSS("background-color", ACTION_ORANGE);
+      await expect(sidebar.getByTestId("next-match")).toBeVisible();
+      await expect(sidebar.getByTestId("next-match")).not.toHaveCSS("background-color", ACTION_ORANGE);
+    } finally {
+      // Even when a step failed: the user takes their save with them.
+      await deleteUsers([await userIdOf(context)]);
+    }
+  });
+});

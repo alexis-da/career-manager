@@ -13,6 +13,7 @@ const JOURNEYS = [
     viewport: { width: 1280, height: 800 },
     clubs: { favourite: "Paris Saint-Germain FC", "mid-table": "Toulouse FC", comeback: "Grenoble Foot 38" },
     careerName: "Carrière Toulouse FC",
+    playMatch: "Jouer le match",
   },
   {
     name: "in English, on a phone",
@@ -20,10 +21,14 @@ const JOURNEYS = [
     viewport: { width: 390, height: 844 },
     clubs: { favourite: "Liverpool FC", "mid-table": "Fulham FC", comeback: "Sheffield Wednesday FC" },
     careerName: "Fulham FC career",
+    playMatch: "Play the match",
   },
 ];
 
 const firstAction = (page: Page, id: "squad" | "lineup" | "match") => page.getByTestId(`first-action-${id}`);
+
+/** The game's main action, in the dashboard's hero. */
+const heroAction = (page: Page, id: "next-match" | "resume-match") => page.getByTestId("dashboard-next-match").getByTestId(id);
 
 /** Once a screen has ticked its action: its cookie is written, and the refresh that follows it is over. */
 async function waitForSeen(page: Page, context: BrowserContext, item: string): Promise<void> {
@@ -56,11 +61,15 @@ for (const journey of JOURNEYS) {
         await page.getByTestId("create-save").click();
         await expect(page).toHaveURL(/\/saves\/[^/]+$/);
 
-        // The new dashboard: the three actions to do, one tip, and no rank yet.
-        await expect(page.getByTestId("first-actions")).toBeVisible();
+        // The new dashboard: the three actions to do in the last result's card, one tip, and no rank yet. The last action
+        // has no link: it names the hero's button.
+        await expect(page.getByTestId("dashboard-last-result").getByTestId("first-actions")).toBeVisible();
         for (const id of ["squad", "lineup", "match"] as const) {
           await expect(firstAction(page, id)).toHaveAttribute("data-done", "false");
         }
+        await expect(firstAction(page, "match")).toContainText(journey.playMatch);
+        await expect(firstAction(page, "match").getByRole("link")).toHaveCount(0);
+        await expect(heroAction(page, "next-match")).toHaveText(journey.playMatch);
         await expect(page.getByTestId("tip-money")).toBeVisible();
         await expect(page.getByTestId("tip-simulation")).toHaveCount(0);
         await expect(page.getByTestId("dashboard-position")).not.toContainText(/\d/);
@@ -93,8 +102,8 @@ for (const journey of JOURNEYS) {
         await expect(firstAction(page, "lineup")).toHaveAttribute("data-done", "true");
         await expect(firstAction(page, "squad")).toHaveAttribute("data-done", "true");
 
-        // The first match: the break's real buttons in view at once, and no button that leads nowhere.
-        await page.getByTestId("next-match").click();
+        // The first match, from the hero: the break's real buttons in view at once, and no button that leads nowhere.
+        await heroAction(page, "next-match").click();
         await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/, { timeout: 120_000 });
         await expect(page.getByTestId("live-skip")).toBeVisible();
         await expect(page.getByTestId("resume-match")).toHaveCount(0);
@@ -110,7 +119,7 @@ for (const journey of JOURNEYS) {
         // At half-time the other clubs have played, the player's club has not: the list stays, the way back too.
         await openScreen(page, "dashboard");
         await expect(firstAction(page, "match")).toHaveAttribute("data-done", "false");
-        await page.getByTestId("resume-match").click();
+        await heroAction(page, "resume-match").click();
         await expect(page.getByTestId("half-time-title")).toBeVisible();
         await page.getByTestId("half-time-resume-unchanged").click();
         await page.getByTestId("live-skip").click();

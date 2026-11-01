@@ -24,7 +24,7 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
     await createSave(page, name, LYON);
 
     // The first matchday (15 August) live, as « Prochain match » plays it: nothing in between on the first date.
-    await page.getByRole("button", { name: "Prochain match" }).click();
+    await page.getByTestId("next-match").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
     // To the break, on through the second half without a change, to the final whistle.
     await page.getByRole("button", { name: "Passer" }).click();
@@ -42,7 +42,7 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
     await expect(today.locator("[data-result]")).toHaveCount(1);
 
     // 22 and 29 August are left in the month.
-    await page.getByRole("button", { name: "Simuler jusqu'à…" }).click();
+    await page.getByTestId("simulate-menu").click();
     await page.getByRole("menuitem", { name: "Fin du mois" }).click();
 
     const dialog = page.locator('[data-simulation="dialog"]');

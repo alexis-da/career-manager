@@ -33,23 +33,23 @@ test("creates a save with a second division club, plays the dates in between wit
   try {
     await createSave(page, name, PARIS_FC);
     await expect(page.getByTestId("header-competition")).toHaveText("France — Division 2 · Saison 2026-27");
-    await expect(page.getByRole("button", { name: "Jouer la journée" })).toHaveCount(0);
+    await expect(page.getByTestId("play-matchday")).toHaveCount(0);
 
     // Matchday 1 (15 August): every competition starts that day, nothing in between.
-    await page.getByRole("button", { name: "Prochain match" }).click();
+    await page.getByTestId("next-match").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
     await expect(page.getByText(/Journée 1 · 15 août 2026$/)).toBeVisible();
     await finishLiveMatch(page);
 
     // 22 and 29 August, then Paris FC rests on 5 September: the 20-club first divisions play that Saturday, and the
     // English and Spanish second divisions the Tuesday after.
-    await page.getByRole("button", { name: "Simuler jusqu'à…" }).click();
+    await page.getByTestId("simulate-menu").click();
     await page.getByRole("menuitem", { name: "Fin du mois" }).click();
     const dialog = page.locator('[data-simulation="dialog"]');
     await expect(dialog.getByText("2 journées jouées · jusqu'au 31 août 2026")).toBeVisible();
     await dialog.getByRole("button", { name: "Continuer" }).click();
 
-    await page.getByRole("button", { name: "Prochain match" }).click();
+    await page.getByTestId("next-match").click();
     await expect(page.getByText("2 journées intermédiaires jouées.")).toBeVisible();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
     await expect(page.getByText(/Journée 4 · 12 septembre 2026$/)).toBeVisible();

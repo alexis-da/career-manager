@@ -8,6 +8,50 @@ export const E2E_SEED = "e2e";
 
 // The public pages' controls are found by their data-testid, the same in French and in English.
 
+/** The full orange of a screen's main action (--club), as the browser computes it. */
+export const ACTION_ORANGE = "rgb(255, 159, 28)";
+
+/**
+ * The header of a save's layout: the sidebar on a computer, the club's line under 1024 px. The game's actions are in it
+ * beside the navigation, never inside save-nav, and it has no data-testid of its own.
+ */
+export const saveHeader = (page: Page): Locator => page.locator("[data-save-shell] > header");
+
+/** The id of the save a page shows, from its address. */
+export function saveIdOf(page: Page): string {
+  const id = /\/saves\/([^/?]+)/.exec(page.url())?.[1];
+  if (id === undefined) {
+    throw new Error(`Not a save's page: ${page.url()}`);
+  }
+  return id;
+}
+
+/** The text of an element as the page has it now, to read a value from it. */
+export const textOf = async (locator: Locator): Promise<string> => ((await locator.textContent()) ?? "").trim();
+
+/** What stays on the screen while a save's page scrolls, by data-testid: all that is fixed or sticky in its layout. */
+export async function pinnedToScreen(page: Page): Promise<(string | null)[]> {
+  return page.locator("[data-save-shell] *").evaluateAll((elements) =>
+    elements
+      .filter((element) => ["fixed", "sticky"].includes(getComputedStyle(element).position) && element.getClientRects().length > 0)
+      .map((element) => element.getAttribute("data-testid")),
+  );
+}
+
+/**
+ * The links and buttons a page shows in the full orange of its main action, by data-testid: the colour the browser
+ * computes, whatever the classes behind it. A control a width hides has no box, and does not count.
+ */
+export async function fullOrangeActions(page: Page): Promise<(string | null)[]> {
+  return page.locator("a, button").evaluateAll(
+    (controls, orange) =>
+      controls
+        .filter((control) => control.getClientRects().length > 0 && getComputedStyle(control).backgroundColor === orange)
+        .map((control) => control.getAttribute("data-testid")),
+    ACTION_ORANGE,
+  );
+}
+
 /** The page as wide as the window, never wider: document.documentElement.scrollWidth ≤ window.innerWidth. */
 export async function expectNoSidewaysScroll(page: Page, step: string): Promise<void> {
   const { scrollWidth, innerWidth } = await page.evaluate(() => ({

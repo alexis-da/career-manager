@@ -130,7 +130,7 @@ test("plays a career in English up to its live match, then reads the table", asy
   await expect(page.getByTestId("nav-match")).toHaveText("Match");
   await expect(page.getByTestId("nav-transfers")).toHaveText("Market");
   await expect(page.getByTestId("nav-club")).toHaveText("Club");
-  await expect(page.getByTestId("next-match")).toHaveText("Next match");
+  await expect(page.getByTestId("next-match")).toHaveText("Play the match");
 
   // The next match, live: half-time, then the end of the match.
   await page.getByTestId("next-match").click();
@@ -156,6 +156,10 @@ test("plays a career in English up to its live match, then reads the table", asy
   const table = page.locator('[data-testid="standings-table"]:visible');
   await expect(table.locator("thead")).toContainText("GD");
   await expect(table.locator("tbody tr")).toHaveCount(18);
+
+  // Away from the dashboard, the game's actions are the sidebar's, under their own names.
+  await expect(page.getByTestId("next-match")).toHaveText("Next match");
+  await expect(page.getByTestId("simulate-menu")).toHaveText("Simulate until…");
 
   // The squad's tab, in English: tabs exist only under their entry.
   await openScreen(page, "squad");
