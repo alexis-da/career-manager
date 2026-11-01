@@ -1,13 +1,18 @@
+import { displayClubName } from "../engine/club-name";
 import { seasonStartYear, transferWindowAt } from "../engine/world";
 import { worldVersionOf, type WorldVersion } from "../engine/world-version";
 import { prisma } from "./client";
 import { hasCup } from "./cup-view";
 import { getSaveSummary, type SaveSummary } from "./saves";
 
+const NAMED_CLUB = { select: { club: { select: { slug: true, name: true } } } };
+
 export type SaveHeader = SaveSummary & {
   startYear: number;
   // The managed club's next fixture: its matchday, or its cup round; null once its season is over.
   nextStage: { round: number; cup: boolean } | null;
+  // The same fixture for the sidebar's card.
+  nextMatch: { date: Date; atHome: boolean; opponent: string } | null;
   seasonFinished: boolean; // every fixture of the seasons in progress is played
   windowOpen: boolean;
   liveMatch: boolean; // the managed club's match waits at half-time
@@ -35,7 +40,14 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
         OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }],
       },
       orderBy: { scheduledAt: "asc" },
-      select: { round: true, season: { select: { competition: { select: { kind: true } } } } },
+      select: {
+        round: true,
+        scheduledAt: true,
+        homeClubSaveId: true,
+        homeClubSave: NAMED_CLUB,
+        awayClubSave: NAMED_CLUB,
+        season: { select: { competition: { select: { kind: true } } } },
+      },
     }),
     prisma.fixture.count({ where: { saveId, played: false, season: { completed: false } } }),
     prisma.season.count({ where: { saveId, completed: false } }),
@@ -43,10 +55,19 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     hasCup(saveId),
   ]);
 
+  const atHome = nextFixture?.homeClubSaveId === managed.id;
   return {
     ...summary,
     startYear: seasonStartYear(summary.currentDate),
     nextStage: nextFixture === null ? null : { round: nextFixture.round, cup: nextFixture.season.competition.kind === "CUP" },
+    nextMatch:
+      nextFixture === null
+        ? null
+        : {
+            date: nextFixture.scheduledAt,
+            atHome,
+            opponent: displayClubName((atHome ? nextFixture.awayClubSave : nextFixture.homeClubSave).club),
+          },
     seasonFinished: seasonsInProgress > 0 && unplayed === 0,
     windowOpen: transferWindowAt(summary.currentDate) !== null,
     liveMatch: save.liveFixtureId !== null,

@@ -6,7 +6,12 @@
     "challenge": "Weekly challenge",
     "seasonFinished": "Season complete",
     "windowOpen": "Transfer window open",
-    "windowClosed": "Transfer window closed"
+    "windowClosed": "Transfer window closed",
+    "venue": {
+      "home": "Home",
+      "away": "Away"
+    },
+    "versus": "vs {club}"
   },
   "nav": {
     "label": "Career navigation",

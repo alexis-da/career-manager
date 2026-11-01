@@ -34,12 +34,17 @@ function SimulateMenu({ disabled }: { disabled: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="outline" className="h-9 px-2.5 font-heading text-base font-semibold sm:px-3" />}
+        render={
+          <Button
+            variant="outline"
+            className="h-11 px-2.5 font-heading text-base font-semibold sm:px-3 lg:w-full lg:text-sm lg:dark:border-on-blue/60 lg:dark:bg-transparent lg:dark:hover:bg-on-blue/10"
+          />
+        }
         disabled={disabled || simulation.busy}
         data-testid="simulate-menu"
       >
         <FastForwardIcon data-icon="inline-start" />
-        {/* Its icons alone on a phone, its name still read: the header's first row must hold at 390 px. */}
+        {/* Its icons alone on a phone, its name still read: the main action needs the bar's room. */}
         <span className="max-sm:sr-only">{t("simulate")}</span>
         <ChevronDownIcon data-icon="inline-end" />
       </DropdownMenuTrigger>
@@ -125,8 +130,9 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
       }
     });
 
-  // Under lg, in the action bar at the foot of the screen: as wide as the bar allows.
-  const className = "h-9 px-4 font-heading text-base font-semibold max-lg:flex-1";
+  // Under lg, in the action bar at the foot of the screen: as wide as the bar allows. On a computer, in the sidebar's
+  // card: as wide as the card, on two lines if need be.
+  const className = "h-11 px-4 font-heading text-lg font-semibold max-lg:flex-1 lg:h-auto lg:min-h-11 lg:w-full lg:py-1.5 lg:whitespace-normal";
 
   if (liveMatch) {
     // On the live page it would lead nowhere: the way on is that page's own buttons, stuck to the foot of the screen.
@@ -147,7 +153,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
       {pending ? t("preparingSeason") : t("nextSeason")}
     </Button>
   ) : (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 lg:flex-col-reverse lg:items-stretch">
       <SimulateMenu disabled={pending} />
       {worldVersion === 2 ? (
         // Busy from the click: the dates in between first, counted as they are played, then the match's own.

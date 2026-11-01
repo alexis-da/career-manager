@@ -9,7 +9,7 @@ import { requireOwnedSave } from "@/src/auth/current-user";
 import { ClubInitials } from "@/src/components/club-initials";
 import { getSaveHeader } from "@/src/db/header";
 import { seasonLabel } from "@/src/engine/world";
-import { formatDayDate } from "@/src/lib/format";
+import { formatDayDate, formatShortDate } from "@/src/lib/format";
 import { GameActions } from "./_components/game-actions";
 import { SaveNav } from "./_components/save-nav";
 import { SectionTabs } from "./_components/section-tabs";
@@ -68,9 +68,17 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
           </Link>
           <SaveNav saveId={header.id} />
 
-          {/* Under lg, the game's actions go to a bar above the navigation, under the thumb; no bar at all when there is
-              no action, on the live page of a paused match. */}
-          <div className="lg:mt-auto max-lg:fixed max-lg:inset-x-0 max-lg:bottom-(--save-nav-height) max-lg:z-40 max-lg:flex max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-4 max-lg:py-2 max-lg:*:flex-1 max-lg:empty:hidden">
+          {/* The next match on a computer, with the game's actions. Under lg, those alone, in a bar above the navigation,
+              under the thumb; no bar at all when there is no action, on the live page of a paused match. */}
+          <div className="lg:mt-auto lg:space-y-2.5 lg:rounded-2xl lg:bg-primary lg:p-3.5 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-(--save-nav-height) max-lg:z-40 max-lg:flex max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-4 max-lg:py-2 max-lg:*:flex-1 max-lg:[&:not(:has(a,button))]:hidden">
+            {header.nextMatch !== null && (
+              <div className="leading-tight max-lg:hidden">
+                <p className="text-xs font-bold tracking-wider text-on-blue uppercase">
+                  {formatShortDate(header.nextMatch.date, locale)} · {t(header.nextMatch.atHome ? "venue.home" : "venue.away")}
+                </p>
+                <p className="mt-1 text-[0.9375rem] font-bold">{t("versus", { club: header.nextMatch.opponent })}</p>
+              </div>
+            )}
             <GameActions
               saveId={header.id}
               seasonFinished={header.seasonFinished}

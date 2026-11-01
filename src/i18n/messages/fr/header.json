@@ -6,7 +6,12 @@
     "challenge": "Défi de la semaine",
     "seasonFinished": "Saison terminée",
     "windowOpen": "Mercato ouvert",
-    "windowClosed": "Mercato fermé"
+    "windowClosed": "Mercato fermé",
+    "venue": {
+      "home": "Domicile",
+      "away": "Extérieur"
+    },
+    "versus": "vs {club}"
   },
   "nav": {
     "label": "Navigation de la partie",
