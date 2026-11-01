@@ -106,7 +106,6 @@
     "sell": "Vendre",
     "sellTitle": "Vendre {name}",
     "bestOffer": "Meilleure offre : {buyer} propose {fee}. Le joueur y gagnera {wage} par saison, pour {years, plural, one {# saison} other {# saisons}}.",
-    "decline": "Refuser",
     "selling": "Transfert…",
     "acceptOffer": "Accepter l'offre",
     "closedActions": "prolongations, ventes et libérations",

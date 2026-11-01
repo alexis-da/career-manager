@@ -1,5 +1,20 @@
 {
   "marketSell": {
-    "title": "Vendre"
+    "empty": "Aucun joueur à vendre : tout ton effectif est dans le onze.",
+    "lead": {
+      "tag": "Meilleure offre",
+      "details": "{position} · {overall} · {age} ans · remplaçant",
+      "offer": "{club} propose {fee}. Il en vaut {value}."
+    },
+    "side": {
+      "label": "Offre · Vendre",
+      "offer": "{club} propose {fee} pour {player} ({position}, {overall}), qui en vaut {value}."
+    },
+    "list": {
+      "title": "Tes remplaçants",
+      "otherTitle": "Tes autres remplaçants",
+      "details": "{position} · vaut {value}",
+      "offer": "{club} propose {fee}"
+    }
   }
 }

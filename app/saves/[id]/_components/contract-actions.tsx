@@ -27,7 +27,7 @@ import {
   usePlayerAction,
 } from "./contract-fields";
 
-const fullName = (player: PlayerProfile): string => `${player.firstName} ${player.lastName}`;
+const fullName = (player: Pick<PlayerProfile, "firstName" | "lastName">): string => `${player.firstName} ${player.lastName}`;
 
 type ActionProps = {
   saveId: string;
@@ -170,7 +170,12 @@ export function ReleasePlayerDialog({ saveId, player, terms, disabled = false, t
   );
 }
 
-export function SellPlayerDialog({ saveId, player, terms, disabled = false, triggerClassName }: ActionProps) {
+type SellPlayerDialogProps = Omit<ActionProps, "player"> & {
+  player: Pick<PlayerProfile, "id" | "firstName" | "lastName">;
+  primary?: boolean; // the main action of its screen, in orange
+};
+
+export function SellPlayerDialog({ saveId, player, terms, disabled = false, primary = false, triggerClassName }: SellPlayerDialogProps) {
   const t = useTranslations("contract");
   const tCommon = useTranslations("common");
   const tRefusals = useTranslations("refusals");
@@ -191,7 +196,7 @@ export function SellPlayerDialog({ saveId, player, terms, disabled = false, trig
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger
         disabled={disabled}
-        render={<Button variant="outline" className={triggerClassName} />}
+        render={<Button variant={primary ? "club" : "outline"} className={triggerClassName} />}
         data-testid="sell-player"
       >
         {t("sell")}
@@ -213,7 +218,7 @@ export function SellPlayerDialog({ saveId, player, terms, disabled = false, trig
         <RefusalAlert message={refusal} />
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />} data-testid="sell-cancel">
-            {sale.ok ? t("decline") : tCommon("close")}
+            {tCommon(sale.ok ? "cancel" : "close")}
           </DialogClose>
           {sale.ok && (
             <Button

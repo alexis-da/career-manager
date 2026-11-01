@@ -1,5 +1,20 @@
 {
   "marketSell": {
-    "title": "Sell"
+    "empty": "No one to sell: your whole squad is in the starting eleven.",
+    "lead": {
+      "tag": "Best offer",
+      "details": "{position} · {overall} · age {age} · substitute",
+      "offer": "{club} offers {fee}. He's worth {value}."
+    },
+    "side": {
+      "label": "Offer · Sell",
+      "offer": "{club} offers {fee} for {player} ({position}, {overall}), who's worth {value}."
+    },
+    "list": {
+      "title": "Your substitutes",
+      "otherTitle": "Your other substitutes",
+      "details": "{position} · worth {value}",
+      "offer": "{club} offers {fee}"
+    }
   }
 }

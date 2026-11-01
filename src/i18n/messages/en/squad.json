@@ -106,7 +106,6 @@
     "sell": "Sell",
     "sellTitle": "Sell {name}",
     "bestOffer": "Best offer: {buyer} offers {fee}. The player will earn {wage} per season there, for {years, plural, one {# season} other {# seasons}}.",
-    "decline": "Decline",
     "selling": "Selling…",
     "acceptOffer": "Accept offer",
     "closedActions": "extensions, sales and releases",
