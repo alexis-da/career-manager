@@ -22,7 +22,7 @@ export function AccountBannerFrame({ children }: { children: ReactNode }) {
       role="region"
       aria-label={t("label")}
       data-testid="account-banner"
-      className="brand flex items-center gap-2 rounded-lg border bg-background py-1.5 pr-1.5 pl-3 text-foreground sm:gap-3"
+      className="flex items-center gap-2 rounded-card border bg-card py-1.5 pr-1.5 pl-3 text-foreground sm:gap-3"
     >
       {children}
       <button

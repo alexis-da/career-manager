@@ -15,7 +15,6 @@ export async function AccountBanner({ show }: { show: boolean }) {
   const t = await getTranslations("accountBanner");
   return (
     <AccountBannerFrame>
-      <span aria-hidden className="h-4 w-1 shrink-0 rounded-full bg-(--brand-orange)" />
       <p className="min-w-0 flex-1 truncate text-sm max-sm:whitespace-normal">{t("message")}</p>
       <GoogleSignInButton compact className="shrink-0" />
     </AccountBannerFrame>
