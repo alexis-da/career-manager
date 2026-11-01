@@ -104,12 +104,20 @@ function sheetFooter(
   sheet: PlayerSheet,
   overview: MarketOverview,
   t: Translator<"transfers">,
+  tRefusals: Translator<"refusals">,
   locale: Locale,
 ): ReactNode {
   const { profile, status } = sheet;
   const player = { id: profile.id, name: `${profile.firstName} ${profile.lastName}` };
   const mainAction = "h-10 w-full font-heading text-base font-semibold";
   const closed = !overview.windowOpen;
+  // Before any offer: a player who turns the club down for its reputation says so here.
+  const refused = (status.kind === "free" || status.kind === "club") && status.quote.minimumReputation > overview.reputation;
+  const refusal = refused && (
+    <p data-testid="market-sheet-refused" className="text-xs text-loss">
+      {tRefusals("playerRefusedReputation")}
+    </p>
+  );
 
   switch (status.kind) {
     case "managed":
@@ -130,6 +138,7 @@ function sheetFooter(
           <p data-testid="market-sheet-terms" className="text-xs text-muted-foreground">
             {t("sheet.freeAgent", { wage: formatMoney(status.quote.minimumWage, locale) })}
           </p>
+          {refusal}
           <SignFreeAgentDialog
             saveId={saveId}
             player={player}
@@ -137,6 +146,7 @@ function sheetFooter(
             wageRoom={overview.wageRoom}
             currentDate={overview.currentDate}
             disabled={closed}
+            refused={refused}
             primary
             triggerClassName={mainAction}
           />
@@ -153,6 +163,7 @@ function sheetFooter(
               wage: formatMoney(status.quote.minimumWage, locale),
             })}
           </p>
+          {refusal}
           <MakeOfferDialog
             saveId={saveId}
             player={player}
@@ -163,6 +174,7 @@ function sheetFooter(
             wageRoom={overview.wageRoom}
             currentDate={overview.currentDate}
             disabled={closed}
+            refused={refused}
             primary
             triggerClassName={mainAction}
           />
@@ -181,7 +193,7 @@ export default async function AdvancedMarketPage({ params, searchParams }: PageP
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const [t, locale] = await Promise.all([getTranslations("transfers"), getLocale()]);
+  const [t, tRefusals, locale] = await Promise.all([getTranslations("transfers"), getTranslations("refusals"), getLocale()]);
   const values = singleValues(await searchParams);
   const query = querySchema.parse(values);
   const [overview, sheet] = await Promise.all([
@@ -260,7 +272,7 @@ export default async function AdvancedMarketPage({ params, searchParams }: PageP
           profile={sheet.profile}
           startYear={seasonStartYear(overview.currentDate)}
           closeHref={marketHref(id, values, { player: undefined })}
-          footer={sheetFooter(id, sheet, overview, t, locale)}
+          footer={sheetFooter(id, sheet, overview, t, tRefusals, locale)}
         />
       )}
     </div>

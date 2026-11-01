@@ -230,6 +230,7 @@ export function FreeAgentsTable({
                   wageRoom={overview.wageRoom}
                   currentDate={overview.currentDate}
                   disabled={!overview.windowOpen}
+                  refused={player.minimumReputation > overview.reputation}
                   triggerClassName={ROW_ACTION}
                 />
               </TableCell>
@@ -362,6 +363,7 @@ export function ClubPlayersTable({
                   wageRoom={overview.wageRoom}
                   currentDate={overview.currentDate}
                   disabled={!overview.windowOpen}
+                  refused={player.minimumReputation > overview.reputation}
                   triggerClassName={cn(ROW_ACTION, "whitespace-nowrap")}
                 />
               </TableCell>

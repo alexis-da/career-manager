@@ -26,6 +26,7 @@ import { makeTransferOfferAction, signFreeAgentAction } from "../actions";
 type TriggerProps = {
   disabled?: boolean; // while the transfer window is closed
   primary?: boolean; // the main action of the player sheet, in orange; neutral in a table row
+  refused?: boolean; // the player turns the club down for its reputation: the dialog says so, nothing can be sent
   triggerClassName?: string;
 };
 
@@ -45,10 +46,12 @@ export function SignFreeAgentDialog({
   currentDate,
   disabled = false,
   primary = false,
+  refused = false,
   triggerClassName,
 }: SignFreeAgentDialogProps) {
   const t = useTranslations("transfers.dialogs");
   const tCommon = useTranslations("common");
+  const tRefusals = useTranslations("refusals");
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [years, setYears] = useState<number>(DEFAULT_CONTRACT_LENGTH);
@@ -90,14 +93,14 @@ export function SignFreeAgentDialog({
             min={1}
             hint={t("wageRoom", { amount: formatMoney(Math.max(0, wageRoom), locale) })}
           />
-          <RefusalAlert message={refusal} />
+          <RefusalAlert message={refused ? tRefusals("playerRefusedReputation") : refusal} />
         </div>
 
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>{tCommon("cancel")}</DialogClose>
           <Button
             variant="club"
-            disabled={pending}
+            disabled={pending || refused}
             data-testid="confirm-signing"
             onClick={() =>
               run(
@@ -137,10 +140,12 @@ export function MakeOfferDialog({
   currentDate,
   disabled = false,
   primary = false,
+  refused = false,
   triggerClassName,
 }: MakeOfferDialogProps) {
   const t = useTranslations("transfers");
   const tCommon = useTranslations("common");
+  const tRefusals = useTranslations("refusals");
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [years, setYears] = useState<number>(DEFAULT_CONTRACT_LENGTH);
@@ -199,14 +204,14 @@ export function MakeOfferDialog({
             hint={t("dialogs.wageRoom", { amount: formatMoney(Math.max(0, wageRoom), locale) })}
           />
           <DurationField years={years} onChange={setYears} currentDate={currentDate} />
-          <RefusalAlert message={refusal} />
+          <RefusalAlert message={refused ? tRefusals("playerRefusedReputation") : refusal} />
         </div>
 
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>{tCommon("cancel")}</DialogClose>
           <Button
             variant="club"
-            disabled={pending}
+            disabled={pending || refused}
             data-testid="send-offer"
             onClick={() =>
               run(
