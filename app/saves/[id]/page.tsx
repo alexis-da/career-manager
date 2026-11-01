@@ -137,7 +137,7 @@ function TeamBlock({ team, align }: { team: ClubPreview; align: "left" | "right"
       {/* Smaller on a phone, where two names share 120 to 135 px each: the longest word holds on one line from 360 px.
           Two ranges that do not overlap: a width in px and one in rem do not sort reliably. A word too long still wraps,
           hyphenated on a phone only: on a wider screen a long name just goes to the next line. */}
-      <p className="font-heading text-3xl leading-[0.95] font-bold text-balance wrap-break-word max-[380px]:text-lg min-[380px]:max-sm:text-xl max-sm:hyphens-auto xl:text-4xl">
+      <p className="font-heading text-3xl leading-[0.95] font-bold text-balance wrap-break-word max-[380px]:text-lg min-[380px]:max-sm:text-xl max-sm:hyphens-auto 2xl:text-4xl">
         {team.name}
       </p>
       <div className={cn("flex gap-1", align === "right" && "justify-end")}>
@@ -204,9 +204,10 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
       <AccountBanner show={askToSignIn} />
       {showsTip("simulation", firstSteps) && <FirstStepTip saveId={id} tip="simulation" />}
 
-      {/* One column the screen's width under lg (minmax(0, 1fr)): never as wide as its widest content. */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-        <Panel className="flex flex-col lg:col-span-7" data-testid="dashboard-next-match">
+      {/* One column the screen's width under lg (minmax(0, 1fr)): never as wide as its widest content. The sidebar takes 256 px: six
+          columns from lg, twelve from xl. */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-6 xl:grid-cols-12">
+        <Panel className="flex flex-col lg:col-span-6 xl:col-span-7" data-testid="dashboard-next-match">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <PanelTitle>
               {t("nextMatch")}
@@ -272,7 +273,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           )}
         </Panel>
 
-        <Panel className="flex flex-col lg:col-span-5" data-testid="dashboard-last-result">
+        <Panel className="flex flex-col lg:col-span-6 xl:col-span-5" data-testid="dashboard-last-result">
           <PanelTitle>
             {firstActions ? tFirstSteps("title") : t("lastResult")}
             {lastResult !== null && ` · ${stageLabel(lastResult.fixture, tStage)}`}
@@ -288,13 +289,13 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           ) : (
             <>
               {/* On a phone, home, score and away one above the other, each name whole on the panel's width. */}
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 pt-5 max-sm:grid-cols-1 max-sm:justify-items-center max-sm:gap-1 max-sm:text-center">
-                <p className="truncate font-heading text-2xl font-bold max-sm:w-full max-sm:leading-tight max-sm:whitespace-normal">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 pt-5 max-sm:grid-cols-1 max-sm:justify-items-center max-sm:gap-1 max-sm:text-center">
+                <p className="min-w-0 font-heading text-lg leading-tight font-bold wrap-break-word max-sm:w-full max-sm:text-2xl">
                   {lastResult.fixture.home.name}
                 </p>
                 <p
                   className={cn(
-                    "rounded-md px-4 py-1 font-heading text-5xl leading-tight font-bold tabular-nums max-sm:text-4xl",
+                    "rounded-md px-2 py-1 font-heading text-4xl leading-tight font-bold tabular-nums",
                     RESULT_CLASSES[
                       matchResultFor(
                         { ...lastResult.fixture, homeGoals: lastResult.fixture.homeGoals ?? 0, awayGoals: lastResult.fixture.awayGoals ?? 0 },
@@ -305,7 +306,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
                 >
                   {lastResult.fixture.homeGoals} – {lastResult.fixture.awayGoals}
                 </p>
-                <p className="truncate text-right font-heading text-2xl font-bold max-sm:w-full max-sm:text-center max-sm:leading-tight max-sm:whitespace-normal">
+                <p className="min-w-0 text-right font-heading text-lg leading-tight font-bold wrap-break-word max-sm:w-full max-sm:text-center max-sm:text-2xl">
                   {lastResult.fixture.away.name}
                 </p>
               </div>
@@ -337,7 +338,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           )}
         </Panel>
 
-        {showsTip("money", firstSteps) && <FirstStepTip saveId={id} tip="money" className="lg:col-span-12" />}
+        {showsTip("money", firstSteps) && <FirstStepTip saveId={id} tip="money" className="lg:col-span-6 xl:col-span-12" />}
 
         <Panel className="space-y-3 lg:col-span-3" data-testid="dashboard-position">
           <PanelTitle>{t("position")}</PanelTitle>
@@ -410,7 +411,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           </p>
         </Panel>
 
-        <Panel className="space-y-3 lg:col-span-5" data-testid="dashboard-alerts">
+        <Panel className="space-y-3 lg:col-span-6 xl:col-span-5" data-testid="dashboard-alerts">
           <PanelTitle>{t("toDo")}</PanelTitle>
           <ul className="space-y-3">
             {alerts.map((alert) => (
@@ -438,7 +439,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           </ul>
         </Panel>
 
-        <Panel className="space-y-2 lg:col-span-7" data-testid="dashboard-table">
+        <Panel className="space-y-2 lg:col-span-6 xl:col-span-7" data-testid="dashboard-table">
           <div className="flex items-baseline justify-between gap-2">
             <PanelTitle>
               {dashboard.competitionCode === null ? t("table") : competitionName(dashboard.competitionCode, tWorld)}

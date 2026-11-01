@@ -82,8 +82,9 @@ export function PlayerSheet({ profile, startYear, footer, onClose }: PlayerSheet
       data-testid="player-sheet"
       className={cn(
         "fixed inset-y-0 right-0 z-50 flex w-full max-w-[400px] flex-col border-l bg-card shadow-2xl",
-        // The main column's margins, 32 px, under the top of the window and above its bottom.
-        "lg:sticky lg:top-8 lg:z-auto lg:h-[calc(100dvh-4rem)] lg:rounded-card lg:border lg:shadow-none",
+        // Over the page under xl, where the sidebar leaves the list too little room beside it. Next to the list from xl,
+        // the main column's margins, 32 px, under the top of the window and above its bottom.
+        "xl:sticky xl:top-8 xl:z-auto xl:h-[calc(100dvh-4rem)] xl:rounded-card xl:border xl:shadow-none",
       )}
     >
       <div className="space-y-3 p-5 pb-4">

@@ -176,9 +176,10 @@ export function HalfTime({ saveId, team, onResumed }: HalfTimeProps) {
         </p>
       )}
 
-      {/* One column the screen's width under lg (minmax(0, 1fr)): the pitch scales to it. */}
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]">
-        <div className="space-y-2">
+      {/* One column the content's width under xl (minmax(0, 1fr)), where the sidebar leaves no room for two: the pitch
+          scales to it, up to a height that still fits a screen. */}
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]">
+        <div className="mx-auto w-full max-w-lg space-y-2 xl:max-w-none">
           <Pitch
             slots={slots}
             starters={state.starters}

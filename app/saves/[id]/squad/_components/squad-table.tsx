@@ -146,7 +146,7 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
     );
 
   return (
-    <div className={cn("grid items-start gap-6", selected !== undefined && "lg:grid-cols-[minmax(0,1fr)_400px]")}>
+    <div className={cn("grid items-start gap-6", selected !== undefined && "xl:grid-cols-[minmax(0,1fr)_400px]")}>
       <div className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           {header}

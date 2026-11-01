@@ -43,7 +43,7 @@ export function MarketFiltersForm({ saveId, filters, competitions }: MarketFilte
       role="search"
       aria-label={t("label")}
       data-testid="market-filters"
-      className="grid items-end gap-3 rounded-card border bg-card p-4 sm:grid-cols-3 xl:grid-cols-[2fr_repeat(5,minmax(0,1fr))_auto]"
+      className="grid items-end gap-3 rounded-card border bg-card p-4 sm:grid-cols-3 2xl:grid-cols-[2fr_repeat(5,minmax(0,1fr))_auto]"
     >
       <input type="hidden" name="tab" value="clubs" />
       <input type="hidden" name="sort" value={filters.sort} />

@@ -209,7 +209,7 @@ export default async function TransfersPage({ params, searchParams }: PageProps<
   }
 
   return (
-    <div className={cn("grid items-start gap-6", sheet !== null && "lg:grid-cols-[minmax(0,1fr)_400px]")}>
+    <div className={cn("grid items-start gap-6", sheet !== null && "xl:grid-cols-[minmax(0,1fr)_400px]")}>
       <div className="min-w-0 space-y-5">
         <h1 data-testid="transfers-title" className="font-heading text-4xl font-bold">
           {t("title")}
