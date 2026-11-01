@@ -68,9 +68,12 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
           </Link>
           <SaveNav saveId={header.id} />
 
-          {/* The next match on a computer, with the game's actions but on the dashboard. Under lg, only those, on the Match
-              screens, under the club's line. */}
-          <div className="lg:mt-auto lg:space-y-2.5 lg:rounded-card lg:bg-primary lg:p-3.5 max-lg:contents">
+          {/* The next match on a computer, with the game's actions but on the dashboard: nothing there once the season is
+              over, whose hero has the way on. Under lg, only those, on the Match screens, under the club's line. */}
+          <div
+            data-testid="header-next-match"
+            className="peer lg:mt-auto lg:space-y-2.5 lg:rounded-card lg:bg-primary lg:p-3.5 lg:empty:hidden max-lg:contents"
+          >
             {header.nextMatch !== null && (
               <div className="leading-tight max-lg:hidden">
                 <p className="text-xs font-bold tracking-wider text-on-blue uppercase">
@@ -87,7 +90,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
             />
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 lg:justify-between lg:px-1">
+          <div className="flex shrink-0 items-center gap-2 lg:justify-between lg:px-1 lg:peer-empty:mt-auto">
             {/* Not on a phone, where the club's name needs the room: the home page's foot has it. */}
             <LanguageSwitcher className="max-sm:hidden" />
             {/* The weekly challenge, outside the save, among neither its entries nor their tabs. */}

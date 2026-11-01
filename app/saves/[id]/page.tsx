@@ -65,7 +65,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           dashboard={dashboard}
           formation={lineup.formation}
           opponent={opponent}
-          className="lg:col-span-2"
+          className="lg:col-span-2 xl:self-stretch"
         />
         <DashboardTable saveId={id} dashboard={dashboard} className="max-lg:order-last lg:col-span-2 xl:col-span-1 xl:h-full" />
         {showsTip("money", firstSteps) && <FirstStepTip saveId={id} tip="money" className={WIDE} />}

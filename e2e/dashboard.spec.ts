@@ -1,5 +1,5 @@
 import { expect, test, type Cookie, type Locator, type Page } from "@playwright/test";
-import { deleteUsers, setSaveDate, USER_COOKIE, userIdOf } from "./db";
+import { deleteUsers, USER_COOKIE, userIdOf } from "./db";
 import {
   ACTION_ORANGE,
   boxOf,
@@ -16,8 +16,8 @@ import {
 
 // The dashboard of a Lyon just created: 1 July 2026, the window open, nothing played. A world of 198 clubs takes some 20
 // seconds, so the tests share one, in the order of this file: those that only read it, then the one that plays its
-// match, then the one that moves its date. Its user goes at the end, and the save with them. After a failure, Playwright
-// starts a new worker, which creates its own.
+// match, then the one that simulates the rest of its season. Its user goes at the end, and the save with them. After a
+// failure, Playwright starts a new worker, which creates its own.
 
 const LYON = "Olympique Lyonnais";
 
@@ -259,13 +259,24 @@ test("plays the match from the hero, offers only to resume it at the break, then
   await expect(page.getByTestId("fixtures-title")).toBeVisible();
 });
 
-// Last: its date moves without the matches in between, and nothing can be played after that (setSaveDate).
-test("has no offer to show once the window has closed, and still the weak spot", async ({ page }) => {
-  // The day after the summer window.
-  await setSaveDate(saveId, new Date(Date.UTC(2026, 8, 1)));
+// Last: nothing is left to play after it.
+test("leads only to the next season once this one is over, with no offer to show out of the window", async ({ page }) => {
+  // The rest of the season, simulated.
+  test.setTimeout(240_000);
+  await openDashboard(page);
+  await heroOf(page).getByTestId("simulate-menu").click();
+  await page.getByTestId("simulate-season-end").click();
+  await page.locator('[data-simulation="dialog"]').getByRole("button", { name: "Continuer" }).click({ timeout: 180_000 });
   await openDashboard(page);
 
-  await expect(page.getByTestId("dashboard-window")).toHaveText("Fenêtre fermée jusqu'au 1er janv.");
+  // No match left to name or to prepare: the sidebar's card goes, the hero keeps the way on.
+  await expect(heroOf(page)).toContainText("La saison est terminée.");
+  await expect(page.getByTestId("dashboard-lineup")).toHaveCount(0);
+  await expect(page.getByTestId("simulate-menu")).toHaveCount(0);
+  await expect(page.getByTestId("header-next-match")).toBeHidden();
+  await expectOneOrangeAction(page, "next-season");
+
+  await expect(page.getByTestId("dashboard-window")).toHaveText("Fenêtre fermée jusqu'au 1er juil.");
   await expect(page.getByTestId("alert-weak-spot").getByTestId("alert-action")).toHaveAttribute("href", `/saves/${saveId}/transfers`);
   await expect(page.getByTestId("alert-offers")).toHaveCount(0);
 });

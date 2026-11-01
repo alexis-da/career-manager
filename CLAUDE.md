@@ -186,7 +186,9 @@ grille d'une colonne sous `lg`, deux à partir de `lg`, trois à partir de `xl`.
 `dashboard-next-match`) : la date, le lieu et la compétition du prochain match, les deux clubs (rang et points ; note
 moyenne et forme à partir de 1024 px), « Jouer le match » (`GameActions` avec `hero`, seule action orange pleine de
 l'écran, même `next-match`, « Jouer la journée » dans une partie 1), « Préparer » vers la composition et « Simuler »,
-secondaires, le onze et « Voir l'adversaire ». Sa colonne de droite à partir de `xl`, en fin de page sur téléphone : le
+secondaires, le onze et « Voir l'adversaire ». Match en suspens : « Match en cours — reprendre » seul ; saison finie :
+« Passer à la saison suivante » seul, et la carte de la colonne, vide, disparaît (`lg:empty:hidden`, le pied de colonne
+restant en bas). Sa colonne de droite à partir de `xl`, en fin de page sur téléphone : le
 mini-classement (`DashboardTable`, `tableAround`, six lignes autour du club, rang, club et points). Puis quatre tuiles
 (`DashboardTiles` : classement et mouvement, points et différence, forme, effectif ; « — » avant le premier match), « À
 faire » (`DashboardTodo`, du plus pressant au reste : titulaires blessés, autres blessés, meilleure offre reçue, point

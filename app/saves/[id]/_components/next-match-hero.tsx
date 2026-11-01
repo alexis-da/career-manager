@@ -64,7 +64,7 @@ export function NextMatchHero({ saveId, dashboard, formation, opponent, classNam
     <section
       aria-labelledby="dashboard-hero"
       data-testid="dashboard-next-match"
-      className={cn("flex flex-col gap-4 rounded-card bg-primary p-5 text-primary-foreground lg:gap-5 lg:p-6", className)}
+      className={cn("flex flex-col justify-between gap-4 rounded-card bg-primary p-5 text-primary-foreground lg:gap-5 lg:p-6", className)}
     >
       <div className="space-y-0.5 text-xs font-bold tracking-wider text-on-blue uppercase">
         <h2 id="dashboard-hero">
