@@ -157,8 +157,10 @@ partie, n'a pas d'entrée « Défi »).
 **Navigation d'une partie.** Cinq entrées, dans `SECTIONS` (`app/saves/[id]/_lib/sections.ts`, pur et testé) : Accueil ·
 Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
 `nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement et Coupe
-(seulement avec une coupe) ; le direct est sous Match, sans onglet ; l'entrée Club mène au Palmarès (`/seasons`) en
-attendant ses finances. Ces sous-onglets sont une bascule en tête de contenu (`SectionTabs`, `SegmentedLinks`,
+(seulement avec une coupe) ; le direct est sous Match, sans onglet ; l'entrée Match mène au Calendrier sous 1024 px, au
+Classement à partir de là, où il a le calendrier et la coupe à côté (`computerHome`, choisi par `SaveNav` après
+l'hydratation) ; l'entrée Club mène au Palmarès (`/seasons`) en attendant ses finances. Ces sous-onglets sont une bascule
+en tête de contenu (`SectionTabs`, `SegmentedLinks`,
 `src/components/segmented.tsx`), testids `nav-squad`, `nav-lineup`, `nav-fixtures`, `nav-standings`, `nav-cup`, présents
 sur les seuls écrans de leur entrée (`openScreen`, `e2e/helpers.ts`, passe par elle). Les entrées ne touchent pas aux
 adresses : chaque écran garde la sienne (`/squad`, `/standings`…). Une seule navigation dans le DOM (`SaveNav`,
@@ -217,6 +219,22 @@ du routeur, pour le retour du navigateur. Mesure : section « Premiers pas » de
 `src/db/stats.ts`), 14 jours complets par jour de création, hors défi, sur les seules tables du jeu ; à comparer avant et
 après un changement sur moins de 30 jours, la purge retirant les parties anonymes abandonnées.
 
+**Écrans de Match.** Classement (`/standings`) : compact à toutes les largeurs (J, Diff, Forme, Pts ; `StandingsTable`,
+`computeForm`, les cinq derniers résultats de championnat, lus par `getLatestSeasonTables`), il tient à 360 px ;
+« Classement complet » (`FullTableToggle`, état du navigateur, sans changer d'adresse ni d'onglet) ajoute G, N, P, BP, BC
+et retire les cartes d'à côté. `StandingsTable` est un composant client pour son poids : un onglet fermé ne le rend pas,
+et la page envoie les données des dix tableaux plutôt que leurs cellules (288 Ko au lieu de 1,25 Mo). Pastille de rang : bleue pour le champion de D1 et les montées de D2, orange pour les
+descentes de D1, neutre sinon et dans toute une partie 1 ; ta ligne sur `bg-secondary`. À partir de `xl`, le tableau en
+3/5 et à droite, en 2/5, le calendrier (`MatchCalendarCard`, `fixtureWindow` : trois matchs joués, le prochain, deux à
+venir) et la coupe (`CupCard`, `linked`) ; sous le tableau de `lg` à `xl` ; cachés sous `lg`, les onglets les ayant.
+Calendrier (`/fixtures`) : la liste du mois par défaut, ouverte sur le mois du prochain match (`FixtureRow` : jour,
+adversaire, étiquette D1 ou D2 en `text-highlight`, COUPE en orange, résultat ; toute la ligne ouvre la feuille de match
+ou l'adversaire ; le prochain match sur `bg-secondary`, pastille « Suivant ») ; `?vue=grille`, la grille du mois, avec le
+choix du jour à simuler (`beginPicking`, qui l'ouvre) ; les repères du mois sous les deux. Coupe (`/cup`) : `CupCard`, sur
+le bleu vif (état, six tours et le prochain en orange, `cupProgress`, rencontre si le tirage est fait, prime), puis le
+parcours et les tours. Aucun bouton orange plein sur ces écrans : l'action de jeu est dans la colonne, ou en tête de Match
+sur téléphone. `e2e/match.spec.ts` les couvre à 1280, 390 et 360 px.
+
 **Marché.** Deux écrans sous l'entrée Marché. `/transfers` : budget (et marge salariale à partir de 1024 px), bascule
 Acheter / Vendre · N offres (`?tab=sell`). Acheter : quatre entrées (Mes besoins, Pépites, Bonnes affaires, Stars),
 `proposeSignings` (`src/engine/market-proposals.ts`, pur, sans hasard) et `getMarketProposals`
@@ -245,9 +263,9 @@ d'eux-mêmes, les liens et contrôles propres à un écran avec `max-sm:min-h-11
 marché) ne passe en deux colonnes qu'à partir de `xl`, la fiche étant en surimpression en dessous ; la composition et la
 mi-temps n'ont aussi leurs deux colonnes qu'à partir de `xl`, et le tableau de bord ses trois colonnes (deux à partir de
 `lg`). Un tableau garde un seul DOM (testids et E2E de bureau inchangés) : sur téléphone, moins de colonnes, ses lignes
-en grilles des mêmes colonnes que l'en-tête (effectif, marché), ou des cartes (parties de l'accueil, mouvements, liste
-du calendrier, palmarès), disposées par CSS ; le reste est dans la fiche du joueur. Le classement complet est le seul à
-défiler de côté, dans son cadre, rang et club figés à gauche, points à droite. Aucun texte utile coupé : à la ligne, sous
+en grilles des mêmes colonnes que l'en-tête (effectif, marché), ou des cartes (parties de l'accueil, mouvements,
+palmarès), disposées par CSS ; le reste est dans la fiche du joueur. Le classement complet, une fois demandé, est le seul
+à défiler de côté, dans son cadre, rang et club figés à gauche, points à droite. Aucun texte utile coupé : à la ligne, sous
 le nom, ou lu par les lecteurs d'écran et montré dans la fiche (cases de la grille du mois). Glisser-déposer
 (`usePointerDrag`) : au doigt, un appui maintenu de 250 ms soulève le joueur et un geste plus rapide fait défiler la page
 (aucun `touch-none` sur une source), la page défile seule près des bords pendant un glisser ; souris, clavier et
@@ -320,7 +338,7 @@ partir de 1024 px, ligne du club de 640 à 1024 px, jamais sous 640 px), sinon l
   `dashboard-hero` (héros de l'Accueil), `dashboard-todo` (« À faire »), `onboarding` (premières actions, bulles),
   `challenge-banner` (carte du défi), `squad` (effectif, fiche joueur, contrats), `lineup`,
   `market` (Acheter, confirmation), `market-sell` (Vendre), `transfers` (marché avancé), `fixtures` (calendrier,
-  feuille de match), `standings` (classement, coupe, palmarès, carte), `live` (direct, mi-temps), `actions` (messages
+  feuille de match), `standings` (classement, palmarès, carte), `cup` (coupe), `live` (direct, mi-temps), `actions` (messages
   des Server Actions, refus), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
   `src/i18n/messages.test.ts` exige les mêmes clés et les mêmes arguments ICU dans les deux langues, que tout message
   se formate et qu'un espace de noms n'appartienne qu'à un fichier. Seule exception : la page de confidentialité, un
@@ -417,6 +435,7 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # palmarès (seasons/, et seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
+                      # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone
