@@ -1,0 +1,429 @@
+import { describe, expect, it } from "vitest";
+import {
+  MARKET_ENTRIES,
+  MAX_PROPOSALS_PER_ENTRY,
+  proposeSignings,
+  weakSpotOf,
+  type ElevenSlot,
+  type MarketBuyer,
+  type MarketCandidate,
+  type MarketEntry,
+  type Proposal,
+} from "./market-proposals";
+import { secondaryPositions, type Position } from "./positions";
+
+const MILLION = 1_000_000;
+
+const BUYER: MarketBuyer = { reputation: 70, budget: 100 * MILLION, wageRoom: 10 * MILLION };
+
+/** A plain striker of 26, fairly priced: he fits no entry but Stars, and Needs when he improves the weak spot. */
+const candidate = (playerKey: string, overrides: Partial<MarketCandidate> = {}): MarketCandidate => ({
+  playerKey,
+  position: "ST",
+  age: 26,
+  overall: 70,
+  potential: 72,
+  askingPrice: 10 * MILLION,
+  askedWage: MILLION,
+  minimumReputation: 50,
+  marketValue: 10 * MILLION,
+  ...overrides,
+});
+
+/** The first player key whose secondary positions at `position` pass the check. */
+function keyWhere(position: Position, check: (secondary: readonly Position[]) => boolean): string {
+  for (let index = 0; ; index++) {
+    const key = `player-${index}`;
+    if (check(secondaryPositions(key, position))) {
+      return key;
+    }
+  }
+}
+
+/** A player without secondary positions: his rating elsewhere comes from the table of familiarity alone. */
+const plainKey = (position: Position): string => keyWhere(position, (secondary) => secondary.length === 0);
+
+const keys = (proposals: readonly Proposal[]): string[] => proposals.map((proposal) => proposal.candidate.playerKey);
+
+const entryKeys = (eleven: readonly ElevenSlot[], candidates: readonly MarketCandidate[], entry: MarketEntry): string[] =>
+  keys(proposeSignings(eleven, candidates, BUYER).entries[entry]);
+
+describe("weakSpotOf", () => {
+  it("is the starter rated lowest in his slot, rounded", () => {
+    expect(
+      weakSpotOf([
+        { slot: "GK", rating: 75 },
+        { slot: "CB", rating: 61.6 },
+        { slot: "ST", rating: 70 },
+      ]),
+    ).toEqual({ position: "CB", rating: 62 });
+  });
+
+  it("takes the first of the eleven on a tie", () => {
+    const eleven: ElevenSlot[] = [
+      { slot: "ST", rating: 60 },
+      { slot: "CB", rating: 60 },
+    ];
+
+    expect(weakSpotOf(eleven)?.position).toBe("ST");
+    expect(weakSpotOf([...eleven].reverse())?.position).toBe("CB");
+  });
+
+  it("compares the exact ratings: a tie once rounded is not a tie", () => {
+    expect(
+      weakSpotOf([
+        { slot: "CB", rating: 62.4 },
+        { slot: "ST", rating: 61.6 },
+      ]),
+    ).toEqual({ position: "ST", rating: 62 });
+  });
+
+  it("is null for an empty eleven", () => {
+    expect(weakSpotOf([])).toBeNull();
+  });
+});
+
+describe("eligibility", () => {
+  // A candidate of all four entries: young, cheap, and better than the weak spot.
+  const wanted = candidate("wanted", {
+    age: 19,
+    overall: 70,
+    potential: 80,
+    askingPrice: 6 * MILLION,
+    askedWage: 2 * MILLION,
+    minimumReputation: 60,
+    marketValue: 10 * MILLION,
+  });
+  const exactBuyer: MarketBuyer = { reputation: 60, budget: 6 * MILLION, wageRoom: 2 * MILLION };
+  const eleven: ElevenSlot[] = [{ slot: "ST", rating: 60 }];
+
+  const entryCounts = (buyer: MarketBuyer): number[] => {
+    const { entries } = proposeSignings(eleven, [wanted], buyer);
+    return MARKET_ENTRIES.map((entry) => entries[entry].length);
+  };
+
+  it("keeps a candidate the buyer reaches exactly, in all four entries", () => {
+    expect(entryCounts(exactBuyer)).toEqual([1, 1, 1, 1]);
+  });
+
+  it("drops him from all four entries when the club's reputation is too low", () => {
+    expect(entryCounts({ ...exactBuyer, reputation: 59 })).toEqual([0, 0, 0, 0]);
+  });
+
+  it("drops him from all four entries when the budget is too short", () => {
+    expect(entryCounts({ ...exactBuyer, budget: 6 * MILLION - 1 })).toEqual([0, 0, 0, 0]);
+  });
+
+  it("drops him from all four entries when the wage room is too short", () => {
+    expect(entryCounts({ ...exactBuyer, wageRoom: 2 * MILLION - 1 })).toEqual([0, 0, 0, 0]);
+  });
+
+  it("drops every asked wage when the club is over its wage budget", () => {
+    expect(entryCounts({ ...exactBuyer, wageRoom: -MILLION })).toEqual([0, 0, 0, 0]);
+  });
+});
+
+describe("slot and impact", () => {
+  it("places a candidate where he brings the most, away from the weak spot if need be", () => {
+    const eleven: ElevenSlot[] = [
+      { slot: "CM", rating: 70 },
+      { slot: "ST", rating: 60 },
+    ];
+    const { entries } = proposeSignings(eleven, [candidate(plainKey("CM"), { position: "CM", overall: 80 })], BUYER);
+
+    expect(entries.stars[0]).toMatchObject({ slot: "CM", impact: 10 }); // 80 − 70, against 64 − 60 up front
+  });
+
+  it("stays at the weak spot in Needs, whatever he would bring elsewhere", () => {
+    const eleven: ElevenSlot[] = [
+      { slot: "CM", rating: 70 },
+      { slot: "ST", rating: 60 },
+    ];
+    const { entries } = proposeSignings(eleven, [candidate(plainKey("CM"), { position: "CM", overall: 80 })], BUYER);
+
+    expect(entries.needs[0]).toMatchObject({ slot: "ST", impact: 4 }); // 80 × 0.8 − 60
+  });
+
+  it("may be negative", () => {
+    const { entries } = proposeSignings([{ slot: "ST", rating: 60 }], [candidate("worse", { overall: 50 })], BUYER);
+
+    expect(entries.stars[0]).toMatchObject({ slot: "ST", impact: -10 });
+    expect(entries.needs).toEqual([]);
+  });
+
+  it("takes the first of the eleven on a tie", () => {
+    const eleven: ElevenSlot[] = [
+      { slot: "RW", rating: 70 },
+      { slot: "LW", rating: 70 },
+    ];
+    const striker = candidate(plainKey("ST"), { overall: 80 }); // 74 on either wing
+
+    expect(proposeSignings(eleven, [striker], BUYER).entries.stars[0]).toMatchObject({ slot: "RW", impact: 4 });
+    expect(proposeSignings([...eleven].reverse(), [striker], BUYER).entries.stars[0]).toMatchObject({ slot: "LW", impact: 4 });
+  });
+
+  it("is measured against the weakest of two starters at the same position", () => {
+    const eleven: ElevenSlot[] = [
+      { slot: "CB", rating: 72 },
+      { slot: "CB", rating: 65 },
+    ];
+    const { entries } = proposeSignings(eleven, [candidate("defender", { position: "CB", overall: 70 })], BUYER);
+
+    expect(entries.stars[0]).toMatchObject({ slot: "CB", impact: 5 });
+    expect(entries.needs[0]).toMatchObject({ slot: "CB", impact: 5 });
+  });
+
+  it("compares rounded ratings", () => {
+    const midfielder = candidate(plainKey("CM"), { position: "CM", overall: 76 }); // 60.8 up front
+    const { entries } = proposeSignings([{ slot: "ST", rating: 60.4 }], [midfielder], BUYER);
+
+    expect(entries.stars[0].impact).toBe(1);
+    expect(entries.needs[0].impact).toBe(1);
+  });
+
+  it("counts a secondary position, drawn from the player key", () => {
+    const key = keyWhere("CAM", (secondary) => secondary.includes("ST"));
+    const { entries } = proposeSignings([{ slot: "ST", rating: 70 }], [candidate(key, { position: "CAM", overall: 80 })], BUYER);
+
+    expect(entries.stars[0]).toMatchObject({ slot: "ST", impact: 8 }); // 77.6, where a plain midfielder is at 64
+  });
+});
+
+describe("Needs", () => {
+  const eleven: ElevenSlot[] = [
+    { slot: "GK", rating: 80 },
+    { slot: "ST", rating: 60 },
+  ];
+
+  it("keeps only those who would improve the weak spot", () => {
+    const candidates = [
+      candidate("better", { overall: 61 }),
+      candidate("same", { overall: 60 }),
+      candidate("worse", { overall: 59 }),
+    ];
+
+    expect(entryKeys(eleven, candidates, "needs")).toEqual(["better"]);
+  });
+
+  it("drops a gain that vanishes once rounded", () => {
+    expect(entryKeys([{ slot: "ST", rating: 59.6 }], [candidate("barely", { overall: 60 })], "needs")).toEqual([]);
+  });
+
+  it("drops a candidate who would only improve another slot", () => {
+    const candidates = [candidate(plainKey("GK"), { position: "GK", overall: 85 })];
+
+    expect(entryKeys(eleven, candidates, "needs")).toEqual([]);
+    expect(proposeSignings(eleven, candidates, BUYER).entries.stars[0]).toMatchObject({ slot: "GK", impact: 5 });
+  });
+
+  it("sorts by impact, then price, then rating, then player key", () => {
+    const candidates = [
+      candidate("b-tie", { askingPrice: 5 * MILLION }),
+      candidate("a-tie", { askingPrice: 5 * MILLION }),
+      // 70 up front like the two strikers above, for the same price, with a higher rating.
+      candidate(plainKey("CM"), { position: "CM", overall: 88, askingPrice: 5 * MILLION }),
+      candidate("z-cheaper", { askingPrice: 3 * MILLION }),
+      candidate("z-biggest-gain", { overall: 72, askingPrice: 20 * MILLION }),
+    ];
+
+    expect(entryKeys(eleven, candidates, "needs")).toEqual(["z-biggest-gain", "z-cheaper", plainKey("CM"), "a-tie", "b-tie"]);
+  });
+
+  it("tags the first best, then gems, then bargains on price, then the rest", () => {
+    const fit = candidate("c-fit", { overall: 68, marketValue: 10 * MILLION, askingPrice: 10 * MILLION });
+    const bargain = candidate("c-bargain", { overall: 68, marketValue: 10 * MILLION, askingPrice: 7 * MILLION });
+    const gem = candidate("c-gem", { overall: 68, age: 20, potential: 74, askingPrice: 12 * MILLION });
+    const gemAtBargainPrice = candidate("c-both", { overall: 68, age: 20, potential: 74, marketValue: 20 * MILLION, askingPrice: 15 * MILLION });
+    const first = candidate("c-first", { overall: 75, age: 20, potential: 85 });
+
+    const { entries } = proposeSignings(eleven, [fit, bargain, gem, gemAtBargainPrice, first], BUYER);
+    const tags = Object.fromEntries(entries.needs.map((proposal) => [proposal.candidate.playerKey, proposal.tag]));
+
+    expect(tags).toEqual({ "c-first": "best", "c-gem": "gem", "c-both": "gem", "c-bargain": "bargain", "c-fit": "fit" });
+  });
+
+  it("does not take a free worthless player for a bargain", () => {
+    const candidates = [candidate("first", { overall: 75 }), candidate("worthless", { askingPrice: 0, marketValue: 0 })];
+
+    expect(proposeSignings(eleven, candidates, BUYER).entries.needs.map((proposal) => proposal.tag)).toEqual(["best", "fit"]);
+  });
+});
+
+describe("Gems", () => {
+  const eleven: ElevenSlot[] = [{ slot: "ST", rating: 80 }];
+
+  it("needs youth and room to grow, both inclusive", () => {
+    const candidates = [
+      candidate("in", { age: 21, overall: 60, potential: 66 }),
+      candidate("too-old", { age: 22, overall: 60, potential: 66 }),
+      candidate("no-room", { age: 21, overall: 60, potential: 65 }),
+    ];
+
+    expect(entryKeys(eleven, candidates, "gems")).toEqual(["in"]);
+  });
+
+  it("sorts by potential, then price, then player key, and tags gem", () => {
+    const young = { age: 19, overall: 60 };
+    const candidates = [
+      candidate("b-tie", { ...young, potential: 75, askingPrice: 5 * MILLION }),
+      candidate("a-tie", { ...young, potential: 75, askingPrice: 5 * MILLION }),
+      candidate("z-cheaper", { ...young, potential: 75, askingPrice: 4 * MILLION }),
+      candidate("z-highest", { ...young, potential: 85, askingPrice: 30 * MILLION }),
+    ];
+    const { gems } = proposeSignings(eleven, candidates, BUYER).entries;
+
+    expect(keys(gems)).toEqual(["z-highest", "z-cheaper", "a-tie", "b-tie"]);
+    expect(gems.map((proposal) => proposal.tag)).toEqual(["gem", "gem", "gem", "gem"]);
+  });
+
+  it("places a gem where he brings the most, even without improving the eleven", () => {
+    const gem = candidate("gem", { age: 19, overall: 60, potential: 75 });
+
+    expect(proposeSignings(eleven, [gem], BUYER).entries.gems[0]).toMatchObject({ slot: "ST", impact: -20 });
+  });
+});
+
+describe("Bargains", () => {
+  const eleven: ElevenSlot[] = [
+    { slot: "GK", rating: 80 },
+    { slot: "ST", rating: 60.4 }, // the weak spot reads 60
+  ];
+
+  it("needs a price of 75 % of the market value at most", () => {
+    const candidates = [
+      candidate("at-the-limit", { marketValue: 10 * MILLION, askingPrice: 7_500_000 }),
+      candidate("just-above", { marketValue: 10 * MILLION, askingPrice: 7_500_001 }),
+    ];
+
+    expect(entryKeys(eleven, candidates, "bargains")).toEqual(["at-the-limit"]);
+  });
+
+  it("needs a rating within 3 of the weak spot, from below", () => {
+    const candidates = [
+      candidate("at-the-limit", { overall: 57, askingPrice: MILLION }),
+      candidate("just-below", { overall: 56, askingPrice: MILLION }),
+    ];
+
+    expect(entryKeys(eleven, candidates, "bargains")).toEqual(["at-the-limit"]);
+  });
+
+  it("needs a market value", () => {
+    expect(entryKeys(eleven, [candidate("worthless", { askingPrice: 0, marketValue: 0 })], "bargains")).toEqual([]);
+  });
+
+  it("has room for a free agent", () => {
+    const proposal = proposeSignings(eleven, [candidate("free", { askingPrice: 0 })], BUYER).entries.bargains[0];
+
+    expect(proposal).toMatchObject({ tag: "bargain", slot: "ST", impact: 10 });
+    expect(proposal.candidate.askingPrice).toBe(0);
+  });
+
+  it("sorts by the money saved, then rating, then player key", () => {
+    const candidates = [
+      candidate("b-tie", { overall: 62, marketValue: 10 * MILLION, askingPrice: 5 * MILLION }),
+      candidate("a-tie", { overall: 62, marketValue: 10 * MILLION, askingPrice: 5 * MILLION }),
+      candidate("z-better-rated", { overall: 65, marketValue: 8 * MILLION, askingPrice: 3 * MILLION }),
+      candidate("z-most-saved", { overall: 60, marketValue: 40 * MILLION, askingPrice: 20 * MILLION }),
+    ];
+
+    expect(entryKeys(eleven, candidates, "bargains")).toEqual(["z-most-saved", "z-better-rated", "a-tie", "b-tie"]);
+  });
+});
+
+describe("Stars", () => {
+  it("takes every eligible candidate, by rating, then price, then player key", () => {
+    const eleven: ElevenSlot[] = [{ slot: "ST", rating: 90 }];
+    const candidates = [
+      candidate("b-tie", { overall: 70 }),
+      candidate("a-tie", { overall: 70 }),
+      candidate("z-cheaper", { overall: 70, askingPrice: 5 * MILLION }),
+      candidate("z-best", { overall: 85, askingPrice: 90 * MILLION }),
+      candidate("out-of-reach", { overall: 95, askingPrice: 101 * MILLION }),
+    ];
+    const { stars } = proposeSignings(eleven, candidates, BUYER).entries;
+
+    expect(keys(stars)).toEqual(["z-best", "z-cheaper", "a-tie", "b-tie"]);
+    expect(stars.map((proposal) => proposal.tag)).toEqual(["star", "star", "star", "star"]);
+  });
+});
+
+describe("proposeSignings", () => {
+  const eleven: ElevenSlot[] = [{ slot: "ST", rating: 60 }];
+
+  // Better than the weak spot, gems and bargains all, and in the same order in each entry: the last one first.
+  const crowd = Array.from({ length: MAX_PROPOSALS_PER_ENTRY + 2 }, (_, index) =>
+    candidate(`player-${String(index).padStart(2, "0")}`, {
+      age: 19,
+      overall: 61 + index,
+      potential: 90 + index,
+      marketValue: 10 * MILLION,
+      askingPrice: 5 * MILLION - index,
+    }),
+  );
+
+  it("keeps 10 proposals at most in each entry, the first ones", () => {
+    const { entries } = proposeSignings(eleven, crowd, BUYER);
+    const best = crowd
+      .slice(2)
+      .reverse()
+      .map((player) => player.playerKey);
+
+    expect(MAX_PROPOSALS_PER_ENTRY).toBe(10);
+    for (const entry of MARKET_ENTRIES) {
+      expect(keys(entries[entry]), entry).toEqual(best);
+    }
+  });
+
+  it("gives the same order whatever the order of the candidates", () => {
+    const ties = [
+      candidate("tie-c", { age: 19, potential: 80, askingPrice: 5 * MILLION }),
+      candidate("tie-a", { age: 19, potential: 80, askingPrice: 5 * MILLION }),
+      candidate("tie-b", { age: 19, potential: 80, askingPrice: 5 * MILLION }),
+    ];
+    const candidates = [...ties, ...crowd];
+
+    const forwards = proposeSignings(eleven, candidates, BUYER);
+    const backwards = proposeSignings(eleven, [...candidates].reverse(), BUYER);
+
+    expect(backwards).toEqual(forwards);
+    expect(proposeSignings(eleven, candidates, BUYER)).toEqual(forwards);
+  });
+
+  it("leaves its inputs untouched", () => {
+    const candidates = Object.freeze([candidate("b"), candidate("a")]);
+    const frozenEleven = Object.freeze([...eleven]);
+
+    expect(() => proposeSignings(frozenEleven, candidates, BUYER)).not.toThrow();
+  });
+
+  it("hands back the caller's candidates, with what they carry", () => {
+    const player = { ...candidate("carried", { overall: 75 }), id: "row-1" };
+    const { entries } = proposeSignings(eleven, [player], BUYER);
+
+    expect(entries.stars[0].candidate).toBe(player);
+    expect(entries.needs[0].candidate.id).toBe("row-1");
+  });
+
+  it("has no weak spot, no needs and no rating floor with an empty eleven", () => {
+    const candidates = [
+      candidate("gem", { position: "CM", age: 19, overall: 40, potential: 60, askingPrice: 2 * MILLION }),
+      candidate("star", { overall: 75 }),
+    ];
+    const { weakSpot, entries } = proposeSignings([], candidates, BUYER);
+
+    expect(weakSpot).toBeNull();
+    expect(entries.needs).toEqual([]);
+    expect(keys(entries.gems)).toEqual(["gem"]);
+    expect(keys(entries.bargains)).toEqual(["gem"]);
+    expect(keys(entries.stars)).toEqual(["star", "gem"]);
+    expect(entries.gems[0]).toMatchObject({ slot: "CM", impact: 0 });
+    expect(entries.stars[0]).toMatchObject({ slot: "ST", impact: 0 });
+  });
+
+  it("proposes nothing without candidates", () => {
+    const { weakSpot, entries } = proposeSignings(eleven, [], BUYER);
+
+    expect(weakSpot).toEqual({ position: "ST", rating: 60 });
+    expect(entries).toEqual({ needs: [], gems: [], bargains: [], stars: [] });
+  });
+});
