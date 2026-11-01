@@ -12,8 +12,10 @@ import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
 import { formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { CupCard } from "../_components/cup-card";
 import { Panel, PanelTitle } from "../_components/panel";
 import { ScoreNotes } from "../_components/score-notes";
+import { cupProgress, isCupRoundNumber } from "../_lib/cup-progress";
 import { cupRoundName, cupRoundReached } from "../_lib/stage";
 
 export const dynamic = "force-dynamic";
@@ -21,13 +23,6 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getTranslations("cup"))("title") };
 }
-
-/** The rounds a club can go out in, each with its sentence: « Éliminé en 8es de finale. ». */
-const OUT_ROUNDS = [1, 2, 3, 4, 5, 6] as const;
-
-type OutRound = (typeof OUT_ROUNDS)[number];
-
-const isOutRound = (round: number): round is OutRound => (OUT_ROUNDS as readonly number[]).includes(round);
 
 /** The managed club's cup in one sentence. */
 function runSentence(bracket: CupBracket, t: Translator<"cup">, tStage: Translator<"stage">, locale: Locale): string {
@@ -38,12 +33,12 @@ function runSentence(bracket: CupBracket, t: Translator<"cup">, tStage: Translat
   if (run.status === "won") {
     return t("won");
   }
-  if (run.status === "out") {
-    return isOutRound(run.lastRound) ? t(`out.${run.lastRound}`) : t("outOther", { round: run.lastRound });
+  const { next } = cupProgress(bracket);
+  if (next === null) {
+    return isCupRoundNumber(run.lastRound) ? t(`out.${run.lastRound}`) : t("outOther", { round: run.lastRound });
   }
-  const next = bracket.rounds[run.lastRound - 1];
-  const exempt = run.firstRound > 1 && run.firstRound === run.lastRound;
-  const values = { round: cupRoundReached(run.lastRound, tStage), date: formatShortDate(next.date, locale) };
+  const exempt = run.firstRound > 1 && run.firstRound === next.round;
+  const values = { round: cupRoundReached(next.round, tStage), date: formatShortDate(next.date, locale) };
   return exempt ? t("inExempt", values) : t("in", values);
 }
 
@@ -51,13 +46,13 @@ function TeamCell({ team, tie, align }: { team: TeamView; tie: CupTieView; align
   const played = tie.played;
   const won = played && tie.winnerClubSaveId === team.clubSaveId;
   return (
-    // On a phone, on two lines rather than cut.
+    // On two lines rather than cut, a long word broken if it must. The managed club stays orange, beaten or not.
     <span
       className={cn(
-        "min-w-0 truncate max-sm:whitespace-normal",
+        "min-w-0 wrap-break-word",
         align === "right" && "text-right",
-        team.isManaged && "text-(--club)",
-        won ? "font-semibold" : played && "text-muted-foreground",
+        won && "font-semibold",
+        team.isManaged ? "text-(--club)" : played && !won && "text-muted-foreground",
       )}
     >
       {team.name}
@@ -72,7 +67,7 @@ function RoundPanel({ round }: { round: CupRoundView }) {
   return (
     <Panel data-cup-round={round.round} data-testid={`cup-round-${round.round}`} className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="font-heading text-xl font-bold">{cupRoundName(round.round, tStage)}</h2>
+        <h2 className="font-heading text-xl font-bold normal-case">{cupRoundName(round.round, tStage)}</h2>
         <p className="text-xs text-muted-foreground first-letter:uppercase">{formatShortDate(round.date, locale)}</p>
       </div>
       {round.ties.length === 0 ? (
@@ -87,8 +82,8 @@ function RoundPanel({ round }: { round: CupRoundView }) {
                 data-cup-tie=""
                 data-managed={managed || undefined}
                 className={cn(
-                  "grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-2 py-1.5 max-sm:gap-2 max-sm:px-1",
-                  managed && "rounded-md bg-(--club)/12",
+                  "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-2 py-1.5 max-sm:gap-2 max-sm:px-1",
+                  managed && "rounded-md bg-secondary",
                 )}
               >
                 <TeamCell team={tie.home} tie={tie} align="right" />
@@ -96,7 +91,8 @@ function RoundPanel({ round }: { round: CupRoundView }) {
                   <span className="font-heading text-base font-bold tabular-nums">
                     {tie.played ? `${tie.homeGoals} – ${tie.awayGoals}` : "–"}
                   </span>
-                  <ScoreNotes match={tie} className="text-[0.625rem]" />
+                  {/* On two lines rather than as wide as a name cut in half. */}
+                  <ScoreNotes match={tie} className="text-center text-[0.625rem] leading-tight whitespace-normal" />
                 </span>
                 <TeamCell team={tie.away} tie={tie} align="left" />
               </li>
@@ -109,8 +105,8 @@ function RoundPanel({ round }: { round: CupRoundView }) {
 }
 
 /**
- * The cup of the managed club's country, round by round: its ties and results (the winners in bold), the dates of
- * the rounds still to draw, the managed club's run, and the winner on top once the final is played.
+ * The cup of the managed club's country: the club's card on top, the winner once the final is played, the club's run,
+ * then round by round its ties and results (the winners in bold) and the dates of the rounds still to draw.
  */
 export default async function CupPage({ params }: PageProps<"/saves/[id]/cup">) {
   const { id } = await params;
@@ -141,12 +137,14 @@ export default async function CupPage({ params }: PageProps<"/saves/[id]/cup">) 
         </p>
       </div>
 
+      <CupCard saveId={id} bracket={bracket} />
+
       {bracket.winner !== null && (
-        <Panel data-cup-winner="" data-testid="cup-winner" className="flex items-center gap-4 border border-(--club)/50 bg-(--club)/10">
+        <Panel data-cup-winner="" data-testid="cup-winner" className="flex items-center gap-4">
           <TrophyIcon aria-hidden className="size-8 shrink-0 text-(--club)" />
-          <div>
+          <div className="min-w-0">
             <PanelTitle>{t("winner")}</PanelTitle>
-            <p className="font-heading text-3xl font-bold">{bracket.winner.name}</p>
+            <p className="font-heading text-3xl font-bold wrap-break-word">{bracket.winner.name}</p>
           </div>
         </Panel>
       )}
@@ -158,7 +156,8 @@ export default async function CupPage({ params }: PageProps<"/saves/[id]/cup">) 
         </p>
       </Panel>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      {/* In columns rather than in a grid: a round drawn holds up to sixteen ties, one still to draw a line. */}
+      <div className="gap-5 *:mb-5 *:break-inside-avoid md:columns-2 xl:columns-3">
         {bracket.rounds.map((round) => (
           <RoundPanel key={round.round} round={round} />
         ))}

@@ -15,8 +15,38 @@
       "6": "Éliminé en finale."
     },
     "outOther": "Éliminé au tour {round}.",
-    "in": "En lice : {round}, le {date}.",
-    "inExempt": "Exempté du tour préliminaire · En lice : {round}, le {date}.",
-    "drawPending": "Tirage à l'issue du tour précédent."
+    "in": "En lice : {round} ({date}).",
+    "inExempt": "Exempté du tour préliminaire · En lice : {round} ({date}).",
+    "drawPending": "Tirage à l'issue du tour précédent.",
+    "status": {
+      "in": "ENCORE EN LICE",
+      "out": "ÉLIMINÉ",
+      "won": "VAINQUEUR"
+    },
+    "progress": "Ta progression dans la coupe",
+    "rounds": {
+      "1": "Prélim.",
+      "2": "16es",
+      "3": "8es",
+      "4": "Quarts",
+      "5": "Demies",
+      "6": "Finale"
+    },
+    "roundState": {
+      "passed": "passé",
+      "exempt": "exempté",
+      "current": "en cours",
+      "lost": "perdu",
+      "upcoming": "à venir",
+      "unreached": "non disputé"
+    },
+    "versus": {
+      "home": "vs {club} · domicile",
+      "away": "vs {club} · extérieur"
+    },
+    "drawDone": "Tirage fait",
+    "drawToCome": "Tirage à venir",
+    "prize": "Prime en jeu : {amount} au vainqueur",
+    "viewCup": "Voir la coupe"
   }
 }

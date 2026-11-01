@@ -17,6 +17,36 @@
     "outOther": "Knocked out in round {round}.",
     "in": "Still in: {round}, on {date}.",
     "inExempt": "Exempt from the preliminary round · Still in: {round}, on {date}.",
-    "drawPending": "Drawn once the previous round is over."
+    "drawPending": "Drawn once the previous round is over.",
+    "status": {
+      "in": "STILL IN",
+      "out": "KNOCKED OUT",
+      "won": "WINNER"
+    },
+    "progress": "Your progress in the cup",
+    "rounds": {
+      "1": "Prelim",
+      "2": "R32",
+      "3": "R16",
+      "4": "QF",
+      "5": "SF",
+      "6": "Final"
+    },
+    "roundState": {
+      "passed": "through",
+      "exempt": "exempt",
+      "current": "in progress",
+      "lost": "lost",
+      "upcoming": "to come",
+      "unreached": "not reached"
+    },
+    "versus": {
+      "home": "vs {club} · home",
+      "away": "vs {club} · away"
+    },
+    "drawDone": "Draw made",
+    "drawToCome": "Draw to come",
+    "prize": "Prize at stake: {amount} for the winners",
+    "viewCup": "View the cup"
   }
 }
