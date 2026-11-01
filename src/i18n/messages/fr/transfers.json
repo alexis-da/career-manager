@@ -1,6 +1,7 @@
 {
   "transfers": {
-    "title": "Transferts",
+    "title": "Marché avancé",
+    "back": "Marché",
     "window": {
       "open": "Mercato ouvert",
       "closed": "Mercato fermé",

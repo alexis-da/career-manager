@@ -39,7 +39,7 @@ export function MarketFiltersForm({ saveId, filters, competitions }: MarketFilte
   return (
     <form
       method="get"
-      action={`/saves/${saveId}/transfers`}
+      action={`/saves/${saveId}/transfers/advanced`}
       role="search"
       aria-label={t("label")}
       data-testid="market-filters"
@@ -151,7 +151,7 @@ export function MarketFiltersForm({ saveId, filters, competitions }: MarketFilte
           {t("submit")}
         </Button>
         <Link
-          href={`/saves/${saveId}/transfers?tab=clubs`}
+          href={`/saves/${saveId}/transfers/advanced?tab=clubs`}
           className={buttonVariants({ variant: "ghost" })}
           data-testid="market-reset"
         >

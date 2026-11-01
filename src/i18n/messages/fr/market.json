@@ -1,5 +1,71 @@
 {
   "market": {
-    "title": "Marché"
+    "title": "Marché",
+    "budget": "{amount} dispo",
+    "wageRoom": "Marge salariale {amount}",
+    "advanced": "Marché complet : filtres, joueurs libres, mouvements",
+    "tabs": {
+      "label": "Acheter ou vendre",
+      "buy": "Acheter",
+      "sell": "Vendre · {count, plural, =0 {aucune offre} one {# offre} other {# offres}}"
+    },
+    "entries": {
+      "label": "Type de proposition",
+      "needs": "Mes besoins",
+      "gems": "Pépites",
+      "bargains": "Bonnes affaires",
+      "stars": "Stars"
+    },
+    "intro": {
+      "weakSpotLead": "Ton point faible :",
+      "weakSpotRest": "(note {rating}). Voici qui le comblerait.",
+      "noWeakSpot": "Ton onze n'a pas encore de titulaires à comparer.",
+      "gems": "Des jeunes à fort potentiel, à ta portée.",
+      "bargains": "Moins chers que leur valeur, souvent en fin de contrat.",
+      "stars": "Les meilleurs joueurs prêts à te rejoindre, à ta portée."
+    },
+    "empty": {
+      "needs": "Personne à ta portée n'améliore ce poste pour l'instant.",
+      "gems": "Aucune pépite à ta portée pour l'instant.",
+      "bargains": "Aucune bonne affaire à ta portée pour l'instant.",
+      "stars": "Aucune star à ta portée pour l'instant."
+    },
+    "tags": {
+      "best": "Meilleur choix",
+      "gem": "Pépite · pot. {potential}",
+      "bargain": "Bonne affaire",
+      "star": "Star",
+      "fit": "Bon profil"
+    },
+    "playerLine": "{age} ans · {club}",
+    "freeAgent": "Joueur libre",
+    "impact": "+{impact} au poste {slot}",
+    "suggestedPrice": "Prix suggéré",
+    "free": "Gratuit",
+    "contract": "Salaire {wage} · {years, plural, one {# saison} other {# saisons}}",
+    "pass": "Passer",
+    "recruit": "Recruter",
+    "adjust": "Détails du contrat · ajuster l'offre",
+    "spotted": "Repérés pour toi",
+    "spottedLine": "{age} ans · +{impact} au poste",
+    "spottedAge": "{age} ans",
+    "confirm": {
+      "title": "Recruter {name}",
+      "description": "Le prix et le salaire les plus bas qu'il accepte, sur la durée standard.",
+      "price": "Prix",
+      "wage": "Salaire par saison",
+      "length": "Durée",
+      "lengthValue": "{years, plural, one {# saison} other {# saisons}}, jusqu'au {date}",
+      "budgetLeft": "Budget restant",
+      "confirm": "Confirmer",
+      "pending": "Signature…",
+      "failed": "Le serveur n'a pas répondu. Réessaie."
+    },
+    "signed": {
+      "title": "Signé !",
+      "joins": "{name} rejoint {club}",
+      "detail": "Contrat de {years, plural, one {# saison} other {# saisons}}, jusqu'au {date}, à {wage} par saison.",
+      "continue": "Continuer"
+    }
   }
 }

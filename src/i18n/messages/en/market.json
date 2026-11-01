@@ -1,5 +1,71 @@
 {
   "market": {
-    "title": "Market"
+    "title": "Market",
+    "budget": "{amount} available",
+    "wageRoom": "Wage room {amount}",
+    "advanced": "Full market: filters, free agents, moves",
+    "tabs": {
+      "label": "Buy or sell",
+      "buy": "Buy",
+      "sell": "Sell · {count, plural, =0 {no offers} one {# offer} other {# offers}}"
+    },
+    "entries": {
+      "label": "Kind of proposal",
+      "needs": "My needs",
+      "gems": "Gems",
+      "bargains": "Bargains",
+      "stars": "Stars"
+    },
+    "intro": {
+      "weakSpotLead": "Your weak spot:",
+      "weakSpotRest": "(rated {rating}). Here's who would fix it.",
+      "noWeakSpot": "Your eleven has no starters to compare yet.",
+      "gems": "Young players with high potential, within your reach.",
+      "bargains": "Cheaper than they're worth, often at the end of their contract.",
+      "stars": "The best players ready to join you, within your reach."
+    },
+    "empty": {
+      "needs": "Nobody within your reach improves that position for now.",
+      "gems": "No gems within your reach for now.",
+      "bargains": "No bargains within your reach for now.",
+      "stars": "No stars within your reach for now."
+    },
+    "tags": {
+      "best": "Best choice",
+      "gem": "Gem · pot. {potential}",
+      "bargain": "Bargain",
+      "star": "Star",
+      "fit": "Good fit"
+    },
+    "playerLine": "Age {age} · {club}",
+    "freeAgent": "Free agent",
+    "impact": "+{impact} at {slot}",
+    "suggestedPrice": "Suggested price",
+    "free": "Free",
+    "contract": "Wage {wage} · {years, plural, one {# season} other {# seasons}}",
+    "pass": "Pass",
+    "recruit": "Sign",
+    "adjust": "Contract details · adjust the offer",
+    "spotted": "Spotted for you",
+    "spottedLine": "Age {age} · +{impact} in position",
+    "spottedAge": "Age {age}",
+    "confirm": {
+      "title": "Sign {name}",
+      "description": "The lowest price and wage he accepts, for the standard length.",
+      "price": "Price",
+      "wage": "Wage per season",
+      "length": "Length",
+      "lengthValue": "{years, plural, one {# season} other {# seasons}}, until {date}",
+      "budgetLeft": "Budget left",
+      "confirm": "Confirm",
+      "pending": "Signing…",
+      "failed": "The server did not answer. Try again."
+    },
+    "signed": {
+      "title": "Signed!",
+      "joins": "{name} joins {club}",
+      "detail": "Contract of {years, plural, one {# season} other {# seasons}}, until {date}, at {wage} per season.",
+      "continue": "Continue"
+    }
   }
 }

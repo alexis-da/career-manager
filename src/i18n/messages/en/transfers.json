@@ -1,6 +1,7 @@
 {
   "transfers": {
-    "title": "Transfers",
+    "title": "Advanced market",
+    "back": "Market",
     "window": {
       "open": "Transfer window open",
       "closed": "Transfer window closed",
