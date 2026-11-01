@@ -15,6 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import type { WorldVersion } from "@/src/engine/world-version";
+import { cn } from "@/src/lib/utils";
+import { sectionAt } from "../_lib/sections";
 import { advanceSeasonAction, playMatchdayAction, playUntilNextMatchAction, type GameActionResult } from "../actions";
 import { useSimulation, type SimulationTarget } from "./simulation";
 import { isNewVersionError } from "../../../_lib/new-version";
@@ -27,6 +29,9 @@ const SIMULATION_TARGETS: Exclude<SimulationTarget, { kind: "date" }>[] = [
   { kind: "season-end" },
 ];
 
+/** A secondary action on the blue of the sidebar's card: outlined there. */
+const ON_BLUE = "lg:dark:border-on-blue/60 lg:dark:bg-transparent lg:dark:hover:bg-on-blue/10";
+
 /** « Simuler jusqu'à… » and its targets; the last one lets the manager pick a day in the calendar. */
 function SimulateMenu({ disabled }: { disabled: boolean }) {
   const t = useTranslations("gameActions");
@@ -37,7 +42,7 @@ function SimulateMenu({ disabled }: { disabled: boolean }) {
         render={
           <Button
             variant="outline"
-            className="h-11 px-2.5 font-heading text-base font-semibold sm:px-3 lg:w-full lg:text-sm lg:dark:border-on-blue/60 lg:dark:bg-transparent lg:dark:hover:bg-on-blue/10"
+            className={cn("h-11 px-2.5 font-heading text-base font-semibold sm:px-3 lg:w-full lg:text-sm", ON_BLUE)}
           />
         }
         disabled={disabled || simulation.busy}
@@ -130,9 +135,14 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
       }
     });
 
+  // One full orange action a screen: the market has its own, « Recruter » or « Vendre ».
+  const variant = sectionAt(pathname.slice(`/saves/${saveId}`.length)).key === "transfers" ? "outline" : "club";
   // Under lg, in the action bar at the foot of the screen: as wide as the bar allows. On a computer, in the sidebar's
   // card: as wide as the card, on two lines if need be.
-  const className = "h-11 px-4 font-heading text-lg font-semibold max-lg:flex-1 lg:h-auto lg:min-h-11 lg:w-full lg:py-1.5 lg:whitespace-normal";
+  const className = cn(
+    "h-11 px-4 font-heading text-lg font-semibold max-lg:flex-1 lg:h-auto lg:min-h-11 lg:w-full lg:py-1.5 lg:whitespace-normal",
+    variant === "outline" && ON_BLUE,
+  );
 
   if (liveMatch) {
     // On the live page it would lead nowhere: the way on is that page's own buttons, stuck to the foot of the screen.
@@ -140,7 +150,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
       return null;
     }
     return (
-      <Link href={`/saves/${saveId}/live`} className={buttonVariants({ variant: "club", className })} data-testid="resume-match">
+      <Link href={`/saves/${saveId}/live`} className={buttonVariants({ variant, className })} data-testid="resume-match">
         <PlayIcon data-icon="inline-start" className="fill-current" />
         {t("resumeMatch")}
       </Link>
@@ -148,7 +158,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
   }
 
   return seasonFinished ? (
-    <Button variant="club" className={className} disabled={pending} onClick={() => run(advanceSeasonAction)} data-testid="next-season">
+    <Button variant={variant} className={className} disabled={pending} onClick={() => run(advanceSeasonAction)} data-testid="next-season">
       <FastForwardIcon data-icon="inline-start" className="fill-current" />
       {pending ? t("preparingSeason") : t("nextSeason")}
     </Button>
@@ -158,7 +168,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
       {worldVersion === 2 ? (
         // Busy from the click: the dates in between first, counted as they are played, then the match's own.
         <Button
-          variant="club"
+          variant={variant}
           className={className}
           disabled={pending}
           aria-busy={pending}
@@ -177,7 +187,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
             : t("nextMatch")}
         </Button>
       ) : (
-        <Button variant="club" className={className} disabled={pending} onClick={() => run(playMatchdayAction)} data-testid="play-matchday">
+        <Button variant={variant} className={className} disabled={pending} onClick={() => run(playMatchdayAction)} data-testid="play-matchday">
           <PlayIcon data-icon="inline-start" className="fill-current" />
           {pending ? t("simulating") : t("playMatchday")}
         </Button>
