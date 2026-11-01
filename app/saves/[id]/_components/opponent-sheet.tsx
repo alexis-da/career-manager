@@ -138,11 +138,19 @@ export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
  * editor), the panel is not modal: the page stays usable, so the manager adjusts his eleven while looking at the
  * opponent's, and only the close button or Escape closes it.
  */
-export function OpponentSheet({ preview, besidePage = false }: { preview: OpponentPreview; besidePage?: boolean }) {
+export function OpponentSheet({
+  preview,
+  besidePage = false,
+  triggerClassName,
+}: {
+  preview: OpponentPreview;
+  besidePage?: boolean;
+  triggerClassName?: string;
+}) {
   const t = useTranslations("opponent");
   return (
     <Sheet modal={!besidePage} disablePointerDismissal={besidePage}>
-      <SheetTrigger render={<Button size="sm" variant="outline" />} data-testid="view-opponent">
+      <SheetTrigger render={<Button size="sm" variant="outline" className={triggerClassName} />} data-testid="view-opponent">
         <EyeIcon />
         {t("view")}
       </SheetTrigger>

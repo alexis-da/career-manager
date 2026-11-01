@@ -29,6 +29,7 @@
   },
   "gameActions": {
     "simulate": "Simuler jusqu'à…",
+    "simulateShort": "Simuler",
     "targets": {
       "next-match": "Prochain match de mon club",
       "month-end": "Fin du mois",
@@ -40,6 +41,7 @@
     "nextSeason": "Passer à la saison suivante",
     "preparingSeason": "Préparation de la saison…",
     "nextMatch": "Prochain match",
+    "playMatch": "Jouer le match",
     "intermediate": "Journées intermédiaires…",
     "kickOff": "Coup d'envoi…",
     "playMatchday": "Jouer la journée",

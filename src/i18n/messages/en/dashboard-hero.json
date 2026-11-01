@@ -1,5 +1,11 @@
 {
   "dashboardHero": {
-    "title": "Next match"
+    "title": "Next match",
+    "home": "Home",
+    "away": "Away",
+    "seasonOver": "The season is over.",
+    "noUpcomingMatch": "No match to come.",
+    "formation": "Formation {formation}",
+    "prepare": "Prepare"
   }
 }

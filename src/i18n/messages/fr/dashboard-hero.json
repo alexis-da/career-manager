@@ -1,5 +1,11 @@
 {
   "dashboardHero": {
-    "title": "Prochain match"
+    "title": "Prochain match",
+    "home": "Domicile",
+    "away": "Extérieur",
+    "seasonOver": "La saison est terminée.",
+    "noUpcomingMatch": "Aucun match à venir.",
+    "formation": "Onze en {formation}",
+    "prepare": "Préparer"
   }
 }

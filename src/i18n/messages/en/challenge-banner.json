@@ -1,6 +1,7 @@
 {
   "challengeBanner": {
     "title": "Weekly challenge",
+    "week": "Challenge · week {week}",
     "playing": "matchday {played} / {horizon}",
     "submitted": "{points, plural, one {# pt} other {# pts}} · {goalDiff} · {goals, plural, one {# goal} other {# goals}} · provisionally {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
     "tooLate": "This career does not count in the ranking: the challenge ended before its last matchday was played",

@@ -10,7 +10,7 @@ import { ClubInitials } from "@/src/components/club-initials";
 import { getSaveHeader } from "@/src/db/header";
 import { seasonLabel } from "@/src/engine/world";
 import { formatDayDate, formatShortDate } from "@/src/lib/format";
-import { GameActions } from "./_components/game-actions";
+import { SaveBarActions } from "./_components/game-actions";
 import { SaveNav } from "./_components/save-nav";
 import { SectionTabs } from "./_components/section-tabs";
 import { SimulationProvider } from "./_components/simulation";
@@ -42,8 +42,8 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
     <SimulationProvider saveId={header.id}>
       <div data-save-shell className="flex min-h-full flex-1 flex-col lg:pl-64">
         {/* One header at every width: a column fixed to the left of the screen on a computer; under lg, the club's line at
-            the top of the page, its navigation and actions fixed to the foot of the screen. */}
-        <header className="flex items-center gap-3 px-4 pt-3 lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:w-64 lg:flex-col lg:items-stretch lg:gap-4 lg:overflow-y-auto lg:border-r lg:border-sidebar-border lg:bg-sidebar lg:p-4">
+            the top of the page, its navigation fixed to the foot of the screen. */}
+        <header className="flex items-center gap-3 px-4 pt-3 max-lg:flex-wrap lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:w-64 lg:flex-col lg:items-stretch lg:gap-4 lg:overflow-y-auto lg:border-r lg:border-sidebar-border lg:bg-sidebar lg:p-4">
           {/* The game's mark, the only one in a save. */}
           <Link href="/" title={t("home")} data-testid="header-home" className="flex items-center gap-2.5 px-2 max-lg:hidden">
             <Image src="/brand/late-winner-icone.svg" alt="" width={34} height={34} unoptimized />
@@ -68,9 +68,9 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
           </Link>
           <SaveNav saveId={header.id} />
 
-          {/* The next match on a computer, with the game's actions. Under lg, those alone, in a bar above the navigation,
-              under the thumb; no bar at all when there is no action, on the live page of a paused match. */}
-          <div className="lg:mt-auto lg:space-y-2.5 lg:rounded-card lg:bg-primary lg:p-3.5 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-(--save-nav-height) max-lg:z-40 max-lg:flex max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-4 max-lg:py-2 max-lg:*:flex-1 max-lg:[&:not(:has(a,button))]:hidden">
+          {/* The next match on a computer, with the game's actions but on the dashboard. Under lg, only those, on the Match
+              screens, under the club's line. */}
+          <div className="lg:mt-auto lg:space-y-2.5 lg:rounded-card lg:bg-primary lg:p-3.5 max-lg:contents">
             {header.nextMatch !== null && (
               <div className="leading-tight max-lg:hidden">
                 <p className="text-xs font-bold tracking-wider text-on-blue uppercase">
@@ -79,7 +79,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
                 <p className="mt-1 text-[0.9375rem] font-bold">{t("versus", { club: header.nextMatch.opponent })}</p>
               </div>
             )}
-            <GameActions
+            <SaveBarActions
               saveId={header.id}
               seasonFinished={header.seasonFinished}
               liveMatch={header.liveMatch}
@@ -102,8 +102,8 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
             </Link>
           </div>
         </header>
-        {/* Under lg, room at the foot for the two bars. */}
-        <main className="mx-auto w-full max-w-296 flex-1 px-4 py-6 lg:p-8 max-lg:pb-[calc(var(--save-nav-height)+var(--save-actions-height)+1.5rem)]">
+        {/* Under lg, room at the foot for the navigation. */}
+        <main className="mx-auto w-full max-w-296 flex-1 px-4 py-6 lg:p-8 max-lg:pb-[calc(var(--save-nav-height)+1.5rem)]">
           {/* The day and what comes next, on a computer: the sidebar's column has no room for them. */}
           <div className="mb-5 flex flex-wrap gap-x-1.5 text-sm text-muted-foreground tabular-nums max-lg:hidden">
             <p data-testid="header-date" className="first-letter:uppercase">

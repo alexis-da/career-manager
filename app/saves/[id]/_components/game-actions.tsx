@@ -4,7 +4,7 @@ import { CalendarDaysIcon, ChevronDownIcon, FastForwardIcon, LoaderCircleIcon, P
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/src/components/ui/button";
 import {
@@ -16,7 +16,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import type { WorldVersion } from "@/src/engine/world-version";
 import { cn } from "@/src/lib/utils";
-import { sectionAt } from "../_lib/sections";
+import { sectionAt, tabAt } from "../_lib/sections";
 import { advanceSeasonAction, playMatchdayAction, playUntilNextMatchAction, type GameActionResult } from "../actions";
 import { useSimulation, type SimulationTarget } from "./simulation";
 import { isNewVersionError } from "../../../_lib/new-version";
@@ -32,8 +32,12 @@ const SIMULATION_TARGETS: Exclude<SimulationTarget, { kind: "date" }>[] = [
 /** A secondary action on the blue of the sidebar's card: outlined there. */
 const ON_BLUE = "lg:dark:border-on-blue/60 lg:dark:bg-transparent lg:dark:hover:bg-on-blue/10";
 
+/** The dashboard's hero: the main action, full width on a phone, and the secondary ones beside each other, on its blue. */
+const HERO_MAIN = "h-14 px-6 font-heading text-[1.375rem] font-semibold lg:px-8 lg:whitespace-normal";
+const HERO_SECONDARY = "h-12 text-base font-bold dark:border-on-blue/60 dark:bg-transparent dark:hover:bg-on-blue/10 lg:h-14 lg:px-6";
+
 /** « Simuler jusqu'à… » and its targets; the last one lets the manager pick a day in the calendar. */
-function SimulateMenu({ disabled }: { disabled: boolean }) {
+function SimulateMenu({ disabled, hero }: { disabled: boolean; hero: boolean }) {
   const t = useTranslations("gameActions");
   const simulation = useSimulation();
   return (
@@ -42,15 +46,15 @@ function SimulateMenu({ disabled }: { disabled: boolean }) {
         render={
           <Button
             variant="outline"
-            className={cn("h-11 px-2.5 font-heading text-base font-semibold sm:px-3 lg:w-full lg:text-sm", ON_BLUE)}
+            className={hero ? HERO_SECONDARY : cn("h-11 px-2.5 font-heading text-base font-semibold sm:px-3 lg:w-full lg:text-sm", ON_BLUE)}
           />
         }
         disabled={disabled || simulation.busy}
         data-testid="simulate-menu"
       >
         <FastForwardIcon data-icon="inline-start" />
-        {/* Its icons alone on a phone, its name still read: the main action needs the bar's room. */}
-        <span className="max-sm:sr-only">{t("simulate")}</span>
+        {/* At the head of Match, its icons alone on a phone, its name still read: the main action needs the room. */}
+        {hero ? t("simulateShort") : <span className="max-sm:sr-only">{t("simulate")}</span>}
         <ChevronDownIcon data-icon="inline-end" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-60">
@@ -74,10 +78,12 @@ type GameActionsProps = {
   seasonFinished: boolean;
   liveMatch: boolean; // the managed club's match waits at half-time: nothing moves on before it ends
   worldVersion: WorldVersion; // 2: « Prochain match », which plays the other competitions' dates in between
+  hero?: boolean; // in the dashboard's hero: larger, « Jouer le match », with `prepare` next to « Simuler »
+  prepare?: ReactNode;
 };
 
 /** The game's main action, in orange, with the quick simulation menu during a season. */
-export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }: GameActionsProps) {
+export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion, hero = false, prepare }: GameActionsProps) {
   const [pending, startTransition] = useTransition();
   const [intermediate, setIntermediate] = useState(0); // dates played so far by « Prochain match »
   const [kickOff, setKickOff] = useState(false); // « Prochain match » is playing the managed club's date
@@ -137,61 +143,86 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }:
 
   // One full orange action a screen: the market has its own, « Recruter » or « Vendre ».
   const variant = sectionAt(pathname.slice(`/saves/${saveId}`.length)).key === "transfers" ? "outline" : "club";
-  // Under lg, in the action bar at the foot of the screen: as wide as the bar allows. On a computer, in the sidebar's
-  // card: as wide as the card, on two lines if need be.
-  const className = cn(
-    "h-11 px-4 font-heading text-lg font-semibold max-lg:flex-1 lg:h-auto lg:min-h-11 lg:w-full lg:py-1.5 lg:whitespace-normal",
-    variant === "outline" && ON_BLUE,
-  );
+  const className = hero
+    ? HERO_MAIN
+    : cn(
+        // As wide as the head of Match allows; on a computer, as wide as the sidebar's card, on two lines if need be.
+        "h-11 px-4 font-heading text-lg font-semibold max-lg:flex-1 lg:h-auto lg:min-h-11 lg:w-full lg:py-1.5 lg:whitespace-normal",
+        variant === "outline" && ON_BLUE,
+      );
 
-  if (liveMatch) {
-    // On the live page it would lead nowhere: the way on is that page's own buttons, stuck to the foot of the screen.
-    if (pathname === `/saves/${saveId}/live`) {
-      return null;
-    }
-    return (
-      <Link href={`/saves/${saveId}/live`} className={buttonVariants({ variant, className })} data-testid="resume-match">
-        <PlayIcon data-icon="inline-start" className="fill-current" />
-        {t("resumeMatch")}
-      </Link>
-    );
+  // On the live page it would lead nowhere: the way on is that page's own buttons, stuck to the foot of the screen.
+  if (liveMatch && pathname === `/saves/${saveId}/live`) {
+    return null;
   }
 
-  return seasonFinished ? (
+  const main = liveMatch ? (
+    <Link href={`/saves/${saveId}/live`} className={buttonVariants({ variant, className })} data-testid="resume-match">
+      <PlayIcon data-icon="inline-start" className="fill-current" />
+      {t("resumeMatch")}
+    </Link>
+  ) : seasonFinished ? (
     <Button variant={variant} className={className} disabled={pending} onClick={() => run(advanceSeasonAction)} data-testid="next-season">
       <FastForwardIcon data-icon="inline-start" className="fill-current" />
       {pending ? t("preparingSeason") : t("nextSeason")}
     </Button>
+  ) : worldVersion === 2 ? (
+    // Busy from the click: the dates in between first, counted as they are played, then the match's own.
+    <Button
+      variant={variant}
+      className={className}
+      disabled={pending}
+      aria-busy={pending}
+      onClick={playToNextMatch}
+      data-testid="next-match"
+    >
+      {pending ? (
+        <LoaderCircleIcon data-icon="inline-start" aria-hidden className="animate-spin" />
+      ) : (
+        <PlayIcon data-icon="inline-start" className="fill-current" />
+      )}
+      {pending ? (kickOff ? t("kickOff") : `${t("intermediate")}${intermediate > 0 ? ` ${intermediate}` : ""}`) : t(hero ? "playMatch" : "nextMatch")}
+    </Button>
+  ) : (
+    <Button variant={variant} className={className} disabled={pending} onClick={() => run(playMatchdayAction)} data-testid="play-matchday">
+      <PlayIcon data-icon="inline-start" className="fill-current" />
+      {pending ? t("simulating") : t("playMatchday")}
+    </Button>
+  );
+  const simulate = !liveMatch && !seasonFinished && <SimulateMenu disabled={pending} hero={hero} />;
+
+  if (hero) {
+    return (
+      <div className="flex flex-wrap gap-2.5 *:flex-1 *:first:basis-full lg:*:flex-none lg:*:first:basis-auto">
+        {main}
+        {prepare}
+        {simulate}
+      </div>
+    );
+  }
+  return simulate === false ? (
+    main
   ) : (
     <div className="flex items-center gap-2 lg:flex-col-reverse lg:items-stretch">
-      <SimulateMenu disabled={pending} />
-      {worldVersion === 2 ? (
-        // Busy from the click: the dates in between first, counted as they are played, then the match's own.
-        <Button
-          variant={variant}
-          className={className}
-          disabled={pending}
-          aria-busy={pending}
-          onClick={playToNextMatch}
-          data-testid="next-match"
-        >
-          {pending ? (
-            <LoaderCircleIcon data-icon="inline-start" aria-hidden className="animate-spin" />
-          ) : (
-            <PlayIcon data-icon="inline-start" className="fill-current" />
-          )}
-          {pending
-            ? kickOff
-              ? t("kickOff")
-              : `${t("intermediate")}${intermediate > 0 ? ` ${intermediate}` : ""}`
-            : t("nextMatch")}
-        </Button>
-      ) : (
-        <Button variant={variant} className={className} disabled={pending} onClick={() => run(playMatchdayAction)} data-testid="play-matchday">
-          <PlayIcon data-icon="inline-start" className="fill-current" />
-          {pending ? t("simulating") : t("playMatchday")}
-        </Button>
-      )}
+      {simulate}
+      {main}
+    </div>
+  );
+}
+
+/**
+ * The game's actions outside the dashboard, whose hero has them: in the sidebar's card on a computer; on a phone, at the
+ * head of the Match screens and nowhere else. One element for both, so that their testids stay unique on a page.
+ */
+export function SaveBarActions(props: Omit<GameActionsProps, "hero" | "prepare">) {
+  const path = usePathname().slice(`/saves/${props.saveId}`.length);
+  const section = sectionAt(path);
+  if (section.key === "dashboard") {
+    return null;
+  }
+  return (
+    <div className={cn("max-lg:order-last max-lg:basis-full", (section.key !== "match" || tabAt(path) === undefined) && "max-lg:hidden")}>
+      <GameActions {...props} />
     </div>
   );
 }

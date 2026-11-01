@@ -1,6 +1,7 @@
 {
   "challengeBanner": {
     "title": "Défi de la semaine",
+    "week": "Défi · semaine {week}",
     "playing": "journée {played} / {horizon}",
     "submitted": "{points, plural, one {# pt} other {# pts}} · {goalDiff} · {goals, plural, one {# but} other {# buts}} · {rank, selectordinal, one {#er} other {#e}} provisoire",
     "tooLate": "Cette partie ne compte pas au classement : le défi s'est terminé avant sa dernière journée",

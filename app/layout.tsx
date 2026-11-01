@@ -54,7 +54,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider>
           {children}
-          {/* Above a save's bars, fixed to the foot of the screen under lg (--toast-bottom). */}
+          {/* Above a save's navigation, fixed to the foot of the screen under lg (--toast-bottom). */}
           <Toaster
             theme="dark"
             position="bottom-right"

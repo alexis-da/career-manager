@@ -1,10 +1,19 @@
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import type { ChallengeBannerView } from "@/src/db/challenge-view";
 import type { Translator } from "@/src/i18n/translator";
 import { formatGoalDifference, formatParisDay } from "@/src/lib/format";
+import { cn } from "@/src/lib/utils";
+import { Panel, PanelTitle } from "./panel";
 
-/** Where the save stands in its challenge, after « Défi de la semaine · ». */
+const CARD = "flex flex-col gap-2 p-4.5";
+
+/** The card's link: as wide as its text, 44 px high on a phone. */
+const CARD_LINK =
+  "self-start text-sm font-semibold text-(--club) hover:text-(--club-hover) max-sm:inline-flex max-sm:min-h-11 max-sm:items-center";
+
+/** Where the save stands in its challenge. */
 function standing({ status, horizon }: ChallengeBannerView, t: Translator<"challengeBanner">): string {
   switch (status.kind) {
     case "playing":
@@ -24,37 +33,49 @@ function standing({ status, horizon }: ChallengeBannerView, t: Translator<"chall
 }
 
 /**
- * A challenge save's banner on its dashboard: its club's matchday out of the horizon, then its score and provisional
- * rank, then that it no longer counts; or why it does not count. Always the day the purge deletes it, and the ranking.
+ * A challenge save's card: its week, its club's matchday out of the horizon, then its score and provisional rank, then
+ * that it no longer counts; or why it does not count. Always the day the purge deletes it, and the ranking.
  */
-export function ChallengeBanner({ view }: { view: ChallengeBannerView }) {
+function ChallengeStanding({ view, className }: { view: ChallengeBannerView; className?: string }) {
   const t = useTranslations("challengeBanner");
   const locale = useLocale();
   const { status } = view;
   return (
-    <section
-      aria-label={t("title")}
-      data-testid="challenge-banner"
-      className="brand flex items-center gap-3 rounded-lg border bg-background px-3 py-2 text-foreground"
-    >
-      <span aria-hidden className="h-8 w-1 shrink-0 rounded-full bg-(--brand-orange)" />
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <p data-testid="challenge-standing" className="text-sm tabular-nums">
-          <span className="font-semibold">{t("title")}</span> · {standing(view, t)}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {status.kind === "submitted" && `${t("continues")} `}
-          {status.kind === "submitted" && !status.inRanking && `${t("signIn")} `}
-          {t("purgedOn", { day: formatParisDay(view.savesPurgedAt, locale) })}
-        </p>
-      </div>
-      <Link
-        href="/challenge"
-        data-testid="challenge-banner-ranking"
-        className="shrink-0 text-xs font-semibold text-(--brand-orange) underline-offset-4 hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center"
-      >
+    <Panel aria-label={t("title")} data-testid="challenge-banner" className={cn(CARD, className)}>
+      <PanelTitle className="text-(--club)">{t("week", { week: view.weekNumber })}</PanelTitle>
+      <p data-testid="challenge-standing" className="text-lg leading-snug font-bold tabular-nums">
+        {/* Read alone, by a screen reader or by e2e/challenge.spec.ts, the line still says what it is about. */}
+        <span className="sr-only">{t("title")} · </span>
+        <span className="block first-letter:uppercase">{standing(view, t)}</span>
+      </p>
+      <p className="text-sm text-muted-foreground">
+        {status.kind === "submitted" && `${t("continues")} `}
+        {status.kind === "submitted" && !status.inRanking && `${t("signIn")} `}
+        {t("purgedOn", { day: formatParisDay(view.savesPurgedAt, locale) })}
+      </p>
+      <Link href="/challenge" data-testid="challenge-banner-ranking" className={CARD_LINK}>
         {t("ranking")}
       </Link>
-    </section>
+    </Panel>
   );
+}
+
+/** Any other save's card: what the challenge is and the way to it, its club left for its page. */
+function ChallengeTeaser({ className }: { className?: string }) {
+  const t = useTranslations("challengeBanner");
+  const tChallenge = useTranslations("challenge");
+  return (
+    <Panel aria-label={t("title")} data-testid="dashboard-challenge" className={cn(CARD, className)}>
+      <PanelTitle className="text-(--club)">{t("title")}</PanelTitle>
+      <p className="text-[0.9375rem] leading-snug">{tChallenge("teaser")}</p>
+      <Link href="/challenge" className={CARD_LINK}>
+        {tChallenge("see")}
+      </Link>
+    </Panel>
+  );
+}
+
+/** The dashboard's card of the weekly challenge: where a challenge save stands in it, or, for any other save, the way to it. */
+export function ChallengeCard({ view, className }: { view: ChallengeBannerView | null; className?: string }): ReactNode {
+  return view === null ? <ChallengeTeaser className={className} /> : <ChallengeStanding view={view} className={className} />;
 }

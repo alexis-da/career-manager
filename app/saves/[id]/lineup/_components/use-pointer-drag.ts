@@ -21,7 +21,7 @@ const TOUCH_HOLD_MS = 250;
 
 /**
  * During a finger's drag, how close to the top or the bottom of the screen the page scrolls by itself, and how fast,
- * whatever the screen's refresh rate: under the save's header, above a phone's action bar, a player can be carried from
+ * whatever the screen's refresh rate: under the save's header, above a phone's navigation, a player can be carried from
  * the list to the pitch.
  */
 const AUTO_SCROLL_EDGE_PX = { top: 140, bottom: 110 };

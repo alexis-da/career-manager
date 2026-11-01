@@ -22,7 +22,7 @@ export function FirstStepTip({ saveId, tip, className }: { saveId: string; tip: 
     tip === "secondary"
       ? t("secondary", { percent: Math.round(SECONDARY_POSITION_FAMILIARITY * 100) })
       : tip === "simulation"
-        ? t("simulation", { button: tGame("simulate") })
+        ? t("simulation", { button: tGame("simulateShort") })
         : t(tip);
   return (
     <TipFrame saveId={saveId} tip={tip} className={className}>
@@ -36,7 +36,7 @@ type ActionRowProps = {
   title: string;
   hint: string;
   done: boolean;
-  href?: string; // the first match has no link: « Prochain match » is always in view, in the header or at the foot
+  href?: string; // the first match has no link: its button is the hero's, at the top of the same page
 };
 
 function ActionRow({ id, title, hint, done, href }: ActionRowProps) {

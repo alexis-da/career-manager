@@ -17,7 +17,7 @@ type TipFrameProps = {
 /**
  * A tip's frame, in the flow of the page: it covers no control. Its cross hides it at once and remembers it in a cookie
  * the page reads; the refresh keeps it closed on the browser's Back. The simulation's tip has the icon of the button it
- * speaks of, the only sign of it in the phone's action bar.
+ * speaks of.
  */
 export function TipFrame({ saveId, tip, className, children }: TipFrameProps) {
   const tCommon = useTranslations("common");
