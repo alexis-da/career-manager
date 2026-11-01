@@ -25,7 +25,7 @@ import { makeTransferOfferAction, signFreeAgentAction } from "../actions";
 
 type TriggerProps = {
   disabled?: boolean; // while the transfer window is closed
-  primary?: boolean; // the main action of the player sheet, in the club accent; neutral in a table row
+  primary?: boolean; // the main action of the player sheet, in orange; neutral in a table row
   triggerClassName?: string;
 };
 

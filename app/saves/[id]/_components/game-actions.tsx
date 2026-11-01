@@ -71,7 +71,7 @@ type GameActionsProps = {
   worldVersion: WorldVersion; // 2: « Prochain match », which plays the other competitions' dates in between
 };
 
-/** The main button of the navigation bar, in the club accent, with the quick simulation menu during a season. */
+/** The game's main action, in orange, with the quick simulation menu during a season. */
 export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion }: GameActionsProps) {
   const [pending, startTransition] = useTransition();
   const [intermediate, setIntermediate] = useState(0); // dates played so far by « Prochain match »

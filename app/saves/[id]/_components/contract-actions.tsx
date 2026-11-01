@@ -66,7 +66,7 @@ export function RenewContractDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* The main action on a player of the managed club: in the club accent. */}
+      {/* The main action on a player of the managed club: in orange. */}
       <DialogTrigger
         disabled={disabled}
         render={<Button variant="club" className={triggerClassName} />}

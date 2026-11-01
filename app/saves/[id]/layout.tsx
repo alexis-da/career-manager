@@ -53,7 +53,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
             href="/"
             title={t("saves", { manager: header.managerName })}
             data-testid="header-club"
-            className="flex min-w-0 flex-1 items-center gap-3 lg:flex-none lg:rounded-2xl lg:bg-card lg:p-3"
+            className="flex min-w-0 flex-1 items-center gap-3 lg:flex-none lg:rounded-card lg:bg-card lg:p-3"
           >
             <ClubInitials name={header.club.name} />
             {/* On two lines if need be, never cut. */}
@@ -70,7 +70,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
 
           {/* The next match on a computer, with the game's actions. Under lg, those alone, in a bar above the navigation,
               under the thumb; no bar at all when there is no action, on the live page of a paused match. */}
-          <div className="lg:mt-auto lg:space-y-2.5 lg:rounded-2xl lg:bg-primary lg:p-3.5 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-(--save-nav-height) max-lg:z-40 max-lg:flex max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-4 max-lg:py-2 max-lg:*:flex-1 max-lg:[&:not(:has(a,button))]:hidden">
+          <div className="lg:mt-auto lg:space-y-2.5 lg:rounded-card lg:bg-primary lg:p-3.5 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-(--save-nav-height) max-lg:z-40 max-lg:flex max-lg:border-t max-lg:border-sidebar-border max-lg:bg-sidebar max-lg:px-4 max-lg:py-2 max-lg:*:flex-1 max-lg:[&:not(:has(a,button))]:hidden">
             {header.nextMatch !== null && (
               <div className="leading-tight max-lg:hidden">
                 <p className="text-xs font-bold tracking-wider text-on-blue uppercase">

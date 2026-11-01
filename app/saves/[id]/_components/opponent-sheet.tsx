@@ -35,7 +35,7 @@ function RatingComparison({ preview }: { preview: OpponentPreview }) {
           <dt className={cn("truncate max-sm:whitespace-normal", row.mine ? "font-semibold" : "text-muted-foreground")}>{row.label}</dt>
           <span aria-hidden className="h-1.5 rounded-full bg-border">
             <span
-              // Fixed colors: the sheet is portaled out of the save layout, which sets --club.
+              // Fixed colors: mine in blue, his neutral, and none of the actions' orange.
               className={cn("block h-1.5 rounded-full", row.mine ? "bg-info" : "bg-foreground/60")}
               style={{ width: `${row.value}%` }}
             />
