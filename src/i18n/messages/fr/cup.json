@@ -1,0 +1,22 @@
+{
+  "cup": {
+    "title": "Coupe",
+    "subtitle": "{competition} · Saison {season}",
+    "winner": "Vainqueur",
+    "run": "Ton parcours :",
+    "exempt": "Exempté du tour préliminaire : ton club entre en 16es de finale, tirés à l'issue du premier tour.",
+    "won": "Vainqueur de la Coupe.",
+    "out": {
+      "1": "Éliminé au tour préliminaire.",
+      "2": "Éliminé en 16es de finale.",
+      "3": "Éliminé en 8es de finale.",
+      "4": "Éliminé en quarts de finale.",
+      "5": "Éliminé en demi-finale.",
+      "6": "Éliminé en finale."
+    },
+    "outOther": "Éliminé au tour {round}.",
+    "in": "En lice : {round}, le {date}.",
+    "inExempt": "Exempté du tour préliminaire · En lice : {round}, le {date}.",
+    "drawPending": "Tirage à l'issue du tour précédent."
+  }
+}

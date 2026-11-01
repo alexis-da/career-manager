@@ -3,6 +3,7 @@ import enActions from "./en/actions.json";
 import enAdmin from "./en/admin.json";
 import enCatalogs from "./en/catalogs.json";
 import enChallengeBanner from "./en/challenge-banner.json";
+import enCup from "./en/cup.json";
 import enDashboard from "./en/dashboard.json";
 import enDashboardHero from "./en/dashboard-hero.json";
 import enDashboardTodo from "./en/dashboard-todo.json";
@@ -22,6 +23,7 @@ import frActions from "./fr/actions.json";
 import frAdmin from "./fr/admin.json";
 import frCatalogs from "./fr/catalogs.json";
 import frChallengeBanner from "./fr/challenge-banner.json";
+import frCup from "./fr/cup.json";
 import frDashboard from "./fr/dashboard.json";
 import frDashboardHero from "./fr/dashboard-hero.json";
 import frDashboardTodo from "./fr/dashboard-todo.json";
@@ -62,6 +64,7 @@ export const ZONES = {
   transfers: { fr: frTransfers, en: enTransfers },
   fixtures: { fr: frFixtures, en: enFixtures },
   standings: { fr: frStandings, en: enStandings },
+  cup: { fr: frCup, en: enCup },
   live: { fr: frLive, en: enLive },
   actions: { fr: frActions, en: enActions },
   admin: { fr: frAdmin, en: enAdmin },
@@ -84,6 +87,7 @@ const fr = {
   ...frTransfers,
   ...frFixtures,
   ...frStandings,
+  ...frCup,
   ...frLive,
   ...frActions,
   ...frAdmin,
@@ -111,6 +115,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enTransfers,
     ...enFixtures,
     ...enStandings,
+    ...enCup,
     ...enLive,
     ...enActions,
     ...enAdmin,

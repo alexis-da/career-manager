@@ -1,0 +1,22 @@
+{
+  "cup": {
+    "title": "Cup",
+    "subtitle": "{competition} · Season {season}",
+    "winner": "Winners",
+    "run": "Your cup run:",
+    "exempt": "Exempt from the preliminary round: your club comes in at the round of 32, drawn once the first round is over.",
+    "won": "Cup winners.",
+    "out": {
+      "1": "Knocked out in the preliminary round.",
+      "2": "Knocked out in the round of 32.",
+      "3": "Knocked out in the round of 16.",
+      "4": "Knocked out in the quarter-finals.",
+      "5": "Knocked out in the semi-finals.",
+      "6": "Beaten in the final."
+    },
+    "outOther": "Knocked out in round {round}.",
+    "in": "Still in: {round}, on {date}.",
+    "inExempt": "Exempt from the preliminary round · Still in: {round}, on {date}.",
+    "drawPending": "Drawn once the previous round is over."
+  }
+}
