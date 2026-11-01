@@ -26,7 +26,8 @@ function HeroTeam({ team, managed, away }: { team: ClubPreview; managed: boolean
       <div className="min-w-0 space-y-1">
         <p className="text-[0.8125rem] leading-tight font-semibold wrap-break-word lg:text-[1.375rem] lg:font-bold">{team.name}</p>
         <p className="text-xs text-on-blue tabular-nums">
-          {team.rank === null ? "—" : t("teamRank", { rank: team.rank })} · {t("points", { count: team.points })}
+          {/* No rank before a club's first match, nor for a cup opponent from another league: no points to give either. */}
+          {team.rank === null ? "—" : `${t("teamRank", { rank: team.rank })} · ${t("points", { count: team.points })}`}
           {team.averageOverall !== null && <span className="max-lg:hidden"> · {t("averageRating", { rating: formatDecimal(team.averageOverall, locale) })}</span>}
         </p>
         {team.form.length > 0 && (
