@@ -74,34 +74,6 @@
   --pitch: #16205a;
 }
 
-/*
- * Late Winner's colours, for the pages outside a save (sign-in, list and creation of saves): midnight blue,
- * bright blue for actions, orange as the touch of light. The screens of a save have the palette above.
- */
-.brand {
-  --brand-blue: #1f3bff;
-  --brand-midnight: #0b1340;
-  --brand-orange: #ff9f1c;
-  --brand-light: #eef1f7;
-  --background: var(--brand-midnight);
-  --foreground: #ffffff;
-  --card: #121c55;
-  --card-foreground: #ffffff;
-  --popover: #121c55;
-  --popover-foreground: #ffffff;
-  --primary: var(--brand-blue);
-  --primary-foreground: #ffffff;
-  --secondary: #1a2668;
-  --secondary-foreground: #ffffff;
-  --muted: #1a2668;
-  --muted-foreground: #b9c1e3;
-  --accent: #1a2668;
-  --accent-foreground: #ffffff;
-  --border: #27347f;
-  --input: #27347f;
-  --ring: var(--brand-orange);
-}
-
 /* Toasts above a save's navigation; elsewhere, their default place. */
 @media (width < 64rem) {
   :root:has([data-save-shell]) {
