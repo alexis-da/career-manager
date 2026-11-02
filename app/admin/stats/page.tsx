@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
+import { PublicPage } from "@/app/_components/public-page";
 import { getCurrentUser, isAdmin } from "@/src/auth/current-user";
+import { Panel, PanelTitle } from "@/src/components/panel";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { prisma } from "@/src/db/client";
@@ -23,10 +25,10 @@ const TIGHT_ON_PHONE = "max-sm:px-1.5";
 
 function Figure({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <Panel className="p-4">
       <p className="eyebrow">{label}</p>
-      <p className="font-heading text-3xl font-semibold tabular-nums">{value}</p>
-    </div>
+      <p className="font-heading text-3xl tabular-nums">{value}</p>
+    </Panel>
   );
 }
 
@@ -48,21 +50,21 @@ export default async function AdminStatsPage() {
   const firstMatches = stats.firstSteps.reduce((sum, cohort) => sum + cohort.firstMatches, 0);
 
   return (
-    <main className="brand flex-1 bg-background text-foreground">
-      <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-10">
-        <h1 className="font-heading text-3xl font-bold" data-testid="admin-stats-title">
+    <PublicPage className="max-w-6xl">
+      <div className="space-y-6">
+        <h1 className="font-heading text-3xl" data-testid="admin-stats-title">
           {t("title")}
         </h1>
 
-        <section className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-4">
           <Figure label={t("figures.users")} value={users} />
           <Figure label={t("figures.anonymous")} value={stats.usersByKind.anonymous} />
           <Figure label={t("figures.registered")} value={stats.usersByKind.registered} />
           <Figure label={t("figures.saves")} value={stats.saves} />
-        </section>
+        </div>
 
-        <section className="space-y-3 rounded-lg border bg-card p-5">
-          <h2 className="eyebrow">{t("retention", { days: STATS_DAYS })}</h2>
+        <Panel className="space-y-3">
+          <PanelTitle>{t("retention", { days: STATS_DAYS })}</PanelTitle>
           <p className="text-xs text-muted-foreground">{t("retentionNote")}</p>
           <Table data-testid="admin-stats-cohorts">
             <TableHeader>
@@ -84,10 +86,10 @@ export default async function AdminStatsPage() {
               ))}
             </TableBody>
           </Table>
-        </section>
+        </Panel>
 
-        <section className="space-y-3 rounded-lg border bg-card p-5">
-          <h2 className="eyebrow">{t("firstSteps", { days: STATS_DAYS })}</h2>
+        <Panel className="space-y-3">
+          <PanelTitle>{t("firstSteps", { days: STATS_DAYS })}</PanelTitle>
           <p className="text-xs text-muted-foreground">{t("firstStepsNote")}</p>
           <p className="font-semibold tabular-nums" data-testid="admin-stats-first-steps-summary">
             {t("firstStepsSummary", { days: STATS_DAYS, saves: newSaves, share: share(firstMatches, newSaves) })}
@@ -115,10 +117,10 @@ export default async function AdminStatsPage() {
               ))}
             </TableBody>
           </Table>
-        </section>
+        </Panel>
 
-        <section className="space-y-3 rounded-lg border bg-card p-5">
-          <h2 className="eyebrow">{t("database", { size: megabytes(stats.databaseBytes) })}</h2>
+        <Panel className="space-y-3">
+          <PanelTitle>{t("database", { size: megabytes(stats.databaseBytes) })}</PanelTitle>
           <Table data-testid="admin-stats-tables">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
@@ -139,8 +141,8 @@ export default async function AdminStatsPage() {
               ))}
             </TableBody>
           </Table>
-        </section>
+        </Panel>
       </div>
-    </main>
+    </PublicPage>
   );
 }

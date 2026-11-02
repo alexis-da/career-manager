@@ -27,6 +27,7 @@ export function LoginForm({ next }: { next: string | null }) {
           autoComplete="current-password"
           required
           autoFocus
+          className="h-11"
           aria-invalid={state.error !== null || undefined}
           aria-describedby={state.error === null ? undefined : "login-error"}
           data-testid="login-password"
@@ -39,7 +40,8 @@ export function LoginForm({ next }: { next: string | null }) {
       </div>
       <Button
         type="submit"
-        className="h-9 w-full font-heading text-base font-semibold"
+        variant="club"
+        className="h-11 w-full text-[0.9375rem] font-bold"
         disabled={pending}
         data-testid="login-submit"
       >

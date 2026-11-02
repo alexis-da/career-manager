@@ -1,11 +1,14 @@
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AdminStats } from "@/src/db/stats";
 import type { Locale } from "@/src/i18n/locale";
 
-// The page outside a request: its viewer is the administrator, its figures fixed, its language set by each test.
+// The page outside a request: its viewer is the administrator, its figures fixed, its language set by each test, without
+// the frame of the pages outside a save, which needs the Server Actions of its language switcher.
 const language = vi.hoisted(() => ({ current: "fr" as Locale }));
 
+vi.mock("@/app/_components/public-page", () => ({ PublicPage: ({ children }: { children: ReactNode }) => children }));
 vi.mock("@/src/auth/current-user", () => ({ getCurrentUser: async () => ({ id: "admin" }), isAdmin: () => true }));
 vi.mock("@/src/db/client", () => ({ prisma: {} }));
 vi.mock("@/src/db/stats", () => ({
