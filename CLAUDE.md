@@ -178,9 +178,9 @@ Aucun flou sur l'en-tête : il contient la barre fixe, un flou l'y retiendrait. 
 contenu à partir de 1024 px (`header-date`, `header-status`). Hauteur de la barre : `--save-nav-height` (`globals.css`,
 avec la place du témoin d'accueil, `viewportFit: "cover"`), reprise par la marge du contenu et par `--toast-bottom` pour
 les toasts. Rien ne colle en haut de l'écran sauf les panneaux : fiche joueur `xl:top-8`, banc de la composition `top-2`,
-`lg:top-8`. Sur la page du direct d'un match en suspens, ni « Match en cours — reprendre » (il n'y mènerait nulle part) ni
-actions, mais la barre de navigation reste sous 1024 px (seule sortie à la mi-temps) et les boutons de reprise restent
-collés au bas de l'écran, juste au-dessus d'elle sous 1024 px.
+`lg:top-8`. Sur le direct, aucune action de jeu (`SaveBarActions`, `isLivePath`) : ses boutons sont la suite ; sous 1024 px
+il a tout l'écran, sans ligne du club ni barre de navigation (`data-live-page`, repris par le `group/shell` du layout), sa
+sortie est `live-exit`, sa barre ses commandes.
 
 **Accueil d'une partie.** L'entrée Accueil (`nav-dashboard`), le titre de la page reste « Tableau de bord » (masqué
 visuellement sous 1024 px) : budget, salaires et mercato en pastilles (`DashboardPills`), bandeau du compte, puis une
@@ -235,6 +235,25 @@ le bleu vif (état, six tours et le prochain en orange, `cupProgress`, rencontre
 parcours et les tours. Aucun bouton orange plein sur ces écrans : l'action de jeu est dans la colonne, ou en tête de Match
 sur téléphone. `e2e/match.spec.ts` les couvre à 1280, 390 et 360 px.
 
+**Match en direct.** `/live` rejoue un match déjà simulé jusqu'à sa prochaine pause (`LiveMatch`) : rien ne s'y change hors
+des pauses, mi-temps et fin du temps réglementaire d'une coupe nulle. Le moteur n'a ni attitude, ni fatigue, ni possession,
+ni tirs : l'écran n'en montre pas. Carte du score sur le bleu vif (`LiveScoreCard` : compétition, journée, date, stade s'il
+est connu, `Club.stadium` étant vide pour les 198 clubs ; score, minute en orange, barre de progression, pastille du
+résultat à la fin). Commandes (`LiveControls`, `live-controls`, un seul élément : dans la carte à partir de 1024 px, fixées
+au pied de l'écran en dessous) : vitesse x1, x2, x4 (`live-speed-*`) et `live-skip`, qui dit où il mène : « Coaching à la
+mi-temps » ou « Coaching à la pause », orange plein, ou « Aller au résultat », secondaire ; `live-coaching` à une pause,
+`live-continue` à la fin. Dessous, sur deux colonnes à partir de `xl`, le fil (`LiveFeed`, `feedEntries` : événements et
+repères, le plus récent en haut, `EventIcon` en SVG, aussi dans la feuille de match), les statistiques en barres, comptées
+sur les seuls événements montrés (`matchStats`), et les autres matchs. Panneau Coaching (`HalfTime`) : `Sheet` modal,
+ouvert seul à la pause, fermé par Échap ou la croix, rouvert par `live-coaching`, ses changements gardés ; plein écran sous
+1024 px, 440 px à droite au-dessus. L'adjoint (`coachAdvice`, pur : blessés, exclus, score, changement, joueurs avertis, rien
+que de vrai), le changement conseillé (`suggestChange`, pur : un blessé d'abord, sinon le plus grand gain de niveau,
+`ratingAt` × `condition` du moteur, à partir d'un point ; rien sinon, et son bloc disparaît), les changements prévus,
+annulables (`cancelSubstitution`), le dispositif, la composition complète, repliée (terrain et banc, glisser-déposer), puis
+« Reprendre sans changement » et « Reprendre le match », inactifs 500 ms à l'ouverture (`RESUME_GUARD_MS`) : sur téléphone ils
+arrivent sous le pouce, et un double appui reprendrait le match pour de bon. `e2e/live.spec.ts` couvre l'écran à 1280, 768,
+390 et 360 px.
+
 **Marché.** Deux écrans sous l'entrée Marché. `/transfers` : budget (et marge salariale à partir de 1024 px), bascule
 Acheter / Vendre · N offres (`?tab=sell`). Acheter : quatre entrées (Mes besoins, Pépites, Bonnes affaires, Stars),
 `proposeSignings` (`src/engine/market-proposals.ts`, pur, sans hasard) et `getMarketProposals`
@@ -256,12 +275,12 @@ secondaire (`GameActions`) : l'orange plein y reste à « Recruter » ou « Vend
 
 **Téléphone.** Aucun écran ne défile de côté à 390 ni à 360 px, en français comme en anglais (`e2e/mobile.spec.ts` :
 `scrollWidth ≤ innerWidth` à chaque étape, en 390 × 844). La barre du bas vaut sous 1024 px (`max-lg:`), tablettes
-comprises ; les règles `max-sm:` valent sous 640 px. Sous 640 px, toute cible fait au moins 44 px : boutons,
+comprises, sauf sur le direct ; les règles `max-sm:` valent sous 640 px. Sous 640 px, toute cible fait au moins 44 px : boutons,
 champs, listes, menus et onglets partagés (`src/components/ui`) et la bascule (`src/components/segmented.tsx`) le font
 d'eux-mêmes, les liens et contrôles propres à un écran avec `max-sm:min-h-11`. Une grille de page a `grid-cols-1` sous lg
 (`minmax(0, 1fr)`), jamais la largeur de son plus large contenu ; une grille avec la fiche latérale de 400 px (effectif,
-marché) ne passe en deux colonnes qu'à partir de `xl`, la fiche étant en surimpression en dessous ; la composition et la
-mi-temps n'ont aussi leurs deux colonnes qu'à partir de `xl`, et le tableau de bord ses trois colonnes (deux à partir de
+marché) ne passe en deux colonnes qu'à partir de `xl`, la fiche étant en surimpression en dessous ; la composition n'a
+aussi ses deux colonnes qu'à partir de `xl`, et le tableau de bord ses trois colonnes (deux à partir de
 `lg`). Un tableau garde un seul DOM (testids et E2E de bureau inchangés) : sur téléphone, moins de colonnes, ses lignes
 en grilles des mêmes colonnes que l'en-tête (effectif, marché), ou des cartes (parties de l'accueil, mouvements,
 palmarès), disposées par CSS ; le reste est dans la fiche du joueur. Le classement complet, une fois demandé, est le seul
@@ -338,7 +357,7 @@ partir de 1024 px, ligne du club de 640 à 1024 px, jamais sous 640 px), sinon l
   `dashboard-hero` (héros de l'Accueil), `dashboard-todo` (« À faire »), `onboarding` (premières actions, bulles),
   `challenge-banner` (carte du défi), `squad` (effectif, fiche joueur, contrats), `lineup`,
   `market` (Acheter, confirmation), `market-sell` (Vendre), `transfers` (marché avancé), `fixtures` (calendrier,
-  feuille de match), `standings` (classement, palmarès, carte), `cup` (coupe), `live` (direct, mi-temps), `actions` (messages
+  feuille de match), `standings` (classement, palmarès, carte), `cup` (coupe), `live` (direct), `half-time` (panneau Coaching), `actions` (messages
   des Server Actions, refus), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
   `src/i18n/messages.test.ts` exige les mêmes clés et les mêmes arguments ICU dans les deux langues, que tout message
   se formate et qu'un espace de noms n'appartienne qu'à un fichier. Seule exception : la page de confidentialité, un
@@ -382,8 +401,8 @@ teintent pas l'interface : `--club` est l'orange, partout ; le club se montre pa
 `src/lib/club-initials.ts`), jamais par un écusson, et ses couleurs ne restent que sur les maillots des visages, sur la
 carte PNG (`clubAccentsOn`) et dans le trait devant son nom sur l'accueil et `/challenge`. Une seule action orange pleine
 par écran (`variant="club"`), tenue écran par écran au fil des étapes de la refonte : sur l'Accueil, celle du héros, la
-colonne n'en ayant aucune ; la fiche joueur, la composition, le direct terminé et la carte de saison ont encore la leur à
-côté de celle de la colonne. Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
+colonne n'en ayant aucune, et sur le direct, celle de ses commandes ou du panneau ; la fiche joueur, la composition et la
+carte de saison ont encore la leur à côté de celle de la colonne. Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
 `--loss`, `--warning`, `--info`, `--position-*`). Titres et chiffres en Barlow Condensed 800 italique (le fichier de
 `src/assets/fonts`, chargé par `next/font/local`, une seule graisse), en majuscules par la règle `.font-heading` de
 `globals.css` (`normal-case` là où des unités et des ordinaux doivent garder leur casse : « 16e », « €11.4m ») ; texte
@@ -436,6 +455,7 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
+                      # live.spec.ts : le direct et le panneau Coaching ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone
