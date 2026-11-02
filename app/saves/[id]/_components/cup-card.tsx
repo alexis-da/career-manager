@@ -20,7 +20,7 @@ const SEGMENT_STYLES: Record<CupRoundState, string> = {
   passed: "bg-primary-foreground",
   exempt: "bg-primary-foreground",
   current: "bg-(--club)",
-  lost: "bg-loss",
+  lost: "bg-loss-on-blue",
   upcoming: "bg-background",
   unreached: "bg-background",
 };

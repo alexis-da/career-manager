@@ -57,6 +57,8 @@
   /* Text on the bright blue, and the second accent. */
   --on-blue: #dce2ff;
   --highlight: #8fa0ff;
+  /* A loss on the bright blue: --loss has only 2.4:1 there. */
+  --loss-on-blue: #ff9c9c;
 
   /* Fixed meanings, whatever the managed club. */
   --win: #4ade80;
@@ -151,6 +153,7 @@
   --color-win: var(--win);
   --color-draw: var(--draw);
   --color-loss: var(--loss);
+  --color-loss-on-blue: var(--loss-on-blue);
   --color-warning: var(--warning);
   --color-info: var(--info);
   --color-position-gk: var(--position-gk);
