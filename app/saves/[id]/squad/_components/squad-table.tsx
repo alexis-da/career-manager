@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState, type ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
@@ -24,31 +25,50 @@ type SortKey = "position" | "name" | "age" | "overall" | "potential" | "form" | 
 type Direction = "asc" | "desc";
 type Sort = { key: SortKey; direction: Direction };
 
+/**
+ * From lg, the table follows its own room, not the screen's: 704 px at 1024 px, 960 px at 1280 px (15 px less with a
+ * scrollbar), less again beside the open sheet. Two columns leave under 928 px, two more under 672 px, a room only the
+ * sheet leaves; the sheet and the hover card have them all. Before the table scrolls, a name wraps and the badges stack.
+ */
+const NEEDS_928 = "@max-[58rem]:hidden";
+const NEEDS_672 = "@max-[42rem]:hidden";
+const TIGHT_CELL = "lg:@max-[58rem]:px-1.5";
+
 /** The table's columns, named by their key in the squad messages (columns.<key>); an abbreviated one has a title. */
-const COLUMNS: { key: SortKey; title?: "potential"; align: "left" | "right"; firstDirection: Direction }[] = [
+const COLUMNS: { key: SortKey; title?: "potential"; align: "left" | "right"; firstDirection: Direction; needs?: string }[] = [
   { key: "position", align: "left", firstDirection: "asc" },
   { key: "name", align: "left", firstDirection: "asc" },
   { key: "age", align: "right", firstDirection: "asc" },
   { key: "overall", align: "right", firstDirection: "desc" },
-  { key: "potential", title: "potential", align: "right", firstDirection: "desc" },
+  { key: "potential", title: "potential", align: "right", firstDirection: "desc", needs: NEEDS_928 },
   { key: "form", align: "left", firstDirection: "desc" },
-  { key: "marketValue", align: "right", firstDirection: "desc" },
-  { key: "wage", align: "right", firstDirection: "desc" },
-  { key: "contractUntil", align: "left", firstDirection: "asc" },
+  { key: "marketValue", align: "right", firstDirection: "desc", needs: NEEDS_672 },
+  { key: "wage", align: "right", firstDirection: "desc", needs: NEEDS_928 },
+  { key: "contractUntil", align: "left", firstDirection: "asc", needs: NEEDS_672 },
 ];
 
-/** The columns a phone shows: the rest is in the player's sheet, a tap away. */
-const PHONE_COLUMNS: ReadonlySet<SortKey> = new Set(["position", "name", "age", "overall"]);
-
-/** On a phone, cells closer together; the header's still closer, with tighter letters, to hold in its columns. */
-const PHONE_CELL = "max-sm:px-1.5";
-const PHONE_HEAD = "max-sm:px-0.5 max-sm:tracking-normal";
+/**
+ * Under lg, the rows are cards, each a grid of one line whose cells overlap. On the left, the position and rating cells
+ * make the blue tile. In the middle, the name spans three narrow columns and the rest of the width; the age, nationality
+ * and form stand in those columns at the foot of the line, in the room the name's button keeps under its text: a target of
+ * 44 px that leaves the card as low as the tile. On the right, the status badges. The other columns are in the sheet. The
+ * ring is inset: the table's frame scrolls, and clips what passes a card's edge.
+ */
+const CARD_ROW =
+  "max-lg:grid max-lg:h-auto max-lg:grid-cols-[3.25rem_auto_auto_auto_minmax(0,1fr)_auto] max-lg:items-center max-lg:gap-x-1 max-lg:rounded-lg max-lg:border-0 max-lg:px-3.5 max-lg:py-2.5 max-lg:hover:ring-1 max-lg:hover:ring-(--club)/60 max-lg:hover:ring-inset";
+const CARD_TILE = "max-lg:col-start-1 max-lg:row-start-1 max-lg:size-11 max-lg:p-0";
+const CARD_FOOT =
+  "max-lg:row-start-1 max-lg:mb-0.5 max-lg:flex max-lg:h-4.5 max-lg:items-center max-lg:self-end max-lg:p-0 max-lg:text-[0.8125rem] max-lg:text-muted-foreground";
+const CARD_SEPARATOR = "max-lg:before:mr-1 max-lg:before:content-['·']";
 
 /**
- * On a phone, a row is a grid of the same four columns as the header's (position, name, age, rating), and the status
- * badges go under the name: their words would otherwise widen the table past the screen.
+ * Under lg, the sorting shortcuts stand in for the header row: pills of equal width, at a thumb's height, on two lines if
+ * a word needs it. The chosen one is in the bright blue of what is active: the orange is the sheet's « Prolonger ».
  */
-const PHONE_ROW = "max-sm:grid max-sm:grid-cols-[3rem_minmax(0,1fr)_2.75rem_3.5rem] max-sm:items-center";
+const PRESET_PILL =
+  "max-lg:h-auto max-lg:min-h-11 max-lg:rounded-full max-lg:px-2 max-lg:py-1 max-lg:text-sm max-lg:leading-tight max-lg:font-semibold max-lg:whitespace-normal max-lg:text-foreground max-lg:dark:bg-transparent";
+const PRESET_PILL_ACTIVE =
+  "max-lg:font-bold max-lg:text-primary-foreground max-lg:hover:text-primary-foreground max-lg:dark:border-primary max-lg:dark:bg-primary max-lg:dark:hover:bg-primary";
 
 /** The sorting shortcuts, named by their id in the squad messages (presets.<id>). */
 const PRESETS: { id: "position" | "overall" | "contracts"; sort: Sort }[] = [
@@ -147,10 +167,15 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
 
   return (
     <div className={cn("grid grid-cols-1 items-start gap-6", selected !== undefined && "xl:grid-cols-[minmax(0,1fr)_400px]")}>
-      <div className="min-w-0 space-y-4">
+      <div className="@container min-w-0 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           {header}
-          <div role="group" aria-label={t("sortLabel")} className="flex gap-1.5" data-testid="squad-sort">
+          <div
+            role="group"
+            aria-label={t("sortLabel")}
+            className="flex gap-1.5 max-lg:grid max-lg:w-full max-lg:grid-cols-3 max-lg:gap-2"
+            data-testid="squad-sort"
+          >
             {PRESETS.map((preset) => {
               const active = sort.key === preset.sort.key && sort.direction === preset.sort.direction;
               return (
@@ -160,7 +185,12 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                   variant="outline"
                   aria-pressed={active}
                   onClick={() => setSort(preset.sort)}
-                  className={cn("text-muted-foreground", active && "bg-muted text-foreground dark:bg-muted")}
+                  className={cn(
+                    "text-muted-foreground",
+                    PRESET_PILL,
+                    active && "bg-muted text-foreground dark:bg-muted",
+                    active && PRESET_PILL_ACTIVE,
+                  )}
                   data-testid={`squad-sort-${preset.id}`}
                 >
                   {t(`presets.${preset.id}`)}
@@ -170,9 +200,9 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
           </div>
         </div>
 
-        <Table className="tabular-nums max-sm:block" data-testid="squad-table">
-          <TableHeader className="max-sm:block">
-            <TableRow className={cn("border-border hover:bg-transparent", PHONE_ROW)}>
+        <Table className="tabular-nums max-lg:block" data-testid="squad-table">
+          <TableHeader className="max-lg:hidden">
+            <TableRow className="border-border hover:bg-transparent">
               {COLUMNS.map((column) => {
                 const active = sort.key === column.key;
                 return (
@@ -180,45 +210,35 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                     key={column.key}
                     title={column.title === undefined ? undefined : t(`columnTitles.${column.title}`)}
                     aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
-                    className={cn(
-                      TABLE_HEAD,
-                      PHONE_HEAD,
-                      column.align === "right" && "text-right",
-                      !PHONE_COLUMNS.has(column.key) && "max-sm:hidden",
-                    )}
+                    className={cn(TABLE_HEAD, TIGHT_CELL, column.align === "right" && "text-right", column.needs)}
                   >
                     <button
                       type="button"
                       onClick={() => sortBy(column.key, column.firstDirection)}
                       className={cn(
-                        "inline-flex items-center gap-1 uppercase hover:text-foreground max-sm:min-h-11 max-sm:min-w-11",
+                        "inline-flex items-center gap-1 uppercase hover:text-foreground",
                         column.align === "right" && "justify-end",
                         active && "text-foreground",
                       )}
                       data-testid={`squad-column-${kebabCase(column.key)}`}
                     >
-                      {/* A phone's narrow position column has a shorter word for it (« Pos. » in English). */}
-                      {column.key === "position" ? (
-                        <>
-                          <span className="max-sm:hidden">{t("columns.position")}</span>
-                          <span className="sm:hidden">{t("phoneColumns.position")}</span>
-                        </>
-                      ) : (
-                        t(`columns.${column.key}`)
-                      )}
-                      <span aria-hidden className="text-[0.5625rem]">
-                        {active ? (sort.direction === "asc" ? "▲" : "▼") : ""}
-                      </span>
+                      {t(`columns.${column.key}`)}
+                      {active &&
+                        (sort.direction === "asc" ? (
+                          <ChevronUpIcon aria-hidden className="size-3" />
+                        ) : (
+                          <ChevronDownIcon aria-hidden className="size-3" />
+                        ))}
                     </button>
                   </TableHead>
                 );
               })}
-              <TableHead className={cn(TABLE_HEAD, "max-sm:hidden")}>
+              <TableHead className={cn(TABLE_HEAD, TIGHT_CELL)}>
                 <span className="sr-only">{t("columns.status")}</span>
               </TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody className="max-sm:block">
+          <TableBody className="max-lg:block max-lg:space-y-2">
             {sorted.map((player) => {
               const name = `${player.firstName} ${player.lastName}`;
               const isSelected = player.id === selectedId;
@@ -229,73 +249,105 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                   player={player}
                   canHover={canHover}
                   onSelect={() => setSelectedId(player.id)}
-                  className={cn(TABLE_ROW, PHONE_ROW, "cursor-pointer max-sm:h-auto", isSelected && "bg-muted hover:bg-muted")}
+                  className={cn(
+                    TABLE_ROW,
+                    CARD_ROW,
+                    "cursor-pointer",
+                    isSelected ? "bg-muted hover:bg-muted" : "max-lg:bg-card max-lg:hover:bg-card",
+                  )}
                 >
+                  {/* Under lg, the tile, with the rating over it, and the main position alone: the sheet has the others. */}
                   <TableCell
                     title={tPositions(`label.${player.position}`)}
-                    className={cn(TABLE_CELL, PHONE_CELL, "w-28 font-heading text-sm font-bold max-sm:w-auto", positionTextClass(player.position))}
+                    className={cn(
+                      TABLE_CELL,
+                      TIGHT_CELL,
+                      CARD_TILE,
+                      "w-28 font-heading text-sm font-bold lg:@max-[58rem]:w-auto",
+                      positionTextClass(player.position),
+                      "max-lg:flex max-lg:items-end max-lg:justify-center max-lg:rounded-md max-lg:bg-primary max-lg:pb-1.5 max-lg:font-sans max-lg:text-[0.625rem] max-lg:leading-none max-lg:text-on-blue",
+                    )}
                   >
-                    {/* On a phone, the main position alone: the sheet has the others. */}
                     <span className="inline-flex items-center gap-1.5">
                       <span data-primary-position>{tPositions(`short.${player.position}`)}</span>
-                      <span className="contents max-sm:hidden">
+                      <span className="contents max-lg:hidden">
                         <SecondaryPositionBadges playerKey={player.playerKey} position={player.position} />
                       </span>
                     </span>
                   </TableCell>
-                  {/* On a phone, no face, and the name on two lines if need be. */}
-                  <TableCell className={cn(TABLE_CELL, PHONE_CELL, "whitespace-nowrap max-sm:whitespace-normal")}>
-                    <PlayerFace
-                      playerKey={player.playerKey}
-                      age={player.age}
-                      clubColors={player.clubColors}
-                      size={28}
-                      className="mr-2 inline-block align-middle max-sm:hidden"
-                    />
-                    <button
-                      type="button"
-                      aria-label={t("openSheet", { name })}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedId(player.id);
-                      }}
-                      className="text-left font-semibold hover:underline max-sm:min-h-11"
-                      data-testid="squad-player-open"
-                    >
-                      {name}
-                    </button>
-                    <span className="ml-1.5 text-xs text-muted-foreground" title={nationalityName(player.nationality, tWorld)}>
-                      {nationalityCode(player.nationality)}
+                  {/* The name on as many lines as it needs. Under lg, no face, and the card's grid takes the cell's content. */}
+                  <TableCell className={cn(TABLE_CELL, TIGHT_CELL, "py-1 whitespace-normal max-lg:contents")}>
+                    <span className="flex items-center gap-2 max-lg:contents">
+                      <PlayerFace
+                        playerKey={player.playerKey}
+                        age={player.age}
+                        clubColors={player.clubColors}
+                        size={28}
+                        className="shrink-0 max-lg:hidden"
+                      />
+                      <button
+                        type="button"
+                        aria-label={t("openSheet", { name })}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedId(player.id);
+                        }}
+                        className="min-w-0 text-left leading-tight font-semibold wrap-break-word hover:underline max-lg:col-span-4 max-lg:col-start-2 max-lg:row-start-1 max-lg:min-h-11 max-lg:w-full max-lg:self-stretch max-lg:pb-5 max-lg:text-[0.9375rem] max-lg:font-bold"
+                        data-testid="squad-player-open"
+                      >
+                        {name}
+                      </button>
+                      <span
+                        title={nationalityName(player.nationality, tWorld)}
+                        className={cn("shrink-0 text-xs text-muted-foreground", CARD_FOOT, CARD_SEPARATOR, "max-lg:col-start-3")}
+                      >
+                        {nationalityCode(player.nationality)}
+                      </span>
                     </span>
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>{player.age}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_CELL, CARD_FOOT, "text-right max-lg:col-start-2")}>
+                    <span className="max-lg:hidden">{player.age}</span>
+                    <span className="lg:hidden">{t("ageShort", { age: player.age })}</span>
+                  </TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_CELL, CARD_TILE, "text-right max-lg:pt-1 max-lg:text-center")}>
                     <span
                       className={cn(
                         "inline-grid h-6 min-w-9 place-items-center rounded-sm px-1.5 font-heading text-sm font-bold",
                         ratingClasses(player.overall),
+                        "max-lg:h-auto max-lg:min-w-0 max-lg:bg-transparent max-lg:px-0 max-lg:text-[1.375rem] max-lg:leading-none max-lg:text-primary-foreground",
                       )}
                     >
                       {player.overall}
                     </span>
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground max-sm:hidden")}>{player.potential}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "max-sm:hidden")}>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_CELL, "text-right text-muted-foreground max-lg:hidden", NEEDS_928)}>
+                    {player.potential}
+                  </TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_CELL, CARD_FOOT, CARD_SEPARATOR, "max-lg:col-start-4")}>
                     <FormGauge form={player.form} />
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right max-sm:hidden")}>{formatMoney(player.marketValue, locale)}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground max-sm:hidden")}>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_CELL, "text-right max-lg:hidden", NEEDS_672)}>
+                    {formatMoney(player.marketValue, locale)}
+                  </TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_CELL, "text-right text-muted-foreground max-lg:hidden", NEEDS_928)}>
                     {formatMoney(player.wage, locale)}
                   </TableCell>
                   <TableCell
                     data-column="contractUntil"
-                    className={cn(TABLE_CELL, "max-sm:hidden", player.contractExpiring && "text-warning")}
+                    className={cn(TABLE_CELL, TIGHT_CELL, "max-lg:hidden", NEEDS_672, player.contractExpiring && "text-warning")}
                   >
                     {player.contractUntil === null ? "—" : formatDate(player.contractUntil, locale)}
                   </TableCell>
-                  {/* On a phone, under the name, across the row's last three columns; nothing without a badge. */}
-                  <TableCell className={cn(TABLE_CELL, PHONE_CELL, "max-sm:col-span-3 max-sm:col-start-2 max-sm:pb-2", !hasBadges && "max-sm:hidden")}>
-                    <span className="flex gap-1 max-sm:flex-wrap">
+                  {/* Under lg, on the card's right, one under the other; nothing without a badge. */}
+                  <TableCell
+                    className={cn(
+                      TABLE_CELL,
+                      TIGHT_CELL,
+                      "py-1 max-lg:col-start-6 max-lg:row-start-1 max-lg:p-0 max-lg:pl-2",
+                      !hasBadges && "max-lg:hidden",
+                    )}
+                  >
+                    <span className="flex flex-wrap gap-1 max-lg:flex-col max-lg:items-end">
                       <PlayerBadges player={player} />
                     </span>
                   </TableCell>

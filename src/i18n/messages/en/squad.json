@@ -24,12 +24,10 @@
       "contractUntil": "Contract",
       "status": "Status"
     },
-    "phoneColumns": {
-      "position": "Pos."
-    },
     "columnTitles": {
       "potential": "Potential"
     },
+    "ageShort": "{age} yrs",
     "formTitle": "Form {form}",
     "openSheet": "View {name}'s profile"
   }
