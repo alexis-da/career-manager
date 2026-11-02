@@ -158,7 +158,8 @@ partie, n'a pas d'entrée « Défi »).
 Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
 `nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement et Coupe
 (seulement avec une coupe) ; le direct est sous Match, sans onglet ; l'entrée Match mène au Calendrier sous 1024 px, au
-Classement à partir de là, où il a le calendrier et la coupe à côté (`computerHome`, choisi par `SaveNav` après
+Classement à partir de là, où il a le calendrier et la coupe à côté ; l'entrée Équipe à l'Effectif sous 1024 px, à la
+Composition à partir de là, où elle a l'effectif et la fiche à côté (`computerHome`, choisi par `SaveNav` après
 l'hydratation) ; l'entrée Club mène au Palmarès (`/seasons`) en attendant ses finances. Ces sous-onglets sont une bascule
 en tête de contenu (`SectionTabs`, `SegmentedLinks`,
 `src/components/segmented.tsx`), testids `nav-squad`, `nav-lineup`, `nav-fixtures`, `nav-standings`, `nav-cup`, présents
@@ -177,8 +178,8 @@ hors de lui (`SaveBarActions`, un seul élément, donc des testids uniques), dan
 Aucun flou sur l'en-tête : il contient la barre fixe, un flou l'y retiendrait. La date et le statut sont en haut du
 contenu à partir de 1024 px (`header-date`, `header-status`). Hauteur de la barre : `--save-nav-height` (`globals.css`,
 avec la place du témoin d'accueil, `viewportFit: "cover"`), reprise par la marge du contenu et par `--toast-bottom` pour
-les toasts. Rien ne colle en haut de l'écran sauf les panneaux : fiche joueur `xl:top-8`, banc de la composition `top-2`,
-`lg:top-8`. Sur le direct, aucune action de jeu (`SaveBarActions`, `isLivePath`) : ses boutons sont la suite ; sous 1024 px
+les toasts. Rien ne colle en haut de l'écran sauf les panneaux : fiche joueur `xl:top-8`, banc de la composition `top-2`
+sous 1024 px, colonne de son terrain `lg:top-8`. Sur le direct, aucune action de jeu (`SaveBarActions`, `isLivePath`) : ses boutons sont la suite ; sous 1024 px
 il a tout l'écran, sans ligne du club ni barre de navigation (`data-live-page`, repris par le `group/shell` du layout), sa
 sortie est `live-exit`, sa barre ses commandes.
 
@@ -226,7 +227,9 @@ et retire les cartes d'à côté. `StandingsTable` est un composant client pour 
 et la page envoie les données des dix tableaux plutôt que leurs cellules (288 Ko au lieu de 1,25 Mo). Pastille de rang : bleue pour le champion de D1 et les montées de D2, orange pour les
 descentes de D1, neutre sinon et dans toute une partie 1 ; ta ligne sur `bg-secondary`. À partir de `xl`, le tableau en
 3/5 et à droite, en 2/5, le calendrier (`MatchCalendarCard`, `fixtureWindow` : trois matchs joués, le prochain, deux à
-venir) et la coupe (`CupCard`, `linked`) ; sous le tableau de `lg` à `xl` ; cachés sous `lg`, les onglets les ayant.
+venir) et la coupe (`CupCard`, `linked`) ; sous le tableau de `lg` à `xl` ; sous `lg`, les onglets les ont. Le serveur ne
+connaissant pas la largeur, la page les demande une fois qu'elle la connaît (`SideCards`, `standingsSideCardsAction`) : un
+téléphone ne les lit pas.
 Calendrier (`/fixtures`) : la liste du mois par défaut, ouverte sur le mois du prochain match (`FixtureRow` : jour,
 adversaire, étiquette D1 ou D2 en `text-highlight`, COUPE en orange, résultat ; toute la ligne ouvre la feuille de match
 ou l'adversaire ; le prochain match sur `bg-secondary`, pastille « Suivant ») ; `?vue=grille`, la grille du mois, avec le
@@ -254,6 +257,21 @@ annulables (`cancelSubstitution`), le dispositif, la composition complète, repl
 arrivent sous le pouce, et un double appui reprendrait le match pour de bon. `e2e/live.spec.ts` couvre l'écran à 1280, 768,
 390 et 360 px.
 
+**Équipe.** Effectif (`/squad`, `SquadTable`) : sous 1024 px, des cartes, une seule table en DOM : tuile note et poste, âge,
+nationalité, jauge de forme, états (`PlayerBadges`), les trois tris rapides à la place de l'en-tête ; au-dessus, le tableau,
+ses colonnes suivant sa place (`@container` : sans Pot. ni Salaire sous 928 px, sans Valeur ni Contrat sous 672 px, à côté de
+la fiche). Le jeu n'a pas de suspension : aucun état « suspendu ». Composition (`/lineup`, `LineupEditor`, `LineupSquad`) :
+sous 1024 px, terrain, résumé, banc, puis la liste ; de 1024 à 1279 px, l'effectif compact à gauche du terrain et la fiche en
+surimpression ; à partir de 1280 px, l'effectif, le terrain et la fiche sur une page, `pinned`, jamais vide : le titulaire du
+poste sélectionné, sinon le dernier joueur choisi, sinon le mieux noté (`pinnedSheetKey`). Un clic sur un poste le
+sélectionne ; poste sélectionné, un clic sur une ligne y place le joueur (`lineup-reserve`) ou échange deux postes
+(`lineup-starter`, à partir de `lg`) ; sans poste sélectionné, il ouvre la fiche ; sous 1280 px, `lineup-open-sheet` ouvre
+celle du titulaire. Fiche (`PlayerSheet`, partagée avec le marché avancé, `?player=`) : tête sur le bleu vif, initiales
+(`playerInitials`, le visage reste partout ailleurs), note et poste en grand, saison, barres, contrat, transferts ; Prolonger
+orange, secondaire dans la Composition, dont l'orange est « Enregistrer » (`primary`) ; une vente impossible se lit dans le
+pied, `sell-player` désactivé (`player-sale-refusal`). Sur toute l'entrée, l'action de jeu de la colonne est secondaire
+(`OWN_ORANGE_ACTION`). `e2e/team.spec.ts` couvre ces écrans à 1280, 1100, 768, 390 et 360 px.
+
 **Marché.** Deux écrans sous l'entrée Marché. `/transfers` : budget (et marge salariale à partir de 1024 px), bascule
 Acheter / Vendre · N offres (`?tab=sell`). Acheter : quatre entrées (Mes besoins, Pépites, Bonnes affaires, Stars),
 `proposeSignings` (`src/engine/market-proposals.ts`, pur, sans hasard) et `getMarketProposals`
@@ -279,11 +297,11 @@ comprises, sauf sur le direct ; les règles `max-sm:` valent sous 640 px. Sous 6
 champs, listes, menus et onglets partagés (`src/components/ui`) et la bascule (`src/components/segmented.tsx`) le font
 d'eux-mêmes, les liens et contrôles propres à un écran avec `max-sm:min-h-11`. Une grille de page a `grid-cols-1` sous lg
 (`minmax(0, 1fr)`), jamais la largeur de son plus large contenu ; une grille avec la fiche latérale de 400 px (effectif,
-marché) ne passe en deux colonnes qu'à partir de `xl`, la fiche étant en surimpression en dessous ; la composition n'a
-aussi ses deux colonnes qu'à partir de `xl`, et le tableau de bord ses trois colonnes (deux à partir de
+marché) ne passe en deux colonnes qu'à partir de `xl`, la fiche étant en surimpression en dessous ; la composition a
+ses deux colonnes à partir de `lg`, ses trois à partir de `xl`, et le tableau de bord ses trois colonnes (deux à partir de
 `lg`). Un tableau garde un seul DOM (testids et E2E de bureau inchangés) : sur téléphone, moins de colonnes, ses lignes
-en grilles des mêmes colonnes que l'en-tête (effectif, marché), ou des cartes (parties de l'accueil, mouvements,
-palmarès), disposées par CSS ; le reste est dans la fiche du joueur. Le classement complet, une fois demandé, est le seul
+en grilles des mêmes colonnes que l'en-tête (marché), ou des cartes (effectif sous 1024 px, parties de l'accueil,
+mouvements, palmarès), disposées par CSS ; le reste est dans la fiche du joueur. Le classement complet, une fois demandé, est le seul
 à défiler de côté, dans son cadre, rang et club figés à gauche, points à droite. Aucun texte utile coupé : à la ligne, sous
 le nom, ou lu par les lecteurs d'écran et montré dans la fiche (cases de la grille du mois). Glisser-déposer
 (`usePointerDrag`) : au doigt, un appui maintenu de 250 ms soulève le joueur et un geste plus rapide fait défiler la page
@@ -355,7 +373,7 @@ partir de 1024 px, ligne du club de 640 à 1024 px, jamais sous 640 px), sinon l
   compte, connexion, défi, 404, sélecteur), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
   a.p./t.a.b., événements, lettres de résultat), `header` (en-tête, navigation, actions de jeu, simulation), `dashboard`,
   `dashboard-hero` (héros de l'Accueil), `dashboard-todo` (« À faire »), `onboarding` (premières actions, bulles),
-  `challenge-banner` (carte du défi), `squad` (effectif, fiche joueur, contrats), `lineup`,
+  `challenge-banner` (carte du défi), `squad` (effectif), `player-sheet` (fiche joueur, contrats), `lineup`,
   `market` (Acheter, confirmation), `market-sell` (Vendre), `transfers` (marché avancé), `fixtures` (calendrier,
   feuille de match), `standings` (classement, palmarès, carte), `cup` (coupe), `live` (direct), `half-time` (panneau Coaching), `actions` (messages
   des Server Actions, refus), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
@@ -401,8 +419,8 @@ teintent pas l'interface : `--club` est l'orange, partout ; le club se montre pa
 `src/lib/club-initials.ts`), jamais par un écusson, et ses couleurs ne restent que sur les maillots des visages, sur la
 carte PNG (`clubAccentsOn`) et dans le trait devant son nom sur l'accueil et `/challenge`. Une seule action orange pleine
 par écran (`variant="club"`), tenue écran par écran au fil des étapes de la refonte : sur l'Accueil, celle du héros, la
-colonne n'en ayant aucune, et sur le direct, celle de ses commandes ou du panneau ; la fiche joueur, la composition et la
-carte de saison ont encore la leur à côté de celle de la colonne. Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
+colonne n'en ayant aucune, sur le direct, celle de ses commandes ou du panneau, et sur Équipe, « Enregistrer » ou
+« Prolonger » ; la carte de saison a encore la sienne à côté de celle de la colonne. Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
 `--loss`, `--warning`, `--info`, `--position-*`). Titres et chiffres en Barlow Condensed 800 italique (le fichier de
 `src/assets/fonts`, chargé par `next/font/local`, une seule graisse), en majuscules par la règle `.font-heading` de
 `globals.css` (`normal-case` là où des unités et des ordinaux doivent garder leur casse : « 16e », « €11.4m ») ; texte
@@ -455,7 +473,7 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
-                      # live.spec.ts : le direct et le panneau Coaching ;
+                      # live.spec.ts : le direct et le panneau Coaching ; team.spec.ts : Effectif, Composition et fiche ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone
