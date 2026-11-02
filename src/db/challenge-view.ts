@@ -7,9 +7,10 @@ import { isoWeekNumber, previousIsoWeekKey } from "../lib/iso-week";
 import type { ChallengeSummary } from "./challenge";
 import { prisma } from "./client";
 
-// What the weekly challenge's screens show: the public page /challenge and a challenge save's banner. The rankings read
-// the entries of all of a challenge's saves by challengeId, the one read across saves (CLAUDE.md): scores and first
-// names, never a save's content. The club's name goes through displayClubName here, never in a component.
+// What the weekly challenge's screens show: the public page /challenge, its tab in a save and a challenge save's
+// banner. The rankings read the entries of all of a challenge's saves by challengeId, the one read across saves
+// (CLAUDE.md): scores and first names, never a save's content. The club's name goes through displayClubName here, never
+// in a component.
 
 /** The user of the request, if any: an anonymous player sees their own entry, outside the public ranking. */
 export type ChallengeViewer = { id: string; kind: "ANONYMOUS" | "REGISTERED" } | null;

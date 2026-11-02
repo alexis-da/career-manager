@@ -1,5 +1,11 @@
 {
   "challengeScreen": {
-    "yourGame": "Your career"
+    "yourGame": "Your career",
+    "score": "{points, plural, one {# pt} other {# pts}} · {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+    "scoreOutsideRanking": "{points, plural, one {# pt} other {# pts}}",
+    "weekPill": "Week {week} · ends {end}",
+    "pitch": "{horizon} matchdays, the same start and the same opponents for everyone: only your choices make the difference.",
+    "rankingRules": "On points, then goal difference, then goals scored, over the first {horizon} league matchdays. After that, the career goes on, without counting.",
+    "managers": "{count, plural, =0 {Ends {end} (Paris time)} one {# manager in the ranking · ends {end} (Paris time)} other {# managers in the ranking · ends {end} (Paris time)}}"
   }
 }

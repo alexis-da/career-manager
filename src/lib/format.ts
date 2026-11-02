@@ -28,6 +28,7 @@ function formattersOf(tag: string) {
       timeZone: PARIS,
     }),
     parisDay: new Intl.DateTimeFormat(tag, { weekday: "long", day: "2-digit", month: "2-digit", timeZone: PARIS }),
+    parisWeekdayTime: new Intl.DateTimeFormat(tag, { weekday: "long", hour: "2-digit", minute: "2-digit", timeZone: PARIS }),
   };
 }
 
@@ -113,6 +114,11 @@ export function formatParisDateTime(date: Date, locale: Locale = "fr"): string {
 /** A real day in Paris: « mardi 03/11 », « Tuesday 03/11 ». */
 export function formatParisDay(date: Date, locale: Locale = "fr"): string {
   return FORMATTERS[locale].parisDay.format(date);
+}
+
+/** A real time in Paris within the week: « lundi 01:00 », « Monday 01:00 ». */
+export function formatParisWeekdayTime(date: Date, locale: Locale = "fr"): string {
+  return FORMATTERS[locale].parisWeekdayTime.format(date);
 }
 
 /** A goal difference with its sign when positive: « +4 », « 0 », « -2 ». */

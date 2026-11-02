@@ -11,6 +11,7 @@ import {
   formatMoney,
   formatParisDateTime,
   formatParisDay,
+  formatParisWeekdayTime,
   formatShortDate,
   millionsFigure,
 } from "./format";
@@ -63,6 +64,7 @@ describe("real times", () => {
     expect(formatParisDateTime(new Date("2026-11-02T00:00:00.000Z"))).toBe("lundi 2 novembre à 01:00");
     expect(formatParisDateTime(new Date("2026-07-06T00:00:00.000Z"))).toBe("lundi 6 juillet à 02:00");
     expect(formatParisDay(new Date("2026-11-03T00:00:00.000Z"))).toBe("mardi 03/11");
+    expect(formatParisWeekdayTime(new Date("2026-11-02T00:00:00.000Z"))).toBe("lundi 01:00");
   });
 
   it("signs a positive goal difference only", () => {
@@ -104,5 +106,6 @@ describe("in English", () => {
   it("writes real times in Paris time", () => {
     expect(formatParisDateTime(new Date("2026-11-02T00:00:00.000Z"), "en")).toBe("Monday 2 November at 01:00");
     expect(formatParisDay(new Date("2026-11-03T00:00:00.000Z"), "en")).toBe("Tuesday 03/11");
+    expect(formatParisWeekdayTime(new Date("2026-11-02T00:00:00.000Z"), "en")).toBe("Monday 01:00");
   });
 });

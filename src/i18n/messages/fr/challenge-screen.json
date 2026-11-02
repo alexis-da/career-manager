@@ -1,5 +1,11 @@
 {
   "challengeScreen": {
-    "yourGame": "Ta partie"
+    "yourGame": "Ta partie",
+    "score": "{points, plural, one {# pt} other {# pts}} · {rank, selectordinal, one {#er} other {#e}}",
+    "scoreOutsideRanking": "{points, plural, one {# pt} other {# pts}}",
+    "weekPill": "Semaine {week} · fin {end}",
+    "pitch": "{horizon} journées, même départ et mêmes adversaires pour tout le monde : seuls tes choix font la différence.",
+    "rankingRules": "Aux points, puis à la différence de buts, puis aux buts marqués, sur les {horizon} premières journées de championnat. Ensuite, la partie continue, sans compter.",
+    "managers": "{count, plural, =0 {Fin le {end} (heure de Paris)} one {# manager au classement · fin le {end} (heure de Paris)} other {# managers au classement · fin le {end} (heure de Paris)}}"
   }
 }

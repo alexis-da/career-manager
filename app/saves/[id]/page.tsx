@@ -86,7 +86,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             )
           }
         />
-        <ChallengeCard view={challenge} className="lg:col-span-2 xl:col-span-1" />
+        <ChallengeCard view={challenge} saveId={id} className="lg:col-span-2 xl:col-span-1" />
       </div>
     </div>
   );

@@ -36,7 +36,7 @@ function standing({ status, horizon }: ChallengeBannerView, t: Translator<"chall
  * A challenge save's card: its week, its club's matchday out of the horizon, then its score and provisional rank, then
  * that it no longer counts; or why it does not count. Always the day the purge deletes it, and the ranking.
  */
-function ChallengeStanding({ view, className }: { view: ChallengeBannerView; className?: string }) {
+function ChallengeStanding({ view, saveId, className }: { view: ChallengeBannerView; saveId: string; className?: string }) {
   const t = useTranslations("challengeBanner");
   const locale = useLocale();
   const { status } = view;
@@ -53,7 +53,7 @@ function ChallengeStanding({ view, className }: { view: ChallengeBannerView; cla
         {status.kind === "submitted" && !status.inRanking && `${t("signIn")} `}
         {t("purgedOn", { day: formatParisDay(view.savesPurgedAt, locale) })}
       </p>
-      <Link href="/challenge" data-testid="challenge-banner-ranking" className={CARD_LINK}>
+      <Link href={`/saves/${saveId}/challenge`} data-testid="challenge-banner-ranking" className={CARD_LINK}>
         {t("ranking")}
       </Link>
     </Panel>
@@ -61,14 +61,14 @@ function ChallengeStanding({ view, className }: { view: ChallengeBannerView; cla
 }
 
 /** Any other save's card: what the challenge is and the way to it, its club left for its page. */
-function ChallengeTeaser({ className }: { className?: string }) {
+function ChallengeTeaser({ saveId, className }: { saveId: string; className?: string }) {
   const t = useTranslations("challengeBanner");
   const tChallenge = useTranslations("challenge");
   return (
     <Panel aria-label={t("title")} data-testid="dashboard-challenge" className={cn(CARD, className)}>
       <PanelTitle className="text-(--club)">{t("title")}</PanelTitle>
       <p className="text-[0.9375rem] leading-snug">{tChallenge("teaser")}</p>
-      <Link href="/challenge" className={CARD_LINK}>
+      <Link href={`/saves/${saveId}/challenge`} className={CARD_LINK}>
         {tChallenge("see")}
       </Link>
     </Panel>
@@ -76,6 +76,6 @@ function ChallengeTeaser({ className }: { className?: string }) {
 }
 
 /** The dashboard's card of the weekly challenge: where a challenge save stands in it, or, for any other save, the way to it. */
-export function ChallengeCard({ view, className }: { view: ChallengeBannerView | null; className?: string }): ReactNode {
-  return view === null ? <ChallengeTeaser className={className} /> : <ChallengeStanding view={view} className={className} />;
+export function ChallengeCard({ view, saveId, className }: { view: ChallengeBannerView | null; saveId: string; className?: string }): ReactNode {
+  return view === null ? <ChallengeTeaser saveId={saveId} className={className} /> : <ChallengeStanding view={view} saveId={saveId} className={className} />;
 }
