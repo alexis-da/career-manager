@@ -3,13 +3,10 @@ import { competitionName } from "@/src/i18n/countries";
 import type { Metadata } from "next";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { getManagedClubCalendar } from "@/src/db/calendar";
-import { getCupBracket } from "@/src/db/cup-view";
 import { getLatestSeasonTables } from "@/src/db/standings";
 import { seasonLabel } from "@/src/engine/world";
-import { CupCard } from "../_components/cup-card";
-import { MatchCalendarCard } from "../_components/match-calendar-card";
 import { FullTableFrame } from "./_components/full-table";
+import { SideCards } from "./_components/side-cards";
 import { StandingsCard } from "./_components/standings-card";
 import { StandingsTable } from "./_components/standings-table";
 
@@ -34,8 +31,6 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
       </p>
     );
   }
-
-  const [calendar, bracket] = await Promise.all([getManagedClubCalendar(id), getCupBracket(id)]);
 
   // A save with the second divisions: a tab per country, then Division 1 / Division 2; otherwise a tab per competition.
   // By country, sorted by its name in the player's language.
@@ -137,8 +132,7 @@ export default async function StandingsPage({ params }: PageProps<"/saves/[id]/s
         {/* Beside the table on a wide screen, under it side by side on a smaller one, one taking the whole width if alone;
             on a phone, the Calendrier and Coupe tabs have them. The full table takes their place. */}
         <div className="grid content-start items-start gap-5 group-data-full/standings:hidden max-lg:hidden lg:auto-cols-fr lg:grid-flow-col xl:col-span-2 xl:grid-flow-row">
-          {calendar.fixtures.length > 0 && <MatchCalendarCard saveId={id} fixtures={calendar.fixtures} />}
-          {bracket !== null && <CupCard saveId={id} bracket={bracket} linked />}
+          <SideCards saveId={id} />
         </div>
       </FullTableFrame>
     </div>

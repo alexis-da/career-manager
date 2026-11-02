@@ -3,23 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useSyncExternalStore, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { COMPUTER_QUERY, useMediaQuery } from "@/src/hooks/use-media-query";
 import { cn } from "@/src/lib/utils";
 import { sectionAt, SECTIONS, type Section } from "../_lib/sections";
-
-/** The width from which the navigation is a sidebar: Tailwind's lg. */
-const COMPUTER = "(min-width: 64rem)";
-
-function subscribeToWidth(onChange: () => void): () => void {
-  const query = window.matchMedia(COMPUTER);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
-
-const isComputer = (): boolean => window.matchMedia(COMPUTER).matches;
-
-/** Whether the screen is a computer's: the server does not know, and answers for a phone until the page hydrates. */
-const useComputer = (): boolean => useSyncExternalStore(subscribeToWidth, isComputer, () => false);
 
 /** Each entry's icon, as the design draws it. */
 const ICONS: Record<Section["key"], ReactNode> = {
@@ -44,7 +31,8 @@ export function SaveNav({ saveId }: { saveId: string }) {
   const t = useTranslations("nav");
   const base = `/saves/${saveId}`;
   const current = sectionAt(usePathname().slice(base.length));
-  const computer = useComputer();
+  // The server does not know the width: it answers for a phone until the page hydrates.
+  const computer = useMediaQuery(COMPUTER_QUERY);
 
   return (
     <nav

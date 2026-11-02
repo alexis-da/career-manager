@@ -19,3 +19,6 @@ export function useMediaQuery(query: string): boolean {
 
 /** A mouse or a trackpad: a pointer that can hover. False on a touch screen, which cannot. */
 export const HOVER_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
+
+/** The width from which a save's navigation is a sidebar: Tailwind's lg. */
+export const COMPUTER_QUERY = "(min-width: 64rem)";

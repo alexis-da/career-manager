@@ -211,6 +211,8 @@ test("leads to the table on a computer, the calendar and the cup in two fifths o
   await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Calendrier", "Classement", "Coupe"]);
   await expect(page.getByTestId("nav-standings")).toHaveAttribute("aria-current", "page");
 
+  // The page asks for them once it knows its width.
+  await expect(page.getByTestId("cup-card")).toBeVisible();
   const title = await boxOf(page.getByTestId("standings-title"));
   const table = await boxOf(tableOf(page));
   const calendar = await boxOf(page.getByTestId("match-calendar-card"));
@@ -262,6 +264,7 @@ test("gives the full table the cards' room, at the same address, on the country 
   await expect(won).toBeHidden();
   await expect(toggle).toHaveText("Classement complet");
 
+  await expect(calendar).toBeVisible();
   const title = await boxOf(page.getByTestId("standings-title"));
   const compact = await boxOf(table);
   const cards = await boxOf(calendar);
@@ -575,6 +578,7 @@ test.describe("between 1024 and 1280 px", () => {
     await openSave(page, "/standings");
     const entry = page.getByTestId("nav-match");
     await expect(entry).toHaveAttribute("href", `/saves/${saveId}/standings`);
+    await expect(page.getByTestId("cup-card")).toBeVisible();
 
     const table = await boxOf(tableOf(page));
     const calendar = await boxOf(page.getByTestId("match-calendar-card"));
@@ -647,10 +651,18 @@ test.describe("on a phone, in English", () => {
   });
 
   test("leaves the cards to their tabs, holds the compact table in its frame, and scrolls the full one there, not the page", async ({ page }) => {
+    // Not hidden but never read: the page asks the server for nothing.
+    const asked: string[] = [];
+    page.on("request", (request) => {
+      if (request.headers()["next-action"] !== undefined) {
+        asked.push(request.url());
+      }
+    });
     await openSave(page, "/standings");
     await expect(page.getByTestId("standings-title")).toHaveText("Table");
-    await expect(page.getByTestId("match-calendar-card")).toBeHidden();
-    await expect(page.getByTestId("cup-card")).toBeHidden();
+    await expect(page.getByTestId("match-calendar-card")).toHaveCount(0);
+    await expect(page.getByTestId("cup-card")).toHaveCount(0);
+    expect(asked).toEqual([]);
     expect(await fullOrangeActions(page)).toEqual(["next-match"]);
 
     const table = tableOf(page);
