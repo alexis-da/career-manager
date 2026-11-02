@@ -2,12 +2,8 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { cn } from "@/src/lib/utils";
-import { LanguageSwitcher } from "./language-switcher";
 
-/**
- * The foot of the pages outside a save (inside a .brand scope): what a page adds, the privacy link, and the language
- * switcher at the end of the line.
- */
+/** The foot of the pages outside a save: what a page adds, and the privacy link. */
 export function BrandFooter({ children, className }: { children?: ReactNode; className?: string }) {
   const t = useTranslations("footer");
   return (
@@ -20,7 +16,6 @@ export function BrandFooter({ children, className }: { children?: ReactNode; cla
       >
         {t("privacy")}
       </Link>
-      <LanguageSwitcher className="ml-auto" />
     </footer>
   );
 }

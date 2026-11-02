@@ -1,0 +1,41 @@
+import Image from "next/image";
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { cn } from "@/src/lib/utils";
+import { BrandFooter } from "./brand-footer";
+import { LanguageSwitcher } from "./language-switcher";
+
+type PublicPageProps = {
+  children: ReactNode;
+  tools?: ReactNode; // what a page offers beside the game's mark on a computer, under its content on a phone
+  footer?: ReactNode; // what it adds to its foot
+  className?: string; // its width, « max-w-6xl » for instance
+};
+
+/**
+ * A page outside a save: the game's mark and the language on one line, the page, its foot. One DOM: `tools` come after the
+ * content, and go up to the first line from 1024 px.
+ */
+export function PublicPage({ children, tools, footer, className }: PublicPageProps) {
+  return (
+    <main className="flex-1 bg-background text-foreground">
+      <div
+        className={cn(
+          "mx-auto grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-6 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:gap-y-10 lg:px-8 lg:py-8",
+          className,
+        )}
+      >
+        <Link href="/" data-testid="public-home" className="flex min-h-11 w-fit items-center gap-2.5">
+          <Image src="/brand/late-winner-icone.svg" alt="" width={36} height={36} unoptimized />
+          <span className="font-heading text-2xl leading-none">Late Winner</span>
+        </Link>
+        <LanguageSwitcher className="lg:col-start-3 lg:row-start-1" />
+        <div className="col-span-full min-w-0 self-start lg:row-start-2">{children}</div>
+        {tools !== undefined && (
+          <div className="col-span-full min-w-0 lg:col-span-1 lg:col-start-2 lg:row-start-1">{tools}</div>
+        )}
+        <BrandFooter className="col-span-full">{footer}</BrandFooter>
+      </div>
+    </main>
+  );
+}

@@ -5,39 +5,40 @@
     "accountDeleted": "Your account and your careers have been deleted.",
     "otherDevice": "Already have a career on another device?",
     "intro": "Pick up a career or start a new one.",
-    "saves": "Careers",
+    "saves": "Your careers",
     "saveCount": "{count, plural, =0 {No careers yet.} one {# career} other {# careers}}",
-    "columns": {
-      "name": "Name",
-      "manager": "Manager",
-      "club": "Club",
-      "date": "In-game date",
-      "actions": "Actions"
-    },
+    "resume": "Resume",
     "challengeBadge": "Challenge",
     "challengeSaveName": "Challenge — week {week}"
   },
   "createSave": {
+    "title": {
+      "first": "Choose your",
+      "second": "challenge"
+    },
+    "pitch": "{count} clubs, two divisions a country, a cup and promotions. Take a club and bring it to the top.",
     "name": "Career name",
     "namePlaceholder": "My career",
     "defaultName": "{club} career",
-    "manager": "Manager",
-    "managerPlaceholder": "Your name",
+    "manager": "Your manager name",
     "club": "Choose your club",
-    "allClubs": "Or pick from all {count} clubs",
+    "search": "Search the {count} clubs",
+    "searchEmpty": "No club matches.",
+    "browse": "Browse the {count} clubs",
     "suggestions": {
       "budget": "Budget {amount}",
+      "reputation": "Reputation {reputation}",
       "favourite": {
-        "label": "Favourite",
-        "pitch": "A strong squad and a big budget: you're playing for the title."
+        "label": "Easy · favourite",
+        "pitch": "Division 1 · Goal: the title"
       },
       "mid-table": {
-        "label": "Mid-table",
-        "pitch": "A solid club, yours to take higher."
+        "label": "Balanced · recommended",
+        "pitch": "Division 1 · Goal: the top 6"
       },
       "comeback": {
-        "label": "Comeback",
-        "pitch": "A Division 2 club on a small budget: go for promotion."
+        "label": "Comeback · Division 2",
+        "pitch": "Back up to Division 1"
       }
     },
     "clubPlaceholder": "Choose a club",
@@ -46,7 +47,7 @@
     "seed": "Seed (optional)",
     "seedHint": "Two careers with the same seed and the same club play out identically.",
     "seedPlaceholder": "Random if left empty",
-    "submit": "Start the career",
+    "submit": "Start my career",
     "pending": "Building your world…",
     "errors": {
       "nameRequired": "Give the career a name.",

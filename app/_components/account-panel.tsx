@@ -18,18 +18,21 @@ function GoogleMark() {
   );
 }
 
-/**
- * « Continuer avec Google »: off to Google, back to the home page. With compact, « Google » alone on small screens,
- * for a one-line banner.
- */
-export function GoogleSignInButton({ compact = false, className }: { compact?: boolean; className?: string }) {
+type GoogleSignInButtonProps = {
+  compact?: boolean; // « Google » alone on small screens, for a one-line banner
+  tall?: boolean; // 44 px at every width, beside the game's mark on the home page
+  className?: string;
+};
+
+/** « Continuer avec Google »: off to Google, back to the home page. */
+export function GoogleSignInButton({ compact = false, tall = false, className }: GoogleSignInButtonProps) {
   const t = useTranslations("account");
   return (
     <form action={signInWithGoogleAction} className={className}>
       <Button
         type="submit"
         variant="outline"
-        className={cn("gap-2 font-semibold", compact ? "h-7 px-2.5 text-xs" : "h-9")}
+        className={cn("gap-2 font-semibold", compact ? "h-7 px-2.5 text-xs" : tall ? "h-11 px-4.5" : "h-9")}
         data-testid="google-sign-in"
       >
         <GoogleMark />
@@ -42,8 +45,8 @@ export function GoogleSignInButton({ compact = false, className }: { compact?: b
 }
 
 /**
- * The player's account, on the pages outside a save (inside a .brand scope): « Continuer avec Google » when not
- * signed in, an anonymous player included; the account's name, picture and « Se déconnecter » otherwise.
+ * The player's account, on the pages outside a save: « Continuer avec Google » when not signed in, an anonymous player
+ * included; the account's name, picture and « Se déconnecter » otherwise.
  */
 export function AccountPanel({ user, className }: { user: CurrentUser | null; className?: string }) {
   const t = useTranslations("account");
@@ -52,12 +55,12 @@ export function AccountPanel({ user, className }: { user: CurrentUser | null; cl
   }
   const label = user.name ?? user.email ?? t("googleAccount");
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1", className)}>
       {user.image !== null && (
         // Google's picture as it is: no image optimisation for a remote host.
         <Image src={user.image} alt="" width={32} height={32} unoptimized referrerPolicy="no-referrer" className="size-8 rounded-full" />
       )}
-      <span className="text-sm font-semibold" data-testid="account-name">
+      <span className="min-w-0 text-sm font-semibold wrap-break-word" data-testid="account-name">
         {label}
       </span>
       <form action={signOutAction}>

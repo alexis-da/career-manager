@@ -50,6 +50,19 @@ describe("suggestClubs", () => {
     expect(midTable.budget).toBeGreaterThan(comeback.budget);
   });
 
+  it("gives each club the reputation a save starts it with, its level before the players are drawn", () => {
+    const [favourite, midTable, comeback] = suggestClubs([
+      { tier: 1, clubs: division("d1", 18) },
+      { tier: 2, clubs: division("d2", 18) },
+    ]);
+
+    expect(favourite.reputation).toBe(clubFinances(1, 18, 1).reputation);
+    expect(midTable.reputation).toBe(clubFinances(10, 18, 1).reputation);
+    expect(comeback.reputation).toBe(clubFinances(9, 18, 2).reputation);
+    expect(favourite.reputation).toBeGreaterThan(midTable.reputation);
+    expect(midTable.reputation).toBeGreaterThan(comeback.reputation);
+  });
+
   it("leaves out what a country does not have", () => {
     expect(suggestClubs([{ tier: 1, clubs: division("d1", 18) }]).map(({ kind }) => kind)).toEqual(["favourite", "mid-table"]);
     expect(suggestClubs([])).toEqual([]);

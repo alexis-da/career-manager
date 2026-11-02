@@ -1,43 +1,44 @@
 {
   "home": {
-    "newSave": "Nouvelle partie",
+    "newSave": "Nouvelle carrière",
     "seasonStart": "La saison {season} commence le {date}.",
     "accountDeleted": "Ton compte et tes parties ont été supprimés.",
     "otherDevice": "Déjà une carrière sur un autre appareil ?",
     "intro": "Reprends une carrière ou commences-en une nouvelle.",
-    "saves": "Parties",
-    "saveCount": "{count, plural, =0 {Aucune partie pour l'instant.} one {# partie} other {# parties}}",
-    "columns": {
-      "name": "Nom",
-      "manager": "Manager",
-      "club": "Club",
-      "date": "Date en jeu",
-      "actions": "Actions"
-    },
+    "saves": "Tes carrières",
+    "saveCount": "{count, plural, =0 {Aucune carrière pour l'instant.} one {# carrière} other {# carrières}}",
+    "resume": "Reprendre",
     "challengeBadge": "Défi",
     "challengeSaveName": "Défi — semaine {week}"
   },
   "createSave": {
+    "title": {
+      "first": "Choisis",
+      "second": "ton défi"
+    },
+    "pitch": "{count} clubs, deux divisions par pays, une coupe et des montées. Prends un club et amène-le au sommet.",
     "name": "Nom de la partie",
     "namePlaceholder": "Ma carrière",
     "defaultName": "Carrière {club}",
-    "manager": "Manager",
-    "managerPlaceholder": "Ton nom",
+    "manager": "Ton nom de manager",
     "club": "Choisis ton club",
-    "allClubs": "Ou parmi les {count} clubs du jeu",
+    "search": "Chercher parmi les {count} clubs",
+    "searchEmpty": "Aucun club ne correspond.",
+    "browse": "Parcourir les {count} clubs",
     "suggestions": {
       "budget": "Budget {amount}",
+      "reputation": "Réputation {reputation}",
       "favourite": {
-        "label": "Favori",
-        "pitch": "Un effectif fort, un gros budget : tu joues le titre."
+        "label": "Facile · favori",
+        "pitch": "Division 1 · Objectif : le titre"
       },
       "mid-table": {
-        "label": "Milieu de tableau",
-        "pitch": "Un club solide, à toi de le faire grimper."
+        "label": "Équilibré · conseillé",
+        "pitch": "Division 1 · Objectif : le top 6"
       },
       "comeback": {
-        "label": "Remontée",
-        "pitch": "Un club de Division 2, un petit budget : vise la montée."
+        "label": "Remontée · Division 2",
+        "pitch": "Remonte en Division 1"
       }
     },
     "clubPlaceholder": "Choisir un club",
@@ -46,7 +47,7 @@
     "seed": "Graine (facultative)",
     "seedHint": "Deux parties de même graine et même club se jouent à l'identique.",
     "seedPlaceholder": "Tirée au hasard si vide",
-    "submit": "Créer la partie",
+    "submit": "Lancer ma carrière",
     "pending": "Création de ton monde…",
     "errors": {
       "nameRequired": "Donne un nom à la partie.",

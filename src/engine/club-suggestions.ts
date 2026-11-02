@@ -18,6 +18,7 @@ export type ClubSuggestion = {
   clubId: string;
   name: string;
   budget: number; // euros: the transfer budget it starts with
+  reputation: number; // the one it starts with: the club's level, its players being drawn with a save
 };
 
 /**
@@ -29,9 +30,11 @@ export function suggestClubs(competitions: readonly SuggestableCompetition[]): C
   const pick = (kind: SuggestionKind, tier: CompetitionTier, rankAmong: (clubs: number) => number): ClubSuggestion[] => {
     const clubs = competitions.find((competition) => competition.tier === tier)?.clubs ?? [];
     const club = clubs.find(({ rank }) => rank === rankAmong(clubs.length));
-    return club === undefined
-      ? []
-      : [{ kind, clubId: club.id, name: club.name, budget: clubFinances(club.rank, clubs.length, tier).budget }];
+    if (club === undefined) {
+      return [];
+    }
+    const { budget, reputation } = clubFinances(club.rank, clubs.length, tier);
+    return [{ kind, clubId: club.id, name: club.name, budget, reputation }];
   };
   return [
     ...pick("favourite", 1, () => 1),

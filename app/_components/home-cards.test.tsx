@@ -1,0 +1,139 @@
+import type { ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+import type { SaveSummary } from "@/src/db/saves";
+import type { ClubSuggestion } from "@/src/engine/club-suggestions";
+import type { Locale } from "@/src/i18n/locale";
+import { inLanguage } from "@/src/i18n/test-intl";
+import { CreateSaveForm, type CreatableCompetition } from "./create-save-form";
+import { SaveCard } from "./save-card";
+
+// The forms alone are rendered here: a Server Action needs a request.
+vi.mock("@/app/actions", () => ({ createSaveAction: vi.fn(), deleteSaveAction: vi.fn() }));
+
+const render = (element: ReactNode, locale?: Locale): string => renderToStaticMarkup(inLanguage(element, locale));
+
+const COMPETITIONS: CreatableCompetition[] = [
+  {
+    code: "fr.1",
+    country: "fr",
+    countryName: "France",
+    tier: 1,
+    clubs: [
+      { id: "paris", name: "Paris Saint-Germain FC", rank: 1 },
+      { id: "toulouse", name: "Toulouse FC", rank: 10 },
+      { id: "lens", name: "RC Lens", rank: 2 },
+    ],
+  },
+  { code: "fr.2", country: "fr", countryName: "France", tier: 2, clubs: [{ id: "grenoble", name: "Grenoble Foot 38", rank: 9 }] },
+];
+
+const SUGGESTIONS: ClubSuggestion[] = [
+  { kind: "favourite", clubId: "paris", name: "Paris Saint-Germain FC", budget: 150_000_000, reputation: 90 },
+  { kind: "mid-table", clubId: "toulouse", name: "Toulouse FC", budget: 37_100_000, reputation: 71 },
+  { kind: "comeback", clubId: "grenoble", name: "Grenoble Foot 38", budget: 6_300_000, reputation: 51 },
+];
+
+/** The markup of a suggestion's card. */
+const cardOf = (markup: string, kind: ClubSuggestion["kind"]): string =>
+  new RegExp(`data-testid="club-suggestion-${kind}".*?</label>`).exec(markup)?.[0] ?? "";
+
+const SAVE: SaveSummary = {
+  id: "save-1",
+  name: "Carrière Toulouse FC",
+  managerName: "Alexis",
+  currentDate: new Date("2026-07-01T00:00:00Z"),
+  challengeWeek: null,
+  club: { name: "Toulouse FC" },
+};
+
+describe("the creation form", () => {
+  it("starts on the recommended card, the club and the career's name following it", () => {
+    const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
+
+    expect(markup).toContain('name="clubId" value="toulouse"');
+    expect(markup).toContain('value="Carrière Toulouse FC"');
+    expect(cardOf(markup, "mid-table")).toContain('checked=""');
+    expect(cardOf(markup, "mid-table")).toContain("border-(--club)");
+    expect(cardOf(markup, "favourite")).not.toContain('checked=""');
+    expect(cardOf(markup, "comeback")).not.toContain('checked=""');
+  });
+
+  it("chooses nothing without a suggestion", () => {
+    const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={[]} />);
+
+    expect(markup).toContain('name="clubId" value=""');
+    expect(markup).toContain("Choisir un club");
+  });
+
+  it("gives the title's last word in orange, on two lines, at the level the page asks for", () => {
+    const french = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
+    const english = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} titleLevel="h2" />, "en");
+
+    expect(french).toMatch(/<h1[^>]*>Choisis <br\/>ton <span class="text-\(--club\)">défi<\/span><\/h1>/);
+    expect(english).toMatch(/<h2[^>]*>Choose your <br\/><span class="text-\(--club\)">challenge<\/span><\/h2>/);
+    expect(english).not.toContain("<h1");
+  });
+
+  it("counts the clubs it offers in its pitch, its search and its list", () => {
+    const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
+
+    expect(markup).toContain("4 clubs, deux divisions par pays");
+    expect(markup).toContain('placeholder="Chercher parmi les 4 clubs"');
+    expect(markup).toContain("Parcourir les 4 clubs");
+  });
+
+  it("folds the career's name and the seed under the options", () => {
+    const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
+
+    expect(markup).toMatch(/<details class="group">.*data-testid="save-name".*data-testid="seed".*<\/details>/);
+  });
+
+  it("names a card's level, read by screen readers beside its figure, and its budget", () => {
+    const card = cardOf(render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />), "favourite");
+
+    expect(card).toContain("Facile · favori");
+    expect(card).toContain('<span class="sr-only">Réputation 90</span><span aria-hidden="true"');
+    expect(card).toContain("Budget 150,0 M€");
+  });
+
+  it("calls the third card a comeback, the challenge being the week's", () => {
+    const french = cardOf(render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />), "comeback");
+    const english = cardOf(render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />, "en"), "comeback");
+
+    expect(french).toContain("Remontée · Division 2");
+    expect(french).not.toContain("Défi");
+    expect(english).toContain("Comeback · Division 2");
+    expect(english).not.toContain("Challenge");
+  });
+});
+
+describe("a career of the home page", () => {
+  it("gives its name, club, manager and date, by its initials and no colour of its club", () => {
+    const markup = render(<SaveCard save={SAVE} main={false} />);
+
+    expect(markup).toContain('data-save-name="Carrière Toulouse FC"');
+    expect(markup).toContain("Toulouse FC");
+    expect(markup).toContain("Alexis · 1er juillet 2026");
+    expect(markup).toContain(">TO<");
+    expect(markup).not.toContain("#123456");
+    expect(markup).not.toContain("#654321");
+  });
+
+  it("resumes in orange only as the screen's main action", () => {
+    const orange = "bg-(--club)";
+    const openSave = (markup: string) => /<a[^>]*data-testid="open-save"[^>]*>/.exec(markup)?.[0] ?? "";
+
+    expect(openSave(render(<SaveCard save={SAVE} main />))).toContain(orange);
+    expect(openSave(render(<SaveCard save={SAVE} main={false} />))).not.toContain(orange);
+  });
+
+  it("names a challenge career from its week, in the player's language, with its mark", () => {
+    const challenge: SaveSummary = { ...SAVE, name: "", challengeWeek: 45 };
+
+    expect(render(<SaveCard save={challenge} main={false} />)).toContain("Défi — semaine 45");
+    const english = render(<SaveCard save={challenge} main={false} />, "en");
+    expect(english).toContain("Challenge — week 45");
+    expect(english).toContain(">Challenge<");
+  });
+});

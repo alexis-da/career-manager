@@ -1,10 +1,7 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { getCurrentUser } from "@/src/auth/current-user";
-import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
-import { Badge } from "@/src/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { listClubsByCompetition } from "@/src/db/clubs";
 import { countOwnedSaves, listSaves } from "@/src/db/saves";
 import { suggestClubs } from "@/src/engine/club-suggestions";
@@ -13,16 +10,15 @@ import type { Country } from "@/src/i18n/countries";
 import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 import { canCreateSave } from "@/src/lib/limits";
-import { cn } from "@/src/lib/utils";
-import { AccountPanel } from "./_components/account-panel";
-import { BrandFooter } from "./_components/brand-footer";
-import { BrandHeader } from "./_components/brand-header";
+import { AccountPanel, GoogleSignInButton } from "./_components/account-panel";
 import { ChallengeTeaser } from "./_components/challenge-teaser";
 import { CreateSaveForm } from "./_components/create-save-form";
 import { DeleteAccountDialog } from "./_components/delete-account-dialog";
-import { DeleteSaveDialog } from "./_components/delete-save-dialog";
+import { PublicPage } from "./_components/public-page";
+import { SaveCard } from "./_components/save-card";
 import { SaveLimitNotice } from "./_components/save-limit-notice";
 import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
+import { HOME_COLUMNS } from "./_lib/home-columns";
 
 export const dynamic = "force-dynamic";
 
@@ -45,46 +41,59 @@ async function creationChoices(): Promise<ComponentProps<typeof CreateSaveForm>>
   return { competitions, suggestions: suggestClubs(listed.filter(({ country }) => country === SUGGESTED_COUNTRY[locale])) };
 }
 
-/** The season a new save starts, above the creation form. */
-async function NewSaveIntro() {
-  const [t, locale] = await Promise.all([getTranslations("home"), getLocale()]);
+/** The foot's lines on the game: the tagline and the catchphrase in English, the brand's language, its languages, its first day. */
+async function GameFacts() {
+  const [t, tBrand, locale] = await Promise.all([getTranslations("home"), getTranslations("brand"), getLocale()]);
   return (
-    <div className="space-y-1">
-      <h2 className="eyebrow">{t("newSave")}</h2>
-      <p className="text-xs text-muted-foreground">
-        {t("seasonStart", { season: seasonLabel(WORLD_START_YEAR), date: formatDate(WORLD_START_DATE, locale) })}
-      </p>
+    <>
+      <p lang="en">The football career game · Take your club to the top</p>
+      <p>{tBrand("languages")}</p>
+      <p>{t("seasonStart", { season: seasonLabel(WORLD_START_YEAR), date: formatDate(WORLD_START_DATE, locale) })}</p>
+    </>
+  );
+}
+
+/** What the page offers beside the game's mark from 1024 px, on one line; a card under the page below that. */
+function HomeTools({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-card bg-card p-5 lg:flex-row lg:items-center lg:gap-4 lg:rounded-none lg:bg-transparent lg:p-0">
+      <ChallengeTeaser />
+      {children}
     </div>
   );
 }
 
-/**
- * A first visit, without a cookie or a session: play in one click. The logo and the catchphrase, the creation form
- * at once (the first save creates the anonymous player), and Google second, for a player coming back on another device.
- */
+/** Google for a player without an account, second to the creation form: the way back to careers played elsewhere. */
+function OtherDevice() {
+  const t = useTranslations("home");
+  return (
+    <div className="space-y-2.5">
+      <p className="text-sm text-muted-foreground lg:hidden">{t("otherDevice")}</p>
+      <GoogleSignInButton tall />
+    </div>
+  );
+}
+
+/** A first visit, without a cookie or a session: play in one click, the first save creating the anonymous player. */
 async function WelcomePage({ accountDeleted }: { accountDeleted: boolean }) {
   const [choices, t] = await Promise.all([creationChoices(), getTranslations("home")]);
   return (
-    <main className="brand flex-1 bg-background text-foreground">
-      <div className="mx-auto w-full max-w-md space-y-8 px-4 py-10">
-        <BrandHeader logoHeight={80} />
-        {accountDeleted && (
-          <p role="status" className="rounded-lg border bg-card px-4 py-3 text-sm">
-            {t("accountDeleted")}
-          </p>
-        )}
-        <section className="space-y-4 rounded-lg border bg-card p-5">
-          <NewSaveIntro />
-          <CreateSaveForm {...choices} />
-        </section>
-        <ChallengeTeaser />
-        <section className="space-y-3">
-          <p className="text-sm text-muted-foreground">{t("otherDevice")}</p>
-          <AccountPanel user={null} />
-        </section>
-        <BrandFooter />
-      </div>
-    </main>
+    <PublicPage
+      className="max-w-6xl"
+      tools={
+        <HomeTools>
+          <OtherDevice />
+        </HomeTools>
+      }
+      footer={<GameFacts />}
+    >
+      {accountDeleted && (
+        <p role="status" className="mb-6 rounded-lg bg-card px-4 py-3 text-sm">
+          {t("accountDeleted")}
+        </p>
+      )}
+      <CreateSaveForm {...choices} />
+    </PublicPage>
   );
 }
 
@@ -93,114 +102,52 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   if (user === null) {
     return <WelcomePage accountDeleted={(await searchParams)[ACCOUNT_DELETED_PARAM] === "1"} />;
   }
-  const [saves, choices, ownedSaves, t, locale] = await Promise.all([
+  const [saves, choices, ownedSaves, t] = await Promise.all([
     listSaves(user),
     creationChoices(),
     countOwnedSaves(user.id),
     getTranslations("home"),
-    getLocale(),
   ]);
   const atLimit = !canCreateSave(user.kind, ownedSaves);
-  // A challenge save's name is the game's, not the player's: in the player's language.
-  const nameOf = (save: (typeof saves)[number]) =>
-    save.challengeWeek === null ? save.name : t("challengeSaveName", { week: save.challengeWeek });
 
   return (
-    <main className="brand flex-1 bg-background text-foreground">
-      <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-10">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <BrandHeader logoHeight={80} />
-          <AccountPanel user={user} />
-        </div>
-
-        <p className="text-muted-foreground">{t("intro")}</p>
-        {/* One column the screen's width under lg, two from lg: the saves' is minmax(0, 1fr), never as wide as their table. */}
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <section className="space-y-3 rounded-lg border bg-card p-5" data-testid="saves">
-            <div className="flex items-baseline justify-between gap-2">
-              <h2 className="eyebrow">{t("saves")}</h2>
-              <p className="text-xs text-muted-foreground tabular-nums">{t("saveCount", { count: saves.length })}</p>
-            </div>
-            {/* On a phone, each save is a card rather than a row: its name and the delete button, its club, then its
-                manager and date. Same rows, laid out by CSS. */}
-            {saves.length > 0 && (
-              <Table className="max-sm:block">
-                <TableHeader className="max-sm:hidden">
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className={TABLE_HEAD}>{t("columns.name")}</TableHead>
-                    <TableHead className={TABLE_HEAD}>{t("columns.manager")}</TableHead>
-                    <TableHead className={TABLE_HEAD}>{t("columns.club")}</TableHead>
-                    <TableHead className={TABLE_HEAD}>{t("columns.date")}</TableHead>
-                    <TableHead className={cn(TABLE_HEAD, "text-right")}>
-                      <span className="sr-only">{t("columns.actions")}</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="max-sm:block">
-                  {saves.map((save) => (
-                    <TableRow
-                      key={save.id}
-                      data-save-name={save.name}
-                      className={cn(TABLE_ROW, "max-sm:flex max-sm:h-auto max-sm:flex-wrap max-sm:items-center max-sm:gap-x-3 max-sm:py-2")}
-                    >
-                      <TableCell className={cn(TABLE_CELL, "font-semibold max-sm:min-w-0 max-sm:flex-1 max-sm:px-0 max-sm:whitespace-normal")}>
-                        <span className="flex items-center gap-2">
-                          <Link
-                            href={`/saves/${save.id}`}
-                            className="hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
-                            data-testid="open-save"
-                          >
-                            {nameOf(save)}
-                          </Link>
-                          {save.challengeWeek !== null && (
-                            <Badge variant="outline" className="border-(--brand-orange) text-(--brand-orange)">
-                              {t("challengeBadge")}
-                            </Badge>
-                          )}
-                        </span>
-                      </TableCell>
-                      <TableCell className={cn(TABLE_CELL, "max-sm:order-4 max-sm:px-0 max-sm:text-muted-foreground")}>
-                        {save.managerName}
-                      </TableCell>
-                      <TableCell className={cn(TABLE_CELL, "max-sm:order-3 max-sm:basis-full max-sm:px-0 max-sm:whitespace-normal")}>
-                        <span className="flex items-center gap-2">
-                          <span
-                            aria-hidden
-                            className="h-4 w-1 shrink-0 rounded-full"
-                            style={{ background: save.club.primaryColor }}
-                          />
-                          {save.club.name}
-                        </span>
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          TABLE_CELL,
-                          "tabular-nums max-sm:order-5 max-sm:px-0 max-sm:text-muted-foreground max-sm:before:mr-3 max-sm:before:content-['·']",
-                        )}
-                      >
-                        {formatDate(save.currentDate, locale)}
-                      </TableCell>
-                      <TableCell className={cn(TABLE_CELL, "text-right max-sm:order-2 max-sm:px-0")}>
-                        <DeleteSaveDialog saveId={save.id} saveName={nameOf(save)} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </section>
-
-          <div className="space-y-5">
-            <section className="space-y-4 rounded-lg border bg-card p-5">
-              <NewSaveIntro />
-              {atLimit ? <SaveLimitNotice user={user} /> : <CreateSaveForm {...choices} />}
-            </section>
-            <ChallengeTeaser />
+    <PublicPage
+      className="max-w-6xl"
+      tools={
+        <HomeTools>
+          {/* At the limit, an anonymous player's Google button is the notice's. */}
+          {user.kind === "REGISTERED" ? <AccountPanel user={user} /> : !atLimit && <OtherDevice />}
+        </HomeTools>
+      }
+      footer={
+        <>
+          <GameFacts />
+          {user.kind === "REGISTERED" && <DeleteAccountDialog />}
+        </>
+      }
+    >
+      <div className="space-y-12 lg:space-y-16">
+        <section aria-labelledby="saves-title" className={HOME_COLUMNS} data-testid="saves">
+          <div className="space-y-2 lg:space-y-4">
+            <h1 id="saves-title" className="font-heading text-[2.75rem] leading-[0.95] lg:text-7xl lg:leading-[0.88]">
+              {t("saves")}
+            </h1>
+            <p className="text-[0.9375rem] text-muted-foreground lg:text-[1.1875rem]">{t("intro")}</p>
+            <p className="text-sm text-muted-foreground tabular-nums">{t("saveCount", { count: saves.length })}</p>
           </div>
-        </div>
-
-        <BrandFooter>{user.kind === "REGISTERED" && <DeleteAccountDialog />}</BrandFooter>
+          <div className="min-w-0 space-y-3">
+            {saves.length > 0 && (
+              <ul className="space-y-3">
+                {saves.map((save, index) => (
+                  <SaveCard key={save.id} save={save} main={atLimit && index === 0} />
+                ))}
+              </ul>
+            )}
+            {atLimit && <SaveLimitNotice user={user} />}
+          </div>
+        </section>
+        {!atLimit && <CreateSaveForm {...choices} titleLevel="h2" />}
       </div>
-    </main>
+    </PublicPage>
   );
 }

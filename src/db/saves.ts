@@ -340,7 +340,7 @@ export type SaveSummary = {
   currentDate: Date;
   // A save of the weekly challenge: the number of its week, which names it in the player's language; null otherwise.
   challengeWeek: number | null;
-  club: { name: string; primaryColor: string; secondaryColor: string };
+  club: { name: string };
 };
 
 const SAVE_SUMMARY_SELECT = {
@@ -351,7 +351,7 @@ const SAVE_SUMMARY_SELECT = {
   challenge: { select: { weekKey: true } },
   clubSaves: {
     where: { isManaged: true },
-    select: { club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
+    select: { club: { select: { slug: true, name: true } } },
   },
 } as const;
 
@@ -367,14 +367,13 @@ function toSaveSummary(save: {
   if (managed === undefined) {
     throw new Error(`Save ${save.id} has no managed club`);
   }
-  const { primaryColor, secondaryColor } = managed.club;
   return {
     id: save.id,
     name: save.name,
     managerName: save.managerName,
     currentDate: save.currentDate,
     challengeWeek: save.challenge === null ? null : isoWeekNumber(save.challenge.weekKey),
-    club: { name: displayClubName(managed.club), primaryColor, secondaryColor },
+    club: { name: displayClubName(managed.club) },
   };
 }
 
