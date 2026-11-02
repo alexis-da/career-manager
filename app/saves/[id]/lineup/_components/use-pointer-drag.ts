@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, type MouseEvent, type PointerEvent, type RefCallback } from "react";
+import { useCallback, useRef, useState, type MouseEvent, type PointerEvent, type RefCallback, type RefObject } from "react";
 
 /** What is dragged: a starter from his slot, or a player from outside the eleven. */
 export type DragSource = { kind: "slot"; index: number; key: string } | { kind: "reserve"; key: string };
@@ -73,9 +73,13 @@ function autoScrollDirection({ touch, dragging, y }: Press): -1 | 0 | 1 {
  * press only becomes a drag past DRAG_THRESHOLD_PX; a finger's, once it has rested TOUCH_HOLD_MS, so that a swipe
  * still scrolls the page (the sources leave touch-action alone, and a held finger's moves are kept from scrolling).
  * The click that follows a drag is swallowed, so a press that did not move stays a click. Drop targets are found under
- * the pointer by their DROP_TARGET_ATTRIBUTE. The keyboard keeps the click-click way.
+ * the pointer by their DROP_TARGET_ATTRIBUTE. The keyboard keeps the click-click way. In a full-screen panel, which
+ * scrolls on its own over a locked page, scrollContainer is what the drag scrolls by itself instead of the page.
  */
-export function usePointerDrag(onDrop: (source: DragSource, target: DropTarget) => void) {
+export function usePointerDrag(
+  onDrop: (source: DragSource, target: DropTarget) => void,
+  { scrollContainer }: { scrollContainer?: RefObject<HTMLElement | null> } = {},
+) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const press = useRef<Press | null>(null);
   const swallowClick = useRef(false);
@@ -96,7 +100,13 @@ export function usePointerDrag(onDrop: (source: DragSource, target: DropTarget) 
       lastFrameAt.current = null;
       return;
     }
-    window.scrollBy(0, direction * AUTO_SCROLL_PX_PER_MS * (now - (lastFrameAt.current ?? now)));
+    const distance = direction * AUTO_SCROLL_PX_PER_MS * (now - (lastFrameAt.current ?? now));
+    const container = scrollContainer?.current ?? null;
+    if (container === null) {
+      window.scrollBy(0, distance);
+    } else {
+      container.scrollBy(0, distance);
+    }
     lastFrameAt.current = now;
     follow(current);
     scrollFrame.current = requestAnimationFrame(keepScrolling);

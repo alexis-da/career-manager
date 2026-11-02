@@ -75,8 +75,10 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
   const [clock, setClock] = useState(startMinute); // match minutes, fractional
   const [kicksTaken, setKicksTaken] = useState(0);
   const [fast, setFast] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true); // the Coaching panel opens by itself on reaching a break
   const skipped = useRef(false);
   const continueRef = useRef<HTMLAnchorElement>(null);
+  const noFocus = useRef<HTMLElement>(null); // the Coaching button comes with the screen
 
   const playedExtraTime = match.decidedBy === "EXTRA_TIME" || match.decidedBy === "PENALTIES";
   const endMinute =
@@ -223,6 +225,13 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
         <HalfTime
           saveId={saveId}
           team={pause}
+          open={panelOpen}
+          onOpenChange={setPanelOpen}
+          returnFocusTo={noFocus}
+          home={match.home}
+          away={match.away}
+          homeGoals={homeGoals}
+          awayGoals={awayGoals}
           onResumed={() => router.replace(`/saves/${saveId}/live?reprise=${pause.phase === "HALF_TIME" ? 1 : 2}`)}
         />
       )}

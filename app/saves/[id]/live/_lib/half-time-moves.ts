@@ -1,7 +1,10 @@
 import { formationPositions, type FormationName } from "@/src/engine/formations";
 import { changeFormation, type LineupCandidate } from "@/src/engine/lineup";
-import { ratingAt } from "@/src/engine/positions";
+import { ratingAt, type Position } from "@/src/engine/positions";
 import type { Translator } from "@/src/i18n/translator";
+
+/** The gain of level, in points, from which the assistant suggests a substitution. */
+const MIN_SUGGESTED_GAIN = 1;
 
 /** The managed club's changes being made at half-time. */
 export type HalfTimeState = {
@@ -77,6 +80,91 @@ export function substitute(
       substitutions: [...state.substitutions, { in: incoming, out: outgoing }],
     },
   };
+}
+
+/**
+ * Undoes a substitution of this break: the player going off takes back the place of the one coming on, wherever a
+ * move or a formation has put him, and the one coming on goes back to the bench.
+ */
+export function cancelSubstitution(state: HalfTimeState, change: { in: string; out: string }): HalfTimeState {
+  if (!state.substitutions.some((substitution) => substitution.in === change.in && substitution.out === change.out)) {
+    return state;
+  }
+  return {
+    ...state,
+    starters: state.starters.map((key) => (key === change.in ? change.out : key)),
+    bench: [change.in, ...state.bench],
+    off: state.off.filter((key) => key !== change.out),
+    substitutions: state.substitutions.filter((substitution) => substitution.out !== change.out),
+  };
+}
+
+/** What the assistant needs to know of a player: the engine's condition (form and morale) on top of his rating. */
+type RatedCandidate = LineupCandidate & { condition: number };
+
+/** A player's level in a position, as the engine plays him there. */
+const levelAt = (player: RatedCandidate, position: Position): number => ratingAt(player, position) * player.condition;
+
+/** The substitution the assistant suggests. */
+export type SuggestedChange = {
+  slot: number;
+  position: Position; // the slot's, in the current formation
+  out: string;
+  in: string;
+  injured: boolean; // the player going off left the pitch injured
+  gain: number; // of level in the position
+};
+
+/** Whether a change comes before another: an injured player first, then the larger gain, then the player's key. */
+const comesBefore = (a: SuggestedChange, b: SuggestedChange): boolean => {
+  if (a.injured !== b.injured) {
+    return a.injured;
+  }
+  return a.gain === b.gain ? a.out < b.out : a.gain > b.gain;
+};
+
+/**
+ * The substitution the assistant suggests, or null: none left, nobody on the bench, or nobody worth it. Each player on
+ * the pitch is weighed against the best substitute in his slot, but for a sent-off player's slot and a player who came
+ * on at this break, the manager's own choice. An injured player goes first, whatever the gain; otherwise the largest
+ * gain, from MIN_SUGGESTED_GAIN. Ties go to the smaller key, so the input's order changes nothing.
+ */
+export function suggestChange(
+  state: HalfTimeState,
+  rules: HalfTimeRules,
+  players: readonly RatedCandidate[],
+): SuggestedChange | null {
+  const byKey = new Map(players.map((player) => [player.id, player]));
+  const bench = state.bench.flatMap((key) => byKey.get(key) ?? []);
+  if (bench.length === 0 || substitutionsMade(state, rules) >= rules.maxSubstitutions) {
+    return null;
+  }
+  const positions = formationPositions(state.formation);
+  const cameOn = new Set(state.substitutions.map((substitution) => substitution.in));
+  let best: SuggestedChange | null = null;
+  for (const [slot, key] of state.starters.entries()) {
+    const outgoing = key === null ? undefined : byKey.get(key);
+    if (outgoing === undefined || rules.sentOffSlots.has(slot) || cameOn.has(outgoing.id)) {
+      continue;
+    }
+    const position = positions[slot];
+    const incoming = bench.reduce((current, candidate) => {
+      const gap = levelAt(candidate, position) - levelAt(current, position);
+      return gap > 0 || (gap === 0 && candidate.id < current.id) ? candidate : current;
+    });
+    const change: SuggestedChange = {
+      slot,
+      position,
+      out: outgoing.id,
+      in: incoming.id,
+      injured: rules.injured.has(outgoing.id),
+      gain: levelAt(incoming, position) - levelAt(outgoing, position),
+    };
+    if ((change.injured || change.gain >= MIN_SUGGESTED_GAIN) && (best === null || comesBefore(change, best))) {
+      best = change;
+    }
+  }
+  return best;
 }
 
 /** Two slots exchange their players: a free repositioning. A sent-off player's slot stays empty. */

@@ -4,21 +4,59 @@
       "halfTime": "Mi-temps",
       "regulationEnd": "Fin du temps réglementaire"
     },
+    "paused": "Match en pause",
     "substitutions": "Remplacements : {made}/{max}",
     "oneMore": "un de plus pour la prolongation",
     "formation": "Dispositif",
     "injured": "{count, plural, one {{names} est sorti blessé} other {{names} sont sortis blessés}} : sans changement de ta part, le meilleur remplaçant au poste entre.",
+    "advice": {
+      "intro": "Ton adjoint :",
+      "open": "« ",
+      "close": " »",
+      "injuredOff": "{count, plural, one {{names} est sorti blessé} other {{names} sont sortis blessés}}.",
+      "injuredUnreplaced": "{count, plural, one {{names} est sorti blessé et ne peut pas être remplacé} other {{names} sont sortis blessés et ne peuvent pas tous être remplacés}} : on repart à {players, plural, =10 {dix} =9 {neuf} =8 {huit} =7 {sept} other {#}}.",
+      "playersLeft": "Tu joues à {players, plural, =10 {dix} =9 {neuf} =8 {huit} =7 {sept} other {#}}.",
+      "score": {
+        "leading": "On mène.",
+        "level": "C'est à égalité.",
+        "behind": "On est menés.",
+        "extraTime": "À égalité après 90 minutes : prolongation, puis tirs au but s'il le faut."
+      },
+      "change": {
+        "injured": "{in} est le mieux placé pour remplacer {out}.",
+        "form": "{in} est plus en forme que {out} : il ferait mieux à ce poste.",
+        "level": "{in} ferait mieux que {out} à ce poste.",
+        "noBetter": "Personne sur le banc ne ferait mieux.",
+        "noOther": "Je ne changerais rien d'autre.",
+        "noSubstitutionLeft": "Il ne te reste aucun remplacement."
+      },
+      "booked": "{count, plural, one {{names} a déjà un jaune} other {{names} ont déjà un jaune}} : un second et on finit à {players, plural, =10 {dix} =9 {neuf} =8 {huit} =7 {sept} other {#}}."
+    },
+    "suggestion": {
+      "title": "{count, plural, one {Changement conseillé · # restant} other {Changement conseillé · # restants}}",
+      "out": "Sort · forme {form}",
+      "outInjured": "Sort · blessé",
+      "in": "Entre · {position} {rating}",
+      "apply": "Touche la carte pour faire ce changement."
+    },
+    "planned": {
+      "title": "Prévu à la reprise",
+      "change": "{out} sort, {in} entre",
+      "cancel": "Annuler ce changement"
+    },
+    "lineup": {
+      "open": "Ouvrir la composition complète",
+      "close": "Replier la composition complète"
+    },
     "pitch": "Mon onze à la mi-temps",
     "bench": "Banc",
     "benchHint": "Glisse un remplaçant sur un joueur pour le faire entrer",
     "rating": "Note",
     "ratingAt": "Note au poste {position}",
     "noSubstitutes": "Plus aucun remplaçant.",
-    "off": "Sortis",
-    "cannotReturn": "Ne peut plus revenir",
     "resumeUnchanged": "Reprendre sans changement",
     "resume": {
-      "halfTime": "Reprendre la seconde période",
+      "halfTime": "Reprendre le match",
       "regulationEnd": "Jouer la prolongation"
     },
     "resuming": {

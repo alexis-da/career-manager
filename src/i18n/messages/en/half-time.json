@@ -4,21 +4,59 @@
       "halfTime": "Half-time",
       "regulationEnd": "End of normal time"
     },
+    "paused": "Match paused",
     "substitutions": "Substitutions: {made}/{max}",
     "oneMore": "one more for extra time",
     "formation": "Formation",
     "injured": "{count, plural, one {{names} has gone off injured} other {{names} have gone off injured}}: if you make no change, the best substitute for the position comes on.",
+    "advice": {
+      "intro": "Your assistant:",
+      "open": "“",
+      "close": "”",
+      "injuredOff": "{count, plural, one {{names} has gone off injured} other {{names} have gone off injured}}.",
+      "injuredUnreplaced": "{count, plural, one {{names} has gone off injured and cannot be replaced} other {{names} have gone off injured and cannot all be replaced}}: we restart with {players, plural, =10 {ten} =9 {nine} =8 {eight} =7 {seven} other {#}}.",
+      "playersLeft": "You're down to {players, plural, =10 {ten} =9 {nine} =8 {eight} =7 {seven} other {#}} men.",
+      "score": {
+        "leading": "We're ahead.",
+        "level": "It's level.",
+        "behind": "We're behind.",
+        "extraTime": "Level after 90 minutes: extra time, then penalties if needed."
+      },
+      "change": {
+        "injured": "{in} is the best option to replace {out}.",
+        "form": "{in} is in better form than {out}: he would do better in this position.",
+        "level": "{in} would do better than {out} in this position.",
+        "noBetter": "Nobody on the bench would do better.",
+        "noOther": "I wouldn't change anything else.",
+        "noSubstitutionLeft": "You have no substitutions left."
+      },
+      "booked": "{count, plural, one {{names} is already on a yellow} other {{names} are already on a yellow}}: a second one and we finish with {players, plural, =10 {ten} =9 {nine} =8 {eight} =7 {seven} other {#}}."
+    },
+    "suggestion": {
+      "title": "Suggested change · {count} left",
+      "out": "Off · form {form}",
+      "outInjured": "Off · injured",
+      "in": "On · {position} {rating}",
+      "apply": "Tap the card to make this change."
+    },
+    "planned": {
+      "title": "At the restart",
+      "change": "{out} off, {in} on",
+      "cancel": "Cancel this change"
+    },
+    "lineup": {
+      "open": "Open the full line-up",
+      "close": "Close the full line-up"
+    },
     "pitch": "My eleven at half-time",
     "bench": "Bench",
     "benchHint": "Drag a substitute onto a player to bring him on",
     "rating": "Rating",
     "ratingAt": "Rating at {position}",
     "noSubstitutes": "No substitutes left.",
-    "off": "Taken off",
-    "cannotReturn": "Cannot come back on",
     "resumeUnchanged": "Resume without changes",
     "resume": {
-      "halfTime": "Start the second half",
+      "halfTime": "Resume the match",
       "regulationEnd": "Play extra time"
     },
     "resuming": {
