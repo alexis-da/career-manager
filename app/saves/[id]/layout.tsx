@@ -1,10 +1,8 @@
 import { competitionName } from "@/src/i18n/countries";
 import { getLocale, getTranslations } from "next-intl/server";
-import { TrophyIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { LanguageSwitcher } from "@/app/_components/language-switcher";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { ClubInitials } from "@/src/components/club-initials";
 import { getSaveHeader } from "@/src/db/header";
@@ -73,7 +71,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               over, whose hero has the way on. Under lg, only those, on the Match screens, under the club's line. */}
           <div
             data-testid="header-next-match"
-            className="peer lg:mt-auto lg:space-y-2.5 lg:rounded-card lg:bg-primary lg:p-3.5 lg:empty:hidden max-lg:contents"
+            className="lg:mt-auto lg:space-y-2.5 lg:rounded-card lg:bg-primary lg:p-3.5 lg:empty:hidden max-lg:contents"
           >
             {header.nextMatch !== null && (
               <div className="leading-tight max-lg:hidden">
@@ -89,21 +87,6 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               liveMatch={header.liveMatch}
               worldVersion={header.worldVersion}
             />
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2 lg:justify-between lg:px-1 lg:peer-empty:mt-auto">
-            {/* Not on a phone, where the club's name needs the room: the home page's foot has it. */}
-            <LanguageSwitcher className="max-sm:hidden" />
-            {/* The weekly challenge, outside the save, among neither its entries nor their tabs. */}
-            <Link
-              href="/challenge"
-              title={t("challenge")}
-              data-testid="header-challenge"
-              className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-sm:size-11"
-            >
-              <TrophyIcon aria-hidden className="size-4" />
-              <span className="sr-only">{t("challenge")}</span>
-            </Link>
           </div>
         </header>
         {/* Under lg, room at the foot for the navigation. */}

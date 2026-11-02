@@ -3,7 +3,6 @@
     "home": "Late Winner · all careers",
     "saves": "All careers · Manager: {manager}",
     "season": "Season {season}",
-    "challenge": "Weekly challenge",
     "seasonFinished": "Season complete",
     "windowOpen": "Transfer window open",
     "windowClosed": "Transfer window closed",
@@ -25,7 +24,9 @@
     "lineup": "Line-up",
     "fixtures": "Fixtures",
     "standings": "Table",
-    "cup": "Cup"
+    "cup": "Cup",
+    "challenge": "Challenge",
+    "seasons": "Honours"
   },
   "gameActions": {
     "simulate": "Simulate until…",

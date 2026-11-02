@@ -29,8 +29,8 @@ const SIMULATION_TARGETS: Exclude<SimulationTarget, { kind: "date" }>[] = [
   { kind: "season-end" },
 ];
 
-/** One full orange action a screen: these entries have their own, « Recruter », « Vendre », « Enregistrer », « Prolonger ». */
-const OWN_ORANGE_ACTION: ReadonlySet<Section["key"]> = new Set(["team", "transfers"]);
+/** One full orange action a screen: these entries have their own, « Recruter », « Enregistrer », « Jouer le défi », « Partager ». */
+const OWN_ORANGE_ACTION: ReadonlySet<Section["key"]> = new Set(["team", "transfers", "club"]);
 
 /** A secondary action on the blue of the sidebar's card: outlined there. */
 const ON_BLUE = "lg:dark:border-on-blue/60 lg:dark:bg-transparent lg:dark:hover:bg-on-blue/10";

@@ -3,7 +3,6 @@
     "home": "Late Winner · toutes les parties",
     "saves": "Toutes les parties · Manager : {manager}",
     "season": "Saison {season}",
-    "challenge": "Défi de la semaine",
     "seasonFinished": "Saison terminée",
     "windowOpen": "Mercato ouvert",
     "windowClosed": "Mercato fermé",
@@ -25,7 +24,9 @@
     "lineup": "Composition",
     "fixtures": "Calendrier",
     "standings": "Classement",
-    "cup": "Coupe"
+    "cup": "Coupe",
+    "challenge": "Défi",
+    "seasons": "Palmarès"
   },
   "gameActions": {
     "simulate": "Simuler jusqu'à…",

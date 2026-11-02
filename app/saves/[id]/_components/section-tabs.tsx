@@ -3,9 +3,9 @@
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { SegmentedLinks } from "@/src/components/segmented";
-import { sectionAt, tabAt, tabsOf } from "../_lib/sections";
+import { sectionAt, tabAt, tabsOf, tabTestId } from "../_lib/sections";
 
-/** The tabs of the current entry, when it has several: « Effectif · Composition », « Calendrier · Classement · Coupe ». */
+/** The tabs of the current entry, when it has several: « Effectif · Composition », « Club · Défi · Palmarès ». */
 export function SectionTabs({ saveId, hasCup }: { saveId: string; hasCup: boolean }) {
   const t = useTranslations("nav");
   const base = `/saves/${saveId}`;
@@ -24,7 +24,7 @@ export function SectionTabs({ saveId, hasCup }: { saveId: string; hasCup: boolea
         href: `${base}/${tab}`,
         label: t(tab),
         active: tab === active,
-        testId: `nav-${tab}`,
+        testId: tabTestId(tab),
       }))}
     />
   );

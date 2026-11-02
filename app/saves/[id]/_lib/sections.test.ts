@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isLivePath, sectionAt, SECTIONS, tabAt, tabsOf } from "./sections";
+import { isLivePath, sectionAt, SECTIONS, tabAt, tabsOf, tabTestId } from "./sections";
 
 describe("a save's sections", () => {
   it("puts every screen of a save under one of the five entries", () => {
@@ -12,6 +12,8 @@ describe("a save's sections", () => {
     expect(entryOf("/cup")).toBe("match");
     expect(entryOf("/live")).toBe("match");
     expect(entryOf("/transfers")).toBe("transfers");
+    expect(entryOf("/club")).toBe("club");
+    expect(entryOf("/challenge")).toBe("club");
     expect(entryOf("/seasons")).toBe("club");
     expect(entryOf("/seasons/season-1")).toBe("club");
   });
@@ -46,6 +48,20 @@ describe("a save's sections", () => {
       expect(sectionAt(section.home).key).toBe(section.key);
       expect(sectionAt(section.computerHome ?? section.home).key).toBe(section.key);
     }
+  });
+
+  it("leads Club to its overview at every width, with the challenge and the honours beside it", () => {
+    const club = sectionAt("/club");
+    expect(club.home).toBe("/club");
+    expect(club.computerHome).toBeUndefined();
+    expect(tabsOf(club, false)).toEqual(["club", "challenge", "seasons"]);
+    expect(tabAt("/seasons/season-1")).toBe("seasons");
+  });
+
+  it("never gives a tab the test id of an entry", () => {
+    const entries = SECTIONS.map(({ key }) => `nav-${key}`);
+    expect(SECTIONS.flatMap(({ tabs }) => tabs).map(tabTestId).filter((id) => entries.includes(id))).toEqual([]);
+    expect(tabTestId("lineup")).toBe("nav-lineup");
   });
 
   it("leads Match to the calendar on a phone, to the table with the calendar beside it on a computer", () => {

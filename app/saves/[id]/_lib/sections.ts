@@ -1,5 +1,5 @@
 /** A screen of an entry that has several: its tab, named in the nav messages by this key, its path « /<key> ». */
-export type SectionTab = "squad" | "lineup" | "fixtures" | "standings" | "cup";
+export type SectionTab = "squad" | "lineup" | "fixtures" | "standings" | "cup" | "club" | "challenge" | "seasons";
 
 export type Section = {
   key: "dashboard" | "team" | "match" | "transfers" | "club"; // in the nav messages, and in its data-testid: « nav-team »
@@ -14,7 +14,7 @@ export const SECTIONS: readonly Section[] = [
   { key: "team", home: "/squad", computerHome: "/lineup", tabs: ["squad", "lineup"] },
   { key: "match", home: "/fixtures", computerHome: "/standings", tabs: ["fixtures", "standings", "cup"] },
   { key: "transfers", home: "/transfers", tabs: [] },
-  { key: "club", home: "/seasons", tabs: [] },
+  { key: "club", home: "/club", tabs: ["club", "challenge", "seasons"] },
 ];
 
 const LIVE_PATH = "/live";
@@ -40,6 +40,9 @@ export function sectionAt(path: string): Section {
   );
   return section ?? SECTIONS[0];
 }
+
+/** A tab's data-testid: « nav-lineup »; the tab named like its entry has its own, the entry keeping « nav-club ». */
+export const tabTestId = (tab: SectionTab): string => (tab === "club" ? "nav-club-overview" : `nav-${tab}`);
 
 /** The tabs of an entry in a save: « Coupe » only with a cup. */
 export function tabsOf(section: Section, hasCup: boolean): SectionTab[] {
