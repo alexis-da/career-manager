@@ -22,7 +22,8 @@ npx prisma studio      # inspecter la base
 npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
-npm run measure:balance # équilibrage des deux divisions : six saisons d'une partie 2 (base locale seulement)
+npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, saisons d'une partie 2 (base locale seulement)
+npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2 (base locale seulement)
 ```
 
 ## Règles non négociables
@@ -72,7 +73,7 @@ compétition actuelle du club, et **« Prochain match »** à la place de « Jou
 le prochain match du club, où seules les autres compétitions jouent, par tranches de 5 (`playUntilNextMatch`,
 `src/db/simulation.ts`), puis sa date avec mi-temps et direct. Une partie 1 garde « Jouer la journée ».
 
-**Équilibrage des deux divisions.** Mesuré par `npm run measure:balance` (six saisons d'un jumeau 2 de la démo, sur
+**Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
 première division vérifiée après chaque changement (2,84 buts, 46 % à domicile, 23 % de nuls, Bayern-Monza ~83 %,
 `match.test.ts`) ; celle de deuxième est épinglée dans `match-d2.slow.test.ts`. Jeunes : réputation et note lues dans
@@ -533,7 +534,7 @@ prisma/
   migrations/         # dont les migrations de données de référence (…_second_divisions, …_national_cups), générées, jamais éditées
   seed/               # import OpenFootball, couleurs des clubs, génération du monde ; reference-sql.ts : SQL des migrations de données
     data/             # calendriers OpenFootball (premières et deuxièmes divisions), club-colors.json, club-aliases-fallback.json
-scripts/              # measure-save-size.ts (npm run measure:size), measure-d2-balance.ts (npm run measure:balance),
+scripts/              # measure-save-size.ts (npm run measure:size), measure-balance.ts (npm run measure:balance), measure-d2-balance.ts (npm run measure:divisions),
                       # generate-reference-migration.ts
 ```
 

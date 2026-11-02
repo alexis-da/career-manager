@@ -273,7 +273,7 @@ moins le bas des plages de la première division (budget, masse salariale, répu
 au haut de celles de la deuxième ; chaque chiffre bouge seul, et seulement vers la nouvelle division. Rien d'autre ne
 change : ni joueurs, ni contrats, ni salaires (un relégué peut donc payer plus que sa masse salariale).
 
-Équilibrage des deux divisions (mesuré par `npm run measure:balance`, réglé dans `balance.ts`) :
+Équilibrage des deux divisions (mesuré par `npm run measure:divisions`, réglé dans `balance.ts`) :
 
 - Jeunes par division : `generateYouthPlayer` lit la réputation du club dans la plage de **sa** division
   (`CLUB_REPUTATION_BY_TIER`) et donne une note dans la plage des jeunes de cette division (`YOUTH_OVERALL_BY_TIER` :

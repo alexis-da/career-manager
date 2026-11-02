@@ -1,5 +1,5 @@
 /**
- * Balance of the world with the second divisions (npm run measure:balance -- [seasons] [out.json]): plays a
+ * Balance of the world with the second divisions (npm run measure:divisions -- [seasons] [out.json]): plays a
  * worldVersion 2 twin of the demo save (demo seed, demo club) for several seasons, then prints, by division, goals per
  * match, home wins and draws, and by country the strength of the promoted clubs against the first division's last club
  * to stay up, their rank the next season, and the clubs going up and down more than once. The twin and its throwaway

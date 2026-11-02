@@ -43,7 +43,8 @@ pays, en première ou en deuxième division (données OpenFootball 2024-25, CC0)
   du joueur, primes par tour, page Coupe, trophée au palmarès et sur la carte de fin de saison ;
 - les parties créées avant les deuxièmes divisions gardent les cinq premières divisions seules
   (`Save.worldVersion` 1) ;
-- `npm run measure:balance` mesure l'équilibrage des deux divisions sur six saisons (base locale seulement) ;
+- `npm run measure:balance` mesure le moteur : victoires par écart de force, effet isolé de chaque facteur, saisons d'une partie 2
+- `npm run measure:divisions` mesure l'équilibrage des deux divisions sur six saisons (base locale seulement) ;
 - un défi chaque semaine (`/challenge`) : le même club et le même monde pour tous, classement sur les 10 premières
   journées de championnat, 20 parties par semaine au plus, supprimées le mardi qui suit ;
 - en français et en anglais : la langue choisie par le sélecteur « FR · EN » (cookie `lw_lang`), sinon celle que
