@@ -2,6 +2,7 @@ import {
   applyHalfTimeChoice,
   automaticHalfTimeChoice,
   breakSubstitutionLimit,
+  condition,
   finishKnockout,
   halfRngSeed,
   matchResult,
@@ -46,6 +47,9 @@ export type MatchBreak = "HALF_TIME" | "REGULATION_END";
 /** Statuses of a fixture paused at a break. */
 const PAUSED_STATUSES: MatchBreak[] = ["HALF_TIME", "REGULATION_END"];
 
+/** A player at a break, with his form, and his strength's factor for form and morale (the engine's condition). */
+export type HalfTimePlayer = LineupPlayer & { form: number; condition: number };
+
 /** The managed club at a break, as the half-time (or end of regulation time) screen shows it. */
 export type HalfTimeTeam = {
   phase: MatchBreak;
@@ -55,8 +59,9 @@ export type HalfTimeTeam = {
   injured: string[]; // injured in the first half: off the pitch, to replace
   sentOff: { slot: number; playerKey: string }[]; // their slots stay empty
   bench: string[]; // substitutes who can still come on
+  booked: string[]; // players with a yellow card, still on the pitch or not: a second one sends off
   substitutions: number; // already made in the match
-  players: LineupPlayer[]; // every player above, rated as the engine plays him
+  players: HalfTimePlayer[]; // every player above, rated as the engine plays him
   clubColors: ClubColors;
 };
 
@@ -104,6 +109,7 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
       .filter((entry) => entry.status === "SENT_OFF")
       .map((entry) => ({ slot: entry.index, playerKey: entry.player.id })),
     bench: team.bench.map((player) => player.id),
+    booked: team.booked,
     substitutions: team.substitutions,
     // The ratings of the snapshot the engine plays, not today's: nothing changes them until the final whistle.
     players: squad.map((player) => {
@@ -114,6 +120,8 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
         overall: player.overall,
         injured: injured.has(player.id),
         injuredUntil: null,
+        form: player.form,
+        condition: condition(player),
         firstName: identity.firstName,
         lastName: identity.lastName,
         age: ageInYears(identity.birthDate, save.currentDate),

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HALF_TIME_MINUTE, MAX_SUBSTITUTIONS } from "../engine/balance";
-import { automaticHalfTimeChoice, HalfTimeChoiceError, type HalfTimeChoice } from "../engine/match";
+import { automaticHalfTimeChoice, condition, HalfTimeChoiceError, type HalfTimeChoice } from "../engine/match";
 import { firstMatchdayDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 
@@ -121,6 +121,20 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match paused 
     expect(others).toEqual([{ status: "PLAYED", _count: 47 }]);
     expect(save.liveFixtureId).toBe(fixture.id);
     expect(save.currentDate.toISOString()).toBe(firstMatchdayDate(WORLD_START_YEAR).toISOString());
+  });
+
+  it("shows the break the booked players, each player's form and his condition, read from the match state", async () => {
+    const { managedSide, state } = await storedHalfTime(saves.paused);
+    const team = state[managedSide];
+    const breakTeam = await loaded().live.getHalfTimeTeam(saves.paused);
+    if (breakTeam === null) {
+      throw new Error("No match waits at a break");
+    }
+
+    expect(breakTeam.booked).toEqual(team.booked);
+    expect(breakTeam.players.map((player) => [player.id, player.form, player.condition])).toEqual(
+      [...team.pitch.map((entry) => entry.player), ...team.bench].map((player) => [player.id, player.form, condition(player)]),
+    );
   });
 
   it("refuses to play on, simulate or change season while the match waits", async () => {

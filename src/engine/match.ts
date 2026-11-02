@@ -246,7 +246,7 @@ export function halfRngSeed(matchSeed: string, period: RngPhase): string {
   return `${matchSeed}:${period}`;
 }
 
-function condition(player: SquadPlayer): number {
+export function condition(player: SquadPlayer): number {
   return (
     1 +
     (player.form - CONDITION_NEUTRAL) * STRENGTH_PER_FORM_POINT +
