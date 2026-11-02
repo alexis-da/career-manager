@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
 const MB = 1024 * 1024;
 /** « 2026-10-09 » as « 09/10 », day first in both languages. */
 const shortDay = (day: string): string => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
-/** The first steps' table on a phone: narrower gutters, so that it holds in its frame at 360 px, in both languages. */
+/** The wide tables on a phone: narrower gutters, so that they hold in their frame at 360 px, in both languages. */
 const TIGHT_ON_PHONE = "max-sm:px-1.5";
 
 function Figure({ label, value }: { label: string; value: string | number }) {
@@ -124,19 +124,19 @@ export default async function AdminStatsPage() {
           <Table data-testid="admin-stats-tables">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                <TableHead className={TABLE_HEAD}>{t("tableColumns.table")}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")}>{t("tableColumns.data")}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")}>{t("tableColumns.indexes")}</TableHead>
-                <TableHead className={cn(TABLE_HEAD, "text-right")}>{t("tableColumns.total")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE)}>{t("tableColumns.table")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE, "text-right")}>{t("tableColumns.data")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right max-sm:hidden")}>{t("tableColumns.indexes")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE, "text-right")}>{t("tableColumns.total")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {stats.largestTables.map((table) => (
                 <TableRow key={table.table} className={TABLE_ROW}>
-                  <TableCell className={TABLE_CELL}>{table.table}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right tabular-nums")}>{megabytes(table.data)}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right tabular-nums")}>{megabytes(table.indexes)}</TableCell>
-                  <TableCell className={cn(TABLE_CELL, "text-right tabular-nums")}>{megabytes(table.total)}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE)}>{table.table}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "text-right tabular-nums")}>{megabytes(table.data)}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right tabular-nums max-sm:hidden")}>{megabytes(table.indexes)}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "text-right tabular-nums")}>{megabytes(table.total)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
