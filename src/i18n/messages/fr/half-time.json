@@ -1,0 +1,36 @@
+{
+  "halfTime": {
+    "title": {
+      "halfTime": "Mi-temps",
+      "regulationEnd": "Fin du temps réglementaire"
+    },
+    "substitutions": "Remplacements : {made}/{max}",
+    "oneMore": "un de plus pour la prolongation",
+    "formation": "Dispositif",
+    "injured": "{count, plural, one {{names} est sorti blessé} other {{names} sont sortis blessés}} : sans changement de ta part, le meilleur remplaçant au poste entre.",
+    "pitch": "Mon onze à la mi-temps",
+    "bench": "Banc",
+    "benchHint": "Glisse un remplaçant sur un joueur pour le faire entrer",
+    "rating": "Note",
+    "ratingAt": "Note au poste {position}",
+    "noSubstitutes": "Plus aucun remplaçant.",
+    "off": "Sortis",
+    "cannotReturn": "Ne peut plus revenir",
+    "resumeUnchanged": "Reprendre sans changement",
+    "resume": {
+      "halfTime": "Reprendre la seconde période",
+      "regulationEnd": "Jouer la prolongation"
+    },
+    "resuming": {
+      "halfTime": "Seconde période…",
+      "regulationEnd": "Prolongation…"
+    },
+    "selectFirst": "Sélectionne d'abord sur le terrain le joueur qui sort.",
+    "resumeFailed": "La reprise a échoué. Réessaie.",
+    "refusals": {
+      "sentOffSlot": "Le poste d'un joueur exclu reste vide : ton équipe joue à dix.",
+      "substituteForPlayer": "Fais entrer un remplaçant à la place d'un joueur sur le terrain.",
+      "noSubstitutionLeft": "Plus de remplacement possible : {max} sur {max}."
+    }
+  }
+}

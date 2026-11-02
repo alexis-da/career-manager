@@ -8,6 +8,7 @@ import enDashboard from "./en/dashboard.json";
 import enDashboardHero from "./en/dashboard-hero.json";
 import enDashboardTodo from "./en/dashboard-todo.json";
 import enFixtures from "./en/fixtures.json";
+import enHalfTime from "./en/half-time.json";
 import enHeader from "./en/header.json";
 import enLineup from "./en/lineup.json";
 import enLive from "./en/live.json";
@@ -28,6 +29,7 @@ import frDashboard from "./fr/dashboard.json";
 import frDashboardHero from "./fr/dashboard-hero.json";
 import frDashboardTodo from "./fr/dashboard-todo.json";
 import frFixtures from "./fr/fixtures.json";
+import frHalfTime from "./fr/half-time.json";
 import frHeader from "./fr/header.json";
 import frLineup from "./fr/lineup.json";
 import frLive from "./fr/live.json";
@@ -66,6 +68,7 @@ export const ZONES = {
   standings: { fr: frStandings, en: enStandings },
   cup: { fr: frCup, en: enCup },
   live: { fr: frLive, en: enLive },
+  "half-time": { fr: frHalfTime, en: enHalfTime },
   actions: { fr: frActions, en: enActions },
   admin: { fr: frAdmin, en: enAdmin },
 } as const;
@@ -89,6 +92,7 @@ const fr = {
   ...frStandings,
   ...frCup,
   ...frLive,
+  ...frHalfTime,
   ...frActions,
   ...frAdmin,
 };
@@ -117,6 +121,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enStandings,
     ...enCup,
     ...enLive,
+    ...enHalfTime,
     ...enActions,
     ...enAdmin,
   },
