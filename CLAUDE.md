@@ -115,7 +115,7 @@ Coupe », « Coupe : quarts de finale »), carte (« COUPE », « DOUBLÉ », `c
 
 **Défi de la semaine.** Un défi par semaine ISO en UTC (`Challenge`, `weekKey` « 2026-W45 », `src/lib/iso-week.ts`),
 écrit une fois par `ensureChallenge` (`src/db/challenge.ts`) : par `POST /api/maintenance/challenge` le lundi (même
-secret et mêmes réponses 404 que la purge) ou, à défaut, à la première visite de `/challenge` ; jamais modifié ni
+secret et mêmes réponses 404 que la purge) ou, à défaut, à la première visite d'un de ses écrans ; jamais modifié ni
 supprimé, ouvert tant que `startsAt ≤ maintenant < endsAt` (pas de statut stocké). Sa graine est un HMAC de la semaine
 sous `AUTH_SECRET` (`challengeSeed`, `src/lib/challenge-seed.ts`), **jamais affichée ni renvoyée** : le formulaire de
 création accepte toute graine, la connaître permettrait de répéter le défi dans une partie normale, au tir près. Son
@@ -146,30 +146,30 @@ partie », ou « Défi complet cette semaine, reviens lundi » au plafond ; les 
 précédente : entrées soumises avant `endsAt`, comptes Google seulement, prénom (`rankingName`, null sans prénom :
 « Anonyme » à l'écran) ; un anonyme voit sa
 propre ligne grisée, sans rang, avec « Connecte-toi pour apparaître au classement ». Le défi de la semaine y est créé au
-premier chargement (`ensureCurrentChallenge`). Tableau de bord d'une partie de défi : une carte (`ChallengeCard`,
+premier chargement (`ensureCurrentChallenge`), comme sur l'écran Club et l'onglet Défi d'une partie. Tableau de bord d'une partie de défi : une carte (`ChallengeCard`,
 `getChallengeBanner`) « Défi · semaine 45 », « journée X / 10 », puis score et rang provisoire et « La partie continue
 mais ne compte plus », ou « Cette partie ne compte pas au classement » ; toujours « Partie de défi supprimée le mardi
 JJ/MM » et le lien du classement ; sur toute autre partie, la même carte présente le défi et y mène, sans son club.
-Accueil des parties : encart « Défi de la semaine » et marque « Défi » sur une partie de défi ; dans une partie, une icône
-trophée (`header-challenge`) en pied de colonne, à droite de la ligne du club sous 1024 px (la navigation, propre à la
-partie, n'a pas d'entrée « Défi »).
+Accueil des parties : encart « Défi de la semaine » et marque « Défi » sur une partie de défi ; dans une partie, l'onglet
+Défi de l'entrée Club (règle « Club »), où mènent les liens de la carte, quelle que soit la partie ouverte.
 
 **Navigation d'une partie.** Cinq entrées, dans `SECTIONS` (`app/saves/[id]/_lib/sections.ts`, pur et testé) : Accueil ·
 Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
 `nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement et Coupe
-(seulement avec une coupe) ; le direct est sous Match, sans onglet ; l'entrée Match mène au Calendrier sous 1024 px, au
+(seulement avec une coupe), Club a Club, Défi et Palmarès ; le direct est sous Match, sans onglet ; l'entrée Match mène au Calendrier sous 1024 px, au
 Classement à partir de là, où il a le calendrier et la coupe à côté ; l'entrée Équipe à l'Effectif sous 1024 px, à la
 Composition à partir de là, où elle a l'effectif et la fiche à côté (`computerHome`, choisi par `SaveNav` après
-l'hydratation) ; l'entrée Club mène au Palmarès (`/seasons`) en attendant ses finances. Ces sous-onglets sont une bascule
+l'hydratation) ; l'entrée Club mène à `/club` à toutes les largeurs. Ces sous-onglets sont une bascule
 en tête de contenu (`SectionTabs`, `SegmentedLinks`,
-`src/components/segmented.tsx`), testids `nav-squad`, `nav-lineup`, `nav-fixtures`, `nav-standings`, `nav-cup`, présents
+`src/components/segmented.tsx`), testids `nav-squad`, `nav-lineup`, `nav-fixtures`, `nav-standings`, `nav-cup`,
+`nav-club-overview` (`tabTestId` : l'onglet Club, l'entrée gardant `nav-club`), `nav-challenge`, `nav-seasons`, présents
 sur les seuls écrans de leur entrée (`openScreen`, `e2e/helpers.ts`, passe par elle). Les entrées ne touchent pas aux
 adresses : chaque écran garde la sienne (`/squad`, `/standings`…). Une seule navigation dans le DOM (`SaveNav`,
 `save-nav`, `<nav>` libellé « Navigation de la partie » ; la bascule et la pagination du marché sont d'autres `<nav>`,
 dans le contenu) et un seul `<header>` : à partir de 1024 px, une colonne fixe de 256 px (logo, seule marque du jeu dans
 une partie ; carte du club avec initiales, nom, compétition et saison, journée ; les cinq entrées ; la carte « Prochain
-match » en bleu ; en pied, langue et trophée) ; sous 1024 px, la ligne du club en haut de page, non collante
-(`header-club`, `header-competition`, le trophée, la langue seulement à partir de 640 px), et la barre de navigation
+match » en bleu) ; sous 1024 px, la ligne du club en haut de page, non collante
+(`header-club`, `header-competition`), et la barre de navigation
 fixée au pied de l'écran, seule barre fixe. Actions de jeu (`GameActions` : « Simuler jusqu'à… », « Prochain match »,
 « Match en cours — reprendre », « Passer à la saison suivante ») : dans le héros de l'Accueil à toutes les largeurs ;
 hors de lui (`SaveBarActions`, un seul élément, donc des testids uniques), dans la carte « Prochain match » de la colonne
@@ -190,8 +190,7 @@ grille d'une colonne sous `lg`, deux à partir de `lg`, trois à partir de `xl`.
 moyenne et forme à partir de 1024 px), « Jouer le match » (`GameActions` avec `hero`, seule action orange pleine de
 l'écran, même `next-match`, « Jouer la journée » dans une partie 1), « Préparer » vers la composition et « Simuler »,
 secondaires, le onze et « Voir l'adversaire ». Match en suspens : « Match en cours — reprendre » seul ; saison finie :
-« Passer à la saison suivante » seul, et la carte de la colonne, vide, disparaît (`lg:empty:hidden`, le pied de colonne
-restant en bas). Sa colonne de droite à partir de `xl`, en fin de page sur téléphone : le
+« Passer à la saison suivante » seul, et la carte de la colonne, vide, disparaît (`lg:empty:hidden`). Sa colonne de droite à partir de `xl`, en fin de page sur téléphone : le
 mini-classement (`DashboardTable`, `tableAround`, six lignes autour du club, rang, club et points). Puis quatre tuiles
 (`DashboardTiles` : classement et mouvement, points et différence, forme, effectif ; « — » avant le premier match), « À
 faire » (`DashboardTodo`, du plus pressant au reste : titulaires blessés, autres blessés, meilleure offre reçue, point
@@ -291,6 +290,23 @@ suivant (`bought_this_window`, `transferWindowOpenDate`, `src/engine/world.ts`) 
 refonte, elle borne la fréquence d'une revente, pas sa marge. Sur les écrans du Marché, l'action de jeu de la colonne est
 secondaire (`GameActions`) : l'orange plein y reste à « Recruter » ou « Vendre ».
 
+**Club.** Trois onglets, Club, Défi et Palmarès ; l'action de jeu de la colonne y est secondaire (`OWN_ORANGE_ACTION`). Club
+(`/club`) : pastille du manager (`club-manager`, saisons terminées + 1) ; finances en lecture seule (`getClubFinances`,
+`src/db/club.ts` : budget en grand, masse salariale en barre, marge ou dépassement ; ni recettes ni objectifs du président,
+le jeu n'en a pas) ; défi sur le bleu vif (où en est le joueur, tête du classement à partir de `lg`, « Voir le défi », seul
+orange plein de l'écran) ; les trois dernières saisons, et, à partir de `lg`, l'aperçu de la dernière carte et ses boutons
+(`HonoursCardActions` ne les monte pas en dessous : un téléphone ne télécharge pas le PNG) ; Réglages (`ClubSettings` :
+langue, compte, parties utilisées sur la limite, changer de partie, confidentialité). Défi (`/saves/[id]/challenge`) : mêmes
+données que la page publique (`getChallengePage`), qui garde `.brand` et son allure jusqu'à son étape. Tête sur le bleu vif
+(semaine et fin, `formatParisWeekdayTime`), carte « Ta partie » (`ownChallenge`, pur : journées, score une fois soumis et
+reprise, « Jouer le défi », ou pourquoi pas ; aucun score provisoire, le jeu ne l'écrit qu'à la 10e journée, jamais de
+« Relancer »), classements (`RankingTable`, partagée : ta ligne en bleu, l'anonyme toujours grisé). Palmarès (`/seasons`) : des
+cartes sous 1024 px, toute la carte menant à la saison, le tableau au-dessus. Bilan (`/seasons/[seasonId]`) : la carte PNG,
+inchangée, `SeasonCardActions` (« Partager » en orange où le navigateur partage des fichiers, sinon « Télécharger »), montées et
+descentes, et, pour la dernière saison terminée (`isLastCompletedSeason`), « Cap sur la saison 2027-28 » vers le tableau de
+bord : `advanceSeasonAction` mène ici une fois la saison suivante commencée. `e2e/club.spec.ts` couvre ces écrans à 1280,
+390 et 360 px.
+
 **Téléphone.** Aucun écran ne défile de côté à 390 ni à 360 px, en français comme en anglais (`e2e/mobile.spec.ts` :
 `scrollWidth ≤ innerWidth` à chaque étape, en 390 × 844). La barre du bas vaut sous 1024 px (`max-lg:`), tablettes
 comprises, sauf sur le direct ; les règles `max-sm:` valent sous 640 px. Sous 640 px, toute cible fait au moins 44 px : boutons,
@@ -300,8 +316,8 @@ d'eux-mêmes, les liens et contrôles propres à un écran avec `max-sm:min-h-11
 marché) ne passe en deux colonnes qu'à partir de `xl`, la fiche étant en surimpression en dessous ; la composition a
 ses deux colonnes à partir de `lg`, ses trois à partir de `xl`, et le tableau de bord ses trois colonnes (deux à partir de
 `lg`). Un tableau garde un seul DOM (testids et E2E de bureau inchangés) : sur téléphone, moins de colonnes, ses lignes
-en grilles des mêmes colonnes que l'en-tête (marché), ou des cartes (effectif sous 1024 px, parties de l'accueil,
-mouvements, palmarès), disposées par CSS ; le reste est dans la fiche du joueur. Le classement complet, une fois demandé, est le seul
+en grilles des mêmes colonnes que l'en-tête (marché), ou des cartes (effectif et palmarès sous 1024 px, parties de
+l'accueil, mouvements), disposées par CSS ; le reste est dans la fiche du joueur. Le classement complet, une fois demandé, est le seul
 à défiler de côté, dans son cadre, rang et club figés à gauche, points à droite. Aucun texte utile coupé : à la ligne, sous
 le nom, ou lu par les lecteurs d'écran et montré dans la fiche (cases de la grille du mois). Glisser-déposer
 (`usePointerDrag`) : au doigt, un appui maintenu de 250 ms soulève le joueur et un geste plus rapide fait défiler la page
@@ -364,8 +380,8 @@ secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.
 **Langues : français et anglais.** Tout ce que voit un joueur existe dans les deux langues : pages publiques, écrans
 d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4, sans la langue dans l'adresse. La langue
 du joueur est celle qu'il a choisie (cookie de confort `lw_lang`, `fr` ou `en`, un an, posé seulement par le sélecteur
-« FR · EN », `setLanguageAction`, `app/actions.ts` : pied des pages publiques ; dans une partie, pied de la colonne à
-partir de 1024 px, ligne du club de 640 à 1024 px, jamais sous 640 px), sinon le français si `Accept-Language` le préfère
+« FR · EN », `setLanguageAction`, `app/actions.ts` : pied des pages publiques ; dans une partie, les Réglages de `/club`,
+à toutes les largeurs, en bascule « Français / English »), sinon le français si `Accept-Language` le préfère
 à l'anglais, l'anglais sinon (`negotiateLocale`, `src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`) ;
 `<html lang>` la suit.
 - **Messages** : `src/i18n/messages/<langue>/<zone>.json`, un fichier par zone et par langue, chacun ses espaces de
@@ -375,7 +391,8 @@ partir de 1024 px, ligne du club de 640 à 1024 px, jamais sous 640 px), sinon l
   `dashboard-hero` (héros de l'Accueil), `dashboard-todo` (« À faire »), `onboarding` (premières actions, bulles),
   `challenge-banner` (carte du défi), `squad` (effectif), `player-sheet` (fiche joueur, contrats), `lineup`,
   `market` (Acheter, confirmation), `market-sell` (Vendre), `transfers` (marché avancé), `fixtures` (calendrier,
-  feuille de match), `standings` (classement, palmarès, carte), `cup` (coupe), `live` (direct), `half-time` (panneau Coaching), `actions` (messages
+  feuille de match), `standings` (classement), `seasons` (palmarès, bilan, carte), `cup` (coupe), `club` (écran Club,
+  réglages), `challenge-screen` (onglet Défi), `live` (direct), `half-time` (panneau Coaching), `actions` (messages
   des Server Actions, refus), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
   `src/i18n/messages.test.ts` exige les mêmes clés et les mêmes arguments ICU dans les deux langues, que tout message
   se formate et qu'un espace de noms n'appartienne qu'à un fichier. Seule exception : la page de confidentialité, un
@@ -419,8 +436,8 @@ teintent pas l'interface : `--club` est l'orange, partout ; le club se montre pa
 `src/lib/club-initials.ts`), jamais par un écusson, et ses couleurs ne restent que sur les maillots des visages, sur la
 carte PNG (`clubAccentsOn`) et dans le trait devant son nom sur l'accueil et `/challenge`. Une seule action orange pleine
 par écran (`variant="club"`), tenue écran par écran au fil des étapes de la refonte : sur l'Accueil, celle du héros, la
-colonne n'en ayant aucune, sur le direct, celle de ses commandes ou du panneau, et sur Équipe, « Enregistrer » ou
-« Prolonger » ; la carte de saison a encore la sienne à côté de celle de la colonne. Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
+colonne n'en ayant aucune, sur le direct, celle de ses commandes ou du panneau, sur Équipe, « Enregistrer » ou
+« Prolonger », sous Club, « Voir le défi », la reprise ou « Jouer le défi », « Partager » ou « Télécharger ». Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
 `--loss`, `--warning`, `--info`, `--position-*`). Titres et chiffres en Barlow Condensed 800 italique (le fichier de
 `src/assets/fonts`, chargé par `next/font/local`, une seule graisse), en majuscules par la règle `.font-heading` de
 `globals.css` (`normal-case` là où des unités et des ordinaux doivent garder leur casse : « 16e », « €11.4m ») ; texte
@@ -469,11 +486,13 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # avec le code (_components/privacy-document.tsx : les deux versions, une date de mise à jour)
   api/                # Auth.js et les routes de maintenance (purge, défi de la semaine), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
-                      # palmarès (seasons/, et seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
+                      # club (club/ : finances, réglages), défi (challenge/), palmarès (seasons/, et
+                      # seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
                       # live.spec.ts : le direct et le panneau Coaching ; team.spec.ts : Effectif, Composition et fiche ;
+                      # club.spec.ts : Club, son défi, ses réglages, le palmarès et le bilan d'une saison ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone
