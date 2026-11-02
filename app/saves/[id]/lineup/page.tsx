@@ -3,12 +3,13 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getLineupEditor } from "@/src/db/lineup";
 import { getOpponentPreview } from "@/src/db/opponent";
+import { getSquadView } from "@/src/db/squad";
 import { formatShortDate } from "@/src/lib/format";
 import { FirstStepTip, getFirstSteps } from "../_components/first-steps";
 import { MarkSeen } from "../_components/mark-seen";
 import { OpponentSheet } from "../_components/opponent-sheet";
 import { showsFirstActions, showsTip } from "../_lib/first-steps";
-import { LineupEditor } from "./_components/lineup-editor";
+import { LineupScreen } from "./_components/lineup-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,12 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
   const [t, locale] = await Promise.all([getTranslations("lineup"), getLocale()]);
-  const [editor, opponent, firstSteps] = await Promise.all([getLineupEditor(id), getOpponentPreview(id), getFirstSteps(id)]);
+  const [editor, squad, opponent, firstSteps] = await Promise.all([
+    getLineupEditor(id),
+    getSquadView(id),
+    getOpponentPreview(id),
+    getFirstSteps(id),
+  ]);
 
   return (
     <div className="space-y-5">
@@ -41,15 +47,7 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
         )}
       </div>
       {showsTip("secondary", firstSteps) && <FirstStepTip saveId={id} tip="secondary" />}
-      {/* A new key after each save: the editor starts again from what is now saved. */}
-      <LineupEditor
-        key={`${editor.formation}:${JSON.stringify(editor.saved)}`}
-        saveId={id}
-        formation={editor.formation}
-        saved={editor.saved}
-        clubColors={editor.clubColors}
-        players={editor.players}
-      />
+      <LineupScreen saveId={id} editor={editor} squad={squad} />
     </div>
   );
 }

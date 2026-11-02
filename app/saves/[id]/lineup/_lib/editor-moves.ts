@@ -57,3 +57,23 @@ export function sendSlotToBench(state: EditorState, slot: number): EditorState {
 export function moveToBenchFront(state: EditorState, key: string): EditorState {
   return state.starters.includes(key) ? state : { ...state, bench: benchWith(state.bench, key, 0) };
 }
+
+type RatedPlayer = { id: string; overall: number };
+
+/**
+ * Whose sheet stands in the column beside the pitch, never empty: the selected slot's player, else the last one chosen,
+ * unless he has left the squad, else the best rated. Nobody only for a squad without players.
+ */
+export function pinnedSheetKey(selected: string | null, chosen: string | null, players: readonly RatedPlayer[]): string | null {
+  if (selected !== null) {
+    return selected;
+  }
+  if (players.some((player) => player.id === chosen)) {
+    return chosen;
+  }
+  const best = players.reduce<RatedPlayer | null>(
+    (current, player) => (current === null || player.overall > current.overall ? player : current),
+    null,
+  );
+  return best?.id ?? null;
+}

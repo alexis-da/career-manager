@@ -70,8 +70,8 @@
   --position-df: #60a5fa;
   --position-mf: #4ade80;
   --position-fw: #f87171;
-  /* The lineup pitch: dark grass under white markings. */
-  --pitch: #11281b;
+  /* The lineup pitch: the cards' blue, under markings the colour of the borders. */
+  --pitch: #16205a;
 }
 
 /*

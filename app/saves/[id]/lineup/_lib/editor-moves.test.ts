@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BENCH_SIZE } from "@/src/engine/lineup";
-import { moveToBenchFront, placeInSlot, sendSlotToBench, swapSlots, type EditorState } from "./editor-moves";
+import { moveToBenchFront, pinnedSheetKey, placeInSlot, sendSlotToBench, swapSlots, type EditorState } from "./editor-moves";
 
 const state: EditorState = {
   formation: "4-3-3",
@@ -40,5 +40,24 @@ describe("editor moves", () => {
   it("moves a reserve to the front of the bench, never a starter", () => {
     expect(moveToBenchFront(state, "b5").bench).toEqual(["b5", "b1", "b2", "b3", "b4", "b6", "b7"]);
     expect(moveToBenchFront(state, "s2")).toEqual(state);
+  });
+});
+
+describe("the sheet beside the pitch", () => {
+  const squad = [
+    { id: "a", overall: 70 },
+    { id: "b", overall: 81 },
+    { id: "c", overall: 81 },
+  ];
+
+  it("follows the selected slot, then the last player chosen, then the best rated", () => {
+    expect(pinnedSheetKey("a", "c", squad)).toBe("a");
+    expect(pinnedSheetKey(null, "c", squad)).toBe("c");
+    expect(pinnedSheetKey(null, null, squad)).toBe("b");
+  });
+
+  it("forgets a player who has left the squad, and stays empty only without a squad", () => {
+    expect(pinnedSheetKey(null, "sold", squad)).toBe("b");
+    expect(pinnedSheetKey(null, null, [])).toBeNull();
   });
 });
