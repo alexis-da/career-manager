@@ -1,8 +1,25 @@
 {
   "club": {
-    "title": "Club"
+    "title": "Club",
+    "manager": "Manager : {manager} · {season, selectordinal, one {#re} other {#e}} saison",
+    "finances": "Finances",
+    "transferBudget": "Budget transferts",
+    "payroll": "Masse salariale",
+    "wageRoom": "{amount} de marge",
+    "wageOverrun": "{amount} de dépassement",
+    "challengeWeek": "S{week}",
+    "challengeScenario": "{club} · {horizon} journées",
+    "challengeScore": "{points, plural, one {# point} other {# points}}",
+    "challengeRank": "{points, plural, one {# point} other {# points}} · {rank, selectordinal, one {#er} other {#e}} provisoire",
+    "points": "{points, plural, one {# pt} other {# pts}}",
+    "allHonours": "Tout le palmarès"
   },
   "settings": {
-    "title": "Réglages"
+    "title": "Réglages",
+    "account": "Compte",
+    "browserOnly": "Ta partie est liée à ce navigateur.",
+    "saves": "Parties",
+    "savesUsed": "{used, plural, one {# sur {max} utilisée} other {# sur {max} utilisées}}",
+    "changeSave": "Changer de partie"
   }
 }

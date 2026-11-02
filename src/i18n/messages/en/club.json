@@ -1,8 +1,25 @@
 {
   "club": {
-    "title": "Club"
+    "title": "Club",
+    "manager": "Manager: {manager} · {season, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} season",
+    "finances": "Finances",
+    "transferBudget": "Transfer budget",
+    "payroll": "Wage bill",
+    "wageRoom": "{amount} wage room",
+    "wageOverrun": "{amount} over budget",
+    "challengeWeek": "W{week}",
+    "challengeScenario": "{club} · {horizon} matchdays",
+    "challengeScore": "{points, plural, one {# point} other {# points}}",
+    "challengeRank": "{points, plural, one {# point} other {# points}} · {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} so far",
+    "points": "{points, plural, one {# pt} other {# pts}}",
+    "allHonours": "All honours"
   },
   "settings": {
-    "title": "Settings"
+    "title": "Settings",
+    "account": "Account",
+    "browserOnly": "Your career is tied to this browser.",
+    "saves": "Careers",
+    "savesUsed": "{used} of {max} used",
+    "changeSave": "Switch career"
   }
 }
