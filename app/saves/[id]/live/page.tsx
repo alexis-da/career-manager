@@ -35,8 +35,15 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
   if (matchday === null) {
     redirect(`/saves/${id}`);
   }
-  const { match } = matchday;
+  const { match, stadium } = matchday;
   const pause = matchday.pause !== null && breakTeam !== null ? breakTeam : null;
+  // A cup tie names its cup in its stage: « Coupe — Finale ».
+  const caption = [
+    ...(match.cup ? [] : [competitionName(match.competitionCode, tWorld)]),
+    stageLabel(match, tStage),
+    formatDate(match.scheduledAt, locale),
+    ...(stadium === null ? [] : [stadium]),
+  ].join(" · ");
   const startMinute =
     pause?.phase === "HALF_TIME"
       ? query.rejouer === "1"
@@ -58,8 +65,7 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
       key={`${match.id}:${pause?.phase ?? "end"}`}
       saveId={id}
       dashboardHref={`/saves/${id}`}
-      // A cup tie names its cup in its stage: « Coupe — Finale ».
-      caption={`${match.cup ? "" : `${competitionName(match.competitionCode, tWorld)} · `}${stageLabel(match, tStage)} · ${formatDate(match.scheduledAt, locale)}`}
+      caption={caption}
       match={match}
       others={matchday.others}
       pause={pause}

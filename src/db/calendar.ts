@@ -178,6 +178,7 @@ export type ScoreTimeline = FixtureView & { goals: { id: string; minute: number;
 
 export type LiveMatchday = {
   match: FixtureWithEvents;
+  stadium: string | null; // the home club's, when known
   // The break the match waits at: half-time (its events stop at 45'), or the end of regulation time of a level cup
   // tie (they stop at the final whistle of the 90 minutes); null once played.
   pause: "HALF_TIME" | "REGULATION_END" | null;
@@ -198,7 +199,13 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
       status: { in: ["PLAYED", "HALF_TIME", "REGULATION_END"] },
       ...involving(managed.id),
     },
-    select: { ...FIXTURE_SELECT, seasonId: true, status: true, events: EVENTS_SELECT },
+    select: {
+      ...FIXTURE_SELECT,
+      homeClubSave: { select: { ...FIXTURE_SELECT.homeClubSave.select, club: { select: { ...TEAM_SELECT.select.club.select, stadium: true } } } },
+      seasonId: true,
+      status: true,
+      events: EVENTS_SELECT,
+    },
   });
   if (row === null) {
     return null;
@@ -215,6 +222,7 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
   const { events, status, ...fixture } = row;
   return {
     match: { ...toFixtureView(fixture), events: events.map(toEventView(fixture.scheduledAt)) },
+    stadium: fixture.homeClubSave.club.stadium,
     pause: status === "HALF_TIME" || status === "REGULATION_END" ? status : null,
     // By home club, in the names shown: the database only knows the real ones.
     others: others
