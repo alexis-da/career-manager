@@ -27,7 +27,7 @@ test("a save is seen by the player who created it only: another one gets neither
 
     // The other player sees no row of it, and its address answers 404, as a save that does not exist.
     await otherPage.goto("/");
-    await expect(otherPage.getByRole("heading", { name: "Late Winner" })).toBeVisible();
+    await expect(otherPage.getByTestId("public-home")).toBeVisible();
     await expect(saveRow(otherPage, name)).toHaveCount(0);
     expect((await otherPage.goto(saveUrl))?.status()).toBe(404);
     expect((await otherPage.goto(`${saveUrl}/squad`))?.status()).toBe(404);

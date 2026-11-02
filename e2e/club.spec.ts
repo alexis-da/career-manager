@@ -6,9 +6,7 @@ import {
   deleteUsers,
   insertSeasonResult,
   setSaveDate,
-  signedUserCookie,
   submitWeekScore,
-  USER_COOKIE,
 } from "./db";
 import {
   ACTION_ORANGE,
@@ -16,10 +14,12 @@ import {
   createSave,
   expectNoSidewaysScroll,
   expectOrangeActions,
+  expectThumbTarget,
   openScreen,
   saveHeader,
   saveIdOf,
   sidewaysOverflow,
+  signInAs,
   textOf,
 } from "./helpers";
 
@@ -50,18 +50,11 @@ const SEASON_LINK = `seasons-card-link-${SEASON}`;
 /** The challenge's card, as the browser computes its colour. */
 const BRIGHT_BLUE = "rgb(31, 59, 255)";
 
-/** A phone's thumb: the height and the width of a target, under 640 px. */
-const THUMB = 44;
-
 let demo = "";
 
 test.beforeAll(async () => {
   demo = await demoSaveId();
 });
-
-/** A page's browser as a user's: the lw_uid cookie, signed as the server signs it, resolves any of them. */
-const signInAs = (page: Page, userId: string): Promise<void> =>
-  page.context().addCookies([{ name: USER_COOKIE, value: signedUserCookie(userId), domain: "localhost", path: "/" }]);
 
 /** A screen of a save, opened by its owner, once React has committed the page: a click before goes nowhere. */
 async function openAs(page: Page, userId: string, saveId: string, path: string): Promise<void> {
@@ -74,13 +67,6 @@ const openDemo = (page: Page, path = ""): Promise<void> => openAs(page, DEMO_USE
 
 /** Where a link leads. */
 const hrefOf = async (link: Locator): Promise<string> => (await link.getAttribute("href")) ?? "";
-
-/** A target a thumb can hit. */
-async function expectThumbTarget(target: Locator): Promise<void> {
-  const { width, height } = await boxOf(target);
-  const name = (await target.getAttribute("data-testid")) ?? (await textOf(target));
-  expect(Math.min(width, height), name).toBeGreaterThanOrEqual(THUMB);
-}
 
 /** Every link and button a phone shows on the screen, those of the club's line and of the navigation included. */
 async function expectThumbTargets(page: Page): Promise<void> {

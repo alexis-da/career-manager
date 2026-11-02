@@ -27,7 +27,8 @@ test("plays the week's challenge from the home page to its tenth matchday, then 
     await expect(page).toHaveURL(/\/challenge$/);
     await expect(page.getByRole("heading", { name: "Défi de la semaine" })).toBeVisible();
     await expect(page.getByTestId("challenge-club")).not.toBeEmpty();
-    await expect(page.getByText(/^Semaine \d+ · fin le lundi .+ \(heure de Paris\)$/)).toBeVisible();
+    await expect(page.getByTestId("challenge-week")).toHaveText(/^Semaine \d+ · fin lundi \d{2}:\d{2}$/);
+    await expect(page.getByTestId("challenge-managers")).toHaveText(/(^F|· f)in le lundi .+ \(heure de Paris\)$/);
 
     await page.getByTestId("challenge-play").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+$/);

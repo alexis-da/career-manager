@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { signedUserCookie, USER_COOKIE } from "./db";
 
 /**
  * The seed of the saves the end-to-end tests create, unless a test needs a world of its own: fixed, so that every run
@@ -13,6 +14,9 @@ export const ACTION_ORANGE = "rgb(255, 159, 28)";
 
 /** A drawing the system would make in its own colours: the match's events are drawn by the game, never written in emoji. */
 export const EMOJI = /\p{Extended_Pictographic}/u;
+
+/** A phone's thumb: the height and the width of a target, under 640 px. */
+const THUMB = 44;
 
 /**
  * The header of a save's layout: the sidebar on a computer, the club's line under 1024 px. The game's actions are in it
@@ -87,6 +91,13 @@ export async function boxOf(locator: Locator): Promise<{ x: number; y: number; w
   return box;
 }
 
+/** A target a thumb can hit. */
+export async function expectThumbTarget(target: Locator): Promise<void> {
+  const { width, height } = await boxOf(target);
+  const name = (await target.getAttribute("data-testid")) ?? (await textOf(target));
+  expect(Math.min(width, height), name).toBeGreaterThanOrEqual(THUMB);
+}
+
 /** Under 1024 px, a save's navigation touches the foot of the screen: its box ends with the window, to within a pixel. */
 export async function expectNavAtFootOfScreen(page: Page): Promise<void> {
   const nav = await boxOf(page.getByTestId("save-nav"));
@@ -124,13 +135,23 @@ export async function expectUncovered(locator: Locator): Promise<void> {
   expect(uncovered, `${locator} covered`).toBe(true);
 }
 
-/** Fills the home page's creation form: name, manager, club, and a fixed seed. */
+/** A page's browser as a user's: the lw_uid cookie, signed as the server signs it, resolves any of them. */
+export const signInAs = (page: Page, userId: string): Promise<void> =>
+  page.context().addCookies([{ name: USER_COOKIE, value: signedUserCookie(userId), domain: "localhost", path: "/" }]);
+
+/** Once React has committed a page: a list or a card clicked before does nothing. */
+export async function waitForReact(page: Page): Promise<void> {
+  await page.waitForFunction(() => window.history.state?.__NA === true);
+}
+
+/** Fills the home page's creation form: manager and club, then, in its options, the name and a fixed seed. */
 export async function fillCreateSaveForm(page: Page, name: string, clubName: string, seed: string = E2E_SEED): Promise<void> {
-  await page.getByTestId("save-name").fill(name);
+  await waitForReact(page);
   await page.getByTestId("manager-name").fill("Test E2E");
   await page.getByTestId("club").click();
   await page.getByRole("option", { name: clubName, exact: true }).click();
   await page.getByTestId("create-save-options").click();
+  await page.getByTestId("save-name").fill(name);
   await page.getByTestId("seed").fill(seed);
 }
 
@@ -144,9 +165,9 @@ export async function createSave(page: Page, name: string, clubName: string, see
   await expect(page.getByTestId("dashboard-title")).toBeVisible();
 }
 
-/** The row of a save in the home page's list, by the name it was created with. */
+/** The card of a save in the home page's list, by the name it was created with. */
 export function saveRow(page: Page, name: string): Locator {
-  return page.locator(`tr[data-save-name="${name}"]`);
+  return page.locator(`[data-save-name="${name}"]`);
 }
 
 /** Deletes a save from the home page, through its confirmation dialog; does nothing when there is no such save. */

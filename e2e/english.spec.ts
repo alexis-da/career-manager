@@ -25,14 +25,21 @@ test("speaks English to a browser that prefers it, on every public page", async 
   await expect(pageLanguage(page)).toHaveAttribute("lang", "en");
   await expect(page.getByText("Playable in English and French.")).toBeVisible();
   await expect(page.getByText("The 2026-27 season starts on 1 July 2026.")).toBeVisible();
-  await expect(page.getByTestId("create-save")).toHaveText("Start the career");
+  await expect(page.getByTestId("create-save")).toHaveText("Start my career");
   await expect(page.getByTestId("google-sign-in")).toHaveText("Continue with Google");
   await expect(page.getByTestId("privacy-link")).toHaveText("Privacy");
 
-  // The creation form's refusals come from the server, in English too.
+  // The creation form's refusals come from the server, in English too. A club is ticked from the start and the career's
+  // name follows it: the other two refusals take a form emptied by hand.
+  await page.getByTestId("create-save").click();
+  await expect(page.getByText("Enter the manager's name.")).toBeVisible();
+  await page.getByTestId("create-save-options").click();
+  await page.getByTestId("save-name").fill("");
+  await page.locator('input[name="clubId"]').evaluate((input: HTMLInputElement) => {
+    input.value = "";
+  });
   await page.getByTestId("create-save").click();
   await expect(page.getByText("Give the career a name.")).toBeVisible();
-  await expect(page.getByText("Enter the manager's name.")).toBeVisible();
   await expect(page.getByText("Choose a club.")).toBeVisible();
 
   // The countries in English, sorted in English, each with its two divisions.
@@ -47,7 +54,8 @@ test("speaks English to a browser that prefers it, on every public page", async 
   await expect(pageLanguage(page)).toHaveAttribute("lang", "en");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Weekly challenge");
   await expect(page).toHaveTitle("Weekly challenge · Late Winner");
-  await expect(page.getByText(/^Week \d+ · ends Monday \d+ \w+ at 0\d:00 \(Paris time\)$/)).toBeVisible();
+  await expect(page.getByTestId("challenge-week")).toHaveText(/^Week \d+ · ends Monday \d{2}:\d{2}$/);
+  await expect(page.getByTestId("challenge-managers")).toHaveText(/(^E|· e)nds Monday \d+ \w+ at 0\d:00 \(Paris time\)$/);
   await expect(page.getByTestId("challenge-competition")).toHaveText(/^(England|France|Germany|Italy|Spain) — Division [12]$/);
   await expect(page.getByTestId("challenge-play")).toHaveText("Play the challenge");
 
@@ -86,11 +94,11 @@ test("keeps the language the player chooses, whatever the browser prefers, until
   // The browser still prefers English: the cookie wins, on every page.
   await page.goto("/");
   await expect(pageLanguage(page)).toHaveAttribute("lang", "fr");
-  await expect(page.getByTestId("create-save")).toHaveText("Créer la partie");
+  await expect(page.getByTestId("create-save")).toHaveText("Lancer ma carrière");
 
   await page.getByTestId("language-en").click();
   await expect(pageLanguage(page)).toHaveAttribute("lang", "en");
-  await expect(page.getByTestId("create-save")).toHaveText("Start the career");
+  await expect(page.getByTestId("create-save")).toHaveText("Start my career");
   expect((await context.cookies()).find((cookie) => cookie.name === "lw_lang")?.value).toBe("en");
 });
 

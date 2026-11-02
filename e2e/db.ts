@@ -216,3 +216,35 @@ export async function fillWeekChallenge(ownerId: string, total: number): Promise
     return missing;
   });
 }
+
+/**
+ * A save of the real week's challenge (created by the page /challenge beforehand) for a user, as bare as those of
+ * fillWeekChallenge but for its managed club, the only row of a world the home page's list reads. Without an entry: nothing
+ * of it reaches the ranking. Deleting the user takes it away.
+ */
+export async function insertWeekChallengeSave(ownerId: string): Promise<void> {
+  // Not simulation code: the week the test server serves.
+  const weekKey = isoWeekKey(new Date());
+  const result = await withTestDatabase((client) =>
+    client.query(
+      `WITH week AS (
+         SELECT c."id", c."clubId", club."competitionId"
+         FROM "Challenge" c JOIN "Club" club ON club."id" = c."clubId"
+         WHERE c."weekKey" = $2
+       ), save AS (
+         INSERT INTO "Save" ("id", "ownerId", "name", "managerName", "seed", "worldVersion", "currentDate", "challengeId", "updatedAt")
+         SELECT gen_random_uuid()::text, $1, '', 'Test', 'e2e-challenge-listed', 2,
+                '2026-07-01T00:00:00.000Z'::timestamp(3), week."id", now() AT TIME ZONE 'UTC'
+         FROM week
+         RETURNING "id"
+       )
+       INSERT INTO "ClubSave" ("id", "saveId", "clubId", "competitionId", "isManaged")
+       SELECT gen_random_uuid()::text, save."id", week."clubId", week."competitionId", true
+       FROM save CROSS JOIN week`,
+      [ownerId, weekKey],
+    ),
+  );
+  if (result.rowCount === 0) {
+    throw new Error(`No challenge for ${weekKey}: open /challenge first, which creates it`);
+  }
+}
