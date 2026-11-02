@@ -13,11 +13,9 @@ import {
   millionsFigure,
 } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { isPayrollHigh } from "../_lib/payroll";
 import { Panel } from "./panel";
 import { ResultPill } from "./result-pill";
-
-/** From this share of the wage budget, the payroll turns to warning. */
-const PAYROLL_WARNING_SHARE = 0.9;
 
 const PILL = "h-9 bg-card px-3.5 text-[0.8125rem] tabular-nums";
 
@@ -27,7 +25,6 @@ export function DashboardPills({ dashboard }: { dashboard: Dashboard }) {
   const locale = useLocale();
   const { club, currentDate } = dashboard;
   const windowClose = transferWindowCloseDate(currentDate);
-  const payrollShare = club.wageBudget === 0 ? 0 : club.payroll / club.wageBudget;
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
       <Badge data-testid="dashboard-budget" variant="secondary" className={PILL}>
@@ -38,7 +35,7 @@ export function DashboardPills({ dashboard }: { dashboard: Dashboard }) {
         data-summary="payroll"
         data-value={club.payroll}
         variant="secondary"
-        className={cn(PILL, payrollShare >= PAYROLL_WARNING_SHARE && "text-warning")}
+        className={cn(PILL, isPayrollHigh(club.payroll, club.wageBudget) && "text-warning")}
       >
         {t("payrollPill", {
           payroll: millionsFigure(club.payroll, locale).value,
