@@ -43,8 +43,9 @@ export function RenewContractDialog({
   terms,
   currentDate,
   disabled = false,
+  primary = true,
   triggerClassName,
-}: ActionProps & { currentDate: Date }) {
+}: ActionProps & { currentDate: Date; primary?: boolean }) {
   const t = useTranslations("contract");
   const tCommon = useTranslations("common");
   const locale = useLocale();
@@ -66,10 +67,10 @@ export function RenewContractDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* The main action on a player of the managed club: in orange. */}
+      {/* The main action on a player of the managed club: in orange, unless the screen's orange is another action. */}
       <DialogTrigger
         disabled={disabled}
-        render={<Button variant="club" className={triggerClassName} />}
+        render={<Button variant={primary ? "club" : "outline"} className={triggerClassName} />}
         data-testid="renew-contract"
       >
         {t("renew")}
@@ -243,25 +244,47 @@ type SquadPlayerActionsProps = {
   currentDate: Date;
   windowOpen: boolean;
   nextWindowOpensOn: Date;
+  primary?: boolean; // the renewal in orange; false where the screen's orange is another action
 };
 
-/** Actions of the player sheet for a player of the managed club; disabled, with the reason, while the window is closed. */
-export function SquadPlayerActions({ saveId, player, terms, currentDate, windowOpen, nextWindowOpensOn }: SquadPlayerActionsProps) {
+/**
+ * Actions of the player sheet for a player of the managed club; disabled, with the reason, while the window is closed.
+ * With the window open, the sale alone can be out of reach: just signed, or no club able to buy him. It says why here,
+ * before any click.
+ */
+export function SquadPlayerActions({
+  saveId,
+  player,
+  terms,
+  currentDate,
+  windowOpen,
+  nextWindowOpensOn,
+  primary = true,
+}: SquadPlayerActionsProps) {
   const t = useTranslations("contract");
+  const tRefusals = useTranslations("refusals");
+  const locale = useLocale();
   const disabled = !windowOpen;
+  const { sale } = terms;
   return (
     <>
       {disabled && <ClosedWindowNote actions={t("closedActions")} reopensOn={nextWindowOpensOn} />}
+      {windowOpen && !sale.ok && (
+        <p className="text-xs text-muted-foreground" data-testid="player-sale-refusal">
+          {refusalMessage(sale.reason, tRefusals, locale)}
+        </p>
+      )}
       <RenewContractDialog
         saveId={saveId}
         player={player}
         terms={terms}
         currentDate={currentDate}
         disabled={disabled}
-        triggerClassName="h-10 w-full font-heading text-base font-semibold"
+        primary={primary}
+        triggerClassName="h-12 w-full font-heading text-xl"
       />
       <div className="grid grid-cols-2 gap-2">
-        <SellPlayerDialog saveId={saveId} player={player} terms={terms} disabled={disabled} triggerClassName="h-10 w-full" />
+        <SellPlayerDialog saveId={saveId} player={player} terms={terms} disabled={disabled || !sale.ok} triggerClassName="h-10 w-full" />
         <ReleasePlayerDialog
           saveId={saveId}
           player={player}

@@ -8,7 +8,7 @@ const OUTFIELD_ATTRIBUTES: readonly AttributeName[] = ["pace", "shooting", "pass
 
 const GOALKEEPING: AttributeName = "goalkeeping";
 
-/** Below this value an attribute bar is greyed: it is not a strength of the player. */
+/** Below this value a compact attribute bar is greyed: it is not a strength of the player. */
 const WEAK_ATTRIBUTE = 40;
 
 /** The six outfield attributes, the goalkeeping one first for a goalkeeper. */
@@ -21,20 +21,20 @@ export function AttributeBar({ name, value, compact = false }: { name: Attribute
   return (
     <div
       data-attribute={name}
-      className={cn("grid items-center text-xs", compact ? "grid-cols-[4rem_1fr_1.5rem] gap-2" : "grid-cols-[5rem_1fr_2rem] gap-3")}
+      className={cn("grid items-center", compact ? "grid-cols-[4rem_1fr_1.5rem] gap-2 text-xs" : "grid-cols-[5.5rem_1fr_1.75rem] gap-2.5 text-sm")}
     >
-      <span className="text-muted-foreground">{t(`attributes.${name}`)}</span>
-      <span className={cn("rounded-full bg-border", compact ? "h-1" : "h-1.5")} aria-hidden>
+      <span className={compact ? "text-muted-foreground" : "text-on-blue"}>{t(`attributes.${name}`)}</span>
+      <span className={cn("rounded-full", compact ? "h-1 bg-border" : "h-2 bg-background")} aria-hidden>
         <span
           className={cn(
             "block rounded-full",
-            compact ? "h-1" : "h-1.5",
-            value >= WEAK_ATTRIBUTE ? "bg-(--club)" : "bg-muted-foreground/50",
+            compact ? "h-1" : "h-2",
+            compact && value < WEAK_ATTRIBUTE ? "bg-muted-foreground/50" : "bg-(--club)",
           )}
           style={{ width: `${value}%` }}
         />
       </span>
-      <span className="text-right font-semibold tabular-nums">{value}</span>
+      <span className={cn("text-right tabular-nums", compact ? "font-semibold" : "font-bold")}>{value}</span>
     </div>
   );
 }
