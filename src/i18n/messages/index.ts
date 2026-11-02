@@ -3,6 +3,8 @@ import enActions from "./en/actions.json";
 import enAdmin from "./en/admin.json";
 import enCatalogs from "./en/catalogs.json";
 import enChallengeBanner from "./en/challenge-banner.json";
+import enChallengeScreen from "./en/challenge-screen.json";
+import enClub from "./en/club.json";
 import enCup from "./en/cup.json";
 import enDashboard from "./en/dashboard.json";
 import enDashboardHero from "./en/dashboard-hero.json";
@@ -17,6 +19,7 @@ import enMarketSell from "./en/market-sell.json";
 import enOnboarding from "./en/onboarding.json";
 import enPlayerSheet from "./en/player-sheet.json";
 import enPublic from "./en/public.json";
+import enSeasons from "./en/seasons.json";
 import enSquad from "./en/squad.json";
 import enStandings from "./en/standings.json";
 import enTransfers from "./en/transfers.json";
@@ -25,6 +28,8 @@ import frActions from "./fr/actions.json";
 import frAdmin from "./fr/admin.json";
 import frCatalogs from "./fr/catalogs.json";
 import frChallengeBanner from "./fr/challenge-banner.json";
+import frChallengeScreen from "./fr/challenge-screen.json";
+import frClub from "./fr/club.json";
 import frCup from "./fr/cup.json";
 import frDashboard from "./fr/dashboard.json";
 import frDashboardHero from "./fr/dashboard-hero.json";
@@ -39,6 +44,7 @@ import frMarketSell from "./fr/market-sell.json";
 import frOnboarding from "./fr/onboarding.json";
 import frPlayerSheet from "./fr/player-sheet.json";
 import frPublic from "./fr/public.json";
+import frSeasons from "./fr/seasons.json";
 import frSquad from "./fr/squad.json";
 import frStandings from "./fr/standings.json";
 import frTransfers from "./fr/transfers.json";
@@ -70,6 +76,9 @@ export const ZONES = {
   fixtures: { fr: frFixtures, en: enFixtures },
   standings: { fr: frStandings, en: enStandings },
   cup: { fr: frCup, en: enCup },
+  seasons: { fr: frSeasons, en: enSeasons },
+  club: { fr: frClub, en: enClub },
+  "challenge-screen": { fr: frChallengeScreen, en: enChallengeScreen },
   live: { fr: frLive, en: enLive },
   "half-time": { fr: frHalfTime, en: enHalfTime },
   actions: { fr: frActions, en: enActions },
@@ -95,6 +104,9 @@ const fr = {
   ...frFixtures,
   ...frStandings,
   ...frCup,
+  ...frSeasons,
+  ...frClub,
+  ...frChallengeScreen,
   ...frLive,
   ...frHalfTime,
   ...frActions,
@@ -125,6 +137,9 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enFixtures,
     ...enStandings,
     ...enCup,
+    ...enSeasons,
+    ...enClub,
+    ...enChallengeScreen,
     ...enLive,
     ...enHalfTime,
     ...enActions,
