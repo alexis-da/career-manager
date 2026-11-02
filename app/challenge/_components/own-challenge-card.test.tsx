@@ -6,10 +6,8 @@ import { inLanguage } from "@/src/i18n/test-intl";
 import { OwnChallengeCard } from "./own-challenge-card";
 
 // The form's own button, without its Server Action, which reads the database: what the card asks of it is enough here.
-vi.mock("@/app/challenge/_components/play-challenge-form", () => ({
-  PlayChallengeForm: ({ weekKey, variant }: { weekKey: string; variant?: string }) => (
-    <button data-testid="challenge-play" data-week={weekKey} data-variant={variant} />
-  ),
+vi.mock("./play-challenge-form", () => ({
+  PlayChallengeForm: ({ weekKey }: { weekKey: string }) => <button data-testid="challenge-play" data-week={weekKey} />,
 }));
 
 const ranked = (rank: number, points: number, isViewer: boolean): ChallengeRankingRow => ({
@@ -29,7 +27,7 @@ const VIEW: ChallengePageView = {
   horizon: 10,
   endsAt: new Date("2026-11-09T00:00:00Z"),
   savesPurgedAt: new Date("2026-11-10T00:00:00Z"),
-  club: { name: "Picardie SC", competition: null, primaryColor: "#000000" },
+  club: { name: "Picardie SC", competition: null },
   full: false,
   own: null,
   ranking: [],
@@ -99,10 +97,9 @@ describe("the card « Ta partie »", () => {
     expect(shown(markup)).toEqual(["challenge-full"]);
   });
 
-  it("offers the challenge in the screen's orange, with the day its save is deleted", () => {
+  it("offers the challenge, with the day its save is deleted", () => {
     const markup = render({});
     expect(markup).toContain('data-week="2026-W45"');
-    expect(markup).toContain('data-variant="club"');
     expect(markup).toContain("Partie de défi supprimée le mardi 10/11");
     expect(markup).not.toContain("challenge-own-progress");
     expect(shown(markup)).toEqual(["challenge-play"]);

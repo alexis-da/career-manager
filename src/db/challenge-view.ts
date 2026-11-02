@@ -89,7 +89,7 @@ export type ChallengePageView = {
   endsAt: Date;
   savesPurgedAt: Date;
   // The club and its competition, by country and division: the page names it in the player's language.
-  club: { name: string; competition: { country: Country; tier: CompetitionTier } | null; primaryColor: string };
+  club: { name: string; competition: { country: Country; tier: CompetitionTier } | null };
   full: boolean; // the week has its MAX_CHALLENGE_SAVES_PER_WEEK saves
   own: { saveId: string | null; matchdaysPlayed: number; submitted: boolean } | null; // the viewer's entry this week
   ranking: ChallengeRankingRow[];
@@ -104,7 +104,7 @@ export async function getChallengePage(challenge: ChallengeSummary, viewer: Chal
   const [club, saves, own, entries, previous] = await Promise.all([
     prisma.club.findUniqueOrThrow({
       where: { id: challenge.clubId },
-      select: { slug: true, name: true, primaryColor: true, competition: { select: { code: true, tier: true } } },
+      select: { slug: true, name: true, competition: { select: { code: true, tier: true } } },
     }),
     prisma.save.count({ where: { challengeId: challenge.id } }),
     viewer === null
@@ -133,7 +133,6 @@ export async function getChallengePage(challenge: ChallengeSummary, viewer: Chal
         club.competition === null
           ? null
           : { country: competitionCountry(club.competition.code), tier: competitionTier(club.competition.tier) },
-      primaryColor: club.primaryColor,
     },
     full: saves >= MAX_CHALLENGE_SAVES_PER_WEEK,
     own: own === null ? null : { saveId: own.saveId, matchdaysPlayed: own.matchdaysPlayed, submitted: own.submittedAt !== null },

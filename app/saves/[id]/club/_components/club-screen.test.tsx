@@ -91,7 +91,7 @@ describe("the week's challenge", () => {
     horizon: 10,
     endsAt: new Date("2026-11-09T00:00:00Z"),
     savesPurgedAt: new Date("2026-11-10T00:00:00Z"),
-    club: { name: "Stade Test", competition: null, primaryColor: "#000000" },
+    club: { name: "Stade Test", competition: null },
     full: false,
     own,
     ranking,

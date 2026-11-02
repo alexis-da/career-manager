@@ -12,8 +12,8 @@ export type OwnChallenge =
   | { kind: "open" };
 
 /**
- * What the card « Ta partie » says, the cases of the public page's action. No score while the save plays: the game writes
- * one at the last matchday of the horizon, read from there in the player's line of the ranking.
+ * What the card « Ta partie » says. No score while the save plays: the game writes one at the last matchday of the
+ * horizon, read from there in the player's line of the ranking.
  */
 export function ownChallenge({ own, full, ranking }: Pick<ChallengePageView, "own" | "full" | "ranking">): OwnChallenge {
   if (own === null) {

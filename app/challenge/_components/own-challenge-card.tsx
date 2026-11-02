@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { PlayChallengeForm } from "@/app/challenge/_components/play-challenge-form";
+import { Panel } from "@/src/components/panel";
 import { buttonVariants } from "@/src/components/ui/button";
 import type { ChallengePageView } from "@/src/db/challenge-view";
 import { formatParisDay } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "@/src/components/panel";
 import { ownChallenge, type OwnScore } from "../_lib/own-challenge";
+import { PlayChallengeForm } from "./play-challenge-form";
 
 const TITLE = "challenge-own-title";
 
@@ -86,7 +86,7 @@ export function OwnChallengeCard({ view }: { view: ChallengePageView }) {
       )}
       {state.kind === "open" && (
         <div className="space-y-2">
-          <PlayChallengeForm weekKey={view.weekKey} variant="club" />
+          <PlayChallengeForm weekKey={view.weekKey} />
           <p className="text-xs text-muted-foreground">{t("purgedOn", { day: formatParisDay(view.savesPurgedAt, locale) })}</p>
         </div>
       )}
