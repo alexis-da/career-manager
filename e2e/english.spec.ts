@@ -100,7 +100,8 @@ test("creates a career in English and finds it on the home page, its date in Bri
   saveName = name;
 
   await createSave(page, name, LYON);
-  // The language switcher is in the save's header too.
+  // The language switcher is in the career's settings too.
+  await openScreen(page, "club");
   await expect(page.getByTestId("language-en")).toHaveAttribute("aria-pressed", "true");
 
   await page.goto("/");

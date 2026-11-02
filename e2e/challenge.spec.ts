@@ -36,7 +36,7 @@ test("plays the week's challenge from the home page to its tenth matchday, then 
     await expect(standing).toHaveText("Défi de la semaine · journée 0 / 10");
     await expect(banner).toContainText(/Défi · semaine \d+/);
     await expect(banner).toContainText(/Partie de défi supprimée le mardi \d{2}\/\d{2}/);
-    await expect(banner.getByTestId("challenge-banner-ranking")).toHaveAttribute("href", "/challenge");
+    await expect(banner.getByTestId("challenge-banner-ranking")).toHaveAttribute("href", /^\/saves\/[^/]+\/challenge$/);
 
     // Match after match of the club, cup ties included, until its tenth league matchday. « Fin du mois » would not do:
     // the save's date stays on the last date played, and the same month's end has nothing more to play.
@@ -49,15 +49,19 @@ test("plays the week's challenge from the home page to its tenth matchday, then 
     await expect(banner).toContainText("La partie continue mais ne compte plus.");
     await expect(banner).toContainText("Connecte-toi pour apparaître au classement.");
 
-    // Back to the challenge from the save's header: the anonymous player's line, greyed, outside the ranking.
-    await page.getByRole("link", { name: "Défi de la semaine" }).click();
-    await expect(page).toHaveURL(/\/challenge$/);
-    const own = page.locator('[data-ranking-row="own"]');
-    await expect(own).toContainText("Toi");
-    await expect(own).toContainText("Connecte-toi pour apparaître au classement");
-    await expect(own.locator("td").first()).toHaveText("—");
-    await expect(page.getByTestId("challenge-resume")).toHaveText("Reprendre ma partie");
-    await expect(page.getByText("Score enregistré")).toBeVisible();
+    // Back to the challenge from the card, in the save, then on its public page: the anonymous player's line, greyed,
+    // outside the ranking.
+    await banner.getByTestId("challenge-banner-ranking").click();
+    await expect(page).toHaveURL(/\/saves\/[^/]+\/challenge$/);
+    for (const screen of ["in the save", "public"]) {
+      const own = page.locator('[data-ranking-row="own"]');
+      await expect(own, screen).toContainText("Toi");
+      await expect(own, screen).toContainText("Connecte-toi pour apparaître au classement");
+      await expect(own.locator("td").first(), screen).toHaveText("—");
+      await expect(page.getByTestId("challenge-resume"), screen).toHaveText("Reprendre ma partie");
+      await expect(page.getByText("Score enregistré"), screen).toBeVisible();
+      await page.goto("/challenge");
+    }
   } finally {
     // Even when a step failed: a leftover challenge save would count against the week's cap.
     await deleteUsers([await userIdOf(context)]);

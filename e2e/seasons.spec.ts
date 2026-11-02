@@ -8,7 +8,7 @@ test("shows the demo save's palmarès, its completed season and the season's car
   await context.addCookies([{ name: USER_COOKIE, value: signedUserCookie(DEMO_USER_ID), url: baseURL ?? "" }]);
 
   await page.goto(`/saves/${saveId}`);
-  await openScreen(page, "club");
+  await openScreen(page, "seasons");
   await expect(page.getByRole("heading", { name: "Palmarès" })).toBeVisible();
   const season = page.locator('tr[data-season="2026"]');
   await expect(season).toContainText("2026-27");

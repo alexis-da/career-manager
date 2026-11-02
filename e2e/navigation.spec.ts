@@ -12,7 +12,7 @@ import {
 } from "./helpers";
 
 // A save's navigation, on the demo save, which has no cup and which nothing here changes: its five entries, then the
-// tabs of the two that have several. One <nav> in the DOM at every width: at the foot of the screen on a phone, in a
+// tabs of the three that have several. One <nav> in the DOM at every width: at the foot of the screen on a phone, in a
 // column at the left of the screen on a computer. The game's actions follow it: the demo save's world has one division a
 // country, so its main action is « Jouer la journée »; the last test creates a save with two, for « Prochain match ».
 
@@ -24,6 +24,9 @@ const MAX_COLUMN_WIDTH = 260;
 
 /** The demo save's main action. */
 const MAIN_ACTION = "play-matchday";
+
+/** How many tabs an entry has, without a cup. */
+const TABS_OF_ENTRY: Record<string, number> = { "nav-team": 2, "nav-match": 2, "nav-club": 3 };
 
 /** Where a screen is, and how the navigation shows it. */
 type Stop = {
@@ -41,7 +44,9 @@ const STOPS: Record<Exclude<SaveScreen, "cup">, Stop> = {
   standings: { path: "/standings", title: "standings-title", entry: "nav-match", tab: "nav-standings" },
   transfers: { path: "/transfers", title: "transfers-title", entry: "nav-transfers" },
   advanced: { path: "/transfers/advanced", title: "advanced-title", entry: "nav-transfers" },
-  club: { path: "/seasons", title: "seasons-title", entry: "nav-club" },
+  club: { path: "/club", title: "club-title", entry: "nav-club", tab: "nav-club-overview" },
+  challenge: { path: "/challenge", title: "challenge-title", entry: "nav-club", tab: "nav-challenge" },
+  seasons: { path: "/seasons", title: "seasons-title", entry: "nav-club", tab: "nav-seasons" },
 };
 
 /** The market's tab of sales: the same address but for its query, known by its list rather than by the screen's title. */
@@ -53,13 +58,29 @@ type Labels = { name: string; entries: string[]; tabs: Record<string, string> };
 const FRENCH: Labels = {
   name: "Navigation de la partie",
   entries: ["Accueil", "Équipe", "Match", "Marché", "Club"],
-  tabs: { "nav-squad": "Effectif", "nav-lineup": "Composition", "nav-fixtures": "Calendrier", "nav-standings": "Classement" },
+  tabs: {
+    "nav-squad": "Effectif",
+    "nav-lineup": "Composition",
+    "nav-fixtures": "Calendrier",
+    "nav-standings": "Classement",
+    "nav-club-overview": "Club",
+    "nav-challenge": "Défi",
+    "nav-seasons": "Palmarès",
+  },
 };
 
 const ENGLISH: Labels = {
   name: "Career navigation",
   entries: ["Home", "Squad", "Match", "Market", "Club"],
-  tabs: { "nav-squad": "Squad", "nav-lineup": "Line-up", "nav-fixtures": "Fixtures", "nav-standings": "Table" },
+  tabs: {
+    "nav-squad": "Squad",
+    "nav-lineup": "Line-up",
+    "nav-fixtures": "Fixtures",
+    "nav-standings": "Table",
+    "nav-club-overview": "Club",
+    "nav-challenge": "Challenge",
+    "nav-seasons": "Honours",
+  },
 };
 
 /** The screen is open, and the navigation says so. */
@@ -79,7 +100,7 @@ async function expectNavigationOn(page: Page, saveId: string, stop: Stop, labels
     await expect(page.getByTestId("section-tabs")).toHaveCount(0);
   } else {
     const tabs = page.getByRole("main").getByTestId("section-tabs");
-    await expect(tabs.getByRole("link")).toHaveCount(2);
+    await expect(tabs.getByRole("link")).toHaveCount(TABS_OF_ENTRY[stop.entry]);
     const tab = tabs.locator('[aria-current="page"]');
     await expect(tab).toHaveAttribute("data-testid", stop.tab);
     await expect(tab).toHaveText(labels.tabs[stop.tab]);
@@ -179,7 +200,7 @@ for (const { name, locale, viewport, labels, teamHome, matchHome, expectLayout }
       }
 
       // Each tab, through its entry.
-      for (const screen of ["squad", "lineup", "fixtures", "standings"] as const) {
+      for (const screen of ["squad", "lineup", "fixtures", "standings", "challenge", "seasons"] as const) {
         await openScreen(page, screen);
         await expectStop(STOPS[screen]);
       }
@@ -200,7 +221,7 @@ for (const { name, locale, viewport, labels, teamHome, matchHome, expectLayout }
 test.describe("the game's actions, on a computer", () => {
   test.use({ viewport: COMPUTER });
 
-  test("are in the sidebar's card but on the dashboard, whose hero alone has them, and leave the orange to the team and the market", async ({
+  test("are in the sidebar's card but on the dashboard, whose hero alone has them, and leave the orange to the team, the market and Club", async ({
     page,
     context,
   }) => {
@@ -239,6 +260,9 @@ test.describe("the game's actions, on a computer", () => {
       await openScreen(page, "transfers");
       await expect(page.getByTestId("market-recruit")).toHaveCSS("background-color", ACTION_ORANGE);
       await expect(sidebar.getByTestId("next-match")).toBeVisible();
+      await expect(sidebar.getByTestId("next-match")).not.toHaveCSS("background-color", ACTION_ORANGE);
+      await openScreen(page, "club");
+      await expect(page.getByTestId("club-challenge-link")).toHaveCSS("background-color", ACTION_ORANGE);
       await expect(sidebar.getByTestId("next-match")).not.toHaveCSS("background-color", ACTION_ORANGE);
     } finally {
       // Even when a step failed: the user takes their save with them.

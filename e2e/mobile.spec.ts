@@ -122,6 +122,14 @@ test("plays a career on a phone, from the home page to the honours, never wider 
   await expect(atHead).toBeHidden();
 
   await openScreen(page, "club");
+  await expect(page.getByTestId("club-title")).toBeVisible();
+  await expect(atHead).toBeHidden();
+  await expectNoSidewaysScroll(page, "club");
+  await openScreen(page, "challenge");
+  await expect(page.getByTestId("challenge-title")).toBeVisible();
+  await expect(atHead).toBeHidden();
+  await expectNoSidewaysScroll(page, "challenge");
+  await openScreen(page, "seasons");
   await expect(page.getByTestId("seasons-title")).toBeVisible();
   await expect(atHead).toBeHidden();
   await expectNoSidewaysScroll(page, "honours");

@@ -166,18 +166,31 @@ export async function deleteSave(page: Page, name: string): Promise<void> {
 }
 
 /**
- * A screen of a save, as its navigation opens it: « club » is the entry of that name, on the honours for now, and
+ * A screen of a save, as its navigation opens it: « club » is the entry of that name, which opens on its overview, and
  * « advanced » the advanced market, a link away from the market.
  */
-export type SaveScreen = "dashboard" | "squad" | "lineup" | "fixtures" | "standings" | "cup" | "transfers" | "advanced" | "club";
+export type SaveScreen =
+  | "dashboard"
+  | "squad"
+  | "lineup"
+  | "fixtures"
+  | "standings"
+  | "cup"
+  | "transfers"
+  | "advanced"
+  | "club"
+  | "challenge"
+  | "seasons";
 
 /** The entry of each tab: a tab exists only on the screens of its entry. */
-const ENTRY_OF_TAB: Partial<Record<SaveScreen, "team" | "match">> = {
+const ENTRY_OF_TAB: Partial<Record<SaveScreen, "team" | "match" | "club">> = {
   squad: "team",
   lineup: "team",
   fixtures: "match",
   standings: "match",
   cup: "match",
+  challenge: "club",
+  seasons: "club",
 };
 
 /** Opens a screen of a save from its navigation: its entry, then its tab when it is one, or the market's link. */

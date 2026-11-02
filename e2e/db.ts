@@ -44,6 +44,24 @@ export async function createAnonymousUser(lastSeenAt: Date): Promise<string> {
   return id;
 }
 
+/**
+ * A user with a Google account made directly in the database: nothing here goes through Google, and the lw_uid cookie
+ * resolves any user. Its e-mail is unique, as the column wants it. Not simulation code: a random id.
+ */
+export async function createRegisteredUser(name: string): Promise<{ id: string; email: string }> {
+  const id = `e2e-google-${randomUUID()}`;
+  const email = `${id}@e2e.test`;
+  await withTestDatabase((client) =>
+    client.query(
+      `INSERT INTO "User" ("id", "kind", "name", "email", "createdAt", "lastSeenAt")
+       VALUES ($1, 'REGISTERED', $2, $3, $4::timestamp(3), $4::timestamp(3))`,
+      // An ISO string: a Date parameter would be sent in the local time zone, and the columns hold UTC.
+      [id, name, email, new Date().toISOString()],
+    ),
+  );
+  return { id, email };
+}
+
 /** Whether a user is still in the database. */
 export async function userExists(id: string): Promise<boolean> {
   const result = await withTestDatabase((client) => client.query(`SELECT 1 FROM "User" WHERE "id" = $1`, [id]));
@@ -105,6 +123,29 @@ export async function setSaveDate(saveId: string, date: Date): Promise<void> {
   );
 }
 
+/**
+ * The managed club's line of a save's first season, as the page of a season reads it, the season itself left in progress:
+ * a test that does this plays nothing afterwards. Returns the season's id.
+ */
+export async function insertSeasonResult(saveId: string): Promise<string> {
+  const result = await withTestDatabase((client) =>
+    client.query<{ seasonId: string }>(
+      `INSERT INTO "SeasonResult" ("id", "saveId", "seasonId", "competitionId", "rank", "points", "played", "won", "drawn", "lost",
+                                   "goalsFor", "goalsAgainst", "trophies", "formation")
+       SELECT gen_random_uuid()::text, c."saveId", s."id", s."competitionId", 9, 50, 34, 14, 8, 12, 45, 44, '{}', c."formation"
+       FROM "ClubSave" c JOIN "Season" s ON s."saveId" = c."saveId" AND s."competitionId" = c."competitionId"
+       WHERE c."saveId" = $1 AND c."isManaged"
+       RETURNING "seasonId"`,
+      [saveId],
+    ),
+  );
+  const seasonId = result.rows[0]?.seasonId;
+  if (seasonId === undefined) {
+    throw new Error(`No season of the managed club in save ${saveId}`);
+  }
+  return seasonId;
+}
+
 /** The demo user's id and the demo save's seed: src/db/test-support.ts, which Playwright's loader cannot import. */
 export const DEMO_USER_ID = "demo-user";
 const DEMO_SEED = "demo-2026-27";
@@ -125,6 +166,26 @@ export async function demoSaveId(): Promise<string> {
     throw new Error("No demo save in the test database: run npm run test first, which creates it.");
   }
   return id;
+}
+
+/**
+ * A user's score in the real week's challenge (created by the page /challenge beforehand), without a save: a line of its
+ * ranking, which deleting the user takes away.
+ */
+export async function submitWeekScore(userId: string, score: { points: number; goalDiff: number; goalsFor: number }): Promise<void> {
+  // Not simulation code: the week the test server serves.
+  const weekKey = isoWeekKey(new Date());
+  const result = await withTestDatabase((client) =>
+    client.query(
+      `INSERT INTO "ChallengeEntry" ("id", "challengeId", "userId", "matchdaysPlayed", "points", "goalDiff", "goalsFor", "submittedAt")
+       SELECT gen_random_uuid()::text, c."id", $1, c."horizonMatchdays", $2, $3, $4, now() AT TIME ZONE 'UTC'
+       FROM "Challenge" c WHERE c."weekKey" = $5`,
+      [userId, score.points, score.goalDiff, score.goalsFor, weekKey],
+    ),
+  );
+  if (result.rowCount === 0) {
+    throw new Error(`No challenge for ${weekKey}: open /challenge first, which creates it`);
+  }
 }
 
 /**
