@@ -1,4 +1,4 @@
-import { seasonLabel } from "@/src/engine/world";
+import { seasonLabel, seasonStartYear } from "@/src/engine/world";
 import type { Translator } from "@/src/i18n/translator";
 import { cupRoundReached } from "./stage";
 
@@ -26,6 +26,11 @@ export function cupLabel(season: { cupRound: number | null; cupWinner: boolean }
 /** Won, drawn, lost: « 24-8-6 ». */
 export function recordLabel(season: { won: number; drawn: number; lost: number }): string {
   return `${season.won}-${season.drawn}-${season.lost}`;
+}
+
+/** Whether a completed season is a save's last: on the save's date, the season in progress is the one after it. */
+export function isLastCompletedSeason(startYear: number, currentDate: Date): boolean {
+  return seasonStartYear(currentDate) === startYear + 1;
 }
 
 /** Where a season's card is drawn; format "square" for 1080 × 1080, 1200 × 630 otherwise. */

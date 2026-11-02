@@ -23,10 +23,12 @@
     "cardFile": "late-winner-season-{season}.png",
     "cardFileLandscape": "late-winner-season-{season}-landscape.png",
     "completed": {
+      "season": "Season {season}",
       "title": "Season complete",
-      "summary": "Season {season} · {competition} · {rank} with {points, plural, one {# point} other {# points}} ({record})",
+      "summary": "{competition} · {rank} with {points, plural, one {# point} other {# points}} ({record})",
       "cupWinner": "{cup} · winners: {club}",
-      "shareTitle": "My {season} season on Late Winner"
+      "shareTitle": "My {season} season on Late Winner",
+      "next": "On to the {season} season"
     },
     "cardPanel": {
       "alt": "Season card: {title}",
@@ -38,7 +40,8 @@
       "title": "Promotion and relegation",
       "promoted": "Promoted to Division 1",
       "relegated": "Relegated to Division 2",
-      "rankIn": "{rank} in {competition}"
+      "rankIn": "{rank} in {competition}",
+      "managed": "your club"
     }
   },
   "seasonCard": {
