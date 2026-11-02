@@ -55,6 +55,15 @@ export async function fullOrangeActions(page: Page): Promise<(string | null)[]> 
   );
 }
 
+/**
+ * The screen's full orange actions, once a control that changes its look has stopped fading to it. The pointer out of the
+ * way: a main action can come under the one that has just pressed the bar's, and the hovered orange is a lighter one.
+ */
+export async function expectOrangeActions(page: Page, actions: string[]): Promise<void> {
+  await page.mouse.move(0, 0);
+  await expect.poll(() => fullOrangeActions(page)).toEqual(actions);
+}
+
 /** The page as wide as the window, never wider: document.documentElement.scrollWidth ≤ window.innerWidth. */
 export async function expectNoSidewaysScroll(page: Page, step: string): Promise<void> {
   const { scrollWidth, innerWidth } = await page.evaluate(() => ({

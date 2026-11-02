@@ -103,10 +103,20 @@ test("plays a career on a phone, from the home page to the honours, never wider 
   await expect(atHead).toBeVisible();
   await expectNoSidewaysScroll(page, "cup");
 
-  // The other screens leave the game's actions to the dashboard and to Match.
+  // The other screens leave the game's actions to the dashboard and to Match. The squad and a sheet, which names the club
+  // in full, and the line-up hold in the window too (e2e/team.spec.ts has the rest of them).
   await openScreen(page, "squad");
   await expect(page.getByTestId("squad-title")).toBeVisible();
   await expect(atHead).toBeHidden();
+  await expectNoSidewaysScroll(page, "squad");
+  await page.getByTestId("squad-row").first().click();
+  await expect(page.getByTestId("player-sheet")).toContainText(WOLVERHAMPTON);
+  await expectNoSidewaysScroll(page, "player's sheet");
+  await page.getByTestId("player-sheet-close").click();
+  await openScreen(page, "lineup");
+  await expect(page.getByTestId("lineup-title")).toBeVisible();
+  await expect(atHead).toBeHidden();
+  await expectNoSidewaysScroll(page, "line-up");
   await openScreen(page, "transfers");
   await expect(page.getByTestId("transfers-title")).toBeVisible();
   await expect(atHead).toBeHidden();

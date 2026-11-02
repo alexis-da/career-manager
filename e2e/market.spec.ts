@@ -49,20 +49,20 @@ async function playerIdOf(card: Locator): Promise<string> {
   return id;
 }
 
-/** A player signed in this window: his sheet in the squad still offers the sale, and its dialog says why it cannot be. */
+/** A player signed in this window: his sheet in the squad has the sale disabled and says why, with no dialog to go through. */
 async function expectNoResale(page: Page, playerName: string): Promise<void> {
   await openScreen(page, "squad");
   await page.getByTestId("squad-row").filter({ has: page.getByText(playerName, { exact: true }) }).click();
   const sheet = page.getByTestId("player-sheet");
   await expect(sheet.getByTestId("player-sheet-name")).toHaveText(playerName);
-  // Off the row: the card of a hovered row opens to its right, over the sheet's buttons.
-  await page.mouse.move(0, 0);
-  await sheet.getByTestId("sell-player").click();
-  const sale = page.getByTestId("sell-dialog");
-  await expect(sale).toContainText("Tu viens de le recruter à ce mercato : il ne peut pas repartir avant le prochain.");
-  await expect(sale.getByTestId("sell-confirm")).toHaveCount(0);
-  await sale.getByTestId("sell-cancel").click();
-  await expect(sale).toHaveCount(0);
+  const sale = sheet.getByTestId("sell-player");
+  await expect(sale).toBeDisabled();
+  await expect(sheet.getByTestId("player-sale-refusal")).toHaveText(
+    "Tu viens de le recruter à ce mercato : il ne peut pas repartir avant le prochain.",
+  );
+  // Past the button's refusal of the pointer: nothing to confirm opens.
+  await sale.click({ force: true });
+  await expect(page.getByTestId("sell-dialog")).toHaveCount(0);
 }
 
 test("proposes one player at a time, through four ways in, and opens his sheet on the advanced market", async ({ page }) => {

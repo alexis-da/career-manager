@@ -118,12 +118,36 @@ async function expectColumnAtLeft(page: Page, stop: Stop): Promise<void> {
 }
 
 const WALKS = [
-  { name: "on a computer, in French", locale: "fr-FR", viewport: COMPUTER, labels: FRENCH, matchHome: "standings", expectLayout: expectColumnAtLeft },
-  { name: "on a phone, in French", locale: "fr-FR", viewport: PHONE, labels: FRENCH, matchHome: "fixtures", expectLayout: expectBarAtFoot },
-  { name: "on a phone, in English", locale: "en-GB", viewport: PHONE, labels: ENGLISH, matchHome: "fixtures", expectLayout: expectBarAtFoot },
+  {
+    name: "on a computer, in French",
+    locale: "fr-FR",
+    viewport: COMPUTER,
+    labels: FRENCH,
+    teamHome: "lineup",
+    matchHome: "standings",
+    expectLayout: expectColumnAtLeft,
+  },
+  {
+    name: "on a phone, in French",
+    locale: "fr-FR",
+    viewport: PHONE,
+    labels: FRENCH,
+    teamHome: "squad",
+    matchHome: "fixtures",
+    expectLayout: expectBarAtFoot,
+  },
+  {
+    name: "on a phone, in English",
+    locale: "en-GB",
+    viewport: PHONE,
+    labels: ENGLISH,
+    teamHome: "squad",
+    matchHome: "fixtures",
+    expectLayout: expectBarAtFoot,
+  },
 ] as const;
 
-for (const { name, locale, viewport, labels, matchHome, expectLayout } of WALKS) {
+for (const { name, locale, viewport, labels, teamHome, matchHome, expectLayout } of WALKS) {
   test.describe(`a save's navigation, ${name}`, () => {
     test.use({ locale, viewport });
 
@@ -144,10 +168,10 @@ for (const { name, locale, viewport, labels, matchHome, expectLayout } of WALKS)
       await page.goto(`/saves/${saveId}`);
       await expectStop(STOPS.dashboard);
 
-      // Each entry straight from the bar: Team opens on the squad, Match on the table on a computer and on the calendar on
-      // a phone, the dashboard comes back last. Its address read first: the server answers for a phone, and on a computer
-      // the entry changes once the page has hydrated.
-      for (const screen of ["squad", matchHome, "transfers", "club", "dashboard"] as const) {
+      // Each entry straight from the bar: Team opens on the line-up on a computer and on the squad on a phone, Match on the
+      // table and on the calendar, the dashboard comes back last. Its address read first: the server answers for a phone,
+      // and on a computer the entries change once the page has hydrated.
+      for (const screen of [teamHome, matchHome, "transfers", "club", "dashboard"] as const) {
         const entry = page.getByTestId(STOPS[screen].entry);
         await expect(entry).toHaveAttribute("href", `/saves/${saveId}${STOPS[screen].path}`);
         await entry.click();
@@ -176,7 +200,7 @@ for (const { name, locale, viewport, labels, matchHome, expectLayout } of WALKS)
 test.describe("the game's actions, on a computer", () => {
   test.use({ viewport: COMPUTER });
 
-  test("are in the sidebar's card but on the dashboard, whose hero alone has them, and leave the orange to the market", async ({
+  test("are in the sidebar's card but on the dashboard, whose hero alone has them, and leave the orange to the team and the market", async ({
     page,
     context,
   }) => {
@@ -192,8 +216,8 @@ test.describe("the game's actions, on a computer", () => {
       await expect(sidebar.getByTestId("simulate-menu")).toHaveCount(0);
 
       // One button again, the sidebar's, beside the navigation and not in it, nor in the page.
-      await openScreen(page, "squad");
-      await expect(page.getByTestId("squad-title")).toBeVisible();
+      await openScreen(page, "standings");
+      await expect(page.getByTestId("standings-title")).toBeVisible();
       await expect(sidebar.getByTestId("next-match")).toHaveText("Prochain match");
       await expect(sidebar.getByTestId("next-match")).toHaveCSS("background-color", ACTION_ORANGE);
       await expect(sidebar.getByTestId("simulate-menu")).toHaveText("Simuler jusqu'à…");
@@ -201,7 +225,17 @@ test.describe("the game's actions, on a computer", () => {
       await expect(page.getByTestId("save-nav").getByTestId("next-match")).toHaveCount(0);
       await expect(page.getByRole("main").getByTestId("next-match")).toHaveCount(0);
 
-      // On the market, the orange is its own action's: the sidebar's button steps back.
+      // Under Team and on the market, the orange is their own action's: the sidebar's button steps back, the same one.
+      for (const [screen, title] of [
+        ["squad", "squad-title"],
+        ["lineup", "lineup-title"],
+      ] as const) {
+        await openScreen(page, screen);
+        await expect(page.getByTestId(title)).toBeVisible();
+        await expect(sidebar.getByTestId("next-match")).toHaveText("Prochain match");
+        await expect(sidebar.getByTestId("next-match")).not.toHaveCSS("background-color", ACTION_ORANGE);
+        await expect(page.getByTestId("next-match")).toHaveCount(1);
+      }
       await openScreen(page, "transfers");
       await expect(page.getByTestId("market-recruit")).toHaveCSS("background-color", ACTION_ORANGE);
       await expect(sidebar.getByTestId("next-match")).toBeVisible();

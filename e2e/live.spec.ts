@@ -5,8 +5,8 @@ import {
   createSave,
   EMOJI,
   expectNoSidewaysScroll,
+  expectOrangeActions,
   expectUncovered,
-  fullOrangeActions,
   pinnedToScreen,
   saveIdOf,
   sidewaysOverflow,
@@ -171,15 +171,6 @@ const clockPace = (page: Page, milliseconds: number): Promise<number> =>
     await new Promise((resolve) => setTimeout(resolve, duration));
     return ((read() - from) * 1000) / (performance.now() - start);
   }, milliseconds);
-
-/**
- * The screen's full orange actions, once a control that changes its look has stopped fading to it. The pointer out of the
- * way: the panel's main action comes under the one that has just pressed the bar's, and the hovered orange is a lighter one.
- */
-async function expectOrangeActions(page: Page, actions: string[]): Promise<void> {
-  await page.mouse.move(0, 0);
-  await expect.poll(() => fullOrangeActions(page)).toEqual(actions);
-}
 
 /** The panel's two ways on, whole on the screen and nothing over them, whatever the panel shows above. */
 async function expectResumeInView(page: Page): Promise<void> {
