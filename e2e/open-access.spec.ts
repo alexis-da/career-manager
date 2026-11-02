@@ -57,9 +57,9 @@ test("asks an anonymous player to sign in once a matchday is played, and the cro
 
   await page.getByTestId("next-match").click();
   await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
-  await page.getByRole("button", { name: "Passer" }).click();
+  await page.getByTestId("live-skip").click();
   await page.getByRole("button", { name: "Reprendre sans changement" }).click();
-  await page.getByRole("button", { name: "Passer" }).click();
+  await page.getByTestId("live-skip").click();
   await page.getByRole("link", { name: "Continuer" }).click();
   await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 

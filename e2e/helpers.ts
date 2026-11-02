@@ -11,6 +11,9 @@ export const E2E_SEED = "e2e";
 /** The full orange of a screen's main action (--club), as the browser computes it. */
 export const ACTION_ORANGE = "rgb(255, 159, 28)";
 
+/** A drawing the system would make in its own colours: the match's events are drawn by the game, never written in emoji. */
+export const EMOJI = /\p{Extended_Pictographic}/u;
+
 /**
  * The header of a save's layout: the sidebar on a computer, the club's line under 1024 px. The game's actions are in it
  * beside the navigation, never inside save-nav, and it has no data-testid of its own.

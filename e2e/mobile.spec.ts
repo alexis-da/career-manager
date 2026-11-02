@@ -58,7 +58,7 @@ test("plays a career on a phone, from the home page to the honours, never wider 
   await nextMatch.click();
   await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/, { timeout: 120_000 });
   await expect(page.getByTestId("live-skip")).toBeVisible();
-  await expect(page.getByTestId("next-match")).toBeHidden();
+  await expect(page.getByTestId("next-match")).toHaveCount(0);
   await expectNoSidewaysScroll(page, "live match");
   await page.getByTestId("live-skip").click();
   await expect(page.getByTestId("half-time-title")).toBeVisible();

@@ -27,9 +27,9 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
     await page.getByTestId("next-match").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
     // To the break, on through the second half without a change, to the final whistle.
-    await page.getByRole("button", { name: "Passer" }).click();
+    await page.getByTestId("live-skip").click();
     await page.getByRole("button", { name: "Reprendre sans changement" }).click();
-    await page.getByRole("button", { name: "Passer" }).click();
+    await page.getByTestId("live-skip").click();
     await page.getByRole("link", { name: "Continuer" }).click();
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
 

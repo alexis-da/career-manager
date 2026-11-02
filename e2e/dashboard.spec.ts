@@ -228,7 +228,9 @@ test("plays the match from the hero, offers only to resume it at the break, then
   await page.getByTestId("live-skip").click();
   await expect(page.getByTestId("half-time-title")).toBeVisible();
 
-  // The match waits: the hero's one way on is back to it, and nothing can be simulated.
+  // The match waits: the hero's one way on is back to it, and nothing can be simulated. The panel closed first: it is modal.
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("half-time")).toBeHidden();
   await openScreen(page, "dashboard");
   const resume = hero.getByTestId("resume-match");
   await expect(resume).toHaveText("Match en cours — reprendre");

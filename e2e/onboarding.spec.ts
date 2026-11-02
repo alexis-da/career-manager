@@ -1,6 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { deleteUsers, userIdOf } from "./db";
-import { E2E_SEED, expectClearOfNav, expectNoSidewaysScroll, openScreen } from "./helpers";
+import { E2E_SEED, expectNoSidewaysScroll, expectUncovered, openScreen } from "./helpers";
 
 // The first visit of a new player, without a cookie: a club card, the first actions that tick themselves, the tips, the
 // first match, its result. In French on a computer, in English on a phone, never wider than the screen. Each test
@@ -14,6 +14,7 @@ const JOURNEYS = [
     clubs: { favourite: "Paris Saint-Germain FC", "mid-table": "Toulouse FC", comeback: "Grenoble Foot 38" },
     careerName: "Carrière Toulouse FC",
     playMatch: "Jouer le match",
+    leaveMatch: "nav-dashboard", // the sidebar stays beside the match
   },
   {
     name: "in English, on a phone",
@@ -22,6 +23,7 @@ const JOURNEYS = [
     clubs: { favourite: "Liverpool FC", "mid-table": "Fulham FC", comeback: "Sheffield Wednesday FC" },
     careerName: "Fulham FC career",
     playMatch: "Play the match",
+    leaveMatch: "live-exit", // the match has the whole screen, and its own way out
   },
 ];
 
@@ -110,14 +112,19 @@ for (const journey of JOURNEYS) {
         await page.getByTestId("live-skip").click();
         await expect(page.getByTestId("half-time-title")).toBeVisible();
         await expect(page.getByTestId("resume-match")).toHaveCount(0);
+        await expect(page.getByTestId("half-time-resume-unchanged")).toBeEnabled();
+        await expect(page.getByTestId("half-time-resume")).toBeEnabled();
         await expect(page.getByTestId("half-time-resume-unchanged")).toBeInViewport({ ratio: 1 });
         await expect(page.getByTestId("half-time-resume")).toBeInViewport({ ratio: 1 });
-        await expectClearOfNav(page, page.getByTestId("half-time-resume-unchanged"));
-        await expectClearOfNav(page, page.getByTestId("half-time-resume"));
+        await expectUncovered(page.getByTestId("half-time-resume-unchanged"));
+        await expectUncovered(page.getByTestId("half-time-resume"));
         await expectNoSidewaysScroll(page, "half-time");
 
-        // At half-time the other clubs have played, the player's club has not: the list stays, the way back too.
-        await openScreen(page, "dashboard");
+        // At half-time the other clubs have played, the player's club has not: the list stays, the way back too. The panel
+        // closed first: it is modal.
+        await page.keyboard.press("Escape");
+        await expect(page.getByTestId("half-time")).toBeHidden();
+        await page.getByTestId(journey.leaveMatch).click();
         await expect(firstAction(page, "match")).toHaveAttribute("data-done", "false");
         await heroAction(page, "resume-match").click();
         await expect(page.getByTestId("half-time-title")).toBeVisible();

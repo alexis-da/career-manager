@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSave, deleteSave, openScreen } from "./helpers";
+import { createSave, deleteSave, EMOJI, openScreen } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 
@@ -23,8 +23,10 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
 
     await page.getByTestId("next-match").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
-    // « Passer » goes to the break, not to the final whistle.
-    await page.getByRole("button", { name: "Passer" }).click();
+    // The way on goes to the break, not to the final whistle.
+    const skip = page.getByTestId("live-skip");
+    await expect(skip).toHaveText("Coaching à la mi-temps");
+    await skip.click();
     const halfTime = page.locator("[data-half-time]");
     await expect(halfTime.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
     await expect(halfTime.locator("[data-substitutions]")).toHaveText("Remplacements : 0/5");
@@ -33,14 +35,19 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     // the match, and the page opens on the break.
     await expect(page.getByTestId("next-match")).toHaveCount(0);
     await expect(page.getByTestId("resume-match")).toHaveCount(0);
+    // The panel closed first: it is modal, and keeps the sidebar out of reach.
+    await page.keyboard.press("Escape");
+    await expect(halfTime).toBeHidden();
     await openScreen(page, "dashboard");
     await expect(page.getByTestId("next-match")).toHaveCount(0);
     await page.getByTestId("resume-match").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live$/);
     await expect(halfTime.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Passer" })).toHaveCount(0);
+    await expect(skip).toHaveCount(0);
 
-    // The last player of the 4-3-3 still on the pitch makes way for the last substitute.
+    // The line-up unfolded: the panel opens without the pitch and the bench. The last player of the 4-3-3 still on the
+    // pitch makes way for the last substitute.
+    await halfTime.getByTestId("half-time-lineup-toggle").click();
     const slotIndex = await halfTime.locator("button[data-slot-player-key]").last().getAttribute("data-slot-index");
     const striker = halfTime.locator(`button[data-slot-index="${slotIndex}"]`);
     const outgoingKey = await striker.getAttribute("data-slot-player-key");
@@ -57,9 +64,9 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     await expect(halfTime.locator("[data-slot-position]")).toHaveText(["G", "DD", "DC", "DC", "DG", "MD", "MC", "MC", "MG", "BU", "BU"]);
     await expect(halfTime.locator("[data-substitutions]")).toHaveText("Remplacements : 1/5");
 
-    await halfTime.getByRole("button", { name: "Reprendre la seconde période" }).click();
+    await halfTime.getByRole("button", { name: "Reprendre le match" }).click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?reprise=1$/);
-    await page.getByRole("button", { name: "Passer" }).click();
+    await skip.click();
     await expect(page.getByText("Terminé", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Continuer" }).click();
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
@@ -73,6 +80,7 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     // By key, not by name: two players of a match may share a name.
     const substitution = sheet.locator(`li[data-player-key="${incomingKey}"][data-related-player-key="${outgoingKey}"]`);
     await expect(substitution.filter({ hasText: "Remplacement" }).filter({ hasText: "46'" })).toHaveCount(1);
+    await expect(sheet).not.toContainText(EMOJI);
   } finally {
     // Even when a step failed: a leftover save would pollute the database.
     await deleteSave(page, name);
@@ -89,12 +97,12 @@ test("with reduced motion, shows the break at once, then the final whistle at on
 
     await page.getByTestId("next-match").click();
     await expect(page.locator("[data-half-time]").getByRole("heading", { name: "Mi-temps" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Passer" })).toHaveCount(0);
+    await expect(page.getByTestId("live-skip")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Reprendre sans changement" }).click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?reprise=1$/);
     await expect(page.getByText("Terminé", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Passer" })).toHaveCount(0);
+    await expect(page.getByTestId("live-skip")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Continuer" })).toBeVisible();
   } finally {
     await deleteSave(page, name);

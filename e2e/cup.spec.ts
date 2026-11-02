@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { parse } from "dotenv";
 import { createAnonymousUser, deleteUsers, signedUserCookie, USER_COOKIE } from "./db";
-import { createSave, deleteSave, openScreen } from "./helpers";
+import { ACTION_ORANGE, createSave, deleteSave, openScreen } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 
@@ -53,23 +53,35 @@ test("plays a cup final live: half-time, the end of regulation time, extra time 
     await page.getByRole("button", { name: "Jouer la journée" }).click();
     await expect(page).toHaveURL(/\/live\?rejouer=1$/);
     await expect(page.getByText("Coupe — Finale · 12 août 2026")).toBeVisible();
-    await page.getByRole("button", { name: "Passer" }).click();
+    const skip = page.getByTestId("live-skip");
+    await expect(skip).toHaveText("Coaching à la mi-temps");
+    await skip.click();
     const pause = page.locator("[data-half-time]");
     await expect(pause.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
     await pause.getByRole("button", { name: "Reprendre sans changement" }).click();
 
-    // Level after 90 minutes: a second break, one substitution more.
+    // Level after 90 minutes: a second break, the way on says so, and it is the screen's main action once more.
     await expect(page).toHaveURL(/\/live\?reprise=1$/);
-    await page.getByRole("button", { name: "Passer" }).click();
+    await expect(skip).toHaveText("Coaching à la pause");
+    await expect(skip).toHaveCSS("background-color", ACTION_ORANGE);
+    await skip.click();
     await expect(pause.getByRole("heading", { name: "Fin du temps réglementaire" })).toBeVisible();
+    await expect(pause).toHaveAttribute("data-half-time", "REGULATION_END");
+    // The panel of that break: one substitution more, the assistant on what follows, and extra time on its button.
     await expect(pause.locator("[data-substitutions]")).toContainText("/6 · un de plus pour la prolongation");
-    // The match waits there: the page opens on it again.
+    await expect(page.getByTestId("half-time-advice")).toContainText("À égalité après 90 minutes : prolongation, puis tirs au but");
+    await expect(page.getByTestId("half-time-resume")).toHaveText("Jouer la prolongation");
+    await expect(page.locator("[data-live-status]")).toHaveText("Fin du temps réglementaire");
+    await expect(page.getByTestId("live-events").locator("li").first()).toContainText("Fin du temps réglementaire");
+    // The match waits there: the page opens on it again, nothing left to skip.
     await page.reload();
     await expect(pause.getByRole("heading", { name: "Fin du temps réglementaire" })).toBeVisible();
+    await expect(skip).toHaveCount(0);
     await pause.getByRole("button", { name: "Reprendre sans changement" }).click();
 
     await expect(page).toHaveURL(/\/live\?reprise=2$/);
-    await page.getByRole("button", { name: "Passer" }).click();
+    await expect(skip).toHaveText("Aller au résultat");
+    await skip.click();
     await expect(page.locator("[data-live-status]")).toHaveText("Terminé");
     await expect(page.locator("[data-shootout-score]")).toHaveText("5 – 3");
     await expect(page.locator("[data-shootout] li")).toHaveCount(9);

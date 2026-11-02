@@ -136,11 +136,14 @@ test("plays a career in English up to its live match, then reads the table", asy
   await page.getByTestId("next-match").click();
   await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
   await expect(page.getByTestId("live-caption")).toHaveText(/^France — Division 1 · Matchday 1 · \d{1,2} August 2026$/);
+  await expect(page.getByTestId("live-skip")).toHaveText("Coach at half-time");
   await page.getByTestId("live-skip").click();
   await expect(page.getByTestId("half-time-title")).toHaveText("Half-time");
   await expect(page.getByTestId("half-time-substitutions")).toContainText("Substitutions: 0/5");
   await expect(page.getByTestId("half-time-resume-unchanged")).toHaveText("Resume without changes");
+  await expect(page.getByTestId("half-time-resume")).toHaveText("Resume the match");
   await page.getByTestId("half-time-resume-unchanged").click();
+  await expect(page.getByTestId("live-skip")).toHaveText("Go to the result");
   await page.getByTestId("live-skip").click();
   await expect(page.getByTestId("live-status")).toHaveText("Full time");
   await page.getByTestId("live-continue").click();
