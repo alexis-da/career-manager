@@ -61,8 +61,7 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
 
   return (
     <LiveMatch
-      // A new replay at each step: its clock starts again from the break.
-      key={`${match.id}:${pause?.phase ?? "end"}`}
+      stepKey={`${match.id}:${pause?.phase ?? "end"}`}
       saveId={id}
       dashboardHref={`/saves/${id}`}
       caption={caption}

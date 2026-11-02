@@ -423,6 +423,16 @@ test("goes to the result without an orange action, then on from the final whistl
   await expect(page.getByTestId("dashboard-last-result")).toBeVisible();
 });
 
+test("keeps the speed chosen through the break, into the second half", async ({ page }) => {
+  await replayFirstHalf(page);
+  await page.getByTestId("live-speed-4").click();
+  await page.getByTestId("live-skip").click();
+  await page.getByTestId("half-time-resume-unchanged").click();
+  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?reprise=1$`));
+  await expect(page.getByTestId("live-skip")).toHaveText("Aller au résultat");
+  await expectSpeed(page, 4);
+});
+
 for (const { name, locale, viewport, says } of PHONES) {
   test.describe(`on a phone, ${name}`, () => {
     test.use({ locale, viewport });

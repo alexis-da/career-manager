@@ -43,7 +43,7 @@ const prefersReducedMotion = (): boolean => window.matchMedia(REDUCED_MOTION_QUE
 const clockMinute = (event: { minute: number; period: MatchEventView["period"] }): number =>
   event.period === "REGULAR" ? Math.min(event.minute, REGULATION_MINUTES) : event.minute;
 
-type LiveMatchProps = {
+type StepProps = {
   saveId: string;
   dashboardHref: string;
   caption: string;
@@ -54,19 +54,23 @@ type LiveMatchProps = {
   startMinute: number; // 0 from kick-off; HALF_TIME_MINUTE or REGULATION_MINUTES to land on a break or replay what follows
 };
 
+type ReplayProps = StepProps & {
+  speed: Speed;
+  onSpeedChange: (speed: Speed) => void;
+};
+
 /**
  * Replays an already simulated match: a clock runs and the saved events appear as it passes their minute. Nothing is
  * drawn here. A match paused at a break stops there, the Coaching panel open; once the rest is played, its replay starts
  * again from the break, the other matches' scores going on. A cup tie that went to extra time runs on to 120'
  * (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the break or the end is shown at once.
  */
-export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause, startMinute }: LiveMatchProps) {
+function Replay({ saveId, dashboardHref, caption, match, others, pause, startMinute, speed, onSpeedChange }: ReplayProps) {
   const t = useTranslations("live");
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
   const router = useRouter();
   const [clock, setClock] = useState(startMinute); // match minutes, fractional
   const [kicksTaken, setKicksTaken] = useState(0);
-  const [speed, setSpeed] = useState<Speed>(1);
   const [panelOpen, setPanelOpen] = useState(true); // the Coaching panel opens by itself on reaching a break
   const skipped = useRef(false);
   const coachingRef = useRef<HTMLButtonElement>(null);
@@ -156,7 +160,7 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
           finished={finished}
           pausePhase={pause?.phase ?? null}
           speed={speed}
-          onSpeedChange={setSpeed}
+          onSpeedChange={onSpeedChange}
           onSkip={skip}
           panelOpen={panelOpen}
           onOpenPanel={() => setPanelOpen(true)}
@@ -214,4 +218,13 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
       </div>
     </div>
   );
+}
+
+/**
+ * The match live: a new replay at each step of the match (`stepKey`), its clock starting again from the break, at the
+ * speed the player chose, which outlives them.
+ */
+export function LiveMatch({ stepKey, ...step }: StepProps & { stepKey: string }) {
+  const [speed, setSpeed] = useState<Speed>(1);
+  return <Replay key={stepKey} {...step} speed={speed} onSpeedChange={setSpeed} />;
 }
