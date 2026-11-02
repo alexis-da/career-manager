@@ -12,6 +12,7 @@ import enDashboardTodo from "./en/dashboard-todo.json";
 import enFixtures from "./en/fixtures.json";
 import enHalfTime from "./en/half-time.json";
 import enHeader from "./en/header.json";
+import enHome from "./en/home.json";
 import enLineup from "./en/lineup.json";
 import enLive from "./en/live.json";
 import enMarket from "./en/market.json";
@@ -37,6 +38,7 @@ import frDashboardTodo from "./fr/dashboard-todo.json";
 import frFixtures from "./fr/fixtures.json";
 import frHalfTime from "./fr/half-time.json";
 import frHeader from "./fr/header.json";
+import frHome from "./fr/home.json";
 import frLineup from "./fr/lineup.json";
 import frLive from "./fr/live.json";
 import frMarket from "./fr/market.json";
@@ -59,6 +61,7 @@ import frWorld from "./fr/world.json";
  */
 export const ZONES = {
   public: { fr: frPublic, en: enPublic },
+  home: { fr: frHome, en: enHome },
   world: { fr: frWorld, en: enWorld },
   catalogs: { fr: frCatalogs, en: enCatalogs },
   header: { fr: frHeader, en: enHeader },
@@ -87,6 +90,7 @@ export const ZONES = {
 
 const fr = {
   ...frPublic,
+  ...frHome,
   ...frWorld,
   ...frCatalogs,
   ...frHeader,
@@ -120,6 +124,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
   fr,
   en: {
     ...enPublic,
+    ...enHome,
     ...enWorld,
     ...enCatalogs,
     ...enHeader,

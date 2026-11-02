@@ -1,0 +1,82 @@
+{
+  "home": {
+    "newSave": "Nouvelle partie",
+    "seasonStart": "La saison {season} commence le {date}.",
+    "accountDeleted": "Ton compte et tes parties ont été supprimés.",
+    "otherDevice": "Déjà une carrière sur un autre appareil ?",
+    "intro": "Reprends une carrière ou commences-en une nouvelle.",
+    "saves": "Parties",
+    "saveCount": "{count, plural, =0 {Aucune partie pour l'instant.} one {# partie} other {# parties}}",
+    "columns": {
+      "name": "Nom",
+      "manager": "Manager",
+      "club": "Club",
+      "date": "Date en jeu",
+      "actions": "Actions"
+    },
+    "challengeBadge": "Défi",
+    "challengeSaveName": "Défi — semaine {week}"
+  },
+  "createSave": {
+    "name": "Nom de la partie",
+    "namePlaceholder": "Ma carrière",
+    "defaultName": "Carrière {club}",
+    "manager": "Manager",
+    "managerPlaceholder": "Ton nom",
+    "club": "Choisis ton club",
+    "allClubs": "Ou parmi les {count} clubs du jeu",
+    "suggestions": {
+      "budget": "Budget {amount}",
+      "favourite": {
+        "label": "Favori",
+        "pitch": "Un effectif fort, un gros budget : tu joues le titre."
+      },
+      "mid-table": {
+        "label": "Milieu de tableau",
+        "pitch": "Un club solide, à toi de le faire grimper."
+      },
+      "comeback": {
+        "label": "Remontée",
+        "pitch": "Un club de Division 2, un petit budget : vise la montée."
+      }
+    },
+    "clubPlaceholder": "Choisir un club",
+    "division": "Division {tier}",
+    "options": "Options",
+    "seed": "Graine (facultative)",
+    "seedHint": "Deux parties de même graine et même club se jouent à l'identique.",
+    "seedPlaceholder": "Tirée au hasard si vide",
+    "submit": "Créer la partie",
+    "pending": "Création de ton monde…",
+    "errors": {
+      "nameRequired": "Donne un nom à la partie.",
+      "managerRequired": "Indique le nom du manager.",
+      "clubRequired": "Choisis un club.",
+      "tooLong": "{max} caractères au plus.",
+      "failed": "La partie n'a pas pu être créée. Réessaie."
+    }
+  },
+  "saveLimit": {
+    "ANONYMOUS": "Tu as déjà une carrière en cours. Connecte-toi avec Google pour en mener jusqu'à trois.",
+    "REGISTERED": "Trois carrières maximum pour l'instant. Supprime-en une pour en commencer une autre."
+  },
+  "deleteSave": {
+    "trigger": "Supprimer",
+    "title": "Supprimer « {name} » ?",
+    "description": "La partie et tout ce qu'elle contient seront effacés. Cette action est définitive.",
+    "confirm": "Supprimer la partie",
+    "deleted": "Partie « {name} » supprimée.",
+    "failed": "La partie n'a pas pu être supprimée. Réessaie."
+  },
+  "account": {
+    "continueWith": "Continuer avec",
+    "googleAccount": "Compte Google",
+    "signOut": "Se déconnecter",
+    "delete": {
+      "trigger": "Supprimer mon compte",
+      "title": "Supprimer ton compte ?",
+      "description": "Ton compte et toutes tes parties seront perdus, sans retour possible. Tu pourras toujours rejouer, avec un nouveau compte ou sans compte.",
+      "confirm": "Supprimer définitivement"
+    }
+  }
+}
