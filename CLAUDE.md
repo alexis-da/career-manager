@@ -139,7 +139,7 @@ entrées de l'anonyme suivent ses parties (`moveChallengeEntries`), sauf pour un
 le compte la garde, celle de l'anonyme est supprimée et sa partie ne compte plus.
 
 **Écrans du défi.** `/challenge` (`app/challenge`, `getChallengePage`, `src/db/challenge-view.ts`), ouverte à tous et
-derrière le mot de passe en mode fermé : le club de la semaine (`displayClubName`, dans `src/db`), **jamais dans le titre
+derrière le mot de passe en mode fermé, le même écran que l'onglet Défi d'une partie (`ChallengeScreen`) : le club de la semaine (`displayClubName`, dans `src/db`), **jamais dans le titre
 ni l'image de partage** ; la fin du défi en heure de Paris (`formatParisDateTime`) ; « Jouer le défi »
 (`playChallengeAction`, qui reçoit la semaine de la page et refuse un défi fermé ; `maxDuration = 60`), « Reprendre ma
 partie », ou « Défi complet cette semaine, reviens lundi » au plafond ; les classements de la semaine et de la
@@ -199,11 +199,16 @@ faible, contrats, gardiens, effectif ; toute la ligne est un lien, sauf « Effec
 lu), le point faible n'est jamais une alerte. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
 couvre l'écran à 390 et 1280 px.
 
-**Premiers pas.** Création d'une partie : trois cartes de club au-dessus de la liste, le club passant en tête du
-formulaire (`suggestClubs`, `src/engine/club-suggestions.ts`, pure, sans hasard : le 1er de D1, le début de la moitié
-basse de D1, la fin de la moitié haute de D2, dans le pays de la langue du joueur, `app/page.tsx` ; budget de
-`clubFinances`) ; la dernière se nomme « Remontée », « Défi » étant le défi de la semaine. Le nom de la partie vient du
-club tant que le joueur n'en tape pas un, la graine est repliée sous « Options ». Tableau de bord : tant que le club
+**Premiers pas.** Création d'une partie : « Choisis ton défi », trois cartes de club (`SuggestionCard`, `suggestClubs`,
+`src/engine/club-suggestions.ts`, pure, sans hasard : le 1er de D1, le début de la moitié basse de D1, la fin de la moitié
+haute de D2, dans le pays de la langue du joueur, `app/page.tsx` ; réputation et budget de `clubFinances`, la note d'un club
+n'existant pas avant la partie, ses joueurs naissant de la graine), celle du milieu, « Équilibré · conseillé », cochée à
+l'ouverture et suivant la langue tant que le joueur n'a rien choisi ; la dernière se nomme « Remontée », « Défi » étant le défi
+de la semaine. Dessous, la recherche (`ClubSearch`, `searchClubs`, `app/_lib/club-search.ts`, pure : deux lettres, sans accents
+ni casse, six résultats, Entrée choisit le premier et n'envoie jamais le formulaire) et la liste complète, par pays puis
+division (`club`, qui montre toujours le club choisi). Le nom de la partie vient du club tant que le joueur n'en tape pas un ;
+lui et la graine sont repliés sous « Options », ouvertes seules par leur erreur ; un formulaire refusé garde tout (`onReset`, React
+le viderait sinon après son action). Tableau de bord : tant que le club
 n'a pas joué, aucun rang (« — ») et « Tes trois premières actions » (`FirstActions`,
 `app/saves/[id]/_components/first-steps.tsx`) dans la carte du dernier match (`LastMatchCard`). Effectif et Composition se
 cochent à l'ouverture de leur page (`MarkSeen`) : on ne peut pas enregistrer une composition sans la changer. Le match se
@@ -296,8 +301,8 @@ secondaire (`GameActions`) : l'orange plein y reste à « Recruter » ou « Vend
 le jeu n'en a pas) ; défi sur le bleu vif (où en est le joueur, tête du classement à partir de `lg`, « Voir le défi », seul
 orange plein de l'écran) ; les trois dernières saisons, et, à partir de `lg`, l'aperçu de la dernière carte et ses boutons
 (`HonoursCardActions` ne les monte pas en dessous : un téléphone ne télécharge pas le PNG) ; Réglages (`ClubSettings` :
-langue, compte, parties utilisées sur la limite, changer de partie, confidentialité). Défi (`/saves/[id]/challenge`) : mêmes
-données que la page publique (`getChallengePage`), qui garde `.brand` et son allure jusqu'à son étape. Tête sur le bleu vif
+langue, compte, parties utilisées sur la limite, changer de partie, confidentialité). Défi (`/saves/[id]/challenge`) : l'écran
+de la page publique (`ChallengeScreen`, `app/challenge/_components`), quelle que soit la partie ouverte. Tête sur le bleu vif
 (semaine et fin, `formatParisWeekdayTime`), carte « Ta partie » (`ownChallenge`, pur : journées, score une fois soumis et
 reprise, « Jouer le défi », ou pourquoi pas ; aucun score provisoire, le jeu ne l'écrit qu'à la 10e journée, jamais de
 « Relancer »), classements (`RankingTable`, partagée : ta ligne en bleu, l'anonyme toujours grisé). Palmarès (`/seasons`) : des
@@ -306,6 +311,17 @@ inchangée, `SeasonCardActions` (« Partager » en orange où le navigateur part
 descentes, et, pour la dernière saison terminée (`isLastCompletedSeason`), « Cap sur la saison 2027-28 » vers le tableau de
 bord : `advanceSeasonAction` mène ici une fois la saison suivante commencée. `e2e/club.spec.ts` couvre ces écrans à 1280,
 390 et 360 px.
+
+**Pages hors partie.** Accueil, `/challenge`, `/login`, `/privacy`, `/admin/stats` et 404 passent par `PublicPage`
+(`app/_components/public-page.tsx`) : la marque du jeu (`public-home`) et la langue sur une ligne, le contenu, le pied
+(`BrandFooter`, ce que la page y ajoute et `privacy-link`) ; `tools`, ce qu'une page offre à côté de la marque à partir de 1024 px,
+passent sous son contenu en dessous, un seul DOM. Accueil : sans utilisateur, le choix du club (règle « Premiers pas »), sur deux
+colonnes à partir de `lg` (titre, phrase, manager et bouton à gauche, clubs à droite ; `HOME_COLUMNS`), le lien du défi et Google
+dans `tools`. Un joueur revenu : « Tes carrières », ses parties en cartes (`SaveCard`, `[data-save-name]`, initiales du club,
+« Reprendre » `open-save`), puis le même formulaire avec son titre en h2, ou `SaveLimitNotice` à la limite, dont le bouton Google
+est alors le seul de l'écran. Une seule action orange pleine : `create-save`, sinon « Reprendre » de la partie la plus récente.
+Slogan, accroche, langues et date de la première saison sont au pied de l'accueil. `e2e/home.spec.ts` couvre ces pages à 1280,
+1024, 390 et 360 px.
 
 **Téléphone.** Aucun écran ne défile de côté à 390 ni à 360 px, en français comme en anglais (`e2e/mobile.spec.ts` :
 `scrollWidth ≤ innerWidth` à chaque étape, en 390 × 844). La barre du bas vaut sous 1024 px (`max-lg:`), tablettes
@@ -380,13 +396,13 @@ secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.
 **Langues : français et anglais.** Tout ce que voit un joueur existe dans les deux langues : pages publiques, écrans
 d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4, sans la langue dans l'adresse. La langue
 du joueur est celle qu'il a choisie (cookie de confort `lw_lang`, `fr` ou `en`, un an, posé seulement par le sélecteur
-« FR · EN », `setLanguageAction`, `app/actions.ts` : pied des pages publiques ; dans une partie, les Réglages de `/club`,
+« FR · EN », `setLanguageAction`, `app/actions.ts` : en haut des pages publiques ; dans une partie, les Réglages de `/club`,
 à toutes les largeurs, en bascule « Français / English »), sinon le français si `Accept-Language` le préfère
 à l'anglais, l'anglais sinon (`negotiateLocale`, `src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`) ;
 `<html lang>` la suit.
 - **Messages** : `src/i18n/messages/<langue>/<zone>.json`, un fichier par zone et par langue, chacun ses espaces de
-  noms, assemblés par `src/i18n/messages/index.ts` (`ZONES`, puis les deux objets) : `public` (accueil, création,
-  compte, connexion, défi, 404, sélecteur), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
+  noms, assemblés par `src/i18n/messages/index.ts` (`ZONES`, puis les deux objets) : `public` (connexion, défi, 404,
+  sélecteur), `home` (accueil, création, compte, limites), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
   a.p./t.a.b., événements, lettres de résultat), `header` (en-tête, navigation, actions de jeu, simulation), `dashboard`,
   `dashboard-hero` (héros de l'Accueil), `dashboard-todo` (« À faire »), `onboarding` (premières actions, bulles),
   `challenge-banner` (carte du défi), `squad` (effectif), `player-sheet` (fiche joueur, contrats), `lineup`,
@@ -426,18 +442,17 @@ le jeu lui-même est en français et en anglais (règle « Langues »). Fichiers
 icône), icônes du site dans `app/` (`favicon.ico`, `icon.svg`, `apple-icon.png`) et `public/icons/`.
 
 **Couleurs.** Marque : bleu vif `#1F3BFF`, bleu nuit `#0B1340`, orange `#FF9F1C`, blanc, fond clair `#EEF1F7`. La palette
-de la piste A habille les écrans d'une partie (`:root` de `app/globals.css`, sombre uniquement) : fond `#0B1340`, cartes
+de la piste A habille tout le jeu (`:root` de `app/globals.css`, sombre uniquement) : fond `#0B1340`, cartes
 `#16205A`, bordures et ligne mise en avant `#2A3678`, navigation `#0E1850`, bleu principal `#1F3BFF` (cartes héros, état
 actif, dont la bascule), orange `#FF9F1C` (`--club` : action principale, entrée active de la navigation, survol
-`#FFB54D`), accent secondaire `#8FA0FF`. La classe `.brand` garde les pages hors partie (connexion, accueil, défi,
-confidentialité, `/admin/stats`, 404) jusqu'à leur étape (`docs/design/refonte-piste-a.md`). Les couleurs de club ne
+`#FFB54D`), accent secondaire `#8FA0FF`. Les couleurs de club ne
 teintent pas l'interface : `--club` est l'orange, partout ; le club se montre par ses initiales (`ClubInitials`,
 `src/components/club-initials.tsx`, orange pour le club dirigé, blanc pour un autre ; `clubInitials`,
-`src/lib/club-initials.ts`), jamais par un écusson, et ses couleurs ne restent que sur les maillots des visages, sur la
-carte PNG (`clubAccentsOn`) et dans le trait devant son nom sur l'accueil et `/challenge`. Une seule action orange pleine
+`src/lib/club-initials.ts`), jamais par un écusson, et ses couleurs ne restent que sur les maillots des visages et sur la
+carte PNG (`clubAccentsOn`). Une seule action orange pleine
 par écran (`variant="club"`), tenue écran par écran au fil des étapes de la refonte : sur l'Accueil, celle du héros, la
 colonne n'en ayant aucune, sur le direct, celle de ses commandes ou du panneau, sur Équipe, « Enregistrer » ou
-« Prolonger », sous Club, « Voir le défi », la reprise ou « Jouer le défi », « Partager » ou « Télécharger ». Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
+« Prolonger », sous Club, « Voir le défi », la reprise ou « Jouer le défi », « Partager » ou « Télécharger », hors partie, « Lancer ma carrière ». Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
 `--loss`, `--warning`, `--info`, `--position-*`). Titres et chiffres en Barlow Condensed 800 italique (le fichier de
 `src/assets/fonts`, chargé par `next/font/local`, une seule graisse), en majuscules par la règle `.font-heading` de
 `globals.css` (`normal-case` là où des unités et des ordinaux doivent garder leur casse : « 16e », « €11.4m ») ; texte
@@ -480,7 +495,7 @@ E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
 
 ```
 app/                  # routes App Router, à la racine ; UI en français et en anglais (src/i18n)
-  _components/        # composants de la page d'accueil (liste et création de parties)
+  _components/        # cadre des pages hors partie (public-page), composants de l'accueil (parties, choix du club)
   admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
   privacy/            # page de confidentialité, publique (hors mot de passe), en français et en anglais ; à tenir à jour
                       # avec le code (_components/privacy-document.tsx : les deux versions, une date de mise à jour)
@@ -495,10 +510,11 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # club.spec.ts : Club, son défi, ses réglages, le palmarès et le bilan d'une saison ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
+                      # home.spec.ts : l'accueil, le choix du club et les pages hors partie ;
                       # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC ; challenge.yml : défi du lundi, 05:00 UTC
 src/
-  components/         # composants partagés : visage du joueur, initiales du club, bascule, styles de tableau
+  components/         # composants partagés : panneau, visage du joueur, initiales du club, bascule, styles de tableau
     ui/               # composants shadcn/ui (Base UI), générés par la CLI
   engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes, coupes, défi ;
                       # club-name.ts : nom affiché des clubs (CLUB_NAMES)
