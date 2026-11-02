@@ -1,28 +1,24 @@
 "use client";
 
-import { competitionName } from "@/src/i18n/countries";
 import { useTranslations } from "next-intl";
-import { FastForwardIcon, SkipForwardIcon } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { PlayerFace } from "@/src/components/player-face";
-import { Button, buttonVariants } from "@/src/components/ui/button";
-import type { FixtureWithEvents, MatchEventView, ScoreTimeline, TeamView } from "@/src/db/calendar";
+import type { FixtureWithEvents, MatchEventView, ScoreTimeline } from "@/src/db/calendar";
 import type { HalfTimeTeam } from "@/src/db/live-match";
 import { EXTRA_TIME_END_MINUTE, HALF_TIME_MINUTE } from "@/src/engine/balance";
-import type { Side } from "@/src/engine/match";
-import { cn } from "@/src/lib/utils";
-import { Panel, PanelTitle } from "../../_components/panel";
-import { ScoreNotes } from "../../_components/score-notes";
-import { describeEvent, EVENT_MARKS, formatMinute, REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
-import { RESULT_CLASSES } from "../../_lib/results";
-import { matchResultFor, stageLabel } from "../../_lib/stage";
+import { REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
+import { matchResultFor } from "../../_lib/stage";
+import { countFor } from "../_lib/match-stats";
 import { HalfTime } from "./half-time";
+import { LiveControls, type Speed } from "./live-controls";
+import { LiveFeed } from "./live-feed";
+import { LiveOtherMatches } from "./live-other-matches";
+import { LiveScoreCard } from "./live-score-card";
+import { LiveShootout } from "./live-shootout";
+import { LiveStats } from "./live-stats";
 
 /** Real duration of the replay from kick-off to the 90th minute, at normal speed. */
 const REPLAY_SECONDS = 45;
-const FAST_FORWARD_FACTOR = 4;
 const TICK_MS = 100;
 const MINUTES_PER_TICK = (REGULATION_MINUTES * TICK_MS) / (REPLAY_SECONDS * 1000);
 /** A shoot-out kick every this many milliseconds, at normal speed. */
@@ -47,38 +43,34 @@ const prefersReducedMotion = (): boolean => window.matchMedia(REDUCED_MOTION_QUE
 const clockMinute = (event: { minute: number; period: MatchEventView["period"] }): number =>
   event.period === "REGULAR" ? Math.min(event.minute, REGULATION_MINUTES) : event.minute;
 
-const goalsOf = (goals: { side: Side }[], side: Side): number => goals.filter((goal) => goal.side === side).length;
-
 type LiveMatchProps = {
   saveId: string;
   dashboardHref: string;
   caption: string;
   match: FixtureWithEvents;
   others: ScoreTimeline[];
-  // The break the match waits at: the replay stops there (45', or 90' for a level cup tie) on the break screen.
+  // The break the match waits at: the replay stops there (45', or 90' for a level cup tie), on the Coaching panel.
   pause: HalfTimeTeam | null;
   startMinute: number; // 0 from kick-off; HALF_TIME_MINUTE or REGULATION_MINUTES to land on a break or replay what follows
 };
 
 /**
  * Replays an already simulated match: a clock runs and the saved events appear as it passes their minute. Nothing is
- * drawn here. A match paused at a break stops there on the break screen; once the rest is played, its replay starts
+ * drawn here. A match paused at a break stops there, the Coaching panel open; once the rest is played, its replay starts
  * again from the break, the other matches' scores going on. A cup tie that went to extra time runs on to 120'
  * (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the break or the end is shown at once.
  */
 export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause, startMinute }: LiveMatchProps) {
   const t = useTranslations("live");
-  const tWorld = useTranslations("world");
-  const tStage = useTranslations("stage");
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
   const router = useRouter();
   const [clock, setClock] = useState(startMinute); // match minutes, fractional
   const [kicksTaken, setKicksTaken] = useState(0);
-  const [fast, setFast] = useState(false);
+  const [speed, setSpeed] = useState<Speed>(1);
   const [panelOpen, setPanelOpen] = useState(true); // the Coaching panel opens by itself on reaching a break
   const skipped = useRef(false);
+  const coachingRef = useRef<HTMLButtonElement>(null);
   const continueRef = useRef<HTMLAnchorElement>(null);
-  const noFocus = useRef<HTMLElement>(null); // the Coaching button comes with the screen
 
   const playedExtraTime = match.decidedBy === "EXTRA_TIME" || match.decidedBy === "PENALTIES";
   const endMinute =
@@ -101,14 +93,13 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
     if (finished) {
       return;
     }
-    const speed = fast ? FAST_FORWARD_FACTOR : 1;
     const timer = clockDone
       ? window.setInterval(() => setKicksTaken((taken) => Math.min(kicks.length, taken + 1)), KICK_MS / speed)
       : window.setInterval(() => setClock((current) => Math.min(endMinute, current + MINUTES_PER_TICK * speed)), TICK_MS);
     return () => window.clearInterval(timer);
-  }, [finished, clockDone, fast, endMinute, kicks.length]);
+  }, [finished, clockDone, speed, endMinute, kicks.length]);
 
-  // « Passer » disappears with the final whistle: keep the keyboard focus on the next step.
+  // « Aller au résultat » disappears with the final whistle: keep the keyboard focus on the next step.
   useEffect(() => {
     if (finished && skipped.current) {
       continueRef.current?.focus();
@@ -121,105 +112,58 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
     setKicksTaken(kicks.length);
   };
 
-  const events = match.events.filter((event) => event.period !== "SHOOTOUT" && isShown(event));
-  const goals = events.filter((event) => event.type === "GOAL");
-  const homeGoals = goalsOf(goals, "home");
-  const awayGoals = goalsOf(goals, "away");
-  const result = matchResultFor({ ...match, homeGoals, awayGoals }, match.home.isManaged);
+  const shown = match.events.filter((event) => event.period !== "SHOOTOUT" && isShown(event));
+  const goals = shown.filter((event) => event.type === "GOAL");
+  const homeGoals = countFor(goals, "home");
+  const awayGoals = countFor(goals, "away");
+  const over = finished && pause === null;
   const taken = kicks.slice(0, shownKicks);
-  const kickScore = taken.at(-1) ?? { home: 0, away: 0 };
 
-  const status = finished
+  const stoppedLabel = finished
     ? pause?.phase === "HALF_TIME"
       ? t("status.halfTime")
       : pause?.phase === "REGULATION_END"
         ? t("status.regulationEnd")
         : t("status.finished")
-    : clockDone
-      ? t("status.shootout")
-      : inExtraTime
-        ? t("status.extraTime")
-        : null;
+    : t("status.shootout");
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
+    <div
+      data-live-page
+      // Under lg, the score reaches the top and the sides of the screen: <main>'s margins are cancelled. The room it keeps at
+      // its foot for the navigation, which is gone here, does for the bar of controls.
+      className="space-y-5 max-lg:-mx-4 max-lg:-mt-6"
+    >
       <h1 className="sr-only" data-testid="live-title">{t("title")}</h1>
 
-      <Panel className="space-y-5 p-6 max-sm:p-4">
-        <p className="eyebrow text-center" data-testid="live-caption">{caption}</p>
-
-        {/* On a phone, a smaller score leaves each name about 100 px: enough for its longest word. */}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 max-sm:gap-2 sm:gap-6">
-          <TeamName team={match.home} align="right" />
-          <p
-            data-testid="live-score"
-            className={cn(
-              "rounded-md px-5 py-1 font-heading text-5xl leading-tight font-bold tabular-nums max-sm:px-1 max-sm:text-4xl sm:text-6xl",
-              finished && pause === null && RESULT_CLASSES[result],
-            )}
-          >
-            <Goals value={homeGoals} /> – <Goals value={awayGoals} />
-          </p>
-          <TeamName team={match.away} align="left" />
-        </div>
-        {finished && pause === null && <ScoreNotes match={match} className="-mt-3 block text-center text-sm" />}
-
-        <div className="mx-auto flex max-w-sm flex-col items-center gap-2">
-          <div className="flex items-center gap-3">
-            <span className="font-heading text-3xl font-bold tabular-nums">{minute}&apos;</span>
-            {finished || clockDone ? (
-              <span className="eyebrow" data-live-status={status ?? ""} data-testid="live-status">
-                {status}
-              </span>
-            ) : (
-              <span
-                className="eyebrow flex items-center gap-1.5 text-loss"
-                data-live-status={status ?? t("live")}
-                data-testid="live-status"
-              >
-                <span aria-hidden className="size-2 rounded-full bg-loss motion-safe:animate-pulse" />
-                {inExtraTime ? t("extraTimeLive") : t("live")}
-              </span>
-            )}
-          </div>
-          <div aria-hidden className="h-1 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-(--club)"
-              style={{ width: `${(minute / (endMinute > REGULATION_MINUTES ? EXTRA_TIME_END_MINUTE : REGULATION_MINUTES)) * 100}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-center gap-2">
-          {finished && pause !== null ? null : finished ? (
-            <Link
-              ref={continueRef}
-              href={dashboardHref}
-              data-testid="live-continue"
-              className={buttonVariants({ variant: "club", className: "h-9 px-4 font-heading text-base font-semibold" })}
-            >
-              {t("continue")}
-            </Link>
-          ) : (
-            <>
-              <Button
-                variant={fast ? "secondary" : "outline"}
-                className="h-9 px-3"
-                aria-pressed={fast}
-                onClick={() => setFast(!fast)}
-                data-testid="live-fast-forward"
-              >
-                <FastForwardIcon data-icon="inline-start" />
-                {t("fastForward", { factor: FAST_FORWARD_FACTOR })}
-              </Button>
-              <Button variant="outline" className="h-9 px-3" onClick={skip} data-testid="live-skip">
-                <SkipForwardIcon data-icon="inline-start" />
-                {t("skip")}
-              </Button>
-            </>
-          )}
-        </div>
-      </Panel>
+      <LiveScoreCard
+        caption={caption}
+        dashboardHref={dashboardHref}
+        match={match}
+        homeGoals={homeGoals}
+        awayGoals={awayGoals}
+        minute={minute}
+        progress={(minute / (endMinute > REGULATION_MINUTES ? EXTRA_TIME_END_MINUTE : REGULATION_MINUTES)) * 100}
+        status={{
+          label: clockDone ? stoppedLabel : inExtraTime ? t("extraTimeLive") : t("live"),
+          value: clockDone ? stoppedLabel : inExtraTime ? t("status.extraTime") : t("live"),
+          running: !finished,
+        }}
+        result={over ? matchResultFor({ ...match, homeGoals, awayGoals }, match.home.isManaged) : null}
+      >
+        <LiveControls
+          dashboardHref={dashboardHref}
+          finished={finished}
+          pausePhase={pause?.phase ?? null}
+          speed={speed}
+          onSpeedChange={setSpeed}
+          onSkip={skip}
+          panelOpen={panelOpen}
+          onOpenPanel={() => setPanelOpen(true)}
+          coachingRef={coachingRef}
+          continueRef={continueRef}
+        />
+      </LiveScoreCard>
 
       {finished && pause !== null && (
         <HalfTime
@@ -227,7 +171,7 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
           team={pause}
           open={panelOpen}
           onOpenChange={setPanelOpen}
-          returnFocusTo={noFocus}
+          returnFocusTo={coachingRef}
           home={match.home}
           away={match.away}
           homeGoals={homeGoals}
@@ -236,146 +180,38 @@ export function LiveMatch({ saveId, dashboardHref, caption, match, others, pause
         />
       )}
 
-      {kicks.length > 0 && clockDone && (
-        <Panel data-shootout="" data-testid="live-shootout">
-          <div className="flex items-baseline justify-between gap-3">
-            <PanelTitle>{t("shootout")}</PanelTitle>
-            <p className="font-heading text-2xl font-bold tabular-nums" data-shootout-score="">
-              {kickScore.home} – {kickScore.away}
-            </p>
+      <div className="space-y-5 max-lg:px-4">
+        {kicks.length > 0 && clockDone && <LiveShootout taken={taken} />}
+
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-5">
+          <LiveFeed
+            className="xl:col-span-3"
+            shown={shown}
+            minute={minute}
+            extraTime={playedExtraTime || pause?.phase === "REGULATION_END"}
+            home={match.home}
+            away={match.away}
+          />
+          <div className="space-y-5 xl:col-span-2">
+            <LiveStats shown={shown} managedSide={match.home.isManaged ? "home" : "away"} />
+            {others.length > 0 && (
+              <LiveOtherMatches
+                match={match}
+                over={over}
+                scores={others.map((other) => {
+                  const otherGoals = other.goals.filter(isShown);
+                  return {
+                    match: other,
+                    home: countFor(otherGoals, "home"),
+                    away: countFor(otherGoals, "away"),
+                    recent: !finished && otherGoals.some((goal) => minute - clockMinute(goal) < RECENT_GOAL_MINUTES),
+                  };
+                })}
+              />
+            )}
           </div>
-          <ol aria-label={t("shootout")} className="mt-3 space-y-1 text-sm">
-            {taken.map(({ event, scored, home, away }) => (
-              <li
-                key={event.id}
-                data-kick={scored ? "scored" : "missed"}
-                className="grid grid-cols-[1fr_4.5rem_1fr] items-center gap-3 rounded-md px-2 py-1.5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 max-sm:grid-cols-[minmax(0,1fr)_3.5rem_minmax(0,1fr)] max-sm:gap-1.5 max-sm:px-1"
-              >
-                <span className="text-right">{event.side === "home" && <KickText name={event.playerName} scored={scored} />}</span>
-                <span className="text-center font-heading font-bold tabular-nums">
-                  {home} – {away}
-                </span>
-                <span>{event.side === "away" && <KickText name={event.playerName} scored={scored} />}</span>
-              </li>
-            ))}
-          </ol>
-        </Panel>
-      )}
-
-      <Panel data-testid="live-events">
-        <PanelTitle>{t("feed")}</PanelTitle>
-        {events.length === 0 ? (
-          <p className="mt-3 text-center text-sm text-muted-foreground">{t("kickOff")}</p>
-        ) : (
-          // Newest first: the latest event is always in view.
-          <ol role="log" aria-label={t("events")} className="mt-3 space-y-1 text-sm">
-            {events.toReversed().map((event) => (
-              <li
-                key={event.id}
-                className={cn(
-                  // On a phone, a narrower minute and smaller gaps: the events' words need the room.
-                  "grid grid-cols-[1fr_3.5rem_1fr] items-baseline gap-3 rounded-md px-2 py-1.5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 max-sm:grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] max-sm:gap-1.5 max-sm:px-1",
-                  event.type === "GOAL" && "bg-muted",
-                )}
-              >
-                <span className="text-right">{event.side === "home" && <EventText event={event} team={match.home} align="right" />}</span>
-                <span className="text-center text-muted-foreground tabular-nums">{formatMinute(event.minute, event.period)}</span>
-                <span>{event.side === "away" && <EventText event={event} team={match.away} align="left" />}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </Panel>
-
-      {others.length > 0 && (
-        <Panel data-testid="live-other-matches">
-          <PanelTitle>
-            {t("otherMatches", { competition: competitionName(match.competitionCode, tWorld) })}
-            {match.cup && ` · ${stageLabel(match, tStage)}`}
-          </PanelTitle>
-          <ul className="mt-3 divide-y text-sm">
-            {others.map((other) => {
-              const otherGoals = other.goals.filter(isShown);
-              const recent = !finished && otherGoals.some((goal) => minute - clockMinute(goal) < RECENT_GOAL_MINUTES);
-              return (
-                // On a phone, the names on two lines rather than cut.
-                <li key={other.id} className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 py-2 max-sm:gap-2">
-                  <span className="truncate text-right max-sm:whitespace-normal">{other.home.name}</span>
-                  <span
-                    className={cn(
-                      "rounded-md px-3 py-0.5 font-heading text-lg font-bold tabular-nums transition-colors max-sm:px-1.5",
-                      recent && "bg-(--club)/18",
-                    )}
-                  >
-                    {goalsOf(otherGoals, "home")} – {goalsOf(otherGoals, "away")}
-                  </span>
-                  <span className="flex min-w-0 items-baseline gap-2 max-sm:flex-wrap">
-                    <span className="truncate max-sm:whitespace-normal">{other.away.name}</span>
-                    {finished && pause === null && <ScoreNotes match={other} />}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </Panel>
-      )}
+        </div>
+      </div>
     </div>
-  );
-}
-
-function TeamName({ team, align }: { team: TeamView; align: "left" | "right" }) {
-  return (
-    <p
-      className={cn(
-        // On a phone, the longest word holds on one line from 360 px. Two ranges that do not overlap: a width in px and
-        // one in rem do not sort reliably.
-        "flex min-w-0 items-center gap-2 font-heading text-xl leading-tight font-bold max-sm:gap-1.5 max-[390px]:text-sm min-[390px]:max-sm:text-base sm:text-2xl",
-        align === "right" && "flex-row-reverse text-right",
-      )}
-    >
-      {team.isManaged && <span aria-hidden className="h-7 w-1 shrink-0 rounded-full bg-(--club)" />}
-      {/* A word longer than the column wraps rather than run under the club's bar. */}
-      <span className="min-w-0 wrap-break-word max-sm:hyphens-auto">{team.name}</span>
-    </p>
-  );
-}
-
-/** A side's goals; a new key at each goal replays the entrance. */
-function Goals({ value }: { value: number }) {
-  return (
-    <span key={value} className="inline-block motion-safe:animate-in motion-safe:zoom-in-150 motion-safe:duration-500">
-      {value}
-    </span>
-  );
-}
-
-/** A shoot-out kick: the kicker, scored or missed. */
-function KickText({ name, scored }: { name: string; scored: boolean }) {
-  const t = useTranslations("live");
-  return (
-    <span>
-      {name}{" "}
-      <span className={cn("text-xs font-semibold", scored ? "text-win" : "text-loss")}>
-        {scored ? t("kick.scored") : t("kick.missed")}
-      </span>
-    </span>
-  );
-}
-
-/** An event of one side; a goal shows the scorer's face, in his club's colors. */
-function EventText({ event, team, align }: { event: MatchEventView; team: TeamView; align: "left" | "right" }) {
-  const t = useTranslations("live");
-  const tEvents = useTranslations("events");
-  return (
-    <span className={cn("inline-flex items-center gap-2", align === "right" && "flex-row-reverse")}>
-      <span aria-hidden>{EVENT_MARKS[event.type]}</span>
-      {event.type === "GOAL" && event.playerKey !== null && event.playerAge !== null && (
-        <PlayerFace playerKey={event.playerKey} age={event.playerAge} clubColors={team.colors} size={20} className="shrink-0" />
-      )}
-      <span>
-        <span className="sr-only">{t("eventLabel", { type: tEvents(`type.${event.type}`), team: team.name })}</span>
-        <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event, tEvents)}</span>
-      </span>
-    </span>
   );
 }

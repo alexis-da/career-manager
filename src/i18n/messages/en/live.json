@@ -1,6 +1,8 @@
 {
   "live": {
     "title": "Live match",
+    "exit": "Back to home",
+    "scoreboard": "Match score",
     "status": {
       "halfTime": "Half-time",
       "regulationEnd": "End of normal time",
@@ -11,17 +13,37 @@
     "live": "Live",
     "extraTimeLive": "Extra time · live",
     "continue": "Continue",
-    "fastForward": "Speed up ×{factor}",
-    "skip": "Skip",
+    "speed": "Speed",
+    "speedFactor": "x{factor}",
+    "skip": {
+      "halfTime": "Coach at half-time",
+      "regulationEnd": "Coach at the break",
+      "result": "Go to the result"
+    },
+    "coaching": "Coaching",
     "shootout": "Penalty shoot-out",
     "kick": {
       "scored": "scored",
       "missed": "missed"
     },
     "feed": "Timeline",
-    "kickOff": "Kick-off…",
     "events": "Match events",
-    "eventLabel": "{type}, {team}: ",
-    "otherMatches": "Other matches · {competition}"
+    "eventTitle": "{type} · {player}",
+    "eventAssist": "{club} · assisted by {assist}",
+    "eventReplaces": "{club} · replaces {replaced}",
+    "marker": {
+      "kickOff": "Kick-off",
+      "halfTime": "Half-time",
+      "regulationEnd": "End of normal time"
+    },
+    "stats": {
+      "title": "Statistics",
+      "GOAL": "Goals",
+      "YELLOW_CARD": "Yellow cards",
+      "RED_CARD": "Red cards",
+      "SUBSTITUTION": "Substitutions",
+      "INJURY": "Injuries"
+    },
+    "otherMatches": "Other matches"
   }
 }

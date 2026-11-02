@@ -1,20 +1,9 @@
 import type { MatchEventView } from "@/src/db/calendar";
-import type { MatchEventType } from "@/src/engine/match";
 import type { Translator } from "@/src/i18n/translator";
 
 export const REGULATION_MINUTES = 90;
 
-// An event's name (« But », « Carton jaune »…) is a message: events.type.
-
-export const EVENT_MARKS: Record<MatchEventType, string> = {
-  GOAL: "⚽",
-  YELLOW_CARD: "🟨",
-  RED_CARD: "🟥",
-  INJURY: "✚",
-  SUBSTITUTION: "⇄",
-  SHOOTOUT_GOAL: "◉",
-  SHOOTOUT_MISS: "✕",
-};
+// An event's name (« But », « Carton jaune »…) is a message: events.type. Its mark is drawn: EventIcon.
 
 /** « 37' », « 90+3' » in stoppage time, « 104' » in extra time (whose minutes follow the 90th). */
 export const formatMinute = (minute: number, period: MatchEventView["period"] = "REGULAR"): string =>
