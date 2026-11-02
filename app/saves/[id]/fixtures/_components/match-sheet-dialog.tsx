@@ -7,12 +7,13 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } 
 import type { FixtureWithEvents, MatchEventView } from "@/src/db/calendar";
 import { formatDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { EventIcon } from "../../_components/event-icon";
 import { ScoreNotes } from "../../_components/score-notes";
-import { describeEvent, EVENT_MARKS, formatMinute, shootoutKicks } from "../../_lib/match-events";
+import { describeEvent, formatMinute, shootoutKicks } from "../../_lib/match-events";
 import { RESULT_CLASSES } from "../../_lib/results";
 import { matchResultFor, stageLabel } from "../../_lib/stage";
 
-function EventColumn({ events, align }: { events: MatchEventView[]; align: "left" | "right" }) {
+function EventColumn({ events, align, managed }: { events: MatchEventView[]; align: "left" | "right"; managed: boolean }) {
   const t = useTranslations("matchSheet");
   const tEvents = useTranslations("events");
   if (events.length === 0) {
@@ -33,8 +34,8 @@ function EventColumn({ events, align }: { events: MatchEventView[]; align: "left
           )}
         >
           <span className="w-10 shrink-0 tabular-nums text-muted-foreground">{formatMinute(event.minute, event.period)}</span>
-          <span aria-hidden>{EVENT_MARKS[event.type]}</span>
-          <span className="min-w-0">
+          <EventIcon type={event.type} managed={managed} className="size-5 self-start" />
+          <span className="min-w-0 wrap-break-word">
             <span className="sr-only">{t("eventLabel", { type: tEvents(`type.${event.type}`) })}</span>
             <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event, tEvents)}</span>
           </span>
@@ -45,11 +46,11 @@ function EventColumn({ events, align }: { events: MatchEventView[]; align: "left
 }
 
 /** The two sides' events of a period, face to face. */
-function EventColumns({ events }: { events: MatchEventView[] }) {
+function EventColumns({ fixture, events }: { fixture: FixtureWithEvents; events: MatchEventView[] }) {
   return (
     <div className="grid grid-cols-2 gap-4">
-      <EventColumn events={events.filter((event) => event.side === "home")} align="right" />
-      <EventColumn events={events.filter((event) => event.side === "away")} align="left" />
+      <EventColumn events={events.filter((event) => event.side === "home")} align="right" managed={fixture.home.isManaged} />
+      <EventColumn events={events.filter((event) => event.side === "away")} align="left" managed={fixture.away.isManaged} />
     </div>
   );
 }
@@ -71,7 +72,11 @@ function ShootoutList({ fixture }: { fixture: FixtureWithEvents }) {
             {event.playerName} <span className="text-muted-foreground">· {(event.side === "home" ? fixture.home : fixture.away).name}</span>
           </span>
           <span className={cn("text-xs font-semibold", scored ? "text-win" : "text-loss")}>
-            <span aria-hidden>{EVENT_MARKS[event.type]} </span>
+            <EventIcon
+              type={event.type}
+              managed={(event.side === "home" ? fixture.home : fixture.away).isManaged}
+              className="mr-1 inline-flex size-4 align-text-bottom"
+            />
             {scored ? t("kick.scored") : t("kick.missed")}
           </span>
           <span className="text-right font-heading font-bold tabular-nums">
@@ -136,11 +141,11 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
         )}
 
         <div className="max-h-[55vh] space-y-4 overflow-y-auto border-t pt-4 text-sm">
-          <EventColumns events={regular} />
+          <EventColumns fixture={fixture} events={regular} />
           {playedExtraTime && (
             <section className="space-y-2 border-t pt-3" data-match-sheet="extra-time">
               <h3 className="eyebrow text-center">{t("extraTime")}</h3>
-              <EventColumns events={extraTime} />
+              <EventColumns fixture={fixture} events={extraTime} />
             </section>
           )}
           {hasShootout && (
