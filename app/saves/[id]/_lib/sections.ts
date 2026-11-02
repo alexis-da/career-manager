@@ -21,6 +21,9 @@ const LIVE_PATH = "/live";
 
 const isUnder = (path: string, parent: string): boolean => path === parent || path.startsWith(`${parent}/`);
 
+/** Whether a path within a save is the match live. */
+export const isLivePath = (path: string): boolean => isUnder(path, LIVE_PATH);
+
 /** The tab of a path within a save, if it has one. */
 export function tabAt(path: string): SectionTab | undefined {
   return SECTIONS.flatMap(({ tabs }) => tabs).find((tab) => isUnder(path, `/${tab}`));
@@ -33,7 +36,7 @@ export function sectionAt(path: string): Section {
     ({ key, home, tabs }) =>
       (tab !== undefined && tabs.includes(tab)) ||
       (home !== "" && isUnder(path, home)) ||
-      (key === "match" && isUnder(path, LIVE_PATH)),
+      (key === "match" && isLivePath(path)),
   );
   return section ?? SECTIONS[0];
 }

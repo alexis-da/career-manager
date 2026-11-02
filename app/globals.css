@@ -105,6 +105,11 @@
   :root:has([data-save-shell]) {
     --toast-bottom: calc(var(--save-nav-height) + 0.5rem);
   }
+
+  /* The match live has no navigation: above the Coaching panel's two buttons, which it opens on. */
+  :root:has([data-live-page]) {
+    --toast-bottom: 10rem;
+  }
 }
 
 @theme inline {

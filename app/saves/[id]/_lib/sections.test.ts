@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sectionAt, SECTIONS, tabAt, tabsOf } from "./sections";
+import { isLivePath, sectionAt, SECTIONS, tabAt, tabsOf } from "./sections";
 
 describe("a save's sections", () => {
   it("puts every screen of a save under one of the five entries", () => {
@@ -25,6 +25,13 @@ describe("a save's sections", () => {
   it("does not take a path that merely starts like a screen's for that screen", () => {
     expect(tabAt("/squadron")).toBeUndefined();
     expect(sectionAt("/liveness").key).toBe("dashboard");
+    expect(isLivePath("/liveness")).toBe(false);
+  });
+
+  it("knows the live match, whose own buttons are the way on", () => {
+    expect(isLivePath("/live")).toBe(true);
+    expect(isLivePath("/standings")).toBe(false);
+    expect(isLivePath("")).toBe(false);
   });
 
   it("offers « Coupe » only with a cup", () => {

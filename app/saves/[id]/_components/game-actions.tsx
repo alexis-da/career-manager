@@ -16,7 +16,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import type { WorldVersion } from "@/src/engine/world-version";
 import { cn } from "@/src/lib/utils";
-import { sectionAt, tabAt } from "../_lib/sections";
+import { isLivePath, sectionAt, tabAt } from "../_lib/sections";
 import { advanceSeasonAction, playMatchdayAction, playUntilNextMatchAction, type GameActionResult } from "../actions";
 import { useSimulation, type SimulationTarget } from "./simulation";
 import { isNewVersionError } from "../../../_lib/new-version";
@@ -151,11 +151,6 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion, h
         variant === "outline" && ON_BLUE,
       );
 
-  // On the live page it would lead nowhere: the way on is that page's own buttons, stuck to the foot of the screen.
-  if (liveMatch && pathname === `/saves/${saveId}/live`) {
-    return null;
-  }
-
   const main = liveMatch ? (
     <Link href={`/saves/${saveId}/live`} className={buttonVariants({ variant, className })} data-testid="resume-match">
       <PlayIcon data-icon="inline-start" className="fill-current" />
@@ -211,13 +206,14 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion, h
 }
 
 /**
- * The game's actions outside the dashboard, whose hero has them: in the sidebar's card on a computer; on a phone, at the
- * head of the Match screens and nowhere else. One element for both, so that their testids stay unique on a page.
+ * The game's actions outside the dashboard, whose hero has them, and the match live, whose own buttons are the way on: in
+ * the sidebar's card on a computer; on a phone, at the head of the Match screens and nowhere else. One element for both,
+ * so that their testids stay unique on a page.
  */
 export function SaveBarActions(props: Omit<GameActionsProps, "hero" | "prepare">) {
   const path = usePathname().slice(`/saves/${props.saveId}`.length);
   const section = sectionAt(path);
-  if (section.key === "dashboard") {
+  if (section.key === "dashboard" || isLivePath(path)) {
     return null;
   }
   return (

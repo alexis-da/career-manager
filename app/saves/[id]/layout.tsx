@@ -40,10 +40,11 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
 
   return (
     <SimulationProvider saveId={header.id}>
-      <div data-save-shell className="flex min-h-full flex-1 flex-col lg:pl-64">
+      <div data-save-shell className="group/shell flex min-h-full flex-1 flex-col lg:pl-64">
         {/* One header at every width: a column fixed to the left of the screen on a computer; under lg, the club's line at
-            the top of the page, its navigation fixed to the foot of the screen. */}
-        <header className="flex items-center gap-3 px-4 pt-3 max-lg:flex-wrap lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:w-64 lg:flex-col lg:items-stretch lg:gap-4 lg:overflow-y-auto lg:border-r lg:border-sidebar-border lg:bg-sidebar lg:p-4">
+            the top of the page, its navigation fixed to the foot of the screen. Under lg, the match live has the whole
+            screen, with its own way out and its own bar. */}
+        <header className="flex items-center gap-3 px-4 pt-3 max-lg:flex-wrap max-lg:group-has-[[data-live-page]]/shell:hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:w-64 lg:flex-col lg:items-stretch lg:gap-4 lg:overflow-y-auto lg:border-r lg:border-sidebar-border lg:bg-sidebar lg:p-4">
           {/* The game's mark, the only one in a save. */}
           <Link href="/" title={t("home")} data-testid="header-home" className="flex items-center gap-2.5 px-2 max-lg:hidden">
             <Image src="/brand/late-winner-icone.svg" alt="" width={34} height={34} unoptimized />
