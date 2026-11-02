@@ -10,7 +10,7 @@ import { getSeasonResults } from "@/src/db/season-results";
 import { seasonLabel } from "@/src/engine/world";
 import { formatDecimal } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "../_components/panel";
+import { Panel } from "@/src/components/panel";
 
 import { cupLabel, moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
 

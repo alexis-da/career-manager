@@ -4,7 +4,7 @@ import { buttonVariants } from "@/src/components/ui/button";
 import type { ChallengePageView, ChallengeRankingRow } from "@/src/db/challenge-view";
 import type { Translator } from "@/src/i18n/translator";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { ClubCardTitle } from "./club-card";
 
 const TOP_LINES = 3;

@@ -5,7 +5,7 @@ import { buttonVariants } from "@/src/components/ui/button";
 import type { ChallengePageView } from "@/src/db/challenge-view";
 import { formatParisDay } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { ownChallenge, type OwnScore } from "../_lib/own-challenge";
 
 const TITLE = "challenge-own-title";

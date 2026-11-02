@@ -2,7 +2,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { ClubFinances } from "@/src/db/club";
 import { formatMillionsAmount, formatMoney, millionsFigure } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { isPayrollHigh } from "../../_lib/payroll";
 import { ClubCardTitle } from "./club-card";
 

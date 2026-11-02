@@ -5,7 +5,7 @@ import { PlayerFace } from "@/src/components/player-face";
 import type { MatchEventView, TeamView } from "@/src/db/calendar";
 import { cn } from "@/src/lib/utils";
 import { EventIcon, IconChip } from "../../_components/event-icon";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { formatMinute } from "../../_lib/match-events";
 import { feedEntries, type FeedEntry, type FeedMarker } from "../_lib/feed-entries";
 import { LiveCardTitle } from "./live-card-title";

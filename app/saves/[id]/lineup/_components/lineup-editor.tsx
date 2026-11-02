@@ -14,7 +14,7 @@ import type { Position } from "@/src/engine/positions";
 import { useMediaQuery } from "@/src/hooks/use-media-query";
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../../_components/contract-actions";
-import { PanelTitle } from "../../_components/panel";
+import { PanelTitle } from "@/src/components/panel";
 import { LineupSummary } from "../../_components/lineup-summary";
 import { Pitch } from "../../_components/pitch";
 import { PlayerSheet } from "../../_components/player-sheet";

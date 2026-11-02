@@ -2,7 +2,7 @@ import { useTranslations } from "next-intl";
 import type { FixtureWithEvents, ScoreTimeline } from "@/src/db/calendar";
 import { competitionName } from "@/src/i18n/countries";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { ScoreNotes } from "../../_components/score-notes";
 import { cupRoundName } from "../../_lib/stage";
 import { LiveCardTitle } from "./live-card-title";

@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import type { ShootoutKick } from "../../_lib/match-events";
 import { LiveCardTitle } from "./live-card-title";
 

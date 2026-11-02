@@ -24,7 +24,7 @@ import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { attributesShown } from "../../_components/attribute-bars";
 import { DEFAULT_CONTRACT_LENGTH, RefusalAlert } from "../../_components/contract-fields";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { positionTextClass } from "../../_lib/positions";
 import { marketHref } from "../_lib/market-url";
 import { makeTransferOfferAction, signFreeAgentAction } from "../actions";

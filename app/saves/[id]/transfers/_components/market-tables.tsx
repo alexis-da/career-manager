@@ -18,7 +18,7 @@ import type { Translator } from "@/src/i18n/translator";
 import type { ClubColors } from "@/src/lib/color";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { nationalityCode, nationalityName } from "../../_lib/nationalities";
 import { positionTextClass } from "../../_lib/positions";
 import { SecondaryPositionBadges } from "../../_components/position-badge";

@@ -6,7 +6,7 @@ import { signOutAction } from "@/app/actions";
 import type { CurrentUser } from "@/src/auth/current-user";
 import { maxSavesFor } from "@/src/lib/limits";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { CLUB_CARD_LINK, ClubCardTitle } from "./club-card";
 
 const ROW = "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5";

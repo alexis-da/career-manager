@@ -5,7 +5,7 @@ import type { SeasonResultView } from "@/src/db/season-results";
 import { seasonLabel } from "@/src/engine/world";
 import { competitionName } from "@/src/i18n/countries";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { rankLabel, seasonCardFileName, seasonCardPath } from "../../_lib/seasons";
 import { CLUB_CARD_LINK, ClubCardTitle } from "./club-card";
 import { HonoursCardActions } from "./honours-card-actions";

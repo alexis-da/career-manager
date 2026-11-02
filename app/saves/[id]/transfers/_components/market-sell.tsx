@@ -7,7 +7,7 @@ import type { SaleQuote } from "@/src/db/transfers";
 import { formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { SellPlayerDialog } from "../../_components/contract-actions";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { refusalMessage } from "../../_lib/refusal-message";
 
 /** A sale that is not the screen's main action. `dark:` too: the outline button sets its border and fill under it. */

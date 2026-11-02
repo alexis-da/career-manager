@@ -25,7 +25,7 @@ import { formatDate, formatMillionsAmount, formatMoney, millionsFigure } from "@
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../../_components/contract-actions";
 import { ClosedWindowNote } from "../../_components/contract-fields";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { MakeOfferDialog, SignFreeAgentDialog } from "../_components/market-dialogs";
 import { MarketFiltersForm } from "../_components/market-filters";
 import { MarketPlayerSheet } from "../_components/market-player-sheet";

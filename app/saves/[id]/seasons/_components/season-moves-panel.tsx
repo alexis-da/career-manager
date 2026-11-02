@@ -3,7 +3,7 @@ import { competitionName } from "@/src/i18n/countries";
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import type { CountryMoveView } from "@/src/db/promotion";
 import { cn } from "@/src/lib/utils";
-import { Panel, PanelTitle } from "../../_components/panel";
+import { Panel, PanelTitle } from "@/src/components/panel";
 import { rankLabel } from "../../_lib/seasons";
 
 /**

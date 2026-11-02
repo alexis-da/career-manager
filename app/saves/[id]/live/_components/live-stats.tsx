@@ -1,7 +1,7 @@
 import { useTranslations } from "next-intl";
 import type { MatchEventType, Side } from "@/src/engine/match";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { matchStats, type MatchStat } from "../_lib/match-stats";
 import { LiveCardTitle } from "./live-card-title";
 

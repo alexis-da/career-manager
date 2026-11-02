@@ -5,7 +5,7 @@ import type { ChallengeBannerView } from "@/src/db/challenge-view";
 import type { Translator } from "@/src/i18n/translator";
 import { formatGoalDifference, formatParisDay } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { Panel, PanelTitle } from "./panel";
+import { Panel, PanelTitle } from "@/src/components/panel";
 
 const CARD = "flex flex-col gap-2 p-4.5";
 

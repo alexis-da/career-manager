@@ -14,7 +14,7 @@ import type { Translator } from "@/src/i18n/translator";
 import { formatMonth, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { FixtureRow } from "../_components/fixture-row";
-import { Panel } from "../_components/panel";
+import { Panel } from "@/src/components/panel";
 import { ScoreNotes } from "../_components/score-notes";
 import { nextFixture } from "../_lib/fixture-window";
 import { RESULT_CLASSES } from "../_lib/results";

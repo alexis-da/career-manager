@@ -7,7 +7,7 @@ import { cn } from "@/src/lib/utils";
 import { monthOf, monthParam } from "../fixtures/_lib/month-grid";
 import { RESULT_CLASSES } from "../_lib/results";
 import { matchResultFor, stageLabel } from "../_lib/stage";
-import { Panel, PanelTitle } from "./panel";
+import { Panel, PanelTitle } from "@/src/components/panel";
 import { ScoreNotes } from "./score-notes";
 
 const TEAM_NAME = "w-full font-heading text-2xl leading-tight text-balance wrap-break-word";

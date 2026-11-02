@@ -13,7 +13,7 @@ import type { Translator } from "@/src/i18n/translator";
 import { formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { CupCard } from "../_components/cup-card";
-import { Panel, PanelTitle } from "../_components/panel";
+import { Panel, PanelTitle } from "@/src/components/panel";
 import { ScoreNotes } from "../_components/score-notes";
 import { cupProgress, isCupRoundNumber } from "../_lib/cup-progress";
 import { cupRoundName, cupRoundReached } from "../_lib/stage";

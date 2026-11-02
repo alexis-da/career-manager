@@ -3,7 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import type { LineupPlayer } from "@/src/db/lineup";
 import { POSITION_GROUPS, positionGroup, ratingAt, type Position } from "@/src/engine/positions";
 import { cn } from "@/src/lib/utils";
-import { Panel, PanelTitle } from "../../_components/panel";
+import { Panel, PanelTitle } from "@/src/components/panel";
 import { PositionBadges } from "../../_components/position-badge";
 import { isOffPosition, positionFit } from "../../_lib/positions";
 import type { DragSource, DragSourceProps } from "./use-pointer-drag";

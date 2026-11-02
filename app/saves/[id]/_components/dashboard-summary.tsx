@@ -14,7 +14,7 @@ import {
 } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { isPayrollHigh } from "../_lib/payroll";
-import { Panel } from "./panel";
+import { Panel } from "@/src/components/panel";
 import { ResultPill } from "./result-pill";
 
 const PILL = "h-9 bg-card px-3.5 text-[0.8125rem] tabular-nums";

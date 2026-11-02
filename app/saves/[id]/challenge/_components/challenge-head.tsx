@@ -1,7 +1,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import type { ChallengePageView } from "@/src/db/challenge-view";
 import { formatParisWeekdayTime } from "@/src/lib/format";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 
 /** The head of the screen, on the bright blue: the week and its end, then the scenario, its club by name alone. */
 export function ChallengeHead({ view }: { view: ChallengePageView }) {

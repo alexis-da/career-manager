@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Panel } from "../../_components/panel";
+import { Panel } from "@/src/components/panel";
 
 type StandingsCardProps = {
   title: string;

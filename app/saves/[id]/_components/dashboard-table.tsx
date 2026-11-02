@@ -4,7 +4,7 @@ import type { Dashboard } from "@/src/db/dashboard";
 import { seasonLabel } from "@/src/engine/world";
 import { competitionName } from "@/src/i18n/countries";
 import { cn } from "@/src/lib/utils";
-import { Panel } from "./panel";
+import { Panel } from "@/src/components/panel";
 
 type DashboardTableProps = {
   saveId: string;

@@ -5,7 +5,7 @@ import type { FixtureWithEvents } from "@/src/db/calendar";
 import { cn } from "@/src/lib/utils";
 import { fixtureWindow, nextFixture } from "../_lib/fixture-window";
 import { FixtureRow } from "./fixture-row";
-import { Panel } from "./panel";
+import { Panel } from "@/src/components/panel";
 
 type MatchCalendarCardProps = {
   saveId: string;
