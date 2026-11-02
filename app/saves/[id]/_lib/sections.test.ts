@@ -53,4 +53,10 @@ describe("a save's sections", () => {
     expect(match.home).toBe("/fixtures");
     expect(match.computerHome).toBe("/standings");
   });
+
+  it("leads Équipe to the squad on a phone, to the line-up with the squad and the sheet beside it on a computer", () => {
+    const team = sectionAt("/squad");
+    expect(team.home).toBe("/squad");
+    expect(team.computerHome).toBe("/lineup");
+  });
 });

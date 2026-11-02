@@ -11,7 +11,7 @@ export type Section = {
 /** The five entries of a save's navigation: every screen of a save lies under one of them. */
 export const SECTIONS: readonly Section[] = [
   { key: "dashboard", home: "", tabs: [] },
-  { key: "team", home: "/squad", tabs: ["squad", "lineup"] },
+  { key: "team", home: "/squad", computerHome: "/lineup", tabs: ["squad", "lineup"] },
   { key: "match", home: "/fixtures", computerHome: "/standings", tabs: ["fixtures", "standings", "cup"] },
   { key: "transfers", home: "/transfers", tabs: [] },
   { key: "club", home: "/seasons", tabs: [] },

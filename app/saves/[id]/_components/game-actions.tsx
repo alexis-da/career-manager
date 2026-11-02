@@ -16,7 +16,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import type { WorldVersion } from "@/src/engine/world-version";
 import { cn } from "@/src/lib/utils";
-import { isLivePath, sectionAt, tabAt } from "../_lib/sections";
+import { isLivePath, sectionAt, tabAt, type Section } from "../_lib/sections";
 import { advanceSeasonAction, playMatchdayAction, playUntilNextMatchAction, type GameActionResult } from "../actions";
 import { useSimulation, type SimulationTarget } from "./simulation";
 import { isNewVersionError } from "../../../_lib/new-version";
@@ -28,6 +28,9 @@ const SIMULATION_TARGETS: Exclude<SimulationTarget, { kind: "date" }>[] = [
   { kind: "window-close" },
   { kind: "season-end" },
 ];
+
+/** One full orange action a screen: these entries have their own, « Recruter », « Vendre », « Enregistrer », « Prolonger ». */
+const OWN_ORANGE_ACTION: ReadonlySet<Section["key"]> = new Set(["team", "transfers"]);
 
 /** A secondary action on the blue of the sidebar's card: outlined there. */
 const ON_BLUE = "lg:dark:border-on-blue/60 lg:dark:bg-transparent lg:dark:hover:bg-on-blue/10";
@@ -141,8 +144,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion, h
       }
     });
 
-  // One full orange action a screen: the market has its own, « Recruter » or « Vendre ».
-  const variant = sectionAt(pathname.slice(`/saves/${saveId}`.length)).key === "transfers" ? "outline" : "club";
+  const variant = OWN_ORANGE_ACTION.has(sectionAt(pathname.slice(`/saves/${saveId}`.length)).key) ? "outline" : "club";
   const className = hero
     ? HERO_MAIN
     : cn(
