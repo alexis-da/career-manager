@@ -63,13 +63,22 @@ ne suivent que `s6`). `playPeriod(state, matchSeed, "h1" | "h2" | "e1" | "e2")` 
 Chaque segment a sa propre graine, `phaseRngSeed(matchSeed, "s1"…"s6" | "e1" | "e2" | "shootout")` (`…:s1`), et
 recalcule à son début la force des deux équipes sur les joueurs présents (la ligne étant partagée entre les slots du
 dispositif, vides compris : une équipe à 10 est plus faible), le profil du dispositif et la consigne de chacune ; puis
-il tire sa part des buts (Poisson de λ × 15/90), des cartons et des blessures attendus. Un rouge, une blessure ou un
-changement compte donc dès le segment suivant.
+il tire sa part des buts (Poisson de λ × 15/90 × le poids du segment), des cartons et des blessures attendus. Un rouge,
+une blessure ou un changement compte donc dès le segment suivant.
 
-- `MatchState` (données pures, stockées telles quelles dans `Fixture.liveState`, version 1) : phase (`IN_PLAY` entre
-  deux segments d'une période, jamais stockée), score, événements, apparitions closes, blessures, et par équipe le
-  dispositif, les slots (`ON`, `INJURED`, `SENT_OFF`), le banc, les remplacements faits (`MAX_SUBSTITUTIONS` = 5
-  par match) et les avertis. Ni les consignes ni les minutes des changements tactiques n'y sont : elles se recalculent.
+- Les buts viennent plus tard dans le match, comme dans le vrai football : `REGULATION_GOAL_WEIGHTS` (0,76, 0,86, 0,96,
+  1,02, 1,02, 1,38, le dernier avec les arrêts de jeu) et `EXTRA_TIME_GOAL_WEIGHTS` (0,9 et 1,1), moyenne 1. Ils
+  compensent aussi l'usure plus lente du gardien, qui faisait mieux tenir les défenses que les attaques. À équipes
+  égales : 13,8 / 15,3 / 16,4 / 16,6 / 17,2 / 20,6 % des buts du premier au dernier quart d'heure (18,1 à 14,7 % avant),
+  45 et 55 % de ceux de la prolongation ; épinglé dans `match.test.ts` et `match-cup.slow.test.ts`.
+- `MatchState` (données pures, stockées telles quelles dans `Fixture.liveState`, version 2) : phase, minutes jouées
+  (`played` : 0, 15… 90, 105, 120), score, événements, apparitions closes, blessures, et par équipe le dispositif, les
+  slots (`ON`, `INJURED`, `SENT_OFF`, `hurt` pour un joueur qui joue touché), le banc, les remplacements faits
+  (`MAX_SUBSTITUTIONS` = 5 par match) et les avertis ; pour le club dirigé, ses événements à choix (`choices`) et ce
+  qu'ils laissent aux segments suivants (`modifiers` : buts du segment suivant, consigne jusqu'à la fin du temps
+  réglementaire, incidents à venir). Ni les consignes de la règle ni les minutes des changements tactiques n'y sont :
+  elles se recalculent. Un état de version 1 (mi-temps ou fin du temps réglementaire, d'avant) revient avec `played`
+  45 ou 90 et se termine sans événements.
 - Un blessé est remplacé aussitôt, tant qu'il reste des changements, par le remplaçant au meilleur `ratingAt` au slot.
   Les remplacements tactiques (3 prévus, 55'–85', minutes tirées du flux `…:substitutions:home|away`, les mêmes quoi
   qu'il arrive) n'ont lieu qu'en seconde période. Un exclu n'est jamais remplacé et son slot reste vide.
@@ -89,11 +98,19 @@ changement compte donc dès le segment suivant.
   blessés restés dans leur slot (plus aucun changement, ou état d'avant les segments, dont la première période les y
   laissait), par le meilleur `ratingAt` au slot. `applyHalfTimeChoice` valide et applique un choix (dispositif,
   joueur par slot, remplacements datés de 46', sortants clos à 45') et lève `HalfTimeChoiceError` sinon.
-- `simulateMatch(home, away, matchSeed, formations?, knockout?, instructions?)` = h1, mi-temps automatique des deux
-  côtés, h2. Le club dirigé joue h1 dans `playNextMatchday(saveId, { pauseManagedMatch: true })`, puis
-  `resumeLiveMatch` reprend par `resumeMatch(paused, managedSide, choice, matchSeed)` : sans changement, le résultat
-  est exactement celui d'un match joué d'une traite, y compris depuis un état stocké avant les segments
-  (`src/db/live-state.test.ts`, deux états v1 dans `src/db/data/`).
+- `simulateMatch(home, away, matchSeed, formations?, knockout?, instructions?, atBoundary?)` = h1, mi-temps
+  automatique des deux côtés, h2 ; `atBoundary` (un `BoundaryHook`) passe au coup d'envoi et entre deux segments où un
+  manager peut agir : pour le club dirigé, `assistantChoices(side, seed)` (ses événements à choix, décidés par l'adjoint).
+- Direct (`src/engine/live.ts`) : `playOn(paused, managedSide, matchSeed, input, until)` joue un match du club dirigé
+  depuis sa pause (`pauseOf` : phase et minute), coup d'envoi compris : d'abord ce que le manager y apporte (sa décision
+  sur l'événement ouvert, null = l'adjoint ; ses changements à une pause de jeu, null = les automatiques, ceux de
+  l'adversaire avec à la mi-temps), puis ses segments, chaque limite ouvrant l'événement prévu, jusqu'où `until` dit :
+  `"segment"` (la limite suivante), `"pause"` (un événement, une pause de jeu, la fin), `"break"` (la pause de jeu
+  suivante, l'adjoint décidant en chemin) ; une prolongation nulle finit aux tirs au but d'un coup. Le club dirigé joue
+  son premier segment dans `playNextMatchday(saveId, { pauseManagedMatch: true })`, la suite par `advanceLiveMatch` :
+  avec les décisions de l'adjoint et sans changement, le match est exactement celui de `simulateMatch` avec
+  `assistantChoices` (`choices.test.ts` dans les trois modes ; `src/db/live-state.test.ts`, 600 matchs à travers l'état
+  stocké, et deux états v1 dans `src/db/data/`).
 - Calibration (G1, `npm run measure:balance`, trois saisons complètes du monde 2) : base 1,14 (1,23 depuis la fatigue, G2),
   exposant 2,4, domicile 1,12 → 2,65 buts par match, 44 % de victoires à domicile, 25 % de nuls, 55 points entre le
   premier et le dernier, 23 % de victoires du plus faible (≥ 1 point d'écart). Épinglée à forme 50 dans `match.test.ts` (premières divisions :
@@ -118,8 +135,8 @@ Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 %
 
 - Force : deux facteurs sur la part de chaque joueur (`teamStrength(lineup, formation, wearOf)`). La fraîcheur,
   `fitnessFactor` de sa fitness au coup d'envoi (1 − `STRENGTH_PER_FITNESS_POINT` 0,0015 × (100 − fitness) : 0,955 à 70) ;
-  l'usure, `wearFactor` de ce qu'il a perdu sur le terrain depuis (1 − `STRENGTH_PER_WEAR_POINT` 0,011 × perte : 0,78
-  pour un joueur de champ à la 60e, 20 points perdus) ; `playingFactor` donne les deux (panneau Coaching). Pendant le
+  l'usure, `wearFactor` de ce qu'il a perdu sur le terrain depuis (1 − `STRENGTH_PER_WEAR_POINT` 0,010 × perte : 0,80
+  pour un joueur de champ à la 60e, 20 points perdus ; 0,011 avant que les buts viennent plus tard) ; `playingFactor` donne les deux (panneau Coaching). Pendant le
   match, `fitnessAt(entry, minute)` = fitness au coup d'envoi moins ce que ses minutes depuis `entry.from` lui ont
   coûté (`fitnessAfter` : `FITNESS_LOSS_PER_SEGMENT` 5 par 15 minutes,
   `GOALKEEPER_FITNESS_LOSS_PER_SEGMENT` 1,5 au slot GK) ; `liveStrength(team, minute)` et `stateExpectedGoals(…, minute)`
@@ -169,6 +186,45 @@ compétition).
   du club dirigé et un d'un club IA écartés, suspension purgée ; cartons comptés après une journée),
   `season.slow.test.ts` (jaunes remis à 0 au passage de saison).
 
+## Événements à choix (G4)
+
+`src/engine/choices.ts`, pur ; valeurs dans `balance.ts` (section « choice events »). Pour le seul club dirigé :
+`withChoices` au coup d'envoi tire du flux `…:events` le plan, 1 à 3 limites parmi 15', 30', 60', 75' (35 / 45 / 20 %),
+et 105' une prolongation sur deux. À une limite prévue, `openChoice` tire du flux `…:event:15` le type parmi ceux
+possibles (`isChoicePossible`, `CHOICE_EVENT_WEIGHTS`) et ses joueurs (`choiceEvent` : options et choix de l'adjoint) ;
+`decideChoice` applique la décision (null : l'adjoint) avec trois tirages du flux `…:event:15:outcome`, les mêmes quelle
+que soit l'option (un meilleur tireur ne fait que changer un raté en but), puis l'enregistre (`MatchDecision`). Ses
+incidents immédiats sont datés de la minute suivante, comme un remplacement de mi-temps (`goalAt`, `bookingAt`,
+`substitutionAt`, `match.ts`) ; les autres passent par `MatchState.modifiers`, lus par `simulateSegment` sans toucher
+à son flux : buts du segment suivant multipliés, consigne jusqu'à la fin du temps réglementaire, rouge ou blessure d'un
+joueur nommé à une minute tirée.
+
+- Penalty : les trois meilleurs tireurs de champ, chance `shootoutChance` contre le gardien adverse ; l'adjoint prend la
+  meilleure.
+- Coup franc : frapper (le meilleur tireur, `freeKickChance` de 8 à 18 %) ou combiner (buts du segment suivant
+  × `FREE_KICK_COMBINATION_GOALS`) ; l'adjoint frappe à partir de 75 de tir.
+- Joueur averti qui s'énerve (à partir de 30', un averti de champ) : le sortir (remplacement) ou le garder (rouge dans
+  le segment suivant à `HOTHEAD_RED_CHANCE`) ; l'adjoint le sort.
+- Échauffourée : calmer (rien) ou protester (buts du segment suivant × `PROTEST_GOALS` une fois sur deux, jaune au
+  capitaine, le meilleur de champ, à `PROTEST_YELLOW_CHANCE` : un rouge s'il l'avait déjà) ; l'adjoint calme.
+- Joueur touché : le sortir ou le laisser jouer (`hurt` : sa part × `KNOCK_SHARE` jusqu'à sa sortie, blessé 7 à 21 jours
+  dans la suite du match à `KNOCK_INJURY_CHANCE`) ; l'adjoint le sort.
+- Joueur à bout (à partir de 75', celui qui a perdu le plus de fitness sur le terrain, au moins
+  `EXHAUSTED_FITNESS_LOST` 25) : le remplacer ou le garder (blessé dans la suite à `EXHAUSTED_INJURY_CHANCE`) ;
+  l'adjoint le remplace. Ces trois-là ne viennent qu'avec un changement et un remplaçant disponibles.
+- Le club mène d'un ou deux buts (60' ou 75') : fermer, chercher le break ou rester tel quel, une consigne (Fermer,
+  Attaquer, Équilibré) jusqu'à la fin du temps réglementaire quel que soit le score ; l'adjoint ferme si sa règle ferme
+  (un but d'avance à 75'), sinon reste. Mené ou à égalité : tout pour l'attaque (Attaquer) ou rester en place
+  (Équilibré) ; l'adjoint attaque s'il est mené.
+- Les buts des événements sont pris sur ceux du club : `OWN_GOALS_WITH_CHOICE_EVENTS` (0,89) multiplie ses buts
+  attendus à chaque segment d'un match qui a des événements, pour que, décidés par l'adjoint, ils ne lui rapportent rien
+  d'eux-mêmes (mesuré : +0,11 point par match sans cela).
+- Mesure : section « Choice events of the managed club » de `npm run measure:balance` : nombre et types, chaque
+  option contre celle de l'adjoint (chaque option jouée de l'état même jusqu'au coup de sifflet, à équipes égales, en
+  favori, en outsider et avec un banc faible), effet net.
+- Tests : `choices.test.ts` (plan, conditions, effets, refus, et le direct pas à pas égal à la simulation dans les trois
+  modes de `playOn`).
+
 ## Matchs à élimination : prolongation et tirs au but
 
 Un match de coupe se joue avec `knockout = true` (`startMatch(…, knockout)`, `simulateMatch(…, formations, true)`) ;
@@ -179,7 +235,7 @@ nouveau avec les segments). Toute modification des tirages des segments la casse
 - Phases : à égalité après `h2`, un match à élimination s'arrête sur `REGULATION_END` (apparitions non closes), puis
   le segment `e1` (91'–105', fin sur `EXTRA_TIME_BREAK`) et `e2` (106'–120'), puis `simulateShootout` si l'égalité
   tient (`SHOOTOUT`), et `FULL_TIME`. `finishKnockout(state, matchSeed)` enchaîne tout cela.
-- Direct du club dirigé : `resumeLiveMatch` joue la seconde période depuis la mi-temps ; à égalité, le match s'arrête
+- Direct du club dirigé : `advanceLiveMatch` joue la seconde période depuis la mi-temps ; à égalité, le match s'arrête
   sur `REGULATION_END` (`Fixture.status` du même nom, état gardé dans `liveState`), où `applyHalfTimeChoice` accepte un
   remplacement de plus (`breakSubstitutionLimit`, entrées datées de 91', période EXTRA_TIME) ; la reprise suivante joue
   `finishKnockout`. Sans changement à cette pause (l'adversaire n'y change rien), le match est exactement celui de
@@ -224,7 +280,7 @@ saison ; une partie qui en a les garde.
   (22 mai 2027). `matchdayDates` ne change pas.
 - Vie d'une coupe : `openCups` crée les saisons de coupe et le tour préliminaire à la création d'une partie 2 et à
   chaque `advanceToNextSeason` (classements finaux, `readFinalTables`) ; `progressCups`, dans la transaction de
-  `playNextMatchday` et de `resumeLiveMatch`, crédite les primes (`cupPrize`, `balance.ts` : 0,1 / 0,25 / 0,5 / 1 /
+  `playNextMatchday` et de `advanceLiveMatch`, crédite les primes (`cupPrize`, `balance.ts` : 0,1 / 0,25 / 0,5 / 1 /
   2 M€ par tour gagné, 5 M€ au vainqueur, 2,5 M€ au finaliste) sur `ClubSave.budget` et tire le tour suivant dès le
   dernier match du tour. La saison ne se termine qu'après les finales (tous les matchs joués).
 - Stats : un match de coupe n'écrit de `PlayerSeasonStats` (sur la saison de coupe) que pour les joueurs du club

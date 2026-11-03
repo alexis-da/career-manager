@@ -74,6 +74,13 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
 - **Clubs IA** : composition qui écarte un joueur sous 75 si le remplaçant n'a pas plus de 5 points de moins ; changements automatiques des plus fatigués entre la 60e et la 75e.
 - Affichage partout où l'on choisit des joueurs : barre ou pourcentage de fitness (composition, banc, effectif, panneau Coaching, fiche). Le moral est retiré de l'affichage.
 
+### Buts en fin de match (03/11)
+
+- Constat : avec la fatigue, les buts baissaient au fil du match (à équipes égales, 18,1 / 17,7 / 17,0 / 16,0 / 16,5 / 14,7 % des buts du premier au dernier quart d'heure), le gardien s'usant trois fois moins vite que ses partenaires. Cible : environ 13 à 15 % sur 0-15', 20 à 22 % sur 75-90', sans creux marqué entre les deux ; même logique en prolongation.
+- **Retenu** : un facteur de temps sur λ, le plus lisible, sans toucher à l'usure ni au gardien : un poids par quart d'heure, `REGULATION_GOAL_WEIGHTS` = 0,76 · 0,86 · 0,96 · 1,02 · 1,02 · 1,38 (le dernier avec les arrêts de jeu), et par période de prolongation, `EXTRA_TIME_GOAL_WEIGHTS` = 0,9 · 1,1 ; chaque liste a pour moyenne 1. Il donne la montée du vrai football (jambes fatiguées, équipes qui poussent, arrêts de jeu) et compense l'usure plus lente du gardien.
+- Résultat (équipes égales, 20 000 matchs) : 13,8 / 15,3 / 16,4 / 16,6 / 17,2 / 20,6 % ; prolongation 50 / 50 → 44,9 / 55,1 %. Épinglé dans `match.test.ts` (12-16 % puis 19-23 %, sans creux) et `match-cup.slow.test.ts`.
+- Usure 0,011 → **0,010** : le remplaçant frais joue désormais les quarts d'heure les plus riches en buts et valait +0,041 ; il vaut +0,039 (milieu) et +0,037 (attaquant). Onze à 85 au coup d'envoi −0,094, à 75 −0,159. Base des buts inchangée (1,23). Six cibles : 2,65 buts, 24,4 % de nuls, 44,1 % à domicile, 56,0 points d'écart, onzes de 35,2 à 72,0, 23,2 % de victoires du plus faible. Le test des 600 matchs est inchangé.
+
 ## G3 — Suspensions (migration d'ajout)
 
 - Stockage : de quoi savoir qu'un joueur est suspendu pour le prochain match officiel et compter ses jaunes en cours (colonnes ajoutées sur `PlayerSave`, sans perte de données). Calcul pour les clubs IA aussi.
@@ -122,6 +129,51 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
   - mise à jour conditionnelle sur l'état de la pause, pour bloquer deux reprises simultanées (deux onglets) ; plus de doublons possibles dans `MatchEvent` ;
   - le navigateur ne reçoit jamais les segments au-delà de la prochaine pause.
 - **Stockage** : la pause et l'événement en attente dans `Fixture.liveState` (schéma Zod étendu, `version` 2) ; l'historique des choix gardé après le match (nouveau type de `MatchEvent` ou table dédiée, migration d'ajout) pour le fil du match et la feuille de match.
+
+### Retenu (03/11)
+
+- **Moteur** (`src/engine/choices.ts`, pur ; valeurs dans `balance.ts`) : le plan au coup d'envoi (flux `…:events` : 1, 2 ou 3 limites parmi 15', 30', 60', 75', 35 / 45 / 20 %, et 105' une prolongation sur deux) ; à chaque limite prévue, le type parmi ceux possibles et ses joueurs (flux `…:event:15`), puis l'issue (flux `…:event:15:outcome`, trois tirages, les mêmes quelle que soit l'option : un meilleur tireur ne fait que changer un raté en but). Aucun autre flux n'est décalé. Les incidents immédiats sont datés de la minute suivante, comme un remplacement de mi-temps ; les autres passent par `MatchState.modifiers` (buts du segment suivant, consigne jusqu'à la fin du temps réglementaire, rouge ou blessure d'un joueur nommé à une minute tirée).
+- **« Joueur à bout »** : celui qui a perdu le plus de fitness sur le terrain, au moins 25 points, à partir de 75'.
+- **Valeurs retenues** (départ → retenu) et choix de l'adjoint :
+
+| Événement | Poids | Options et effets retenus | Adjoint |
+|---|---|---|---|
+| Penalty pour toi | 3 | le tireur parmi les trois meilleurs, chance `shootoutChance` affichée | la meilleure chance |
+| Coup franc dangereux | 12 | Frapper : 8 à 18 % selon le tir et le gardien ; Combiner : buts du segment suivant × 1,10 → **× 1,5** | frapper à partir de 75 de tir |
+| Joueur averti qui s'énerve (à partir de 30') | 14 | Le sortir (remplacement) ; Le garder : rouge dans le segment suivant 25 % → **12 %** | le sortir |
+| Échauffourée | 10 | Calmer : rien ; Protester : 50 % buts × 1,08 au segment suivant, 30 % jaune au capitaine (le meilleur de champ ; rouge s'il était averti) | calmer |
+| Joueur touché | 12 | Le sortir ; Le laisser jouer : part × 0,75 → **× 0,85** jusqu'à sa sortie, blessure 7-21 jours dans la suite 35 % → **25 %** | le sortir |
+| Joueur à bout (à partir de 75') | 20 | Le remplacer ; Le garder : blessure dans la suite 15 % → **10 %** | le remplacer |
+| Tu mènes, fin de match (+1 ou +2, 60' ou 75') | 24 | Fermer (Fermer), Chercher le break (Attaquer), Rester tel quel (**Équilibré**), jusqu'à la fin du temps réglementaire quel que soit le score | Fermer si un but d'avance à 75', sinon rester |
+| Tu es mené ou à égalité (60' ou 75') | 24 | Tout pour l'attaque (Attaquer), Rester en place (**Équilibré**) | attaquer si mené |
+
+- « Rester » était d'abord « la règle de l'adjoint continue » : à 75', un but d'avance, il jouait exactement le même match que Fermer, et mené à 75' le même qu'Attaquer. C'est maintenant une consigne, Équilibré, et les options jouent toujours des matchs différents.
+- **Les buts des événements sont pris sur ceux du club** (`OWN_GOALS_WITH_CHOICE_EVENTS` = 0,89 sur ses buts attendus, à chaque segment d'un match qui a des événements) : sans cela, un penalty ou un coup franc ajoutaient des buts, et les événements décidés par l'adjoint rapportaient +0,11 point par match au club dirigé (environ 4 points par saison face au même club joué par l'IA). Effet net mesuré : −0,002 à équipes égales, −0,008 en favori, −0,002 en outsider.
+- **Nombre et types** (`measure:balance`, 20 000 matchs, équipes égales) : 1,85 événement par match (1 : 34,9 %, 2 : 45,5 %, 3 : 19,6 %) ; penalty 5,8 %, coup franc 23,1 %, averti 8,4 %, échauffourée 19,4 %, joueur touché 22,8 %, joueur à bout 5,3 %, tu mènes 4,6 %, tu es mené ou à égalité 10,6 % ; 50,6 % des prolongations ont un événement à 105'.
+- **Chaque option contre celle de l'adjoint** (pts/match où l'événement est venu, chaque option jouée de l'état même jusqu'au coup de sifflet ; égal 70-70, favori 75-70, outsider 65-70, banc faible : remplaçants 12 points sous les titulaires) :
+
+| Événement | Option | Égal | Favori | Outsider | Banc faible |
+|---|---|---|---|---|---|
+| Penalty | 2e tireur | −0,012 | −0,006 | −0,007 | −0,013 |
+| Coup franc | Frapper (contre Combiner) | +0,002 | adjoint | −0,002 | +0,002 |
+| Coup franc | Combiner (contre Frapper) | adjoint | −0,015 | adjoint | adjoint |
+| Averti | Le garder | −0,019 | −0,026 | −0,017 | −0,005 |
+| Échauffourée | Protester | +0,003 | +0,003 | +0,001 | +0,002 |
+| Joueur touché | Le laisser jouer | −0,018 | −0,022 | −0,016 | +0,008 |
+| Joueur à bout | Le garder | −0,015 | −0,016 | −0,010 | −0,005 |
+| Tu mènes | Fermer | +0,015 | +0,014 | +0,025 | +0,012 |
+| Tu mènes | Chercher le break | −0,049 | −0,038 | −0,047 | −0,068 |
+| Tu mènes | Rester tel quel | −0,008 | −0,002 | −0,008 | −0,004 |
+| Mené ou égalité | Tout pour l'attaque | −0,004 | +0,013 | −0,005 | −0,010 |
+| Mené ou égalité | Rester en place | −0,009 | −0,007 | −0,009 | −0,006 |
+
+- Lecture : le coup franc se joue selon le tireur et la force (frapper paie au favori, combiner à l'outsider) ; garder un joueur touché vaut mieux avec un banc faible, garder un averti ou un joueur à bout s'en approche ; attaquer quand on court après le score paie au favori, pas à l'outsider (le principe de G1). L'adjoint n'est jamais à plus de 0,015 point de la meilleure option en moyenne, mais il n'est pas optimal partout : fermer dès la 60e quand on mène vaut un peu mieux que sa règle.
+- **Découpage des envois** : le serveur joue un segment à la fois (`advanceLiveMatch`) ; la page demande le suivant quand son horloge arrive à la limite, une fois par pause, et n'a jamais que ce qui est joué. Sauter (« Aller au résultat ») ou le mouvement réduit demandent tout ce qui précède la prochaine pause de jeu (mi-temps, fin du temps réglementaire d'une coupe nulle) ou la fin, l'adjoint décidant en chemin : ce que le joueur ne regarde pas, il ne peut plus le changer. Avec la pause à la demande de G5, rien ne change côté serveur : un segment n'est jamais joué avant que la limite d'avant soit passée sans demande de pause. Le libellé du saut n'annonce plus la pause de la 90e (il annonçait un nul avant qu'il soit joué).
+- **Anti-triche et cohérence** : la reprise nomme sa pause (phase et minute) et la refuse sinon (`PauseMismatchError`) ; la partie est verrouillée (`lockSave`) et la pause réclamée par une mise à jour conditionnelle sur `liveState` : de deux reprises simultanées, la seconde n'écrit rien ; la décision est écrite (`MatchDecision`, (fixtureId, sequence) unique) avant que la suite soit jouée, dans la même transaction. Testé en base : deux reprises à la fois, une pause déjà jouée, une décision non proposée, des changements hors d'une pause de jeu.
+- **Stockage** : `liveState` version 2 (minutes jouées, événements, effets à venir) ; un direct de version 1, à la mi-temps ou à la fin du temps réglementaire, se termine encore, sans événements. Migration d'ajout `20261103190318_choice_events` : les énumérations `ChoiceKind` et `ChoiceOption`, la valeur `IN_PLAY` de `FixtureStatus`, la table `MatchDecision` (séquence, minute, type, option, choix de l'adjoint ou non, joueur concerné), ses index et ses clés en cascade.
+- **Simulation** : l'adjoint décide avec la même fonction pure (`assistantChoices`), et regarder le match en prenant ses décisions donne exactement le même match (test des 600 matchs, à travers l'état stocké à chaque pause).
+- **Six cibles** (saisons du monde 2) : 2,65 buts, 24,4 % de nuls, 44,2 % à domicile, 56,0 points d'écart, onzes de 35,2 à 73,8, 23,2 % de victoires du plus faible : inchangées, les événements ne touchant que les matchs du club dirigé.
+- **Limites** : le meilleur tireur de penalty est toujours le meilleur choix (le pourcentage est affiché : le choix est d'information) ; quand on mène, fermer le jeu vaut toujours un peu mieux que les autres options (une consigne qui ferme le match protège une avance, par construction des consignes de G1) ; l'échauffourée ne pèse presque rien (±0,003). Les mesures sont faites sur des équipes synthétiques ; avec de vrais effectifs, plus inégaux, garder un joueur fort compte davantage.
 
 ## G5 — Événements à choix : interface du direct
 

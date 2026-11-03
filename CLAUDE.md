@@ -78,14 +78,17 @@ le prochain match du club, où seules les autres compétitions jouent, par tranc
 (`…:s1` à `…:s6`, `…:e1`, `…:e2`) et la force des équipes recalculée à son début : un rouge, une blessure (remplacée
 aussitôt) ou un changement compte dès le segment suivant. Profils de dispositif (`FORMATION_PROFILES`) et consignes
 Attaquer / Équilibré / Fermer (`INSTRUCTION_EFFECTS`), données par la règle de l'adjoint (`assistantInstruction`) à tous
-les clubs, le club dirigé compris tant que le direct ne les propose pas (G5) ; forme calmée (`FORM_RETENTION`).
-`Fixture.liveState` reste en version 1 : un direct en pause reprend avec les segments (`resumeMatch`), et simuler ou
-regarder sans choix du joueur donnent le même match (`src/db/live-state.test.ts`). Détails : skill `moteur-de-match`.
+les clubs, le club dirigé compris tant que le direct ne les propose pas (G5) ; forme calmée (`FORM_RETENTION`). Les buts
+viennent plus tard dans le match : un poids par quart d'heure (`REGULATION_GOAL_WEIGHTS`, de 0,76 à 1,38) et par période
+de prolongation (`EXTRA_TIME_GOAL_WEIGHTS`), moyenne 1 (14 % des buts au premier quart d'heure, 21 % au dernier). Le
+direct du club dirigé se joue segment par segment (`playOn`, `src/engine/live.ts`) : `Fixture.liveState`, en version 2,
+garde l'état à chaque pause (un direct de version 1 se termine encore), et simuler ou regarder avec les décisions de
+l'adjoint donnent le même match (`src/db/live-state.test.ts`, 600 matchs). Détails : skill `moteur-de-match`.
 
 **Fatigue (gameplay v1, G2).** `PlayerSave.fitness` (0–100, affichée « Condition » / « Fitness ») pèse sur la part de
 chaque joueur par deux facteurs, lus au début de chaque segment (`src/engine/fitness.ts`) : la fraîcheur, sa fitness au coup
 d'envoi (`fitnessFactor`, × 1 − 0,0015 × (100 − fitness)), et l'usure, ce qu'il a perdu sur le terrain depuis
-(`wearFactor`, × 1 − 0,011 × perte). Un joueur sur le terrain perd 5 points par segment (1,5 pour le gardien), garde sa
+(`wearFactor`, × 1 − 0,010 × perte). Un joueur sur le terrain perd 5 points par segment (1,5 pour le gardien), garde sa
 fitness de fin de match (`recordFinishedMatches`) et chacun récupère 5 points par jour jusqu'à 100, appliqués par
 `playNextMatchday` au changement de date (`recoveredFitness`, `src/engine/fitness.ts`) ;
 sous 70, son risque de blessure croît. Les clubs IA sortent le titulaire le plus fatigué aux minutes de changement et mettent
@@ -113,6 +116,19 @@ l'adversaire écarte ses suspendus. Badges (`PlayerBadges`, effectif, compositio
 « Suspendu en coupe / en championnat », « 4 jaunes », « 4 jaunes en coupe » en ambre (« Suspended », « Cup ban »,
 « League ban », « 4 yellows », « 4 cup yellows ») ; un carton (`CardMark`) sur le terrain et le banc ; la composition
 avertit qu'un titulaire suspendu sera remplacé.
+
+**Événements à choix (gameplay v1, G4).** Pour le seul club dirigé : 1 à 3 par match (35 / 45 / 20 %), aux limites de
+15', 30', 60' et 75', et à 105' une prolongation sur deux, tirés au coup d'envoi du flux `…:events` ; à chaque limite, le
+type parmi ceux possibles à ce moment (`CHOICE_EVENT_WEIGHTS`) et ses joueurs du flux `…:event:15`, son issue du flux
+`…:event:15:outcome` (`src/engine/choices.ts`, pur, `balance.ts` pour les valeurs ; aucun autre flux n'est décalé).
+Catalogue v1 du cahier : penalty (le tireur parmi les trois meilleurs, sa chance affichée), coup franc (frapper ou
+combiner), joueur averti qui s'énerve, échauffourée, joueur touché, joueur à bout (25 points de fitness perdus sur le
+terrain, à partir de 75'), le club mène, le club est mené ou à égalité (une consigne jusqu'à la fin du temps
+réglementaire). Les buts des événements sont pris sur ceux du club (`OWN_GOALS_WITH_CHOICE_EVENTS`, 0,89 sur ses buts
+attendus) : décidés par l'adjoint, ils ne lui rapportent rien d'eux-mêmes. L'adjoint décide avec la même fonction pure
+en simulation (`assistantChoices`, `simulateMatch`) et en direct quand le joueur le suit ; jusqu'à la carte
+d'événement (G5), la page du direct prend sa décision. Chaque décision est gardée dans `MatchDecision` (migration
+d'ajout `…_choice_events`, (fixtureId, sequence) unique), écrite dans la transaction qui joue la suite, avant elle.
 
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
@@ -151,7 +167,7 @@ simulation) ; `SeasonResult` reste une ligne de championnat, avec `cupRound` et 
 Finale », jamais « Journée N » (`stageLabel`, `app/saves/[id]/_lib/stage.ts`) ; son score porte « a.p. » et
 « 5-3 t.a.b. » (`ScoreNotes`), son résultat pour le club vient de la séance. Le direct du club du joueur s'arrête deux
 fois sur un match de coupe nul après 90 minutes : mi-temps (`Fixture.status` HALF_TIME), puis « Fin du temps
-réglementaire » (REGULATION_END, un remplacement de plus) ; `resumeLiveMatch` reprend à la bonne phase, et sans
+réglementaire » (REGULATION_END, un remplacement de plus) ; `advanceLiveMatch` reprend à la bonne pause, et sans
 changement le match est celui joué sans pause. Page Coupe (`app/saves/[id]/cup`, `getCupBracket`,
 `src/db/cup-view.ts`) et onglet « Coupe » sous Match pour une partie qui a une coupe ; palmarès (« Vainqueur de la
 Coupe », « Coupe : quarts de finale »), carte (« COUPE », « DOUBLÉ », `cardBadge`) et panneau « Saison terminée ».
@@ -174,7 +190,7 @@ d'avant restent en base, plus affichés ; **hors des limites de parties**, mais 
 par défi et utilisateur) naît avec la partie, dans sa transaction, et lui survit (`saveId` en SetNull) : supprimer sa
 partie ne permet pas de recommencer, et le classement survit à la purge ; elle part avec son utilisateur (Cascade). Le
 score (`recordChallengeScore`) s'écrit une seule fois, dans la transaction de `playNextMatchday` ou de
-`resumeLiveMatch` qui termine le 10e match de championnat du club dans la première saison : points, différence, buts
+`advanceLiveMatch` qui termine le 10e match de championnat du club dans la première saison : points, différence, buts
 marqués (`challengeScore`), `submittedAt` à l'horloge de la base en UTC (`now() AT TIME ZONE 'UTC'`, jamais
 `new Date()` dans la simulation) ; plus rien ne le change ensuite. Classement : points, différence, buts, soumission la
 plus ancienne, id (`rankChallengeEntries`) ; une entrée soumise après `endsAt` ne compte pas. À la connexion Google, les
@@ -286,14 +302,20 @@ le bleu vif (état, six tours et le prochain en orange, `cupProgress`, rencontre
 parcours et les tours. Aucun bouton orange plein sur ces écrans : l'action de jeu est dans la colonne, ou en tête de Match
 sur téléphone. `e2e/match.spec.ts` les couvre à 1280, 390 et 360 px.
 
-**Match en direct.** `/live` rejoue un match déjà simulé jusqu'à sa prochaine pause (`LiveMatch`) : rien ne s'y change hors
-des pauses, mi-temps et fin du temps réglementaire d'une coupe nulle. Le moteur n'a ni possession ni tirs, et ses
-consignes suivent la règle de l'adjoint, sans choix du joueur : l'écran n'en montre pas. Carte du score sur le bleu
+**Match en direct.** Le serveur joue le match du club dirigé un segment de 15 minutes à la fois, et `/live` (`LiveMatch`)
+n'a jamais que ce qui est joué : son horloge court jusqu'à la pause où le match attend (`getLivePause`), demande le
+segment suivant une fois (`continueMatchAction`, puis `router.refresh()`) et continue ; `live-skip`, et le mouvement
+réduit, demandent tout ce qui précède la prochaine pause de jeu (mi-temps, fin du temps réglementaire d'une coupe nulle) ou
+la fin. Chaque reprise nomme sa pause, phase et minute (`advanceLiveMatch`, `src/db/live-match.ts`) : la partie
+verrouillée (`lockSave`), la pause réclamée par une mise à jour conditionnelle sur `liveState`, la reprise d'une pause
+déjà jouée (deux onglets, deux clics) est refusée (`PauseMismatchError`) et rien n'est écrit deux fois. Le moteur n'a ni
+possession ni tirs, et ses consignes suivent la règle de l'adjoint, sans choix du joueur : l'écran n'en montre pas. Carte du score sur le bleu
 vif (`LiveScoreCard` : compétition, journée, date, stade s'il
 est connu, `Club.stadium` étant vide pour les 198 clubs ; score, minute en orange, barre de progression, pastille du
 résultat à la fin). Commandes (`LiveControls`, `live-controls`, un seul élément : dans la carte à partir de 1024 px, fixées
 au pied de l'écran en dessous) : vitesse x1, x2, x4 (`live-speed-*`) et `live-skip`, qui dit où il mène : « Coaching à la
-mi-temps » ou « Coaching à la pause », orange plein, ou « Aller au résultat », secondaire ; `live-coaching` à une pause,
+mi-temps », orange plein, jusqu'à la 45e, « Aller au résultat », secondaire, après (jamais la pause de la 90e, qui
+annoncerait un nul avant qu'il soit joué) ; `live-coaching` à une pause,
 `live-continue` à la fin. Dessous, sur deux colonnes à partir de `xl`, le fil (`LiveFeed`, `feedEntries` : événements et
 repères, le plus récent en haut, `EventIcon` en SVG, aussi dans la feuille de match), les statistiques en barres, comptées
 sur les seuls événements montrés (`matchStats`), et les autres matchs. Panneau Coaching (`HalfTime`) : `Sheet` modal,
