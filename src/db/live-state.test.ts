@@ -155,5 +155,6 @@ describe("simulating or watching a match", () => {
     expect(paused).toBeGreaterThan(500);
     expect(cupBreaks).toBeGreaterThan(20);
     expect(firstHalfIncidents).toBeGreaterThan(50);
-  });
+    // 1 200 matches: longer than the default 5 s while other files run.
+  }, 30_000);
 });

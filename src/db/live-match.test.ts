@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HALF_TIME_MINUTE, MAX_SUBSTITUTIONS } from "../engine/balance";
-import { fitnessFactor } from "../engine/fitness";
+import { fitnessFactor, playingFactor } from "../engine/fitness";
 import { automaticHalfTimeChoice, condition, fitnessAt, HalfTimeChoiceError, type HalfTimeChoice } from "../engine/match";
 import { firstMatchdayDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
@@ -134,12 +134,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match paused 
 
     expect(breakTeam.booked).toEqual(team.booked);
     // The starters have played 45 minutes, the substitutes none.
+    // Their factor: fresh at kick-off, worn since; a substitute has his freshness alone.
     const fitness = [
-      ...team.pitch.map((entry) => [entry.player, fitnessAt(entry, HALF_TIME_MINUTE)] as const),
-      ...team.bench.map((player) => [player, player.fitness] as const),
+      ...team.pitch.map((entry) => [entry.player, fitnessAt(entry, HALF_TIME_MINUTE), playingFactor(entry.player.fitness, fitnessAt(entry, HALF_TIME_MINUTE))] as const),
+      ...team.bench.map((player) => [player, player.fitness, fitnessFactor(player.fitness)] as const),
     ];
-    expect(breakTeam.players.map((player) => [player.id, player.form, player.fitness, player.condition])).toEqual(
-      fitness.map(([player, atBreak]) => [player.id, player.form, atBreak, condition(player) * fitnessFactor(atBreak)]),
+    expect(breakTeam.players.map((player) => [player.id, player.form, player.fitness, player.fitnessFactor, player.condition])).toEqual(
+      fitness.map(([player, atBreak, factor]) => [player.id, player.form, atBreak, factor, condition(player) * factor]),
     );
     expect(fitness.some(([, atBreak]) => atBreak < 100)).toBe(true);
   });

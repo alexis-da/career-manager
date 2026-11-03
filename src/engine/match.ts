@@ -52,10 +52,10 @@ import {
   SUBSTITUTIONS_PER_TEAM,
   YELLOW_CARDS_PER_TEAM,
 } from "./balance";
-import { fitnessAfter, fitnessFactor, injuryRiskFactor } from "./fitness";
+import { fitnessAfter, fitnessFactor, injuryRiskFactor, wearFactor } from "./fitness";
 import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "./formations";
 import { ATTRIBUTE_NAMES, clampRating, type AttributeName } from "./generation";
-import type { Lineup, SquadPlayer } from "./lineup";
+import type { Lineup, LineupSlot, SquadPlayer } from "./lineup";
 import { playerFamiliarity, positionGroup, ratingAt, type Position, type PositionGroup } from "./positions";
 
 export type Side = "home" | "away";
@@ -284,13 +284,15 @@ function weightedValue(player: SquadPlayer, weights: Partial<Record<AttributeNam
 
 /**
  * Attack and defense of the players on the pitch: each one's attributes weighted for the group of their slot,
- * reduced by their familiarity with the slot (as ratingAt reduces the overall), adjusted for form and morale, and for
- * fitness (fitnessFactor). A line's value is shared among the formation's slots of that line, empty ones included: a
- * team down to ten is weaker. Without a formation, the starters' slots are the formation.
+ * reduced by their familiarity with the slot (as ratingAt reduces the overall), adjusted for form and morale, for his
+ * freshness at kick-off (fitnessFactor) and for the wear of the match so far (wearOf, the fitness he has lost on the
+ * pitch: none before kick-off). A line's value is shared among the formation's slots of that line, empty ones included:
+ * a team down to ten is weaker. Without a formation, the starters' slots are the formation.
  */
 export function teamStrength(
   lineup: Lineup,
   formation: readonly Position[] = lineup.starters.map(({ slot }) => slot),
+  wearOf: (starter: LineupSlot) => number = () => 0,
 ): TeamStrength {
   const lineSizes: Record<PositionGroup, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
   for (const slot of formation) {
@@ -298,10 +300,11 @@ export function teamStrength(
   }
   let attack = 0;
   let defense = 0;
-  for (const { player, slot } of lineup.starters) {
+  for (const starter of lineup.starters) {
+    const { player, slot } = starter;
     const group = positionGroup(slot);
-    const share =
-      (condition(player) * fitnessFactor(player.fitness) * playerFamiliarity(player, slot)) / Math.max(1, lineSizes[group]);
+    const fitness = fitnessFactor(player.fitness) * wearFactor(wearOf(starter));
+    const share = (condition(player) * fitness * playerFamiliarity(player, slot)) / Math.max(1, lineSizes[group]);
     attack += ATTACK_LINE_WEIGHTS[group] * share * weightedValue(player, ATTACK_WEIGHTS[group]);
     defense += DEFENSE_LINE_WEIGHTS[group] * share * weightedValue(player, DEFENSE_WEIGHTS[group]);
   }
@@ -322,33 +325,35 @@ export function fitnessAt(entry: PitchEntry, minute: number): number {
   return fitnessAfter(entry.player.fitness, entry.slot, minute - entry.from);
 }
 
-/**
- * The players a team has on the pitch at a minute, as a lineup, each at the fitness his time on the pitch has left
- * him, with its remaining substitutes.
- */
-export function lineupOnPitch(team: TeamLive, minute: number): Lineup {
+/** The players a team has on the pitch, as a lineup, at their fitness of kick-off, with its remaining substitutes. */
+export function lineupOnPitch(team: TeamLive): Lineup {
   return {
     starters: team.pitch
       .filter((entry) => entry.status === "ON")
       .sort((a, b) => a.index - b.index)
-      .map((entry) => ({ player: { ...entry.player, fitness: fitnessAt(entry, minute) }, slot: entry.slot, index: entry.index })),
+      .map(({ player, slot, index }) => ({ player, slot, index })),
     bench: team.bench,
   };
 }
 
-/** Attack and defense of a lineup in a formation, the formation's profile applied. */
-export function formationStrength(lineup: Lineup, formation: FormationName): TeamStrength {
-  const { attack, defense } = teamStrength(lineup, formationPositions(formation));
+/** Attack and defense of a lineup in a formation, the formation's profile applied; wearOf as teamStrength reads it. */
+export function formationStrength(
+  lineup: Lineup,
+  formation: FormationName,
+  wearOf?: (starter: LineupSlot) => number,
+): TeamStrength {
+  const { attack, defense } = teamStrength(lineup, formationPositions(formation), wearOf);
   const profile = FORMATION_PROFILES[formation];
   return { attack: attack * profile.attack, defense: defense * profile.defense };
 }
 
 /**
  * Attack and defense of a team as it stands at a minute: on ten after a red card, without an injured player until he is
- * replaced, every player as tired as his time on the pitch has made him.
+ * replaced, every player at his freshness of kick-off and worn by his time on the pitch.
  */
 export function liveStrength(team: TeamLive, minute: number): TeamStrength {
-  return formationStrength(lineupOnPitch(team, minute), team.formation);
+  const lost = new Map(team.pitch.map((entry) => [entry.index, entry.player.fitness - fitnessAt(entry, minute)]));
+  return formationStrength(lineupOnPitch(team), team.formation, (starter) => lost.get(starter.index) ?? 0);
 }
 
 /**

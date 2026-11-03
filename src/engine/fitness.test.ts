@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FULL_FITNESS, REGULATION_MINUTES } from "./balance";
-import { fitnessAfter, fitnessAfterMatch, fitnessFactor, injuryRiskFactor, recoveredFitness } from "./fitness";
+import { fitnessAfter, fitnessAfterMatch, fitnessFactor, injuryRiskFactor, playingFactor, recoveredFitness, wearFactor } from "./fitness";
 
 /** A starter's fitness at the kick-off of each match of a calendar (days from the first), playing every minute of each. */
 function kickOffFitness(days: readonly number[]): number[] {
@@ -16,10 +16,19 @@ function kickOffFitness(days: readonly number[]): number[] {
 }
 
 describe("fitness", () => {
-  it("weighs on a player's share of his team's strength: 0.91 at 70, nothing when rested", () => {
+  it("weighs on a player's share of his team's strength at kick-off: 0.9775 at 85, nothing when rested", () => {
     expect(fitnessFactor(FULL_FITNESS)).toBe(1);
-    expect(fitnessFactor(70)).toBeCloseTo(0.91);
+    expect(fitnessFactor(85)).toBeCloseTo(0.9775);
     expect(fitnessFactor(85)).toBeGreaterThan(fitnessFactor(75));
+  });
+
+  it("wears him down on the pitch more than a short rest does: 0.78 after an hour, and both factors together", () => {
+    expect(wearFactor(0)).toBe(1);
+    expect(wearFactor(20)).toBeCloseTo(0.78);
+    expect(wearFactor(-5)).toBe(1);
+    // Fresh at kick-off, worn down to 80: the wear alone. At 85 at kick-off, worn down to 65: both.
+    expect(playingFactor(FULL_FITNESS, 80)).toBeCloseTo(wearFactor(20));
+    expect(playingFactor(85, 65)).toBeCloseTo(fitnessFactor(85) * wearFactor(20));
   });
 
   it("drops by 5 a quarter of an hour on the pitch, 1.5 for a goalkeeper, never below 0", () => {

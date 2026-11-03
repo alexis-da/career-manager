@@ -302,9 +302,9 @@ export const STRENGTH_PER_MORALE_POINT = 0.001;
 /**
  * Expected goals of a team facing an equal opponent on neutral ground, both in the neutral 4-4-2: two 4-3-3s, as AI
  * clubs play, score about 15 % more (FORMATION_PROFILES). Calibrated with npm run measure:balance on complete seasons,
- * fatigue included: tired players take a little off the goals, the goalkeeper tiring least.
+ * fatigue included: the outfield players wearing faster than the goalkeeper, a match's last segments see fewer goals.
  */
-export const BASE_GOALS_PER_TEAM = 1.16;
+export const BASE_GOALS_PER_TEAM = 1.23;
 
 /** How sharply the attack / defense ratio turns into expected goals: ratio ^ exponent. */
 export const STRENGTH_EXPONENT = 2.4;
@@ -452,10 +452,16 @@ export const FORM_RETENTION = 0.94;
 export const FULL_FITNESS = 100;
 
 /**
- * A player's share of his team's strength is multiplied by 1 − this × (FULL_FITNESS − fitness): 0.91 at 70. Read when
- * each segment starts, the fitness his time on the pitch has cost him included.
+ * Freshness: a player's share of his team's strength is multiplied by 1 − this × (FULL_FITNESS − his fitness at
+ * kick-off): 0.9775 at 85, what the days since his last match have not given back.
  */
-export const STRENGTH_PER_FITNESS_POINT = 0.003;
+export const STRENGTH_PER_FITNESS_POINT = 0.0015;
+
+/**
+ * Wear: and by 1 − this × the fitness he has lost on the pitch since kick-off, read when each segment starts: a starter
+ * who has played an hour (20 points) gives way to a fresh substitute at a real loss.
+ */
+export const STRENGTH_PER_WEAR_POINT = 0.011;
 
 /** Fitness lost per segment (15 minutes) on the pitch: an outfield player, a goalkeeper. 30 for a whole match. */
 export const FITNESS_LOSS_PER_SEGMENT = 5;

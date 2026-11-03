@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FULL_FITNESS, MAX_SUBSTITUTIONS } from "@/src/engine/balance";
-import { fitnessFactor } from "@/src/engine/fitness";
+import { playingFactor } from "@/src/engine/fitness";
 import { formationPositions } from "@/src/engine/formations";
 import type { LineupCandidate } from "@/src/engine/lineup";
 import type { Position } from "@/src/engine/positions";
@@ -183,14 +183,15 @@ describe("cancelling a half-time change", () => {
 
 describe("the change the assistant suggests", () => {
   // The squad rested, at a neutral condition: no substitute beats his starter until a test says so.
-  const rated = (changes: Record<string, { overall?: number; condition?: number; fitness?: number }> = {}) =>
-    PLAYERS.map((candidate) => ({ ...candidate, condition: 1, fitness: FULL_FITNESS, ...changes[candidate.id] }));
+  const rated = (changes: Record<string, { overall?: number; condition?: number; fitness?: number; fitnessFactor?: number }> = {}) =>
+    PLAYERS.map((candidate) => ({ ...candidate, condition: 1, fitness: FULL_FITNESS, fitnessFactor: 1, ...changes[candidate.id] }));
 
-  /** A player as tired as a fitness leaves him: his condition is the engine's, form neutral times that fitness's factor. */
+  /** A player fresh at kick-off, worn down to a fitness: his condition is the engine's, form neutral times that wear. */
   const tired = (fitness: number, overall?: number) => ({
     ...(overall === undefined ? {} : { overall }),
     fitness,
-    condition: fitnessFactor(fitness),
+    fitnessFactor: playingFactor(FULL_FITNESS, fitness),
+    condition: playingFactor(FULL_FITNESS, fitness),
   });
 
   it("suggests nothing while nobody on the bench does better", () => {
@@ -204,15 +205,16 @@ describe("the change the assistant suggests", () => {
   });
 
   it("brings a fresh substitute on for a tired starter, for his freshness when it outweighs the rest", () => {
-    // Rated 70 at 70 of fitness, 63.7 in all, against the right-back's 66, fresh.
+    // Rated 70, worn down to 70 of fitness: 46.9 in all, against the right-back's 66, fresh.
     const change = suggestChange(initial, rules(), rated({ s1: tired(70) }));
     expect(change).toMatchObject({ slot: 1, out: "s1", in: "b-rb", reason: "fitness" });
-    expect(change?.gain).toBeCloseTo(66 - 70 * fitnessFactor(70));
+    expect(change?.gain).toBeCloseTo(66 - 70 * playingFactor(FULL_FITNESS, 70));
 
-    // A starter rated 60, as tired: the substitute's rating weighs more than his freshness.
-    expect(suggestChange(initial, rules(), rated({ s1: tired(85, 60) }))).toMatchObject({ out: "s1", reason: "level" });
+    // A starter rated 60, a little worn: the substitute's rating weighs more than his freshness.
+    expect(suggestChange(initial, rules(), rated({ s1: tired(95, 60) }))).toMatchObject({ out: "s1", reason: "level" });
     // Nobody on the bench fresher: tired as he is, he comes off for his rating.
-    expect(suggestChange(initial, rules(), rated({ s1: tired(85, 60), "b-rb": tired(85) }))).toMatchObject({ out: "s1", reason: "level" });
+    const allTired = Object.fromEntries(["s1", ...BENCH.map((member) => member.id)].map((id) => [id, tired(85, id === "s1" ? 60 : undefined)]));
+    expect(suggestChange(initial, rules(), rated(allTired))).toMatchObject({ out: "s1", in: "b-rb", reason: "level" });
   });
 
   it("says the form when it weighs most: same rating, same fitness, a substitute in better form", () => {
@@ -290,7 +292,7 @@ describe("the change the assistant suggests", () => {
     expect(suggestChange({ ...initial, bench: initial.bench.toReversed() }, rules(), players.toReversed())).toEqual(change);
 
     // Two substitutes of the same level.
-    const twins = [...rated({ s1: { overall: 60 } }), { ...player("a-rb", "RB", 66), condition: 1, fitness: FULL_FITNESS }];
+    const twins = [...rated({ s1: { overall: 60 } }), { ...player("a-rb", "RB", 66), condition: 1, fitness: FULL_FITNESS, fitnessFactor: 1 }];
     const withTwin = { ...initial, bench: [...initial.bench, "a-rb"] };
     expect(suggestChange(withTwin, rules(), twins)).toMatchObject({ out: "s1", in: "a-rb" });
     expect(suggestChange({ ...withTwin, bench: withTwin.bench.toReversed() }, rules(), twins.toReversed())).toMatchObject({ in: "a-rb" });

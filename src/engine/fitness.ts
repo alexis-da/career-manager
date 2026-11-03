@@ -7,12 +7,23 @@ import {
   INJURY_RISK_FITNESS_SPAN,
   SEGMENT_MINUTES,
   STRENGTH_PER_FITNESS_POINT,
+  STRENGTH_PER_WEAR_POINT,
 } from "./balance";
 import type { Position } from "./positions";
 
-/** The factor of a player's share of his team's strength at a fitness: 1 rested, 0.91 at 70. */
+/** Freshness: the factor of a player's share of his team's strength at his fitness at kick-off, 1 rested. */
 export function fitnessFactor(fitness: number): number {
   return 1 - STRENGTH_PER_FITNESS_POINT * (FULL_FITNESS - fitness);
+}
+
+/** Wear: the factor of a player's share for the fitness the match has taken out of him so far, 1 at kick-off. */
+export function wearFactor(lost: number): number {
+  return 1 - STRENGTH_PER_WEAR_POINT * Math.max(0, lost);
+}
+
+/** Both: how a player plays at a minute, from his fitness at kick-off and the fitness he has left. */
+export function playingFactor(kickOff: number, now: number): number {
+  return fitnessFactor(kickOff) * wearFactor(kickOff - now);
 }
 
 /** Fitness after some minutes on the pitch in a slot, never below 0: a goalkeeper tires less than an outfield player. */

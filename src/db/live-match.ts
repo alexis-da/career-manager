@@ -1,5 +1,5 @@
 import { HALF_TIME_MINUTE, REGULATION_MINUTES } from "../engine/balance";
-import { fitnessFactor } from "../engine/fitness";
+import { fitnessFactor, playingFactor } from "../engine/fitness";
 import {
   breakSubstitutionLimit,
   condition,
@@ -45,10 +45,11 @@ export type MatchBreak = "HALF_TIME" | "REGULATION_END";
 const PAUSED_STATUSES: MatchBreak[] = ["HALF_TIME", "REGULATION_END"];
 
 /**
- * A player at a break, with his form, his fitness at that minute, and his strength's factor for form, morale and that
- * fitness (the engine's condition): what the next segment plays him at.
+ * A player at a break, with his form, his fitness at that minute, the factor of his share of strength for his fitness
+ * (fresh at kick-off, worn since), and his whole factor for form, morale and fitness (the engine's condition): what
+ * the next segment plays him at.
  */
-export type HalfTimePlayer = LineupPlayer & { form: number; fitness: number; condition: number };
+export type HalfTimePlayer = LineupPlayer & { form: number; fitness: number; fitnessFactor: number; condition: number };
 
 /** The managed club at a break, as the half-time (or end of regulation time) screen shows it. */
 export type HalfTimeTeam = {
@@ -91,6 +92,11 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
     ...team.pitch.map((entry) => [entry.player.id, fitnessAt(entry, breakMinute)] as const),
     ...team.bench.map((player) => [player.id, player.fitness] as const),
   ]);
+  // A substitute has not played: his freshness of kick-off alone.
+  const factorOf = new Map([
+    ...team.pitch.map((entry) => [entry.player.id, playingFactor(entry.player.fitness, fitnessAt(entry, breakMinute))] as const),
+    ...team.bench.map((player) => [player.id, fitnessFactor(player.fitness)] as const),
+  ]);
   const squad = [...team.pitch.map((entry) => entry.player), ...team.bench];
   const identities = await prisma.playerSave.findMany({
     where: { saveId, playerKey: { in: squad.map((player) => player.id) } },
@@ -121,6 +127,7 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
     players: squad.map((player) => {
       const identity = getOrThrow(identityOf, player.id, "player");
       const fitness = getOrThrow(fitnessOf, player.id, "fitness");
+      const fitnessFactorAtBreak = getOrThrow(factorOf, player.id, "fitness factor");
       return {
         id: player.id,
         position: player.position,
@@ -129,7 +136,8 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
         injuredUntil: null,
         form: player.form,
         fitness,
-        condition: condition(player) * fitnessFactor(fitness),
+        fitnessFactor: fitnessFactorAtBreak,
+        condition: condition(player) * fitnessFactorAtBreak,
         firstName: identity.firstName,
         lastName: identity.lastName,
         age: ageInYears(identity.birthDate, save.currentDate),
