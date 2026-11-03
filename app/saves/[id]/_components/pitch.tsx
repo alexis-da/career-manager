@@ -1,15 +1,17 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { PlusIcon, XIcon } from "lucide-react";
 import type { CSSProperties, DOMAttributes, ReactNode, RefCallback } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import type { LineupPlayer } from "@/src/db/lineup";
 import type { FormationSlot } from "@/src/engine/formations";
+import { isAvailable } from "@/src/engine/lineup";
 import { ratingAt } from "@/src/engine/positions";
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
 import { fitnessFigure, type FitnessMoment } from "../_lib/fitness";
 import { isOffPosition, positionFit } from "../_lib/positions";
 import { FitnessStrip } from "./fitness-gauge";
+import { CardMark, disciplineBadges, nextMatchCard } from "./player-badges";
 import { PositionBadge, SecondaryPositionBadges } from "./position-badge";
 
 /** Pitch markings in metres, on a 68 × 105 pitch. */
@@ -104,8 +106,9 @@ type PitchProps = {
 
 /**
  * The formation on a vertical pitch, attacking upwards: each slot shows the slot's position, its player's face, his
- * rating there (yellow out of position, red when injured), his own position and his name, with his fitness along its
- * foot where the eleven is chosen. During a drag, every slot shows the rating the dragged player would have there
+ * rating there (yellow out of position, red when injured or suspended), his own position and his name, with his fitness
+ * along its foot where the eleven is chosen, and a card on his face before the next match: red suspended for it, yellow
+ * one booking from a suspension in it. During a drag, every slot shows the rating the dragged player would have there
  * instead, and the slot under the pointer is highlighted. Shared by the lineup editor, the half-time screen and,
  * read-only and without the fitness, the opponent's preview.
  */
@@ -113,6 +116,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
   const t = useTranslations("pitch");
   const tPlayer = useTranslations("player");
   const tPositions = useTranslations("positions");
+  const locale = useLocale();
   const selected = editing?.selected ?? null;
   const dragged = editing?.dragged ?? null;
   return (
@@ -173,16 +177,27 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
                 rating: Math.round(rating),
               });
         const fitness = fitnessAt === undefined || player === undefined ? null : fitnessFigure(player.fitness);
-        // After the player, whether he is injured, else how he fits the slot when it is not his own position; then his
-        // fitness, and when it is.
+        // Injured or suspended: he will not play, whatever his slot.
+        const unavailable = player !== undefined && !isAvailable(player);
+        const card = nextMatchCard(player?.discipline);
+        // After the player, whether he is injured or suspended, else how he fits the slot when it is not his own position;
+        // then a later suspension or yellow cards at risk, his fitness, and when it is.
+        const missing = [
+          ...(player?.injured === true ? [t("injured")] : []),
+          ...(player?.suspended === true ? [t("suspended")] : []),
+        ];
         const note =
           player === undefined || fit === undefined
             ? null
-            : player.injured
-              ? t("injured")
+            : missing.length > 0
+              ? missing.join(", ")
               : fit === "exact"
                 ? null
                 : tPositions(`fit.${fit}`);
+        const discipline = disciplineBadges(player?.discipline, tPlayer)
+          .filter(({ id }) => id !== "suspended")
+          .map(({ label: badge }) => `, ${badge.toLocaleLowerCase(locale)}`)
+          .join("");
         const slotLabel =
           player === undefined
             ? t("emptySlot", { position: tPositions(`label.${slot.position}`) })
@@ -192,6 +207,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
                 detail: detail ?? "",
               }) +
               (note === null ? "" : `, ${note}`) +
+              discipline +
               (fitness === null || fitnessAt === undefined ? "" : `, ${tPlayer(`fitnessAt.${fitnessAt}`, { fitness })}`);
         return (
           // Above the slots next to it while its detail shows.
@@ -229,7 +245,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
                 "group-focus-visible:ring-3 group-focus-visible:ring-ring/60",
                 player === undefined
                   ? "border-dashed border-muted-foreground bg-background/85 text-muted-foreground"
-                  : player.injured
+                  : unavailable
                     ? "border-loss bg-background text-loss"
                     : outOfPosition
                       ? "border-warning bg-background text-warning"
@@ -246,9 +262,11 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
                   age={player.age}
                   clubColors={clubColors}
                   size={32}
-                  background={player.injured || outOfPosition ? "var(--background)" : "var(--primary)"}
+                  background={unavailable || outOfPosition ? "var(--background)" : "var(--primary)"}
                 />
               )}
+              {/* Across from the rating, beside the position: the referee's card, which the label words. */}
+              {card !== null && <CardMark tone={card} className="absolute -right-1 -bottom-1" />}
               {badge !== null && (
                 <span
                   data-slot-rating

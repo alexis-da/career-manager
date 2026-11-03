@@ -14,7 +14,7 @@ import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../../_components/contract-actions";
 import { FitnessGauge } from "../../_components/fitness-gauge";
-import { PlayerBadges } from "../../_components/player-badges";
+import { hasPlayerBadges, PlayerBadges } from "../../_components/player-badges";
 import { PlayerSheet } from "../../_components/player-sheet";
 import { nationalityCode, nationalityName } from "../../_lib/nationalities";
 import { POSITION_ORDER, positionTextClass } from "../../_lib/positions";
@@ -279,7 +279,9 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
             {sorted.map((player) => {
               const name = `${player.firstName} ${player.lastName}`;
               const isSelected = player.id === selectedId;
-              const hasBadges = player.injuredUntil !== null || player.contractExpiring || player.arrivedThisSeason;
+              const hasBadges = hasPlayerBadges(player);
+              // Out of the next match: his fitness for it says nothing, and his badge takes its room on a card.
+              const sitsOut = player.injuredUntil !== null || player.discipline?.suspended === true;
               return (
                 <SquadRow
                   key={player.id}
@@ -364,8 +366,8 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                     <FormGauge form={player.form} />
                   </TableCell>
                   {/* In the table, the figure over a short bar. In a card, which has no room for a bar at 360 px, the
-                      column's heart before the figure, the heart for a separator; none for an injured player, whose badge
-                      takes its room and who will not play. */}
+                      column's heart before the figure, the heart for a separator; none for an injured or a suspended
+                      player, whose badge takes its room and who will not play. */}
                   <TableCell
                     data-column="fitness"
                     className={cn(
@@ -373,7 +375,7 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                       TIGHT_CELL,
                       CARD_FOOT,
                       "max-lg:col-start-5 max-lg:gap-1 max-lg:pl-1",
-                      player.injuredUntil !== null && "max-lg:hidden",
+                      sitsOut && "max-lg:hidden",
                       FITNESS_NEEDS_672,
                     )}
                   >

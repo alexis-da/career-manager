@@ -11,7 +11,8 @@
     "incompleteRefused": "Incomplete eleven: {count, plural, one {# position is empty} other {# positions are empty}}. Put a player in every position or click “{complete}”.",
     "saveFailed": "Saving failed. Try again.",
     "incomplete": "Incomplete eleven: {count, plural, one {# empty position} other {# empty positions}} to fill before saving.",
-    "injuredStarter": "An injured starter will be replaced automatically at kick-off.",
+    "injuredStarter": "{count, plural, one {An injured starter} other {# injured starters}} will be replaced automatically at kick-off.",
+    "suspendedStarter": "{count, plural, one {A suspended starter} other {# suspended starters}} will be replaced automatically at kick-off.",
     "complete": "Fill automatically",
     "myEleven": "My eleven",
     "bench": "Bench",
@@ -43,6 +44,7 @@
     "detail": "{position} {overall} · plays {slot}: {rating}",
     "fitness": "fitness {fitness}",
     "injured": "injured",
+    "suspended": "suspended",
     "sentOff": "sent off",
     "sentOffSlot": "{position}: empty position, {name} sent off"
   }

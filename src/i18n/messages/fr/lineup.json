@@ -11,7 +11,8 @@
     "incompleteRefused": "Onze incomplet : {count, plural, one {# poste est vide} other {# postes sont vides}}. Place un joueur sur chaque poste ou clique sur « {complete} ».",
     "saveFailed": "L'enregistrement a échoué. Réessaie.",
     "incomplete": "Onze incomplet : {count, plural, one {# poste vide} other {# postes vides}}, à remplir avant d'enregistrer.",
-    "injuredStarter": "Un titulaire blessé sera remplacé automatiquement au coup d'envoi.",
+    "injuredStarter": "{count, plural, one {Un titulaire blessé sera remplacé} other {# titulaires blessés seront remplacés}} automatiquement au coup d'envoi.",
+    "suspendedStarter": "{count, plural, one {Un titulaire suspendu sera remplacé} other {# titulaires suspendus seront remplacés}} automatiquement au coup d'envoi.",
     "complete": "Compléter automatiquement",
     "myEleven": "Mon onze",
     "bench": "Banc",
@@ -43,6 +44,7 @@
     "detail": "{position} {overall} · joue {slot} : {rating}",
     "fitness": "condition {fitness}",
     "injured": "blessé",
+    "suspended": "suspendu",
     "sentOff": "exclu",
     "sentOffSlot": "{position} : poste vide, {name} exclu"
   }

@@ -7,20 +7,24 @@ import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
+import { DISCIPLINE_SELECT, disciplineStatus, matchesAhead, type DisciplineStatus, type MatchesAhead } from "./discipline-view";
 import { fitnessAtKickOff } from "./fitness-view";
 
-/** The day of the managed club's next match, null once it has none left. */
-async function managedMatchDay(saveId: string): Promise<Date | null> {
-  const next = await prisma.fixture.findFirst({
+/**
+ * What the managed club still has to play: its next match, its day and competition, null once it has none left, and the
+ * competitions it still has a match in. What its players are picked for, and judged on: fitness, injuries, suspensions.
+ */
+export async function managedMatchesAhead(saveId: string): Promise<MatchesAhead> {
+  const fixtures = await prisma.fixture.findMany({
     where: {
       saveId,
       played: false,
       OR: [{ homeClubSave: { saveId, isManaged: true } }, { awayClubSave: { saveId, isManaged: true } }],
     },
     orderBy: { scheduledAt: "asc" },
-    select: { scheduledAt: true },
+    select: { scheduledAt: true, season: { select: { competition: { select: { kind: true } } } } },
   });
-  return next?.scheduledAt ?? null;
+  return matchesAhead(fixtures.map(({ scheduledAt, season }) => ({ date: scheduledAt, competition: season.competition.kind })));
 }
 
 export type TransferKind = "TRANSFER" | "LOAN" | "FREE" | "RETIREMENT";
@@ -62,6 +66,9 @@ export type PlayerProfile = {
   // anyone else's, or once the club has no match left, today's. Morale is no screen's: it is not read.
   fitness: number;
   fitnessAtNextMatch: boolean; // the fitness is the next match's
+  // A player of the managed club's suspensions and yellow cards at risk, against its next match and the competitions it
+  // still plays (disciplineStatus); null for anyone else's, whose club's matches are not read.
+  discipline: DisciplineStatus | null;
   marketValue: number; // euros, as stored: set when the player enters the save, recomputed at each season transition
   wage: number;
   contractUntil: Date | null;
@@ -108,6 +115,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       wage: true,
       contractUntil: true,
       injuredUntil: true,
+      ...DISCIPLINE_SELECT,
       clubSave: {
         select: { isManaged: true, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
       },
@@ -115,9 +123,10 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
   });
   const playerIds = players.map((player) => player.id);
 
-  // The managed club's players are picked for its next match: their fitness is that match's. Read only when one of them
-  // is among the players.
-  const nextMatchDay = players.some((player) => player.clubSave?.isManaged === true) ? await managedMatchDay(saveId) : null;
+  // The managed club's players are picked for its next match: their fitness and their suspensions are that match's. Read
+  // only when one of them is among the players.
+  const ahead = players.some((player) => player.clubSave?.isManaged === true) ? await managedMatchesAhead(saveId) : null;
+  const nextMatchDay = ahead?.next?.date ?? null;
 
   const [stats, transfers] = await Promise.all([
     prisma.playerSeasonStats.groupBy({
@@ -143,7 +152,8 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
 
   return players.map((player) => {
     const playerStats = statsByPlayer.get(player.id);
-    const atNextMatch = player.clubSave?.isManaged === true && nextMatchDay !== null;
+    const managed = player.clubSave?.isManaged === true;
+    const atNextMatch = managed && nextMatchDay !== null;
     return {
       id: player.id,
       playerKey: player.playerKey,
@@ -160,6 +170,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       form: player.form,
       fitness: atNextMatch ? fitnessAtKickOff(player.fitness, save.currentDate, nextMatchDay) : player.fitness,
       fitnessAtNextMatch: atNextMatch,
+      discipline: managed && ahead !== null ? disciplineStatus(player, ahead) : null,
       marketValue: player.marketValue,
       wage: player.wage,
       contractUntil: player.contractUntil,

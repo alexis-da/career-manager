@@ -36,7 +36,7 @@ const byKey = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
  * him today: no offer is ever received, so this is what the market would pay. Read only.
  */
 export async function getMarketSales(saveId: string): Promise<MarketSales> {
-  const [{ lineup, injuredStarters }, terms, save, club] = await Promise.all([
+  const [{ lineup, missingStarters }, terms, save, club] = await Promise.all([
     getManagedLineup(saveId),
     quoteSquad(saveId),
     prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
@@ -45,8 +45,8 @@ export async function getMarketSales(saveId: string): Promise<MarketSales> {
       select: { id: true, club: { select: { primaryColor: true, secondaryColor: true } } },
     }),
   ]);
-  // In a lineup, a player's id is his playerKey. A saved starter out injured is in the eleven he comes back to.
-  const eleven = [...lineup.starters.map(({ player }) => player), ...injuredStarters].map((player) => player.id);
+  // In a lineup, a player's id is his playerKey. A saved starter out injured or suspended is in the eleven he comes back to.
+  const eleven = [...lineup.starters.map(({ player }) => player), ...missingStarters].map((player) => player.id);
   const players = await prisma.playerSave.findMany({
     where: { saveId, clubSaveId: club.id, playerKey: { notIn: eleven } },
     select: {

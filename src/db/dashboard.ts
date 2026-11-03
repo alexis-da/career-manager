@@ -1,10 +1,13 @@
 import { displayClubName } from "../engine/club-name";
+import type { CompetitionKind } from "../engine/discipline";
 import type { FormResult } from "../engine/standings";
 import { seasonEndDate, transferWindowAt } from "../engine/world";
 import { worldVersionOf, type WorldVersion } from "../engine/world-version";
 import { ageInYears } from "../lib/dates";
 import { FIXTURE_SELECT, toFixtureView, type FixtureView } from "./calendar";
 import { prisma } from "./client";
+import { DISCIPLINE_SELECT, disciplineStatus } from "./discipline-view";
+import { managedMatchesAhead } from "./players";
 import { getStandings, type ClubStandingRow } from "./standings";
 
 /** Matches shown in a club's recent form. */
@@ -47,6 +50,9 @@ export type Dashboard = {
   nextMatch: { fixture: FixtureView; home: ClubPreview; away: ClubPreview; stadium: string | null } | null;
   lastResult: { fixture: FixtureView; homeScorers: Scorer[]; awayScorers: Scorer[] } | null;
   injured: { name: string; until: Date }[];
+  // Players one booking from a suspension in a competition the club still plays this season (disciplineStatus), by name,
+  // with those competitions, the league first.
+  bookingRisks: { name: string; competitions: CompetitionKind[] }[];
   expiringContracts: string[]; // players whose contract ends this season, listed from 1 January
   position: {
     rank: number;
@@ -64,6 +70,10 @@ export type Dashboard = {
 
 const shortName = (player: { firstName: string; lastName: string }): string =>
   `${player.firstName.charAt(0)}. ${player.lastName}`;
+
+/** By last name, then first name, as French sorts them. */
+const byName = (a: { firstName: string; lastName: string }, b: { firstName: string; lastName: string }): number =>
+  a.lastName.localeCompare(b.lastName, "fr") || a.firstName.localeCompare(b.firstName, "fr");
 
 const involving = (clubSaveId: string) => ({ OR: [{ homeClubSaveId: clubSaveId }, { awayClubSaveId: clubSaveId }] });
 
@@ -142,12 +152,21 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
   // The next and last matches in any competition of the seasons in progress, cup ties included; the table and the
   // rank's movement come from the league season.
   const inProgress = { season: { completed: false } } as const;
-  const [payroll, squad, nextRow, lastRow, lastLeagueRow, unplayed, table] = await Promise.all([
+  const [payroll, squad, ahead, nextRow, lastRow, lastLeagueRow, unplayed, table] = await Promise.all([
     prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } }),
     prisma.playerSave.findMany({
       where: { saveId, clubSaveId: club.id },
-      select: { firstName: true, lastName: true, birthDate: true, position: true, contractUntil: true, injuredUntil: true },
+      select: {
+        firstName: true,
+        lastName: true,
+        birthDate: true,
+        position: true,
+        contractUntil: true,
+        injuredUntil: true,
+        ...DISCIPLINE_SELECT,
+      },
     }),
+    managedMatchesAhead(saveId),
     season === null
       ? null
       : prisma.fixture.findFirst({
@@ -238,6 +257,13 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
       .filter((player) => player.injuredUntil !== null && player.injuredUntil > save.currentDate)
       .map((player) => ({ name: shortName(player), until: player.injuredUntil ?? save.currentDate }))
       .sort((a, b) => a.until.getTime() - b.until.getTime()),
+    bookingRisks: squad
+      .flatMap((player) => {
+        const { bookingRisks } = disciplineStatus(player, ahead);
+        return bookingRisks.length === 0 ? [] : [{ player, competitions: bookingRisks.map(({ competition }) => competition) }];
+      })
+      .sort(({ player: a }, { player: b }) => byName(a, b))
+      .map(({ player, competitions }) => ({ name: shortName(player), competitions })),
     expiringContracts:
       !secondHalf || lastContractDay === null
         ? []

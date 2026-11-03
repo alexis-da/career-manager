@@ -1,9 +1,11 @@
 import { displayClubName } from "../engine/club-name";
+import { isSuspended } from "../engine/discipline";
 import { formationPositions, type FormationName } from "../engine/formations";
 import { averageStarterRating, selectRestedLineup, type Lineup } from "../engine/lineup";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
+import { DISCIPLINE_SELECT } from "./discipline-view";
 import { getManagedLineup, parseFormation, type LineupPlayer } from "./lineup";
 import { fitnessAtKickOff } from "./fitness-view";
 
@@ -24,7 +26,7 @@ export type OpponentPreview = {
   clubName: string;
   clubColors: ClubColors;
   formation: FormationName;
-  lineup: Lineup<LineupPlayer>; // his probable eleven, injuries judged on the match day
+  lineup: Lineup<LineupPlayer>; // his probable eleven, injuries judged on the match day, suspensions for its competition
   averageRating: number; // mean rating of his starters in their slots
   managedAverageRating: number; // the same for the managed club's lineup of that match
   recent: OpponentResult[]; // his last played matches, most recent first, whatever the season
@@ -33,8 +35,8 @@ export type OpponentPreview = {
 
 /**
  * The managed club's next opponent, or the opponent of one of its unplayed fixtures, as he will likely line up: his
- * eleven picked as the matchday picks an AI club's, its tired players rested (selectRestedLineup), his recent results
- * and his top scorer. Null when the managed club has no match left, or when
+ * eleven picked as the matchday picks an AI club's, its tired players rested (selectRestedLineup) and its suspended ones
+ * out (withSuspensions), his recent results and his top scorer. Null when the managed club has no match left, or when
  * fixtureId is not an unplayed fixture of the managed club.
  */
 export async function getOpponentPreview(saveId: string, fixtureId?: string): Promise<OpponentPreview | null> {
@@ -50,7 +52,12 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
       OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }],
     },
     orderBy: { scheduledAt: "asc" },
-    select: { scheduledAt: true, season: { select: { startYear: true } }, homeClubSaveId: true, awayClubSaveId: true },
+    select: {
+      scheduledAt: true,
+      season: { select: { startYear: true, competition: { select: { kind: true } } } },
+      homeClubSaveId: true,
+      awayClubSaveId: true,
+    },
   });
   if (next === null) {
     return null;
@@ -76,6 +83,7 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
         overall: true,
         injuredUntil: true,
         fitness: true,
+        ...DISCIPLINE_SELECT,
       },
     }),
     prisma.fixture.findMany({
@@ -105,14 +113,21 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
     getManagedLineup(saveId),
   ]);
 
-  const players: LineupPlayer[] = rows.map(({ playerKey, birthDate, fitness, ...row }) => ({
-    ...row,
-    id: playerKey,
-    age: ageInYears(birthDate, save.currentDate),
+  const players: LineupPlayer[] = rows.map((row) => ({
+    id: row.playerKey,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    position: row.position,
+    overall: row.overall,
+    injuredUntil: row.injuredUntil,
+    age: ageInYears(row.birthDate, save.currentDate),
     // Same rule as the matchday: a player is out while his injury runs past the match day.
     injured: row.injuredUntil !== null && row.injuredUntil > matchDate,
+    // And while suspended for the match's competition (withSuspensions), unless his club plays before and he serves it
+    // there: the preview does not show it.
+    suspended: isSuspended(row, next.season.competition.kind),
     // Rested until then, unless his club plays before: the preview does not show it.
-    fitness: fitnessAtKickOff(fitness, save.currentDate, matchDate),
+    fitness: fitnessAtKickOff(row.fitness, save.currentDate, matchDate),
   }));
   const formation = parseFormation(opponent.formation);
   const lineup = selectRestedLineup(players, formationPositions(formation));

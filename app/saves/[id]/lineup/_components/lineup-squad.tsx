@@ -5,6 +5,7 @@ import { POSITION_GROUPS, positionGroup, ratingAt, type Position } from "@/src/e
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "@/src/components/panel";
 import { FitnessGauge } from "../../_components/fitness-gauge";
+import { disciplineBadges } from "../../_components/player-badges";
 import { PositionBadges } from "../../_components/position-badge";
 import { isOffPosition, positionFit } from "../../_lib/positions";
 import type { DragSource, DragSourceProps } from "./use-pointer-drag";
@@ -38,8 +39,12 @@ export function SlotRating({ player, position, className }: SlotRatingProps) {
 }
 
 /** What a line says of a player after his position and his age. */
-function Mark({ className, children }: { className: string; children: string }) {
-  return <span className={cn("rounded-sm bg-background/80 px-1.5 font-semibold", className)}>{children}</span>;
+function Mark({ className, title, children }: { className: string; title?: string; children: string }) {
+  return (
+    <span title={title} className={cn("rounded-sm bg-background/80 px-1.5 font-semibold", className)}>
+      {children}
+    </span>
+  );
 }
 
 type PlayerLineProps = ComponentProps<"button"> & {
@@ -53,10 +58,11 @@ type PlayerLineProps = ComponentProps<"button"> & {
 
 /**
  * A dense line of the squad, a button and a drag source: the rating, the name, then his position, his age, his fitness at
- * the match's kick-off and his state.
+ * the match's kick-off and his state: injured, suspended, one booking from a suspension, as on his sheet.
  */
 function PlayerLine({ player, position, active, lifted, starter, mark, ...button }: PlayerLineProps) {
   const t = useTranslations("lineup");
+  const tPlayer = useTranslations("player");
   return (
     <button
       type="button"
@@ -87,6 +93,11 @@ function PlayerLine({ player, position, active, lifted, starter, mark, ...button
             · <FitnessGauge fitness={player.fitness} moment="nextMatch" onBlue={active} />
           </span>
           {player.injured && <Mark className="text-loss">{t("injured")}</Mark>}
+          {disciplineBadges(player.discipline, tPlayer).map(({ id, tone, label, title }) => (
+            <Mark key={`${id}:${label}`} className={tone === "danger" ? "text-loss" : "text-warning"} title={title}>
+              {label}
+            </Mark>
+          ))}
           {mark}
         </span>
       </span>

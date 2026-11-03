@@ -7,14 +7,14 @@ import {
   TargetIcon,
   UserCheckIcon,
   UserMinusIcon,
-  type LucideIcon,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import type { Dashboard } from "@/src/db/dashboard";
 import type { ManagedLineup } from "@/src/db/lineup";
 import type { MarketSales } from "@/src/db/market-sales";
+import { YELLOWS_PER_SUSPENSION } from "@/src/engine/balance";
 import { weakSpotOf } from "@/src/engine/market-proposals";
 import { ratingAt } from "@/src/engine/positions";
 import type { Locale } from "@/src/i18n/locale";
@@ -25,18 +25,38 @@ import { cn } from "@/src/lib/utils";
 /** Below this many players under contract, the list warns. */
 const SQUAD_ALERT_SIZE = 18;
 const MIN_GOALKEEPERS = 2;
-const EXPIRING_NAMES_SHOWN = 3;
+/** Names a line gives before « et 2 autres ». */
+const NAMES_SHOWN = 3;
 
 type Severity = "danger" | "warning" | "ok" | "neutral";
 
 type Todo = {
-  id: "injured-starters" | "injured" | "offers" | "weak-spot" | "expiring-contracts" | "goalkeepers" | "small-squad" | "full-squad";
+  id:
+    | "injured-starters"
+    | "suspended-starters"
+    | "injured"
+    | "booking-risks"
+    | "offers"
+    | "weak-spot"
+    | "expiring-contracts"
+    | "goalkeepers"
+    | "small-squad"
+    | "full-squad";
   severity: Severity;
-  icon: LucideIcon;
+  icon: ComponentType<{ className?: string }>; // a lucide icon, or the referee's card
   title: string;
   detail: string;
   href?: string; // a full squad asks for nothing: no link
 };
+
+/** A card, upright and full, in its tile's colour: the referee's, red or yellow, as in the match's feed. */
+function BookingCardIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className={className}>
+      <rect x="6" y="3" width="12" height="18" rx="2" fill="currentColor" />
+    </svg>
+  );
+}
 
 const TILE_CLASSES: Record<Severity, string> = {
   danger: "bg-loss/15 text-loss",
@@ -57,11 +77,18 @@ type DashboardTodoProps = {
 
 const shortName = ({ firstName, lastName }: { firstName: string; lastName: string }): string => `${firstName.charAt(0)}. ${lastName}`;
 
+/** The first names of a list, then how many more: « A, B, C et 2 autres ». */
+function namesAndOthers(names: readonly string[], t: Translator<"dashboardTodo">): string {
+  const shown = names.slice(0, NAMES_SHOWN).join(", ");
+  const others = names.length - NAMES_SHOWN;
+  return others > 0 ? t("andOthers", { players: shown, count: others }) : shown;
+}
+
 /**
  * The injured the first line does not name. A dashboard's injured have only their short name, which a substitute may share:
  * each saved starter takes one off.
  */
-function otherInjured(injured: Dashboard["injured"], injuredStarters: ManagedLineup["injuredStarters"]): Dashboard["injured"] {
+function otherInjured(injured: Dashboard["injured"], injuredStarters: ManagedLineup["missingStarters"]): Dashboard["injured"] {
   const others = [...injured];
   for (const starter of injuredStarters) {
     const index = others.findIndex(({ name }) => name === shortName(starter));
@@ -92,9 +119,12 @@ function todosOf(
   const { club } = dashboard;
   const base = `/saves/${saveId}`;
   const squadHref = `${base}/squad`;
+  const lineupHref = `${base}/lineup`;
   const todos: Todo[] = [];
 
-  const { injuredStarters } = lineup;
+  // The saved starters out of the next match: injured, or else suspended (an injured player serves his suspension).
+  const injuredStarters = lineup.missingStarters.filter((player) => player.injured);
+  const suspendedStarters = lineup.missingStarters.filter((player) => !player.injured);
   if (injuredStarters.length > 0) {
     todos.push({
       id: "injured-starters",
@@ -102,7 +132,17 @@ function todosOf(
       icon: BandageIcon,
       title: t("injuredStarters", { count: injuredStarters.length }),
       detail: t("injuredStartersDetail", { players: injuredStarters.map(shortName).join(", ") }),
-      href: `${base}/lineup`,
+      href: lineupHref,
+    });
+  }
+  if (suspendedStarters.length > 0) {
+    todos.push({
+      id: "suspended-starters",
+      severity: "danger",
+      icon: BookingCardIcon,
+      title: t("suspendedStarters", { count: suspendedStarters.length }),
+      detail: t("suspendedStartersDetail", { players: suspendedStarters.map(shortName).join(", ") }),
+      href: lineupHref,
     });
   }
 
@@ -117,6 +157,22 @@ function todosOf(
         .map((player) => t("injuredPlayer", { name: player.name, date: formatDayMonth(player.until, locale) }))
         .join(t("injuredSeparator")),
       href: squadHref,
+    });
+  }
+
+  // One booking from a suspension: a matter of the matches to come, the line-up's to weigh.
+  const { bookingRisks } = dashboard;
+  if (bookingRisks.length > 0) {
+    const names = bookingRisks.map(({ name, competitions }) =>
+      competitions.includes("CUP") ? t(`bookingRiskIn.${competitions.length > 1 ? "BOTH" : "CUP"}`, { name }) : name,
+    );
+    todos.push({
+      id: "booking-risks",
+      severity: "warning",
+      icon: BookingCardIcon,
+      title: t("bookingRisks", { count: bookingRisks.length, yellows: YELLOWS_PER_SUSPENSION - 1 }),
+      detail: t("bookingRisksDetail", { players: namesAndOthers(names, t) }),
+      href: lineupHref,
     });
   }
 
@@ -152,14 +208,12 @@ function todosOf(
 
   const expiring = dashboard.expiringContracts;
   if (expiring.length > 0) {
-    const names = expiring.slice(0, EXPIRING_NAMES_SHOWN).join(", ");
-    const others = expiring.length - EXPIRING_NAMES_SHOWN;
     todos.push({
       id: "expiring-contracts",
       severity: "warning",
       icon: FileClockIcon,
       title: t("expiringContracts", { count: expiring.length }),
-      detail: others > 0 ? t("expiringOthers", { players: names, count: others }) : names,
+      detail: namesAndOthers(expiring, t),
       href: squadHref,
     });
   }
@@ -223,7 +277,10 @@ function TodoRow({ severity, icon: Icon, title, detail, href }: Omit<Todo, "id">
   );
 }
 
-/** What the dashboard asks of the manager, the most pressing first: injuries, offers, the weak spot, then the squad's state. */
+/**
+ * What the dashboard asks of the manager, the most pressing first: the starters out of the next match, injured then
+ * suspended, the other injured, the players one booking from a suspension, offers, the weak spot, then the squad's state.
+ */
 export function DashboardTodo({ className, ...props }: DashboardTodoProps): ReactNode {
   const t = useTranslations("dashboardTodo");
   const tPositions = useTranslations("positions");

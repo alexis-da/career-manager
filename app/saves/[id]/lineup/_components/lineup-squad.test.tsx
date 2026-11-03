@@ -45,6 +45,24 @@ function Squad({ activeKey, position }: SquadProps) {
 const render = (locale: Locale = "fr", { activeKey = null, position = null }: Partial<SquadProps> = {}): string =>
   renderToStaticMarkup(inLanguage(<Squad activeKey={activeKey} position={position} />, locale));
 
+/** Players outside the eleven, nothing selected. */
+function Reserves({ players }: { players: LineupPlayer[] }) {
+  const { sourceProps } = usePointerDrag(() => undefined);
+  return (
+    <LineupSquad
+      players={players}
+      starters={[]}
+      bench={[]}
+      position={null}
+      activeKey={null}
+      draggedKey={null}
+      selection={null}
+      onLineClick={() => undefined}
+      sourceProps={sourceProps}
+    />
+  );
+}
+
 /** The opening tags of the elements with an attribute: enough to read their other attributes. */
 const tagsWith = (markup: string, attribute: string): string[] =>
   [...markup.matchAll(new RegExp(`<[a-z]+ [^>]*${attribute}[^>]*>`, "g"))].map((match) => match[0]);
@@ -103,6 +121,32 @@ describe("the squad beside the pitch", () => {
       const classes = [...line.slice(0, line.indexOf("</button>")).matchAll(/<span [^>]*class="([^"]*)"/g)].map((match) => match[1]);
       expect(classes.filter((list) => list.split(" ").includes("block"))).toHaveLength(1);
     }
+  });
+
+  it("marks an injured and a suspended player apart, and one booking from a suspension, with the sheet's words", () => {
+    const clean = { suspended: false, suspendedLater: null, bookingRisks: [], bookingRiskNextMatch: false };
+    const squad = [
+      { ...player("hurt", "ST", 70), injured: true },
+      { ...player("banned", "ST", 69), suspended: true, discipline: { ...clean, suspended: true } },
+      { ...player("booked", "ST", 68), discipline: { ...clean, bookingRisks: [{ competition: "LEAGUE" as const, yellows: 4 }] } },
+      { ...player("cup", "ST", 67), discipline: { ...clean, suspendedLater: "CUP" as const } },
+    ];
+    const markOf = (markup: string, key: string): string[] => {
+      const line = markup.slice(markup.indexOf(`data-player-key="${key}"`));
+      return [...line.slice(0, line.indexOf("</button>")).matchAll(/<span (?:title="[^"]*" )?class="rounded-sm [^"]*">([^<]+)<\/span>/g)].map(
+        ([, text]) => text,
+      );
+    };
+    const markup = (locale: Locale) => renderToStaticMarkup(inLanguage(<Reserves players={squad} />, locale));
+
+    expect(markOf(markup("fr"), "hurt")).toEqual(["Blessé"]);
+    expect(markOf(markup("fr"), "banned")).toEqual(["Suspendu"]);
+    expect(markOf(markup("fr"), "booked")).toEqual(["4 jaunes"]);
+    expect(markOf(markup("fr"), "cup")).toEqual(["Suspendu en coupe"]);
+    expect(markup("fr")).toContain('title="4 jaunes en championnat : un de plus vaut une suspension"');
+    expect(markup("fr")).toMatch(/<span title="Suspendu pour le prochain match" class="[^"]*text-loss[^"]*">Suspendu<\/span>/);
+    expect(markOf(markup("en"), "banned")).toEqual(["Suspended"]);
+    expect(markOf(markup("en"), "booked")).toEqual(["4 yellows"]);
   });
 
   it("adds a line's rating at the selected slot, and shows who is active", () => {

@@ -54,6 +54,24 @@
     "badges": {
       "injured": "Blessé · {date}",
       "injuredTitle": "Blessé jusqu'au {date}",
+      "suspended": "Suspendu",
+      "suspendedTitle": "Suspendu pour le prochain match",
+      "suspendedIn": {
+        "LEAGUE": "Suspendu en championnat",
+        "CUP": "Suspendu en coupe"
+      },
+      "suspendedInTitle": {
+        "LEAGUE": "Suspendu pour son prochain match de championnat",
+        "CUP": "Suspendu pour son prochain match de coupe"
+      },
+      "bookingRisk": {
+        "LEAGUE": "{yellows, plural, one {# jaune} other {# jaunes}}",
+        "CUP": "{yellows, plural, one {# jaune} other {# jaunes}} en coupe"
+      },
+      "bookingRiskTitle": {
+        "LEAGUE": "{yellows, plural, one {# jaune} other {# jaunes}} en championnat : un de plus vaut une suspension",
+        "CUP": "{yellows, plural, one {# jaune} other {# jaunes}} en coupe : un de plus vaut une suspension"
+      },
       "expiring": "Expire",
       "expiringTitle": "Contrat terminé en fin de saison",
       "young": "Jeune",

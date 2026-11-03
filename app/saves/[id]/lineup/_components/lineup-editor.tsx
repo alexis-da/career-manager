@@ -6,10 +6,10 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
-import type { LineupEditor as LineupEditorView, LineupPlayer } from "@/src/db/lineup";
+import type { ClubLineupPlayer, LineupEditor as LineupEditorView } from "@/src/db/lineup";
 import type { SquadView } from "@/src/db/squad";
 import { FORMATION_NAMES, FORMATIONS, isFormationName, type FormationName } from "@/src/engine/formations";
-import { BENCH_SIZE, changeFormation, resolveLineup, type Lineup, type SavedLineup } from "@/src/engine/lineup";
+import { BENCH_SIZE, changeFormation, isAvailable, resolveLineup, type Lineup, type SavedLineup } from "@/src/engine/lineup";
 import type { Position } from "@/src/engine/positions";
 import { useMediaQuery } from "@/src/hooks/use-media-query";
 import { cn } from "@/src/lib/utils";
@@ -18,6 +18,7 @@ import { FitnessStrip } from "../../_components/fitness-gauge";
 import { PanelTitle } from "@/src/components/panel";
 import { LineupSummary } from "../../_components/lineup-summary";
 import { Pitch } from "../../_components/pitch";
+import { CardMark, disciplineBadges, nextMatchCard } from "../../_components/player-badges";
 import { PlayerSheet } from "../../_components/player-sheet";
 import { PositionBadge, PositionBadges } from "../../_components/position-badge";
 import { fitnessFigure } from "../../_lib/fitness";
@@ -43,7 +44,7 @@ const GHOST_OFFSET_PX = 14;
 const SHEET_COLUMN_QUERY = "(min-width: 80rem)";
 
 /** The starters of a resolved lineup, by slot index. */
-function startersOf(lineup: Lineup<LineupPlayer>): (string | null)[] {
+function startersOf(lineup: Lineup<ClubLineupPlayer>): (string | null)[] {
   const starters: (string | null)[] = Array.from({ length: SLOT_COUNT }, () => null);
   for (const starter of lineup.starters) {
     starters[starter.index] = starter.player.id;
@@ -51,13 +52,13 @@ function startersOf(lineup: Lineup<LineupPlayer>): (string | null)[] {
   return starters;
 }
 
-/** What the match will play, except that saved starters now injured stay in their slot, shown in red. */
-function initialState(formation: FormationName, saved: SavedLineup | null, players: readonly LineupPlayer[]): EditorState {
+/** What the match will play, except that saved starters now injured or suspended stay in their slot, shown in red. */
+function initialState(formation: FormationName, saved: SavedLineup | null, players: readonly ClubLineupPlayer[]): EditorState {
   const resolved = resolveLineup(formation, saved, players);
   const starters = startersOf(resolved);
-  const injured = new Set(players.filter((player) => player.injured).map((player) => player.id));
+  const unavailable = new Set(players.filter((player) => !isAvailable(player)).map((player) => player.id));
   for (const { slot, playerKey } of saved?.starters ?? []) {
-    if (slot < starters.length && injured.has(playerKey) && !starters.includes(playerKey)) {
+    if (slot < starters.length && unavailable.has(playerKey) && !starters.includes(playerKey)) {
       starters[slot] = playerKey;
     }
   }
@@ -183,7 +184,7 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
       benchOrder: state.bench,
     };
     const starters = startersOf(resolveLineup(state.formation, current, players));
-    // Injured starters left in place by the manager stay in their slot, as the editor shows them.
+    // Injured or suspended starters left in place by the manager stay in their slot, as the editor shows them.
     state.starters.forEach((key, slot) => {
       if (key !== null) {
         starters[slot] = key;
@@ -219,7 +220,13 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
     });
   };
 
-  const injuredStarters = state.starters.filter((key) => key !== null && byKey.get(key)?.injured === true).length;
+  // Starters who will miss the match, each counted once: an injured player's suspension is served while he is out.
+  const startersOut = state.starters.flatMap((key) => {
+    const player = key === null ? undefined : byKey.get(key);
+    return player === undefined || isAvailable(player) ? [] : [player];
+  });
+  const injuredStarters = startersOut.filter((player) => player.injured).length;
+  const suspendedStarters = startersOut.length - injuredStarters;
   const selectedKey = selected === null ? null : state.starters[selected];
   const selectedPlayer = selectedKey === null ? undefined : byKey.get(selectedKey);
   const overBench = drag?.over?.kind === "bench";
@@ -274,11 +281,16 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
         </div>
       </div>
 
-      {(emptySlots > 0 || injuredStarters > 0) && (
+      {(emptySlots > 0 || startersOut.length > 0) && (
         <div className="flex flex-wrap items-center gap-3 rounded-card bg-card px-4 py-2.5 text-sm text-warning" data-testid="lineup-warning">
           <p className="flex-1">
-            {emptySlots > 0 && `${t("incomplete", { count: emptySlots })} `}
-            {injuredStarters > 0 && t("injuredStarter")}
+            {[
+              emptySlots > 0 && t("incomplete", { count: emptySlots }),
+              injuredStarters > 0 && t("injuredStarter", { count: injuredStarters }),
+              suspendedStarters > 0 && t("suspendedStarter", { count: suspendedStarters }),
+            ]
+              .filter((sentence) => sentence !== false)
+              .join(" ")}
           </p>
           {emptySlots > 0 && (
             <Button size="sm" variant="outline" onClick={completeEmptySlots} data-testid="lineup-complete">
@@ -335,7 +347,8 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
               </p>
             </div>
             {/* A column per substitute, BENCH_SIZE at most, wide enough for a rating and a position at 360 px: the squad's
-                lines have their names. His fitness along the tile's foot, as under a name on the pitch. */}
+                lines have their names. His fitness along the tile's foot, as under a name on the pitch; the rating in red
+                when he cannot play, and the referee's card in the corner, as on his face on the pitch. */}
             <ol className="mt-2 grid grid-cols-7 gap-1">
               {state.bench.map((key, index) => {
                 const player = byKey.get(key);
@@ -343,20 +356,28 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
                   return null;
                 }
                 const name = `${player.firstName} ${player.lastName}`;
-                const fitness = tPlayer("fitnessAt.nextMatch", { fitness: fitnessFigure(player.fitness) });
+                const states = [
+                  tPlayer("fitnessAt.nextMatch", { fitness: fitnessFigure(player.fitness) }),
+                  ...(player.injured ? [t("injured")] : []),
+                  ...disciplineBadges(player.discipline, tPlayer).map(({ label }) => label),
+                ];
+                const card = nextMatchCard(player.discipline);
                 return (
                   <li
                     key={key}
                     data-bench-player-key={key}
                     data-testid="lineup-bench-player"
-                    title={`${t("substituteTitle", { number: index + 1, name })} · ${fitness}`}
+                    title={[t("substituteTitle", { number: index + 1, name }), ...states].join(" · ")}
                     className="relative flex min-w-0 flex-col items-center gap-0.5 overflow-hidden rounded-lg bg-muted pt-1 pb-2"
                   >
-                    <SlotRating player={player} position={selectedPosition} className="text-lg leading-none" />
+                    <SlotRating
+                      player={player}
+                      position={selectedPosition}
+                      className={cn("text-lg leading-none", !isAvailable(player) && "text-loss")}
+                    />
                     <PositionBadge position={player.position} />
-                    <span className="sr-only">
-                      {name}, {fitness}
-                    </span>
+                    <span className="sr-only">{[name, ...states].join(", ")}</span>
+                    {card !== null && <CardMark tone={card} className="absolute top-1 right-1" />}
                     <FitnessStrip fitness={player.fitness} className="bg-background/60" />
                   </li>
                 );

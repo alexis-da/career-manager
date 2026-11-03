@@ -1,10 +1,12 @@
 import * as z from "zod";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, type FormationName } from "../engine/formations";
-import { BENCH_SIZE, resolveLineup, type Lineup, type LineupCandidate, type SavedLineup } from "../engine/lineup";
+import { BENCH_SIZE, isAvailable, resolveLineup, type Lineup, type LineupCandidate, type SavedLineup } from "../engine/lineup";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
+import { DISCIPLINE_SELECT, disciplineStatus, type DisciplineStatus } from "./discipline-view";
 import { fitnessAtKickOff } from "./fitness-view";
+import { managedMatchesAhead } from "./players";
 
 export const formationSchema = z.enum(FORMATION_NAMES);
 
@@ -59,12 +61,22 @@ export function parseSavedLineup(value: unknown): SavedLineup | null {
   return parsed.success ? parsed.data : null;
 }
 
+/** A player on a pitch: the managed club's before its next match or at a break, or an opponent's. */
 export type LineupPlayer = LineupCandidate & {
   firstName: string;
   lastName: string;
   age: number; // at the save's current date
   injuredUntil: Date | null;
   fitness: number; // 0–100 at the match's kick-off, as injuries are judged on its day: today's, rested until then
+  // His suspensions and yellow cards at risk: a player of the managed club's before its next match only, none at a break
+  // or for an opponent. `suspended` (LineupCandidate) is its own, the one the lineups read.
+  discipline?: DisciplineStatus;
+};
+
+/** A player of the managed club before its next match: out of it when injured or suspended for it (isAvailable). */
+export type ClubLineupPlayer = LineupPlayer & {
+  suspended: boolean; // for the next match, whose competition decides: discipline.suspended
+  discipline: DisciplineStatus;
 };
 
 export type LineupEditor = {
@@ -72,13 +84,15 @@ export type LineupEditor = {
   saved: SavedLineup | null;
   matchDate: Date; // the next match of the managed club, or the current date: injuries are judged on that day
   clubColors: ClubColors;
-  players: LineupPlayer[];
+  players: ClubLineupPlayer[];
 };
 
 export type ManagedLineup = {
   formation: FormationName;
-  lineup: Lineup<LineupPlayer>;
-  injuredStarters: LineupPlayer[]; // saved starters who will miss the next match
+  lineup: Lineup<ClubLineupPlayer>;
+  // Saved starters who will miss the next match, injured or suspended (each says which): still of the eleven they come
+  // back to.
+  missingStarters: ClubLineupPlayer[];
 };
 
 const managedClub = (saveId: string) =>
@@ -92,16 +106,17 @@ const managedClub = (saveId: string) =>
     },
   });
 
-/** Everything the lineup page needs: formation, saved lineup, and the squad with injuries and fitness on the next match day. */
+/**
+ * Everything the lineup page needs: formation, saved lineup, and the squad with injuries and fitness on the next match day,
+ * suspensions for its competition.
+ */
 export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
-  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
-  const club = await managedClub(saveId);
-  const next = await prisma.fixture.findFirst({
-    where: { saveId, played: false, OR: [{ homeClubSaveId: club.id }, { awayClubSaveId: club.id }] },
-    orderBy: { scheduledAt: "asc" },
-    select: { scheduledAt: true },
-  });
-  const matchDate = next?.scheduledAt ?? save.currentDate;
+  const [save, club, ahead] = await Promise.all([
+    prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
+    managedClub(saveId),
+    managedMatchesAhead(saveId),
+  ]);
+  const matchDate = ahead.next?.date ?? save.currentDate;
   const rows = await prisma.playerSave.findMany({
     where: { saveId, clubSaveId: club.id },
     orderBy: { playerKey: "asc" },
@@ -114,6 +129,7 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
       overall: true,
       injuredUntil: true,
       fitness: true,
+      ...DISCIPLINE_SELECT,
     },
   });
 
@@ -122,15 +138,25 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
     saved: parseSavedLineup(club.lineup),
     matchDate,
     clubColors: clubColorsOf(club.club),
-    players: rows.map(({ playerKey, birthDate, fitness, ...row }) => ({
-      ...row,
-      id: playerKey,
-      age: ageInYears(birthDate, save.currentDate),
-      // Same rule as the matchday: a player is out while his injury runs past the match day.
-      injured: row.injuredUntil !== null && row.injuredUntil > matchDate,
-      // What he will start the match with: the days until then are rest.
-      fitness: fitnessAtKickOff(fitness, save.currentDate, matchDate),
-    })),
+    players: rows.map((row) => {
+      const discipline = disciplineStatus(row, ahead);
+      return {
+        id: row.playerKey,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        position: row.position,
+        overall: row.overall,
+        injuredUntil: row.injuredUntil,
+        age: ageInYears(row.birthDate, save.currentDate),
+        // Same rule as the matchday: a player is out while his injury runs past the match day.
+        injured: row.injuredUntil !== null && row.injuredUntil > matchDate,
+        // And while suspended for the match's competition (withSuspensions): out of the lineups, as an injured player.
+        suspended: discipline.suspended,
+        // What he will start the match with: the days until then are rest.
+        fitness: fitnessAtKickOff(row.fitness, save.currentDate, matchDate),
+        discipline,
+      };
+    }),
   };
 }
 
@@ -141,9 +167,9 @@ export async function getManagedLineup(saveId: string): Promise<ManagedLineup> {
   return {
     formation: editor.formation,
     lineup: resolveLineup(editor.formation, editor.saved, editor.players),
-    injuredStarters: (editor.saved?.starters ?? []).flatMap(({ playerKey }) => {
+    missingStarters: (editor.saved?.starters ?? []).flatMap(({ playerKey }) => {
       const player = byKey.get(playerKey);
-      return player?.injured === true ? [player] : [];
+      return player !== undefined && !isAvailable(player) ? [player] : [];
     }),
   };
 }
