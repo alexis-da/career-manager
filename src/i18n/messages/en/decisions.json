@@ -1,0 +1,56 @@
+{
+  "decisions": {
+    "kind": {
+      "PENALTY": "Penalty",
+      "FREE_KICK": "Dangerous free kick",
+      "HOTHEAD": "Booked player losing his temper",
+      "SCUFFLE": "Scuffle",
+      "KNOCK": "Player takes a knock",
+      "EXHAUSTED": "Exhausted player",
+      "LEADING": "Leading late on",
+      "CHASING": "Behind or level"
+    },
+    "taker": {
+      "beforeConsonant": "by {player}",
+      "beforeVowel": "by {player}"
+    },
+    "penalty": {
+      "scored": "Penalty {taker}: scored",
+      "missed": "Penalty {taker}: missed"
+    },
+    "freeKick": {
+      "scored": "Free kick {taker}: goal",
+      "missed": "Free kick {taker}: missed",
+      "combined": "Free kick worked short"
+    },
+    "hothead": {
+      "off": "{player}, on a yellow, comes off: {replacement} on",
+      "kept": "{player}, on a yellow, stays on"
+    },
+    "scuffle": {
+      "calm": "Scuffle: the players calm down",
+      "booked": "You protested: {player} booked",
+      "sentOff": "You protested: {player} sent off",
+      "noCard": "You protested: no card"
+    },
+    "knock": {
+      "off": "{player}, hurt, comes off: {replacement} on",
+      "playOn": "{player}, hurt, plays on"
+    },
+    "exhausted": {
+      "off": "{player}, exhausted, comes off: {replacement} on",
+      "kept": "{player}, exhausted, stays on"
+    },
+    "leading": {
+      "DEFEND": "Until full time: shut up shop",
+      "ATTACK": "Until full time: go for the killer goal",
+      "STEADY": "Until full time: stay as you are"
+    },
+    "chasing": {
+      "ATTACK": "Until full time: all-out attack",
+      "STEADY": "Until full time: hold your shape"
+    },
+    "unknownPlayer": "Unknown player",
+    "substitute": "a substitute"
+  }
+}

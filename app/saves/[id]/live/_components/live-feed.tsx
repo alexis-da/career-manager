@@ -1,11 +1,12 @@
 import { useTranslations } from "next-intl";
-import { PauseIcon, PlayIcon, TimerIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { PauseIcon, PlayIcon, SplitIcon, TimerIcon } from "lucide-react";
+import type { ComponentProps, ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
-import type { MatchEventView, TeamView } from "@/src/db/calendar";
+import type { DecisionView, MatchEventView, TeamView } from "@/src/db/calendar";
 import { cn } from "@/src/lib/utils";
 import { EventIcon, IconChip } from "../../_components/event-icon";
 import { Panel } from "@/src/components/panel";
+import { decisionMoment, describeDecision } from "../../_lib/decisions";
 import { formatMinute } from "../../_lib/match-events";
 import { feedEntries, type FeedEntry, type FeedMarker } from "../_lib/feed-entries";
 import { LiveCardTitle } from "./live-card-title";
@@ -16,7 +17,8 @@ const MARKER_ICONS: Record<FeedMarker, ReactNode> = {
   regulationEnd: <TimerIcon strokeWidth={2.5} />,
 };
 
-type FeedRowProps = {
+// The line's own attributes (data-testid…) go on it; its title is the line's text, not a tooltip.
+type FeedRowProps = Omit<ComponentProps<"li">, "title" | "children" | "className"> & {
   minute: string;
   icon: ReactNode;
   title: string;
@@ -25,9 +27,10 @@ type FeedRowProps = {
   children?: ReactNode; // what ends the line
 };
 
-function FeedRow({ minute, icon, title, detail, highlighted = false, children }: FeedRowProps) {
+function FeedRow({ minute, icon, title, detail, highlighted = false, children, ...attributes }: FeedRowProps) {
   return (
     <li
+      {...attributes}
       className={cn(
         "flex min-h-11 items-center gap-3 rounded-lg px-2.5 py-1.5 leading-tight motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 max-sm:gap-2 max-sm:px-2",
         highlighted && "bg-secondary",
@@ -85,8 +88,33 @@ function MarkerRow({ entry }: { entry: Extract<FeedEntry, { kind: "marker" }> })
   );
 }
 
+/**
+ * A decision of the managed club on a choice event, at the minute after its boundary: what was decided and what came of
+ * it, read in the events shown, then the event's name. A road that forks on the bright blue: a choice, never an event.
+ */
+function DecisionRow({ decision, shown }: { decision: DecisionView; shown: readonly MatchEventView[] }) {
+  const t = useTranslations("decisions");
+  const moment = decisionMoment(decision);
+  return (
+    <FeedRow
+      data-testid="live-decision"
+      data-decision-kind={decision.kind}
+      data-decision-option={decision.option}
+      minute={formatMinute(moment.minute, moment.period)}
+      icon={
+        <IconChip className="bg-primary text-primary-foreground">
+          <SplitIcon strokeWidth={2.5} />
+        </IconChip>
+      }
+      title={describeDecision(decision, shown, t)}
+      detail={t(`kind.${decision.kind}`)}
+    />
+  );
+}
+
 type LiveFeedProps = {
   shown: MatchEventView[]; // the match's events the clock has passed, oldest first
+  decisions: DecisionView[]; // the managed club's decisions the clock has passed, whose effects are among those events
   minute: number;
   extraTime: boolean; // the match goes on past the 90th minute
   home: TeamView;
@@ -94,16 +122,18 @@ type LiveFeedProps = {
   className?: string;
 };
 
-/** The match, line by line, newest first: the latest event is always in view. */
-export function LiveFeed({ shown, minute, extraTime, home, away, className }: LiveFeedProps) {
+/** The match, line by line, newest first: the latest event is always in view, the managed club's decisions among them. */
+export function LiveFeed({ shown, decisions, minute, extraTime, home, away, className }: LiveFeedProps) {
   const t = useTranslations("live");
   return (
     <Panel className={cn("max-sm:p-4", className)} data-testid="live-events">
       <LiveCardTitle>{t("feed")}</LiveCardTitle>
       <ol role="log" aria-label={t("events")} className="mt-3 space-y-1">
-        {feedEntries(shown, minute, extraTime).map((entry) =>
+        {feedEntries(shown, decisions, minute, extraTime).map((entry) =>
           entry.kind === "marker" ? (
             <MarkerRow key={entry.marker} entry={entry} />
+          ) : entry.kind === "decision" ? (
+            <DecisionRow key={`decision-${entry.decision.sequence}`} decision={entry.decision} shown={shown} />
           ) : (
             <EventRow key={entry.event.id} event={entry.event} team={entry.event.side === "home" ? home : away} />
           ),

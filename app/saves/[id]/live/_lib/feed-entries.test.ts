@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MatchEventView } from "@/src/db/calendar";
+import type { DecisionView, MatchEventView } from "@/src/db/calendar";
 import { feedEntries, type FeedEntry } from "./feed-entries";
 
 function event(id: string, minute: number, overrides: Partial<MatchEventView> = {}): MatchEventView {
@@ -20,46 +20,54 @@ function event(id: string, minute: number, overrides: Partial<MatchEventView> = 
 
 const goal = (id: string, minute: number, overrides: Partial<MatchEventView> = {}) => event(id, minute, { type: "GOAL", ...overrides });
 
+/** A decision of the managed club at a boundary: players calmed after a scuffle, unless told otherwise. */
+function decision(sequence: number, minute: number, overrides: Partial<DecisionView> = {}): DecisionView {
+  return { sequence, minute, kind: "SCUFFLE", option: "CALM", assistant: true, playerName: "Hugo Guérin", playerKey: null, ...overrides };
+}
+
 /** The feed in a word per line, newest first. */
-const keys = (entries: FeedEntry[]): string[] => entries.map((entry) => (entry.kind === "event" ? entry.event.id : entry.marker));
+const keys = (entries: FeedEntry[]): string[] =>
+  entries.map((entry) =>
+    entry.kind === "event" ? entry.event.id : entry.kind === "decision" ? `decision-${entry.decision.sequence}` : entry.marker,
+  );
 
 const scoreAt = (entries: FeedEntry[], name: string) =>
   entries.flatMap((entry) => (entry.kind === "marker" && entry.marker === name ? [entry.score] : []));
 
 describe("feedEntries", () => {
   it("has the kick-off alone before the first event, at the 1st minute, with no score", () => {
-    expect(feedEntries([], 0, false)).toEqual([{ kind: "marker", marker: "kickOff", minute: 1, score: null }]);
+    expect(feedEntries([], [], 0, false)).toEqual([{ kind: "marker", marker: "kickOff", minute: 1, score: null }]);
   });
 
   it("lists the events newest first, the kick-off always last, even under an event of the 1st minute", () => {
-    expect(keys(feedEntries([event("a", 1), event("b", 12), event("c", 12)], 20, false))).toEqual(["c", "b", "a", "kickOff"]);
+    expect(keys(feedEntries([event("a", 1), event("b", 12), event("c", 12)], [], 20, false))).toEqual(["c", "b", "a", "kickOff"]);
   });
 
   it("adds half-time only once 45' is reached", () => {
-    expect(keys(feedEntries([event("a", 30)], 44, false))).toEqual(["a", "kickOff"]);
-    expect(keys(feedEntries([event("a", 30)], 45, false))).toEqual(["halfTime", "a", "kickOff"]);
+    expect(keys(feedEntries([event("a", 30)], [], 44, false))).toEqual(["a", "kickOff"]);
+    expect(keys(feedEntries([event("a", 30)], [], 45, false))).toEqual(["halfTime", "a", "kickOff"]);
   });
 
   it("puts half-time between the 45th minute and the 46th, the second half's substitutions above it", () => {
     const shown = [event("first", 45), event("substitution", 46, { type: "SUBSTITUTION" }), event("second", 50)];
-    expect(keys(feedEntries(shown, 60, false))).toEqual(["second", "substitution", "halfTime", "first", "kickOff"]);
+    expect(keys(feedEntries(shown, [], 60, false))).toEqual(["second", "substitution", "halfTime", "first", "kickOff"]);
   });
 
   it("gives half-time the score of the first half, whatever came after", () => {
     const shown = [goal("a", 10), goal("b", 45, { side: "away" }), goal("c", 20, { side: "away" }), goal("d", 46), goal("e", 80)];
-    expect(scoreAt(feedEntries(shown, 90, false), "halfTime")).toEqual([{ home: 1, away: 2 }]);
+    expect(scoreAt(feedEntries(shown, [], 90, false), "halfTime")).toEqual([{ home: 1, away: 2 }]);
   });
 
   it("does not count a card as a goal", () => {
-    expect(scoreAt(feedEntries([event("a", 10), goal("b", 11)], 45, false), "halfTime")).toEqual([{ home: 1, away: 0 }]);
+    expect(scoreAt(feedEntries([event("a", 10), goal("b", 11)], [], 45, false), "halfTime")).toEqual([{ home: 1, away: 0 }]);
   });
 
   it("has no end of normal time without extra time, even in stoppage time", () => {
-    expect(keys(feedEntries([event("late", 93)], 90, false))).toEqual(["late", "halfTime", "kickOff"]);
+    expect(keys(feedEntries([event("late", 93)], [], 90, false))).toEqual(["late", "halfTime", "kickOff"]);
   });
 
   it("waits for the 90th minute to end normal time", () => {
-    expect(keys(feedEntries([], 89, true))).toEqual(["halfTime", "kickOff"]);
+    expect(keys(feedEntries([], [], 89, true))).toEqual(["halfTime", "kickOff"]);
   });
 
   it("puts the end of normal time above stoppage time and below extra time, with the score at that moment", () => {
@@ -69,13 +77,44 @@ describe("feedEntries", () => {
       event("first-extra", 91, { period: "EXTRA_TIME" }),
       goal("extra", 95, { period: "EXTRA_TIME" }),
     ];
-    const entries = feedEntries(shown, 120, true);
+    const entries = feedEntries(shown, [], 120, true);
     expect(keys(entries)).toEqual(["extra", "first-extra", "regulationEnd", "stoppage", "halfTime", "first", "kickOff"]);
     expect(scoreAt(entries, "regulationEnd")).toEqual([{ home: 1, away: 1 }]);
   });
 
   it("leaves a shoot-out's kicks out", () => {
     const kick = event("kick", 1, { type: "SHOOTOUT_GOAL", period: "SHOOTOUT" });
-    expect(keys(feedEntries([kick], 120, true))).toEqual(["regulationEnd", "halfTime", "kickOff"]);
+    expect(keys(feedEntries([kick], [], 120, true))).toEqual(["regulationEnd", "halfTime", "kickOff"]);
+  });
+
+  it("puts a decision at the minute after its boundary, below the events of that minute, which it caused", () => {
+    const shown = [event("at-15", 15), goal("penalty", 16), event("also-16", 16), event("at-20", 20)];
+    const penalty = decision(1, 15, { kind: "PENALTY", option: "TAKER" });
+
+    expect(keys(feedEntries(shown, [penalty], 20, false))).toEqual(["at-20", "also-16", "penalty", "decision-1", "at-15", "kickOff"]);
+    expect(feedEntries(shown, [penalty], 20, false)).toContainEqual({ kind: "decision", decision: penalty });
+  });
+
+  it("puts a decision of each half in its half, newest first, above anything before it", () => {
+    const shown = [event("first", 20), event("second", 50)];
+    const decisions = [decision(1, 30), decision(2, 60), decision(3, 75)];
+
+    expect(keys(feedEntries(shown, decisions, 80, false))).toEqual(["decision-3", "decision-2", "second", "halfTime", "decision-1", "first", "kickOff"]);
+  });
+
+  it("keeps the second half's last decision below stoppage time", () => {
+    expect(keys(feedEntries([event("stoppage", 92)], [decision(1, 75)], 90, false))).toEqual(["stoppage", "decision-1", "halfTime", "kickOff"]);
+  });
+
+  it("puts a decision of extra time above the end of normal time, among extra time's events", () => {
+    const shown = [event("stoppage", 92), event("extra", 100, { period: "EXTRA_TIME" }), event("late", 106, { period: "EXTRA_TIME" })];
+
+    expect(keys(feedEntries(shown, [decision(1, 105)], 110, true))).toEqual(["late", "decision-1", "extra", "regulationEnd", "stoppage", "halfTime", "kickOff"]);
+  });
+
+  it("counts no decision in a score", () => {
+    const penalty = decision(1, 30, { kind: "PENALTY", option: "TAKER" });
+
+    expect(scoreAt(feedEntries([goal("penalty", 31)], [penalty], 45, false), "halfTime")).toEqual([{ home: 1, away: 0 }]);
   });
 });

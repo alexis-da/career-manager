@@ -1,0 +1,56 @@
+{
+  "decisions": {
+    "kind": {
+      "PENALTY": "Penalty",
+      "FREE_KICK": "Coup franc dangereux",
+      "HOTHEAD": "Averti qui s'énerve",
+      "SCUFFLE": "Échauffourée",
+      "KNOCK": "Joueur touché",
+      "EXHAUSTED": "Joueur à bout",
+      "LEADING": "Tu mènes, fin de match",
+      "CHASING": "Mené ou à égalité"
+    },
+    "taker": {
+      "beforeConsonant": "de {player}",
+      "beforeVowel": "d’{player}"
+    },
+    "penalty": {
+      "scored": "Penalty {taker} : but",
+      "missed": "Penalty {taker} : manqué"
+    },
+    "freeKick": {
+      "scored": "Coup franc {taker} : but",
+      "missed": "Coup franc {taker} : raté",
+      "combined": "Coup franc joué en combinaison"
+    },
+    "hothead": {
+      "off": "{player}, averti, sort : {replacement} entre",
+      "kept": "{player}, averti, reste sur le terrain"
+    },
+    "scuffle": {
+      "calm": "Échauffourée : les joueurs se calment",
+      "booked": "Tu as protesté : {player} averti",
+      "sentOff": "Tu as protesté : {player} exclu",
+      "noCard": "Tu as protesté : pas de carton"
+    },
+    "knock": {
+      "off": "{player}, touché, sort : {replacement} entre",
+      "playOn": "{player}, touché, continue"
+    },
+    "exhausted": {
+      "off": "{player}, à bout, sort : {replacement} entre",
+      "kept": "{player}, à bout, reste sur le terrain"
+    },
+    "leading": {
+      "DEFEND": "Consigne jusqu'à la fin : fermer le jeu",
+      "ATTACK": "Consigne jusqu'à la fin : chercher le break",
+      "STEADY": "Consigne jusqu'à la fin : rester tel quel"
+    },
+    "chasing": {
+      "ATTACK": "Consigne jusqu'à la fin : tout pour l'attaque",
+      "STEADY": "Consigne jusqu'à la fin : rester en place"
+    },
+    "unknownPlayer": "Joueur inconnu",
+    "substitute": "un remplaçant"
+  }
+}

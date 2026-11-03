@@ -9,6 +9,7 @@ import type { FixtureWithEvents, MatchEventView, ScoreTimeline } from "@/src/db/
 import type { HalfTimeTeam, LivePauseView, LiveStep } from "@/src/db/live-match";
 import { EXTRA_TIME_END_MINUTE } from "@/src/engine/balance";
 import type { LivePause } from "@/src/engine/live";
+import { decisionMoment } from "../../_lib/decisions";
 import { REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
 import { matchResultFor } from "../../_lib/stage";
 import { playLiveStepAction, type HalfTimeChoiceInput, type LiveMoveInput } from "../../actions";
@@ -191,6 +192,8 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
     pause === null ? Promise.resolve() : play(pause, { ...NO_MOVE, changes }, "segment", true);
 
   const shown = match.events.filter((event) => event.period !== "SHOOTOUT" && isShown(event));
+  // A decision comes with its effect, the minute after its boundary.
+  const decisions = match.decisions.filter((decision) => isShown(decisionMoment(decision)));
   const goals = shown.filter((event) => event.type === "GOAL");
   const homeGoals = countFor(goals, "home");
   const awayGoals = countFor(goals, "away");
@@ -267,6 +270,7 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
           <LiveFeed
             className="xl:col-span-3"
             shown={shown}
+            decisions={decisions}
             minute={minute}
             extraTime={extraTime}
             home={match.home}

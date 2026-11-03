@@ -2,55 +2,112 @@
 
 import { competitionName } from "@/src/i18n/countries";
 import { useLocale, useTranslations } from "next-intl";
+import { SplitIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/src/components/ui/dialog";
-import type { FixtureWithEvents, MatchEventView } from "@/src/db/calendar";
+import type { DecisionView, FixtureWithEvents, MatchEventView } from "@/src/db/calendar";
+import type { Side } from "@/src/engine/match";
 import { formatDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { EventIcon } from "../../_components/event-icon";
+import { EventIcon, IconChip } from "../../_components/event-icon";
 import { ScoreNotes } from "../../_components/score-notes";
+import { decisionMoment, describeDecision, withDecisions, type MatchLine } from "../../_lib/decisions";
 import { describeEvent, formatMinute, shootoutKicks } from "../../_lib/match-events";
 import { RESULT_CLASSES } from "../../_lib/results";
 import { matchResultFor, stageLabel } from "../../_lib/stage";
 
-function EventColumn({ events, align, managed }: { events: MatchEventView[]; align: "left" | "right"; managed: boolean }) {
+type Align = "left" | "right";
+
+function EventItem({ event, align, managed }: { event: MatchEventView; align: Align; managed: boolean }) {
   const t = useTranslations("matchSheet");
   const tEvents = useTranslations("events");
-  if (events.length === 0) {
+  return (
+    <li
+      // The players by their keys: two players of a match may share a name.
+      data-player-key={event.playerKey ?? undefined}
+      data-related-player-key={event.relatedPlayerKey ?? undefined}
+      className={cn(
+        "flex items-baseline gap-2 rounded-md px-2 py-1",
+        align === "right" && "flex-row-reverse text-right",
+        event.type === "GOAL" && "bg-muted",
+      )}
+    >
+      <span className="w-10 shrink-0 tabular-nums text-muted-foreground">{formatMinute(event.minute, event.period)}</span>
+      <EventIcon type={event.type} managed={managed} className="size-5 self-start" />
+      <span className="min-w-0 wrap-break-word">
+        <span className="sr-only">{t("eventLabel", { type: tEvents(`type.${event.type}`) })}</span>
+        <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event, tEvents)}</span>
+      </span>
+    </li>
+  );
+}
+
+/**
+ * A decision of the managed club among its events, at the minute after its boundary: what was decided and what came of
+ * it, read in the match's events, then the event's name. Framed on the blue, with the fork of the live feed: a choice,
+ * never an event.
+ */
+function DecisionItem({ decision, align, matchEvents }: { decision: DecisionView; align: Align; matchEvents: readonly MatchEventView[] }) {
+  const t = useTranslations("decisions");
+  const moment = decisionMoment(decision);
+  return (
+    <li
+      data-testid="match-sheet-decision"
+      data-decision-kind={decision.kind}
+      data-decision-option={decision.option}
+      className={cn(
+        "flex items-baseline gap-2 rounded-md border border-primary/60 bg-primary/15 px-2 py-1",
+        align === "right" && "flex-row-reverse text-right",
+      )}
+    >
+      <span className="w-10 shrink-0 tabular-nums text-muted-foreground">{formatMinute(moment.minute, moment.period)}</span>
+      <IconChip className="size-5 self-start bg-primary text-primary-foreground">
+        <SplitIcon strokeWidth={2.5} />
+      </IconChip>
+      <span className="min-w-0 wrap-break-word">
+        <span className="block">{describeDecision(decision, matchEvents, t)}</span>
+        <span className="block text-xs text-muted-foreground">{t(`kind.${decision.kind}`)}</span>
+      </span>
+    </li>
+  );
+}
+
+type EventColumnProps = {
+  lines: MatchLine[]; // a side's events of a period, with the managed club's decisions among its own
+  align: Align;
+  managed: boolean;
+  matchEvents: readonly MatchEventView[]; // all of the match's, where its decisions' effects are read
+};
+
+function EventColumn({ lines, align, managed, matchEvents }: EventColumnProps) {
+  const t = useTranslations("matchSheet");
+  if (lines.length === 0) {
     return <p className={cn("text-xs text-muted-foreground", align === "right" && "text-right")}>{t("noEvents")}</p>;
   }
   return (
     <ol className="space-y-1">
-      {events.map((event) => (
-        <li
-          key={event.id}
-          // The players by their keys: two players of a match may share a name.
-          data-player-key={event.playerKey ?? undefined}
-          data-related-player-key={event.relatedPlayerKey ?? undefined}
-          className={cn(
-            "flex items-baseline gap-2 rounded-md px-2 py-1",
-            align === "right" && "flex-row-reverse text-right",
-            event.type === "GOAL" && "bg-muted",
-          )}
-        >
-          <span className="w-10 shrink-0 tabular-nums text-muted-foreground">{formatMinute(event.minute, event.period)}</span>
-          <EventIcon type={event.type} managed={managed} className="size-5 self-start" />
-          <span className="min-w-0 wrap-break-word">
-            <span className="sr-only">{t("eventLabel", { type: tEvents(`type.${event.type}`) })}</span>
-            <span className={cn(event.type === "GOAL" && "font-medium")}>{describeEvent(event, tEvents)}</span>
-          </span>
-        </li>
-      ))}
+      {lines.map((line) =>
+        line.kind === "decision" ? (
+          <DecisionItem key={`decision-${line.decision.sequence}`} decision={line.decision} align={align} matchEvents={matchEvents} />
+        ) : (
+          <EventItem key={line.event.id} event={line.event} align={align} managed={managed} />
+        ),
+      )}
     </ol>
   );
 }
 
-/** The two sides' events of a period, face to face. */
-function EventColumns({ fixture, events }: { fixture: FixtureWithEvents; events: MatchEventView[] }) {
+/** The two sides' events of a period, face to face, the managed club's decisions of the period among its own. */
+function EventColumns({ fixture, events, decisions }: { fixture: FixtureWithEvents; events: MatchEventView[]; decisions: DecisionView[] }) {
+  const linesOf = (side: Side): MatchLine[] =>
+    withDecisions(
+      events.filter((event) => event.side === side),
+      fixture[side].isManaged ? decisions : [],
+    );
   return (
     <div className="grid grid-cols-2 gap-4">
-      <EventColumn events={events.filter((event) => event.side === "home")} align="right" managed={fixture.home.isManaged} />
-      <EventColumn events={events.filter((event) => event.side === "away")} align="left" managed={fixture.away.isManaged} />
+      <EventColumn lines={linesOf("home")} align="right" managed={fixture.home.isManaged} matchEvents={fixture.events} />
+      <EventColumn lines={linesOf("away")} align="left" managed={fixture.away.isManaged} matchEvents={fixture.events} />
     </div>
   );
 }
@@ -105,6 +162,9 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
   const result = matchResultFor({ ...fixture, homeGoals, awayGoals }, fixture.home.isManaged);
   const regular = fixture.events.filter((event) => event.period === "REGULAR");
   const extraTime = fixture.events.filter((event) => event.period === "EXTRA_TIME");
+  // A decision past the 90th is one of extra time's.
+  const decisionsOf = (period: MatchEventView["period"]): DecisionView[] =>
+    fixture.decisions.filter((decision) => decisionMoment(decision).period === period);
   const playedExtraTime = fixture.decidedBy === "EXTRA_TIME" || fixture.decidedBy === "PENALTIES";
   const hasShootout = fixture.events.some((event) => event.period === "SHOOTOUT");
 
@@ -141,11 +201,11 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
         )}
 
         <div className="max-h-[55vh] space-y-4 overflow-y-auto border-t pt-4 text-sm">
-          <EventColumns fixture={fixture} events={regular} />
+          <EventColumns fixture={fixture} events={regular} decisions={decisionsOf("REGULAR")} />
           {playedExtraTime && (
             <section className="space-y-2 border-t pt-3" data-match-sheet="extra-time">
               <h3 className="eyebrow text-center">{t("extraTime")}</h3>
-              <EventColumns fixture={fixture} events={extraTime} />
+              <EventColumns fixture={fixture} events={extraTime} decisions={decisionsOf("EXTRA_TIME")} />
             </section>
           )}
           {hasShootout && (

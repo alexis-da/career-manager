@@ -9,6 +9,7 @@ import enCup from "./en/cup.json";
 import enDashboard from "./en/dashboard.json";
 import enDashboardHero from "./en/dashboard-hero.json";
 import enDashboardTodo from "./en/dashboard-todo.json";
+import enDecisions from "./en/decisions.json";
 import enFixtures from "./en/fixtures.json";
 import enHalfTime from "./en/half-time.json";
 import enHeader from "./en/header.json";
@@ -35,6 +36,7 @@ import frCup from "./fr/cup.json";
 import frDashboard from "./fr/dashboard.json";
 import frDashboardHero from "./fr/dashboard-hero.json";
 import frDashboardTodo from "./fr/dashboard-todo.json";
+import frDecisions from "./fr/decisions.json";
 import frFixtures from "./fr/fixtures.json";
 import frHalfTime from "./fr/half-time.json";
 import frHeader from "./fr/header.json";
@@ -84,6 +86,7 @@ export const ZONES = {
   "challenge-screen": { fr: frChallengeScreen, en: enChallengeScreen },
   live: { fr: frLive, en: enLive },
   "half-time": { fr: frHalfTime, en: enHalfTime },
+  decisions: { fr: frDecisions, en: enDecisions },
   actions: { fr: frActions, en: enActions },
   admin: { fr: frAdmin, en: enAdmin },
 } as const;
@@ -113,6 +116,7 @@ const fr = {
   ...frChallengeScreen,
   ...frLive,
   ...frHalfTime,
+  ...frDecisions,
   ...frActions,
   ...frAdmin,
 };
@@ -147,6 +151,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enChallengeScreen,
     ...enLive,
     ...enHalfTime,
+    ...enDecisions,
     ...enActions,
     ...enAdmin,
   },
