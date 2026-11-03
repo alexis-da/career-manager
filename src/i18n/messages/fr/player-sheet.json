@@ -9,8 +9,12 @@
     "noClub": "Sans club",
     "arrivedIn": "Arrivé en {year}",
     "form": "Forme",
-    "morale": "Moral",
     "fitness": "Condition",
+    "fitnessAt": {
+      "nextMatch": "Condition au prochain match : {fitness}",
+      "restart": "Condition à la reprise : {fitness}",
+      "today": "Condition : {fitness}"
+    },
     "attributesLabel": "Attributs",
     "attributes": {
       "pace": "Vitesse",
@@ -28,7 +32,8 @@
       "assists": "Passes D.",
       "minutes": "Minutes"
     },
-    "condition": "Forme {form} · Moral {morale} · Condition {fitness} · Cartons {yellow} J, {red} R",
+    "condition": "Forme {form} · Condition {fitness} · Cartons {yellow} J, {red} R",
+    "conditionNextMatch": "Forme {form} · Condition {fitness} au prochain match · Cartons {yellow} J, {red} R",
     "contract": "Contrat",
     "noContract": "Sans contrat",
     "contractEnd": "Fin de contrat",

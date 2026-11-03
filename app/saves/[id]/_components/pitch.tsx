@@ -7,7 +7,9 @@ import type { FormationSlot } from "@/src/engine/formations";
 import { ratingAt } from "@/src/engine/positions";
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
+import { fitnessFigure, type FitnessMoment } from "../_lib/fitness";
 import { isOffPosition, positionFit } from "../_lib/positions";
+import { FitnessStrip } from "./fitness-gauge";
 import { PositionBadge, SecondaryPositionBadges } from "./position-badge";
 
 /** Pitch markings in metres, on a 68 × 105 pitch. */
@@ -97,16 +99,19 @@ type PitchProps = {
   label: string; // names the eleven for assistive technologies: « Onze de Lyon »
   editing?: PitchEditing; // without it, the pitch is read-only: an opponent's probable eleven
   sentOff?: ReadonlyMap<number, LineupPlayer>; // at half-time, the slots of sent-off players: crossed out, never filled
+  fitnessAt?: FitnessMoment; // where the eleven is chosen: each player's fitness, along the foot of his name, and when it is
 };
 
 /**
  * The formation on a vertical pitch, attacking upwards: each slot shows the slot's position, its player's face, his
- * rating there (yellow out of position, red when injured), his own position and his name. During a drag, every slot
- * shows the rating the dragged player would have there instead, and the slot under the pointer is highlighted. Shared
- * by the lineup editor, the half-time screen and, read-only, the opponent's preview.
+ * rating there (yellow out of position, red when injured), his own position and his name, with his fitness along its
+ * foot where the eleven is chosen. During a drag, every slot shows the rating the dragged player would have there
+ * instead, and the slot under the pointer is highlighted. Shared by the lineup editor, the half-time screen and,
+ * read-only and without the fitness, the opponent's preview.
  */
-export function Pitch({ slots, starters, players, clubColors, label, editing, sentOff }: PitchProps) {
+export function Pitch({ slots, starters, players, clubColors, label, editing, sentOff, fitnessAt }: PitchProps) {
   const t = useTranslations("pitch");
+  const tPlayer = useTranslations("player");
   const tPositions = useTranslations("positions");
   const selected = editing?.selected ?? null;
   const dragged = editing?.dragged ?? null;
@@ -167,7 +172,9 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
                 slot: tPositions(`short.${slot.position}`),
                 rating: Math.round(rating),
               });
-        // After the player, whether he is injured, else how he fits the slot when it is not his own position.
+        const fitness = fitnessAt === undefined || player === undefined ? null : fitnessFigure(player.fitness);
+        // After the player, whether he is injured, else how he fits the slot when it is not his own position; then his
+        // fitness, and when it is.
         const note =
           player === undefined || fit === undefined
             ? null
@@ -183,7 +190,9 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
                 position: tPositions(`label.${slot.position}`),
                 name: `${player.firstName} ${player.lastName}`,
                 detail: detail ?? "",
-              }) + (note === null ? "" : `, ${note}`);
+              }) +
+              (note === null ? "" : `, ${note}`) +
+              (fitness === null || fitnessAt === undefined ? "" : `, ${tPlayer(`fitnessAt.${fitnessAt}`, { fitness })}`);
         return (
           // Above the slots next to it while its detail shows.
           <div
@@ -259,9 +268,12 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
               className={cn(
                 "mt-1 max-w-full rounded-sm px-1.5 py-px text-center text-[0.6875rem] leading-4 font-semibold wrap-break-word",
                 selected === index ? "bg-(--club) text-(--club-fg)" : "bg-background/85",
+                fitness !== null && "relative overflow-hidden pb-1",
               )}
             >
               {player === undefined ? t("empty") : player.lastName}
+              {/* No text in it: the name is all the chip says, the label and the detail say the figure. */}
+              {fitness !== null && <FitnessStrip fitness={fitness} />}
             </span>
             {/* Under the name, which keeps the width of the slot. */}
             {player !== undefined && <SecondaryPositionBadges playerKey={player.id} position={player.position} className="rounded-sm bg-background/85 p-px" />}
@@ -276,6 +288,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
                 )}
               >
                 {detail}
+                {fitness !== null && ` · ${t("fitness", { fitness })}`}
               </span>
             )}
           </SlotElement>

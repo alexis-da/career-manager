@@ -25,6 +25,7 @@
       "change": {
         "injured": "{in} est le mieux placé pour remplacer {out}.",
         "form": "{in} est plus en forme que {out} : il ferait mieux à ce poste.",
+        "fitness": "{in} est plus frais que {out} : il ferait mieux à ce poste.",
         "level": "{in} ferait mieux que {out} à ce poste.",
         "noBetter": "Personne sur le banc ne ferait mieux.",
         "noOther": "Je ne changerais rien d'autre.",
@@ -35,6 +36,7 @@
     "suggestion": {
       "title": "{count, plural, one {Changement conseillé · # restant} other {Changement conseillé · # restants}}",
       "out": "Sort · forme {form}",
+      "outTired": "Sort · condition {fitness}",
       "outInjured": "Sort · blessé",
       "in": "Entre · {position} {rating}",
       "apply": "Touche la carte pour faire ce changement."

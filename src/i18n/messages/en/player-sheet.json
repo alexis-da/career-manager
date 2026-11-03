@@ -9,8 +9,12 @@
     "noClub": "No club",
     "arrivedIn": "Joined in {year}",
     "form": "Form",
-    "morale": "Morale",
     "fitness": "Fitness",
+    "fitnessAt": {
+      "nextMatch": "Fitness at the next match: {fitness}",
+      "restart": "Fitness at the restart: {fitness}",
+      "today": "Fitness: {fitness}"
+    },
     "attributesLabel": "Attributes",
     "attributes": {
       "pace": "Pace",
@@ -28,7 +32,8 @@
       "assists": "Assists",
       "minutes": "Minutes"
     },
-    "condition": "Form {form} · Morale {morale} · Fitness {fitness} · Cards {yellow} Y, {red} R",
+    "condition": "Form {form} · Fitness {fitness} · Cards {yellow} Y, {red} R",
+    "conditionNextMatch": "Form {form} · Fitness {fitness} at the next match · Cards {yellow} Y, {red} R",
     "contract": "Contract",
     "noContract": "No contract",
     "contractEnd": "Contract ends",

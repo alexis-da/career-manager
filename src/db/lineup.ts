@@ -4,6 +4,7 @@ import { BENCH_SIZE, resolveLineup, type Lineup, type LineupCandidate, type Save
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
+import { fitnessAtKickOff } from "./fitness-view";
 
 export const formationSchema = z.enum(FORMATION_NAMES);
 
@@ -63,6 +64,7 @@ export type LineupPlayer = LineupCandidate & {
   lastName: string;
   age: number; // at the save's current date
   injuredUntil: Date | null;
+  fitness: number; // 0–100 at the match's kick-off, as injuries are judged on its day: today's, rested until then
 };
 
 export type LineupEditor = {
@@ -90,7 +92,7 @@ const managedClub = (saveId: string) =>
     },
   });
 
-/** Everything the lineup page needs: formation, saved lineup, and the squad with injuries on the next match day. */
+/** Everything the lineup page needs: formation, saved lineup, and the squad with injuries and fitness on the next match day. */
 export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
   const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
   const club = await managedClub(saveId);
@@ -111,6 +113,7 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
       position: true,
       overall: true,
       injuredUntil: true,
+      fitness: true,
     },
   });
 
@@ -119,12 +122,14 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
     saved: parseSavedLineup(club.lineup),
     matchDate,
     clubColors: clubColorsOf(club.club),
-    players: rows.map(({ playerKey, birthDate, ...row }) => ({
+    players: rows.map(({ playerKey, birthDate, fitness, ...row }) => ({
       ...row,
       id: playerKey,
       age: ageInYears(birthDate, save.currentDate),
       // Same rule as the matchday: a player is out while his injury runs past the match day.
       injured: row.injuredUntil !== null && row.injuredUntil > matchDate,
+      // What he will start the match with: the days until then are rest.
+      fitness: fitnessAtKickOff(fitness, save.currentDate, matchDate),
     })),
   };
 }

@@ -8,7 +8,7 @@ import { inLanguage } from "@/src/i18n/test-intl";
 import { LineupSquad } from "./lineup-squad";
 import { usePointerDrag } from "./use-pointer-drag";
 
-const player = (id: string, position: Position, overall: number): LineupPlayer => ({
+const player = (id: string, position: Position, overall: number, fitness = 100): LineupPlayer => ({
   id,
   position,
   overall,
@@ -17,10 +17,11 @@ const player = (id: string, position: Position, overall: number): LineupPlayer =
   lastName: id,
   age: 25,
   injuredUntil: null,
+  fitness,
 });
 
-// A goalkeeper who starts, alone at his line; a striker on the pitch, one on the bench, one in the stands.
-const PLAYERS = [player("keeper", "GK", 80), player("starter", "ST", 75), player("sub", "ST", 74), player("stands", "ST", 70)];
+// A goalkeeper who starts, alone at his line; a striker on the pitch, one on the bench, one in the stands, tired.
+const PLAYERS = [player("keeper", "GK", 80), player("starter", "ST", 75), player("sub", "ST", 74), player("stands", "ST", 70, 72)];
 
 type SquadProps = Pick<ComponentProps<typeof LineupSquad>, "activeKey" | "position">;
 
@@ -81,6 +82,27 @@ describe("the squad beside the pitch", () => {
 
     expect(groups.find((group) => group.includes("lineup-group-gk"))).toContain("max-lg:hidden");
     expect(groups.find((group) => group.includes("lineup-group-fw"))).not.toContain("max-lg:hidden");
+  });
+
+  it("gives each line the player's fitness at the next match, named for the screen readers, amber once he is tired", () => {
+    const markup = render();
+    const gauges = tagsWith(markup, "data-fitness=");
+
+    expect(gauges).toHaveLength(PLAYERS.length);
+    expect(markup).toContain('title="Condition au prochain match : 100"');
+    expect(markup).toContain('<span class="sr-only">Condition au prochain match : 72</span>');
+    expect(markup).toMatch(/<span aria-hidden="true" class="[^"]*text-warning[^"]*">72<\/span>/);
+    expect(render("en")).toContain('<span class="sr-only">Fitness at the next match: 72</span>');
+  });
+
+  it("keeps one element of class block in a line, the name, which the end-to-end tests read", () => {
+    const lines = render().split("<button").slice(1);
+
+    expect(lines).toHaveLength(PLAYERS.length);
+    for (const line of lines) {
+      const classes = [...line.slice(0, line.indexOf("</button>")).matchAll(/<span [^>]*class="([^"]*)"/g)].map((match) => match[1]);
+      expect(classes.filter((list) => list.split(" ").includes("block"))).toHaveLength(1);
+    }
   });
 
   it("adds a line's rating at the selected slot, and shows who is active", () => {

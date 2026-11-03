@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon, HeartPulseIcon, type LucideIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState, type ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
@@ -13,6 +13,7 @@ import { HOVER_POINTER_QUERY, useMediaQuery } from "@/src/hooks/use-media-query"
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../../_components/contract-actions";
+import { FitnessGauge } from "../../_components/fitness-gauge";
 import { PlayerBadges } from "../../_components/player-badges";
 import { PlayerSheet } from "../../_components/player-sheet";
 import { nationalityCode, nationalityName } from "../../_lib/nationalities";
@@ -21,27 +22,55 @@ import { SecondaryPositionBadges } from "../../_components/position-badge";
 import { formBarClass, ratingClasses } from "../../_lib/ratings";
 import { PLAYER_CARD_DELAY_MS, playerCardHandle, PlayerHoverCard } from "./player-hover-card";
 
-type SortKey = "position" | "name" | "age" | "overall" | "potential" | "form" | "marketValue" | "wage" | "contractUntil";
+type SortKey =
+  | "position"
+  | "name"
+  | "age"
+  | "overall"
+  | "potential"
+  | "form"
+  | "fitness"
+  | "marketValue"
+  | "wage"
+  | "contractUntil";
 type Direction = "asc" | "desc";
 type Sort = { key: SortKey; direction: Direction };
 
 /**
  * From lg, the table follows its own room, not the screen's: 704 px at 1024 px, 960 px at 1280 px (15 px less with a
- * scrollbar), less again beside the open sheet. Two columns leave under 928 px, two more under 672 px, a room only the
+ * scrollbar), less again beside the open sheet. Two columns leave under 928 px, three more under 672 px, a room only the
  * sheet leaves; the sheet and the hover card have them all. Before the table scrolls, a name wraps and the badges stack.
  */
 const NEEDS_928 = "@max-[58rem]:hidden";
 const NEEDS_672 = "@max-[42rem]:hidden";
 const TIGHT_CELL = "lg:@max-[58rem]:px-1.5";
 
-/** The table's columns, named by their key in the squad messages (columns.<key>); an abbreviated one has a title. */
-const COLUMNS: { key: SortKey; title?: "potential"; align: "left" | "right"; firstDirection: Direction; needs?: string }[] = [
+/**
+ * The fitness's cell keeps a place in the card under lg: the room rule of its column from lg only. In the table, its
+ * figure over a short bar, under the heart of football games' condition columns, named for the screen readers and on
+ * hover: a word's header would make the table scroll, a 10-letter surname and an injury badge beside it, once sorted.
+ */
+const FITNESS_NEEDS_672 = "lg:@max-[42rem]:hidden";
+
+/**
+ * The table's columns, named by their key in the squad messages (columns.<key>); an abbreviated one has a title, and so
+ * has the fitness, which is the next match's, and drawn. The tired first: what a manager sorts the fitness for.
+ */
+const COLUMNS: {
+  key: SortKey;
+  title?: "potential" | "fitness";
+  icon?: LucideIcon; // in the header, for the word, which the screen readers still read
+  align: "left" | "right";
+  firstDirection: Direction;
+  needs?: string;
+}[] = [
   { key: "position", align: "left", firstDirection: "asc" },
   { key: "name", align: "left", firstDirection: "asc" },
   { key: "age", align: "right", firstDirection: "asc" },
   { key: "overall", align: "right", firstDirection: "desc" },
   { key: "potential", title: "potential", align: "right", firstDirection: "desc", needs: NEEDS_928 },
   { key: "form", align: "left", firstDirection: "desc" },
+  { key: "fitness", title: "fitness", icon: HeartPulseIcon, align: "left", firstDirection: "asc", needs: NEEDS_672 },
   { key: "marketValue", align: "right", firstDirection: "desc", needs: NEEDS_672 },
   { key: "wage", align: "right", firstDirection: "desc", needs: NEEDS_928 },
   { key: "contractUntil", align: "left", firstDirection: "asc", needs: NEEDS_672 },
@@ -50,12 +79,13 @@ const COLUMNS: { key: SortKey; title?: "potential"; align: "left" | "right"; fir
 /**
  * Under lg, the rows are cards, each a grid of one line whose cells overlap. On the left, the position and rating cells
  * make the blue tile. In the middle, the name spans three narrow columns and the rest of the width; the age, nationality
- * and form stand in those columns at the foot of the line, in the room the name's button keeps under its text: a target of
- * 44 px that leaves the card as low as the tile. On the right, the status badges. The other columns are in the sheet. The
- * ring is inset: the table's frame scrolls, and clips what passes a card's edge.
+ * and form stand in those columns at the foot of the line, and the fitness at the start of the rest, in the room the
+ * name's button keeps under its text: a target of 44 px that leaves the card as low as the tile. On the right, the status
+ * badges. The other columns are in the sheet. The ring is inset: the table's frame scrolls, and clips what passes a card's
+ * edge.
  */
 const CARD_ROW =
-  "max-lg:grid max-lg:h-auto max-lg:grid-cols-[3.25rem_auto_auto_auto_minmax(0,1fr)_auto] max-lg:items-center max-lg:gap-x-1 max-lg:rounded-lg max-lg:border-0 max-lg:px-3.5 max-lg:py-2.5 max-lg:hover:ring-1 max-lg:hover:ring-(--club)/60 max-lg:hover:ring-inset";
+  "max-lg:grid max-lg:h-auto max-lg:grid-cols-[3.25rem_auto_auto_auto_minmax(auto,1fr)_auto] max-lg:items-center max-lg:gap-x-1 max-lg:rounded-lg max-lg:border-0 max-lg:px-3.5 max-lg:py-2.5 max-lg:hover:ring-1 max-lg:hover:ring-(--club)/60 max-lg:hover:ring-inset";
 const CARD_TILE = "max-lg:col-start-1 max-lg:row-start-1 max-lg:size-11 max-lg:p-0";
 const CARD_FOOT =
   "max-lg:row-start-1 max-lg:mb-0.5 max-lg:flex max-lg:h-4.5 max-lg:items-center max-lg:self-end max-lg:p-0 max-lg:text-[0.8125rem] max-lg:text-muted-foreground";
@@ -222,7 +252,14 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                       )}
                       data-testid={`squad-column-${kebabCase(column.key)}`}
                     >
-                      {t(`columns.${column.key}`)}
+                      {column.icon === undefined ? (
+                        t(`columns.${column.key}`)
+                      ) : (
+                        <>
+                          <column.icon aria-hidden className="size-3.5" />
+                          <span className="sr-only">{t(`columns.${column.key}`)}</span>
+                        </>
+                      )}
                       {active &&
                         (sort.direction === "asc" ? (
                           <ChevronUpIcon aria-hidden className="size-3" />
@@ -325,6 +362,28 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                   </TableCell>
                   <TableCell className={cn(TABLE_CELL, TIGHT_CELL, CARD_FOOT, CARD_SEPARATOR, "max-lg:col-start-4")}>
                     <FormGauge form={player.form} />
+                  </TableCell>
+                  {/* In the table, the figure over a short bar. In a card, which has no room for a bar at 360 px, the
+                      column's heart before the figure, the heart for a separator; none for an injured player, whose badge
+                      takes its room and who will not play. */}
+                  <TableCell
+                    data-column="fitness"
+                    className={cn(
+                      TABLE_CELL,
+                      TIGHT_CELL,
+                      CARD_FOOT,
+                      "max-lg:col-start-5 max-lg:gap-1 max-lg:pl-1",
+                      player.injuredUntil !== null && "max-lg:hidden",
+                      FITNESS_NEEDS_672,
+                    )}
+                  >
+                    <HeartPulseIcon aria-hidden className="size-3 shrink-0 lg:hidden" />
+                    <FitnessGauge
+                      fitness={player.fitness}
+                      moment={player.fitnessAtNextMatch ? "nextMatch" : "today"}
+                      className="lg:flex-col-reverse lg:items-start lg:gap-1"
+                      barClassName="max-lg:hidden lg:w-6"
+                    />
                   </TableCell>
                   <TableCell className={cn(TABLE_CELL, TIGHT_CELL, "text-right max-lg:hidden", NEEDS_672)}>
                     {formatMoney(player.marketValue, locale)}

@@ -41,6 +41,7 @@
     "emptySlot": "{position} : poste vide",
     "slot": "{position} : {name}, {detail}",
     "detail": "{position} {overall} · joue {slot} : {rating}",
+    "fitness": "condition {fitness}",
     "injured": "blessé",
     "sentOff": "exclu",
     "sentOffSlot": "{position} : poste vide, {name} exclu"

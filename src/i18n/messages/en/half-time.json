@@ -25,6 +25,7 @@
       "change": {
         "injured": "{in} is the best option to replace {out}.",
         "form": "{in} is in better form than {out}: he would do better in this position.",
+        "fitness": "{in} is fresher than {out}: he would do better in this position.",
         "level": "{in} would do better than {out} in this position.",
         "noBetter": "Nobody on the bench would do better.",
         "noOther": "I wouldn't change anything else.",
@@ -35,6 +36,7 @@
     "suggestion": {
       "title": "Suggested change · {count} left",
       "out": "Off · form {form}",
+      "outTired": "Off · fitness {fitness}",
       "outInjured": "Off · injured",
       "in": "On · {position} {rating}",
       "apply": "Tap the card to make this change."

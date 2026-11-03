@@ -9,6 +9,7 @@ import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { AttributeBars } from "../../_components/attribute-bars";
 import { PositionBadges } from "../../_components/position-badge";
+import { fitnessBarClass, fitnessFigure, fitnessWidth } from "../../_lib/fitness";
 import { formBarClass, ratingClasses } from "../../_lib/ratings";
 
 /** Wait before the card opens on a hovered row: long enough not to flash while the mouse crosses the table. */
@@ -17,13 +18,22 @@ export const PLAYER_CARD_DELAY_MS = 300;
 /** One card for the whole squad table: each row is a trigger of this handle, with its player as payload. */
 export const playerCardHandle = PreviewCard.createHandle<SquadPlayerView>();
 
-function ConditionGauge({ label, value }: { label: string; value: number }) {
+type ConditionGaugeProps = {
+  label: string;
+  value: number;
+  barClass: string;
+  width: string;
+  title?: string; // what the short label leaves out
+};
+
+/** A gauge of the card: its label, a bar of the given colour and width, and the figure. */
+function ConditionGauge({ label, value, barClass, width, title }: ConditionGaugeProps) {
   return (
-    <div className="space-y-1">
+    <div title={title} className="space-y-1">
       <dt className="text-[0.625rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">{label}</dt>
       <dd className="flex items-center gap-1.5">
         <span aria-hidden className="block h-1 flex-1 rounded-full bg-border">
-          <span className={cn("block h-1 rounded-full", formBarClass(value))} style={{ width: `${value}%` }} />
+          <span className={cn("block h-1 rounded-full", barClass)} style={{ width }} />
         </span>
         <span className="text-xs font-semibold tabular-nums">{value}</span>
       </dd>
@@ -59,10 +69,15 @@ function PlayerCardBody({ player }: { player: SquadPlayerView }) {
 
       <AttributeBars position={player.position} attributes={player.attributes} compact />
 
-      <dl className="grid grid-cols-3 gap-3">
-        <ConditionGauge label={t("form")} value={player.form} />
-        <ConditionGauge label={t("morale")} value={player.morale} />
-        <ConditionGauge label={t("fitness")} value={player.fitness} />
+      <dl className="grid grid-cols-2 gap-3">
+        <ConditionGauge label={t("form")} value={player.form} barClass={formBarClass(player.form)} width={`${player.form}%`} />
+        <ConditionGauge
+          label={t("fitness")}
+          value={fitnessFigure(player.fitness)}
+          barClass={fitnessBarClass(player.fitness)}
+          width={fitnessWidth(player.fitness)}
+          title={t(`fitnessAt.${player.fitnessAtNextMatch ? "nextMatch" : "today"}`, { fitness: fitnessFigure(player.fitness) })}
+        />
       </dl>
 
       <dl className="flex justify-between gap-3 border-t pt-2 text-xs">

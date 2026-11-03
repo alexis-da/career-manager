@@ -19,13 +19,15 @@
       "overall": "Note",
       "potential": "Pot.",
       "form": "Forme",
+      "fitness": "Condition",
       "marketValue": "Valeur",
       "wage": "Salaire",
       "contractUntil": "Contrat",
       "status": "Statut"
     },
     "columnTitles": {
-      "potential": "Potentiel"
+      "potential": "Potentiel",
+      "fitness": "Condition au prochain match"
     },
     "ageShort": "{age} ans",
     "formTitle": "Forme {form}",

@@ -11,12 +11,15 @@ import type { TeamView } from "@/src/db/calendar";
 import type { HalfTimePlayer, HalfTimeTeam } from "@/src/db/live-match";
 import { FORMATION_NAMES, FORMATIONS, isFormationName } from "@/src/engine/formations";
 import { ratingAt, type Position } from "@/src/engine/positions";
+import type { Translator } from "@/src/i18n/translator";
 import type { ClubColors } from "@/src/lib/color";
 import { getOrThrow } from "@/src/lib/maps";
 import { cn } from "@/src/lib/utils";
+import { FitnessGauge } from "../../_components/fitness-gauge";
 import { LineupSummary } from "../../_components/lineup-summary";
 import { Pitch } from "../../_components/pitch";
 import { PositionBadges } from "../../_components/position-badge";
+import { fitnessFigure } from "../../_lib/fitness";
 import { isOffPosition, positionFit } from "../../_lib/positions";
 import { resumeMatch } from "../../actions";
 import { slotTarget, usePointerDrag, type DragSource, type DropTarget } from "../../lineup/_components/use-pointer-drag";
@@ -342,6 +345,7 @@ export function HalfTime({
                       clubColors={team.clubColors}
                       label={t("pitch")}
                       sentOff={sentOff}
+                      fitnessAt="restart"
                       editing={{
                         selected,
                         onSelect: clickSlot,
@@ -387,8 +391,12 @@ export function HalfTime({
                             >
                               <PositionBadges playerKey={key} position={player.position} className="justify-self-start max-sm:flex-wrap" />
                               <PlayerFace playerKey={key} age={player.age} clubColors={team.clubColors} size={32} className="max-sm:hidden" />
-                              <span className="truncate font-medium max-sm:whitespace-normal">
-                                {player.firstName} {player.lastName}
+                              {/* His fitness under his name: what he would come on with. */}
+                              <span className="flex min-w-0 flex-col items-start gap-1">
+                                <span className="max-w-full truncate font-medium max-sm:whitespace-normal">
+                                  {player.firstName} {player.lastName}
+                                </span>
+                                <FitnessGauge fitness={player.fitness} moment="restart" />
                               </span>
                               <span
                                 title={
@@ -472,6 +480,18 @@ type SuggestionCardProps = {
   onApply: () => void;
 };
 
+/** What the card says of the player going off: injured, how tired when he is to come off for his fitness, or his form. */
+function outCaption({ reason }: SuggestedChange, outgoing: HalfTimePlayer, t: Translator<"halfTime">): string {
+  switch (reason) {
+    case "injured":
+      return t("suggestion.outInjured");
+    case "fitness":
+      return t("suggestion.outTired", { fitness: fitnessFigure(outgoing.fitness) });
+    default:
+      return t("suggestion.out", { form: outgoing.form });
+  }
+}
+
 /** The suggested change, one button: the player going off, the player coming on, why. */
 function SuggestionCard({ suggestion, outgoing, incoming, clubColors, onApply }: SuggestionCardProps) {
   const t = useTranslations("halfTime");
@@ -486,8 +506,8 @@ function SuggestionCard({ suggestion, outgoing, incoming, clubColors, onApply }:
       <ChangeEnd
         player={outgoing}
         clubColors={clubColors}
-        injured={suggestion.injured}
-        caption={suggestion.injured ? t("suggestion.outInjured") : t("suggestion.out", { form: outgoing.form })}
+        injured={suggestion.reason === "injured"}
+        caption={outCaption(suggestion, outgoing, t)}
       />
       <ArrowRightLeftIcon aria-hidden className="size-6 text-(--club)" />
       <ChangeEnd

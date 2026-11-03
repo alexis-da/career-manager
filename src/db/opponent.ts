@@ -1,10 +1,11 @@
 import { displayClubName } from "../engine/club-name";
-import type { FormationName } from "../engine/formations";
-import { averageStarterRating, resolveLineup, type Lineup } from "../engine/lineup";
+import { formationPositions, type FormationName } from "../engine/formations";
+import { averageStarterRating, selectRestedLineup, type Lineup } from "../engine/lineup";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
-import { getManagedLineup, parseFormation, parseSavedLineup, type LineupPlayer } from "./lineup";
+import { getManagedLineup, parseFormation, type LineupPlayer } from "./lineup";
+import { fitnessAtKickOff } from "./fitness-view";
 
 /** Results shown in the opponent's recent form. */
 export const OPPONENT_FORM_LENGTH = 5;
@@ -32,8 +33,8 @@ export type OpponentPreview = {
 
 /**
  * The managed club's next opponent, or the opponent of one of its unplayed fixtures, as he will likely line up: his
- * formation and saved lineup completed automatically (an AI club has neither, so this is the automatic 4-3-3 the
- * matchday plays), his recent results and his top scorer. Null when the managed club has no match left, or when
+ * eleven picked as the matchday picks an AI club's, its tired players rested (selectRestedLineup), his recent results
+ * and his top scorer. Null when the managed club has no match left, or when
  * fixtureId is not an unplayed fixture of the managed club.
  */
 export async function getOpponentPreview(saveId: string, fixtureId?: string): Promise<OpponentPreview | null> {
@@ -61,12 +62,21 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
   const [opponent, rows, recentRows, scorer, managedLineup] = await Promise.all([
     prisma.clubSave.findFirstOrThrow({
       where: { id: opponentId, saveId },
-      select: { formation: true, lineup: true, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
+      select: { formation: true, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
     }),
     prisma.playerSave.findMany({
       where: { saveId, clubSaveId: opponentId },
       orderBy: { playerKey: "asc" },
-      select: { playerKey: true, firstName: true, lastName: true, birthDate: true, position: true, overall: true, injuredUntil: true },
+      select: {
+        playerKey: true,
+        firstName: true,
+        lastName: true,
+        birthDate: true,
+        position: true,
+        overall: true,
+        injuredUntil: true,
+        fitness: true,
+      },
     }),
     prisma.fixture.findMany({
       where: { saveId, played: true, OR: [{ homeClubSaveId: opponentId }, { awayClubSaveId: opponentId }] },
@@ -95,15 +105,17 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
     getManagedLineup(saveId),
   ]);
 
-  const players: LineupPlayer[] = rows.map(({ playerKey, birthDate, ...row }) => ({
+  const players: LineupPlayer[] = rows.map(({ playerKey, birthDate, fitness, ...row }) => ({
     ...row,
     id: playerKey,
     age: ageInYears(birthDate, save.currentDate),
     // Same rule as the matchday: a player is out while his injury runs past the match day.
     injured: row.injuredUntil !== null && row.injuredUntil > matchDate,
+    // Rested until then, unless his club plays before: the preview does not show it.
+    fitness: fitnessAtKickOff(fitness, save.currentDate, matchDate),
   }));
   const formation = parseFormation(opponent.formation);
-  const lineup = resolveLineup(formation, parseSavedLineup(opponent.lineup), players);
+  const lineup = selectRestedLineup(players, formationPositions(formation));
 
   return {
     matchDate,

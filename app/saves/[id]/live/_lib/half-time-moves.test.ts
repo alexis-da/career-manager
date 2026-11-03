@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MAX_SUBSTITUTIONS } from "@/src/engine/balance";
+import { FULL_FITNESS, MAX_SUBSTITUTIONS } from "@/src/engine/balance";
+import { fitnessFactor } from "@/src/engine/fitness";
 import { formationPositions } from "@/src/engine/formations";
 import type { LineupCandidate } from "@/src/engine/lineup";
 import type { Position } from "@/src/engine/positions";
@@ -181,9 +182,16 @@ describe("cancelling a half-time change", () => {
 });
 
 describe("the change the assistant suggests", () => {
-  // The squad at a neutral condition: no substitute beats his starter until a test says so.
-  const rated = (changes: Record<string, { overall?: number; condition?: number }> = {}) =>
-    PLAYERS.map((candidate) => ({ ...candidate, condition: 1, ...changes[candidate.id] }));
+  // The squad rested, at a neutral condition: no substitute beats his starter until a test says so.
+  const rated = (changes: Record<string, { overall?: number; condition?: number; fitness?: number }> = {}) =>
+    PLAYERS.map((candidate) => ({ ...candidate, condition: 1, fitness: FULL_FITNESS, ...changes[candidate.id] }));
+
+  /** A player as tired as a fitness leaves him: his condition is the engine's, form neutral times that fitness's factor. */
+  const tired = (fitness: number, overall?: number) => ({
+    ...(overall === undefined ? {} : { overall }),
+    fitness,
+    condition: fitnessFactor(fitness),
+  });
 
   it("suggests nothing while nobody on the bench does better", () => {
     expect(suggestChange(initial, rules(), rated())).toBeNull();
@@ -192,7 +200,25 @@ describe("the change the assistant suggests", () => {
   it("takes off the player with the largest gain, for the best substitute in his slot", () => {
     const players = rated({ s1: { overall: 60 }, s9: { overall: 50 } });
 
-    expect(suggestChange(initial, rules(), players)).toEqual({ slot: 9, position: "ST", out: "s9", in: "b-st", injured: false, gain: 17 });
+    expect(suggestChange(initial, rules(), players)).toEqual({ slot: 9, position: "ST", out: "s9", in: "b-st", reason: "level", gain: 17 });
+  });
+
+  it("brings a fresh substitute on for a tired starter, for his freshness when it outweighs the rest", () => {
+    // Rated 70 at 70 of fitness, 63.7 in all, against the right-back's 66, fresh.
+    const change = suggestChange(initial, rules(), rated({ s1: tired(70) }));
+    expect(change).toMatchObject({ slot: 1, out: "s1", in: "b-rb", reason: "fitness" });
+    expect(change?.gain).toBeCloseTo(66 - 70 * fitnessFactor(70));
+
+    // A starter rated 60, as tired: the substitute's rating weighs more than his freshness.
+    expect(suggestChange(initial, rules(), rated({ s1: tired(85, 60) }))).toMatchObject({ out: "s1", reason: "level" });
+    // Nobody on the bench fresher: tired as he is, he comes off for his rating.
+    expect(suggestChange(initial, rules(), rated({ s1: tired(85, 60), "b-rb": tired(85) }))).toMatchObject({ out: "s1", reason: "level" });
+  });
+
+  it("says the form when it weighs most: same rating, same fitness, a substitute in better form", () => {
+    const players = rated({ s1: { overall: 66, condition: 0.96 }, "b-rb": { condition: 1.04 } });
+
+    expect(suggestChange(initial, rules(), players)).toMatchObject({ out: "s1", in: "b-rb", reason: "form" });
   });
 
   it("weighs a player's rating by his condition, as the engine plays him", () => {
@@ -218,7 +244,7 @@ describe("the change the assistant suggests", () => {
       position: "RB",
       out: "s1",
       in: "b-rb",
-      injured: true,
+      reason: "injured",
       gain: -4,
     });
   });
@@ -226,7 +252,7 @@ describe("the change the assistant suggests", () => {
   it("between two injured players, takes the larger gain", () => {
     const injured = rules({ injured: new Set(["s1", "s9"]) });
 
-    expect(suggestChange(initial, injured, rated({ s9: { overall: 60 } }))).toMatchObject({ out: "s9", injured: true });
+    expect(suggestChange(initial, injured, rated({ s9: { overall: 60 } }))).toMatchObject({ out: "s9", reason: "injured" });
   });
 
   it("leaves a sent-off player's slot and a player who came on at this break alone", () => {
@@ -264,7 +290,7 @@ describe("the change the assistant suggests", () => {
     expect(suggestChange({ ...initial, bench: initial.bench.toReversed() }, rules(), players.toReversed())).toEqual(change);
 
     // Two substitutes of the same level.
-    const twins = [...rated({ s1: { overall: 60 } }), { ...player("a-rb", "RB", 66), condition: 1 }];
+    const twins = [...rated({ s1: { overall: 60 } }), { ...player("a-rb", "RB", 66), condition: 1, fitness: FULL_FITNESS }];
     const withTwin = { ...initial, bench: [...initial.bench, "a-rb"] };
     expect(suggestChange(withTwin, rules(), twins)).toMatchObject({ out: "s1", in: "a-rb" });
     expect(suggestChange({ ...withTwin, bench: withTwin.bench.toReversed() }, rules(), twins.toReversed())).toMatchObject({ in: "a-rb" });

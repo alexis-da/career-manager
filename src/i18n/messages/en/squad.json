@@ -19,13 +19,15 @@
       "overall": "Rating",
       "potential": "Pot.",
       "form": "Form",
+      "fitness": "Fitness",
       "marketValue": "Value",
       "wage": "Wage",
       "contractUntil": "Contract",
       "status": "Status"
     },
     "columnTitles": {
-      "potential": "Potential"
+      "potential": "Potential",
+      "fitness": "Fitness at the next match"
     },
     "ageShort": "{age} yrs",
     "formTitle": "Form {form}",

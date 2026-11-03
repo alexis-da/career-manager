@@ -4,6 +4,7 @@ import type { LineupPlayer } from "@/src/db/lineup";
 import { POSITION_GROUPS, positionGroup, ratingAt, type Position } from "@/src/engine/positions";
 import { cn } from "@/src/lib/utils";
 import { Panel, PanelTitle } from "@/src/components/panel";
+import { FitnessGauge } from "../../_components/fitness-gauge";
 import { PositionBadges } from "../../_components/position-badge";
 import { isOffPosition, positionFit } from "../../_lib/positions";
 import type { DragSource, DragSourceProps } from "./use-pointer-drag";
@@ -50,7 +51,10 @@ type PlayerLineProps = ComponentProps<"button"> & {
   mark: ReactNode;
 };
 
-/** A dense line of the squad, a button and a drag source: the rating, the name, then his position, his age and his state. */
+/**
+ * A dense line of the squad, a button and a drag source: the rating, the name, then his position, his age, his fitness at
+ * the match's kick-off and his state.
+ */
 function PlayerLine({ player, position, active, lifted, starter, mark, ...button }: PlayerLineProps) {
   const t = useTranslations("lineup");
   return (
@@ -79,6 +83,9 @@ function PlayerLine({ player, position, active, lifted, starter, mark, ...button
               stays when the line is not active: the list does not move under the pointer. */}
           <PositionBadges playerKey={player.id} position={player.position} className={cn("rounded-sm p-px", active && "bg-background/85")} />
           <span>· {t("age", { age: player.age })}</span>
+          <span className="inline-flex items-center gap-1.5">
+            · <FitnessGauge fitness={player.fitness} moment="nextMatch" onBlue={active} />
+          </span>
           {player.injured && <Mark className="text-loss">{t("injured")}</Mark>}
           {mark}
         </span>

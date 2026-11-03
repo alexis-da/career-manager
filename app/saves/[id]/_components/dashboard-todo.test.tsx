@@ -26,6 +26,7 @@ const starter = (lastName: string, position: Position, overall: number): LineupP
   lastName,
   age: 25,
   injuredUntil: null,
+  fitness: 100,
 });
 
 /** An eleven, each starter at his position. */

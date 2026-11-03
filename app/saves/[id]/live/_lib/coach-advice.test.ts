@@ -3,7 +3,7 @@ import { MAX_SUBSTITUTIONS } from "@/src/engine/balance";
 import { formationPositions } from "@/src/engine/formations";
 import { testTranslator } from "@/src/i18n/test-intl";
 import { coachAdvice, type MatchSituation } from "./coach-advice";
-import type { HalfTimeRules, HalfTimeState, SuggestedChange } from "./half-time-moves";
+import type { ChangeReason, HalfTimeRules, HalfTimeState, SuggestedChange } from "./half-time-moves";
 
 const t = testTranslator("fr", "halfTime");
 const tEnglish = testTranslator("en", "halfTime");
@@ -11,7 +11,7 @@ const tEnglish = testTranslator("en", "halfTime");
 // A 4-3-3 eleven, s0 to s10, named after their slot, and three substitutes.
 const STARTERS = formationPositions("4-3-3").map((_, slot) => `s${slot}`);
 const BENCH = ["b1", "b2", "b3"];
-const PLAYERS = new Map([...STARTERS, ...BENCH].map((key) => [key, { lastName: key.toUpperCase(), form: 50 }]));
+const PLAYERS = new Map([...STARTERS, ...BENCH].map((key) => [key, { lastName: key.toUpperCase() }]));
 
 const STATE: HalfTimeState = { formation: "4-3-3", starters: STARTERS, bench: BENCH, off: [], substitutions: [] };
 const RULES: HalfTimeRules = { injured: new Set(), sentOffSlots: new Set(), substitutionsBefore: 0, maxSubstitutions: MAX_SUBSTITUTIONS };
@@ -27,7 +27,14 @@ const situation = (overrides: Partial<MatchSituation> = {}): MatchSituation => (
   ...overrides,
 });
 
-const change = (out: string, incoming: string, injured = false): SuggestedChange => ({ slot: 1, position: "RB", out, in: incoming, injured, gain: 2 });
+const change = (out: string, incoming: string, reason: ChangeReason = "level"): SuggestedChange => ({
+  slot: 1,
+  position: "RB",
+  out,
+  in: incoming,
+  reason,
+  gain: 2,
+});
 
 /** The assistant's sentences, in order. */
 const said = (overrides: Partial<MatchSituation> = {}): string[] => coachAdvice(situation(overrides), t).map((line) => line.text);
@@ -45,12 +52,17 @@ describe("what the assistant says", () => {
   });
 
   it("gives the reason of the change, naming both players", () => {
-    const fitter = new Map(PLAYERS).set("b1", { lastName: "B1", form: 70 });
-
     expect(line("change", { suggestion: change("s1", "b1") })).toBe("B1 ferait mieux que S1 à ce poste.");
-    expect(line("change", { suggestion: change("s1", "b1"), players: fitter })).toBe("B1 est plus en forme que S1 : il ferait mieux à ce poste.");
-    expect(line("change", { suggestion: change("s1", "b1", true) })).toBe("B1 est le mieux placé pour remplacer S1.");
+    expect(line("change", { suggestion: change("s1", "b1", "form") })).toBe("B1 est plus en forme que S1 : il ferait mieux à ce poste.");
+    expect(line("change", { suggestion: change("s1", "b1", "injured") })).toBe("B1 est le mieux placé pour remplacer S1.");
     expect(line("change", { suggestion: change("s1", "b1") }, tEnglish)).toBe("B1 would do better than S1 in this position.");
+  });
+
+  it("says when the substitute is chosen for his freshness", () => {
+    expect(line("change", { suggestion: change("s1", "b1", "fitness") })).toBe("B1 est plus frais que S1 : il ferait mieux à ce poste.");
+    expect(line("change", { suggestion: change("s1", "b1", "fitness") }, tEnglish)).toBe(
+      "B1 is fresher than S1: he would do better in this position.",
+    );
   });
 
   it("says why there is no change: nobody better, none left, or nobody on the bench", () => {
@@ -128,7 +140,7 @@ describe("what the assistant says", () => {
         state: { ...STATE, starters: tenMen },
         rules: { ...RULES, injured: new Set(["s4"]), sentOffSlots: new Set([7]) },
         goalDifference: 1,
-        suggestion: change("s4", "b1", true),
+        suggestion: change("s4", "b1", "injured"),
         booked: ["s9"],
       }),
     ).toEqual([

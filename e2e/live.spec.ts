@@ -71,8 +71,11 @@ const RESULTS = {
   L: { label: "Défaite", color: "rgb(248, 113, 113)" },
 };
 
-/** The suggestion's card reads as one text: « Sort · forme 7 », his name, « Entre · BU 74 », his name. */
-const SUGGESTED_CHANGE = /^Sort · (?:forme [\d.,-]+|blessé)(.+)Entre · \S+ \d+(.+)$/;
+/**
+ * The suggestion's card reads as one text: « Sort · forme 7 » (« Sort · condition 70 » when he comes off for his fitness),
+ * his name, « Entre · BU 74 », his name.
+ */
+const SUGGESTED_CHANGE = /^Sort · (?:forme [\d.,-]+|condition \d+|blessé)(.+)Entre · \S+ \d+(.+)$/;
 
 let saveId = "";
 let ownerId: string | null = null;
@@ -305,23 +308,26 @@ test("makes the change the assistant suggests, undoes it, keeps it through a clo
   await openBreak(page);
   const panel = page.getByTestId("half-time");
 
-  // The line-up comes folded: nothing of the pitch or the bench. In this match of the seed, nobody on the bench would do better.
+  // The line-up comes folded: nothing of the pitch or the bench. In this match of the seed, a starter tired by the first
+  // half would make way for a fresh substitute: the assistant says it is for his freshness, his card how tired he is.
   const toggle = page.getByTestId("half-time-lineup-toggle");
   const suggestion = page.getByTestId("half-time-suggestion");
   const advice = page.getByTestId("half-time-advice");
+  const card = page.getByTestId("half-time-suggestion-apply");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(panel.getByTestId("pitch")).toHaveCount(0);
   await expect(page.getByTestId("half-time-bench")).toHaveCount(0);
   await expect(advice).toContainText("Ton adjoint :");
-  await expect(advice).toContainText("Personne sur le banc ne ferait mieux.");
-  await expect(suggestion).toHaveCount(0);
+  await expect(card).toContainText(/^Sort · condition \d+/);
+  const [, tired, fresh] = SUGGESTED_CHANGE.exec(await textOf(card)) ?? [];
+  await expect(advice).toContainText(`${fresh} est plus frais que ${tired} : il ferait mieux à ce poste.`);
 
   const { keeper, forward } = await misplaceTwoPlayers(page);
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByTestId("half-time-bench")).toBeVisible();
 
-  // One of the two is to come off, and the assistant says the same as his card.
-  const card = page.getByTestId("half-time-suggestion-apply");
+  // One of the two is to come off now, for a far larger gain, and the assistant says the same as his card.
+  await expect(card).toContainText(/^Sort · forme /);
   await expect(suggestion).toContainText("Changement conseillé · 5 restants");
   const [, outgoing, incoming] = SUGGESTED_CHANGE.exec(await textOf(card)) ?? [];
   expect([keeper, forward]).toContain(outgoing);

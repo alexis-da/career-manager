@@ -7,6 +7,21 @@ import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
+import { fitnessAtKickOff } from "./fitness-view";
+
+/** The day of the managed club's next match, null once it has none left. */
+async function managedMatchDay(saveId: string): Promise<Date | null> {
+  const next = await prisma.fixture.findFirst({
+    where: {
+      saveId,
+      played: false,
+      OR: [{ homeClubSave: { saveId, isManaged: true } }, { awayClubSave: { saveId, isManaged: true } }],
+    },
+    orderBy: { scheduledAt: "asc" },
+    select: { scheduledAt: true },
+  });
+  return next?.scheduledAt ?? null;
+}
 
 export type TransferKind = "TRANSFER" | "LOAN" | "FREE" | "RETIREMENT";
 
@@ -43,8 +58,10 @@ export type PlayerProfile = {
   overall: number;
   potential: number;
   form: number;
-  morale: number;
+  // 0–100: a player of the managed club's at the kick-off of its next match (fitnessAtKickOff), the lineup page's figure;
+  // anyone else's, or once the club has no match left, today's. Morale is no screen's: it is not read.
   fitness: number;
+  fitnessAtNextMatch: boolean; // the fitness is the next match's
   marketValue: number; // euros, as stored: set when the player enters the save, recomputed at each season transition
   wage: number;
   contractUntil: Date | null;
@@ -86,16 +103,21 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       physical: true,
       goalkeeping: true,
       form: true,
-      morale: true,
       fitness: true,
       marketValue: true,
       wage: true,
       contractUntil: true,
       injuredUntil: true,
-      clubSave: { select: { club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } } },
+      clubSave: {
+        select: { isManaged: true, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
+      },
     },
   });
   const playerIds = players.map((player) => player.id);
+
+  // The managed club's players are picked for its next match: their fitness is that match's. Read only when one of them
+  // is among the players.
+  const nextMatchDay = players.some((player) => player.clubSave?.isManaged === true) ? await managedMatchDay(saveId) : null;
 
   const [stats, transfers] = await Promise.all([
     prisma.playerSeasonStats.groupBy({
@@ -121,6 +143,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
 
   return players.map((player) => {
     const playerStats = statsByPlayer.get(player.id);
+    const atNextMatch = player.clubSave?.isManaged === true && nextMatchDay !== null;
     return {
       id: player.id,
       playerKey: player.playerKey,
@@ -135,8 +158,8 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       overall: player.overall,
       potential: player.potential,
       form: player.form,
-      morale: player.morale,
-      fitness: player.fitness,
+      fitness: atNextMatch ? fitnessAtKickOff(player.fitness, save.currentDate, nextMatchDay) : player.fitness,
+      fitnessAtNextMatch: atNextMatch,
       marketValue: player.marketValue,
       wage: player.wage,
       contractUntil: player.contractUntil,

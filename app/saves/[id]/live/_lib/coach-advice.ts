@@ -11,7 +11,7 @@ export type MatchSituation = {
   rules: HalfTimeRules;
   suggestion: SuggestedChange | null;
   booked: readonly string[]; // players with a yellow card, on the pitch or not
-  players: ReadonlyMap<string, { lastName: string; form: number }>;
+  players: ReadonlyMap<string, { lastName: string }>;
 };
 
 /** A sentence of the assistant's, by what it is about. */
@@ -24,7 +24,7 @@ const scoreTopic = ({ phase, goalDifference }: MatchSituation) => {
   return goalDifference > 0 ? "leading" : goalDifference < 0 ? "behind" : "level";
 };
 
-/** The suggested change and its reason, or why there is none. */
+/** The suggested change and its reason, what weighs most in it (suggestChange), or why there is none. */
 function changeLine(
   { state, suggestion, players }: MatchSituation,
   substitutionsLeft: number,
@@ -33,8 +33,7 @@ function changeLine(
   if (suggestion !== null) {
     const incoming = getOrThrow(players, suggestion.in, "player");
     const outgoing = getOrThrow(players, suggestion.out, "player");
-    const reason = suggestion.injured ? "injured" : incoming.form > outgoing.form ? "form" : "level";
-    return t(`advice.change.${reason}`, { in: incoming.lastName, out: outgoing.lastName });
+    return t(`advice.change.${suggestion.reason}`, { in: incoming.lastName, out: outgoing.lastName });
   }
   if (substitutionsLeft <= 0) {
     return t("advice.change.noSubstitutionLeft");

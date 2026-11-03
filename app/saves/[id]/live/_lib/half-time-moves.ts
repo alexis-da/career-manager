@@ -1,3 +1,4 @@
+import { fitnessFactor } from "@/src/engine/fitness";
 import { formationPositions, type FormationName } from "@/src/engine/formations";
 import { changeFormation, type LineupCandidate } from "@/src/engine/lineup";
 import { ratingAt, type Position } from "@/src/engine/positions";
@@ -99,11 +100,20 @@ export function cancelSubstitution(state: HalfTimeState, change: { in: string; o
   };
 }
 
-/** What the assistant needs to know of a player: the engine's condition (form and morale) on top of his rating. */
-type RatedCandidate = LineupCandidate & { condition: number };
+/**
+ * What the assistant needs to know of a player on top of his rating: his fitness at the restart, and the engine's
+ * condition, his form (morale stays neutral) times the factor of that fitness (fitnessFactor).
+ */
+type RatedCandidate = LineupCandidate & { condition: number; fitness: number };
 
 /** A player's level in a position, as the engine plays him there. */
 const levelAt = (player: RatedCandidate, position: Position): number => ratingAt(player, position) * player.condition;
+
+/**
+ * Why the assistant suggests a change: the player going off is injured, or what weighs most in the gain, the incoming
+ * player's rating in the slot (level), his form, or his freshness (fitness).
+ */
+export type ChangeReason = "injured" | "level" | "form" | "fitness";
 
 /** The substitution the assistant suggests. */
 export type SuggestedChange = {
@@ -111,14 +121,31 @@ export type SuggestedChange = {
   position: Position; // the slot's, in the current formation
   out: string;
   in: string;
-  injured: boolean; // the player going off left the pitch injured
+  reason: ChangeReason;
   gain: number; // of level in the position
 };
 
+/**
+ * What weighs most in the gain of a change. A level is the rating in the slot, times the form's part of the condition,
+ * times the fitness's: the factor that grows most from the outgoing player to the incoming one is the reason. Ties go to
+ * the level, then the form: the freshness only when it outweighs both.
+ */
+function mainReason(incoming: RatedCandidate, outgoing: RatedCandidate, position: Position): Exclude<ChangeReason, "injured"> {
+  const formOf = (player: RatedCandidate): number => player.condition / fitnessFactor(player.fitness);
+  const factors: [Exclude<ChangeReason, "injured">, number][] = [
+    ["level", ratingAt(incoming, position) / ratingAt(outgoing, position)],
+    ["form", formOf(incoming) / formOf(outgoing)],
+    ["fitness", fitnessFactor(incoming.fitness) / fitnessFactor(outgoing.fitness)],
+  ];
+  return factors.reduce((best, factor) => (factor[1] > best[1] ? factor : best))[0];
+}
+
+const isInjury = (change: SuggestedChange): boolean => change.reason === "injured";
+
 /** Whether a change comes before another: an injured player first, then the larger gain, then the player's key. */
 const comesBefore = (a: SuggestedChange, b: SuggestedChange): boolean => {
-  if (a.injured !== b.injured) {
-    return a.injured;
+  if (isInjury(a) !== isInjury(b)) {
+    return isInjury(a);
   }
   return a.gain === b.gain ? a.out < b.out : a.gain > b.gain;
 };
@@ -127,7 +154,8 @@ const comesBefore = (a: SuggestedChange, b: SuggestedChange): boolean => {
  * The substitution the assistant suggests, or null: none left, nobody on the bench, or nobody worth it. Each player on
  * the pitch is weighed against the best substitute in his slot, but for a sent-off player's slot and a player who came
  * on at this break, the manager's own choice. An injured player goes first, whatever the gain; otherwise the largest
- * gain, from MIN_SUGGESTED_GAIN. Ties go to the smaller key, so the input's order changes nothing.
+ * gain, from MIN_SUGGESTED_GAIN, with what weighs most in it (mainReason). Ties go to the smaller key, so the input's
+ * order changes nothing.
  */
 export function suggestChange(
   state: HalfTimeState,
@@ -157,10 +185,10 @@ export function suggestChange(
       position,
       out: outgoing.id,
       in: incoming.id,
-      injured: rules.injured.has(outgoing.id),
+      reason: rules.injured.has(outgoing.id) ? "injured" : mainReason(incoming, outgoing, position),
       gain: levelAt(incoming, position) - levelAt(outgoing, position),
     };
-    if ((change.injured || change.gain >= MIN_SUGGESTED_GAIN) && (best === null || comesBefore(change, best))) {
+    if ((isInjury(change) || change.gain >= MIN_SUGGESTED_GAIN) && (best === null || comesBefore(change, best))) {
       best = change;
     }
   }

@@ -14,11 +14,13 @@ import type { Position } from "@/src/engine/positions";
 import { useMediaQuery } from "@/src/hooks/use-media-query";
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../../_components/contract-actions";
+import { FitnessStrip } from "../../_components/fitness-gauge";
 import { PanelTitle } from "@/src/components/panel";
 import { LineupSummary } from "../../_components/lineup-summary";
 import { Pitch } from "../../_components/pitch";
 import { PlayerSheet } from "../../_components/player-sheet";
 import { PositionBadge, PositionBadges } from "../../_components/position-badge";
+import { fitnessFigure } from "../../_lib/fitness";
 import { positionTextClass } from "../../_lib/positions";
 import { saveLineupAction } from "../actions";
 import {
@@ -105,6 +107,7 @@ type LineupEditorProps = LineupScreenProps & {
 function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorProps) {
   const { formation, saved, clubColors, players } = editor;
   const t = useTranslations("lineup");
+  const tPlayer = useTranslations("player");
   const tPositions = useTranslations("positions");
   const [initial] = useState(() => initialState(formation, saved, players));
   const [state, setState] = useState(initial);
@@ -299,6 +302,7 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
                 players={byKey}
                 clubColors={clubColors}
                 label={t("myEleven")}
+                fitnessAt="nextMatch"
                 editing={{
                   selected,
                   onSelect: clickSlot,
@@ -331,7 +335,7 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
               </p>
             </div>
             {/* A column per substitute, BENCH_SIZE at most, wide enough for a rating and a position at 360 px: the squad's
-                lines have their names. */}
+                lines have their names. His fitness along the tile's foot, as under a name on the pitch. */}
             <ol className="mt-2 grid grid-cols-7 gap-1">
               {state.bench.map((key, index) => {
                 const player = byKey.get(key);
@@ -339,17 +343,21 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
                   return null;
                 }
                 const name = `${player.firstName} ${player.lastName}`;
+                const fitness = tPlayer("fitnessAt.nextMatch", { fitness: fitnessFigure(player.fitness) });
                 return (
                   <li
                     key={key}
                     data-bench-player-key={key}
                     data-testid="lineup-bench-player"
-                    title={t("substituteTitle", { number: index + 1, name })}
-                    className="flex min-w-0 flex-col items-center gap-0.5 rounded-lg bg-muted py-1"
+                    title={`${t("substituteTitle", { number: index + 1, name })} · ${fitness}`}
+                    className="relative flex min-w-0 flex-col items-center gap-0.5 overflow-hidden rounded-lg bg-muted pt-1 pb-2"
                   >
                     <SlotRating player={player} position={selectedPosition} className="text-lg leading-none" />
                     <PositionBadge position={player.position} />
-                    <span className="sr-only">{name}</span>
+                    <span className="sr-only">
+                      {name}, {fitness}
+                    </span>
+                    <FitnessStrip fitness={player.fitness} className="bg-background/60" />
                   </li>
                 );
               })}

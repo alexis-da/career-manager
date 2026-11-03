@@ -170,9 +170,8 @@ export function PlayerSheet({ profile, startYear, footer, onClose, pinned = fals
               <StatTile label={t("stats.minutes")} value={seasonStats.minutes} />
             </dl>
             <p className="text-xs text-muted-foreground tabular-nums">
-              {t("condition", {
+              {t(profile.fitnessAtNextMatch ? "conditionNextMatch" : "condition", {
                 form: profile.form,
-                morale: profile.morale,
                 fitness: profile.fitness,
                 yellow: seasonStats.yellowCards,
                 red: seasonStats.redCards,

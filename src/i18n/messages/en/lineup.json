@@ -41,6 +41,7 @@
     "emptySlot": "{position}: empty position",
     "slot": "{position}: {name}, {detail}",
     "detail": "{position} {overall} · plays {slot}: {rating}",
+    "fitness": "fitness {fitness}",
     "injured": "injured",
     "sentOff": "sent off",
     "sentOffSlot": "{position}: empty position, {name} sent off"
