@@ -668,6 +668,9 @@ describe("instructions", () => {
       expect(given.away).toBeCloseTo(balanced.away * INSTRUCTION_EFFECTS[instruction].opponent, 10);
     }
     expect(INSTRUCTION_EFFECTS.BALANCED).toEqual({ own: 1, opponent: 1 });
+    // Attaquer opens the match and Fermer closes it: more goals on both sides, or fewer on both.
+    expect(Math.min(INSTRUCTION_EFFECTS.ATTACK.own, INSTRUCTION_EFFECTS.ATTACK.opponent)).toBeGreaterThan(1);
+    expect(Math.max(INSTRUCTION_EFFECTS.DEFEND.own, INSTRUCTION_EFFECTS.DEFEND.opponent)).toBeLessThan(1);
   });
 
   it("change the match they are given for: Attaquer scores and concedes more, Fermer less", () => {

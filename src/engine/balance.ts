@@ -316,12 +316,16 @@ export const MAX_EXPECTED_GOALS = 6;
 
 /**
  * An instruction's multipliers on the expected goals of the segments it is given for: the side's own, and its
- * opponent's. Attaquer scores more and concedes more, Fermer scores less and concedes less.
+ * opponent's. Attaquer opens the match, more goals on both sides; Fermer closes it, fewer on both. Measured with
+ * npm run measure:balance (the other side following the assistant's rule): between equal teams, neither is more than
+ * 0.015 point a match from Équilibré; behind from the 60th, Attaquer is worth more than Équilibré, one goal ahead from the
+ * 75th, Fermer is; and the assistant's rule is within 0.01 point of every variant measured. A favourite gains from an
+ * open match and an underdog from a closed one, whatever the multipliers.
  */
 export const INSTRUCTION_EFFECTS: Readonly<Record<Instruction, { readonly own: number; readonly opponent: number }>> = {
-  ATTACK: { own: 1.15, opponent: 1.1 },
+  ATTACK: { own: 1.13, opponent: 1.15 },
   BALANCED: { own: 1, opponent: 1 },
-  DEFEND: { own: 0.8, opponent: 0.85 },
+  DEFEND: { own: 0.89, opponent: 0.89 },
 };
 
 /**

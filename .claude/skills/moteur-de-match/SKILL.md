@@ -76,8 +76,11 @@ changement compte donc dès le segment suivant.
 - Profils de dispositif (`FORMATION_PROFILES`, `balance.ts`, appliqués par `formationStrength`) : multiplicateurs de
   l'attaque et de la défense, 4-4-2 neutre, 3-4-3 +5 % / −5 %, 4-3-3 +3 / −3, 4-2-3-1 +2 / −1, 3-5-2 +1 / −1,
   4-1-4-1 −2 / +2, 5-3-2 −5 / +5. Les clubs IA jouent le 4-3-3.
-- Consignes (`Instruction` : `ATTACK`, `BALANCED`, `DEFEND` ; `INSTRUCTION_EFFECTS`) : Attaquer = λ propre × 1,15 et
-  λ adverse × 1,10 ; Fermer = × 0,80 et × 0,85. Règle de l'adjoint et des clubs IA, `assistantInstruction(state,
+- Consignes (`Instruction` : `ATTACK`, `BALANCED`, `DEFEND` ; `INSTRUCTION_EFFECTS`) : Attaquer ouvre le match
+  (λ propre × 1,13, λ adverse × 1,15), Fermer le ferme (× 0,89 des deux côtés). Réglées pour qu'entre équipes égales
+  aucune ne s'écarte de plus de 0,015 point par match d'Équilibré, que mené à partir de la 60e Attaquer rapporte et que
+  mener d'un but à partir de la 75e Fermer rapporte, la règle restant à 0,01 point de toute variante mesurée ; un favori
+  gagne toujours à un match ouvert, un outsider à un match fermé. Règle de l'adjoint et des clubs IA, `assistantInstruction(state,
   side, played)`, lue au début de chaque segment : mené à partir de la 60e → Attaquer, mène d'un but à partir de la
   75e → Fermer, sinon Équilibré. `simulateMatch`, `playPeriod` et `simulateSegment` acceptent des consignes par
   côté (`Instructions`) ; un côté sans consigne suit la règle. Le jeu n'en donne encore aucune : tous les clubs, le
