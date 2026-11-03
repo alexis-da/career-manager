@@ -1,4 +1,5 @@
 import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS } from "../engine/balance";
+import { disciplineAfterMatch, isSuspended, type CompetitionKind, type Discipline } from "../engine/discipline";
 import { fitnessAfterMatch } from "../engine/fitness";
 import { DEFAULT_FORMATION_NAME, type FormationName } from "../engine/formations";
 import { autoFilledSlots, resolveLineup, selectRestedLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
@@ -68,10 +69,11 @@ export type PlayNextMatchdayOptions = {
   pauseManagedMatch?: boolean;
 };
 
-/** What the database knows of a player of the match: his row, and his injury before it. */
+/** What the database knows of a player of the match: his row, his injury and his discipline before it. */
 export type PlayerState = {
   playerSaveId: string;
   injuredUntil: Date | null;
+  discipline: Discipline;
 };
 
 const TEAM_SELECT = { isManaged: true, formation: true, lineup: true, club: { select: { slug: true } } } as const;
@@ -93,6 +95,11 @@ export const PLAYER_SELECT = {
   morale: true,
   fitness: true,
   injuredUntil: true,
+  leagueYellows: true,
+  cupYellows: true,
+  suspendedMatches: true,
+  suspendedLeagueMatches: true,
+  suspendedCupMatches: true,
 } as const;
 
 type PlayerRow = Prisma.PlayerSaveGetPayload<{ select: typeof PLAYER_SELECT }>;
@@ -126,8 +133,24 @@ export function squadsOf(rows: readonly PlayerRow[], matchDate: Date): {
   const squads = new Map<string, SquadPlayer[]>();
   const stateByKey = new Map<string, PlayerState>();
   for (const row of rows) {
-    const { playerKey, position, clubSaveId, id: playerSaveId, injuredUntil, ...ratings } = row;
-    stateByKey.set(playerKey, { playerSaveId, injuredUntil });
+    const {
+      playerKey,
+      position,
+      clubSaveId,
+      id: playerSaveId,
+      injuredUntil,
+      leagueYellows,
+      cupYellows,
+      suspendedMatches,
+      suspendedLeagueMatches,
+      suspendedCupMatches,
+      ...ratings
+    } = row;
+    stateByKey.set(playerKey, {
+      playerSaveId,
+      injuredUntil,
+      discipline: { leagueYellows, cupYellows, suspendedMatches, suspendedLeagueMatches, suspendedCupMatches },
+    });
     if (clubSaveId === null) {
       continue; // free agents do not play; a player who left during a paused match is only needed for his events
     }
@@ -136,6 +159,17 @@ export function squadsOf(rows: readonly PlayerRow[], matchDate: Date): {
     squads.set(clubSaveId, squad);
   }
   return { squads, stateByKey };
+}
+
+/** A club's players for a match of a competition, the ones suspended for it out, as the injured are (isAvailable). */
+export function withSuspensions(
+  squad: readonly SquadPlayer[],
+  competition: CompetitionKind,
+  stateByKey: ReadonlyMap<string, PlayerState>,
+): SquadPlayer[] {
+  return squad.map((player) =>
+    isSuspended(getOrThrow(stateByKey, player.id, "player").discipline, competition) ? { ...player, suspended: true } : player,
+  );
 }
 
 /** What a fixture's match needs to know of its season: its year, and whether it is a cup tie, a knockout match. */
@@ -213,7 +247,7 @@ export async function recordFinishedMatches(
   const playerSaveIdOf = (key: string): string => getOrThrow(stateByKey, key, "player").playerSaveId;
   const events: Prisma.MatchEventCreateManyInput[] = [];
   const seasonStats: SeasonStats[] = [];
-  const playerUpdates: { playerSaveId: string; form: number; fitness: number; injuredUntil: Date | null }[] = [];
+  const playerUpdates: ({ playerSaveId: string; form: number; fitness: number; injuredUntil: Date | null } & Discipline)[] = [];
 
   for (const { fixtureId, seasonId, result, newEvents, managedSide, knockout, squads } of matches) {
     // Only the writing is filtered: the stats and injuries below come from the whole match in memory.
@@ -231,6 +265,7 @@ export async function recordFinishedMatches(
     for (const appearance of result.appearances) {
       spellsByKey.set(appearance.playerId, [...(spellsByKey.get(appearance.playerId) ?? []), appearance]);
     }
+    const competition: CompetitionKind = knockout ? "CUP" : "LEAGUE";
     for (const side of ["home", "away"] as const) {
       const outcome = outcomeFor(result, side);
       for (const player of squads[side]) {
@@ -242,6 +277,8 @@ export async function recordFinishedMatches(
           // The fitness his minutes have left him; a player who did not play keeps his, to recover from day to day.
           fitness: Math.round(fitnessAfterMatch(player.fitness, spellsByKey.get(player.id) ?? [])),
           injuredUntil: days === undefined ? state.injuredUntil : new Date(matchDate.getTime() + days * DAY_MS),
+          // Every player of the club: a suspended one has served this match, the booked and the sent-off count theirs.
+          ...disciplineAfterMatch(state.discipline, competition, statsByKey.get(player.id)),
         });
       }
     }
@@ -323,14 +360,19 @@ export async function recordFinishedMatches(
   if (playerUpdates.length > 0) {
     await tx.$executeRaw`
       UPDATE "PlayerSave" AS p
-      SET "form" = v."form", "fitness" = v."fitness", "injuredUntil" = v."injuredUntil"
+      SET "form" = v."form", "fitness" = v."fitness", "injuredUntil" = v."injuredUntil",
+        "leagueYellows" = v."leagueYellows", "cupYellows" = v."cupYellows", "suspendedMatches" = v."suspendedMatches",
+        "suspendedLeagueMatches" = v."suspendedLeagueMatches", "suspendedCupMatches" = v."suspendedCupMatches"
       FROM (VALUES ${Prisma.join(
         playerUpdates.map(
           (update) =>
             Prisma.sql`(${update.playerSaveId}::text, ${update.form}::int, ${update.fitness}::int,
-              ${update.injuredUntil?.toISOString() ?? null}::timestamp(3))`,
+              ${update.injuredUntil?.toISOString() ?? null}::timestamp(3), ${update.leagueYellows}::int,
+              ${update.cupYellows}::int, ${update.suspendedMatches}::int, ${update.suspendedLeagueMatches}::int,
+              ${update.suspendedCupMatches}::int)`,
         ),
-      )}) AS v("id", "form", "fitness", "injuredUntil")
+      )}) AS v("id", "form", "fitness", "injuredUntil", "leagueYellows", "cupYellows", "suspendedMatches",
+        "suspendedLeagueMatches", "suspendedCupMatches")
       WHERE p."id" = v."id" AND p."saveId" = ${saveId}`;
   }
 }
@@ -398,9 +440,11 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
       let managed: MatchdaySummary["managed"] = null;
 
       for (const fixture of fixtures) {
+        // The players suspended for this match's competition sit it out.
+        const competition: CompetitionKind = fixture.season.competition.kind;
         const squadsBySide = {
-          home: getOrThrow(squads, fixture.homeClubSaveId, "home squad"),
-          away: getOrThrow(squads, fixture.awayClubSaveId, "away squad"),
+          home: withSuspensions(getOrThrow(squads, fixture.homeClubSaveId, "home squad"), competition, stateByKey),
+          away: withSuspensions(getOrThrow(squads, fixture.awayClubSaveId, "away squad"), competition, stateByKey),
         };
         const matchSeed = fixtureMatchSeed(save.seed, fixture);
         const home = lineupOf(fixture.homeClubSave, squadsBySide.home);

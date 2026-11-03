@@ -17,6 +17,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
   let summary: MatchdaySummary | null = null;
   // The managed club's weakest outfield player, saved up front in a 4-4-2: the automatic lineup never picks him.
   let pickedKey = "";
+  // Suspended before the matchday: the managed club's best outfield player after a red card, an AI club's best player
+  // after five league yellows. Both would have started.
+  let suspendedKeys: string[] = [];
 
   const database = (): typeof prismaClient => {
     if (db === undefined) {
@@ -46,6 +49,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
       formation: "4-4-2",
       lineup: { starters: [{ slot: 9, playerKey: pickedKey }], benchOrder: [] },
     });
+    const best = (isManaged: boolean) =>
+      prisma.playerSave.findFirstOrThrow({
+        where: { saveId, clubSave: { isManaged }, position: { not: "GK" } },
+        orderBy: [{ overall: "desc" }, { playerKey: "asc" }],
+        select: { id: true, playerKey: true },
+      });
+    const [managedBest, aiBest] = [await best(true), await best(false)];
+    await prisma.playerSave.update({ where: { id: managedBest.id }, data: { suspendedMatches: 1 } });
+    await prisma.playerSave.update({ where: { id: aiBest.id }, data: { suspendedLeagueMatches: 1 } });
+    suspendedKeys = [managedBest.playerKey, aiBest.playerKey];
     summary = await playNextMatchday(saveId);
   }, 120_000);
 
@@ -140,6 +153,31 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
     expect(new Set(whole.map((player) => player.fitness))).toEqual(new Set([fitnessAfter(FULL_FITNESS, "CM", REGULATION_MINUTES)]));
     expect(idle.every((player) => player.fitness === FULL_FITNESS)).toBe(true);
   });
+
+  it("keeps a suspended player out of his club's match, the managed club's and an AI club's, and counts it served", async () => {
+    const players = await database().playerSave.findMany({
+      where: { saveId, playerKey: { in: suspendedKeys } },
+      select: { suspendedMatches: true, suspendedLeagueMatches: true, stats: { select: { appearances: true } } },
+    });
+
+    expect(players).toHaveLength(2);
+    expect(players.every((player) => player.stats.length === 0)).toBe(true);
+    expect(players.every((player) => player.suspendedMatches === 0 && player.suspendedLeagueMatches === 0)).toBe(true);
+  });
+
+  it("counts each player's cards: a booking towards the league's five, a red card for the club's next official match", async () => {
+    const players = await database().playerSave.findMany({
+      where: { saveId, stats: { some: {} } },
+      select: { leagueYellows: true, cupYellows: true, suspendedMatches: true, stats: { select: { yellowCards: true, redCards: true } } },
+    });
+    const sentOff = players.filter((player) => player.stats[0].redCards > 0);
+    const booked = players.filter((player) => player.stats[0].redCards === 0 && player.stats[0].yellowCards > 0);
+
+    expect(booked.length).toBeGreaterThan(50);
+    expect(booked.every((player) => player.leagueYellows === player.stats[0].yellowCards && player.cupYellows === 0)).toBe(true);
+    expect(sentOff.every((player) => player.suspendedMatches === 1 && player.leagueYellows === 0)).toBe(true);
+    expect(players.filter((player) => player.stats[0].redCards === 0).every((player) => player.suspendedMatches === 0)).toBe(true);
+  }, 30_000);
 
   it("gives every player of the save his days of rest before the next date, up to full fitness", async () => {
     const db = database();

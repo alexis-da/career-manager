@@ -368,6 +368,14 @@ export const MAX_STOPPAGE_MINUTES = 5;
 export const YELLOW_CARDS_PER_TEAM = 1.8;
 export const RED_CARDS_PER_TEAM = 0.05;
 
+/**
+ * Suspensions: a sent-off player misses the club's next official match, whatever the competition; YELLOWS_PER_SUSPENSION
+ * yellow cards in a competition, counted apart in the league and in the cup since the last suspension or the season's
+ * start, suspend for its next match. The yellows of a match its player is sent off in do not count.
+ */
+export const YELLOWS_PER_SUSPENSION = 5;
+export const SUSPENSION_MATCHES = 1;
+
 /** Weight of a slot's group in the draw of the booked player; goalkeepers are never booked. */
 export const CARD_SLOT_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK: 0, DF: 1.3, MF: 1.1, FW: 0.7 };
 

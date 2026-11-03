@@ -9,7 +9,11 @@ export type LineupCandidate = {
   position: Position;
   overall: number;
   injured: boolean;
+  suspended?: boolean; // for the match the lineup is for: out, as an injured player is
 };
+
+/** Whether a player can be picked for the match: neither injured nor suspended. */
+export const isAvailable = (player: LineupCandidate): boolean => !player.injured && player.suspended !== true;
 
 export type SquadPlayer = LineupCandidate &
   Record<AttributeName, number> & {
@@ -105,13 +109,13 @@ function toLineup<P extends LineupCandidate>(formation: Formation, assigned: (P 
 }
 
 /**
- * Fills the formation's slots in order, each with the available player rated best in it (ratingAt), injured
- * players left out, ties broken by id. The bench gets the backup goalkeeper first, then the best remaining
+ * Fills the formation's slots in order, each with the available player rated best in it (ratingAt), injured and
+ * suspended players left out (isAvailable), ties broken by id. The bench gets the backup goalkeeper first, then the best remaining
  * players by overall.
  */
 export function selectLineup<P extends LineupCandidate>(squad: readonly P[], formation: Formation = DEFAULT_FORMATION): Lineup<P> {
   const assigned: (P | undefined)[] = formation.map(() => undefined);
-  const remaining = fillGreedily(formation, assigned, squad.filter((player) => !player.injured));
+  const remaining = fillGreedily(formation, assigned, squad.filter(isAvailable));
   return toLineup(formation, assigned, automaticBench(remaining));
 }
 
@@ -140,7 +144,7 @@ export function selectRestedLineup<P extends LineupCandidate & { fitness: number
   formation: Formation = DEFAULT_FORMATION,
 ): Lineup<P> {
   const assigned: (P | undefined)[] = formation.map(() => undefined);
-  const remaining = fillGreedily(formation, assigned, squad.filter((player) => !player.injured), restedFor);
+  const remaining = fillGreedily(formation, assigned, squad.filter(isAvailable), restedFor);
   return toLineup(formation, assigned, automaticBench(remaining));
 }
 
@@ -156,7 +160,7 @@ export function resolveLineup<P extends LineupCandidate>(
   squad: readonly P[],
 ): Lineup<P> {
   const positions = formationPositions(formation);
-  const available = new Map(squad.filter((player) => !player.injured).map((player) => [player.id, player]));
+  const available = new Map(squad.filter(isAvailable).map((player) => [player.id, player]));
   const assigned: (P | undefined)[] = positions.map(() => undefined);
   const taken = new Set<string>();
 
@@ -248,7 +252,7 @@ export function changeFormation<P extends LineupCandidate>(
   fillGreedily(
     toPositions,
     assigned,
-    squad.filter((player) => !player.injured && !placed.has(player.id)),
+    squad.filter((player) => isAvailable(player) && !placed.has(player.id)),
   );
   return assigned.map((player) => player?.id ?? null);
 }

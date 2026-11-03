@@ -8,8 +8,8 @@
  * away, unless it is about the venue, on the same seeds as every other case, so that two cases differ by the factor alone.
  *
  * World, on a save of the local database: a complete season of a worldVersion 2 save for each of --seeds seeds (default
- * 3), its goals, draws, home wins, points gap, upsets and final form, the AI starters' fitness at kick-off and the
- * players they rest; the same leagues played on paper, squads frozen at kick-off, form at 50, for what a season's form,
+ * 3), its goals, draws, home wins, points gap, upsets and final form, the AI starters' fitness at kick-off, the players
+ * they rest and the suspensions they serve; the same leagues played on paper, squads frozen at kick-off, form at 50, for what a season's form,
  * fatigue and injuries add; and the formations on real squads. Each save and its
  * throwaway owner are deleted at the end. Writes to the database: the local one only.
  */
@@ -26,6 +26,7 @@ import {
 } from "../src/engine/balance";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../src/engine/formations";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "../src/engine/generation";
+import { isSuspended } from "../src/engine/discipline";
 import { recoveredFitness } from "../src/engine/fitness";
 import { averageStarterRating, selectLineup, selectRestedLineup, type Lineup, type SquadPlayer } from "../src/engine/lineup";
 import {
@@ -590,14 +591,15 @@ const mean = (values: readonly number[]): number => values.reduce((sum, value) =
 type FatigueRecord = {
   starters: number[]; // every AI starter's fitness at kick-off
   rotations: number; // AI starters rested for a fresher player, as selectRestedLineup does
-  clubSeasons: number;
+  clubSeasons: number; // AI clubs' seasons
   byMonth: Map<string, number[]>;
+  suspensions: { red: number; yellows: number }; // AI players' matches missed through suspension, by cause
 };
 
 /**
- * Plays a save's remaining dates as playRemainingMatchdays does, looking first at each date's AI lineups: the fitness their
- * starters will have once the days of rest are counted (as playNextMatchday counts them), and how many tired starters
- * selectRestedLineup rests.
+ * Plays a save's remaining dates as playRemainingMatchdays does, looking first at each date's AI lineups: their players
+ * suspended for that match (withSuspensions), the fitness their starters will have once the days of rest are counted (as
+ * playNextMatchday counts them), and how many tired starters selectRestedLineup rests.
  */
 async function playSeasonWatchingFatigue(
   saveId: string,
@@ -606,6 +608,7 @@ async function playSeasonWatchingFatigue(
   squadsOf: typeof import("../src/db/matchday").squadsOf,
   playerSelect: typeof import("../src/db/matchday").PLAYER_SELECT,
   playNextMatchday: typeof import("../src/db/matchday").playNextMatchday,
+  withSuspensions: typeof import("../src/db/matchday").withSuspensions,
 ): Promise<void> {
   for (;;) {
     const [save, next] = await Promise.all([
@@ -617,15 +620,30 @@ async function playSeasonWatchingFatigue(
     }
     const fixtures = await prisma.fixture.findMany({
       where: { saveId, played: false, scheduledAt: next.scheduledAt },
-      select: { homeClubSave: { select: { id: true, isManaged: true } }, awayClubSave: { select: { id: true, isManaged: true } } },
+      select: {
+        homeClubSave: { select: { id: true, isManaged: true } },
+        awayClubSave: { select: { id: true, isManaged: true } },
+        season: { select: { competition: { select: { kind: true } } } },
+      },
     });
-    const clubs = fixtures.flatMap((fixture) => [fixture.homeClubSave, fixture.awayClubSave]).filter((club) => !club.isManaged);
+    const clubs = fixtures
+      .flatMap((fixture) => [fixture.homeClubSave, fixture.awayClubSave].map((club) => ({ ...club, kind: fixture.season.competition.kind })))
+      .filter((club) => !club.isManaged);
     const rows = await prisma.playerSave.findMany({ where: { saveId, clubSaveId: { in: clubs.map((club) => club.id) } }, select: playerSelect });
     const days = Math.round((next.scheduledAt.getTime() - save.currentDate.getTime()) / 86_400_000);
-    const { squads } = squadsOf(rows, next.scheduledAt);
+    const { squads, stateByKey } = squadsOf(rows, next.scheduledAt);
     const month = next.scheduledAt.toISOString().slice(0, 7);
     for (const club of clubs) {
-      const squad = (squads.get(club.id) ?? []).map((player) => ({ ...player, fitness: recoveredFitness(player.fitness, days) }));
+      const squad = withSuspensions(squads.get(club.id) ?? [], club.kind, stateByKey).map((player) => ({
+        ...player,
+        fitness: recoveredFitness(player.fitness, days),
+      }));
+      for (const player of squad) {
+        const discipline = stateByKey.get(player.id)?.discipline;
+        if (discipline !== undefined && isSuspended(discipline, club.kind)) {
+          fatigue.suspensions[discipline.suspendedMatches > 0 ? "red" : "yellows"]++;
+        }
+      }
       const rested = selectRestedLineup(squad);
       const plain = new Set(selectLineup(squad).starters.map((starter) => starter.player.id));
       fatigue.rotations += rested.starters.filter((starter) => !plain.has(starter.player.id)).length;
@@ -650,6 +668,7 @@ function fatigueTables(fatigue: FatigueRecord, sections: string[]): void {
         .map(([month, values]) => [month, String(values.length), meanOf(values), below(values, 85), below(values, 75), fixed(values.reduce((low, value) => Math.min(low, value), 100), 0)]),
     ),
     `Whole seasons: mean ${meanOf(fatigue.starters)}, ${below(fatigue.starters, 75)} % of starts below 75; ${fatigue.rotations} tired starters rested, ${fixed(fatigue.rotations / Math.max(1, fatigue.clubSeasons))} per club and season.`,
+    `Suspensions served by AI players: ${fixed((fatigue.suspensions.red + fatigue.suspensions.yellows) / Math.max(1, fatigue.clubSeasons))} matches missed per club and season, ${fixed(fatigue.suspensions.red / Math.max(1, fatigue.clubSeasons))} after a red card, ${fixed(fatigue.suspensions.yellows / Math.max(1, fatigue.clubSeasons))} after five yellows.`,
   );
 }
 
@@ -747,7 +766,7 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
   const { createSave } = await import("../src/db/saves");
   const { getStandings } = await import("../src/db/standings");
   const { DEMO_CLUB_SLUG } = await import("../src/db/test-support");
-  const { playNextMatchday } = await import("../src/db/matchday");
+  const { playNextMatchday, withSuspensions } = await import("../src/db/matchday");
 
   const url = process.env.DATABASE_URL ?? "";
   if (url === "" || !isLocalDatabase(url)) {
@@ -755,7 +774,7 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
   }
 
   const records: LeagueRecord[] = [];
-  const fatigue: FatigueRecord = { starters: [], rotations: 0, clubSeasons: 0, byMonth: new Map() };
+  const fatigue: FatigueRecord = { starters: [], rotations: 0, clubSeasons: 0, byMonth: new Map(), suspensions: { red: 0, yellows: 0 } };
   const frozen: LeagueRecord[] = [];
   const formationRows: string[][] = [];
   const club = await prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } });
@@ -787,7 +806,7 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
 
       const clubs = await prisma.clubSave.findMany({
         where: { saveId },
-        select: { id: true, club: { select: { slug: true } }, competition: { select: { code: true } } },
+        select: { id: true, isManaged: true, club: { select: { slug: true } }, competition: { select: { code: true } } },
       });
       const idOfSlug = new Map(clubs.map((row) => [row.club.slug, row.id]));
       for (const season of seasons) {
@@ -795,8 +814,8 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
         frozen.push(frozenLeague(season, members, squads, strength, seedIndex));
       }
 
-      fatigue.clubSeasons += clubs.length;
-      await playSeasonWatchingFatigue(saveId, fatigue, prisma, squadsOf, PLAYER_SELECT, playNextMatchday);
+      fatigue.clubSeasons += clubs.filter((row) => !row.isManaged).length;
+      await playSeasonWatchingFatigue(saveId, fatigue, prisma, squadsOf, PLAYER_SELECT, playNextMatchday, withSuspensions);
 
       const final = await prisma.playerSave.findMany({
         where: { saveId, clubSaveId: { not: null } },

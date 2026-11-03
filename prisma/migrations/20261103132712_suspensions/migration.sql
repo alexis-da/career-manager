@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "PlayerSave" ADD COLUMN     "cupYellows" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "leagueYellows" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "suspendedCupMatches" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "suspendedLeagueMatches" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "suspendedMatches" INTEGER NOT NULL DEFAULT 0;

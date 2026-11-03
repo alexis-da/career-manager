@@ -57,8 +57,8 @@ type PlayerUpdate = PlayerAttributes & {
  * save, promotion and relegation are drawn from the final tables (src/db/promotion.ts); the managed club's
  * SeasonResult is written, every player progresses (retired players excepted) and gets his market value
  * from his new rating and age, some retire, expired contracts of the managed club turn its players into free
- * agents, form, morale, fitness and injuries are reset, the seasons are marked completed (with their moves), the
- * moving clubs change competition and finances, the save moves to
+ * agents, form, morale, fitness, injuries and yellow cards are reset (a suspension still to serve carries over), the
+ * seasons are marked completed (with their moves), the moving clubs change competition and finances, the save moves to
  * 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created, with the
  * cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables: when the save already had
  * cups, or the game gives them (CUPS_ENABLED). Every cup tie must have been played too: the season ends with the cups'
@@ -189,7 +189,9 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
               "form" = ${CONDITION_NEUTRAL},
               "morale" = ${CONDITION_NEUTRAL},
               "fitness" = ${FULL_FITNESS},
-              "injuredUntil" = NULL
+              "injuredUntil" = NULL,
+              "leagueYellows" = 0,
+              "cupYellows" = 0
           FROM (VALUES ${Prisma.join(
             batch.map(
               (update) => Prisma.sql`(${update.playerSaveId}::text, ${update.clubSaveId}::text,

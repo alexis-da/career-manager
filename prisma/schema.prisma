@@ -168,39 +168,46 @@ model ClubSave {
 }
 
 model PlayerSave {
-  id            String              @id @default(cuid())
-  save          Save                @relation(fields: [saveId], references: [id], onDelete: Cascade)
-  saveId        String
-  player        Player?             @relation(fields: [playerId], references: [id], onDelete: Restrict)
-  playerId      String? // origine dans le monde du seed ; null pour un jeune arrivé en cours de partie
-  playerKey     String // clé stable dans la partie : "olympique-lyonnais#5", "youth:2027:olympique-lyonnais:1"
-  firstName     String // identité copiée depuis Player à la création de partie, ou tirée pour un jeune
-  lastName      String
-  birthDate     DateTime
-  nationality   String
-  position      Position
-  clubSave      ClubSave?           @relation(fields: [clubSaveId], references: [id], onDelete: NoAction)
-  clubSaveId    String? // null = joueur libre ou retraité
-  overall       Int // 1–99, note courante
-  potential     Int // 1–99, plafond estimé
-  pace          Int
-  shooting      Int
-  passing       Int
-  dribbling     Int
-  defending     Int
-  physical      Int
-  goalkeeping   Int                 @default(1)
-  form          Int                 @default(50) // 1–99
-  morale        Int                 @default(50) // 1–99
-  fitness       Int                 @default(100) // 0–100
-  injuredUntil  DateTime?
-  marketValue   Int                 @default(0) // euros
-  wage          Int                 @default(0) // euros par saison
-  contractUntil DateTime?
-  stats         PlayerSeasonStats[]
-  transfers     Transfer[]
-  events        MatchEvent[]        @relation("MatchEventPlayer")
-  relatedEvents MatchEvent[]        @relation("MatchEventRelatedPlayer")
+  id                     String              @id @default(cuid())
+  save                   Save                @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId                 String
+  player                 Player?             @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  playerId               String? // origine dans le monde du seed ; null pour un jeune arrivé en cours de partie
+  playerKey              String // clé stable dans la partie : "olympique-lyonnais#5", "youth:2027:olympique-lyonnais:1"
+  firstName              String // identité copiée depuis Player à la création de partie, ou tirée pour un jeune
+  lastName               String
+  birthDate              DateTime
+  nationality            String
+  position               Position
+  clubSave               ClubSave?           @relation(fields: [clubSaveId], references: [id], onDelete: NoAction)
+  clubSaveId             String? // null = joueur libre ou retraité
+  overall                Int // 1–99, note courante
+  potential              Int // 1–99, plafond estimé
+  pace                   Int
+  shooting               Int
+  passing                Int
+  dribbling              Int
+  defending              Int
+  physical               Int
+  goalkeeping            Int                 @default(1)
+  form                   Int                 @default(50) // 1–99
+  morale                 Int                 @default(50) // 1–99
+  fitness                Int                 @default(100) // 0–100
+  injuredUntil           DateTime?
+  // Discipline (src/engine/discipline.ts) : jaunes par compétition depuis la dernière suspension ou le début de saison, et
+  // matchs officiels encore à manquer
+  leagueYellows          Int                 @default(0) // 5 suspendent pour le prochain match de championnat
+  cupYellows             Int                 @default(0) // 5 suspendent pour le prochain match de coupe
+  suspendedMatches       Int                 @default(0) // après un rouge : les prochains matchs officiels du club, toute compétition
+  suspendedLeagueMatches Int                 @default(0) // après 5 jaunes en championnat : ses prochains matchs de championnat
+  suspendedCupMatches    Int                 @default(0) // après 5 jaunes en coupe : ses prochains matchs de coupe
+  marketValue            Int                 @default(0) // euros
+  wage                   Int                 @default(0) // euros par saison
+  contractUntil          DateTime?
+  stats                  PlayerSeasonStats[]
+  transfers              Transfer[]
+  events                 MatchEvent[]        @relation("MatchEventPlayer")
+  relatedEvents          MatchEvent[]        @relation("MatchEventRelatedPlayer")
 
   @@unique([saveId, playerId])
   @@unique([saveId, playerKey])

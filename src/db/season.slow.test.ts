@@ -141,7 +141,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       db.playerSave.count({
         where: {
           saveId,
-          OR: [{ form: { not: 50 } }, { morale: { not: 50 } }, { fitness: { not: 100 } }, { injuredUntil: { not: null } }],
+          OR: [
+            { form: { not: 50 } },
+            { morale: { not: 50 } },
+            { fitness: { not: 100 } },
+            { injuredUntil: { not: null } },
+            { leagueYellows: { not: 0 } },
+            { cupYellows: { not: 0 } },
+          ],
         },
       }),
       // Age retirements and preseason departures share the date; free agents of the pool retire without a club.
@@ -272,7 +279,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
     expect(afterFirstAdvance().currentDate).toBe(seasonStartDate(FIRST_YEAR + 1).toISOString());
   });
 
-  it("keeps every attribute within 1–99 and resets form, morale, fitness and injuries", () => {
+  it("keeps every attribute within 1–99 and resets form, morale, fitness, injuries and yellow cards", () => {
     const state = afterFirstAdvance();
 
     expect(state.outOfBounds).toBe(0);
