@@ -301,9 +301,10 @@ export const STRENGTH_PER_MORALE_POINT = 0.001;
 
 /**
  * Expected goals of a team facing an equal opponent on neutral ground, both in the neutral 4-4-2: two 4-3-3s, as AI
- * clubs play, score about 15 % more (FORMATION_PROFILES). Calibrated with npm run measure:balance on complete seasons.
+ * clubs play, score about 15 % more (FORMATION_PROFILES). Calibrated with npm run measure:balance on complete seasons,
+ * fatigue included: tired players take a little off the goals, the goalkeeper tiring least.
  */
-export const BASE_GOALS_PER_TEAM = 1.14;
+export const BASE_GOALS_PER_TEAM = 1.16;
 
 /** How sharply the attack / defense ratio turns into expected goals: ratio ^ exponent. */
 export const STRENGTH_EXPONENT = 2.4;
@@ -445,8 +446,27 @@ export const FORM_REST_DRIFT = 1;
  */
 export const FORM_RETENTION = 0.94;
 
+// ------------------------------------------------------------------ Fatigue
+
 /** Fitness (0–100) of a fully rested player, as at the start of a season. */
 export const FULL_FITNESS = 100;
+
+/**
+ * A player's share of his team's strength is multiplied by 1 − this × (FULL_FITNESS − fitness): 0.91 at 70. Read when
+ * each segment starts, the fitness his time on the pitch has cost him included.
+ */
+export const STRENGTH_PER_FITNESS_POINT = 0.003;
+
+/** Fitness lost per segment (15 minutes) on the pitch: an outfield player, a goalkeeper. 30 for a whole match. */
+export const FITNESS_LOSS_PER_SEGMENT = 5;
+export const GOALKEEPER_FITNESS_LOSS_PER_SEGMENT = 1.5;
+
+/** Fitness recovered each day, up to FULL_FITNESS: a starter of a whole match is fresh again six days later. */
+export const FITNESS_RECOVERY_PER_DAY = 5;
+
+/** Below this fitness, a player's injury risk grows by 1 / INJURY_RISK_FITNESS_SPAN per point: twice as high at 40. */
+export const INJURY_RISK_FITNESS = 70;
+export const INJURY_RISK_FITNESS_SPAN = 30;
 
 // ------------------------------------------------------------------ End-of-season progression
 // Ages below are the player's age at the start of the next season.

@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HALF_TIME_MINUTE, MAX_SUBSTITUTIONS } from "../engine/balance";
-import { automaticHalfTimeChoice, condition, HalfTimeChoiceError, type HalfTimeChoice } from "../engine/match";
+import { fitnessFactor } from "../engine/fitness";
+import { automaticHalfTimeChoice, condition, fitnessAt, HalfTimeChoiceError, type HalfTimeChoice } from "../engine/match";
 import { firstMatchdayDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 
@@ -123,7 +124,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match paused 
     expect(save.currentDate.toISOString()).toBe(firstMatchdayDate(WORLD_START_YEAR).toISOString());
   });
 
-  it("shows the break the booked players, each player's form and his condition, read from the match state", async () => {
+  it("shows the break the booked players, each player's form, his fitness at 45' and his condition, read from the match state", async () => {
     const { managedSide, state } = await storedHalfTime(saves.paused);
     const team = state[managedSide];
     const breakTeam = await loaded().live.getHalfTimeTeam(saves.paused);
@@ -132,9 +133,15 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match paused 
     }
 
     expect(breakTeam.booked).toEqual(team.booked);
-    expect(breakTeam.players.map((player) => [player.id, player.form, player.condition])).toEqual(
-      [...team.pitch.map((entry) => entry.player), ...team.bench].map((player) => [player.id, player.form, condition(player)]),
+    // The starters have played 45 minutes, the substitutes none.
+    const fitness = [
+      ...team.pitch.map((entry) => [entry.player, fitnessAt(entry, HALF_TIME_MINUTE)] as const),
+      ...team.bench.map((player) => [player, player.fitness] as const),
+    ];
+    expect(breakTeam.players.map((player) => [player.id, player.form, player.fitness, player.condition])).toEqual(
+      fitness.map(([player, atBreak]) => [player.id, player.form, atBreak, condition(player) * fitnessFactor(atBreak)]),
     );
+    expect(fitness.some(([, atBreak]) => atBreak < 100)).toBe(true);
   });
 
   it("refuses to play on, simulate or change season while the match waits", async () => {

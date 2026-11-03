@@ -42,6 +42,7 @@ const lineupOf = (slug: string): Lineup => {
           position: player.position,
           form: 50,
           morale: 50,
+          fitness: 100,
           injured: false,
         })),
       );

@@ -21,6 +21,7 @@ import {
   applyHalfTimeChoice,
   automaticHalfTimeChoice,
   expectedGoals,
+  fitnessAt,
   formationStrength,
   HalfTimeChoiceError,
   liveStrength,
@@ -66,6 +67,7 @@ const competitions = buildWorldPlan()
           position: player.position,
           form: 50,
           morale: 50,
+          fitness: 100,
           injured: false,
         }),
       ),
@@ -392,7 +394,7 @@ describe("a match in two halves", () => {
       relatedPlayerId: substitution.out,
     });
     expect(changed.home.substitutions).toBe(1);
-    expect(liveStrength(changed.home).attack).toBeLessThan(liveStrength(state.home).attack);
+    expect(liveStrength(changed.home, HALF_TIME_MINUTE).attack).toBeLessThan(liveStrength(state.home, HALF_TIME_MINUTE).attack);
     expect(secondHalf(changed, seed)).toEqual(secondHalf(applyHalfTimeChoice(state, "home", choice), seed));
 
     const striker = secondHalf(changed, seed).appearances.find((appearance) => appearance.playerId === substitution.out);
@@ -425,8 +427,8 @@ describe("a match in two halves", () => {
   it("plays a team down to ten weaker, its sent-off player's slot left empty and never filled", () => {
     const { seed, state } = intactFirstHalf("ten");
     const sentOff = withHomeSlot(state, 7, "SENT_OFF");
-    const full = { home: liveStrength(state.home), away: liveStrength(state.away) };
-    const ten = liveStrength(sentOff.home);
+    const full = { home: liveStrength(state.home, HALF_TIME_MINUTE), away: liveStrength(state.away, HALF_TIME_MINUTE) };
+    const ten = liveStrength(sentOff.home, HALF_TIME_MINUTE);
 
     expect(ten.attack).toBeLessThan(full.home.attack);
     expect(ten.defense).toBeLessThan(full.home.defense);
@@ -661,9 +663,9 @@ describe("instructions", () => {
 
   it("multiply the side's own expected goals and its opponent's", () => {
     const state = scored(0, 0);
-    const balanced = stateExpectedGoals(state, { home: "BALANCED", away: "BALANCED" });
+    const balanced = stateExpectedGoals(state, { home: "BALANCED", away: "BALANCED" }, 0);
     for (const instruction of ["ATTACK", "DEFEND"] as const) {
-      const given = stateExpectedGoals(state, { home: instruction, away: "BALANCED" });
+      const given = stateExpectedGoals(state, { home: instruction, away: "BALANCED" }, 0);
       expect(given.home).toBeCloseTo(balanced.home * INSTRUCTION_EFFECTS[instruction].own, 10);
       expect(given.away).toBeCloseTo(balanced.away * INSTRUCTION_EFFECTS[instruction].opponent, 10);
     }
@@ -716,4 +718,79 @@ describe("formation profiles", () => {
       expect((attack - 1) * (defense - 1)).toBeLessThanOrEqual(0);
     }
   });
+});
+
+describe("fatigue", () => {
+  const seeds = (count: number, prefix: string): string[] => Array.from({ length: count }, (_, index) => `${prefix}:${index}`);
+  /** Liverpool with every player, starters and substitutes, at a fitness; Arsenal rested. */
+  const tiredLiverpool = (fitness: number, only?: string): Lineup => {
+    const lineup = lineupOf("liverpool-fc");
+    const tire = (player: SquadPlayer): SquadPlayer => (only === undefined || player.id === only ? { ...player, fitness } : player);
+    return { starters: lineup.starters.map((starter) => ({ ...starter, player: tire(starter.player) })), bench: lineup.bench.map(tire) };
+  };
+
+  it("plays a tired eleven weaker: it expects fewer goals, its opponent more", () => {
+    const expected = (fitness: number) =>
+      stateExpectedGoals(startMatch(tiredLiverpool(fitness), lineupOf("arsenal-fc")), { home: "BALANCED", away: "BALANCED" }, 0);
+
+    expect(expected(85).home).toBeLessThan(expected(100).home);
+    expect(expected(85).away).toBeGreaterThan(expected(100).away);
+    expect(expected(75).home).toBeLessThan(expected(85).home);
+  });
+
+  it("tires the players on the pitch as the match goes, the goalkeeper less, and a substitute from his entry only", () => {
+    const state = playPeriod(startMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc")), "fatigue", "h1");
+    const starter = state.home.pitch.find((entry) => entry.slot !== "GK" && entry.from === 0 && entry.status === "ON");
+    const keeper = state.home.pitch.find((entry) => entry.slot === "GK");
+    if (starter === undefined || keeper === undefined) {
+      throw new Error("No starter or goalkeeper on the pitch");
+    }
+
+    expect(fitnessAt(starter, 0)).toBe(100);
+    expect(fitnessAt(starter, HALF_TIME_MINUTE)).toBe(85);
+    expect(fitnessAt(starter, 75)).toBe(75);
+    expect(fitnessAt(keeper, 75)).toBe(92.5);
+    expect(fitnessAt({ ...starter, from: 60 }, 75)).toBe(95);
+  });
+
+  it("takes off the most tired starter at a tactical substitution", () => {
+    const weary = lineupOf("liverpool-fc").starters.find((starter) => starter.slot === "CB")?.player.id ?? "";
+    let checked = 0;
+    for (const seed of seeds(60, "tired-off")) {
+      const result = simulateMatch(tiredLiverpool(60, weary), lineupOf("arsenal-fc"), seed);
+      const injuredMinutes = new Map(
+        result.events.filter((event) => event.type === "INJURY").map((event) => [event.playerId, event.minute]),
+      );
+      // The home side's first substitution that does not replace an injured player.
+      const tactical = result.events.find(
+        (event) =>
+          event.type === "SUBSTITUTION" &&
+          event.side === "home" &&
+          injuredMinutes.get(event.relatedPlayerId ?? "") !== event.minute,
+      );
+      const sentOff = result.events.some((event) => event.type === "RED_CARD" && event.playerId === weary);
+      const injured = injuredMinutes.has(weary);
+      if (tactical === undefined || sentOff || (injured && (injuredMinutes.get(weary) ?? 0) <= tactical.minute)) {
+        continue;
+      }
+      checked++;
+      expect(tactical.relatedPlayerId).toBe(weary);
+    }
+    expect(checked).toBeGreaterThan(40);
+  });
+
+  it("gets tired players injured more often", () => {
+    const injuries = (fitness: number) =>
+      seeds(2000, "tired-injuries").reduce(
+        (sum, seed) =>
+          sum +
+          simulateMatch(tiredLiverpool(fitness), lineupOf("arsenal-fc"), seed).events.filter(
+            (event) => event.type === "INJURY" && event.side === "home",
+          ).length,
+        0,
+      );
+
+    expect(injuries(40)).toBeGreaterThan(injuries(100) * 1.5);
+    // 30 000 segments in all: longer than the default 5 s while other files run.
+  }, 30_000);
 });

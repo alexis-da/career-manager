@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { EXTRA_TIME_SUBSTITUTIONS, MAX_SUBSTITUTIONS } from "../engine/balance";
+import { EXTRA_TIME_SUBSTITUTIONS, FULL_FITNESS, MAX_SUBSTITUTIONS } from "../engine/balance";
 import { FORMATION_NAMES } from "../engine/formations";
 import type { MatchState, Side } from "../engine/match";
 import { POSITIONS } from "../engine/positions";
@@ -26,6 +26,8 @@ const squadPlayerSchema = z.object({
   goalkeeping: rating,
   form: rating,
   morale: rating,
+  // At kick-off. A state paused before fatigue counted has none: every player was rested then.
+  fitness: z.number().int().min(0).max(FULL_FITNESS).default(FULL_FITNESS),
   injured: z.boolean(),
 });
 

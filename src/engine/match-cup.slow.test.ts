@@ -32,6 +32,7 @@ for (const { competition, clubs } of plan) {
         position: player.position,
         form: 50,
         morale: 50,
+        fitness: 100,
         injured: false,
       })),
     ),

@@ -1,3 +1,5 @@
+import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS } from "../engine/balance";
+import { fitnessAfterMatch } from "../engine/fitness";
 import { DEFAULT_FORMATION_NAME, type FormationName } from "../engine/formations";
 import { autoFilledSlots, resolveLineup, selectLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import {
@@ -11,6 +13,7 @@ import {
   playPeriod,
   simulateMatch,
   startMatch,
+  type Appearance,
   type MatchEvent,
   type MatchResult,
   type PlayerMatchStats,
@@ -88,6 +91,7 @@ export const PLAYER_SELECT = {
   goalkeeping: true,
   form: true,
   morale: true,
+  fitness: true,
   injuredUntil: true,
 } as const;
 
@@ -206,7 +210,7 @@ export async function recordFinishedMatches(
   const playerSaveIdOf = (key: string): string => getOrThrow(stateByKey, key, "player").playerSaveId;
   const events: Prisma.MatchEventCreateManyInput[] = [];
   const seasonStats: SeasonStats[] = [];
-  const playerUpdates: { playerSaveId: string; form: number; injuredUntil: Date | null }[] = [];
+  const playerUpdates: { playerSaveId: string; form: number; fitness: number; injuredUntil: Date | null }[] = [];
 
   for (const { fixtureId, seasonId, result, newEvents, managedSide, knockout, squads } of matches) {
     // Only the writing is filtered: the stats and injuries below come from the whole match in memory.
@@ -220,6 +224,10 @@ export async function recordFinishedMatches(
     }
 
     const injuryDays = new Map(result.injuries.map((injury) => [injury.playerId, injury.days]));
+    const spellsByKey = new Map<string, Appearance[]>();
+    for (const appearance of result.appearances) {
+      spellsByKey.set(appearance.playerId, [...(spellsByKey.get(appearance.playerId) ?? []), appearance]);
+    }
     for (const side of ["home", "away"] as const) {
       const outcome = outcomeFor(result, side);
       for (const player of squads[side]) {
@@ -228,6 +236,8 @@ export async function recordFinishedMatches(
         playerUpdates.push({
           playerSaveId: state.playerSaveId,
           form: nextForm(player.form, statsByKey.get(player.id), outcome),
+          // The fitness his minutes have left him; a player who did not play keeps his, to recover from day to day.
+          fitness: Math.round(fitnessAfterMatch(player.fitness, spellsByKey.get(player.id) ?? [])),
           injuredUntil: days === undefined ? state.injuredUntil : new Date(matchDate.getTime() + days * DAY_MS),
         });
       }
@@ -310,21 +320,23 @@ export async function recordFinishedMatches(
   if (playerUpdates.length > 0) {
     await tx.$executeRaw`
       UPDATE "PlayerSave" AS p
-      SET "form" = v."form", "injuredUntil" = v."injuredUntil"
+      SET "form" = v."form", "fitness" = v."fitness", "injuredUntil" = v."injuredUntil"
       FROM (VALUES ${Prisma.join(
         playerUpdates.map(
           (update) =>
-            Prisma.sql`(${update.playerSaveId}::text, ${update.form}::int, ${update.injuredUntil?.toISOString() ?? null}::timestamp(3))`,
+            Prisma.sql`(${update.playerSaveId}::text, ${update.form}::int, ${update.fitness}::int,
+              ${update.injuredUntil?.toISOString() ?? null}::timestamp(3))`,
         ),
-      )}) AS v("id", "form", "injuredUntil")
+      )}) AS v("id", "form", "fitness", "injuredUntil")
       WHERE p."id" = v."id" AND p."saveId" = ${saveId}`;
   }
 }
 
 /**
- * Plays every fixture of the next date with unplayed fixtures, in all competitions, in one transaction:
- * scores, match events, season stats, form and injuries, the cups' prizes and next rounds (progressCups), then moves
- * the save's current date to that day.
+ * Plays every fixture of the next date with unplayed fixtures, in all competitions, in one transaction: first the
+ * fitness every player of the save recovers over the days since the current date (recoveredFitness), then scores, match
+ * events, season stats, form, fitness and injuries, the cups' prizes and next rounds (progressCups), then moves the
+ * save's current date to that day.
  * With pauseManagedMatch, the managed club's match stops at half-time instead: its first half's events, its
  * half-time score and the engine state are written, and the save waits for resumeLiveMatch (Save.liveFixtureId).
  * Refused with MatchInProgressError while a match waits at half-time. Returns null when every fixture of the
@@ -335,7 +347,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
     async (tx) => {
       const save = await tx.save.findUniqueOrThrow({
         where: { id: saveId },
-        select: { seed: true, liveFixtureId: true, challengeId: true },
+        select: { seed: true, liveFixtureId: true, challengeId: true, currentDate: true },
       });
       if (save.liveFixtureId !== null) {
         throw new MatchInProgressError(save.liveFixtureId);
@@ -349,6 +361,15 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         return null;
       }
       const matchDate = next.scheduledAt;
+
+      // Every player recovers day by day until that date, as recoveredFitness says, up to full fitness.
+      const restDays = Math.round((matchDate.getTime() - save.currentDate.getTime()) / DAY_MS);
+      if (restDays > 0) {
+        await tx.$executeRaw`
+          UPDATE "PlayerSave"
+          SET "fitness" = LEAST(${FULL_FITNESS}, "fitness" + ${FITNESS_RECOVERY_PER_DAY * restDays})
+          WHERE "saveId" = ${saveId} AND "fitness" < ${FULL_FITNESS}`;
+      }
 
       const fixtures = await tx.fixture.findMany({
         where: { saveId, played: false, scheduledAt: matchDate },

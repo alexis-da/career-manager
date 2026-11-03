@@ -28,6 +28,7 @@ function player(id: string, position: Position, overall: number, overrides: Part
     goalkeeping: position === "GK" ? overall : 10,
     form: 50,
     morale: 50,
+    fitness: 100,
     injured: false,
     ...overrides,
   };

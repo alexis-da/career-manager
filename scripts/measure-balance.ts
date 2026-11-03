@@ -87,7 +87,7 @@ function syntheticPlayer(id: string, position: Position, level: number): SquadPl
   const attributes = Object.fromEntries(
     ATTRIBUTE_NAMES.map((name) => [name, clampRating(level + POSITION_PROFILES[position][name])]),
   ) as Record<AttributeName, number>;
-  return { id, position, overall: overallFor(position, attributes), injured: false, form: 50, morale: 50, ...attributes };
+  return { id, position, overall: overallFor(position, attributes), injured: false, form: 50, morale: 50, fitness: 100, ...attributes };
 }
 
 const BENCH: readonly Position[] = ["GK", "CB", "RB", "CDM", "CM", "RW", "ST"];

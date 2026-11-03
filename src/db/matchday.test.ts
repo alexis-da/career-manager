@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS, REGULATION_MINUTES } from "../engine/balance";
+import { fitnessAfter } from "../engine/fitness";
 import { firstMatchdayDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 import type { MatchdaySummary } from "./matchday";
@@ -125,4 +127,30 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
       expect(table.every((row) => row.played === 1)).toBe(true);
     }
   });
+
+  it("leaves every outfield player who played the whole match the fitness it cost him, and the others theirs", async () => {
+    const players = await database().playerSave.findMany({
+      where: { saveId, clubSaveId: { not: null } },
+      select: { position: true, fitness: true, stats: { select: { minutes: true } } },
+    });
+    const whole = players.filter((player) => player.position !== "GK" && player.stats[0]?.minutes === REGULATION_MINUTES);
+    const idle = players.filter((player) => player.stats.length === 0);
+
+    expect(whole.length).toBeGreaterThan(400);
+    expect(new Set(whole.map((player) => player.fitness))).toEqual(new Set([fitnessAfter(FULL_FITNESS, "CM", REGULATION_MINUTES)]));
+    expect(idle.every((player) => player.fitness === FULL_FITNESS)).toBe(true);
+  });
+
+  it("gives every player of the save his days of rest before the next date, up to full fitness", async () => {
+    const db = database();
+    const freeAgent = await db.playerSave.findFirstOrThrow({ where: { saveId, clubSaveId: null }, select: { id: true } });
+    await db.playerSave.update({ where: { id: freeAgent.id }, data: { fitness: 40 } });
+    const { playNextMatchday } = await import("./matchday");
+    const next = await playNextMatchday(saveId);
+    const days = Math.round(((next?.date.getTime() ?? 0) - Date.UTC(2026, 7, 15)) / 86_400_000);
+    const rested = await db.playerSave.findUniqueOrThrow({ where: { id: freeAgent.id }, select: { fitness: true } });
+
+    expect(days).toBe(7);
+    expect(rested.fitness).toBe(Math.min(FULL_FITNESS, 40 + FITNESS_RECOVERY_PER_DAY * days));
+  }, 120_000);
 });

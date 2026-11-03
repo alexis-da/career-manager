@@ -90,7 +90,8 @@ describe("a live match paused before the segment engine (liveState version 1)", 
   });
 });
 
-// Real squads of the ten leagues, the first four clubs of each by slug, generated for one save.
+// Real squads of the ten leagues, the first four clubs of each by slug, generated for one save, their players at
+// fitness from 55 to 100: what a player has left must cross the stored state too.
 const SAVE_SEED = "live-state-test";
 const squads: { slug: string; squad: SquadPlayer[] }[] = buildWorldPlan().flatMap(({ competition, clubs }) =>
   [...clubs]
@@ -108,6 +109,7 @@ const squads: { slug: string; squad: SquadPlayer[] }[] = buildWorldPlan().flatMa
         position: player.position,
         form: 50,
         morale: 50,
+        fitness: 55 + ((player.squadSlot * 7) % 46),
         injured: false,
       })),
     })),

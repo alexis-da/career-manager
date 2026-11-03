@@ -34,6 +34,7 @@ const tables = plan.map(({ competition, clubs }) => ({
         position: player.position,
         form: 50,
         morale: 50,
+        fitness: 100,
         injured: false,
       })),
     ),

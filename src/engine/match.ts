@@ -52,6 +52,7 @@ import {
   SUBSTITUTIONS_PER_TEAM,
   YELLOW_CARDS_PER_TEAM,
 } from "./balance";
+import { fitnessAfter, fitnessFactor, injuryRiskFactor } from "./fitness";
 import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "./formations";
 import { ATTRIBUTE_NAMES, clampRating, type AttributeName } from "./generation";
 import type { Lineup, SquadPlayer } from "./lineup";
@@ -283,9 +284,9 @@ function weightedValue(player: SquadPlayer, weights: Partial<Record<AttributeNam
 
 /**
  * Attack and defense of the players on the pitch: each one's attributes weighted for the group of their slot,
- * reduced by their familiarity with the slot (as ratingAt reduces the overall), adjusted for form and morale.
- * A line's value is shared among the formation's slots of that line, empty ones included: a team down to ten
- * is weaker. Without a formation, the starters' slots are the formation.
+ * reduced by their familiarity with the slot (as ratingAt reduces the overall), adjusted for form and morale, and for
+ * fitness (fitnessFactor). A line's value is shared among the formation's slots of that line, empty ones included: a
+ * team down to ten is weaker. Without a formation, the starters' slots are the formation.
  */
 export function teamStrength(
   lineup: Lineup,
@@ -299,7 +300,8 @@ export function teamStrength(
   let defense = 0;
   for (const { player, slot } of lineup.starters) {
     const group = positionGroup(slot);
-    const share = (condition(player) * playerFamiliarity(player, slot)) / Math.max(1, lineSizes[group]);
+    const share =
+      (condition(player) * fitnessFactor(player.fitness) * playerFamiliarity(player, slot)) / Math.max(1, lineSizes[group]);
     attack += ATTACK_LINE_WEIGHTS[group] * share * weightedValue(player, ATTACK_WEIGHTS[group]);
     defense += DEFENSE_LINE_WEIGHTS[group] * share * weightedValue(player, DEFENSE_WEIGHTS[group]);
   }
@@ -315,13 +317,21 @@ export function expectedGoals(team: TeamStrength, opponent: TeamStrength, venueF
   return Math.min(MAX_EXPECTED_GOALS, BASE_GOALS_PER_TEAM * Math.pow(ratio, STRENGTH_EXPONENT) * venueFactor);
 }
 
-/** The players a team has on the pitch, as a lineup, with its remaining substitutes. */
-export function lineupOnPitch(team: TeamLive): Lineup {
+/** A player's fitness at a minute of the match: his fitness at kick-off, less what his time on the pitch has cost. */
+export function fitnessAt(entry: PitchEntry, minute: number): number {
+  return fitnessAfter(entry.player.fitness, entry.slot, minute - entry.from);
+}
+
+/**
+ * The players a team has on the pitch at a minute, as a lineup, each at the fitness his time on the pitch has left
+ * him, with its remaining substitutes.
+ */
+export function lineupOnPitch(team: TeamLive, minute: number): Lineup {
   return {
     starters: team.pitch
       .filter((entry) => entry.status === "ON")
       .sort((a, b) => a.index - b.index)
-      .map(({ player, slot, index }) => ({ player, slot, index })),
+      .map((entry) => ({ player: { ...entry.player, fitness: fitnessAt(entry, minute) }, slot: entry.slot, index: entry.index })),
     bench: team.bench,
   };
 }
@@ -333,9 +343,12 @@ export function formationStrength(lineup: Lineup, formation: FormationName): Tea
   return { attack: attack * profile.attack, defense: defense * profile.defense };
 }
 
-/** Attack and defense of a team as it stands: on ten after a red card, without an injured player until he is replaced. */
-export function liveStrength(team: TeamLive): TeamStrength {
-  return formationStrength(lineupOnPitch(team), team.formation);
+/**
+ * Attack and defense of a team as it stands at a minute: on ten after a red card, without an injured player until he is
+ * replaced, every player as tired as his time on the pitch has made him.
+ */
+export function liveStrength(team: TeamLive, minute: number): TeamStrength {
+  return formationStrength(lineupOnPitch(team, minute), team.formation);
 }
 
 /**
@@ -355,11 +368,15 @@ export function assistantInstruction(state: MatchState, side: Side, played: numb
 }
 
 /**
- * Expected goals of each side over 90 minutes as the match stands: the strengths of the players on the pitch, home
- * advantage, then each side's instruction on its own goals and on its opponent's.
+ * Expected goals of each side over 90 minutes as the match stands at a minute: the strengths of the players on the
+ * pitch, home advantage, then each side's instruction on its own goals and on its opponent's.
  */
-export function stateExpectedGoals(state: MatchState, instructions: Readonly<Record<Side, Instruction>>): Record<Side, number> {
-  const strengths: Record<Side, TeamStrength> = { home: liveStrength(state.home), away: liveStrength(state.away) };
+export function stateExpectedGoals(
+  state: MatchState,
+  instructions: Readonly<Record<Side, Instruction>>,
+  minute: number,
+): Record<Side, number> {
+  const strengths: Record<Side, TeamStrength> = { home: liveStrength(state.home, minute), away: liveStrength(state.away, minute) };
   const expected = (side: Side): number => {
     const opponent = otherSide(side);
     const venue = side === "home" ? HOME_ADVANTAGE : 1 / HOME_ADVANTAGE;
@@ -425,32 +442,37 @@ function drawOnPitch(rng: Rng, onPitch: readonly PitchEntry[], weight: (entry: P
   return weights.some((value) => value > 0) ? onPitch[weightedIndex(rng, weights)] : undefined;
 }
 
-/** The outfield starter still on the pitch rated lowest in their slot: the one making way for a tactical substitution. */
-function weakestStarter(onPitch: readonly PitchEntry[]): PitchEntry | undefined {
-  let weakest: PitchEntry | undefined;
+/**
+ * The outfield starter still on the pitch most tired at a minute: the one making way for a tactical substitution. Ties,
+ * as when every starter began the match rested, go to the one rated lowest in his slot, then by id.
+ */
+function mostTiredStarter(onPitch: readonly PitchEntry[], minute: number): PitchEntry | undefined {
+  let tired: PitchEntry | undefined;
   for (const entry of onPitch) {
     if (entry.slot === "GK" || entry.from !== 0) {
       continue;
     }
-    if (weakest === undefined) {
-      weakest = entry;
+    if (tired === undefined) {
+      tired = entry;
       continue;
     }
+    const gap = fitnessAt(entry, minute) - fitnessAt(tired, minute);
     const rating = ratingAt(entry.player, entry.slot);
-    const weakestRating = ratingAt(weakest.player, weakest.slot);
-    if (rating < weakestRating || (rating === weakestRating && entry.player.id < weakest.player.id)) {
-      weakest = entry;
+    const tiredRating = ratingAt(tired.player, tired.slot);
+    if (gap < 0 || (gap === 0 && (rating < tiredRating || (rating === tiredRating && entry.player.id < tired.player.id)))) {
+      tired = entry;
     }
   }
-  return weakest;
+  return tired;
 }
 
-/** Bench player replacing someone in a slot: the one rated best in that slot, ties broken by id. */
+/** Bench player replacing someone in a slot: the one rated best in that slot, his fitness counted, ties broken by id. */
 function replacementIndex(bench: readonly SquadPlayer[], slot: Position): number {
+  const level = (player: SquadPlayer): number => ratingAt(player, slot) * fitnessFactor(player.fitness);
   let best = 0;
   bench.forEach((player, index) => {
-    const rating = ratingAt(player, slot);
-    const bestRating = ratingAt(bench[best], slot);
+    const rating = level(player);
+    const bestRating = level(bench[best]);
     if (rating > bestRating || (rating === bestRating && player.id < bench[best].id)) {
       best = index;
     }
@@ -518,14 +540,17 @@ function tacticalSubstitutionMinutes(matchSeed: string, side: Side): number[] {
 
 /**
  * Plays one segment from the state it starts in, with its own stream, and returns the state after it:
- * 1. attack and defense of the players on the pitch, weighted by slot, familiarity, form and morale, the formation's
- *    profile applied, on ten after a red card; then each side's instruction, the one given or its assistant's;
+ * 1. attack and defense of the players on the pitch, weighted by slot, familiarity, form, morale and fitness at the
+ *    segment's start, the formation's profile applied, on ten after a red card; then each side's instruction, the one
+ *    given or its assistant's;
  * 2. the segment's share of the match's expected goals, cards and injuries, counted with Poisson draws and spread over
- *    its minutes (the last segment of regular time runs into stoppage time);
- * 3. scorers, assist providers, booked and injured players drawn among the players on the pitch at that minute.
+ *    its minutes (the last segment of regular time runs into stoppage time); a side's injuries grow with its players'
+ *    tiredness (injuryRiskFactor);
+ * 3. scorers, assist providers, booked and injured players drawn among the players on the pitch at that minute, the
+ *    tired ones likelier to get injured.
  * An injured player is replaced at once by the substitute rated best in his slot while substitutions remain, tactical
- * substitutions take off the weakest starters at their minutes of the second half, a sent-off player is never replaced:
- * each change counts from the next segment.
+ * substitutions take off the most tired starters at their minutes of the second half, a sent-off player is never
+ * replaced: each change counts from the next segment.
  */
 export function simulateSegment(start: MatchState, matchSeed: string, segment: Segment, instructions: Instructions = {}): MatchState {
   const { first, last, from } = SEGMENTS[segment];
@@ -543,10 +568,21 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
 
   const lastMinute = segment === "s6" ? REGULATION_MINUTES + randomInt(rng, 0, MAX_STOPPAGE_MINUTES) : last;
   const played = first - 1;
-  const expected = stateExpectedGoals(state, {
-    home: instructions.home ?? assistantInstruction(state, "home", played),
-    away: instructions.away ?? assistantInstruction(state, "away", played),
-  });
+  const expected = stateExpectedGoals(
+    state,
+    {
+      home: instructions.home ?? assistantInstruction(state, "home", played),
+      away: instructions.away ?? assistantInstruction(state, "away", played),
+    },
+    played,
+  );
+  // The mean of the injury risks of a side's players on the pitch: 1 while all of them are fit enough.
+  const injuryRisk = (side: Side): number => {
+    const players = onPitch(teams[side]);
+    return players.length === 0
+      ? 1
+      : players.reduce((sum, entry) => sum + injuryRiskFactor(fitnessAt(entry, played)), 0) / players.length;
+  };
   const share = SEGMENT_MINUTES / REGULATION_MINUTES;
   const goalShare = extraTime ? share * EXTRA_TIME_INTENSITY : share;
 
@@ -560,7 +596,7 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
     schedule(side, "GOAL", poisson(rng, expected[side] * goalShare));
     schedule(side, "YELLOW_CARD", poisson(rng, YELLOW_CARDS_PER_TEAM * share));
     schedule(side, "RED_CARD", poisson(rng, RED_CARDS_PER_TEAM * share));
-    schedule(side, "INJURY", poisson(rng, INJURIES_PER_TEAM * share));
+    schedule(side, "INJURY", poisson(rng, INJURIES_PER_TEAM * share * injuryRisk(side)));
     if (segment === "e1") {
       schedule(side, "SUBSTITUTION", EXTRA_TIME_SUBSTITUTIONS);
     } else if (!extraTime && first <= SUBSTITUTION_MINUTE_MAX && lastMinute >= SUBSTITUTION_MINUTE_MIN) {
@@ -645,7 +681,7 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
         break;
       }
       case "INJURY": {
-        const injured = drawOnPitch(rng, onPitch(team), () => 1);
+        const injured = drawOnPitch(rng, onPitch(team), (entry) => injuryRiskFactor(fitnessAt(entry, minute)));
         if (injured === undefined) {
           break;
         }
@@ -657,7 +693,7 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
       }
       case "SUBSTITUTION": {
         const leaving =
-          team.substitutions < substitutionLimit && team.bench.length > 0 ? weakestStarter(onPitch(team)) : undefined;
+          team.substitutions < substitutionLimit && team.bench.length > 0 ? mostTiredStarter(onPitch(team), minute) : undefined;
         if (leaving !== undefined) {
           state.appearances.push(toAppearance(leaving, side, minute, lastCounted));
           substitute(side, leaving, minute);

@@ -14,6 +14,7 @@ export type SquadPlayer = LineupCandidate &
   Record<AttributeName, number> & {
     form: number; // 1–99
     morale: number; // 1–99
+    fitness: number; // 0–100, FULL_FITNESS when rested
   };
 
 export type LineupSlot<P extends LineupCandidate = SquadPlayer> = {

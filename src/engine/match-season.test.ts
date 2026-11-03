@@ -2,17 +2,22 @@ import { describe, expect, it } from "vitest";
 import { buildWorldPlan } from "../../prisma/seed/seed";
 import { ageInYears } from "../lib/dates";
 import { makeRng } from "../lib/rng";
+import { FULL_FITNESS } from "./balance";
+import { fitnessAfterMatch, recoveredFitness } from "./fitness";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "./generation";
 import { averageStarterRating, selectLineup, type SquadPlayer } from "./lineup";
-import { matchRngSeed, nextForm, outcomeFor, playerMatchStats, simulateMatch } from "./match";
-import { generateBalancedSchedule } from "./schedule";
+import { matchRngSeed, nextForm, outcomeFor, playerMatchStats, simulateMatch, type Appearance } from "./match";
+import { generateBalancedSchedule, matchdayDates } from "./schedule";
 import { competitionTier } from "./tiers";
 import { firstMatchdayDate, WORLD_START_DATE } from "./world";
 
-// The ten leagues of the real world over a whole season, played as a save plays them: AI lineups picked before every
-// match, injured players left out, form carried from one match to the next for every player of both clubs (nextForm, as
-// recordFinishedMatches applies it). The calibration of match.test.ts is at neutral form; the targets of the gameplay
-// sheet (docs/design/gameplay-v1.md), measured on saves by npm run measure:balance, must hold over a season too.
+// The ten leagues of the real world over a whole season, played as a save of world 2 plays them, on its calendar
+// (matchdayDates: Saturdays, and Tuesdays for the longest seasons): AI lineups picked before every match, injured
+// players left out, form and fitness carried from one match to the next for
+// every player of both clubs (nextForm, fitnessAfterMatch, as recordFinishedMatches applies them) and fitness recovered
+// day by day (recoveredFitness, as playNextMatchday applies it). The cups are left out. The calibration of match.test.ts
+// is at neutral form and full fitness; the targets of the gameplay sheet (docs/design/gameplay-v1.md), measured on saves
+// by npm run measure:balance, must hold over a season too.
 const SAVE_SEED = "match-season";
 const START_YEAR = 2026;
 const DAY_MS = 86_400_000;
@@ -36,6 +41,7 @@ const season = (() => {
           position: player.position,
           form: 50,
           morale: 50,
+          fitness: 100,
           injured: false,
         })),
       );
@@ -46,31 +52,53 @@ const season = (() => {
   const injuredUntil = new Map<string, number>();
   const points = new Map<string, number>();
   const played: Played[] = [];
+  const starterFitness: number[] = [];
 
   const matches = plan
-    .flatMap(({ competition, clubs }) =>
-      generateBalancedSchedule(
+    .flatMap(({ competition, clubs }) => {
+      const pairings = generateBalancedSchedule(
         clubs.map((club) => club.slug).sort(),
         firstMatchdayDate(START_YEAR),
         makeRng(`${SAVE_SEED}:${competition.code}`),
-      ),
-    )
-    .sort((a, b) => a.round - b.round);
+      );
+      const dates = matchdayDates(2 * (clubs.length - 1), START_YEAR);
+      return pairings.map((match) => ({ ...match, scheduledAt: dates[match.round - 1] }));
+    })
+    .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.round - b.round);
+  let today = matches[0].scheduledAt.getTime();
   for (const match of matches) {
     const date = match.scheduledAt.getTime();
-    const lineup = (slug: string) =>
-      selectLineup(squadOf(slug).map((player) => ({ ...player, injured: (injuredUntil.get(player.id) ?? 0) > date })));
+    if (date > today) {
+      const days = Math.round((date - today) / DAY_MS);
+      for (const [slug, squad] of squads) {
+        squads.set(slug, squad.map((player) => ({ ...player, fitness: recoveredFitness(player.fitness, days) })));
+      }
+      today = date;
+    }
+    const lineup = (slug: string) => {
+      const picked = selectLineup(squadOf(slug).map((player) => ({ ...player, injured: (injuredUntil.get(player.id) ?? 0) > date })));
+      starterFitness.push(...picked.starters.map((starter) => starter.player.fitness));
+      return picked;
+    };
     const result = simulateMatch(
       lineup(match.home),
       lineup(match.away),
       matchRngSeed(SAVE_SEED, START_YEAR, match.round, match.home, match.away),
     );
     const stats = new Map(playerMatchStats(result).map((line) => [line.playerId, line]));
+    const spells = new Map<string, Appearance[]>();
+    for (const appearance of result.appearances) {
+      spells.set(appearance.playerId, [...(spells.get(appearance.playerId) ?? []), appearance]);
+    }
     for (const [side, slug] of [["home", match.home], ["away", match.away]] as const) {
       const outcome = outcomeFor(result, side);
       squads.set(
         slug,
-        squadOf(slug).map((player) => ({ ...player, form: nextForm(player.form, stats.get(player.id), outcome) })),
+        squadOf(slug).map((player) => ({
+          ...player,
+          form: nextForm(player.form, stats.get(player.id), outcome),
+          fitness: Math.round(fitnessAfterMatch(player.fitness, spells.get(player.id) ?? [])),
+        })),
       );
       points.set(slug, (points.get(slug) ?? 0) + (outcome === "win" ? 3 : outcome === "draw" ? 1 : 0));
     }
@@ -94,7 +122,7 @@ const season = (() => {
     const best = [...squad].sort((a, b) => b.overall - a.overall).slice(0, 11);
     return best.reduce((sum, player) => sum + player.form, 0) / best.length;
   });
-  return { played, gaps, elevenForms };
+  return { played, gaps, elevenForms, starterFitness, matches: matches.length };
 })();
 
 const share = (count: number): number => count / season.played.length;
@@ -132,6 +160,15 @@ describe("a season of the ten leagues, with form and injuries", () => {
 
     expect(upsets.length / decided.length).toBeGreaterThanOrEqual(0.2);
     expect(upsets.length / decided.length).toBeLessThanOrEqual(0.25);
+  });
+
+  it("starts the elevens close to full fitness, never below 75 without the cups' midweek ties", () => {
+    const mean = season.starterFitness.reduce((sum, value) => sum + value, 0) / season.starterFitness.length;
+
+    expect(mean).toBeGreaterThan(95);
+    expect(mean).toBeLessThan(FULL_FITNESS);
+    // Saturday, Tuesday, Saturday at the most: 75 at the third kick-off.
+    expect(Math.min(...season.starterFitness)).toBe(75);
   });
 
   it("ends the season with every club's eleven between 30 and 75 of form, far from the bounds", () => {
