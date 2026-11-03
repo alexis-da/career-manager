@@ -83,9 +83,11 @@ les clubs, le club dirigé compris tant que le direct ne les propose pas (G5) ; 
 regarder sans choix du joueur donnent le même match (`src/db/live-state.test.ts`). Détails : skill `moteur-de-match`.
 
 **Fatigue (gameplay v1, G2).** `PlayerSave.fitness` (0–100, affichée « Condition » / « Fitness ») pèse sur la part de
-chaque joueur (× 1 − 0,003 × (100 − fitness)), lue au début de chaque segment ; un joueur sur le terrain perd 5 points par
-segment (1,5 pour le gardien), garde sa fitness de fin de match (`recordFinishedMatches`) et chacun récupère 5 points par
-jour jusqu'à 100, appliqués par `playNextMatchday` au changement de date (`recoveredFitness`, `src/engine/fitness.ts`) ;
+chaque joueur par deux facteurs, lus au début de chaque segment (`src/engine/fitness.ts`) : la fraîcheur, sa fitness au coup
+d'envoi (`fitnessFactor`, × 1 − 0,0015 × (100 − fitness)), et l'usure, ce qu'il a perdu sur le terrain depuis
+(`wearFactor`, × 1 − 0,011 × perte). Un joueur sur le terrain perd 5 points par segment (1,5 pour le gardien), garde sa
+fitness de fin de match (`recordFinishedMatches`) et chacun récupère 5 points par jour jusqu'à 100, appliqués par
+`playNextMatchday` au changement de date (`recoveredFitness`, `src/engine/fitness.ts`) ;
 sous 70, son risque de blessure croît. Les clubs IA sortent le titulaire le plus fatigué aux minutes de changement et mettent
 au repos un joueur sous 75 quand un reposé vaut au plus 5 points de moins à son poste (`selectRestedLineup`) ; le club dirigé
 garde sa composition. L'état du direct garde la fitness de chaque joueur (100 pour une pause d'avant). Les écrans montrent
@@ -93,9 +95,28 @@ la fitness au coup d'envoi du prochain match du club (`fitnessAtKickOff`, `src/d
 celle de la reprise ; vert dès 90, ambre sous 75, rouge sous 70 (`app/saves/[id]/_lib/fitness.ts`). Le moral reste dans le
 moteur, neutre, et n'est affiché nulle part.
 
+**Suspensions (gameplay v1, G3).** Cinq colonnes de `PlayerSave` (migration d'ajout `…_suspensions`, 0 par défaut) :
+`leagueYellows` et `cupYellows`, les jaunes de chaque compétition depuis la dernière suspension ou le début de saison, et
+les matchs encore à manquer : `suspendedMatches` après un rouge (le prochain match officiel du club, toute compétition),
+`suspendedLeagueMatches` et `suspendedCupMatches` après le 5e jaune d'une compétition (son prochain match). Règles pures
+dans `src/engine/discipline.ts` (`disciplineAfterMatch`, `YELLOWS_PER_SUSPENSION` 5, `SUSPENSION_MATCHES` 1), appliquées
+par `recordFinishedMatches` à tous les joueurs des deux clubs, clubs IA compris : un suspendu purge le match sans jouer, un
+exclu est suspendu et ses jaunes du match ne comptent pas, le 5e jaune remet le compte à 0 ; `advanceToNextSeason` remet
+les jaunes à 0, une suspension restante se reporte. Un suspendu est indisponible comme un blessé (`isAvailable`,
+`src/engine/lineup.ts` ; `withSuspensions`, `src/db/matchday.ts`, selon la compétition du match) : composition résolue,
+composition automatique, banc, rotation des clubs IA. À l'écran, pour le club dirigé, `disciplineStatus`
+(`src/db/discipline-view.ts`, pur) lit ses colonnes contre ce que le club joue encore (`managedMatchesAhead`) : suspendu
+pour le prochain match (la compétition de ce match décide), suspendu plus tard dans l'autre compétition, ou à un jaune de
+la suspension ; lu par `getLineupEditor`, `getManagedLineup` (`missingStarters` : un titulaire enregistré blessé ou
+suspendu reste du onze, jamais proposé à la vente), `getPlayerProfiles` et `getDashboard` (`bookingRisks`) ; l'aperçu de
+l'adversaire écarte ses suspendus. Badges (`PlayerBadges`, effectif, composition et fiche) : « Suspendu » en rouge,
+« Suspendu en coupe / en championnat », « 4 jaunes », « 4 jaunes en coupe » en ambre (« Suspended », « Cup ban »,
+« League ban », « 4 yellows », « 4 cup yellows ») ; un carton (`CardMark`) sur le terrain et le banc ; la composition
+avertit qu'un titulaire suspendu sera remplacé.
+
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
-première division vérifiée après chaque changement (2,65 buts, 44 % à domicile, 24 % de nuls, Bayern-Monza ~80 %,
+première division vérifiée après chaque changement (2,64 buts, 44 % à domicile, 24 % de nuls, Bayern-Monza ~80 %,
 `match.test.ts`) ; celle de deuxième est épinglée dans `match-d2.slow.test.ts`, les deux sur une saison avec forme dans
 `match-season.test.ts`. Jeunes : réputation et note lues dans
 la plage de la division du club (`YOUTH_OVERALL_BY_TIER`). Un club IA au-dessus de sa masse salariale vend en
@@ -215,8 +236,9 @@ secondaires, le onze et « Voir l'adversaire ». Match en suspens : « Match en 
 « Passer à la saison suivante » seul, et la carte de la colonne, vide, disparaît (`lg:empty:hidden`). Sa colonne de droite à partir de `xl`, en fin de page sur téléphone : le
 mini-classement (`DashboardTable`, `tableAround`, six lignes autour du club, rang, club et points). Puis quatre tuiles
 (`DashboardTiles` : classement et mouvement, points et différence, forme, effectif ; « — » avant le premier match), « À
-faire » (`DashboardTodo`, du plus pressant au reste : titulaires blessés, autres blessés, meilleure offre reçue, point
-faible, contrats, gardiens, effectif ; toute la ligne est un lien, sauf « Effectif complet »), le dernier match
+faire » (`DashboardTodo`, du plus pressant au reste : titulaires blessés, titulaires suspendus, autres blessés, joueurs à
+4 jaunes, meilleure offre reçue, point faible, contrats, gardiens, effectif ; toute la ligne est un lien, sauf « Effectif
+complet »), le dernier match
 (`LastMatchCard`, ou les premières actions avant lui) et la carte du défi. Aucune offre hors mercato (`getMarketSales` non
 lu), le point faible n'est jamais une alerte. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
 couvre l'écran à 390 et 1280 px.
@@ -285,10 +307,10 @@ arrivent sous le pouce, et un double appui reprendrait le match pour de bon. `e2
 390 et 360 px.
 
 **Équipe.** Effectif (`/squad`, `SquadTable`) : sous 1024 px, des cartes, une seule table en DOM : tuile note et poste, âge,
-nationalité, jauge de forme, condition (cœur et chiffre, aucune pour un blessé), états (`PlayerBadges`), les trois tris
+nationalité, jauge de forme, condition (cœur et chiffre, aucune pour un blessé ni un suspendu), états (`PlayerBadges`), les trois tris
 rapides à la place de l'en-tête ; au-dessus, le tableau, ses colonnes suivant sa place (`@container` : sans Pot. ni Salaire
 sous 928 px, sans Valeur, Contrat ni Condition sous 672 px, à côté de la fiche ; la Condition, triable, a un cœur pour
-en-tête). Le jeu n'a pas de suspension : aucun état « suspendu ». Composition (`/lineup`, `LineupEditor`, `LineupSquad`) :
+en-tête). États : blessé, suspendu, à 4 jaunes (règle « Suspensions »). Composition (`/lineup`, `LineupEditor`, `LineupSquad`) :
 sous 1024 px, terrain, résumé, banc, puis la liste ; de 1024 à 1279 px, l'effectif compact à gauche du terrain et la fiche en
 surimpression ; à partir de 1280 px, l'effectif, le terrain et la fiche sur une page, `pinned`, jamais vide : le titulaire du
 poste sélectionné, sinon le dernier joueur choisi, sinon le mieux noté (`pinnedSheetKey`). Un clic sur un poste le

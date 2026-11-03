@@ -94,7 +94,7 @@ changement compte donc dès le segment suivant.
   `resumeLiveMatch` reprend par `resumeMatch(paused, managedSide, choice, matchSeed)` : sans changement, le résultat
   est exactement celui d'un match joué d'une traite, y compris depuis un état stocké avant les segments
   (`src/db/live-state.test.ts`, deux états v1 dans `src/db/data/`).
-- Calibration (G1, `npm run measure:balance`, trois saisons complètes du monde 2) : base 1,14 (1,16 depuis la fatigue, G2),
+- Calibration (G1, `npm run measure:balance`, trois saisons complètes du monde 2) : base 1,14 (1,23 depuis la fatigue, G2),
   exposant 2,4, domicile 1,12 → 2,65 buts par match, 44 % de victoires à domicile, 25 % de nuls, 55 points entre le
   premier et le dernier, 23 % de victoires du plus faible (≥ 1 point d'écart). Épinglée à forme 50 dans `match.test.ts` (premières divisions :
   2,5–2,8 buts, 42–46 % à domicile, 23–27 % de nuls, Bayern-Monza au-dessus de 75 %) et sur une saison avec forme et
@@ -116,11 +116,14 @@ Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 %
 `src/engine/fitness.ts`, pur ; constantes dans `balance.ts` (section Fatigue). `SquadPlayer.fitness` (0–100,
 `FULL_FITNESS` reposé) : `PlayerSave.fitness` à la date du match.
 
-- Force : `teamStrength` multiplie la part de chaque joueur par `fitnessFactor` (1 − `STRENGTH_PER_FITNESS_POINT` 0,003
-  × (100 − fitness) : 0,91 à 70). Pendant le match, `fitnessAt(entry, minute)` = fitness au coup d'envoi moins ce que ses
-  minutes depuis `entry.from` lui ont coûté (`fitnessAfter` : `FITNESS_LOSS_PER_SEGMENT` 5 par 15 minutes,
+- Force : deux facteurs sur la part de chaque joueur (`teamStrength(lineup, formation, wearOf)`). La fraîcheur,
+  `fitnessFactor` de sa fitness au coup d'envoi (1 − `STRENGTH_PER_FITNESS_POINT` 0,0015 × (100 − fitness) : 0,955 à 70) ;
+  l'usure, `wearFactor` de ce qu'il a perdu sur le terrain depuis (1 − `STRENGTH_PER_WEAR_POINT` 0,011 × perte : 0,78
+  pour un joueur de champ à la 60e, 20 points perdus) ; `playingFactor` donne les deux (panneau Coaching). Pendant le
+  match, `fitnessAt(entry, minute)` = fitness au coup d'envoi moins ce que ses minutes depuis `entry.from` lui ont
+  coûté (`fitnessAfter` : `FITNESS_LOSS_PER_SEGMENT` 5 par 15 minutes,
   `GOALKEEPER_FITNESS_LOSS_PER_SEGMENT` 1,5 au slot GK) ; `liveStrength(team, minute)` et `stateExpectedGoals(…, minute)`
-  la lisent au début de chaque segment. Un remplaçant entre avec la sienne : frais s'il n'a pas joué.
+  la lisent au début de chaque segment. Un remplaçant entre avec la sienne, sans usure : frais s'il n'a pas joué.
 - Blessures : sous `INJURY_RISK_FITNESS` (70), × (1 + (70 − fitness) / 30) (`injuryRiskFactor`) ; le nombre de blessures
   d'un côté suit la moyenne de ses joueurs au début du segment, le blessé est tiré selon ce facteur à sa minute.
 - Changements : au changement tactique, le titulaire de champ le plus fatigué sort (`mostTiredStarter` ; à égalité, le
@@ -136,9 +139,35 @@ Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 %
   reposé valant au plus `ROTATION_MAX_RATING_GAP` (5) de moins au poste ; le club dirigé garde `resolveLineup`.
 - Direct : la fitness au coup d'envoi est dans l'état stocké (`live-state.ts`, 100 par défaut pour une pause d'avant G2) ;
   le test des 600 matchs de `live-state.test.ts`, joueurs de 55 à 100, prouve simuler = regarder.
-- Calibration : base 1,16 (1,14 sans fatigue : le gardien se fatiguant moins, la défense baisse moins que l'attaque).
-  Saisons du monde 2 : titulaires IA à 96,8 de fitness en moyenne au coup d'envoi, 0,7 % sous 75, 2,6 joueurs mis au repos par
-  club et par saison ; un onze à 85 perd 0,20 point par match, à 75 0,34, un remplaçant frais à la 60e rapporte 0,01.
+- Calibration : base 1,23 (1,14 sans fatigue, 1,16 avec un seul coefficient sur la fitness du moment) : le gardien
+  s'usant trois fois moins vite que ses partenaires, la défense baisse moins que l'attaque, et les buts baissent au fil du
+  match (−19 % au dernier quart d'heure face au premier, à équipes égales). Un onze à 85 au coup d'envoi perd
+  0,097 point par match, à 75 0,164 ; un milieu ou un attaquant frais du même niveau entré à la 60e rapporte
+  0,034. Saisons du monde 2 : titulaires IA à 96,9 de fitness en moyenne au coup d'envoi, 0,7 % sous 75,
+  2,5 joueurs mis au repos par club et par saison.
+
+## Discipline (G3)
+
+`src/engine/discipline.ts`, pur ; constantes `YELLOWS_PER_SUSPENSION` (5) et `SUSPENSION_MATCHES` (1) dans `balance.ts`.
+`Discipline`, ce que stockent cinq colonnes de `PlayerSave` : `leagueYellows` et `cupYellows` (jaunes depuis la dernière
+suspension dans la compétition ou le début de saison), `suspendedMatches` (après un rouge : prochains matchs officiels du
+club, toute compétition), `suspendedLeagueMatches` et `suspendedCupMatches` (après le 5e jaune : prochains matchs de la
+compétition).
+
+- `disciplineAfterMatch(discipline, competition, cards)` : un joueur suspendu pour ce match le purge (un match de moins à
+  chaque suspension qui le retenait) ; exclu, il prend `SUSPENSION_MATCHES` match de toute compétition et ses jaunes du
+  match ne comptent pas ; sinon ses jaunes s'ajoutent à ceux de la compétition, et le 5e le suspend pour son prochain
+  match et remet le compte à 0. Sans cartons (`undefined` : il n'a pas joué), il ne fait que purger, blessé ou non.
+- `isSuspended(discipline, competition)` ; `disciplineForNewSeason` remet les jaunes à 0, une suspension se reporte
+  (`advanceToNextSeason` le fait en SQL).
+- `recordFinishedMatches` l'applique à tous les joueurs des deux clubs, clubs IA compris, avec la forme, la fitness et les
+  blessures (`"CUP"` pour un match à élimination). Avant le match, `withSuspensions(squad, competition, stateByKey)`
+  (`matchday.ts`) marque `suspended` les joueurs retenus pour la compétition du match, et `isAvailable` (`lineup.ts` : ni
+  blessé ni suspendu) les écarte de `selectLineup`, `selectRestedLineup`, `resolveLineup` (onze et banc) et
+  `changeFormation`. Le moteur de match ne lit pas la discipline : seuls les cartons qu'il tire, inchangés, la font bouger.
+- Tests : `discipline.test.ts` (règles, report d'une suspension à la saison suivante), `matchday.test.ts` (un suspendu
+  du club dirigé et un d'un club IA écartés, suspension purgée ; cartons comptés après une journée),
+  `season.slow.test.ts` (jaunes remis à 0 au passage de saison).
 
 ## Matchs à élimination : prolongation et tirs au but
 
