@@ -48,10 +48,13 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
 | 4-1-4-1 | −2 % | +2 % |
 | 5-3-2 | −5 % | +5 % |
 
-- **Consignes** (départ, multiplicateurs de λ sur les segments concernés) : Attaquer = λ propre × 1,15 et λ adverse × 1,10 ; Fermer = λ propre × 0,80 et λ adverse × 0,85 ; Équilibré = 1.
+- **Consignes** (multiplicateurs de λ sur les segments concernés) : Attaquer = match plus ouvert (plus de buts des deux côtés), Fermer = match plus fermé (moins de buts des deux côtés), Équilibré = 1. Départ : Attaquer λ propre × 1,15 et λ adverse × 1,15 ; Fermer λ propre × 0,80 et λ adverse × 0,80 (rééquilibrage du 03/11, la première version, Attaquer × 1,15 / × 1,10, rendait Attaquer rentable tout le match).
+  - Critères (`measure:balance`, 20 000 matchs, l'adversaire suit la règle) : entre équipes égales, tout le match, Attaquer et Fermer à ±0,015 pt/match d'Équilibré ; mené à partir de la 60e, Attaquer > Équilibré ; mène d'un but à partir de la 75e, Fermer > Équilibré ; la règle de l'adjoint à 0,01 près de la meilleure variante.
+  - **Retenu** : Attaquer λ propre × 1,13, λ adverse × 1,15 ; Fermer × 0,89 des deux côtés. Équipes égales : Attaquer −0,009, Fermer −0,004 face à Équilibré ; mené, Attaquer +0,007 à +0,008 ; mène d'un but, Fermer +0,006 à +0,007 ; aucune variante à plus de +0,005 de la règle.
+  - Critère abandonné : « favori (+5) : Fermer ≥ Attaquer ; outsider (−5) : Attaquer ≥ Fermer ». Un match plus ouvert profite toujours au plus fort et un match plus fermé au plus faible : aucun jeu de multiplicateurs ouvert/fermé ne l'atteint avec des équipes égales neutres (recherche sur 2 401 combinaisons, modèle exact des buts). Avec les valeurs retenues, le favori perd 0,035 point avec Fermer plutôt qu'Attaquer, l'outsider en gagne 0,046.
 - **Règle de l'adjoint et des clubs IA** (la même fonction pure, de l'état du match) : mené à partir de la 60e → Attaquer ; mène d'un but à partir de la 75e → Fermer ; sinon Équilibré. Les clubs IA l'appliquent dans tous leurs matchs. Le club dirigé l'applique en simulation ; en direct, le joueur décide.
 - Les clubs IA gardent leur 4-3-3.
-- **Calibration** : ajuster la base 1,42, l'exposant 2,5 et le facteur domicile 1,15 pour atteindre les cibles. Forme calmée dans ce même chantier.
+- **Calibration** : ajuster la base 1,42, l'exposant 2,5 et le facteur domicile 1,15 pour atteindre les cibles. Forme calmée dans ce même chantier. **Retenu** : base 1,14, exposant 2,4, domicile 1,12 ; forme : variations divisées par 2 et rétention 0,94 (0,9 laissait les onze entre 40 et 67). Saisons du monde 2 : 2,65 buts, 24,6 % de nuls, 44,2 % à domicile, 55 pts d'écart, 23,2 % de victoires du plus faible, onzes de 35 à 76.
 - Les parties existantes passent au nouveau moteur sans marquage : leurs matchs futurs changent, ce qui est acceptable. Un match en cours de direct au moment du déploiement (`liveState` v1) doit pouvoir se terminer : reprise de la 2e période avec le nouveau moteur (segments 4 à 6).
 - `match-fingerprint.test.ts` et la calibration de `match.test.ts` sont mis à jour, et la calibration doit tourner aussi sur une saison avec forme (pas seulement à forme 50).
 
