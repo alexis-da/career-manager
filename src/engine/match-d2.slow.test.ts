@@ -15,6 +15,8 @@ const MATCH_COUNT = 10_000;
 // attributes generated for one save, every player at neutral form, league matches between random pairs of clubs of the
 // same competition, one fixed seed per match. Measured when the second divisions were balanced: 2.77 goals per match,
 // 45.7 % home wins, 24.2 % draws; at kickoff, each second division's champion as strong as its first division's 15th.
+// With the engine in segments, calibrated again (gameplay v1, G1): 2.59 goals, 43.0 % home wins, 26.2 % draws, a
+// champion beating its last club in 68.7 % of matches.
 const plan = buildWorldPlan();
 const tables = plan.map(({ competition, clubs }) => ({
   code: competition.code,

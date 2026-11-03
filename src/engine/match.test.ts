@@ -3,20 +3,25 @@ import { buildWorldPlan } from "../../prisma/seed/seed";
 import { ageInYears } from "../lib/dates";
 import { makeRng, randomInt } from "../lib/rng";
 import {
+  FORMATION_PROFILES,
   HALF_TIME_MINUTE,
+  INSTRUCTION_EFFECTS,
   MAX_STOPPAGE_MINUTES,
   MAX_SUBSTITUTIONS,
   REGULATION_MINUTES,
   SEGMENT_MINUTES,
 } from "./balance";
+import { formationPositions } from "./formations";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "./generation";
 import { selectLineup, type Lineup, type SquadPlayer } from "./lineup";
 import {
   applyAutomaticHalfTime,
+  assistantInstruction,
   eventsToPersist,
   applyHalfTimeChoice,
   automaticHalfTimeChoice,
   expectedGoals,
+  formationStrength,
   HalfTimeChoiceError,
   liveStrength,
   matchResult,
@@ -26,7 +31,10 @@ import {
   simulateMatch,
   simulateSegment,
   startMatch,
+  stateExpectedGoals,
+  teamStrength,
   type HalfTimeChoice,
+  type Instruction,
   type MatchResult,
   type MatchState,
   type Outcome,
@@ -101,26 +109,33 @@ describe("simulateMatch", () => {
     expect(play("same")).not.toEqual(play("other"));
   });
 
-  it("averages 2.4 to 3.2 goals per match over 10 000 league matches", () => {
+  it("averages 2.5 to 2.8 goals per match over 10 000 league matches", () => {
     const goals = leagueResults.reduce((sum, result) => sum + result.homeGoals + result.awayGoals, 0);
 
-    expect(goals / MATCH_COUNT).toBeGreaterThanOrEqual(2.4);
-    expect(goals / MATCH_COUNT).toBeLessThanOrEqual(3.2);
+    expect(goals / MATCH_COUNT).toBeGreaterThanOrEqual(2.5);
+    expect(goals / MATCH_COUNT).toBeLessThanOrEqual(2.8);
   });
 
-  it("gives the home team 40 to 50 % of wins", () => {
+  it("gives the home team 42 to 46 % of wins", () => {
     const homeWins = leagueResults.filter((result) => result.homeGoals > result.awayGoals).length;
 
-    expect(homeWins / MATCH_COUNT).toBeGreaterThanOrEqual(0.4);
-    expect(homeWins / MATCH_COUNT).toBeLessThanOrEqual(0.5);
+    expect(homeWins / MATCH_COUNT).toBeGreaterThanOrEqual(0.42);
+    expect(homeWins / MATCH_COUNT).toBeLessThanOrEqual(0.46);
   });
 
-  it("lets Bayern beat Monza in more than 70 % of 10 000 matches", () => {
+  it("ends 23 to 27 % of matches level", () => {
+    const draws = leagueResults.filter((result) => result.homeGoals === result.awayGoals).length;
+
+    expect(draws / MATCH_COUNT).toBeGreaterThanOrEqual(0.23);
+    expect(draws / MATCH_COUNT).toBeLessThanOrEqual(0.27);
+  });
+
+  it("lets Bayern beat Monza in more than 75 % of 10 000 matches", () => {
     const bayernWins = bayernMonza.filter(({ bayernAtHome, result }) =>
       bayernAtHome ? result.homeGoals > result.awayGoals : result.awayGoals > result.homeGoals,
     ).length;
 
-    expect(bayernWins / MATCH_COUNT).toBeGreaterThan(0.7);
+    expect(bayernWins / MATCH_COUNT).toBeGreaterThan(0.75);
   });
 
   it("keeps scores, minutes, scorers and appearances consistent", () => {
@@ -626,3 +641,76 @@ describe("a match in segments", () => {
   });
 });
 
+describe("instructions", () => {
+  const seeds = (count: number, prefix: string): string[] => Array.from({ length: count }, (_, index) => `${prefix}:${index}`);
+  const scored = (home: number, away: number): MatchState => {
+    const state = startMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc"));
+    return { ...state, home: { ...state.home, goals: home }, away: { ...state.away, goals: away } };
+  };
+
+  it("follow the assistant's rule: Attaquer behind from the 60th minute, Fermer one goal ahead from the 75th", () => {
+    expect(assistantInstruction(scored(0, 1), "home", 45)).toBe("BALANCED");
+    expect(assistantInstruction(scored(0, 1), "home", 60)).toBe("ATTACK");
+    expect(assistantInstruction(scored(0, 3), "home", 90)).toBe("ATTACK");
+    expect(assistantInstruction(scored(0, 1), "away", 60)).toBe("BALANCED");
+    expect(assistantInstruction(scored(0, 1), "away", 75)).toBe("DEFEND");
+    expect(assistantInstruction(scored(2, 1), "home", 105)).toBe("DEFEND");
+    expect(assistantInstruction(scored(0, 2), "away", 75)).toBe("BALANCED");
+    expect(assistantInstruction(scored(1, 1), "home", 75)).toBe("BALANCED");
+  });
+
+  it("multiply the side's own expected goals and its opponent's", () => {
+    const state = scored(0, 0);
+    const balanced = stateExpectedGoals(state, { home: "BALANCED", away: "BALANCED" });
+    for (const instruction of ["ATTACK", "DEFEND"] as const) {
+      const given = stateExpectedGoals(state, { home: instruction, away: "BALANCED" });
+      expect(given.home).toBeCloseTo(balanced.home * INSTRUCTION_EFFECTS[instruction].own, 10);
+      expect(given.away).toBeCloseTo(balanced.away * INSTRUCTION_EFFECTS[instruction].opponent, 10);
+    }
+    expect(INSTRUCTION_EFFECTS.BALANCED).toEqual({ own: 1, opponent: 1 });
+  });
+
+  it("change the match they are given for: Attaquer scores and concedes more, Fermer less", () => {
+    const totals = (instruction: Instruction) =>
+      seeds(2000, "instructions").reduce(
+        (sum, seed) => {
+          const result = simulateMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc"), seed, undefined, false, { home: instruction });
+          return { scored: sum.scored + result.homeGoals, conceded: sum.conceded + result.awayGoals };
+        },
+        { scored: 0, conceded: 0 },
+      );
+    const attack = totals("ATTACK");
+    const balanced = totals("BALANCED");
+    const defend = totals("DEFEND");
+
+    expect(attack.scored).toBeGreaterThan(balanced.scored);
+    expect(attack.conceded).toBeGreaterThan(balanced.conceded);
+    expect(defend.scored).toBeLessThan(balanced.scored);
+    expect(defend.conceded).toBeLessThan(balanced.conceded);
+    // 6 000 matches: longer than the default 5 s while other files run.
+  }, 30_000);
+
+  it("are the assistant's when none is given: a side left out follows the rule", () => {
+    for (const seed of seeds(30, "rule")) {
+      const home = lineupOf("liverpool-fc");
+      const away = lineupOf("arsenal-fc");
+      expect(simulateMatch(home, away, seed, undefined, false, {})).toEqual(simulateMatch(home, away, seed));
+    }
+  });
+});
+
+describe("formation profiles", () => {
+  it("multiply the attack and the defense of the eleven, the 4-4-2 neutral", () => {
+    const lineup = lineupOf("liverpool-fc");
+    const plain = teamStrength(lineup, formationPositions("4-3-3"));
+    const profiled = formationStrength(lineup, "4-3-3");
+
+    expect(profiled.attack).toBeCloseTo(plain.attack * FORMATION_PROFILES["4-3-3"].attack, 10);
+    expect(profiled.defense).toBeCloseTo(plain.defense * FORMATION_PROFILES["4-3-3"].defense, 10);
+    expect(FORMATION_PROFILES["4-4-2"]).toEqual({ attack: 1, defense: 1 });
+    // More attack always costs defense, and the other way round.
+    for (const { attack, defense } of Object.values(FORMATION_PROFILES)) {
+      expect((attack - 1) * (defense - 1)).toBeLessThanOrEqual(0);
+    }
+  });
+});

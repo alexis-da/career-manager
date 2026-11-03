@@ -2,6 +2,8 @@ import { makeRng, poisson, randomInt, weightedIndex, type Rng } from "../lib/rng
 import {
   ASSIST_CHANCE,
   ASSIST_SLOT_WEIGHTS,
+  ASSISTANT_ATTACK_MINUTE,
+  ASSISTANT_DEFEND_MINUTE,
   ATTACK_LINE_WEIGHTS,
   ATTACK_WEIGHTS,
   BASE_GOALS_PER_TEAM,
@@ -20,11 +22,13 @@ import {
   FORM_REST_DRIFT,
   FORM_RETENTION,
   FORM_SENT_OFF,
+  FORMATION_PROFILES,
   HALF_TIME_MINUTE,
   HOME_ADVANTAGE,
   INJURIES_PER_TEAM,
   INJURY_DAYS_MAX,
   INJURY_DAYS_MIN,
+  INSTRUCTION_EFFECTS,
   MAX_EXPECTED_GOALS,
   MAX_STOPPAGE_MINUTES,
   MAX_SUBSTITUTIONS,
@@ -148,6 +152,12 @@ export type RngPhase = Segment | "shootout";
  */
 export type MatchPhase = "KICK_OFF" | "IN_PLAY" | "HALF_TIME" | "REGULATION_END" | "EXTRA_TIME_BREAK" | "SHOOTOUT" | "FULL_TIME";
 
+/** What a team plays for: Attaquer, Équilibré, Fermer. */
+export type Instruction = "ATTACK" | "BALANCED" | "DEFEND";
+
+/** Instructions given for every segment played, by side; a side left out follows the assistant's rule. */
+export type Instructions = Partial<Record<Side, Instruction>>;
+
 /**
  * A player in a slot of the formation. INJURED and SENT_OFF keep the player who left the slot, for the half-time
  * screen: an injured player's slot is empty until someone replaces him, a sent-off player's slot stays empty.
@@ -257,6 +267,8 @@ function substitutionRngSeed(matchSeed: string, side: Side): string {
   return `${matchSeed}:substitutions:${side}`;
 }
 
+const otherSide = (side: Side): Side => (side === "home" ? "away" : "home");
+
 export function condition(player: SquadPlayer): number {
   return (
     1 +
@@ -314,9 +326,50 @@ export function lineupOnPitch(team: TeamLive): Lineup {
   };
 }
 
+/** Attack and defense of a lineup in a formation, the formation's profile applied. */
+export function formationStrength(lineup: Lineup, formation: FormationName): TeamStrength {
+  const { attack, defense } = teamStrength(lineup, formationPositions(formation));
+  const profile = FORMATION_PROFILES[formation];
+  return { attack: attack * profile.attack, defense: defense * profile.defense };
+}
+
 /** Attack and defense of a team as it stands: on ten after a red card, without an injured player until he is replaced. */
 export function liveStrength(team: TeamLive): TeamStrength {
-  return teamStrength(lineupOnPitch(team), formationPositions(team.formation));
+  return formationStrength(lineupOnPitch(team), team.formation);
+}
+
+/**
+ * The instruction a club follows when it leaves it to its assistant, as AI clubs always do and the managed club in a
+ * simulated match: Attaquer when behind once ASSISTANT_ATTACK_MINUTE minutes are played, Fermer when one goal ahead once
+ * ASSISTANT_DEFEND_MINUTE are, Équilibré otherwise. `played`: the minutes played when the segment starts.
+ */
+export function assistantInstruction(state: MatchState, side: Side, played: number): Instruction {
+  const margin = state[side].goals - state[otherSide(side)].goals;
+  if (margin < 0 && played >= ASSISTANT_ATTACK_MINUTE) {
+    return "ATTACK";
+  }
+  if (margin === 1 && played >= ASSISTANT_DEFEND_MINUTE) {
+    return "DEFEND";
+  }
+  return "BALANCED";
+}
+
+/**
+ * Expected goals of each side over 90 minutes as the match stands: the strengths of the players on the pitch, home
+ * advantage, then each side's instruction on its own goals and on its opponent's.
+ */
+export function stateExpectedGoals(state: MatchState, instructions: Readonly<Record<Side, Instruction>>): Record<Side, number> {
+  const strengths: Record<Side, TeamStrength> = { home: liveStrength(state.home), away: liveStrength(state.away) };
+  const expected = (side: Side): number => {
+    const opponent = otherSide(side);
+    const venue = side === "home" ? HOME_ADVANTAGE : 1 / HOME_ADVANTAGE;
+    const instructed =
+      expectedGoals(strengths[side], strengths[opponent], venue) *
+      INSTRUCTION_EFFECTS[instructions[side]].own *
+      INSTRUCTION_EFFECTS[instructions[opponent]].opponent;
+    return Math.min(MAX_EXPECTED_GOALS, instructed);
+  };
+  return { home: expected("home"), away: expected("away") };
 }
 
 function startingTeam(lineup: Lineup, formation: FormationName): TeamLive {
@@ -465,8 +518,8 @@ function tacticalSubstitutionMinutes(matchSeed: string, side: Side): number[] {
 
 /**
  * Plays one segment from the state it starts in, with its own stream, and returns the state after it:
- * 1. attack and defense of the players on the pitch, weighted by slot, familiarity, form and morale, on ten after a
- *    red card;
+ * 1. attack and defense of the players on the pitch, weighted by slot, familiarity, form and morale, the formation's
+ *    profile applied, on ten after a red card; then each side's instruction, the one given or its assistant's;
  * 2. the segment's share of the match's expected goals, cards and injuries, counted with Poisson draws and spread over
  *    its minutes (the last segment of regular time runs into stoppage time);
  * 3. scorers, assist providers, booked and injured players drawn among the players on the pitch at that minute.
@@ -474,7 +527,7 @@ function tacticalSubstitutionMinutes(matchSeed: string, side: Side): number[] {
  * substitutions take off the weakest starters at their minutes of the second half, a sent-off player is never replaced:
  * each change counts from the next segment.
  */
-export function simulateSegment(start: MatchState, matchSeed: string, segment: Segment): MatchState {
+export function simulateSegment(start: MatchState, matchSeed: string, segment: Segment, instructions: Instructions = {}): MatchState {
   const { first, last, from } = SEGMENTS[segment];
   if (start.phase !== from) {
     throw new Error(`Cannot play segment ${segment} of a match at ${start.phase}`);
@@ -489,11 +542,11 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
   const teams: Record<Side, TeamLive> = { home: state.home, away: state.away };
 
   const lastMinute = segment === "s6" ? REGULATION_MINUTES + randomInt(rng, 0, MAX_STOPPAGE_MINUTES) : last;
-  const strengths: Record<Side, TeamStrength> = { home: liveStrength(state.home), away: liveStrength(state.away) };
-  const expected: Record<Side, number> = {
-    home: expectedGoals(strengths.home, strengths.away, HOME_ADVANTAGE),
-    away: expectedGoals(strengths.away, strengths.home, 1 / HOME_ADVANTAGE),
-  };
+  const played = first - 1;
+  const expected = stateExpectedGoals(state, {
+    home: instructions.home ?? assistantInstruction(state, "home", played),
+    away: instructions.away ?? assistantInstruction(state, "away", played),
+  });
   const share = SEGMENT_MINUTES / REGULATION_MINUTES;
   const goalShare = extraTime ? share * EXTRA_TIME_INTENSITY : share;
 
@@ -644,8 +697,8 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
 }
 
 /** Plays a period's segments one after the other: a half ends at half-time, at the final whistle or before extra time. */
-export function playPeriod(start: MatchState, matchSeed: string, period: Period): MatchState {
-  return PERIOD_SEGMENTS[period].reduce((state, segment) => simulateSegment(state, matchSeed, segment), start);
+export function playPeriod(start: MatchState, matchSeed: string, period: Period, instructions: Instructions = {}): MatchState {
+  return PERIOD_SEGMENTS[period].reduce((state, segment) => simulateSegment(state, matchSeed, segment, instructions), start);
 }
 
 /** Slot indexes of a team's sent-off players: they stay empty, whatever the formation. */
@@ -946,11 +999,11 @@ export function knockoutWinner(result: MatchResult): Side {
  * What follows the second half of a knockout match level after 90 minutes: both periods of extra time, then the
  * shoot-out if still level, each with its stream from matchSeed. A state already at FULL_TIME is returned as it is.
  */
-export function finishKnockout(state: MatchState, matchSeed: string): MatchState {
+export function finishKnockout(state: MatchState, matchSeed: string, instructions: Instructions = {}): MatchState {
   if (state.phase !== "REGULATION_END") {
     return state;
   }
-  const extraTime = playPeriod(playPeriod(state, matchSeed, "e1"), matchSeed, "e2");
+  const extraTime = playPeriod(playPeriod(state, matchSeed, "e1", instructions), matchSeed, "e2", instructions);
   return extraTime.phase === "SHOOTOUT" ? simulateShootout(extraTime, makeRng(phaseRngSeed(matchSeed, "shootout"))) : extraTime;
 }
 
@@ -962,7 +1015,8 @@ export function applyAutomaticHalfTime(state: MatchState, sides: readonly Side[]
 /**
  * Simulates a whole match without a pause: the first half, the automatic half-time changes of both clubs, then the
  * second half, segment by segment, each with its own stream derived from matchSeed (phaseRngSeed). A knockout match level
- * after 90 minutes goes on to extra time and a shoot-out (finishKnockout).
+ * after 90 minutes goes on to extra time and a shoot-out (finishKnockout). Each side plays the instructions given, or
+ * its assistant's.
  */
 export function simulateMatch(
   home: Lineup,
@@ -970,10 +1024,11 @@ export function simulateMatch(
   matchSeed: string,
   formations?: Readonly<Record<Side, FormationName>>,
   knockout: boolean = false,
+  instructions: Instructions = {},
 ): MatchResult {
-  const halfTime = playPeriod(startMatch(home, away, formations, knockout), matchSeed, "h1");
-  const regulation = playPeriod(applyAutomaticHalfTime(halfTime), matchSeed, "h2");
-  return matchResult(finishKnockout(regulation, matchSeed));
+  const halfTime = playPeriod(startMatch(home, away, formations, knockout), matchSeed, "h1", instructions);
+  const regulation = playPeriod(applyAutomaticHalfTime(halfTime), matchSeed, "h2", instructions);
+  return matchResult(finishKnockout(regulation, matchSeed, instructions));
 }
 
 /**

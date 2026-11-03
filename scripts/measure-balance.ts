@@ -3,7 +3,7 @@
  * [--out=file.json]).
  *
  * Engine, on the pure functions, without a database: wins, draws and losses by strength gap, then the isolated effect of
- * each factor, everything else equal. Two teams of the same synthetic level, every player at his position's profile, no
+ * each factor, everything else equal, the formations with their profiles and the instructions against the assistant's rule. Two teams of the same synthetic level, every player at his position's profile, no
  * random spread; only the tested team changes. A case plays --matches matches (default 20 000), half of them at home, half
  * away, unless it is about the venue, on the same seeds as every other case, so that two cases differ by the factor alone.
  *
@@ -17,8 +17,10 @@ import { writeFileSync } from "node:fs";
 import {
   BASE_GOALS_PER_TEAM,
   FORM_RETENTION,
+  FORMATION_PROFILES,
   HOME_ADVANTAGE,
   POSITION_PROFILES,
+  SEGMENT_MINUTES,
   STRENGTH_EXPONENT,
 } from "../src/engine/balance";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../src/engine/formations";
@@ -26,13 +28,15 @@ import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "..
 import { averageStarterRating, selectLineup, type Lineup, type SquadPlayer } from "../src/engine/lineup";
 import {
   applyAutomaticHalfTime,
+  assistantInstruction,
   expectedGoals,
+  formationStrength,
   knockoutWinner,
   matchResult,
   simulateMatch,
   simulateSegment,
   startMatch,
-  teamStrength,
+  type Instruction,
   type MatchResult,
   type MatchState,
   type Segment,
@@ -179,16 +183,25 @@ function duel(tested: Lineup, other: Lineup, matches: number, venue: Venue = "bo
 
 const SEGMENTS: readonly Segment[] = ["s1", "s2", "s3", "s4", "s5", "s6"];
 
-/** Plays a match segment by segment, as simulateMatch does, with a change to the state before each segment. */
+/** What a side plays at the start of a segment, from the state of the match and the minutes played. */
+type Policy = (state: MatchState, side: Side, played: number) => Instruction;
+
+/**
+ * Plays a match segment by segment, as simulateMatch does, with a callback before each segment: a change to the state
+ * (a player sent off) and the tested side's instruction. The other side follows the assistant's rule.
+ */
 function segmentBySegment(
   home: Lineup,
   away: Lineup,
-  before: (state: MatchState, segment: Segment) => MatchState,
   seed: string,
+  tested: Side,
+  before: (state: MatchState, segment: Segment) => MatchState,
+  policy: Policy = assistantInstruction,
 ): MatchResult {
   let state = startMatch(home, away);
-  for (const segment of SEGMENTS) {
-    state = simulateSegment(before(segment === "s4" ? applyAutomaticHalfTime(state) : state, segment), seed, segment);
+  for (const [index, segment] of SEGMENTS.entries()) {
+    const ready = before(segment === "s4" ? applyAutomaticHalfTime(state) : state, segment);
+    state = simulateSegment(ready, seed, segment, { [tested]: policy(ready, tested, index * SEGMENT_MINUTES) });
   }
   return matchResult(state);
 }
@@ -197,27 +210,29 @@ function segmentBySegment(
 const matchWithRedCard =
   (segment: Segment, slot: number): Play =>
   (home, away, seed, tested) =>
-    segmentBySegment(
-      home,
-      away,
-      (state, current) =>
-        current !== segment
-          ? state
-          : {
-              ...state,
-              [tested]: {
-                ...state[tested],
-                pitch: state[tested].pitch.map((entry) => (entry.index === slot ? { ...entry, status: "SENT_OFF" } : entry)),
-              },
+    segmentBySegment(home, away, seed, tested, (state, current) =>
+      current !== segment
+        ? state
+        : {
+            ...state,
+            [tested]: {
+              ...state[tested],
+              pitch: state[tested].pitch.map((entry) => (entry.index === slot ? { ...entry, status: "SENT_OFF" } : entry)),
             },
-      seed,
+          },
     );
+
+/** A match where the tested side follows a policy of its own; the other one, the assistant's rule. */
+const matchWithPolicy =
+  (policy: Policy): Play =>
+  (home, away, seed, tested) =>
+    segmentBySegment(home, away, seed, tested, (state) => state, policy);
 
 // ------------------------------------------------------------------ Engine report
 
-/** A team's expected goals on neutral ground, from the code's formula, without a draw. */
+/** A team's expected goals on neutral ground, both in the 4-3-3 of AI clubs, from the code's formula, without a draw. */
 function neutralGoals(team: Lineup, opponent: Lineup): number {
-  return expectedGoals(teamStrength(team), teamStrength(opponent), 1);
+  return expectedGoals(formationStrength(team, DEFAULT_FORMATION_NAME), formationStrength(opponent, DEFAULT_FORMATION_NAME), 1);
 }
 
 function resultColumns(tally: Tally, baseline: Tally): string[] {
@@ -373,6 +388,57 @@ function factorTables(options: Options, sections: string[]): void {
     { label: "red card before the 75th minute, CM: last 15 minutes at ten", play: matchWithRedCard("s6", SLOT.CM) },
   ]);
 
+  const ahead = (state: MatchState, side: Side): number =>
+    state[side].goals - state[side === "home" ? "away" : "home"].goals;
+  const always =
+    (instruction: Instruction): Policy =>
+    () =>
+      instruction;
+  const instructionCases = (team: Lineup, against: Lineup, label: string): string[][] => {
+    const reference = duel(team, against, options.matches, "both", matchWithPolicy(assistantInstruction));
+    const policies: readonly (readonly [string, Policy])[] = [
+      ["the assistant's rule (reference)", assistantInstruction],
+      ["Équilibré all match", always("BALANCED")],
+      ["Attaquer all match", always("ATTACK")],
+      ["Fermer all match", always("DEFEND")],
+      [
+        "rule without Attaquer: Équilibré when behind",
+        (state, side, played) => (ahead(state, side) < 0 ? "BALANCED" : assistantInstruction(state, side, played)),
+      ],
+      [
+        "rule without Fermer: Équilibré one goal ahead",
+        (state, side, played) => (ahead(state, side) > 0 ? "BALANCED" : assistantInstruction(state, side, played)),
+      ],
+      [
+        "Attaquer behind from half-time",
+        (state, side, played) => (ahead(state, side) < 0 && played >= 45 ? "ATTACK" : assistantInstruction(state, side, played)),
+      ],
+      [
+        "Fermer ahead by any margin from the 60th",
+        (state, side, played) => (ahead(state, side) > 0 && played >= 60 ? "DEFEND" : assistantInstruction(state, side, played)),
+      ],
+      [
+        "Attaquer level from the 75th",
+        (state, side, played) => (ahead(state, side) === 0 && played >= 75 ? "ATTACK" : assistantInstruction(state, side, played)),
+      ],
+    ];
+    return policies.map(([name, policy]) => {
+      const tally = duel(team, against, options.matches, "both", matchWithPolicy(policy));
+      return [label, name, ...resultColumns(tally, reference)];
+    });
+  };
+  sections.push(
+    `### Instructions of the tested team, the other one following the assistant's rule (${options.matches} matches a row)`,
+    "Rule: Attaquer when behind from the 60th minute, Fermer one goal ahead from the 75th, Équilibré otherwise; read at the start of each segment.",
+    table(
+      ["tested team", "instructions", ...RESULT_HEADERS],
+      [
+        ...instructionCases(base, other, `level ${BASE_LEVEL}, equal`),
+        ...instructionCases(syntheticTeam("tested", BASE_LEVEL + 5), other, `level ${BASE_LEVEL + 5}, stronger`),
+        ...instructionCases(syntheticTeam("tested", BASE_LEVEL - 5), other, `level ${BASE_LEVEL - 5}, weaker`),
+      ],
+    ),
+  );
 
   const formationCases: Case[] = FORMATION_NAMES.map((formation) => ({
     label: formation,
@@ -382,17 +448,25 @@ function factorTables(options: Options, sections: string[]): void {
   const formationRows = formationCases.map(({ label, team, play }) => {
     const lineup = team ?? base;
     const tally = duel(lineup, other, options.matches, "both", play);
-    const strength = teamStrength(lineup, formationPositions(label as FormationName));
-    return [label, fixed(strength.attack, 2), fixed(strength.defense, 2), ...resultColumns(tally, baseline)];
+    const formation = label as FormationName;
+    const strength = formationStrength(lineup, formation);
+    const profile = FORMATION_PROFILES[formation];
+    return [
+      label,
+      `${signed(100 * (profile.attack - 1), 0)} % / ${signed(100 * (profile.defense - 1), 0)} %`,
+      fixed(strength.attack, 2),
+      fixed(strength.defense, 2),
+      ...resultColumns(tally, baseline),
+    ];
   });
   const lines = FORMATION_NAMES.map((formation) => {
     const positions = formationPositions(formation).map(positionGroup);
     return `${formation}: ${(["DF", "MF", "FW"] as const).map((line) => `${positions.filter((group) => group === line).length} ${line}`).join(", ")}`;
   });
   sections.push(
-    `### Formation, an ideal eleven at level ${BASE_LEVEL} in each, against a 4-3-3`,
+    `### Formation, an ideal eleven at level ${BASE_LEVEL} in each, its profile applied, against a 4-3-3`,
     lines.join(" · "),
-    table(["formation", "attack", "defense", ...RESULT_HEADERS], formationRows),
+    table(["formation", "profile attack / defense", "attack", "defense", ...RESULT_HEADERS], formationRows),
   );
 
   const knockoutCase = (gap: number): string[] => {
@@ -730,7 +804,7 @@ async function measureFormations(
       const lineup = selectLineup(squad, formationPositions(formation));
       const tally = duel(lineup, opponent, options.matches, "both", plainMatch({ tested: formation, other: DEFAULT_FORMATION_NAME }));
       reference ??= tally;
-      const strength = teamStrength(lineup, formationPositions(formation));
+      const strength = formationStrength(lineup, formation);
       const offPosition = lineup.starters.filter(({ player, slot }) => ratingAt(player, slot) < player.overall).length;
       rows.push([
         row.club.slug,

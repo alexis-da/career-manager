@@ -1,6 +1,7 @@
 import type { Curve } from "./curves";
+import type { FormationName } from "./formations";
 import type { AttributeName } from "./generation";
-import type { MatchEventType, Outcome } from "./match";
+import type { Instruction, MatchEventType, Outcome } from "./match";
 import type { Position, PositionGroup } from "./positions";
 import type { CompetitionTier } from "./tiers";
 
@@ -275,6 +276,20 @@ export const DEFENSE_WEIGHTS: Readonly<Record<PositionGroup, Partial<Record<Attr
 export const ATTACK_LINE_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK: 0, DF: 0.15, MF: 0.35, FW: 0.5 };
 export const DEFENSE_LINE_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK: 0.35, DF: 0.45, MF: 0.2, FW: 0 };
 
+/**
+ * Multipliers of a team's attack and defense by formation: the 4-4-2 is neutral, more forwards attack more and defend
+ * less. AI clubs play the 4-3-3.
+ */
+export const FORMATION_PROFILES: Readonly<Record<FormationName, { readonly attack: number; readonly defense: number }>> = {
+  "3-4-3": { attack: 1.05, defense: 0.95 },
+  "4-3-3": { attack: 1.03, defense: 0.97 },
+  "4-2-3-1": { attack: 1.02, defense: 0.99 },
+  "4-4-2": { attack: 1, defense: 1 },
+  "3-5-2": { attack: 1.01, defense: 0.99 },
+  "4-1-4-1": { attack: 0.98, defense: 1.02 },
+  "5-3-2": { attack: 0.95, defense: 1.05 },
+};
+
 /** Form and morale (1–99) at which a player plays exactly at their attribute values. */
 export const CONDITION_NEUTRAL = 50;
 
@@ -284,17 +299,37 @@ export const STRENGTH_PER_MORALE_POINT = 0.001;
 
 // ------------------------------------------------------------------ Match: goals
 
-/** Expected goals of a team facing an equal opponent on neutral ground. */
-export const BASE_GOALS_PER_TEAM = 1.42;
+/**
+ * Expected goals of a team facing an equal opponent on neutral ground, both in the neutral 4-4-2: two 4-3-3s, as AI
+ * clubs play, score about 15 % more (FORMATION_PROFILES). Calibrated with npm run measure:balance on complete seasons.
+ */
+export const BASE_GOALS_PER_TEAM = 1.14;
 
 /** How sharply the attack / defense ratio turns into expected goals: ratio ^ exponent. */
-export const STRENGTH_EXPONENT = 2.5;
+export const STRENGTH_EXPONENT = 2.4;
 
 /** Expected goals are multiplied by this factor at home and divided by it away. */
-export const HOME_ADVANTAGE = 1.15;
+export const HOME_ADVANTAGE = 1.12;
 
 /** Upper bound on a team's expected goals, whatever the gap between the teams. */
 export const MAX_EXPECTED_GOALS = 6;
+
+/**
+ * An instruction's multipliers on the expected goals of the segments it is given for: the side's own, and its
+ * opponent's. Attaquer scores more and concedes more, Fermer scores less and concedes less.
+ */
+export const INSTRUCTION_EFFECTS: Readonly<Record<Instruction, { readonly own: number; readonly opponent: number }>> = {
+  ATTACK: { own: 1.15, opponent: 1.1 },
+  BALANCED: { own: 1, opponent: 1 },
+  DEFEND: { own: 0.8, opponent: 0.85 },
+};
+
+/**
+ * The assistant's rule, AI clubs' too: Attaquer when behind once this many minutes are played, Fermer when one goal
+ * ahead once this many are, Équilibré otherwise. Read at the start of each segment.
+ */
+export const ASSISTANT_ATTACK_MINUTE = 60;
+export const ASSISTANT_DEFEND_MINUTE = 75;
 
 /** Chance that a goal has an assist. */
 export const ASSIST_CHANCE = 0.75;
