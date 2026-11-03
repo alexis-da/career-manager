@@ -54,26 +54,50 @@ Ne pas simuler 90 minutes action par action au début. Partir d'un modèle simpl
 4. Attribuer buteurs et passeurs par tirage pondéré sur les attributs offensifs des joueurs sur le terrain.
 5. Générer les événements (cartons, blessures) avec des probabilités faibles et documentées.
 
-## Deux périodes et mi-temps
+## Segments de 15 minutes, mi-temps et consignes
 
-Un match se joue en deux appels de `simulateHalf(state, rng, period)` (`match.ts`) : `h1` de 1' à 45', `h2` de 46'
-au coup de sifflet (les arrêts de jeu, 0 à 5 minutes, ne suivent que la seconde période). Chaque période tire la
-moitié des buts, cartons et blessures attendus, avec sa propre graine : `halfRngSeed(matchRngSeed(...), "h1" | "h2")`.
-La force est recalculée au début de chaque période sur les joueurs présents, la ligne étant partagée entre les slots
-du dispositif, vides compris : une équipe à 10 est plus faible.
+Cahier : `docs/design/gameplay-v1.md` (chantier G1). Un match se joue en six segments de 15 minutes
+(`simulateSegment(state, matchSeed, segment, instructions?)`, `match.ts`) : `s1` à `s3` font la première période
+(1'–45', fin sur `HALF_TIME`), `s4` à `s6` la seconde (46' au coup de sifflet ; les arrêts de jeu, 0 à 5 minutes,
+ne suivent que `s6`). `playPeriod(state, matchSeed, "h1" | "h2" | "e1" | "e2")` enchaîne les segments d'une période.
+Chaque segment a sa propre graine, `phaseRngSeed(matchSeed, "s1"…"s6" | "e1" | "e2" | "shootout")` (`…:s1`), et
+recalcule à son début la force des deux équipes sur les joueurs présents (la ligne étant partagée entre les slots du
+dispositif, vides compris : une équipe à 10 est plus faible), le profil du dispositif et la consigne de chacune ; puis
+il tire sa part des buts (Poisson de λ × 15/90), des cartons et des blessures attendus. Un rouge, une blessure ou un
+changement compte donc dès le segment suivant.
 
-- `MatchState` (données pures, stockées telles quelles dans `Fixture.liveState`) : phase, score, événements,
-  apparitions closes, blessures, et par équipe le dispositif, les slots (`ON`, `INJURED`, `SENT_OFF`), le banc,
-  les remplacements faits (`MAX_SUBSTITUTIONS` = 5 par match) et les avertis.
-- En première période, un blessé laisse son slot vide jusqu'à la pause ; en seconde, il est remplacé aussitôt tant
-  qu'il reste des changements. Les remplacements tactiques (3 prévus, 55'–85') n'ont lieu qu'en seconde période.
-  Un exclu n'est jamais remplacé et son slot reste vide, quel que soit le dispositif.
+- `MatchState` (données pures, stockées telles quelles dans `Fixture.liveState`, version 1) : phase (`IN_PLAY` entre
+  deux segments d'une période, jamais stockée), score, événements, apparitions closes, blessures, et par équipe le
+  dispositif, les slots (`ON`, `INJURED`, `SENT_OFF`), le banc, les remplacements faits (`MAX_SUBSTITUTIONS` = 5
+  par match) et les avertis. Ni les consignes ni les minutes des changements tactiques n'y sont : elles se recalculent.
+- Un blessé est remplacé aussitôt, tant qu'il reste des changements, par le remplaçant au meilleur `ratingAt` au slot.
+  Les remplacements tactiques (3 prévus, 55'–85', minutes tirées du flux `…:substitutions:home|away`, les mêmes quoi
+  qu'il arrive) n'ont lieu qu'en seconde période. Un exclu n'est jamais remplacé et son slot reste vide.
+- Profils de dispositif (`FORMATION_PROFILES`, `balance.ts`, appliqués par `formationStrength`) : multiplicateurs de
+  l'attaque et de la défense, 4-4-2 neutre, 3-4-3 +5 % / −5 %, 4-3-3 +3 / −3, 4-2-3-1 +2 / −1, 3-5-2 +1 / −1,
+  4-1-4-1 −2 / +2, 5-3-2 −5 / +5. Les clubs IA jouent le 4-3-3.
+- Consignes (`Instruction` : `ATTACK`, `BALANCED`, `DEFEND` ; `INSTRUCTION_EFFECTS`) : Attaquer = λ propre × 1,15 et
+  λ adverse × 1,10 ; Fermer = × 0,80 et × 0,85. Règle de l'adjoint et des clubs IA, `assistantInstruction(state,
+  side, played)`, lue au début de chaque segment : mené à partir de la 60e → Attaquer, mène d'un but à partir de la
+  75e → Fermer, sinon Équilibré. `simulateMatch`, `playPeriod` et `simulateSegment` acceptent des consignes par
+  côté (`Instructions`) ; un côté sans consigne suit la règle. Le jeu n'en donne encore aucune : tous les clubs, le
+  club dirigé compris en direct, suivent la règle jusqu'à l'interface du direct (G5).
 - Mi-temps : `automaticHalfTimeChoice` (clubs IA, simulation rapide, club dirigé sans choix) remplace seulement les
-  blessés, par le meilleur `ratingAt` au slot. `applyHalfTimeChoice` valide et applique un choix (dispositif, joueur
-  par slot, remplacements datés de 46', sortants clos à 45') et lève `HalfTimeChoiceError` sinon.
-- `simulateMatch(home, away, matchSeed, formations?)` = h1, mi-temps automatique des deux côtés, h2. Le club dirigé
-  joue h1 dans `playNextMatchday(saveId, { pauseManagedMatch: true })` puis h2 dans `resumeLiveMatch` : sans
-  changement, le résultat est identique à un match joué d'une traite.
+  blessés restés dans leur slot (plus aucun changement, ou état d'avant les segments, dont la première période les y
+  laissait), par le meilleur `ratingAt` au slot. `applyHalfTimeChoice` valide et applique un choix (dispositif,
+  joueur par slot, remplacements datés de 46', sortants clos à 45') et lève `HalfTimeChoiceError` sinon.
+- `simulateMatch(home, away, matchSeed, formations?, knockout?, instructions?)` = h1, mi-temps automatique des deux
+  côtés, h2. Le club dirigé joue h1 dans `playNextMatchday(saveId, { pauseManagedMatch: true })`, puis
+  `resumeLiveMatch` reprend par `resumeMatch(paused, managedSide, choice, matchSeed)` : sans changement, le résultat
+  est exactement celui d'un match joué d'une traite, y compris depuis un état stocké avant les segments
+  (`src/db/live-state.test.ts`, deux états v1 dans `src/db/data/`).
+- Calibration (G1, `npm run measure:balance`, trois saisons complètes du monde 2) : base 1,14, exposant 2,4, domicile
+  1,12 → 2,65 buts par match, 44 % de victoires à domicile, 25 % de nuls, 55 points entre le premier et le dernier, 23 %
+  de victoires du plus faible (≥ 1 point d'écart). Épinglée à forme 50 dans `match.test.ts` (premières divisions :
+  2,5–2,8 buts, 42–46 % à domicile, 23–27 % de nuls, Bayern-Monza au-dessus de 75 %) et sur une saison avec forme et
+  blessures dans `match-season.test.ts` (les cibles du cahier).
+- Forme (`nextForm`) : résultat ±2, but +1,5, passe +1, rouge −3 pour un joueur qui a joué, 1 point vers 50 sinon ;
+  puis elle garde `FORM_RETENTION` (0,94) de son écart à 50. Les onze finissent une saison entre 35 et 75 environ.
 
 **Événements persistés.** `eventsToPersist(events, involvesManagedClub)` (`match.ts`) : tous les événements pour un
 match du club dirigé, seulement les buts (avec leur passeur) pour les autres (`OTHER_MATCH_EVENT_TYPES`, `balance.ts`),
@@ -88,19 +112,18 @@ Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 %
 
 Un match de coupe se joue avec `knockout = true` (`startMatch(…, knockout)`, `simulateMatch(…, formations, true)`) ;
 `MatchState.knockout` passe la mi-temps (il est dans `Fixture.liveState`). Un match de championnat ne l'a jamais et
-**tire exactement la même chose qu'avant les coupes** : empreinte d'une journée complète épinglée
-(`match-fingerprint.test.ts`). Toute modification des tirages de `h1`/`h2` la casse : c'est voulu.
+**tire exactement ce qu'épingle l'empreinte d'une journée complète** (`match-fingerprint.test.ts`, épinglée de
+nouveau avec les segments). Toute modification des tirages des segments la casse : c'est voulu.
 
 - Phases : à égalité après `h2`, un match à élimination s'arrête sur `REGULATION_END` (apparitions non closes), puis
-  `simulateHalf(state, rng, "e1")` (91'–105', fin sur `EXTRA_TIME_BREAK`) et `"e2"` (106'–120'), puis
-  `simulateShootout` si l'égalité tient (`SHOOTOUT`), et `FULL_TIME`. `finishKnockout(state, matchSeed)` enchaîne tout
-  cela.
+  le segment `e1` (91'–105', fin sur `EXTRA_TIME_BREAK`) et `e2` (106'–120'), puis `simulateShootout` si l'égalité
+  tient (`SHOOTOUT`), et `FULL_TIME`. `finishKnockout(state, matchSeed)` enchaîne tout cela.
 - Direct du club dirigé : `resumeLiveMatch` joue la seconde période depuis la mi-temps ; à égalité, le match s'arrête
   sur `REGULATION_END` (`Fixture.status` du même nom, état gardé dans `liveState`), où `applyHalfTimeChoice` accepte un
   remplacement de plus (`breakSubstitutionLimit`, entrées datées de 91', période EXTRA_TIME) ; la reprise suivante joue
   `finishKnockout`. Sans changement à cette pause (l'adversaire n'y change rien), le match est exactement celui de
   `simulateMatch` (`match-knockout.test.ts`, `cup.test.ts`).
-- Graines : `halfRngSeed(matchSeed, "e1" | "e2" | "shootout")`, une par phase. La graine d'un match de coupe est
+- Graines : `phaseRngSeed(matchSeed, "e1" | "e2" | "shootout")`, une par phase. La graine d'un match de coupe est
   `cupMatchRngSeed(save.seed, startYear, round, home, away)` (`…:cup:…`), jamais celle du match de championnat de la
   même journée entre les mêmes clubs (`fixtureMatchSeed`, `src/db/matchday.ts`, la choisit selon la compétition).
 - Prolongation : 15/90 des buts, cartons et blessures attendus par période, buts multipliés par
@@ -118,7 +141,8 @@ Un match de coupe se joue avec `knockout = true` (`startMatch(…, knockout)`, `
   qualifié (écrit en `Fixture.winnerClubSaveId`). Les buts de mi-temps ne comptent que les minutes ≤ 45.
 - Calibration (`match-cup.slow.test.ts`, 10 000 matchs entre clubs d'un même pays, D1 et D2 mêlées) : 79,3 % décidés en
   90 minutes, 10,5 % en prolongation, 10,2 % aux tirs au but (0,8 donnait 11,5 %), 0,88 but par prolongation, 73 % de
-  tirs réussis. Tolérances : 8–12 % aux tirs au but, 70–78 % de réussite.
+  tirs réussis ; avec les segments (G1), plus de nuls à 90 minutes : 76,7 %, 11,2 %, 12,1 %, 0,77 but par
+  prolongation. Tolérances : 8–14 % aux tirs au but, 70–78 % de réussite.
 
 ## Coupes nationales (parties 2)
 
@@ -219,7 +243,8 @@ Toute modification du moteur s'accompagne de tests Vitest :
 - **Déterminisme** : deux appels avec la même graine donnent un résultat strictement identique.
 - **Plausibilité statistique** (`match.test.ts`, sur le vrai monde avec `selectLineup`, donc hors poste
   compris) : sur 10 000 matchs simulés, la moyenne de buts par match tombe dans une
-  fourchette réaliste (2,4 à 3,2), et la meilleure équipe gagne nettement plus souvent que la plus faible.
+  fourchette réaliste (2,5 à 2,8), et la meilleure équipe gagne nettement plus souvent que la plus faible ; sur une
+  saison complète avec forme et blessures (`match-season.test.ts`), les cibles du cahier gameplay.
 - **Bornes** : aucun score négatif, aucun attribut hors de 1–99, aucune minute hors de 1–90 (arrêts de jeu compris),
   91–120 en prolongation (`match-knockout.test.ts`).
 
@@ -286,7 +311,8 @@ change : ni joueurs, ni contrats, ni salaires (un relégué peut donc payer plus
 - Laissés après mesure : la plage de niveau de deuxième division (son champion vaut le 15e de première au départ) et
   les finances au changement de division (un tiers des promus redescend aussitôt, un tiers des relégués remonte).
 - Calibration épinglée : première division dans `match.test.ts`, deuxième dans `match-d2.slow.test.ts` (2,4–3,2 buts,
-  40–50 % à domicile, 20–28 % de nuls, champion de deuxième aussi fort que le 15e de première).
+  40–50 % à domicile, 20–28 % de nuls, champion de deuxième aussi fort que le 15e de première ; 2,59 buts, 43,0 %,
+  26,2 % avec les segments), les deux ensemble avec forme dans `match-season.test.ts`.
 
 Côté base (`src/db/promotion.ts`) : `readFinalTables` lit les matchs joués des saisons de championnat qui se ferment
 (les classements finaux servent aussi aux tours préliminaires des coupes), `seasonMovesOf` en tire les mouvements,

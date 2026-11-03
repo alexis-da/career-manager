@@ -22,7 +22,7 @@ npx prisma studio      # inspecter la base
 npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
-npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, saisons d'une partie 2 (base locale seulement)
+npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs et consignes, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2 (base locale seulement)
 ```
 
@@ -73,10 +73,20 @@ compétition actuelle du club, et **« Prochain match »** à la place de « Jou
 le prochain match du club, où seules les autres compétitions jouent, par tranches de 5 (`playUntilNextMatch`,
 `src/db/simulation.ts`), puis sa date avec mi-temps et direct. Une partie 1 garde « Jouer la journée ».
 
+**Moteur par segments (gameplay v1).** Cahier `docs/design/gameplay-v1.md`, source de vérité des chantiers G1 à G6
+(branche `gameplay`). Un match se joue en six segments de 15 minutes (deux en prolongation), chacun avec son flux
+(`…:s1` à `…:s6`, `…:e1`, `…:e2`) et la force des équipes recalculée à son début : un rouge, une blessure (remplacée
+aussitôt) ou un changement compte dès le segment suivant. Profils de dispositif (`FORMATION_PROFILES`) et consignes
+Attaquer / Équilibré / Fermer (`INSTRUCTION_EFFECTS`), données par la règle de l'adjoint (`assistantInstruction`) à tous
+les clubs, le club dirigé compris tant que le direct ne les propose pas (G5) ; forme calmée (`FORM_RETENTION`).
+`Fixture.liveState` reste en version 1 : un direct en pause reprend avec les segments (`resumeMatch`), et simuler ou
+regarder sans choix du joueur donnent le même match (`src/db/live-state.test.ts`). Détails : skill `moteur-de-match`.
+
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
-première division vérifiée après chaque changement (2,84 buts, 46 % à domicile, 23 % de nuls, Bayern-Monza ~83 %,
-`match.test.ts`) ; celle de deuxième est épinglée dans `match-d2.slow.test.ts`. Jeunes : réputation et note lues dans
+première division vérifiée après chaque changement (2,64 buts, 44 % à domicile, 24 % de nuls, Bayern-Monza ~80 %,
+`match.test.ts`) ; celle de deuxième est épinglée dans `match-d2.slow.test.ts`, les deux sur une saison avec forme dans
+`match-season.test.ts`. Jeunes : réputation et note lues dans
 la plage de la division du club (`YOUTH_OVERALL_BY_TIER`). Un club IA au-dessus de sa masse salariale vend en
 présaison ses joueurs les mieux payés à d'autres clubs IA, jamais sous 80 % de leur valeur (`planWageSales`).
 
@@ -244,8 +254,9 @@ parcours et les tours. Aucun bouton orange plein sur ces écrans : l'action de j
 sur téléphone. `e2e/match.spec.ts` les couvre à 1280, 390 et 360 px.
 
 **Match en direct.** `/live` rejoue un match déjà simulé jusqu'à sa prochaine pause (`LiveMatch`) : rien ne s'y change hors
-des pauses, mi-temps et fin du temps réglementaire d'une coupe nulle. Le moteur n'a ni attitude, ni fatigue, ni possession,
-ni tirs : l'écran n'en montre pas. Carte du score sur le bleu vif (`LiveScoreCard` : compétition, journée, date, stade s'il
+des pauses, mi-temps et fin du temps réglementaire d'une coupe nulle. Le moteur n'a ni fatigue, ni possession, ni tirs, et
+ses consignes suivent la règle de l'adjoint, sans choix du joueur : l'écran n'en montre pas. Carte du score sur le bleu
+vif (`LiveScoreCard` : compétition, journée, date, stade s'il
 est connu, `Club.stadium` étant vide pour les 198 clubs ; score, minute en orange, barre de progression, pastille du
 résultat à la fin). Commandes (`LiveControls`, `live-controls`, un seul élément : dans la carte à partir de 1024 px, fixées
 au pied de l'écran en dessous) : vitesse x1, x2, x4 (`live-speed-*`) et `live-skip`, qui dit où il mène : « Coaching à la
