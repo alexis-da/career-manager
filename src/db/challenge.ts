@@ -78,7 +78,7 @@ export function isChallengeOpen(challenge: Pick<ChallengeSummary, "startsAt" | "
  * matchdays its club has played so far, then, once it has played the challenge's first horizonMatchdays, the score
  * (challengeScore) and the submission's real time, written once. Later matches never change it. Nothing for an ordinary
  * save (challengeId null), for a challenge save without an entry (that of a player who already had one when they
- * signed in), nor for a submitted entry. Called by playNextMatchday and resumeLiveMatch, after recordFinishedMatches:
+ * signed in), nor for a submitted entry. Called by playNextMatchday and advanceLiveMatch, after recordFinishedMatches:
  * the save's date reaches the match's day while the managed club's match may still wait at half-time.
  */
 export async function recordChallengeScore(tx: Prisma.TransactionClient, saveId: string, challengeId: string | null): Promise<void> {

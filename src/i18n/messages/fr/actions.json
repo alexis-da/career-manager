@@ -4,7 +4,7 @@
       "seasonOver": "Tous les matchs de la saison sont joués.",
       "leagueDay": "Journée du {date}",
       "cupDay": "{stage}, le {date}",
-      "halfTime": "{day} : mi-temps, {home} {homeGoals} – {awayGoals} {away}",
+      "live": "{day} : {home} – {away}, en direct",
       "notPlaying": "{day} : ton club ne jouait pas.",
       "result": "{day} : {home} {homeGoals} – {awayGoals} {away}{notes}"
     },
@@ -14,8 +14,7 @@
     },
     "resume": {
       "invalid": "Changements invalides : {max} remplacements au maximum, 11 postes.",
-      "regulationEnd": "Fin du temps réglementaire : {homeGoals} – {awayGoals}, prolongation",
-      "finalScore": "Score final : {homeGoals} – {awayGoals}{notes}"
+      "resumed": "Le match reprend."
     },
     "lineup": {
       "invalid": "Composition invalide.",
@@ -73,6 +72,8 @@
       "sent-off-slot": "Le poste d'un joueur exclu reste vide.",
       "lineup-mismatch": "Le onze ne correspond pas aux joueurs sur le terrain après les remplacements.",
       "incomplete-lineup": "Un poste reste vide alors qu'un remplaçant peut entrer."
-    }
+    },
+    "pauseGone": "Ce moment du match est déjà joué : la page se met à jour.",
+    "invalidDecision": "Ce choix n'est pas proposé à ce moment du match."
   }
 }

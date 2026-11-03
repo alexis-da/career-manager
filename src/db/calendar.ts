@@ -179,14 +179,13 @@ export type ScoreTimeline = FixtureView & { goals: { id: string; minute: number;
 export type LiveMatchday = {
   match: FixtureWithEvents;
   stadium: string | null; // the home club's, when known
-  // The break the match waits at: half-time (its events stop at 45'), or the end of regulation time of a level cup
-  // tie (they stop at the final whistle of the 90 minutes); null once played.
-  pause: "HALF_TIME" | "REGULATION_END" | null;
+  // Whether the match waits live, its events stopping where it was played to (getLivePause says where); null once played.
+  pause: "IN_PLAY" | "HALF_TIME" | "REGULATION_END" | null;
   others: ScoreTimeline[];
 };
 
 /**
- * The managed club's match of the save's current date with all its events, played or paused at half-time, and the
+ * The managed club's match of the save's current date with all its events, played or waiting live, and the
  * other matches its competition played that day; null when the managed club did not play on the current date.
  */
 export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | null> {
@@ -196,7 +195,7 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
     where: {
       saveId,
       scheduledAt: save.currentDate,
-      status: { in: ["PLAYED", "HALF_TIME", "REGULATION_END"] },
+      status: { in: ["PLAYED", "IN_PLAY", "HALF_TIME", "REGULATION_END"] },
       ...involving(managed.id),
     },
     select: {
@@ -223,7 +222,7 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
   return {
     match: { ...toFixtureView(fixture), events: events.map(toEventView(fixture.scheduledAt)) },
     stadium: fixture.homeClubSave.club.stadium,
-    pause: status === "HALF_TIME" || status === "REGULATION_END" ? status : null,
+    pause: status === "PLAYED" || status === "SCHEDULED" ? null : status,
     // By home club, in the names shown: the database only knows the real ones.
     others: others
       .map(({ events: goals, ...other }): ScoreTimeline => ({

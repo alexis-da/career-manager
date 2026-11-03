@@ -208,6 +208,7 @@ model PlayerSave {
   transfers              Transfer[]
   events                 MatchEvent[]        @relation("MatchEventPlayer")
   relatedEvents          MatchEvent[]        @relation("MatchEventRelatedPlayer")
+  decisions              MatchDecision[]
 
   @@unique([saveId, playerId])
   @@unique([saveId, playerKey])
@@ -215,19 +216,19 @@ model PlayerSave {
 }
 
 model Fixture {
-  id                String        @id @default(cuid())
-  save              Save          @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  id                String          @id @default(cuid())
+  save              Save            @relation(fields: [saveId], references: [id], onDelete: Cascade)
   saveId            String
-  season            Season        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  season            Season          @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   seasonId          String
   round             Int // numéro de journée ; en coupe, le tour : 1 préliminaire, 2 seizièmes … 6 finale
   scheduledAt       DateTime
-  homeClubSave      ClubSave      @relation("HomeFixtures", fields: [homeClubSaveId], references: [id], onDelete: Cascade)
+  homeClubSave      ClubSave        @relation("HomeFixtures", fields: [homeClubSaveId], references: [id], onDelete: Cascade)
   homeClubSaveId    String
-  awayClubSave      ClubSave      @relation("AwayFixtures", fields: [awayClubSaveId], references: [id], onDelete: Cascade)
+  awayClubSave      ClubSave        @relation("AwayFixtures", fields: [awayClubSaveId], references: [id], onDelete: Cascade)
   awayClubSaveId    String
-  played            Boolean       @default(false) // vrai si et seulement si status = PLAYED : un match en suspens n'est pas joué
-  status            FixtureStatus @default(SCHEDULED)
+  played            Boolean         @default(false) // vrai si et seulement si status = PLAYED : un match en suspens n'est pas joué
+  status            FixtureStatus   @default(SCHEDULED)
   homeGoals         Int? // score final, null tant que le match n'est pas PLAYED
   awayGoals         Int?
   homeHalfTimeGoals Int? // score de mi-temps ; null pour les matchs joués avant le moteur en deux périodes
@@ -235,10 +236,11 @@ model Fixture {
   decidedBy         DecidedBy? // match de coupe joué : en 90 minutes, en prolongation ou aux tirs au but ; null en championnat
   homePenalties     Int? // tirs au but réussis, seulement si decidedBy = PENALTIES
   awayPenalties     Int?
-  winnerClubSave    ClubSave?     @relation("WonFixtures", fields: [winnerClubSaveId], references: [id], onDelete: Cascade)
+  winnerClubSave    ClubSave?       @relation("WonFixtures", fields: [winnerClubSaveId], references: [id], onDelete: Cascade)
   winnerClubSaveId  String? // qualifié d'un match de coupe joué ; null en championnat
-  liveState         Json? // état du moteur pendant HALF_TIME ou REGULATION_END (validé par Zod, src/db/live-state.ts), null sinon
+  liveState         Json? // état du moteur du match en suspens (IN_PLAY, HALF_TIME, REGULATION_END ; validé par Zod, src/db/live-state.ts), null sinon
   events            MatchEvent[]
+  decisions         MatchDecision[]
 
   @@index([saveId, seasonId, round])
   @@index([saveId, scheduledAt])
@@ -260,6 +262,24 @@ model MatchEvent {
   @@index([fixtureId])
   @@index([playerSaveId])
   @@index([relatedPlayerSaveId])
+}
+
+/// Les décisions prises sur les événements à choix d'un match du club dirigé (gameplay v1, G4), dans l'ordre du match :
+/// gardées après lui pour son fil et sa feuille de match. Une par événement : (fixtureId, sequence) unique.
+model MatchDecision {
+  id           String       @id @default(cuid())
+  fixture      Fixture      @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  fixtureId    String
+  sequence     Int // 1, 2, 3… dans le match
+  minute       Int // la limite de segments où l'événement est venu : 15, 30, 60, 75 ou 105
+  kind         ChoiceKind
+  option       ChoiceOption
+  assistant    Boolean // le choix de l'adjoint, pris par lui ou par le joueur
+  playerSave   PlayerSave?  @relation(fields: [playerSaveId], references: [id], onDelete: Cascade)
+  playerSaveId String? // le joueur concerné : tireur choisi, joueur averti, touché ou à bout, capitaine
+
+  @@unique([fixtureId, sequence])
+  @@index([playerSaveId])
 }
 
 model Transfer {
@@ -399,6 +419,7 @@ enum UserKind {
 
 enum FixtureStatus {
   SCHEDULED
+  IN_PLAY // match du club dirigé arrêté entre deux segments, hors des pauses ci-dessous : il attend la suite (Save.liveFixtureId)
   HALF_TIME // première période jouée, le match du club dirigé attend la seconde (Save.liveFixtureId)
   REGULATION_END // match de coupe du club dirigé à égalité après 90 minutes : il attend la prolongation (Save.liveFixtureId)
   PLAYED
@@ -418,6 +439,34 @@ enum EventPeriod {
   REGULAR
   EXTRA_TIME
   SHOOTOUT
+}
+
+/// Les événements à choix du catalogue v1 (src/engine/choices.ts).
+enum ChoiceKind {
+  PENALTY // penalty pour le club
+  FREE_KICK // coup franc dangereux
+  HOTHEAD // joueur averti qui s'énerve
+  SCUFFLE // échauffourée
+  KNOCK // joueur touché
+  EXHAUSTED // joueur à bout
+  LEADING // le club mène en fin de match
+  CHASING // le club est mené ou à égalité en fin de match
+}
+
+/// Les options des événements à choix.
+enum ChoiceOption {
+  TAKER // le tireur du penalty
+  SHOOT // frapper le coup franc
+  COMBINE // jouer le coup franc en combinaison
+  TAKE_OFF // sortir le joueur
+  KEEP // garder le joueur
+  CALM // calmer ses joueurs
+  PROTEST // protester
+  PLAY_ON // laisser jouer le joueur touché
+  REPLACE // remplacer le joueur à bout
+  DEFEND // fermer le jeu
+  ATTACK // attaquer
+  STEADY // rester tel quel : la règle de l'adjoint
 }
 
 enum CompetitionKind {

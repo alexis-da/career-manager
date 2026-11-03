@@ -3,17 +3,10 @@ import { buildWorldPlan } from "../../prisma/seed/seed";
 import { HALF_TIME_MINUTE, REGULATION_MINUTES } from "../engine/balance";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../engine/formations";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engine/generation";
+import { assistantChoices, withChoices } from "../engine/choices";
 import { selectLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
-import {
-  knockoutWinner,
-  matchResult,
-  playPeriod,
-  resumeMatch,
-  simulateMatch,
-  startMatch,
-  type MatchState,
-  type Side,
-} from "../engine/match";
+import { playOn } from "../engine/live";
+import { knockoutWinner, matchResult, simulateMatch, startMatch, type MatchState, type Side } from "../engine/match";
 import { competitionTier } from "../engine/tiers";
 import { WORLD_START_DATE } from "../engine/world";
 import { ageInYears } from "../lib/dates";
@@ -22,13 +15,28 @@ import halfTimeV1 from "./data/live-state-v1-half-time.json";
 import regulationEndV1 from "./data/live-state-v1-regulation-end.json";
 import { parseLiveState, serializeLiveState } from "./live-state";
 
+/** A match played on from where it waits to its end, without a choice or a change, break after break. */
+function finish(state: MatchState, managedSide: Side, seed: string): MatchState {
+  let current = state;
+  while (current.phase !== "FULL_TIME") {
+    current = playOn(current, managedSide, seed, {}, "break");
+  }
+  return current;
+}
+
 // Two matches paused by the engine before its segments (liveState version 1, written by the engine of commit 9ace7f5,
 // on two synthetic teams): a league match at half-time, on seed "v1-league", and a cup tie level at the end of
-// regulation time, on seed "v1-cup-6". A match paused when the segment engine is deployed must still play on to its end.
+// regulation time, on seed "v1-cup-6". A match paused when a new engine is deployed must still play on to its end.
 describe("a live match paused before the segment engine (liveState version 1)", () => {
+  it("comes back at the minute it was paused at, without choice events", () => {
+    expect(parseLiveState("v1-half-time", halfTimeV1).state).toMatchObject({ phase: "HALF_TIME", played: HALF_TIME_MINUTE });
+    expect(parseLiveState("v1-regulation-end", regulationEndV1).state).toMatchObject({ phase: "REGULATION_END", played: REGULATION_MINUTES });
+    expect(parseLiveState("v1-half-time", halfTimeV1).state.choices).toBeUndefined();
+  });
+
   it("plays on from half-time to the final whistle, the second half in three segments", () => {
     const { managedSide, state } = parseLiveState("v1-half-time", halfTimeV1);
-    const finished = resumeMatch(state, managedSide, null, "v1-league");
+    const finished = finish(state, managedSide, "v1-league");
     const result = matchResult(finished);
 
     expect(finished.phase).toBe("FULL_TIME");
@@ -43,7 +51,7 @@ describe("a live match paused before the segment engine (liveState version 1)", 
       expect(result.appearances.filter((appearance) => appearance.side === side && appearance.from === 0)).toHaveLength(11);
     }
     // The same at every replay.
-    expect(resumeMatch(parseLiveState("v1-half-time", halfTimeV1).state, managedSide, null, "v1-league")).toEqual(finished);
+    expect(finish(parseLiveState("v1-half-time", halfTimeV1).state, managedSide, "v1-league")).toEqual(finished);
   });
 
   it("replaces at half-time a player injured in the first half, whom the old engine left off until the break", () => {
@@ -68,7 +76,7 @@ describe("a live match paused before the segment engine (liveState version 1)", 
       injuries: [...state.injuries, { playerId: injured.player.id, side: managedSide, days: 10 }],
     };
     const stored = parseLiveState("v1-injured", serializeLiveState({ managedSide, state: withInjury }));
-    const result = matchResult(resumeMatch(stored.state, stored.managedSide, null, "v1-league"));
+    const result = matchResult(finish(stored.state, stored.managedSide, "v1-league"));
 
     expect(result.events).toContainEqual(
       expect.objectContaining({ minute: HALF_TIME_MINUTE + 1, side: managedSide, type: "SUBSTITUTION", relatedPlayerId: injured.player.id }),
@@ -79,7 +87,7 @@ describe("a live match paused before the segment engine (liveState version 1)", 
 
   it("plays on from the end of regulation time of a cup tie to extra time, then the shoot-out if still level", () => {
     const { managedSide, state } = parseLiveState("v1-regulation-end", regulationEndV1);
-    const finished = resumeMatch(state, managedSide, null, "v1-cup-6");
+    const finished = finish(state, managedSide, "v1-cup-6");
     const result = matchResult(finished);
 
     expect(finished.phase).toBe("FULL_TIME");
@@ -116,10 +124,11 @@ const squads: { slug: string; squad: SquadPlayer[] }[] = buildWorldPlan().flatMa
 );
 
 describe("simulating or watching a match", () => {
-  it("gives the same match when the player changes nothing at the breaks, through the stored live state", () => {
+  it("gives the same match when the player takes his assistant's decisions and changes nothing at the breaks, through the stored live state", () => {
     let paused = 0;
     let cupBreaks = 0;
     let firstHalfIncidents = 0;
+    let decisions = 0;
     for (let index = 0; index < 600; index++) {
       const knockout = index % 2 === 1;
       const managedSide: Side = index % 4 < 2 ? "home" : "away";
@@ -138,23 +147,25 @@ describe("simulating or watching a match", () => {
       const away = lineup(awayClub.squad, formations.away);
       const seed = `live-state:${index}`;
 
-      // Watched: paused at half-time and stored, resumed without a choice, stored again at the end of regulation time.
-      const halfTime = playPeriod(startMatch(home, away, formations, knockout), seed, "h1");
-      firstHalfIncidents += halfTime.events.some((event) => event.type === "INJURY" || event.type === "RED_CARD") ? 1 : 0;
-      let live = parseLiveState("watched", serializeLiveState({ managedSide, state: halfTime }));
-      let state = resumeMatch(live.state, live.managedSide, null, seed);
-      if (state.phase === "REGULATION_END") {
-        cupBreaks++;
-        live = parseLiveState("watched", serializeLiveState({ managedSide, state }));
-        state = resumeMatch(live.state, live.managedSide, null, seed);
+      // Watched: stored at every pause, from the first boundary to the end, played on segment by segment with the
+      // assistant's decisions and no change at the breaks.
+      let state = playOn(withChoices(startMatch(home, away, formations, knockout), managedSide, seed), managedSide, seed, {}, "segment");
+      while (state.phase !== "FULL_TIME") {
+        const live = parseLiveState("watched", serializeLiveState({ managedSide, state }));
+        cupBreaks += live.state.phase === "REGULATION_END" ? 1 : 0;
+        firstHalfIncidents +=
+          live.state.phase === "HALF_TIME" && live.state.events.some((event) => event.type === "INJURY" || event.type === "RED_CARD") ? 1 : 0;
+        state = playOn(live.state, live.managedSide, seed, {}, "segment");
       }
       paused++;
+      decisions += state.choices?.decisions.length ?? 0;
 
-      expect(matchResult(state)).toEqual(simulateMatch(home, away, seed, formations, knockout));
+      expect(matchResult(state)).toEqual(simulateMatch(home, away, seed, formations, knockout, {}, assistantChoices(managedSide, seed)));
     }
     expect(paused).toBeGreaterThan(500);
     expect(cupBreaks).toBeGreaterThan(20);
     expect(firstHalfIncidents).toBeGreaterThan(50);
+    expect(decisions).toBeGreaterThan(paused);
     // 1 200 matches: longer than the default 5 s while other files run.
-  }, 30_000);
+  }, 60_000);
 });

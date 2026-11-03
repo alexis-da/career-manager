@@ -1,4 +1,5 @@
 import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS } from "../engine/balance";
+import { assistantChoices, withChoices, type MatchDecision } from "../engine/choices";
 import { disciplineAfterMatch, isSuspended, type CompetitionKind, type Discipline } from "../engine/discipline";
 import { fitnessAfterMatch } from "../engine/fitness";
 import { DEFAULT_FORMATION_NAME, type FormationName } from "../engine/formations";
@@ -11,15 +12,16 @@ import {
   nextForm,
   outcomeFor,
   playerMatchStats,
-  playPeriod,
   simulateMatch,
   startMatch,
   type Appearance,
   type MatchEvent,
   type MatchResult,
+  type MatchState,
   type PlayerMatchStats,
   type Side,
 } from "../engine/match";
+import { playOn } from "../engine/live";
 import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import { recordChallengeScore } from "./challenge";
@@ -38,15 +40,28 @@ const DAY_MS = 86_400_000;
 
 type Transaction = Prisma.TransactionClient;
 
-/** Refusal of anything that moves the save forward while the managed club's match waits at half-time. */
+/** Refusal of anything that moves the save forward while the managed club's match waits to be played on. */
 export class MatchInProgressError extends Error {
   constructor(readonly fixtureId: string) {
-    super(`The managed club's match ${fixtureId} is paused at half-time`);
+    super(`The managed club's match ${fixtureId} is paused`);
     this.name = "MatchInProgressError";
   }
 }
 
-/** Throws MatchInProgressError while the save has a match paused at half-time. */
+/**
+ * Locks the save's row until the transaction ends: whatever moves a save forward (a matchday, a step of its live match)
+ * waits for the move before it, then reads what that one wrote. Two clicks, two tabs, never play the same thing twice.
+ */
+export async function lockSave(tx: Transaction, saveId: string): Promise<void> {
+  await tx.$queryRaw`SELECT "id" FROM "Save" WHERE "id" = ${saveId} FOR UPDATE`;
+}
+
+/** The status of a fixture whose match waits at a pause: between two segments, at half-time, at the end of regulation time. */
+export function liveFixtureStatus(state: MatchState): "IN_PLAY" | "HALF_TIME" | "REGULATION_END" {
+  return state.phase === "HALF_TIME" || state.phase === "REGULATION_END" ? state.phase : "IN_PLAY";
+}
+
+/** Throws MatchInProgressError while the save has a match waiting to be played on. */
 export async function assertNoMatchInProgress(db: Transaction | typeof prisma, saveId: string): Promise<void> {
   const save = await db.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true } });
   if (save.liveFixtureId !== null) {
@@ -59,13 +74,13 @@ export type MatchdaySummary = {
   fixtures: number; // fixtures played or started that day
   goals: number; // in the matches played in full
   // The managed club's match that day, with how many of its starters were picked automatically in place of the
-  // saved ones, and whether it waits at half-time; null when it did not play.
-  managed: { fixtureId: string; autoFilledSlots: number; halfTime: boolean } | null;
+  // saved ones, and whether it waits to be played on live; null when it did not play.
+  managed: { fixtureId: string; autoFilledSlots: number; live: boolean } | null;
 };
 
 export type PlayNextMatchdayOptions = {
-  // Stop the managed club's match at half-time, for the manager's changes (resumeLiveMatch plays the rest).
-  // Without it, as in the quick simulation, every match is played in full.
+  // Play the managed club's match live: its first segment only, the rest step by step (advanceLiveMatch). Without it,
+  // as in the quick simulation, every match is played in full, the managed club's choice events by its assistant.
   pauseManagedMatch?: boolean;
 };
 
@@ -209,12 +224,30 @@ export function matchEventRows(
   }));
 }
 
+/** The managed club's decisions on its choice events, as rows; (fixtureId, sequence) is unique: never written twice. */
+export function matchDecisionRows(
+  fixtureId: string,
+  decisions: readonly MatchDecision[],
+  stateByKey: ReadonlyMap<string, PlayerState>,
+): Prisma.MatchDecisionCreateManyInput[] {
+  return decisions.map((decision) => ({
+    fixtureId,
+    sequence: decision.sequence,
+    minute: decision.minute,
+    kind: decision.kind,
+    option: decision.option,
+    assistant: decision.assistant,
+    playerSaveId: decision.playerId === undefined ? null : getOrThrow(stateByKey, decision.playerId, "player").playerSaveId,
+  }));
+}
+
 /** A match played to the end, ready to be written. */
 export type FinishedMatch = {
   fixtureId: string;
   seasonId: string;
   result: MatchResult;
-  newEvents: readonly MatchEvent[]; // the events not written yet: all of them, or the second half's after a pause
+  newEvents: readonly MatchEvent[]; // the events not written yet: all of them, or those since the last pause
+  newDecisions: readonly MatchDecision[]; // the managed club's decisions not written yet
   managedSide: Side | null; // a match of the managed club keeps all its events, another one its goals only
   knockout: boolean; // a cup tie: its winner is written, and only the managed club's players get season stats
   squads: Readonly<Record<Side, readonly SquadPlayer[]>>; // the clubs' players, whose form and injuries change
@@ -249,9 +282,12 @@ export async function recordFinishedMatches(
   const seasonStats: SeasonStats[] = [];
   const playerUpdates: ({ playerSaveId: string; form: number; fitness: number; injuredUntil: Date | null } & Discipline)[] = [];
 
-  for (const { fixtureId, seasonId, result, newEvents, managedSide, knockout, squads } of matches) {
+  const decisions: Prisma.MatchDecisionCreateManyInput[] = [];
+
+  for (const { fixtureId, seasonId, result, newEvents, newDecisions, managedSide, knockout, squads } of matches) {
     // Only the writing is filtered: the stats and injuries below come from the whole match in memory.
     events.push(...matchEventRows(fixtureId, eventsToPersist(newEvents, managedSide !== null), stateByKey));
+    decisions.push(...matchDecisionRows(fixtureId, newDecisions, stateByKey));
 
     const statsByKey = new Map(playerMatchStats(result).map((stats) => [stats.playerId, stats]));
     for (const stats of statsByKey.values()) {
@@ -306,6 +342,9 @@ export async function recordFinishedMatches(
 
   if (events.length > 0) {
     await tx.matchEvent.createMany({ data: events });
+  }
+  if (decisions.length > 0) {
+    await tx.matchDecision.createMany({ data: decisions });
   }
 
   // Season stats: create the rows of first appearances, add this match to the existing ones.
@@ -382,14 +421,15 @@ export async function recordFinishedMatches(
  * fitness every player of the save recovers over the days since the current date (recoveredFitness), then scores, match
  * events, season stats, form, fitness and injuries, the cups' prizes and next rounds (progressCups), then moves the
  * save's current date to that day.
- * With pauseManagedMatch, the managed club's match stops at half-time instead: its first half's events, its
- * half-time score and the engine state are written, and the save waits for resumeLiveMatch (Save.liveFixtureId).
- * Refused with MatchInProgressError while a match waits at half-time. Returns null when every fixture of the
- * save has been played.
+ * The managed club's match has its choice events, decided by its assistant. With pauseManagedMatch, it is played live
+ * instead: its first segment only, whose events and the engine state are written, and the save waits for
+ * advanceLiveMatch (Save.liveFixtureId). Refused with MatchInProgressError while a match waits. Returns null when every
+ * fixture of the save has been played.
  */
 export async function playNextMatchday(saveId: string, options: PlayNextMatchdayOptions = {}): Promise<MatchdaySummary | null> {
   return prisma.$transaction(
     async (tx) => {
+      await lockSave(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({
         where: { id: saveId },
         select: { seed: true, liveFixtureId: true, challengeId: true, currentDate: true },
@@ -454,39 +494,44 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         const knockout = isKnockout(fixture.season);
 
         if (managedSide !== null && options.pauseManagedMatch === true) {
-          const halfTime = playPeriod(startMatch(home.lineup, away.lineup, formations, knockout), matchSeed, "h1");
-          const homeHalfTimeGoals = halfTime.home.goals;
-          const awayHalfTimeGoals = halfTime.away.goals;
+          // Nobody can act before the first boundary: its segment is played now, the rest step by step.
+          const kickOff = withChoices(startMatch(home.lineup, away.lineup, formations, knockout), managedSide, matchSeed);
+          const live = playOn(kickOff, managedSide, matchSeed, {}, "segment");
           const updated = await tx.fixture.updateMany({
-            where: { id: fixture.id, saveId, played: false },
-            data: {
-              status: "HALF_TIME",
-              homeHalfTimeGoals,
-              awayHalfTimeGoals,
-              liveState: serializeLiveState({ managedSide, state: halfTime }),
-            },
+            where: { id: fixture.id, saveId, status: "SCHEDULED" },
+            data: { status: liveFixtureStatus(live), liveState: serializeLiveState({ managedSide, state: live }) },
           });
           if (updated.count !== 1) {
-            throw new Error(`Fixture ${fixture.id} could not be paused`);
+            throw new Error(`Fixture ${fixture.id} could not be started live`);
           }
-          const events = matchEventRows(fixture.id, halfTime.events, stateByKey);
+          const events = matchEventRows(fixture.id, live.events, stateByKey);
           if (events.length > 0) {
             await tx.matchEvent.createMany({ data: events });
           }
           await tx.save.update({ where: { id: saveId }, data: { liveFixtureId: fixture.id } });
-          managed = { fixtureId: fixture.id, autoFilledSlots: (managedSide === "home" ? home : away).autoFilledSlots, halfTime: true };
+          managed = { fixtureId: fixture.id, autoFilledSlots: (managedSide === "home" ? home : away).autoFilledSlots, live: true };
           continue;
         }
 
-        const result = simulateMatch(home.lineup, away.lineup, matchSeed, formations, knockout);
+        // The managed club's choice events, decided by its assistant: the very match it would play live with them.
+        const result = simulateMatch(
+          home.lineup,
+          away.lineup,
+          matchSeed,
+          formations,
+          knockout,
+          {},
+          managedSide === null ? undefined : assistantChoices(managedSide, matchSeed),
+        );
         if (managedSide !== null) {
-          managed = { fixtureId: fixture.id, autoFilledSlots: (managedSide === "home" ? home : away).autoFilledSlots, halfTime: false };
+          managed = { fixtureId: fixture.id, autoFilledSlots: (managedSide === "home" ? home : away).autoFilledSlots, live: false };
         }
         finished.push({
           fixtureId: fixture.id,
           seasonId: fixture.seasonId,
           result,
           newEvents: result.events,
+          newDecisions: result.decisions ?? [],
           managedSide,
           knockout,
           squads: squadsBySide,
@@ -500,8 +545,8 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         save.seed,
         finished.filter((match) => match.knockout).map((match) => match.fixtureId),
       );
-      // A challenge save's entry, once its club's match is over: not while it waits at half-time.
-      if (managed !== null && !managed.halfTime) {
+      // A challenge save's entry, once its club's match is over: not while it waits live.
+      if (managed !== null && !managed.live) {
         await recordChallengeScore(tx, saveId, save.challengeId);
       }
       await tx.save.update({ where: { id: saveId }, data: { currentDate: matchDate } });

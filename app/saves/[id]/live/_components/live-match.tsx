@@ -3,11 +3,16 @@
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { toast } from "sonner";
+import { isNewVersionError } from "@/app/_lib/new-version";
 import type { FixtureWithEvents, MatchEventView, ScoreTimeline } from "@/src/db/calendar";
 import type { HalfTimeTeam } from "@/src/db/live-match";
-import { EXTRA_TIME_END_MINUTE, HALF_TIME_MINUTE } from "@/src/engine/balance";
+import { EXTRA_TIME_END_MINUTE } from "@/src/engine/balance";
+import type { LivePause } from "@/src/engine/live";
 import { REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
 import { matchResultFor } from "../../_lib/stage";
+import { continueMatchAction } from "../../actions";
+import { endMinute as endMinuteOf, goesToExtraTime, isMatchBreak, pauseKey, skipTarget, stepUntil } from "../_lib/live-pause";
 import { countFor } from "../_lib/match-stats";
 import { HalfTime } from "./half-time";
 import { LiveControls, type Speed } from "./live-controls";
@@ -43,93 +48,139 @@ const prefersReducedMotion = (): boolean => window.matchMedia(REDUCED_MOTION_QUE
 const clockMinute = (event: { minute: number; period: MatchEventView["period"] }): number =>
   event.period === "REGULAR" ? Math.min(event.minute, REGULATION_MINUTES) : event.minute;
 
-type StepProps = {
+type LiveMatchProps = {
   saveId: string;
   dashboardHref: string;
   caption: string;
-  match: FixtureWithEvents;
+  match: FixtureWithEvents; // its events up to where it is played, never further
   others: ScoreTimeline[];
-  // The break the match waits at: the replay stops there (45', or 90' for a level cup tie), on the Coaching panel.
-  pause: HalfTimeTeam | null;
-  startMinute: number; // 0 from kick-off; HALF_TIME_MINUTE or REGULATION_MINUTES to land on a break or replay what follows
+  pause: LivePause | null; // where the match waits; null once over
+  breakTeam: HalfTimeTeam | null; // at a break (half-time, the end of regulation time of a level cup tie): the Coaching panel's
+  startMinute: number; // 0 from kick-off; the pause's minute to go on from where the match waits
 };
 
-type ReplayProps = StepProps & {
+type ReplayProps = LiveMatchProps & {
   speed: Speed;
   onSpeedChange: (speed: Speed) => void;
 };
 
 /**
- * Replays an already simulated match: a clock runs and the saved events appear as it passes their minute. Nothing is
- * drawn here. A match paused at a break stops there, the Coaching panel open; once the rest is played, its replay starts
- * again from the break, the other matches' scores going on. A cup tie that went to extra time runs on to 120'
- * (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the break or the end is shown at once.
+ * The match as the server plays it: a clock runs and the saved events appear as it passes their minute; nothing is
+ * drawn here. The server plays one segment of 15 minutes at a time: the clock runs up to the pause the match waits at,
+ * holds there while the page asks for the next segment, once per pause, then goes on with what comes back. At a break,
+ * the Coaching panel opens, and the clock goes on from the break once it is resumed. « live-skip » takes the clock to the
+ * pause and asks for all that comes before the next break, or the end, then on through the pauses on the way. A cup tie
+ * that went to extra time runs on to 120' (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the
+ * breaks and the end are shown at once.
  */
-function Replay({ saveId, dashboardHref, caption, match, others, pause, startMinute, speed, onSpeedChange }: ReplayProps) {
+function Replay({ saveId, dashboardHref, caption, match, others, pause, breakTeam, startMinute, speed, onSpeedChange }: ReplayProps) {
   const t = useTranslations("live");
+  const tCommon = useTranslations("common");
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
   const router = useRouter();
   const [clock, setClock] = useState(startMinute); // match minutes, fractional
   const [kicksTaken, setKicksTaken] = useState(0);
-  const [panelOpen, setPanelOpen] = useState(true); // the Coaching panel opens by itself on reaching a break
-  const skipped = useRef(false);
+  const [skipping, setSkipping] = useState(false); // live-skip pressed: to the next break, or the end, at once
+  const [closedAt, setClosedAt] = useState<string | null>(null); // the break whose Coaching panel the player closed
+  const [failedAt, setFailedAt] = useState<string | null>(null); // the pause whose next step failed: live-skip asks again
+  const askedAt = useRef<string | null>(null); // the pause the next step was asked from: once per pause
   const coachingRef = useRef<HTMLButtonElement>(null);
   const continueRef = useRef<HTMLAnchorElement>(null);
 
-  const playedExtraTime = match.decidedBy === "EXTRA_TIME" || match.decidedBy === "PENALTIES";
-  const endMinute =
-    pause?.phase === "HALF_TIME"
-      ? HALF_TIME_MINUTE
-      : pause?.phase === "REGULATION_END" || !playedExtraTime
-        ? REGULATION_MINUTES
-        : EXTRA_TIME_END_MINUTE;
+  const key = pause === null ? null : pauseKey(pause);
+  const atBreak = pause !== null && isMatchBreak(pause.phase);
+  const extraTime = goesToExtraTime(pause, match.decidedBy);
+  const endMinute = endMinuteOf(pause, match.decidedBy);
+  const until = stepUntil(skipping, reducedMotion);
   const kicks = pause === null ? shootoutKicks(match.events) : [];
-  const clockDone = reducedMotion || clock >= endMinute;
-  const shownKicks = reducedMotion ? kicks.length : kicksTaken;
-  const finished = clockDone && shownKicks >= kicks.length;
+  const clockDone = reducedMotion || skipping || clock >= endMinute;
+  const shownKicks = reducedMotion || skipping ? kicks.length : kicksTaken;
+  // What the replay stops at: a break, or the end once the shoot-out is shown. Between two segments, the clock only
+  // waits for the next one, the match still live.
+  const finished = clockDone && (atBreak || (pause === null && shownKicks >= kicks.length));
+  const stopped = clockDone && (atBreak || pause === null);
+  const over = finished && pause === null;
   const minute = clockDone ? endMinute : Math.floor(clock);
   const inExtraTime = minute > REGULATION_MINUTES;
-  // At the end, every event; before, those whose minute has come (the other matches stop at the break too).
-  const isShown = (event: { minute: number; period: MatchEventView["period"] }): boolean =>
-    (finished && pause === null) || clockMinute(event) <= minute;
+  // At the end, every event; before, those whose minute has come (the other matches stop where the clock is too).
+  const isShown = (event: { minute: number; period: MatchEventView["period"] }): boolean => over || clockMinute(event) <= minute;
 
+  const ticking = !clockDone;
+  const kicking = clockDone && pause === null && shownKicks < kicks.length;
   useEffect(() => {
-    if (finished) {
+    if (!ticking && !kicking) {
       return;
     }
-    const timer = clockDone
-      ? window.setInterval(() => setKicksTaken((taken) => Math.min(kicks.length, taken + 1)), KICK_MS / speed)
-      : window.setInterval(() => setClock((current) => Math.min(endMinute, current + MINUTES_PER_TICK * speed)), TICK_MS);
+    const timer = ticking
+      ? window.setInterval(() => setClock((current) => Math.min(endMinute, current + MINUTES_PER_TICK * speed)), TICK_MS)
+      : window.setInterval(() => setKicksTaken((taken) => Math.min(kicks.length, taken + 1)), KICK_MS / speed);
     return () => window.clearInterval(timer);
-  }, [finished, clockDone, speed, endMinute, kicks.length]);
+  }, [ticking, kicking, speed, endMinute, kicks.length]);
 
-  // « Aller au résultat » disappears with the final whistle: keep the keyboard focus on the next step.
+  // The clock at the pause: what follows is asked for, once, and read once played. A break needs its team for the panel:
+  // without it, the match went on between the page's reads, which are read again.
   useEffect(() => {
-    if (finished && skipped.current) {
+    if (pause === null || !clockDone) {
+      return;
+    }
+    const at = pauseKey(pause);
+    if (askedAt.current === at || failedAt === at || (atBreak && breakTeam !== null)) {
+      return;
+    }
+    askedAt.current = at;
+    if (atBreak) {
+      router.refresh();
+      return;
+    }
+    continueMatchAction(saveId, { phase: pause.phase, minute: pause.minute }, null, until).then(
+      (result) => {
+        // Refused, the match no longer waits there (another tab): the page catches up with it.
+        if (!result.ok) {
+          toast.error(result.message);
+        }
+        router.refresh();
+      },
+      (error: unknown) => {
+        askedAt.current = null;
+        setFailedAt(at);
+        toast.error(isNewVersionError(error) ? tCommon("newVersion") : t("stepFailed"));
+      },
+    );
+  }, [pause, clockDone, atBreak, breakTeam, failedAt, until, saveId, router, t, tCommon]);
+
+  // « live-skip » disappears with the final whistle: keep the keyboard focus on the next step.
+  useEffect(() => {
+    if (over && skipping) {
       continueRef.current?.focus();
     }
-  }, [finished]);
+  }, [over, skipping]);
 
+  // To the pause at once, then on to the next break or the end; after a failed step, it is asked for again.
   const skip = () => {
-    skipped.current = true;
+    setSkipping(true);
+    setFailedAt(null);
+  };
+
+  // The break resumed: the clock goes on from it at its own pace, whatever took it there.
+  const resumeFromBreak = () => {
+    setSkipping(false);
     setClock(endMinute);
-    setKicksTaken(kicks.length);
   };
 
   const shown = match.events.filter((event) => event.period !== "SHOOTOUT" && isShown(event));
   const goals = shown.filter((event) => event.type === "GOAL");
   const homeGoals = countFor(goals, "home");
   const awayGoals = countFor(goals, "away");
-  const over = finished && pause === null;
   const taken = kicks.slice(0, shownKicks);
 
-  const stoppedLabel = finished
-    ? pause?.phase === "HALF_TIME"
+  const stoppedLabel =
+    pause?.phase === "HALF_TIME"
       ? t("status.halfTime")
       : pause?.phase === "REGULATION_END"
         ? t("status.regulationEnd")
-        : t("status.finished")
-    : t("status.shootout");
+        : finished
+          ? t("status.finished")
+          : t("status.shootout");
 
   return (
     <div
@@ -149,8 +200,8 @@ function Replay({ saveId, dashboardHref, caption, match, others, pause, startMin
         minute={minute}
         progress={(minute / (endMinute > REGULATION_MINUTES ? EXTRA_TIME_END_MINUTE : REGULATION_MINUTES)) * 100}
         status={{
-          label: clockDone ? stoppedLabel : inExtraTime ? t("extraTimeLive") : t("live"),
-          value: clockDone ? stoppedLabel : inExtraTime ? t("status.extraTime") : t("live"),
+          label: stopped ? stoppedLabel : inExtraTime ? t("extraTimeLive") : t("live"),
+          value: stopped ? stoppedLabel : inExtraTime ? t("status.extraTime") : t("live"),
           running: !finished,
         }}
         result={over ? matchResultFor({ ...match, homeGoals, awayGoals }, match.home.isManaged) : null}
@@ -158,29 +209,33 @@ function Replay({ saveId, dashboardHref, caption, match, others, pause, startMin
         <LiveControls
           dashboardHref={dashboardHref}
           finished={finished}
-          pausePhase={pause?.phase ?? null}
+          atBreak={atBreak}
+          skipTo={skipTarget(pause)}
           speed={speed}
           onSpeedChange={onSpeedChange}
           onSkip={skip}
-          panelOpen={panelOpen}
-          onOpenPanel={() => setPanelOpen(true)}
+          panelOpen={closedAt !== key}
+          onOpenPanel={() => setClosedAt(null)}
           coachingRef={coachingRef}
           continueRef={continueRef}
         />
       </LiveScoreCard>
 
-      {finished && pause !== null && (
+      {finished && pause !== null && breakTeam !== null && (
         <HalfTime
+          // A panel of its own at each break, which opens by itself.
+          key={pauseKey(pause)}
           saveId={saveId}
-          team={pause}
-          open={panelOpen}
-          onOpenChange={setPanelOpen}
+          at={pause}
+          team={breakTeam}
+          open={closedAt !== key}
+          onOpenChange={(open) => setClosedAt(open ? null : key)}
           returnFocusTo={coachingRef}
           home={match.home}
           away={match.away}
           homeGoals={homeGoals}
           awayGoals={awayGoals}
-          onResumed={() => router.replace(`/saves/${saveId}/live?reprise=${pause.phase === "HALF_TIME" ? 1 : 2}`)}
+          onResume={resumeFromBreak}
         />
       )}
 
@@ -192,7 +247,7 @@ function Replay({ saveId, dashboardHref, caption, match, others, pause, startMin
             className="xl:col-span-3"
             shown={shown}
             minute={minute}
-            extraTime={playedExtraTime || pause?.phase === "REGULATION_END"}
+            extraTime={extraTime}
             home={match.home}
             away={match.away}
           />
@@ -221,10 +276,10 @@ function Replay({ saveId, dashboardHref, caption, match, others, pause, startMin
 }
 
 /**
- * The match live: a new replay at each step of the match (`stepKey`), its clock starting again from the break, at the
- * speed the player chose, which outlives them.
+ * The match live: one replay per match, whose clock and speed go on across its steps, the page reading each one the
+ * server plays.
  */
-export function LiveMatch({ stepKey, ...step }: StepProps & { stepKey: string }) {
+export function LiveMatch(props: LiveMatchProps) {
   const [speed, setSpeed] = useState<Speed>(1);
-  return <Replay key={stepKey} {...step} speed={speed} onSpeedChange={setSpeed} />;
+  return <Replay key={props.match.id} {...props} speed={speed} onSpeedChange={setSpeed} />;
 }

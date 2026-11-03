@@ -50,16 +50,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the weekly challenge, p
 
   /** One date of the save, its club's match paused at half-time then resumed without a change in the live mode. */
   const playDate = async (saveId: string, liveMode: boolean): Promise<void> => {
-    const { matchday, live } = loaded();
+    const { matchday, support } = loaded();
     const day = await matchday.playNextMatchday(saveId, { pauseManagedMatch: liveMode });
     if (day === null) {
       throw new Error(`Save ${saveId} has nothing left to play`);
     }
-    if (day.managed?.halfTime === true) {
-      // A cup tie level after 90 minutes stops once more, at the end of regulation time.
-      for (let breaks = 0; (await live.resumeLiveMatch(saveId, null)).result === null; breaks++) {
-        expect(breaks).toBeLessThan(2);
-      }
+    if (day.managed?.live === true) {
+      expect(await support.playLiveMatch(saveId, "end")).toBeNull();
     }
   };
 

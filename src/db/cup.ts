@@ -121,7 +121,7 @@ async function drawRound(
 }
 
 /**
- * After cup ties are played, inside the transaction that played them (playNextMatchday, resumeLiveMatch): each club is
+ * After cup ties are played, inside the transaction that played them (playNextMatchday, advanceLiveMatch): each club is
  * credited its prize (cupPrize), and each cup whose round is now over gets its next round drawn. Matches of the
  * leagues among fixtureIds are ignored.
  */

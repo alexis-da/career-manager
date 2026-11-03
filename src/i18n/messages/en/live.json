@@ -17,9 +17,9 @@
     "speedFactor": "x{factor}",
     "skip": {
       "halfTime": "Coach at half-time",
-      "regulationEnd": "Coach at the break",
       "result": "Go to the result"
     },
+    "stepFailed": "The rest of the match could not be played. Try again.",
     "coaching": "Coaching",
     "shootout": "Penalty shoot-out",
     "kick": {

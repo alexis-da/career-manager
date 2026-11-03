@@ -20,7 +20,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
   let budgetsBefore = new Map<string, number>();
   let halfTimeKnockout: boolean | undefined;
   // What the second half left: a level tie waiting for extra time.
-  let atRegulationEnd: { result: unknown; status: string; liveFixtureId: string | null; phase: string | null; maxSubstitutions: number | null } | undefined;
+  let atRegulationEnd:
+    | { pause: unknown; status: string; liveFixtureId: string | null; phase: string | null; maxSubstitutions: number | null }
+    | undefined;
 
   const database = (): typeof prismaClient => {
     if (db === undefined) {
@@ -58,23 +60,24 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
     }));
 
     const day = await matchday.playNextMatchday(saveId, { pauseManagedMatch: true });
-    expect(day).toMatchObject({ fixtures: 1, managed: { fixtureId, halfTime: true } });
+    expect(day).toMatchObject({ fixtures: 1, managed: { fixtureId, live: true } });
+    await support.playLiveMatch(saveId, "break");
     const paused = await prisma.fixture.findUniqueOrThrow({ where: { id: fixtureId }, select: { liveState: true } });
     halfTimeKnockout = liveState.parseLiveState(fixtureId, paused.liveState).state.knockout;
-    const secondHalf = await live.resumeLiveMatch(saveId, null);
+    const secondHalf = await support.playLiveMatch(saveId, "break");
     const [waiting, saveAtBreak, breakTeam] = await Promise.all([
       prisma.fixture.findUniqueOrThrow({ where: { id: fixtureId }, select: { status: true } }),
       prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true } }),
       live.getHalfTimeTeam(saveId),
     ]);
     atRegulationEnd = {
-      result: secondHalf.result,
+      pause: secondHalf,
       status: waiting.status,
       liveFixtureId: saveAtBreak.liveFixtureId,
       phase: breakTeam?.phase ?? null,
       maxSubstitutions: breakTeam?.maxSubstitutions ?? null,
     };
-    await live.resumeLiveMatch(saveId, null);
+    await support.playLiveMatch(saveId, "end");
   }, 300_000);
 
   afterAll(async () => {
@@ -102,7 +105,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
     const extraTime = fixture.events.filter((event) => event.period === "EXTRA_TIME");
 
     expect(halfTimeKnockout).toBe(true);
-    expect(atRegulationEnd).toEqual({ result: null, status: "REGULATION_END", liveFixtureId: fixtureId, phase: "REGULATION_END", maxSubstitutions: 6 });
+    expect(atRegulationEnd).toEqual({
+      pause: { phase: "REGULATION_END", minute: REGULATION_MINUTES },
+      status: "REGULATION_END",
+      liveFixtureId: fixtureId,
+      phase: "REGULATION_END",
+      maxSubstitutions: 6,
+    });
     expect(fixture).toMatchObject({
       status: "PLAYED",
       homeGoals: 2,

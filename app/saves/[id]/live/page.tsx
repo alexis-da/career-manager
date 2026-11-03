@@ -4,11 +4,11 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getLiveMatchday } from "@/src/db/calendar";
-import { getHalfTimeTeam } from "@/src/db/live-match";
-import { HALF_TIME_MINUTE, REGULATION_MINUTES } from "@/src/engine/balance";
+import { getHalfTimeTeam, getLivePause } from "@/src/db/live-match";
 import { formatDate } from "@/src/lib/format";
 import { stageLabel } from "../_lib/stage";
 import { LiveMatch } from "./_components/live-match";
+import { isMatchBreak, startMinute } from "./_lib/live-pause";
 
 export const dynamic = "force-dynamic";
 
@@ -17,11 +17,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * Replay of the managed club's match of the day; the matchday itself is already simulated and saved. « Jouer la
- * journée » opens it with ?rejouer=1: the first half from kick-off, up to the half-time screen. Without it, a match
- * waiting at a break opens on its break screen. Once the second half is played, ?reprise=1 replays it from 45' (up to
- * the end of regulation time of a level cup tie, which waits there); once extra time is played, ?reprise=2 replays it
- * from 90', the shoot-out included.
+ * The managed club's match of the day, live. The server plays it one segment of 15 minutes at a time and the page only
+ * ever has what is played: its clock runs up to where the match waits, then asks for the next segment, or for all that
+ * comes before the next break once « live-skip » is pressed. « Jouer la journée » opens it with ?rejouer=1, from
+ * kick-off; without it, a match waiting opens where it waits, on the Coaching panel at a break; a match over is replayed
+ * whole, its shoot-out included.
  */
 export default async function LivePage({ params, searchParams }: PageProps<"/saves/[id]/live">) {
   const { id } = await params;
@@ -31,12 +31,18 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
   const tStage = await getTranslations("stage");
   const locale = await getLocale();
   const query = await searchParams;
-  const [matchday, breakTeam] = await Promise.all([getLiveMatchday(id), getHalfTimeTeam(id)]);
+  // Where the match waits, read first: a step played meanwhile (another tab) leaves the events ahead of it, never behind.
+  const waiting = await getLivePause(id);
+  const [matchday, team] = await Promise.all([
+    getLiveMatchday(id),
+    waiting !== null && isMatchBreak(waiting.phase) ? getHalfTimeTeam(id) : null,
+  ]);
   if (matchday === null) {
     redirect(`/saves/${id}`);
   }
   const { match, stadium } = matchday;
-  const pause = matchday.pause !== null && breakTeam !== null ? breakTeam : null;
+  // The choice event open at a pause has no card yet: its assistant decides it (G5 shows it).
+  const pause = waiting === null ? null : { phase: waiting.phase, minute: waiting.minute };
   // A cup tie names its cup in its stage: « Coupe — Finale ».
   const caption = [
     ...(match.cup ? [] : [competitionName(match.competitionCode, tWorld)]),
@@ -44,31 +50,18 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
     formatDate(match.scheduledAt, locale),
     ...(stadium === null ? [] : [stadium]),
   ].join(" · ");
-  const startMinute =
-    pause?.phase === "HALF_TIME"
-      ? query.rejouer === "1"
-        ? 0
-        : HALF_TIME_MINUTE
-      : pause?.phase === "REGULATION_END"
-        ? query.reprise === "1"
-          ? HALF_TIME_MINUTE
-          : REGULATION_MINUTES
-        : query.reprise === "1"
-          ? HALF_TIME_MINUTE
-          : query.reprise === "2"
-            ? REGULATION_MINUTES
-            : 0;
 
   return (
     <LiveMatch
-      stepKey={`${match.id}:${pause?.phase ?? "end"}`}
       saveId={id}
       dashboardHref={`/saves/${id}`}
       caption={caption}
       match={match}
       others={matchday.others}
       pause={pause}
-      startMinute={startMinute}
+      // The break's own: none when the match went on between the two reads, the page then reads it again.
+      breakTeam={team !== null && team.phase === pause?.phase ? team : null}
+      startMinute={startMinute(pause, query.rejouer === "1")}
     />
   );
 }

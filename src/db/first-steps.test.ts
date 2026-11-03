@@ -10,7 +10,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("managedMatchesPlayed", 
     | {
         managedMatchesPlayed: typeof import("./first-steps").managedMatchesPlayed;
         playNextMatchday: typeof import("./matchday").playNextMatchday;
-        resumeLiveMatch: typeof import("./live-match").resumeLiveMatch;
+        playLiveMatch: typeof import("./test-support").playLiveMatch;
       }
     | undefined;
   let saveId = "";
@@ -23,15 +23,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("managedMatchesPlayed", 
   };
 
   beforeAll(async () => {
-    const [{ prisma }, support, { managedMatchesPlayed }, { playNextMatchday }, { resumeLiveMatch }] = await Promise.all([
+    const [{ prisma }, support, { managedMatchesPlayed }, { playNextMatchday }] = await Promise.all([
       import("./client"),
       import("./test-support"),
       import("./first-steps"),
       import("./matchday"),
-      import("./live-match"),
     ]);
     db = prisma;
-    modules = { managedMatchesPlayed, playNextMatchday, resumeLiveMatch };
+    modules = { managedMatchesPlayed, playNextMatchday, playLiveMatch: support.playLiveMatch };
     saveId = await support.createDemoTwin("Test premiers pas");
   }, 120_000);
 
@@ -43,15 +42,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("managedMatchesPlayed", 
   }, 60_000);
 
   it("counts the club's own matches: none at the half-time of its first, with the other clubs' already played", async () => {
-    const { db, managedMatchesPlayed, playNextMatchday, resumeLiveMatch } = loaded();
+    const { db, managedMatchesPlayed, playNextMatchday, playLiveMatch } = loaded();
     expect(await managedMatchesPlayed(saveId, 5)).toBe(0);
 
     await playNextMatchday(saveId, { pauseManagedMatch: true });
+    await playLiveMatch(saveId, "break");
 
     expect(await db.fixture.count({ where: { saveId, played: true } })).toBeGreaterThan(0);
     expect(await managedMatchesPlayed(saveId, 5)).toBe(0);
 
-    await resumeLiveMatch(saveId, null);
+    await playLiveMatch(saveId, "end");
 
     expect(await managedMatchesPlayed(saveId, 5)).toBe(1);
   }, 60_000);

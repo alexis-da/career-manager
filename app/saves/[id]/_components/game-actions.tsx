@@ -79,7 +79,7 @@ function SimulateMenu({ disabled, hero }: { disabled: boolean; hero: boolean }) 
 type GameActionsProps = {
   saveId: string;
   seasonFinished: boolean;
-  liveMatch: boolean; // the managed club's match waits at half-time: nothing moves on before it ends
+  liveMatch: boolean; // the managed club's match waits live: nothing moves on before it ends
   worldVersion: WorldVersion; // 2: « Prochain match », which plays the other competitions' dates in between
   hero?: boolean; // in the dashboard's hero: larger, « Jouer le match », with `prepare` next to « Simuler »
   prepare?: ReactNode;

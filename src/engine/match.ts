@@ -1209,27 +1209,6 @@ export function simulateMatch(
   return matchResult(finishKnockout(regulation, matchSeed, instructions, atBoundary));
 }
 
-/**
- * A match paused at a break, played on to its next break or its end as the live match plays it. At half-time, both
- * clubs' changes in the order of a match played without a pause, the managed club's choice in place of its automatic
- * changes when it makes one, then the second half; at the end of regulation time of a cup tie, the managed club's choice
- * alone, then extra time and the shoot-out. Without a choice, the very match simulateMatch plays.
- */
-export function resumeMatch(paused: MatchState, managedSide: Side, choice: HalfTimeChoice | null, matchSeed: string): MatchState {
-  if (paused.phase === "HALF_TIME") {
-    const changed = SIDES.reduce(
-      (state, side) =>
-        applyHalfTimeChoice(state, side, side === managedSide && choice !== null ? choice : automaticHalfTimeChoice(state, side)),
-      paused,
-    );
-    return playPeriod(changed, matchSeed, "h2");
-  }
-  if (paused.phase === "REGULATION_END") {
-    return finishKnockout(choice === null ? paused : applyHalfTimeChoice(paused, managedSide, choice), matchSeed);
-  }
-  throw new HalfTimeChoiceError("not-half-time");
-}
-
 /** The substitutions a side may still make at a minute: one more than MAX_SUBSTITUTIONS once extra time is reached. */
 export function substitutionsLeft(state: MatchState, side: Side, minute: number): number {
   const limit = minute >= REGULATION_MINUTES ? MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS : MAX_SUBSTITUTIONS;

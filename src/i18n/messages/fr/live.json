@@ -17,9 +17,9 @@
     "speedFactor": "x{factor}",
     "skip": {
       "halfTime": "Coaching à la mi-temps",
-      "regulationEnd": "Coaching à la pause",
       "result": "Aller au résultat"
     },
+    "stepFailed": "La suite du match n'a pas pu être jouée. Réessaie.",
     "coaching": "Coaching",
     "shootout": "Tirs au but",
     "kick": {

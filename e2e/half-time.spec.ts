@@ -64,8 +64,11 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     await expect(halfTime.locator("[data-slot-position]")).toHaveText(["G", "DD", "DC", "DC", "DG", "MD", "MC", "MC", "MG", "BU", "BU"]);
     await expect(halfTime.locator("[data-substitutions]")).toHaveText("Remplacements : 1/5");
 
+    // The second half on the same page, from the break: the way on leads to the result now.
     await halfTime.getByRole("button", { name: "Reprendre le match" }).click();
-    await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?reprise=1$/);
+    await expect(halfTime).toBeHidden();
+    await expect(page).toHaveURL(/\/saves\/[^/]+\/live$/);
+    await expect(skip).toHaveText("Aller au résultat");
     await skip.click();
     await expect(page.getByText("Terminé", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Continuer" }).click();
@@ -100,7 +103,6 @@ test("with reduced motion, shows the break at once, then the final whistle at on
     await expect(page.getByTestId("live-skip")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Reprendre sans changement" }).click();
-    await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?reprise=1$/);
     await expect(page.getByText("Terminé", { exact: true })).toBeVisible();
     await expect(page.getByTestId("live-skip")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Continuer" })).toBeVisible();

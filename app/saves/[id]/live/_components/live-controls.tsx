@@ -2,8 +2,8 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { Ref } from "react";
 import { Button, buttonVariants } from "@/src/components/ui/button";
-import type { MatchBreak } from "@/src/db/live-match";
 import { cn } from "@/src/lib/utils";
+import type { SkipTarget } from "../_lib/live-pause";
 
 /** The replay's speeds, as factors of its normal pace. */
 const SPEEDS = [1, 2, 4] as const;
@@ -21,7 +21,8 @@ const SECONDARY_ACTION = cn(ACTION, "text-[0.9375rem] leading-tight font-bold");
 type LiveControlsProps = {
   dashboardHref: string;
   finished: boolean; // the replay has reached what it stops at: a break, or the end of the match
-  pausePhase: MatchBreak | null; // the break it stops at, when the match waits at one
+  atBreak: boolean; // what it stops at is a break, with its Coaching panel
+  skipTo: SkipTarget; // where live-skip leads while the match runs: half-time before it, the result after
   speed: Speed;
   onSpeedChange: (speed: Speed) => void;
   onSkip: () => void;
@@ -33,13 +34,15 @@ type LiveControlsProps = {
 
 /**
  * The screen's controls, one element: in the card from lg, fixed to the foot of the screen under it. While the match runs,
- * its speed and the way to what comes next, which says where it leads: a break, the only place for changes, is the screen's
- * main action. At a break, the way back to the Coaching panel; at the end, the way on.
+ * its speed and the way to what comes next, which says where it leads: half-time, the only place for changes, is the
+ * screen's main action; after it, the result, a secondary one. At a break, the way back to the Coaching panel; at the end,
+ * the way on.
  */
 export function LiveControls({
   dashboardHref,
   finished,
-  pausePhase,
+  atBreak,
+  skipTo,
   speed,
   onSpeedChange,
   onSkip,
@@ -70,17 +73,17 @@ export function LiveControls({
               </Button>
             ))}
           </div>
-          {pausePhase === null ? (
-            <Button variant="outline" className={cn(SECONDARY_ACTION, ON_BLUE)} onClick={onSkip} data-testid="live-skip">
-              {t("skip.result")}
+          {skipTo === "halfTime" ? (
+            <Button variant="club" className={MAIN_ACTION} onClick={onSkip} data-skip-to={skipTo} data-testid="live-skip">
+              {t("skip.halfTime")}
             </Button>
           ) : (
-            <Button variant="club" className={MAIN_ACTION} onClick={onSkip} data-testid="live-skip">
-              {t(pausePhase === "HALF_TIME" ? "skip.halfTime" : "skip.regulationEnd")}
+            <Button variant="outline" className={cn(SECONDARY_ACTION, ON_BLUE)} onClick={onSkip} data-skip-to={skipTo} data-testid="live-skip">
+              {t("skip.result")}
             </Button>
           )}
         </>
-      ) : pausePhase !== null ? (
+      ) : atBreak ? (
         // One full orange action a screen: the open panel has its own.
         <Button
           ref={coachingRef}

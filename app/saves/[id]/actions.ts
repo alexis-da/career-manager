@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getManagedClubFixtureOn } from "@/src/db/calendar";
-import { NoMatchInProgressError, resumeLiveMatch } from "@/src/db/live-match";
+import { advanceLiveMatch, NoMatchInProgressError, PauseMismatchError } from "@/src/db/live-match";
 import { formationSchema } from "@/src/db/lineup";
 import { MatchInProgressError, playNextMatchday } from "@/src/db/matchday";
 import { getOpponentPreview, type OpponentPreview } from "@/src/db/opponent";
@@ -22,6 +22,7 @@ import {
   type SimulationSummary,
 } from "@/src/db/simulation";
 import { EXTRA_TIME_SUBSTITUTIONS, MAX_SUBSTITUTIONS } from "@/src/engine/balance";
+import { CHOICE_OPTIONS, ChoiceError } from "@/src/engine/choices";
 import { HalfTimeChoiceError } from "@/src/engine/match";
 import { seasonLabel } from "@/src/engine/world";
 import type { Translator } from "@/src/i18n/translator";
@@ -58,7 +59,7 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
   ]);
   let matchday;
   try {
-    // The managed club's match stops at half-time, for the manager's changes on the replay page.
+    // The managed club's match is played live: its first segment now, the rest step by step from the replay page.
     matchday = await playNextMatchday(id, { pauseManagedMatch: true });
   } catch (error) {
     if (error instanceof MatchInProgressError) {
@@ -74,16 +75,10 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
 
   const date = formatDate(matchday.date, locale);
   const day = fixture?.cup === true ? t("cupDay", { stage: stageLabel(fixture, tStage), date }) : t("leagueDay", { date });
-  if (matchday.managed?.halfTime === true && fixture !== null) {
+  if (matchday.managed?.live === true && fixture !== null) {
     return {
       ok: true,
-      message: t("halfTime", {
-        day,
-        home: fixture.home.name,
-        homeGoals: fixture.homeHalfTimeGoals ?? 0,
-        awayGoals: fixture.awayHalfTimeGoals ?? 0,
-        away: fixture.away.name,
-      }),
+      message: t("live", { day, home: fixture.home.name, away: fixture.away.name }),
       redirectTo: `/saves/${id}/live?rejouer=1`,
     };
   }
@@ -160,45 +155,111 @@ const halfTimeChoiceSchema = z
 
 export type HalfTimeChoiceInput = z.input<typeof halfTimeChoiceSchema>;
 
+/** The break a resume plays on from, as the page received it: a resume naming another pause is refused. */
+const breakSchema = z.object({
+  phase: z.enum(["HALF_TIME", "REGULATION_END"]),
+  minute: z.number().int().min(0).max(120),
+});
+
+/** The pause between two segments a step plays on from, as the page received it. */
+const stepPauseSchema = z.object({
+  phase: z.enum(["IN_PLAY", "EXTRA_TIME_BREAK"]),
+  minute: z.number().int().min(0).max(120),
+});
+
+export type LivePauseInput = { phase: string; minute: number };
+
+/** A resume refused because of the match's state, as the live page says it. */
+function liveRefusal(error: unknown, tLive: Translator<"liveMatch">): GameActionResult | null {
+  if (error instanceof HalfTimeChoiceError) {
+    return { ok: false, message: halfTimeRefusalMessage(error.issue, tLive) };
+  }
+  if (error instanceof ChoiceError) {
+    return { ok: false, message: tLive("invalidDecision") };
+  }
+  if (error instanceof PauseMismatchError) {
+    return { ok: false, message: tLive("pauseGone") };
+  }
+  if (error instanceof NoMatchInProgressError) {
+    return { ok: false, message: tLive("noMatchInProgress") };
+  }
+  return null;
+}
+
 /**
- * Plays on the managed club's match paused at a break, with the manager's changes: the second half from half-time
- * (a level cup tie stopping again at the end of regulation time), extra time and the shoot-out from there. The replay
- * page then shows what was just played: from 45' (?reprise=1), or from 90' (?reprise=2).
+ * Plays on the managed club's match from the break it waits at (`at`: half-time, or the end of regulation time of a
+ * level cup tie), with the manager's changes: its next segment only, the replay page going on from there.
  */
-export async function resumeMatch(saveId: string, choice: HalfTimeChoiceInput): Promise<GameActionResult> {
+export async function resumeMatch(saveId: string, at: LivePauseInput, choice: HalfTimeChoiceInput): Promise<GameActionResult> {
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
-  const [t, tLive, tScore] = await Promise.all([
-    getTranslations("actions.resume"),
-    getTranslations("liveMatch"),
-    getTranslations("score"),
-  ]);
+  const [t, tLive] = await Promise.all([getTranslations("actions.resume"), getTranslations("liveMatch")]);
+  const pause = breakSchema.safeParse(at);
   const parsed = halfTimeChoiceSchema.safeParse(choice);
-  if (!parsed.success) {
+  if (!pause.success || !parsed.success) {
     return { ok: false, message: t("invalid", { max: MAX_SUBSTITUTIONS }) };
   }
   try {
-    const { from, result, score } = await resumeLiveMatch(
+    await advanceLiveMatch(
       id,
-      parsed.data === null
-        ? null
-        : { formation: parsed.data.formation, starters: parsed.data.lineup, substitutions: parsed.data.substitutions },
+      pause.data,
+      {
+        changes:
+          parsed.data === null
+            ? null
+            : { formation: parsed.data.formation, starters: parsed.data.lineup, substitutions: parsed.data.substitutions },
+      },
+      "segment",
     );
     revalidatePath(`/saves/${id}`, "layout");
-    const { homeGoals, awayGoals } = score;
-    return {
-      ok: true,
-      message:
-        result === null
-          ? t("regulationEnd", { homeGoals, awayGoals })
-          : t("finalScore", { homeGoals, awayGoals, notes: scoreNotes(result, tScore) }),
-      redirectTo: `/saves/${id}/live?reprise=${from === "HALF_TIME" ? 1 : 2}`,
-    };
+    return { ok: true, message: t("resumed") };
   } catch (error) {
-    if (error instanceof HalfTimeChoiceError) {
-      return { ok: false, message: halfTimeRefusalMessage(error.issue, tLive) };
+    const refusal = liveRefusal(error, tLive);
+    if (refusal !== null) {
+      return refusal;
     }
-    if (error instanceof NoMatchInProgressError) {
-      return { ok: false, message: tLive("noMatchInProgress") };
+    throw error;
+  }
+}
+
+/** The manager's decision on a choice event: an option, and for a penalty its taker. */
+const decisionSchema = z
+  .object({ option: z.enum(CHOICE_OPTIONS), playerKey: z.string().min(1).max(100).optional() })
+  .nullable();
+
+export type DecisionInput = z.input<typeof decisionSchema>;
+
+/**
+ * Plays on the managed club's match from the pause it waits at between two segments (`at`), with the manager's
+ * decision on the choice event open there (null: the assistant's): its next segment ("segment"), or on to its next break
+ * ("break", the assistant deciding the events on the way). The page then reads what was played, never further.
+ */
+export async function continueMatchAction(
+  saveId: string,
+  at: LivePauseInput,
+  decision: DecisionInput,
+  until: "segment" | "break",
+): Promise<GameActionResult> {
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
+  const [t, tLive] = await Promise.all([getTranslations("actions.resume"), getTranslations("liveMatch")]);
+  const pause = stepPauseSchema.safeParse(at);
+  const parsed = decisionSchema.safeParse(decision);
+  const mode = z.enum(["segment", "break"]).safeParse(until);
+  if (!pause.success || !parsed.success || !mode.success) {
+    return { ok: false, message: tLive("invalidDecision") };
+  }
+  try {
+    await advanceLiveMatch(
+      id,
+      pause.data,
+      { decision: parsed.data === null ? null : { option: parsed.data.option, playerId: parsed.data.playerKey } },
+      mode.data,
+    );
+    revalidatePath(`/saves/${id}`, "layout");
+    return { ok: true, message: t("resumed") };
+  } catch (error) {
+    const refusal = liveRefusal(error, tLive);
+    if (refusal !== null) {
+      return refusal;
     }
     throw error;
   }

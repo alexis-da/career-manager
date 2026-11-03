@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { ArrowRightLeftIcon, ChevronDownIcon, PlayIcon, SkipForwardIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type RefObject } from "react";
 import { toast } from "sonner";
 import { PlayerFace } from "@/src/components/player-face";
@@ -10,6 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/src/compone
 import type { TeamView } from "@/src/db/calendar";
 import type { HalfTimePlayer, HalfTimeTeam } from "@/src/db/live-match";
 import { FORMATION_NAMES, FORMATIONS, isFormationName } from "@/src/engine/formations";
+import type { LivePause } from "@/src/engine/live";
 import { ratingAt, type Position } from "@/src/engine/positions";
 import type { Translator } from "@/src/i18n/translator";
 import type { ClubColors } from "@/src/lib/color";
@@ -56,6 +58,7 @@ const SCORE_NAME =
 
 type HalfTimeProps = {
   saveId: string;
+  at: LivePause; // the break, as the page has it: the resume names it, and is refused once the match has gone on
   team: HalfTimeTeam;
   open: boolean; // closed, the changes stay here: the page's Coaching button opens the panel on them again
   onOpenChange: (open: boolean) => void;
@@ -64,7 +67,9 @@ type HalfTimeProps = {
   away: TeamView;
   homeGoals: number; // at this break
   awayGoals: number;
-  onResumed: () => void; // what follows the break is played and saved: replay it
+  // The player resumes, before the server is asked: the page's clock is to go on from the break at its own pace, whatever
+  // took it there, even if the next segment comes with the answer.
+  onResume: () => void;
 };
 
 /**
@@ -78,6 +83,7 @@ type HalfTimeProps = {
  */
 export function HalfTime({
   saveId,
+  at,
   team,
   open,
   onOpenChange,
@@ -86,10 +92,11 @@ export function HalfTime({
   away,
   homeGoals,
   awayGoals,
-  onResumed,
+  onResume,
 }: HalfTimeProps) {
   const t = useTranslations("halfTime");
   const tPositions = useTranslations("positions");
+  const router = useRouter();
   const [rules] = useState<HalfTimeRules>(() => ({
     injured: new Set(team.injured),
     sentOffSlots: new Set(team.sentOff.map((entry) => entry.slot)),
@@ -181,19 +188,26 @@ export function HalfTime({
     setSelected(null);
   };
 
-  const resume = (withChanges: boolean): void =>
+  // The server plays the next segment only, and the page goes on from the break with it. Refused, the match may have gone
+  // on from another tab: the page reads where it stands.
+  const resume = (withChanges: boolean): void => {
+    onResume();
     startTransition(async () => {
       try {
-        const result = await resumeMatch(saveId, withChanges ? halfTimeChoice(state, rules, team.players) : null);
-        if (result.ok) {
-          onResumed();
-        } else {
+        const result = await resumeMatch(
+          saveId,
+          { phase: at.phase, minute: at.minute },
+          withChanges ? halfTimeChoice(state, rules, team.players) : null,
+        );
+        if (!result.ok) {
           toast.error(result.message);
         }
+        router.refresh();
       } catch {
         toast.error(t("resumeFailed"));
       }
     });
+  };
 
   const made = substitutionsMade(state, rules);
   const selectedPosition: Position | null = selected === null ? null : slots[selected].position;

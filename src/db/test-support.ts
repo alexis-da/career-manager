@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import { Client } from "pg";
 import { seasonLabel, seasonStartYear, WORLD_START_YEAR } from "../engine/world";
 import type { WorldVersion } from "../engine/world-version";
+import type { LivePause } from "../engine/live";
 import { prisma } from "./client";
 import { pgConnection } from "./database-url";
+import { advanceLiveMatch, getLivePause } from "./live-match";
 import { playNextMatchday } from "./matchday";
 import { createSave } from "./saves";
 import { advanceToNextSeason } from "./season";
@@ -104,6 +106,22 @@ async function createDemoSave(worldVersion: WorldVersion): Promise<string> {
   ]);
   const { id } = await createSave({ name, managerName: "Test", clubId: club.id, seed: DEMO_SEED, ownerId, worldVersion });
   return id;
+}
+
+/**
+ * Plays the save's live match on, its assistant deciding the choice events and no change at the breaks, to its next
+ * break ("break": half-time, the end of regulation time of a level cup tie, or the end) or to its end ("end"): the pause
+ * it waits at then, null once over.
+ */
+export async function playLiveMatch(saveId: string, until: "break" | "end"): Promise<LivePause | null> {
+  for (let pause: LivePause | null = await getLivePause(saveId); pause !== null; ) {
+    const { pause: next } = await advanceLiveMatch(saveId, pause, {}, "break");
+    if (until === "break" || next === null) {
+      return next;
+    }
+    pause = next;
+  }
+  return null;
 }
 
 /** Plays matchdays until every fixture of the save is played; returns how many were played. */

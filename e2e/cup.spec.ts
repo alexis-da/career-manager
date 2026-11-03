@@ -60,10 +60,12 @@ test("plays a cup final live: half-time, the end of regulation time, extra time 
     await expect(pause.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
     await pause.getByRole("button", { name: "Reprendre sans changement" }).click();
 
-    // Level after 90 minutes: a second break, the way on says so, and it is the screen's main action once more.
-    await expect(page).toHaveURL(/\/live\?reprise=1$/);
-    await expect(skip).toHaveText("Coaching à la pause");
-    await expect(skip).toHaveCSS("background-color", ACTION_ORANGE);
+    // The way on never announces the break of a tie level after 90 minutes, which would tell the draw before its minutes
+    // are played: a secondary way to the result, on the same page. The match stops there all the same.
+    await expect(pause).toBeHidden();
+    await expect(page).toHaveURL(/\/live\?rejouer=1$/);
+    await expect(skip).toHaveText("Aller au résultat");
+    await expect(skip).not.toHaveCSS("background-color", ACTION_ORANGE);
     await skip.click();
     await expect(pause.getByRole("heading", { name: "Fin du temps réglementaire" })).toBeVisible();
     await expect(pause).toHaveAttribute("data-half-time", "REGULATION_END");
@@ -74,12 +76,12 @@ test("plays a cup final live: half-time, the end of regulation time, extra time 
     await expect(page.locator("[data-live-status]")).toHaveText("Fin du temps réglementaire");
     await expect(page.getByTestId("live-events").locator("li").first()).toContainText("Fin du temps réglementaire");
     // The match waits there: the page opens on it again, nothing left to skip.
-    await page.reload();
+    await page.goto(`/saves/${saveId}/live`);
     await expect(pause.getByRole("heading", { name: "Fin du temps réglementaire" })).toBeVisible();
     await expect(skip).toHaveCount(0);
     await pause.getByRole("button", { name: "Reprendre sans changement" }).click();
 
-    await expect(page).toHaveURL(/\/live\?reprise=2$/);
+    await expect(pause).toBeHidden();
     await expect(skip).toHaveText("Aller au résultat");
     await skip.click();
     await expect(page.locator("[data-live-status]")).toHaveText("Terminé");

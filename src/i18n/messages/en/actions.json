@@ -4,7 +4,7 @@
       "seasonOver": "All the season's matches have been played.",
       "leagueDay": "Matchday, {date}",
       "cupDay": "{stage}, {date}",
-      "halfTime": "{day}: half-time, {home} {homeGoals} – {awayGoals} {away}",
+      "live": "{day}: {home} v {away}, live",
       "notPlaying": "{day}: your club wasn't playing.",
       "result": "{day}: {home} {homeGoals} – {awayGoals} {away}{notes}"
     },
@@ -14,8 +14,7 @@
     },
     "resume": {
       "invalid": "Invalid changes: {max} substitutions at most, 11 positions.",
-      "regulationEnd": "End of normal time: {homeGoals} – {awayGoals}, extra time",
-      "finalScore": "Final score: {homeGoals} – {awayGoals}{notes}"
+      "resumed": "The match goes on."
     },
     "lineup": {
       "invalid": "Invalid line-up.",
@@ -73,6 +72,8 @@
       "sent-off-slot": "A sent-off player's position stays empty.",
       "lineup-mismatch": "The eleven doesn't match the players on the pitch after the substitutions.",
       "incomplete-lineup": "A position is left empty while a substitute can still come on."
-    }
+    },
+    "pauseGone": "That moment of the match has already been played: the page is catching up.",
+    "invalidDecision": "That choice isn't on offer at this moment of the match."
   }
 }

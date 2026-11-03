@@ -14,11 +14,13 @@ import {
 } from "./helpers";
 
 // The match live and its Coaching panel, on a Lyon just created. A world of 198 clubs takes some 20 seconds, so the tests
-// share one, in the order of this file; its user goes at the end, and the save with them. A match waits at its break until
-// it is resumed, and ?rejouer=1 replays its first half as often as a test wants: the tests that only read a match share it,
-// and one that goes on past the break leaves the next match to the next test. Each comes to its match by the dashboard's
-// hero, which plays it or catches up with the one left waiting, and needs nothing of the tests before it: after a failure,
-// Playwright starts a new worker, which creates its own save.
+// share one, in the order of this file; its user goes at the end, and the save with them. The server plays a match one
+// segment at a time, as its page asks: a match taken to its break waits there until it is resumed, and ?rejouer=1 replays
+// its first half as often as a test wants, without asking for anything: the tests that only read a match share it. One
+// that goes on past the break leaves its match in the second half, which the next test plays to the end before taking
+// the next match to its break. Each comes to its match by the dashboard's hero, which plays it or catches up with the one
+// left waiting, and needs nothing of the tests before it: after a failure, Playwright starts a new worker, which creates
+// its own save.
 
 const LYON = "Olympique Lyonnais";
 
@@ -112,7 +114,10 @@ async function openSave(page: Page, path = ""): Promise<void> {
   await page.waitForFunction(() => window.history.state?.__NA === true);
 }
 
-/** The dashboard's hero leads to a match waiting at its break: the next one, played, or the one an earlier test left there. */
+/**
+ * The dashboard's hero leads to a match waiting at its break: the next one, played and taken there, or the one an earlier
+ * test left waiting, at its break, before it, or past it: that one is played to its end first, and the next one played.
+ */
 async function reachBreak(page: Page): Promise<void> {
   await openSave(page);
   const hero = page.getByTestId("dashboard-next-match");
@@ -121,10 +126,29 @@ async function reachBreak(page: Page): Promise<void> {
   if (await play.isVisible()) {
     await play.click();
     await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?rejouer=1$`), { timeout: 120_000 });
+  } else {
+    await openSave(page, "/live");
   }
+  const panel = page.getByTestId("half-time");
+  const skip = page.getByTestId("live-skip");
+  await expect(panel.or(skip)).toBeVisible();
+  if (await panel.isVisible()) {
+    return;
+  }
+  const pastTheBreak = (await skip.getAttribute("data-skip-to")) === "result";
+  await skip.click();
+  if (!pastTheBreak) {
+    await expect(panel).toBeVisible();
+    return;
+  }
+  await page.getByTestId("live-continue").click();
+  await reachBreak(page);
 }
 
-/** The first half from kick-off, its clock just started: it reaches the break in 22 seconds, at normal speed. */
+/**
+ * The first half from kick-off, its clock just started: it reaches the break in 22 seconds, at normal speed, without a
+ * pause on the way, the match waiting at the break already.
+ */
 async function replayFirstHalf(page: Page): Promise<void> {
   await reachBreak(page);
   await openSave(page, "/live?rejouer=1");
@@ -138,11 +162,12 @@ async function openBreak(page: Page): Promise<void> {
   await expect(page.getByTestId("half-time")).toBeVisible();
 }
 
-/** The second half's replay, the break passed without a change. */
+/** The second half, the break passed without a change: the panel gone, the clock goes on from 45'. */
 async function replaySecondHalf(page: Page): Promise<void> {
   await openBreak(page);
   await page.getByTestId("half-time-resume-unchanged").click();
-  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?reprise=1$`));
+  await expect(page.getByTestId("half-time")).toBeHidden();
+  await expect(page.getByTestId("live-skip")).toBeVisible();
 }
 
 /** The blue card at the head of the screen. */
@@ -364,10 +389,10 @@ test("makes the change the assistant suggests, undoes it, keeps it through a clo
   await expect(planned).toContainText(`${outgoing} sort, ${incoming} entre`);
   expect(await slots.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-slot-player-key")))).toEqual(pitch);
 
-  // The replay starts again from the break, and the change comes on with the second half.
+  // The clock goes on from the break, on the same page, and the change comes on with the second half.
   await page.getByTestId("half-time-resume").click();
-  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?reprise=1$`));
   await expect(panel).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live$`));
   await expect(minuteOf(page)).toHaveText(/^(4[5-9]|[5-9]\d)'$/);
   const change = feedOf(page).filter({ hasText: "46'" }).filter({ hasText: incoming });
   await expect(change).toContainText("Remplacement");
@@ -425,7 +450,6 @@ test("keeps the speed chosen through the break, into the second half", async ({ 
   await page.getByTestId("live-speed-4").click();
   await page.getByTestId("live-skip").click();
   await page.getByTestId("half-time-resume-unchanged").click();
-  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?reprise=1$`));
   await expect(page.getByTestId("live-skip")).toHaveText("Aller au résultat");
   await expectSpeed(page, 4);
 });
@@ -577,7 +601,6 @@ test.describe("at 768 px", () => {
     // The second half, and the final whistle.
     await page.getByTestId("live-coaching").click();
     await page.getByTestId("half-time-resume-unchanged").click();
-    await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?reprise=1$`));
     await expect(page.getByTestId("live-skip")).toBeVisible();
     await expectOrangeActions(page, []);
     await expectNoSidewaysScroll(page, "second half");
