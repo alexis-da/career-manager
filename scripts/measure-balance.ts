@@ -17,10 +17,12 @@ import "dotenv/config";
 import { writeFileSync } from "node:fs";
 import {
   BASE_GOALS_PER_TEAM,
+  EXTRA_TIME_PERIOD_MINUTES,
   FORM_RETENTION,
   FORMATION_PROFILES,
   HOME_ADVANTAGE,
   POSITION_PROFILES,
+  REGULATION_MINUTES,
   SEGMENT_MINUTES,
   STRENGTH_EXPONENT,
 } from "../src/engine/balance";
@@ -526,6 +528,31 @@ function factorTables(options: Options, sections: string[]): void {
   sections.push(
     "### Knockout match",
     table(["gap", "in 90 minutes %", "in extra time %", "on penalties %", "stronger team through %"], [0, 2, 5, 10].map(knockoutCase)),
+  );
+
+  // When goals come: knockout matches between equal teams, whose 90 minutes are a league match's, then their extra time.
+  const quarters = [0, 0, 0, 0, 0, 0];
+  const periods = [0, 0];
+  const equal = syntheticTeam("tested", BASE_LEVEL);
+  for (let index = 0; index < options.matches; index++) {
+    const seed = `balance:${index}`;
+    const result =
+      index % 2 === 0 ? simulateMatch(equal, other, seed, undefined, true) : simulateMatch(other, equal, seed, undefined, true);
+    for (const event of result.events.filter((candidate) => candidate.type === "GOAL")) {
+      if (event.period === "EXTRA_TIME") {
+        periods[event.minute > REGULATION_MINUTES + EXTRA_TIME_PERIOD_MINUTES ? 1 : 0]++;
+      } else {
+        // Stoppage time goes with the last quarter of an hour.
+        quarters[Math.min(5, Math.floor((Math.min(event.minute, REGULATION_MINUTES) - 1) / SEGMENT_MINUTES))]++;
+      }
+    }
+  }
+  const shares = (counts: readonly number[]) => counts.map((count) => fixed(percent(count, counts.reduce((sum, value) => sum + value, 0)), 1));
+  sections.push(
+    `### When goals come, equal teams at level ${BASE_LEVEL} (${options.matches} matches), share of the goals %`,
+    table(["1-15'", "16-30'", "31-45'", "46-60'", "61-75'", "76-90'+", "extra time 91-105'", "106-120'"], [
+      [...shares(quarters), ...shares(periods)],
+    ]),
   );
 }
 

@@ -132,6 +132,25 @@ describe("simulateMatch", () => {
     expect(draws / MATCH_COUNT).toBeLessThanOrEqual(0.27);
   });
 
+  it("scores more late in a match: 12 to 16 % of the goals in the first quarter of an hour, 19 to 23 % in the last", () => {
+    const quarters = [0, 0, 0, 0, 0, 0];
+    for (const event of leagueResults.flatMap((result) => result.events)) {
+      if (event.type === "GOAL") {
+        // Stoppage time goes with the last quarter of an hour.
+        quarters[Math.min(5, Math.floor((Math.min(event.minute, REGULATION_MINUTES) - 1) / SEGMENT_MINUTES))]++;
+      }
+    }
+    const goals = quarters.reduce((sum, count) => sum + count, 0);
+    const shares = quarters.map((count) => count / goals);
+
+    expect(shares[0]).toBeGreaterThanOrEqual(0.12);
+    expect(shares[0]).toBeLessThanOrEqual(0.16);
+    expect(shares[5]).toBeGreaterThanOrEqual(0.19);
+    expect(shares[5]).toBeLessThanOrEqual(0.23);
+    // No dip on the way: each quarter of an hour scores at least about as much as the one before.
+    shares.slice(1).forEach((share, index) => expect(share).toBeGreaterThan(shares[index] - 0.005));
+  });
+
   it("lets Bayern beat Monza in more than 75 % of 10 000 matches", () => {
     const bayernWins = bayernMonza.filter(({ bayernAtHome, result }) =>
       bayernAtHome ? result.homeGoals > result.awayGoals : result.awayGoals > result.homeGoals,

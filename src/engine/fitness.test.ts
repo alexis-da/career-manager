@@ -22,9 +22,9 @@ describe("fitness", () => {
     expect(fitnessFactor(85)).toBeGreaterThan(fitnessFactor(75));
   });
 
-  it("wears him down on the pitch more than a short rest does: 0.78 after an hour, and both factors together", () => {
+  it("wears him down on the pitch more than a short rest does: 0.8 after an hour, and both factors together", () => {
     expect(wearFactor(0)).toBe(1);
-    expect(wearFactor(20)).toBeCloseTo(0.78);
+    expect(wearFactor(20)).toBeCloseTo(0.8);
     expect(wearFactor(-5)).toBe(1);
     // Fresh at kick-off, worn down to 80: the wear alone. At 85 at kick-off, worn down to 65: both.
     expect(playingFactor(FULL_FITNESS, 80)).toBeCloseTo(wearFactor(20));

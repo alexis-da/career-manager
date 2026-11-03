@@ -60,6 +60,13 @@ describe("cup calibration", () => {
     expect(share("EXTRA_TIME")).toBeLessThan(0.13);
   });
 
+  it("scores more in the second period of extra time than in the first, as late in regular time", () => {
+    const goals = results.flatMap((result) => result.events.filter((event) => event.type === "GOAL" && event.period === "EXTRA_TIME"));
+    const second = goals.filter((goal) => goal.minute > 105).length / goals.length;
+    expect(second).toBeGreaterThan(0.52);
+    expect(second).toBeLessThan(0.6);
+  });
+
   it("scores about three kicks in four", () => {
     const kicks = results.flatMap((result) => result.events.filter((event) => event.period === "SHOOTOUT"));
     const scored = kicks.filter((kick) => kick.type === "SHOOTOUT_GOAL").length / kicks.length;

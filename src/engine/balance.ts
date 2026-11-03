@@ -306,6 +306,18 @@ export const STRENGTH_PER_MORALE_POINT = 0.001;
  */
 export const BASE_GOALS_PER_TEAM = 1.23;
 
+/**
+ * When a match's goals come: the weight of each quarter of an hour of regular time in its expected goals, from kick-off
+ * to the last one (stoppage time included), then of each period of extra time. Goals come late, as in real football:
+ * legs tire, teams chasing the score open the match, stoppage time is played. The weights also make up for the
+ * goalkeeper's slower wear, which keeps the defenses fresher than the attacks as a match goes on. Each list averages 1:
+ * a match's goals stay BASE_GOALS_PER_TEAM's. Measured with npm run measure:balance, equal teams: 13.8, 15.3, 16.4, 16.6,
+ * 17.2 and 20.6 % of the goals from the first quarter of an hour to the last, 45 and 55 % of extra time's (all at 1:
+ * 18.1 % down to 14.7 %, 50 and 50 %).
+ */
+export const REGULATION_GOAL_WEIGHTS: readonly number[] = [0.76, 0.86, 0.96, 1.02, 1.02, 1.38];
+export const EXTRA_TIME_GOAL_WEIGHTS: readonly number[] = [0.9, 1.1];
+
 /** How sharply the attack / defense ratio turns into expected goals: ratio ^ exponent. */
 export const STRENGTH_EXPONENT = 2.4;
 
@@ -467,9 +479,10 @@ export const STRENGTH_PER_FITNESS_POINT = 0.0015;
 
 /**
  * Wear: and by 1 − this × the fitness he has lost on the pitch since kick-off, read when each segment starts: a starter
- * who has played an hour (20 points) gives way to a fresh substitute at a real loss.
+ * who has played an hour (20 points) gives way to a fresh substitute at a real loss. 0.010 since goals come late
+ * (REGULATION_GOAL_WEIGHTS), which gives a substitute's last half hour more weight: 0.011 made him worth 0.04 point.
  */
-export const STRENGTH_PER_WEAR_POINT = 0.011;
+export const STRENGTH_PER_WEAR_POINT = 0.01;
 
 /** Fitness lost per segment (15 minutes) on the pitch: an outfield player, a goalkeeper. 30 for a whole match. */
 export const FITNESS_LOSS_PER_SEGMENT = 5;

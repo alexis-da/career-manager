@@ -13,6 +13,7 @@ import {
   DEFENSE_LINE_WEIGHTS,
   DEFENSE_WEIGHTS,
   EXTRA_TIME_END_MINUTE,
+  EXTRA_TIME_GOAL_WEIGHTS,
   EXTRA_TIME_INTENSITY,
   EXTRA_TIME_PERIOD_MINUTES,
   EXTRA_TIME_SUBSTITUTIONS,
@@ -34,6 +35,7 @@ import {
   MAX_SUBSTITUTIONS,
   OTHER_MATCH_EVENT_TYPES,
   RED_CARDS_PER_TEAM,
+  REGULATION_GOAL_WEIGHTS,
   REGULATION_MINUTES,
   SCORER_SLOT_WEIGHTS,
   SEGMENT_MINUTES,
@@ -517,16 +519,44 @@ function cloneState(state: MatchState): MatchState {
 
 const onPitch = (team: TeamLive): PitchEntry[] => team.pitch.filter((entry) => entry.status === "ON");
 
-/** Where each segment sits in a match: its first and last minutes, and the phase it starts from. */
-const SEGMENTS: Readonly<Record<Segment, { first: number; last: number; from: MatchPhase }>> = {
-  s1: { first: 1, last: SEGMENT_MINUTES, from: "KICK_OFF" },
-  s2: { first: SEGMENT_MINUTES + 1, last: 2 * SEGMENT_MINUTES, from: "IN_PLAY" },
-  s3: { first: 2 * SEGMENT_MINUTES + 1, last: HALF_TIME_MINUTE, from: "IN_PLAY" },
-  s4: { first: HALF_TIME_MINUTE + 1, last: HALF_TIME_MINUTE + SEGMENT_MINUTES, from: "HALF_TIME" },
-  s5: { first: HALF_TIME_MINUTE + SEGMENT_MINUTES + 1, last: HALF_TIME_MINUTE + 2 * SEGMENT_MINUTES, from: "IN_PLAY" },
-  s6: { first: HALF_TIME_MINUTE + 2 * SEGMENT_MINUTES + 1, last: REGULATION_MINUTES, from: "IN_PLAY" },
-  e1: { first: REGULATION_MINUTES + 1, last: REGULATION_MINUTES + EXTRA_TIME_PERIOD_MINUTES, from: "REGULATION_END" },
-  e2: { first: REGULATION_MINUTES + EXTRA_TIME_PERIOD_MINUTES + 1, last: EXTRA_TIME_END_MINUTE, from: "EXTRA_TIME_BREAK" },
+/**
+ * Where each segment sits in a match: its first and last minutes, the phase it starts from, and its weight in the
+ * match's goals (REGULATION_GOAL_WEIGHTS, EXTRA_TIME_GOAL_WEIGHTS).
+ */
+const SEGMENTS: Readonly<Record<Segment, { first: number; last: number; from: MatchPhase; goalWeight: number }>> = {
+  s1: { first: 1, last: SEGMENT_MINUTES, from: "KICK_OFF", goalWeight: REGULATION_GOAL_WEIGHTS[0] },
+  s2: { first: SEGMENT_MINUTES + 1, last: 2 * SEGMENT_MINUTES, from: "IN_PLAY", goalWeight: REGULATION_GOAL_WEIGHTS[1] },
+  s3: { first: 2 * SEGMENT_MINUTES + 1, last: HALF_TIME_MINUTE, from: "IN_PLAY", goalWeight: REGULATION_GOAL_WEIGHTS[2] },
+  s4: {
+    first: HALF_TIME_MINUTE + 1,
+    last: HALF_TIME_MINUTE + SEGMENT_MINUTES,
+    from: "HALF_TIME",
+    goalWeight: REGULATION_GOAL_WEIGHTS[3],
+  },
+  s5: {
+    first: HALF_TIME_MINUTE + SEGMENT_MINUTES + 1,
+    last: HALF_TIME_MINUTE + 2 * SEGMENT_MINUTES,
+    from: "IN_PLAY",
+    goalWeight: REGULATION_GOAL_WEIGHTS[4],
+  },
+  s6: {
+    first: HALF_TIME_MINUTE + 2 * SEGMENT_MINUTES + 1,
+    last: REGULATION_MINUTES,
+    from: "IN_PLAY",
+    goalWeight: REGULATION_GOAL_WEIGHTS[5],
+  },
+  e1: {
+    first: REGULATION_MINUTES + 1,
+    last: REGULATION_MINUTES + EXTRA_TIME_PERIOD_MINUTES,
+    from: "REGULATION_END",
+    goalWeight: EXTRA_TIME_GOAL_WEIGHTS[0],
+  },
+  e2: {
+    first: REGULATION_MINUTES + EXTRA_TIME_PERIOD_MINUTES + 1,
+    last: EXTRA_TIME_END_MINUTE,
+    from: "EXTRA_TIME_BREAK",
+    goalWeight: EXTRA_TIME_GOAL_WEIGHTS[1],
+  },
 };
 
 /** The segments of each period, played in this order. */
@@ -558,7 +588,7 @@ function tacticalSubstitutionMinutes(matchSeed: string, side: Side): number[] {
  * replaced: each change counts from the next segment.
  */
 export function simulateSegment(start: MatchState, matchSeed: string, segment: Segment, instructions: Instructions = {}): MatchState {
-  const { first, last, from } = SEGMENTS[segment];
+  const { first, last, from, goalWeight } = SEGMENTS[segment];
   if (start.phase !== from) {
     throw new Error(`Cannot play segment ${segment} of a match at ${start.phase}`);
   }
@@ -589,7 +619,8 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
       : players.reduce((sum, entry) => sum + injuryRiskFactor(fitnessAt(entry, played)), 0) / players.length;
   };
   const share = SEGMENT_MINUTES / REGULATION_MINUTES;
-  const goalShare = extraTime ? share * EXTRA_TIME_INTENSITY : share;
+  // Goals come late in a match: each segment's weight in them.
+  const goalShare = share * goalWeight * (extraTime ? EXTRA_TIME_INTENSITY : 1);
 
   const incidents: Incident[] = [];
   const schedule = (side: Side, kind: IncidentKind, count: number): void => {

@@ -66,6 +66,6 @@ describe("league match fingerprint", () => {
     );
 
     expect(results).toHaveLength(99);
-    expect(createHash("sha256").update(JSON.stringify(results)).digest("hex")).toBe("0ca3b1ea0290c6c48c804ea5c921cd984601d5d4666690fa073215d706404281");
+    expect(createHash("sha256").update(JSON.stringify(results)).digest("hex")).toBe("71495ffec4478eaaf96efb7aa2e80a3dfa8f9587aefd85c4de4439f0edc0827f");
   });
 });
