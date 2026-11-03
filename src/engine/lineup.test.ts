@@ -8,6 +8,7 @@ import {
   DEFAULT_FORMATION,
   resolveLineup,
   selectLineup,
+  selectRestedLineup,
   type Lineup,
   type SavedLineup,
   type SquadPlayer,
@@ -121,6 +122,43 @@ describe("selectLineup", () => {
     expect(startersOf(selectLineup(twins, ["ST"]))).toEqual([["ST", "a"]]);
     expect(selectLineup([...squad].reverse())).toEqual(selectLineup(squad));
     expect(selectLineup(squad)).toEqual(selectLineup(squad));
+  });
+});
+
+describe("selectRestedLineup", () => {
+  const tired = (id: string, position: Position, overall: number, fitness: number) => player(id, position, overall, { fitness });
+
+  it("picks selectLineup's eleven when nobody is below 75 of fitness", () => {
+    const fit = squad.map((member, index) => ({ ...member, fitness: 75 + (index % 26) }));
+
+    expect(selectRestedLineup(fit)).toEqual(selectLineup(fit));
+  });
+
+  it("rests a player below 75 for a rested one at most 5 points worse in his slot, and only then", () => {
+    expect(startersOf(selectRestedLineup([tired("a", "ST", 80, 70), player("b", "ST", 76)], ["ST"]))).toEqual([["ST", "b"]]);
+    expect(startersOf(selectRestedLineup([tired("a", "ST", 80, 70), player("b", "ST", 75)], ["ST"]))).toEqual([["ST", "b"]]);
+    // More than 5 points worse, tired as well, or the player not tired enough: he plays.
+    expect(startersOf(selectRestedLineup([tired("a", "ST", 80, 70), player("b", "ST", 74)], ["ST"]))).toEqual([["ST", "a"]]);
+    expect(startersOf(selectRestedLineup([tired("a", "ST", 80, 70), tired("b", "ST", 79, 60)], ["ST"]))).toEqual([["ST", "a"]]);
+    expect(startersOf(selectRestedLineup([tired("a", "ST", 80, 75), player("b", "ST", 79)], ["ST"]))).toEqual([["ST", "a"]]);
+  });
+
+  it("may still start a tired player in a later slot, or sit him on the bench", () => {
+    const players = [tired("a", "ST", 80, 70), player("b", "ST", 76), player("c", "ST", 60)];
+
+    expect(startersOf(selectRestedLineup(players, ["ST", "ST"]))).toEqual([["ST", "b"], ["ST", "a"]]);
+    const rested = selectRestedLineup([...players, player("d", "ST", 78)], ["ST", "ST"]);
+    expect(startersOf(rested)).toEqual([["ST", "d"], ["ST", "b"]]);
+    expect(rested.bench.map((substitute) => substitute.id)).toContain("a");
+  });
+
+  it("rests the goalkeeper too, and does not depend on the order of the squad", () => {
+    const weary = squad.map((member) => (member.id === "gk-2" ? { ...member, fitness: 60 } : member));
+
+    // gk-1 (70) is 5 points below gk-2 (75): he plays, gk-2 is the backup on the bench.
+    expect(startersOf(selectRestedLineup(weary))[0]).toEqual(["GK", "gk-1"]);
+    expect(selectRestedLineup(weary).bench[0].id).toBe("gk-2");
+    expect(selectRestedLineup([...weary].reverse())).toEqual(selectRestedLineup(weary));
   });
 });
 

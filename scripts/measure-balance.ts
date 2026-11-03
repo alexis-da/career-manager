@@ -8,8 +8,9 @@
  * away, unless it is about the venue, on the same seeds as every other case, so that two cases differ by the factor alone.
  *
  * World, on a save of the local database: a complete season of a worldVersion 2 save for each of --seeds seeds (default
- * 3), its goals, draws, home wins, points gap, upsets and final form; the same leagues played on paper, squads frozen at
- * kick-off, form at 50, for what a season's form and injuries add; and the formations on real squads. Each save and its
+ * 3), its goals, draws, home wins, points gap, upsets and final form, the AI starters' fitness at kick-off and the
+ * players they rest; the same leagues played on paper, squads frozen at kick-off, form at 50, for what a season's form,
+ * fatigue and injuries add; and the formations on real squads. Each save and its
  * throwaway owner are deleted at the end. Writes to the database: the local one only.
  */
 import "dotenv/config";
@@ -25,7 +26,8 @@ import {
 } from "../src/engine/balance";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../src/engine/formations";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "../src/engine/generation";
-import { averageStarterRating, selectLineup, type Lineup, type SquadPlayer } from "../src/engine/lineup";
+import { recoveredFitness } from "../src/engine/fitness";
+import { averageStarterRating, selectLineup, selectRestedLineup, type Lineup, type SquadPlayer } from "../src/engine/lineup";
 import {
   applyAutomaticHalfTime,
   assistantInstruction,
@@ -222,6 +224,30 @@ const matchWithRedCard =
           },
     );
 
+/**
+ * At the 60th minute, the tested side's player of a slot gives way to a fresh one of the same level and position: the
+ * value of a fresh legs at that minute, the substitution counted.
+ */
+const matchWithFreshSubstitute =
+  (slot: number, level: number): Play =>
+  (home, away, seed, tested) =>
+    segmentBySegment(home, away, seed, tested, (state, current) => {
+      const team = state[tested];
+      const entry = team.pitch.find((candidate) => candidate.index === slot && candidate.status === "ON");
+      if (current !== "s5" || entry === undefined) {
+        return state;
+      }
+      const fresh = syntheticPlayer(`fresh-${slot}`, entry.player.position, level);
+      return {
+        ...state,
+        [tested]: {
+          ...team,
+          substitutions: team.substitutions + 1,
+          pitch: team.pitch.map((candidate) => (candidate === entry ? { ...candidate, player: fresh, from: 60 } : candidate)),
+        },
+      };
+    });
+
 /** A match where the tested side follows a policy of its own; the other one, the assistant's rule. */
 const matchWithPolicy =
   (policy: Policy): Play =>
@@ -315,6 +341,10 @@ function factorTables(options: Options, sections: string[]): void {
   };
   const allForm = (form: number): Lineup => withStarters(base, (player) => ({ ...player, form }));
   const allMorale = (morale: number): Lineup => withStarters(base, (player) => ({ ...player, morale }));
+  const allFitness = (fitness: number): Lineup => ({
+    starters: base.starters.map((entry) => ({ ...entry, player: { ...entry.player, fitness } })),
+    bench: base.bench.map((player) => ({ ...player, fitness })),
+  });
 
   report(`## 2. Isolated factors (level ${BASE_LEVEL} against level ${BASE_LEVEL}, ${options.matches} matches a row)`, [
     { label: "baseline: equal teams" },
@@ -327,6 +357,11 @@ function factorTables(options: Options, sections: string[]): void {
     { label: "form -20 (eleven)", team: allForm(30) },
     { label: "form +20 (striker alone)", team: withStarter(base, SLOT.ST, (player) => ({ ...player, form: 70 })) },
     { label: "morale +20 (eleven), never moves in the game", team: allMorale(70) },
+    { label: "fitness 85 at kick-off (eleven and bench)", team: allFitness(85) },
+    { label: "fitness 75 at kick-off (eleven and bench)", team: allFitness(75) },
+    { label: "a fresh CM of the same level at the 60th", play: matchWithFreshSubstitute(SLOT.CM, BASE_LEVEL) },
+    { label: "a fresh ST of the same level at the 60th", play: matchWithFreshSubstitute(SLOT.ST, BASE_LEVEL) },
+    { label: "fitness 75 at kick-off, a fresh ST at the 60th", team: allFitness(75), play: matchWithFreshSubstitute(SLOT.ST, BASE_LEVEL) },
   ]);
 
   const offPosition = (slot: number, primary: Position, secondary = false): Lineup =>
@@ -552,6 +587,72 @@ function seasonRows(records: readonly LeagueRecord[]): string[][] {
 
 const mean = (values: readonly number[]): number => values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
 
+type FatigueRecord = {
+  starters: number[]; // every AI starter's fitness at kick-off
+  rotations: number; // AI starters rested for a fresher player, as selectRestedLineup does
+  clubSeasons: number;
+  byMonth: Map<string, number[]>;
+};
+
+/**
+ * Plays a save's remaining dates as playRemainingMatchdays does, looking first at each date's AI lineups: the fitness their
+ * starters will have once the days of rest are counted (as playNextMatchday counts them), and how many tired starters
+ * selectRestedLineup rests.
+ */
+async function playSeasonWatchingFatigue(
+  saveId: string,
+  fatigue: FatigueRecord,
+  prisma: typeof import("../src/db/client").prisma,
+  squadsOf: typeof import("../src/db/matchday").squadsOf,
+  playerSelect: typeof import("../src/db/matchday").PLAYER_SELECT,
+  playNextMatchday: typeof import("../src/db/matchday").playNextMatchday,
+): Promise<void> {
+  for (;;) {
+    const [save, next] = await Promise.all([
+      prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
+      prisma.fixture.findFirst({ where: { saveId, played: false }, orderBy: { scheduledAt: "asc" }, select: { scheduledAt: true } }),
+    ]);
+    if (next === null) {
+      return;
+    }
+    const fixtures = await prisma.fixture.findMany({
+      where: { saveId, played: false, scheduledAt: next.scheduledAt },
+      select: { homeClubSave: { select: { id: true, isManaged: true } }, awayClubSave: { select: { id: true, isManaged: true } } },
+    });
+    const clubs = fixtures.flatMap((fixture) => [fixture.homeClubSave, fixture.awayClubSave]).filter((club) => !club.isManaged);
+    const rows = await prisma.playerSave.findMany({ where: { saveId, clubSaveId: { in: clubs.map((club) => club.id) } }, select: playerSelect });
+    const days = Math.round((next.scheduledAt.getTime() - save.currentDate.getTime()) / 86_400_000);
+    const { squads } = squadsOf(rows, next.scheduledAt);
+    const month = next.scheduledAt.toISOString().slice(0, 7);
+    for (const club of clubs) {
+      const squad = (squads.get(club.id) ?? []).map((player) => ({ ...player, fitness: recoveredFitness(player.fitness, days) }));
+      const rested = selectRestedLineup(squad);
+      const plain = new Set(selectLineup(squad).starters.map((starter) => starter.player.id));
+      fatigue.rotations += rested.starters.filter((starter) => !plain.has(starter.player.id)).length;
+      const fitness = rested.starters.map((starter) => starter.player.fitness);
+      fatigue.starters.push(...fitness);
+      fatigue.byMonth.set(month, [...(fatigue.byMonth.get(month) ?? []), ...fitness]);
+    }
+    await playNextMatchday(saveId);
+  }
+}
+
+function fatigueTables(fatigue: FatigueRecord, sections: string[]): void {
+  const meanOf = (values: readonly number[]): string => fixed(values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length));
+  const below = (values: readonly number[], threshold: number): string =>
+    fixed(percent(values.filter((value) => value < threshold).length, Math.max(1, values.length)));
+  sections.push(
+    "### Fatigue: AI starters' fitness at kick-off, league and cup matches",
+    table(
+      ["month", "starts", "mean fitness", "below 85 %", "below 75 %", "lowest"],
+      [...fatigue.byMonth]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, values]) => [month, String(values.length), meanOf(values), below(values, 85), below(values, 75), fixed(values.reduce((low, value) => Math.min(low, value), 100), 0)]),
+    ),
+    `Whole seasons: mean ${meanOf(fatigue.starters)}, ${below(fatigue.starters, 75)} % of starts below 75; ${fatigue.rotations} tired starters rested, ${fixed(fatigue.rotations / Math.max(1, fatigue.clubSeasons))} per club and season.`,
+  );
+}
+
 function worldTables(records: readonly LeagueRecord[], frozen: readonly LeagueRecord[], sections: string[]): void {
   const scopes = SCOPES;
   const seasonHeaders = ["scope", "matches", "goals/match", "home wins %", "draws %", "away wins %", "1st - last, pts", "range", "champion pts/match"];
@@ -645,7 +746,8 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
   const { squadsOf, PLAYER_SELECT } = await import("../src/db/matchday");
   const { createSave } = await import("../src/db/saves");
   const { getStandings } = await import("../src/db/standings");
-  const { DEMO_CLUB_SLUG, playRemainingMatchdays } = await import("../src/db/test-support");
+  const { DEMO_CLUB_SLUG } = await import("../src/db/test-support");
+  const { playNextMatchday } = await import("../src/db/matchday");
 
   const url = process.env.DATABASE_URL ?? "";
   if (url === "" || !isLocalDatabase(url)) {
@@ -653,6 +755,7 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
   }
 
   const records: LeagueRecord[] = [];
+  const fatigue: FatigueRecord = { starters: [], rotations: 0, clubSeasons: 0, byMonth: new Map() };
   const frozen: LeagueRecord[] = [];
   const formationRows: string[][] = [];
   const club = await prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } });
@@ -692,7 +795,8 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
         frozen.push(frozenLeague(season, members, squads, strength, seedIndex));
       }
 
-      await playRemainingMatchdays(saveId);
+      fatigue.clubSeasons += clubs.length;
+      await playSeasonWatchingFatigue(saveId, fatigue, prisma, squadsOf, PLAYER_SELECT, playNextMatchday);
 
       const final = await prisma.playerSave.findMany({
         where: { saveId, clubSaveId: { not: null } },
@@ -735,6 +839,7 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
   }
 
   worldTables(records, frozen, sections);
+  fatigueTables(fatigue, sections);
   sections.push(
     "### Formations on real squads, against the median club of the league in its 4-3-3",
     table(

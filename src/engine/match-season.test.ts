@@ -5,15 +5,15 @@ import { makeRng } from "../lib/rng";
 import { FULL_FITNESS } from "./balance";
 import { fitnessAfterMatch, recoveredFitness } from "./fitness";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "./generation";
-import { averageStarterRating, selectLineup, type SquadPlayer } from "./lineup";
+import { averageStarterRating, selectLineup, selectRestedLineup, type SquadPlayer } from "./lineup";
 import { matchRngSeed, nextForm, outcomeFor, playerMatchStats, simulateMatch, type Appearance } from "./match";
 import { generateBalancedSchedule, matchdayDates } from "./schedule";
 import { competitionTier } from "./tiers";
 import { firstMatchdayDate, WORLD_START_DATE } from "./world";
 
 // The ten leagues of the real world over a whole season, played as a save of world 2 plays them, on its calendar
-// (matchdayDates: Saturdays, and Tuesdays for the longest seasons): AI lineups picked before every match, injured
-// players left out, form and fitness carried from one match to the next for
+// (matchdayDates: Saturdays, and Tuesdays for the longest seasons): AI lineups picked before every match and their tired
+// players rested (selectRestedLineup), injured players left out, form and fitness carried from one match to the next for
 // every player of both clubs (nextForm, fitnessAfterMatch, as recordFinishedMatches applies them) and fitness recovered
 // day by day (recoveredFitness, as playNextMatchday applies it). The cups are left out. The calibration of match.test.ts
 // is at neutral form and full fitness; the targets of the gameplay sheet (docs/design/gameplay-v1.md), measured on saves
@@ -53,6 +53,7 @@ const season = (() => {
   const points = new Map<string, number>();
   const played: Played[] = [];
   const starterFitness: number[] = [];
+  let rotations = 0;
 
   const matches = plan
     .flatMap(({ competition, clubs }) => {
@@ -76,9 +77,12 @@ const season = (() => {
       today = date;
     }
     const lineup = (slug: string) => {
-      const picked = selectLineup(squadOf(slug).map((player) => ({ ...player, injured: (injuredUntil.get(player.id) ?? 0) > date })));
-      starterFitness.push(...picked.starters.map((starter) => starter.player.fitness));
-      return picked;
+      const available = squadOf(slug).map((player) => ({ ...player, injured: (injuredUntil.get(player.id) ?? 0) > date }));
+      const rested = selectRestedLineup(available);
+      const plain = new Set(selectLineup(available).starters.map((starter) => starter.player.id));
+      rotations += rested.starters.filter((starter) => !plain.has(starter.player.id)).length;
+      starterFitness.push(...rested.starters.map((starter) => starter.player.fitness));
+      return rested;
     };
     const result = simulateMatch(
       lineup(match.home),
@@ -122,7 +126,7 @@ const season = (() => {
     const best = [...squad].sort((a, b) => b.overall - a.overall).slice(0, 11);
     return best.reduce((sum, player) => sum + player.form, 0) / best.length;
   });
-  return { played, gaps, elevenForms, starterFitness, matches: matches.length };
+  return { played, gaps, elevenForms, starterFitness, rotations, matches: matches.length };
 })();
 
 const share = (count: number): number => count / season.played.length;
@@ -162,13 +166,14 @@ describe("a season of the ten leagues, with form and injuries", () => {
     expect(upsets.length / decided.length).toBeLessThanOrEqual(0.25);
   });
 
-  it("starts the elevens close to full fitness, never below 75 without the cups' midweek ties", () => {
+  it("starts the AI elevens close to full fitness, never below 75 without the cups' midweek ties", () => {
     const mean = season.starterFitness.reduce((sum, value) => sum + value, 0) / season.starterFitness.length;
 
     expect(mean).toBeGreaterThan(95);
     expect(mean).toBeLessThan(FULL_FITNESS);
-    // Saturday, Tuesday, Saturday at the most: 75 at the third kick-off.
+    // Saturday, Tuesday, Saturday at the most: 75 at the third kick-off, not tired enough to be rested.
     expect(Math.min(...season.starterFitness)).toBe(75);
+    expect(season.rotations).toBe(0);
   });
 
   it("ends the season with every club's eleven between 30 and 75 of form, far from the bounds", () => {

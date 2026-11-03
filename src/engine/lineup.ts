@@ -1,3 +1,4 @@
+import { ROTATION_FITNESS, ROTATION_MAX_RATING_GAP } from "./balance";
 import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "./formations";
 import type { AttributeName } from "./generation";
 import { positionGroup, ratingAt, type Position } from "./positions";
@@ -58,21 +59,25 @@ function bestFor<P extends LineupCandidate>(candidates: readonly P[], slot: Posi
   return best;
 }
 
+/** Picks a slot's player among the candidates left: the best one, unless a rule of the club's says otherwise. */
+type Pick<P> = (candidates: readonly P[], slot: Position) => P | undefined;
+
 /**
  * Fills the empty slots in order, each with the remaining player rated best in it (ratingAt), ties broken by
- * id. Returns the players left over.
+ * id, or the one `pick` chooses. Returns the players left over.
  */
 function fillGreedily<P extends LineupCandidate>(
   formation: Formation,
   assigned: (P | undefined)[],
   candidates: readonly P[],
+  pick: Pick<P> = bestFor,
 ): P[] {
   let remaining = [...candidates];
   formation.forEach((slot, index) => {
     if (assigned[index] !== undefined) {
       return;
     }
-    const best = bestFor(remaining, slot);
+    const best = pick(remaining, slot);
     if (best !== undefined) {
       assigned[index] = best;
       remaining = remaining.filter((player) => player !== best);
@@ -107,6 +112,35 @@ function toLineup<P extends LineupCandidate>(formation: Formation, assigned: (P 
 export function selectLineup<P extends LineupCandidate>(squad: readonly P[], formation: Formation = DEFAULT_FORMATION): Lineup<P> {
   const assigned: (P | undefined)[] = formation.map(() => undefined);
   const remaining = fillGreedily(formation, assigned, squad.filter((player) => !player.injured));
+  return toLineup(formation, assigned, automaticBench(remaining));
+}
+
+/**
+ * The best player for a slot, unless he is tired: below ROTATION_FITNESS, the best rested player (at ROTATION_FITNESS
+ * or more) rated at most ROTATION_MAX_RATING_GAP below him in the slot plays instead, if there is one.
+ */
+function restedFor<P extends LineupCandidate & { fitness: number }>(candidates: readonly P[], slot: Position): P | undefined {
+  const best = bestFor(candidates, slot);
+  if (best === undefined || best.fitness >= ROTATION_FITNESS) {
+    return best;
+  }
+  const rested = bestFor(
+    candidates.filter((player) => player.fitness >= ROTATION_FITNESS),
+    slot,
+  );
+  return rested !== undefined && ratingAt(rested, slot) >= ratingAt(best, slot) - ROTATION_MAX_RATING_GAP ? rested : best;
+}
+
+/**
+ * An AI club's lineup for a match: selectLineup, except that a tired player gives way to a rested one hardly worse in
+ * his slot (restedFor). The tired player may still start elsewhere, or sit on the bench.
+ */
+export function selectRestedLineup<P extends LineupCandidate & { fitness: number }>(
+  squad: readonly P[],
+  formation: Formation = DEFAULT_FORMATION,
+): Lineup<P> {
+  const assigned: (P | undefined)[] = formation.map(() => undefined);
+  const remaining = fillGreedily(formation, assigned, squad.filter((player) => !player.injured), restedFor);
   return toLineup(formation, assigned, automaticBench(remaining));
 }
 

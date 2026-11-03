@@ -1,7 +1,7 @@
 import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS } from "../engine/balance";
 import { fitnessAfterMatch } from "../engine/fitness";
 import { DEFAULT_FORMATION_NAME, type FormationName } from "../engine/formations";
-import { autoFilledSlots, resolveLineup, selectLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
+import { autoFilledSlots, resolveLineup, selectRestedLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import {
   cupMatchRngSeed,
   eventsToPersist,
@@ -101,10 +101,13 @@ type Team = { isManaged: boolean; formation: string; lineup: unknown };
 
 type TeamLineup = { lineup: Lineup; formation: FormationName; autoFilledSlots: number };
 
-/** The managed club plays its saved lineup, completed automatically; AI clubs pick their 4-3-3 automatically. */
+/**
+ * The managed club plays its saved lineup, completed automatically; AI clubs pick their 4-3-3 automatically, resting
+ * their tired players where a rested one is hardly worse (selectRestedLineup).
+ */
 function lineupOf(team: Team, squad: readonly SquadPlayer[]): TeamLineup {
   if (!team.isManaged) {
-    return { lineup: selectLineup(squad), formation: DEFAULT_FORMATION_NAME, autoFilledSlots: 0 };
+    return { lineup: selectRestedLineup(squad), formation: DEFAULT_FORMATION_NAME, autoFilledSlots: 0 };
   }
   const saved = parseSavedLineup(team.lineup);
   const formation = parseFormation(team.formation);

@@ -468,6 +468,13 @@ export const FITNESS_RECOVERY_PER_DAY = 5;
 export const INJURY_RISK_FITNESS = 70;
 export const INJURY_RISK_FITNESS_SPAN = 30;
 
+/**
+ * AI clubs' lineups: a player below ROTATION_FITNESS gives way to the best rested player (at or above it) rated at most
+ * ROTATION_MAX_RATING_GAP below him in the slot.
+ */
+export const ROTATION_FITNESS = 75;
+export const ROTATION_MAX_RATING_GAP = 5;
+
 // ------------------------------------------------------------------ End-of-season progression
 // Ages below are the player's age at the start of the next season.
 
