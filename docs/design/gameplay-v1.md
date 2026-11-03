@@ -31,6 +31,8 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
 - **Dispositif avec un profil léger** (attaque / défense), visible dans la composition.
 - **Consignes** (attitude) : Attaquer · Équilibré · Fermer, disponibles aux pauses et via les événements.
 - **Événements à choix** : 1 à 3 par match pour le club dirigé, 4 familles, l'adjoint choisit en simulation.
+- **Buts des événements pris sur ceux du club** (G4, validé le 03/11) : dans un match qui a des événements, les buts attendus du club dirigé sont multipliés par 0,89 (`OWN_GOALS_WITH_CHOICE_EVENTS`), pour que les événements décidés par l'adjoint ne lui rapportent rien de plus qu'au même club joué par l'IA.
+- **« Rester tel quel » est la consigne Équilibré** (G4, validé le 03/11) : une consigne jusqu'à la fin du temps réglementaire, comme les autres options des réactions tactiques, et non « la règle de l'adjoint continue », qui rejouait le même match que Fermer ou Attaquer.
 
 ## G1 — Moteur par segments, profils de dispositif, consignes, forme calmée
 
@@ -130,7 +132,7 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
   - le navigateur ne reçoit jamais les segments au-delà de la prochaine pause.
 - **Stockage** : la pause et l'événement en attente dans `Fixture.liveState` (schéma Zod étendu, `version` 2) ; l'historique des choix gardé après le match (nouveau type de `MatchEvent` ou table dédiée, migration d'ajout) pour le fil du match et la feuille de match.
 
-### Retenu (03/11)
+### Retenu (03/11, validé avec ses choix)
 
 - **Moteur** (`src/engine/choices.ts`, pur ; valeurs dans `balance.ts`) : le plan au coup d'envoi (flux `…:events` : 1, 2 ou 3 limites parmi 15', 30', 60', 75', 35 / 45 / 20 %, et 105' une prolongation sur deux) ; à chaque limite prévue, le type parmi ceux possibles et ses joueurs (flux `…:event:15`), puis l'issue (flux `…:event:15:outcome`, trois tirages, les mêmes quelle que soit l'option : un meilleur tireur ne fait que changer un raté en but). Aucun autre flux n'est décalé. Les incidents immédiats sont datés de la minute suivante, comme un remplacement de mi-temps ; les autres passent par `MatchState.modifiers` (buts du segment suivant, consigne jusqu'à la fin du temps réglementaire, rouge ou blessure d'un joueur nommé à une minute tirée).
 - **« Joueur à bout »** : celui qui a perdu le plus de fitness sur le terrain, au moins 25 points, à partir de 75'.
