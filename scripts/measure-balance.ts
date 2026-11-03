@@ -6,6 +6,8 @@
  * each factor, everything else equal, the formations with their profiles and the instructions against the assistant's rule. Two teams of the same synthetic level, every player at his position's profile, no
  * random spread; only the tested team changes. A case plays --matches matches (default 20 000), half of them at home, half
  * away, unless it is about the venue, on the same seeds as every other case, so that two cases differ by the factor alone.
+ * Then the managed club's choice events, the tested team's alone: how many and which, each option against the
+ * assistant's (every option of an event played from that very state to the end), and what they are worth to the club.
  *
  * World, on a save of the local database: a complete season of a worldVersion 2 save for each of --seeds seeds (default
  * 3), its goals, draws, home wins, points gap, upsets and final form, the AI starters' fitness at kick-off, the players
@@ -16,21 +18,36 @@
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
 import {
+  ASSISTANT_DEFEND_MINUTE,
   BASE_GOALS_PER_TEAM,
+  CHOICE_EVENT_MINUTES,
   EXTRA_TIME_PERIOD_MINUTES,
   FORM_RETENTION,
   FORMATION_PROFILES,
+  FREE_KICK_ASSISTANT_SHOOTING,
   HOME_ADVANTAGE,
+  PENALTY_TAKERS,
   POSITION_PROFILES,
   REGULATION_MINUTES,
   SEGMENT_MINUTES,
   STRENGTH_EXPONENT,
 } from "../src/engine/balance";
+import {
+  assistantChoices,
+  CHOICE_KINDS,
+  decideChoice,
+  freeKickChance,
+  withChoices,
+  type ChoiceEvent,
+  type ChoiceKind,
+  type MatchDecision,
+} from "../src/engine/choices";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../src/engine/formations";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "../src/engine/generation";
 import { isSuspended } from "../src/engine/discipline";
 import { recoveredFitness } from "../src/engine/fitness";
 import { averageStarterRating, selectLineup, selectRestedLineup, type Lineup, type SquadPlayer } from "../src/engine/lineup";
+import { playOn } from "../src/engine/live";
 import {
   applyAutomaticHalfTime,
   assistantInstruction,
@@ -38,6 +55,7 @@ import {
   formationStrength,
   knockoutWinner,
   matchResult,
+  shootoutChance,
   simulateMatch,
   simulateSegment,
   startMatch,
@@ -97,15 +115,15 @@ function syntheticPlayer(id: string, position: Position, level: number): SquadPl
 
 const BENCH: readonly Position[] = ["GK", "CB", "RB", "CDM", "CM", "RW", "ST"];
 
-/** A team at a level, every starter at his position in the formation, a bench three points below it. */
-function syntheticTeam(name: string, level: number, formation: FormationName = DEFAULT_FORMATION_NAME): Lineup {
+/** A team at a level, every starter at his position in the formation, a bench three points below it unless told otherwise. */
+function syntheticTeam(name: string, level: number, formation: FormationName = DEFAULT_FORMATION_NAME, benchGap = 3): Lineup {
   return {
     starters: formationPositions(formation).map((slot, index) => ({
       player: syntheticPlayer(`${name}#${index}`, slot, level),
       slot,
       index,
     })),
-    bench: BENCH.map((position, index) => syntheticPlayer(`${name}#bench${index}`, position, level - 3)),
+    bench: BENCH.map((position, index) => syntheticPlayer(`${name}#bench${index}`, position, level - benchGap)),
   };
 }
 
@@ -556,6 +574,369 @@ function factorTables(options: Options, sections: string[]): void {
   );
 }
 
+// ------------------------------------------------------------------ Choice events of the managed club
+
+/** The tested side's choice events, decided by its assistant as in a simulated match of the managed club. */
+const matchWithChoices =
+  (knockout = false): Play =>
+  (home, away, seed, tested) =>
+    simulateMatch(home, away, seed, undefined, knockout, {}, assistantChoices(tested, seed));
+
+/** A play that also hands each result to `watch`, for what a tally does not count. */
+const watched =
+  (play: Play, watch: (result: MatchResult) => void): Play =>
+  (home, away, seed, tested) => {
+    const result = play(home, away, seed, tested);
+    watch(result);
+    return result;
+  };
+
+/** A side's goals ahead of the other side's. */
+const leadOf = (state: MatchState, side: Side): number => state[side].goals - state[side === "home" ? "away" : "home"].goals;
+
+/** A side's points in a finished match: 3 for a win, 1 for a draw. */
+function pointsOf(state: MatchState, side: Side): number {
+  const lead = leadOf(state, side);
+  return lead > 0 ? 3 : lead === 0 ? 1 : 0;
+}
+
+/** A match played on from where it waits to the final whistle, the assistant deciding the choice events to come. */
+function playToEnd(paused: MatchState, side: Side, seed: string): MatchState {
+  let state = paused;
+  while (state.phase !== "FULL_TIME") {
+    state = playOn(state, side, seed, {}, "break");
+  }
+  return state;
+}
+
+/** One option of a choice event: the match played on with it from the event to the final whistle. */
+type Branch = {
+  kind: ChoiceKind;
+  option: string; // a penalty's takers by rank, the best chance first
+  rank: number; // its place among the options offered
+  assistant: string; // the assistant's option
+  minute: number;
+  lead: number; // the tested side's goals ahead when the event came
+  delta: number; // its points, less those of the assistant's option
+};
+
+const TAKERS = ["best taker", "2nd taker", "3rd taker"];
+
+const optionName = (event: ChoiceEvent, rank: number): string =>
+  event.kind === "PENALTY" ? (TAKERS[rank] ?? `taker ${rank + 1}`) : event.options[rank].option;
+
+/**
+ * Plays each match with the tested side's choice events and, at each one, every option offered from that very state to
+ * the final whistle, later events decided by the assistant and half-time changes automatic, on the same streams: the
+ * points each option gets, less those of the assistant's. The match goes on with the assistant's decision, as simulated.
+ */
+function branchChoices(team: Lineup, other: Lineup, matches: number): Branch[] {
+  const branches: Branch[] = [];
+  for (let index = 0; index < matches; index++) {
+    const seed = `balance:${index}`;
+    const side: Side = index % 2 === 0 ? "home" : "away";
+    let state = withChoices(side === "home" ? startMatch(team, other) : startMatch(other, team), side, seed);
+    const assistantPoints: number[] = [];
+    while (state.phase !== "FULL_TIME") {
+      state = playOn(state, side, seed, {}, "pause");
+      const event = state.choices?.pending ?? null;
+      if (event === null) {
+        continue;
+      }
+      const paused = state;
+      const points = event.options.map((offered) => pointsOf(playToEnd(decideChoice(paused, seed, offered), side, seed), side));
+      const assistant = optionName(event, event.assistant);
+      const lead = leadOf(paused, side);
+      for (const [rank, value] of points.entries()) {
+        branches.push({
+          kind: event.kind,
+          option: optionName(event, rank),
+          rank,
+          assistant,
+          minute: event.minute,
+          lead,
+          delta: value - points[event.assistant],
+        });
+      }
+      assistantPoints.push(points[event.assistant]);
+    }
+    // The assistant's option played on must be the match the assistant's decisions play: a check on the method.
+    const played = pointsOf(state, side);
+    if (assistantPoints.some((value) => value !== played)) {
+      throw new Error(`${seed}: an event's assistant option, played on, is not the match his decisions play`);
+    }
+  }
+  return branches;
+}
+
+/**
+ * A row's branches at one strength: how many, their mean Δ and its 95 % interval, and among those where the option was
+ * not the assistant's, how many did better or worse.
+ */
+type DeltaStats = { occurrences: number; mean: number; interval: number; contested: number; better: number; worse: number };
+
+function deltaStats(branches: readonly Branch[]): DeltaStats {
+  const occurrences = branches.length;
+  const mean = branches.reduce((sum, branch) => sum + branch.delta, 0) / Math.max(1, occurrences);
+  const variance = branches.reduce((sum, branch) => sum + (branch.delta - mean) ** 2, 0) / Math.max(1, occurrences - 1);
+  // Contested: the events where the option was not the assistant's, whose Δ is not 0 by construction.
+  const contested = branches.filter((branch) => branch.option !== branch.assistant);
+  return {
+    occurrences,
+    mean,
+    interval: 1.96 * Math.sqrt(variance / Math.max(1, occurrences)),
+    contested: contested.length,
+    better: contested.filter((branch) => branch.delta > 0).length,
+    worse: contested.filter((branch) => branch.delta < 0).length,
+  };
+}
+
+const DELTA_HEADERS = [
+  "occurrences equal / favourite / underdog / weak bench",
+  "Δ pts/match equal",
+  "± (equal)",
+  "Δ favourite",
+  "Δ underdog",
+  "Δ weak bench",
+  "better % (equal)",
+  "worse % (equal)",
+  "better % (weak bench)",
+  "worse % (weak bench)",
+];
+
+/**
+ * A row's cells at the four strengths, equal, favourite, underdog and weak bench: occurrences and Δ at each, the interval
+ * at equal strength, and how often the option did better or worse than the assistant's at equal strength and with the
+ * weak bench.
+ */
+function deltaCells([equal, favourite, underdog, weakBench]: readonly DeltaStats[]): string[] {
+  const delta = (stats: DeltaStats): string => (stats.occurrences === 0 ? "—" : signed(stats.mean, 3));
+  const share = (stats: DeltaStats, count: number): string =>
+    stats.contested === 0 ? "—" : fixed(percent(count, stats.contested));
+  return [
+    [equal, favourite, underdog, weakBench].map((stats) => String(stats.occurrences)).join(" / "),
+    delta(equal),
+    equal.contested === 0 ? "—" : `±${fixed(equal.interval, 3)}`,
+    delta(favourite),
+    delta(underdog),
+    delta(weakBench),
+    share(equal, equal.better),
+    share(equal, equal.worse),
+    share(weakBench, weakBench.better),
+    share(weakBench, weakBench.worse),
+  ];
+}
+
+/** Rows of the branches of each strength grouped by key, ordered on their first branch. */
+function branchRows(
+  runs: readonly (readonly Branch[])[],
+  keyOf: (branch: Branch) => string,
+  order: (a: Branch, b: Branch) => number,
+  cells: (first: Branch, stats: readonly DeltaStats[]) => string[],
+): string[][] {
+  const groups = runs.map((branches) => Map.groupBy(branches, keyOf));
+  const firsts = new Map<string, Branch>();
+  for (const group of groups) {
+    for (const [key, branches] of group) {
+      if (!firsts.has(key)) {
+        firsts.set(key, branches[0]);
+      }
+    }
+  }
+  return [...firsts]
+    .sort(([, a], [, b]) => order(a, b))
+    .map(([key, first]) => cells(first, groups.map((group) => deltaStats(group.get(key) ?? []))));
+}
+
+const kindOrder = (a: Branch, b: Branch): number => CHOICE_KINDS.indexOf(a.kind) - CHOICE_KINDS.indexOf(b.kind);
+
+/** When the assistant takes an option (choiceEvent, choices.ts); the options left out, never. */
+const ASSISTANT_TAKES: Readonly<Record<string, string>> = {
+  "PENALTY best taker": "always",
+  "FREE_KICK SHOOT": `best shooter ≥ ${FREE_KICK_ASSISTANT_SHOOTING}`,
+  "FREE_KICK COMBINE": "otherwise",
+  "HOTHEAD TAKE_OFF": "always",
+  "SCUFFLE CALM": "always",
+  "KNOCK TAKE_OFF": "always",
+  "EXHAUSTED REPLACE": "always",
+  "LEADING DEFEND": `one goal ahead from ${ASSISTANT_DEFEND_MINUTE}'`,
+  "LEADING STEADY": "otherwise",
+  "CHASING ATTACK": "behind",
+  "CHASING STEADY": "level",
+};
+
+const SCORES = ["1 goal ahead", "2 goals ahead", "level", "behind"];
+
+/** The weak bench of the choice events' measure: substitutes this far below the eleven, so that taking a player off costs. */
+const WEAK_BENCH_GAP = 12;
+
+const scoreOf = (lead: number): string =>
+  lead > 0 ? `${lead} goal${lead > 1 ? "s" : ""} ahead` : lead === 0 ? "level" : "behind";
+
+/**
+ * The managed club's choice events (gameplay v1, G4), the tested team's alone: how many come and of which kinds, each
+ * option against the assistant's at equal strength, as favourite and as underdog, and what the events, decided by the
+ * assistant, are worth to the club.
+ */
+function choiceTables(options: Options, sections: string[]): void {
+  const other = syntheticTeam("other", BASE_LEVEL);
+  const strengths: readonly (readonly [string, Lineup])[] = [
+    [`level ${BASE_LEVEL}, equal`, syntheticTeam("tested", BASE_LEVEL)],
+    [`level ${BASE_LEVEL + 5}, favourite`, syntheticTeam("tested", BASE_LEVEL + 5)],
+    [`level ${BASE_LEVEL - 5}, underdog`, syntheticTeam("tested", BASE_LEVEL - 5)],
+    [`level ${BASE_LEVEL}, weak bench`, syntheticTeam("tested", BASE_LEVEL, DEFAULT_FORMATION_NAME, WEAK_BENCH_GAP)],
+  ];
+  const equal = strengths[0][1];
+
+  // How many and which: league matches between equal teams, their decisions kept; the tally is the net effect's too.
+  const decisions: MatchDecision[][] = [];
+  const equalDecided = duel(
+    equal,
+    other,
+    options.matches,
+    "both",
+    watched(matchWithChoices(), (result) => {
+      decisions.push(result.decisions ?? []);
+    }),
+  );
+  const events = decisions.flat();
+  // Knockout matches between equal teams, for the ties that go to extra time and their event at 105'.
+  const lateMinute = REGULATION_MINUTES + EXTRA_TIME_PERIOD_MINUTES;
+  let extraTime = 0;
+  let withLateEvent = 0;
+  const late: MatchDecision[] = [];
+  duel(
+    equal,
+    other,
+    options.matches,
+    "both",
+    watched(matchWithChoices(true), (result) => {
+      if (result.decidedBy !== "REGULATION") {
+        const made = (result.decisions ?? []).filter((decision) => decision.minute > REGULATION_MINUTES);
+        extraTime++;
+        withLateEvent += made.length > 0 ? 1 : 0;
+        late.push(...made);
+      }
+    }),
+  );
+  const shareOf = (kind: ChoiceKind, pool: readonly MatchDecision[]): string =>
+    pool.length === 0 ? "—" : fixed(percent(pool.filter((decision) => decision.kind === kind).length, pool.length));
+  const at = (pool: readonly MatchDecision[], minute: number): MatchDecision[] =>
+    pool.filter((decision) => decision.minute === minute);
+  const counts = [0, 1, 2, 3, 4];
+  sections.push(
+    "### Choice events of the managed club",
+    [
+      `The tested team gets the managed club's choice events, the other one none; level ${BASE_LEVEL} against level`,
+      `${BASE_LEVEL} unless said, half the matches at home, on the seeds of every other case.`,
+    ].join(" "),
+    `#### How many and which: league matches between equal teams (${options.matches} matches), the assistant deciding`,
+    table(
+      ["events per match", ...counts.map((count) => `matches with ${count} %`)],
+      [
+        [
+          fixed(events.length / options.matches, 2),
+          ...counts.map((count) => fixed(percent(decisions.filter((made) => made.length === count).length, options.matches))),
+        ],
+      ],
+    ),
+    table(
+      [
+        "kind",
+        "share of the events %",
+        "per 100 matches",
+        ...CHOICE_EVENT_MINUTES.map((minute) => `at ${minute}' %`),
+        `at ${lateMinute}' % (knockout)`,
+      ],
+      CHOICE_KINDS.map((kind) => [
+        kind,
+        shareOf(kind, events),
+        fixed(percent(events.filter((decision) => decision.kind === kind).length, options.matches)),
+        ...CHOICE_EVENT_MINUTES.map((minute) => shareOf(kind, at(events, minute))),
+        shareOf(kind, at(late, lateMinute)),
+      ]),
+    ),
+    [
+      `Knockout matches between equal teams (${options.matches} matches): ${fixed(percent(extraTime, options.matches))} %`,
+      `go to extra time, ${fixed(percent(withLateEvent, extraTime))} % of those with an event at ${lateMinute}'.`,
+    ].join(" "),
+  );
+
+  // Each option against the assistant's, every option of each event played on from that very state.
+  const runs = strengths.map(([, team]) => branchChoices(team, other, options.matches));
+  const optionKey = (branch: Branch): string => `${branch.kind} ${branch.option}`;
+  const optionRows = branchRows(
+    runs,
+    optionKey,
+    (a, b) => kindOrder(a, b) || a.rank - b.rank,
+    (first, stats) => [first.kind, first.option, ASSISTANT_TAKES[optionKey(first)] ?? "never", ...deltaCells(stats)],
+  );
+  const tactical = runs.map((branches) =>
+    branches.filter((branch) => (branch.kind === "LEADING" || branch.kind === "CHASING") && branch.option !== branch.assistant),
+  );
+  const situationRows = branchRows(
+    tactical,
+    (branch) => `${branch.kind} ${branch.minute} ${scoreOf(branch.lead)} ${branch.option} ${branch.assistant}`,
+    (a, b) =>
+      kindOrder(a, b) ||
+      a.minute - b.minute ||
+      SCORES.indexOf(scoreOf(a.lead)) - SCORES.indexOf(scoreOf(b.lead)) ||
+      a.rank - b.rank,
+    (first, stats) => [
+      first.kind,
+      `${scoreOf(first.lead)} at ${first.minute}'`,
+      first.option,
+      first.assistant,
+      ...deltaCells(stats),
+    ],
+  );
+  // What the assistant's choice of kick depends on: the shooters on the pitch, against the other side's goalkeeper (the
+  // weak bench's eleven is the equal team's).
+  const keeping = other.starters[SLOT.GK].player.goalkeeping;
+  const shooters = strengths.slice(0, 3).map(([label, team]) => {
+    const shooting = team.starters
+      .filter(({ slot }) => slot !== "GK")
+      .map(({ player }) => player.shooting)
+      .sort((a, b) => b - a);
+    const penalties = shooting.slice(0, PENALTY_TAKERS).map((value) => fixed(100 * shootoutChance(value, keeping)));
+    const freeKick = fixed(100 * freeKickChance(shooting[0], keeping));
+    return `${label}, best shooter ${shooting[0]}: a direct free kick ${freeKick} %, penalties ${penalties.join(" / ")} %`;
+  });
+  sections.push(
+    `#### Each option against the assistant's: league matches, ${options.matches} matches a strength`,
+    [
+      "At each event of the tested team, every option offered is played from that very state to the final whistle, later",
+      "events decided by the assistant and half-time changes automatic, on the same streams. Δ: the option's points less",
+      "the assistant's option's, a mean over the matches where the event came. ±: the 95 % interval of that mean. Better,",
+      "worse: among the events where the option was not the assistant's, the share where it won more points, or fewer;",
+      `the rest, the same. Favourite: level ${BASE_LEVEL + 5} against level ${BASE_LEVEL}; underdog: level ${BASE_LEVEL - 5};`,
+      `weak bench: level ${BASE_LEVEL}, its substitutes ${WEAK_BENCH_GAP} points below the eleven instead of 3.`,
+    ].join(" "),
+    table(["kind", "option", "the assistant's", ...DELTA_HEADERS], optionRows),
+    `At kick-off, against a goalkeeper of ${keeping}: ${shooters.join("; ")}.`,
+    "#### The tactical events by score and minute: each option against the assistant's",
+    [
+      "Each option holds an instruction for the rest of regular time, whatever the score, until a later tactical event:",
+      "DEFEND Fermer, ATTACK Attaquer, STEADY Équilibré; the assistant's rule no longer plays once the event is decided.",
+    ].join(" "),
+    table(["kind", "situation", "option", "the assistant's", ...DELTA_HEADERS], situationRows),
+  );
+
+  // Net effect: the events decided by the assistant against none, on the same seeds.
+  const netRows = strengths.flatMap(([label, team]) => {
+    const none = duel(team, other, options.matches);
+    const decided = team === equal ? equalDecided : duel(team, other, options.matches, "both", matchWithChoices());
+    return [
+      [label, "none", ...resultColumns(none, none)],
+      [label, "decided by the assistant", ...resultColumns(decided, none)],
+    ];
+  });
+  sections.push(
+    `#### Net effect of the events on the managed club: decided by the assistant, against none (${options.matches} matches a row)`,
+    table(["tested team", "choice events", ...RESULT_HEADERS], netRows),
+  );
+}
+
 // ------------------------------------------------------------------ World report
 
 type LeagueFixture = { homeGoals: number; awayGoals: number; homeStrength: number; awayStrength: number };
@@ -985,7 +1366,10 @@ async function main(): Promise<void> {
   if (options.engine) {
     gapTables(options, sections);
     factorTables(options, sections);
-    console.log(`Engine: ${Math.round((performance.now() - started) / 1000)} s`);
+    const choicesStarted = performance.now();
+    choiceTables(options, sections);
+    const seconds = (from: number): number => Math.round((performance.now() - from) / 1000);
+    console.log(`Engine: ${seconds(started)} s, of which choice events ${seconds(choicesStarted)} s`);
   }
   if (options.world) {
     await measureWorld(options, sections);
