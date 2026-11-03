@@ -384,15 +384,21 @@ export const OTHER_MATCH_EVENT_TYPES: readonly MatchEventType[] = ["GOAL"];
 // ------------------------------------------------------------------ Form after a match
 
 /** Form change for a player who took part, by the team's result. */
-export const FORM_BY_OUTCOME: Readonly<Record<Outcome, number>> = { win: 4, draw: 0, loss: -4 };
+export const FORM_BY_OUTCOME: Readonly<Record<Outcome, number>> = { win: 2, draw: 0, loss: -2 };
 
 /** Extra form change per goal and per assist, and when sent off. */
-export const FORM_PER_GOAL = 3;
-export const FORM_PER_ASSIST = 2;
-export const FORM_SENT_OFF = -6;
+export const FORM_PER_GOAL = 1.5;
+export const FORM_PER_ASSIST = 1;
+export const FORM_SENT_OFF = -3;
 
 /** A player who did not take part drifts back toward CONDITION_NEUTRAL by this much per match of the club. */
 export const FORM_REST_DRIFT = 1;
+
+/**
+ * After each match of his club, a player's form keeps this share of its gap to CONDITION_NEUTRAL: a run of results
+ * moves it, never to the bounds.
+ */
+export const FORM_RETENTION = 0.94;
 
 /** Fitness (0–100) of a fully rested player, as at the start of a season. */
 export const FULL_FITNESS = 100;

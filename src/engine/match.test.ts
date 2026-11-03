@@ -23,6 +23,7 @@ import {
   type HalfTimeChoice,
   type MatchResult,
   type MatchState,
+  type Outcome,
 } from "./match";
 import { ratingAt } from "./positions";
 import { WORLD_START_DATE } from "./world";
@@ -242,8 +243,20 @@ describe("nextForm", () => {
 
     expect(nextForm(60, stats, "win")).toBeGreaterThan(60);
     expect(nextForm(60, { ...stats, goals: 0 }, "loss")).toBeLessThan(60);
-    expect(nextForm(60, undefined, "win")).toBe(59);
+    // 59, then 94 % of its gap to neutral.
+    expect(nextForm(60, undefined, "win")).toBe(58);
     expect(nextForm(99, { ...stats, goals: 3 }, "win")).toBe(99);
+  });
+
+  it("keeps a whole season of the same result away from the bounds", () => {
+    const starter = { playerId: "p", side: "home" as const, minutes: 90, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
+    const season = (outcome: Outcome, stats = starter): number =>
+      Array.from({ length: 38 }).reduce<number>((form) => nextForm(form, stats, outcome), 50);
+
+    expect(season("win")).toBe(74);
+    expect(season("loss")).toBe(27);
+    expect(season("draw")).toBe(50);
+    expect(season("win", { ...starter, goals: 1 })).toBeLessThan(99);
   });
 
   it("is fed by the stats of the match, assists coming from the goal events", () => {

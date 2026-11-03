@@ -17,10 +17,11 @@ const PRELIMINARY_TIES: Record<string, number> = { "de.cup": 4, "en.cup": 12, "e
 
 /**
  * Every league score of the demo save's first season until the eve of the first cup round, 570 matches, as a digest:
- * taken on a twin before the cups existed. The cups change nothing before their first tie (later, their matches change
- * form, fitness and injuries, so the league goes its own way).
+ * taken on a twin without the cups (createSave with cups false), and taken again whenever the engine changes the
+ * matches. The cups change nothing before their first tie (later, their matches change form, fitness and injuries, so
+ * the league goes its own way).
  */
-const LEAGUE_DIGEST_BEFORE_CUP = "57b502b2f96082f2b7b3aa1a3ee603692521cc53e684a8252de502e73f391186";
+const LEAGUE_DIGEST_BEFORE_CUP = "f1954ddac70bce34b4632a03134ba9ef028e8495b7b070caf7a97e5b793ec513";
 
 /** Clubs of each competition of a worldVersion 2 save: they never change, promotions and relegations included. */
 const DIVISION_SIZES: Record<string, number> = {

@@ -18,6 +18,7 @@ import {
   FORM_PER_ASSIST,
   FORM_PER_GOAL,
   FORM_REST_DRIFT,
+  FORM_RETENTION,
   FORM_SENT_OFF,
   HALF_TIME_MINUTE,
   HOME_ADVANTAGE,
@@ -1001,18 +1002,18 @@ export function playerMatchStats(result: MatchResult): PlayerMatchStats[] {
 }
 
 /**
- * Form after a match of the player's club: moved by the result, goals, assists and a red card when the
- * player took part, drifting back toward neutral otherwise.
+ * Form after a match of the player's club: moved by the result, goals, assists and a red card when the player took
+ * part, drifting back toward neutral otherwise; then, either way, it keeps FORM_RETENTION of its gap to neutral.
  */
 export function nextForm(form: number, stats: PlayerMatchStats | undefined, outcome: Outcome): number {
-  if (stats === undefined) {
-    const gap = CONDITION_NEUTRAL - form;
-    return form + Math.sign(gap) * Math.min(FORM_REST_DRIFT, Math.abs(gap));
-  }
-  const change =
-    FORM_BY_OUTCOME[outcome] +
-    stats.goals * FORM_PER_GOAL +
-    stats.assists * FORM_PER_ASSIST +
-    (stats.redCards > 0 ? FORM_SENT_OFF : 0);
-  return clampRating(form + change);
+  const gap = CONDITION_NEUTRAL - form;
+  const moved =
+    stats === undefined
+      ? form + Math.sign(gap) * Math.min(FORM_REST_DRIFT, Math.abs(gap))
+      : form +
+        FORM_BY_OUTCOME[outcome] +
+        stats.goals * FORM_PER_GOAL +
+        stats.assists * FORM_PER_ASSIST +
+        (stats.redCards > 0 ? FORM_SENT_OFF : 0);
+  return clampRating(CONDITION_NEUTRAL + (moved - CONDITION_NEUTRAL) * FORM_RETENTION);
 }
