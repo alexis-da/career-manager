@@ -1,3 +1,4 @@
+import type { ChoiceKind, ChoiceOption } from "../engine/choices";
 import { displayClubName } from "../engine/club-name";
 import type { DecidedBy, MatchEventType, Side } from "../engine/match";
 import type { Prisma } from "../generated/prisma/client";
@@ -43,7 +44,22 @@ export type MatchEventView = {
   relatedPlayerKey: string | null; // his key: two players of a match may share a name
 };
 
-export type FixtureWithEvents = FixtureView & { events: MatchEventView[] };
+/**
+ * A decision of the managed club on a choice event of its match (MatchDecision), as the screens show it, beside the events
+ * that tell its effect.
+ */
+export type DecisionView = {
+  sequence: number; // its order in the match
+  minute: number; // the boundary it was taken at: its effect comes the minute after
+  kind: ChoiceKind;
+  option: ChoiceOption;
+  assistant: boolean; // the option the assistant would take, taken by him or by the player
+  playerName: string | null; // the player it is about: the taker, the booked, hurt or exhausted player, the captain
+  playerKey: string | null;
+};
+
+/** A fixture with its events, and the managed club's decisions on its choice events: none in another club's match. */
+export type FixtureWithEvents = FixtureView & { events: MatchEventView[]; decisions: DecisionView[] };
 
 export type ClubCalendar = {
   startYear: number | null;
@@ -104,7 +120,7 @@ const fullName = (player: { firstName: string; lastName: string }): string => `$
 
 const involving = (clubSaveId: string) => ({ OR: [{ homeClubSaveId: clubSaveId }, { awayClubSaveId: clubSaveId }] });
 
-const EVENTS_SELECT = {
+export const EVENTS_SELECT = {
   // Events are written in match order, so the id breaks ties within a minute. Periods first: the enum's order is the
   // match's (regular time, extra time, shoot-out), and a kick's « minute » is its number.
   orderBy: [{ period: "asc" }, { minute: "asc" }, { id: "asc" }],
@@ -121,7 +137,31 @@ const EVENTS_SELECT = {
 
 type EventRow = Prisma.MatchEventGetPayload<{ select: (typeof EVENTS_SELECT)["select"] }>;
 
-const toEventView =
+export const DECISIONS_SELECT = {
+  orderBy: { sequence: "asc" },
+  select: {
+    sequence: true,
+    minute: true,
+    kind: true,
+    option: true,
+    assistant: true,
+    playerSave: { select: { firstName: true, lastName: true, playerKey: true } },
+  },
+} as const satisfies Prisma.Fixture$decisionsArgs;
+
+type DecisionRow = Prisma.MatchDecisionGetPayload<{ select: (typeof DECISIONS_SELECT)["select"] }>;
+
+export const toDecisionView = (decision: DecisionRow): DecisionView => ({
+  sequence: decision.sequence,
+  minute: decision.minute,
+  kind: decision.kind,
+  option: decision.option,
+  assistant: decision.assistant,
+  playerName: decision.playerSave === null ? null : fullName(decision.playerSave),
+  playerKey: decision.playerSave?.playerKey ?? null,
+});
+
+export const toEventView =
   (matchDate: Date) =>
   (event: EventRow): MatchEventView => ({
     id: event.id,
@@ -151,14 +191,15 @@ export async function getManagedClubCalendar(saveId: string): Promise<ClubCalend
   const rows = await prisma.fixture.findMany({
     where: { saveId, season: { startYear: latest.startYear }, ...involving(managed.id) },
     orderBy: [{ scheduledAt: "asc" }, { round: "asc" }],
-    select: { ...FIXTURE_SELECT, events: EVENTS_SELECT },
+    select: { ...FIXTURE_SELECT, events: EVENTS_SELECT, decisions: DECISIONS_SELECT },
   });
 
   return {
     startYear: latest.startYear,
-    fixtures: rows.map(({ events, ...row }) => ({
+    fixtures: rows.map(({ events, decisions, ...row }) => ({
       ...toFixtureView(row),
       events: events.map(toEventView(row.scheduledAt)),
+      decisions: decisions.map(toDecisionView),
     })),
   };
 }
@@ -204,6 +245,7 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
       seasonId: true,
       status: true,
       events: EVENTS_SELECT,
+      decisions: DECISIONS_SELECT,
     },
   });
   if (row === null) {
@@ -218,9 +260,13 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
     },
   });
 
-  const { events, status, ...fixture } = row;
+  const { events, decisions, status, ...fixture } = row;
   return {
-    match: { ...toFixtureView(fixture), events: events.map(toEventView(fixture.scheduledAt)) },
+    match: {
+      ...toFixtureView(fixture),
+      events: events.map(toEventView(fixture.scheduledAt)),
+      decisions: decisions.map(toDecisionView),
+    },
     stadium: fixture.homeClubSave.club.stadium,
     pause: status === "PLAYED" || status === "SCHEDULED" ? null : status,
     // By home club, in the names shown: the database only knows the real ones.

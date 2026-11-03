@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getManagedClubFixtureOn } from "@/src/db/calendar";
-import { advanceLiveMatch, NoMatchInProgressError, PauseMismatchError } from "@/src/db/live-match";
+import { advanceLiveMatch, getLiveStep, NoMatchInProgressError, PauseMismatchError, type LiveStep } from "@/src/db/live-match";
 import { formationSchema } from "@/src/db/lineup";
 import { MatchInProgressError, playNextMatchday } from "@/src/db/matchday";
 import { getOpponentPreview, type OpponentPreview } from "@/src/db/opponent";
@@ -138,8 +138,8 @@ export async function advanceSeasonAction(saveId: string): Promise<GameActionRes
 }
 
 /**
- * The manager's half-time changes: formation, player per slot index, substitutions (playerKey in, playerKey out).
- * null resumes without a change, the injured players being replaced automatically as AI clubs do.
+ * The manager's changes at a pause: formation, player per slot index, substitutions (playerKey in, playerKey out).
+ * null: none, the injured players being replaced automatically at half-time as AI clubs do.
  */
 const halfTimeChoiceSchema = z
   .object({
@@ -149,28 +149,38 @@ const halfTimeChoiceSchema = z
       .max(11),
     substitutions: z
       .array(z.object({ in: z.string().min(1).max(100), out: z.string().min(1).max(100) }))
-      .max(MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS), // the engine checks the break's own limit
+      .max(MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS), // the engine checks the pause's own limit and windows
   })
   .nullable();
 
 export type HalfTimeChoiceInput = z.input<typeof halfTimeChoiceSchema>;
 
-/** The break a resume plays on from, as the page received it: a resume naming another pause is refused. */
-const breakSchema = z.object({
-  phase: z.enum(["HALF_TIME", "REGULATION_END"]),
-  minute: z.number().int().min(0).max(120),
+/** The manager's decision on a choice event: an option, and for a penalty its taker. null: the assistant's. */
+const decisionSchema = z
+  .object({ option: z.enum(CHOICE_OPTIONS), playerKey: z.string().min(1).max(100).optional() })
+  .nullable();
+
+export type DecisionInput = z.input<typeof decisionSchema>;
+
+/** What the manager brings to a pause: his decision on its choice event, his changes, his instruction (null: none). */
+const liveMoveSchema = z.object({
+  decision: decisionSchema,
+  changes: halfTimeChoiceSchema,
+  instruction: z.enum(["ATTACK", "BALANCED", "DEFEND"]).nullable(),
 });
 
-/** The pause between two segments a step plays on from, as the page received it. */
-const stepPauseSchema = z.object({
-  phase: z.enum(["IN_PLAY", "EXTRA_TIME_BREAK"]),
+export type LiveMoveInput = z.input<typeof liveMoveSchema>;
+
+/** The pause a step plays on from, as the page received it: a step naming another pause is refused. */
+const livePauseSchema = z.object({
+  phase: z.enum(["IN_PLAY", "HALF_TIME", "REGULATION_END", "EXTRA_TIME_BREAK"]),
   minute: z.number().int().min(0).max(120),
 });
 
 export type LivePauseInput = { phase: string; minute: number };
 
-/** A resume refused because of the match's state, as the live page says it. */
-function liveRefusal(error: unknown, tLive: Translator<"liveMatch">): GameActionResult | null {
+/** A step refused because of the match's state, as the live page says it. */
+function liveRefusal(error: unknown, tLive: Translator<"liveMatch">): LiveStepResult | null {
   if (error instanceof HalfTimeChoiceError) {
     return { ok: false, message: halfTimeRefusalMessage(error.issue, tLive) };
   }
@@ -186,76 +196,49 @@ function liveRefusal(error: unknown, tLive: Translator<"liveMatch">): GameAction
   return null;
 }
 
+export type LiveStepResult = { ok: true; step: LiveStep } | { ok: false; message: string };
+
 /**
- * Plays on the managed club's match from the break it waits at (`at`: half-time, or the end of regulation time of a
- * level cup tie), with the manager's changes: its next segment only, the replay page going on from there.
+ * Plays on the managed club's match from the pause it waits at (`at`), with what the manager brings there (his decision
+ * on its choice event, his changes, his instruction): its next segment ("segment", the page watching), on to the next
+ * pause he must act at ("pause", without motion), or on to its next break ("break", the assistant deciding the choice
+ * events on the way). One call a step: it returns what the page shows, never further than the pause reached, and the
+ * page is not read again. Once the match is over, the save's screens change: they are read again on the way out.
  */
-export async function resumeMatch(saveId: string, at: LivePauseInput, choice: HalfTimeChoiceInput): Promise<GameActionResult> {
+export async function playLiveStepAction(
+  saveId: string,
+  at: LivePauseInput,
+  move: LiveMoveInput,
+  until: "segment" | "pause" | "break",
+): Promise<LiveStepResult> {
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   const [t, tLive] = await Promise.all([getTranslations("actions.resume"), getTranslations("liveMatch")]);
-  const pause = breakSchema.safeParse(at);
-  const parsed = halfTimeChoiceSchema.safeParse(choice);
-  if (!pause.success || !parsed.success) {
+  const pause = livePauseSchema.safeParse(at);
+  const parsed = liveMoveSchema.safeParse(move);
+  const mode = z.enum(["segment", "pause", "break"]).safeParse(until);
+  if (!pause.success || !mode.success) {
+    return { ok: false, message: tLive("pauseGone") };
+  }
+  if (!parsed.success) {
     return { ok: false, message: t("invalid", { max: MAX_SUBSTITUTIONS }) };
   }
+  const { decision, changes, instruction } = parsed.data;
   try {
-    await advanceLiveMatch(
+    const moved = await advanceLiveMatch(
       id,
       pause.data,
       {
-        changes:
-          parsed.data === null
-            ? null
-            : { formation: parsed.data.formation, starters: parsed.data.lineup, substitutions: parsed.data.substitutions },
+        decision: decision === null ? null : { option: decision.option, playerId: decision.playerKey },
+        changes: changes === null ? null : { formation: changes.formation, starters: changes.lineup, substitutions: changes.substitutions },
+        instruction,
       },
-      "segment",
-    );
-    revalidatePath(`/saves/${id}`, "layout");
-    return { ok: true, message: t("resumed") };
-  } catch (error) {
-    const refusal = liveRefusal(error, tLive);
-    if (refusal !== null) {
-      return refusal;
-    }
-    throw error;
-  }
-}
-
-/** The manager's decision on a choice event: an option, and for a penalty its taker. */
-const decisionSchema = z
-  .object({ option: z.enum(CHOICE_OPTIONS), playerKey: z.string().min(1).max(100).optional() })
-  .nullable();
-
-export type DecisionInput = z.input<typeof decisionSchema>;
-
-/**
- * Plays on the managed club's match from the pause it waits at between two segments (`at`), with the manager's
- * decision on the choice event open there (null: the assistant's): its next segment ("segment"), or on to its next break
- * ("break", the assistant deciding the events on the way). The page then reads what was played, never further.
- */
-export async function continueMatchAction(
-  saveId: string,
-  at: LivePauseInput,
-  decision: DecisionInput,
-  until: "segment" | "break",
-): Promise<GameActionResult> {
-  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
-  const [t, tLive] = await Promise.all([getTranslations("actions.resume"), getTranslations("liveMatch")]);
-  const pause = stepPauseSchema.safeParse(at);
-  const parsed = decisionSchema.safeParse(decision);
-  const mode = z.enum(["segment", "break"]).safeParse(until);
-  if (!pause.success || !parsed.success || !mode.success) {
-    return { ok: false, message: tLive("invalidDecision") };
-  }
-  try {
-    await advanceLiveMatch(
-      id,
-      pause.data,
-      { decision: parsed.data === null ? null : { option: parsed.data.option, playerId: parsed.data.playerKey } },
       mode.data,
     );
-    revalidatePath(`/saves/${id}`, "layout");
-    return { ok: true, message: t("resumed") };
+    const step = await getLiveStep(id, moved);
+    if (moved.pause === null) {
+      revalidatePath(`/saves/${id}`, "layout");
+    }
+    return { ok: true, step };
   } catch (error) {
     const refusal = liveRefusal(error, tLive);
     if (refusal !== null) {

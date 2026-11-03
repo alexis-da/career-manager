@@ -13,8 +13,7 @@
       "notFinished": "La saison n'est pas terminée."
     },
     "resume": {
-      "invalid": "Changements invalides : {max} remplacements au maximum, 11 postes.",
-      "resumed": "Le match reprend."
+      "invalid": "Changements invalides : {max} remplacements au maximum, 11 postes."
     },
     "lineup": {
       "invalid": "Composition invalide.",

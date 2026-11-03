@@ -2,17 +2,18 @@
 
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { isNewVersionError } from "@/app/_lib/new-version";
 import type { FixtureWithEvents, MatchEventView, ScoreTimeline } from "@/src/db/calendar";
-import type { HalfTimeTeam } from "@/src/db/live-match";
+import type { HalfTimeTeam, LivePauseView, LiveStep } from "@/src/db/live-match";
 import { EXTRA_TIME_END_MINUTE } from "@/src/engine/balance";
 import type { LivePause } from "@/src/engine/live";
 import { REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
 import { matchResultFor } from "../../_lib/stage";
-import { continueMatchAction } from "../../actions";
-import { endMinute as endMinuteOf, goesToExtraTime, isMatchBreak, pauseKey, skipTarget, stepUntil } from "../_lib/live-pause";
+import { playLiveStepAction, type HalfTimeChoiceInput, type LiveMoveInput } from "../../actions";
+import { endMinute as endMinuteOf, goesToExtraTime, isMatchBreak, pauseKey, skipTarget, stepUntil, type StepUntil } from "../_lib/live-pause";
+import { withStep, type LiveData } from "../_lib/live-step";
 import { countFor } from "../_lib/match-stats";
 import { HalfTime } from "./half-time";
 import { LiveControls, type Speed } from "./live-controls";
@@ -48,18 +49,23 @@ const prefersReducedMotion = (): boolean => window.matchMedia(REDUCED_MOTION_QUE
 const clockMinute = (event: { minute: number; period: MatchEventView["period"] }): number =>
   event.period === "REGULAR" ? Math.min(event.minute, REGULATION_MINUTES) : event.minute;
 
+/** Nothing brought to a pause: the assistant's decision, no change, no instruction. */
+const NO_MOVE: LiveMoveInput = { decision: null, changes: null, instruction: null };
+
 type LiveMatchProps = {
   saveId: string;
   dashboardHref: string;
   caption: string;
   match: FixtureWithEvents; // its events up to where it is played, never further
   others: ScoreTimeline[];
-  pause: LivePause | null; // where the match waits; null once over
-  breakTeam: HalfTimeTeam | null; // at a break (half-time, the end of regulation time of a level cup tie): the Coaching panel's
+  pause: LivePauseView | null; // where the match waits; null once over
+  team: HalfTimeTeam | null; // the managed club at that pause: the Coaching panel's
   startMinute: number; // 0 from kick-off; the pause's minute to go on from where the match waits
 };
 
-type ReplayProps = LiveMatchProps & {
+type ReplayProps = Omit<LiveMatchProps, "match" | "pause" | "team"> & {
+  data: LiveData;
+  onStep: (step: LiveStep) => void;
   speed: Speed;
   onSpeedChange: (speed: Speed) => void;
 };
@@ -67,17 +73,18 @@ type ReplayProps = LiveMatchProps & {
 /**
  * The match as the server plays it: a clock runs and the saved events appear as it passes their minute; nothing is
  * drawn here. The server plays one segment of 15 minutes at a time: the clock runs up to the pause the match waits at,
- * holds there while the page asks for the next segment, once per pause, then goes on with what comes back. At a break,
- * the Coaching panel opens, and the clock goes on from the break once it is resumed. « live-skip » takes the clock to the
- * pause and asks for all that comes before the next break, or the end, then on through the pauses on the way. A cup tie
- * that went to extra time runs on to 120' (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the
- * breaks and the end are shown at once.
+ * holds there while the page asks for the next segment, once per pause, then goes on with what comes back, one call a
+ * step, the page never read again. At a break, the Coaching panel opens, and the clock goes on from the break once it is
+ * resumed. « live-skip » takes the clock to the pause and asks for all that comes before the next break, or the end, then
+ * on through the pauses on the way. A cup tie that went to extra time runs on to 120' (« Prolongation »), then its
+ * shoot-out kick by kick. With reduced motion, the breaks and the end are shown at once.
  */
-function Replay({ saveId, dashboardHref, caption, match, others, pause, breakTeam, startMinute, speed, onSpeedChange }: ReplayProps) {
+function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onStep, speed, onSpeedChange }: ReplayProps) {
   const t = useTranslations("live");
   const tCommon = useTranslations("common");
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
   const router = useRouter();
+  const { match, pause, team } = data;
   const [clock, setClock] = useState(startMinute); // match minutes, fractional
   const [kicksTaken, setKicksTaken] = useState(0);
   const [skipping, setSkipping] = useState(false); // live-skip pressed: to the next break, or the end, at once
@@ -117,14 +124,45 @@ function Replay({ saveId, dashboardHref, caption, match, others, pause, breakTea
     return () => window.clearInterval(timer);
   }, [ticking, kicking, speed, endMinute, kicks.length]);
 
-  // The clock at the pause: what follows is asked for, once, and read once played. A break needs its team for the panel:
-  // without it, the match went on between the page's reads, which are read again.
+  /**
+   * One step of the match from a pause, as the server plays it: what comes back is added to the page. A pause the player
+   * resumed (`resumed`) has the clock go on from it at its own pace, whatever took it there, in the same render: before
+   * the step, inside the Coaching panel's transition, it came after the step's own update. Refused, the match no longer
+   * waits there (another tab): the page reads where it stands. Failed, live-skip asks again.
+   */
+  const play = useCallback(
+    (at: LivePause, move: LiveMoveInput, mode: StepUntil, resumed = false): Promise<void> =>
+      playLiveStepAction(saveId, { phase: at.phase, minute: at.minute }, move, mode).then(
+        (result) => {
+          if (result.ok) {
+            if (resumed) {
+              setSkipping(false);
+              setClock(at.minute);
+            }
+            onStep(result.step);
+          } else {
+            toast.error(result.message);
+            router.refresh();
+          }
+        },
+        (error: unknown) => {
+          askedAt.current = null;
+          setFailedAt(pauseKey(at));
+          toast.error(isNewVersionError(error) ? tCommon("newVersion") : t("stepFailed"));
+        },
+      ),
+    [saveId, onStep, router, t, tCommon],
+  );
+
+  // The clock at a pause between two segments: what follows is asked for, once, its choice event left to the assistant
+  // for now. A break waits for its Coaching panel, which needs its team: without it, the match went on between the
+  // page's reads, which are read again.
   useEffect(() => {
     if (pause === null || !clockDone) {
       return;
     }
     const at = pauseKey(pause);
-    if (askedAt.current === at || failedAt === at || (atBreak && breakTeam !== null)) {
+    if (askedAt.current === at || failedAt === at || (atBreak && team !== null)) {
       return;
     }
     askedAt.current = at;
@@ -132,21 +170,8 @@ function Replay({ saveId, dashboardHref, caption, match, others, pause, breakTea
       router.refresh();
       return;
     }
-    continueMatchAction(saveId, { phase: pause.phase, minute: pause.minute }, null, until).then(
-      (result) => {
-        // Refused, the match no longer waits there (another tab): the page catches up with it.
-        if (!result.ok) {
-          toast.error(result.message);
-        }
-        router.refresh();
-      },
-      (error: unknown) => {
-        askedAt.current = null;
-        setFailedAt(at);
-        toast.error(isNewVersionError(error) ? tCommon("newVersion") : t("stepFailed"));
-      },
-    );
-  }, [pause, clockDone, atBreak, breakTeam, failedAt, until, saveId, router, t, tCommon]);
+    void play(pause, NO_MOVE, until);
+  }, [pause, clockDone, atBreak, team, failedAt, until, play, router]);
 
   // « live-skip » disappears with the final whistle: keep the keyboard focus on the next step.
   useEffect(() => {
@@ -161,11 +186,9 @@ function Replay({ saveId, dashboardHref, caption, match, others, pause, breakTea
     setFailedAt(null);
   };
 
-  // The break resumed: the clock goes on from it at its own pace, whatever took it there.
-  const resumeFromBreak = () => {
-    setSkipping(false);
-    setClock(endMinute);
-  };
+  // The break resumed: the clock goes on from it once its step is played (play).
+  const resumeFromBreak = (changes: HalfTimeChoiceInput): Promise<void> =>
+    pause === null ? Promise.resolve() : play(pause, { ...NO_MOVE, changes }, "segment", true);
 
   const shown = match.events.filter((event) => event.period !== "SHOOTOUT" && isShown(event));
   const goals = shown.filter((event) => event.type === "GOAL");
@@ -221,13 +244,11 @@ function Replay({ saveId, dashboardHref, caption, match, others, pause, breakTea
         />
       </LiveScoreCard>
 
-      {finished && pause !== null && breakTeam !== null && (
+      {finished && pause !== null && atBreak && team !== null && (
         <HalfTime
           // A panel of its own at each break, which opens by itself.
           key={pauseKey(pause)}
-          saveId={saveId}
-          at={pause}
-          team={breakTeam}
+          team={team}
           open={closedAt !== key}
           onOpenChange={(open) => setClosedAt(open ? null : key)}
           returnFocusTo={coachingRef}
@@ -276,10 +297,18 @@ function Replay({ saveId, dashboardHref, caption, match, others, pause, breakTea
 }
 
 /**
- * The match live: one replay per match, whose clock and speed go on across its steps, the page reading each one the
- * server plays.
+ * The match live: one replay per match, whose clock and speed go on across its steps. The page's data is the server's
+ * first, then each step's: the page is read again only when a step is refused, and once the match is over, when the
+ * save's screens change; what it reads then replaces what the steps brought.
  */
-export function LiveMatch(props: LiveMatchProps) {
+export function LiveMatch({ match, pause, team, ...props }: LiveMatchProps) {
   const [speed, setSpeed] = useState<Speed>(1);
-  return <Replay key={props.match.id} {...props} speed={speed} onSpeedChange={setSpeed} />;
+  const [data, setData] = useState<LiveData>({ match, pause, team });
+  const [read, setRead] = useState(match);
+  if (match !== read) {
+    setRead(match);
+    setData({ match, pause, team });
+  }
+  const onStep = useCallback((step: LiveStep) => setData((current) => withStep(current, step)), []);
+  return <Replay key={match.id} {...props} data={data} onStep={onStep} speed={speed} onSpeedChange={setSpeed} />;
 }

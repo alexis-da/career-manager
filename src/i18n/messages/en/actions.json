@@ -13,8 +13,7 @@
       "notFinished": "The season isn't over yet."
     },
     "resume": {
-      "invalid": "Invalid changes: {max} substitutions at most, 11 positions.",
-      "resumed": "The match goes on."
+      "invalid": "Invalid changes: {max} substitutions at most, 11 positions."
     },
     "lineup": {
       "invalid": "Invalid line-up.",

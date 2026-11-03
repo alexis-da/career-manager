@@ -66,7 +66,6 @@
       "regulationEnd": "Extra time…"
     },
     "selectFirst": "Select the player coming off on the pitch first.",
-    "resumeFailed": "The match could not resume. Try again.",
     "refusals": {
       "sentOffSlot": "A sent-off player's position stays empty: your team plays with ten men.",
       "substituteForPlayer": "Bring a substitute on in place of a player on the pitch.",

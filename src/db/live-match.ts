@@ -1,12 +1,29 @@
-import { HALF_TIME_MINUTE, REGULATION_MINUTES } from "../engine/balance";
-import { decideChoice, type ChoiceKind, type ChoiceOption } from "../engine/choices";
+import { MAX_SUBSTITUTION_WINDOWS } from "../engine/balance";
+import { decideChoice, type ChoiceEvent, type ChoiceKind, type ChoiceOption } from "../engine/choices";
 import { fitnessFactor } from "../engine/fitness";
-import { pauseOf, playOn, type LivePause, type PlayOnInput, type PlayOnUntil } from "../engine/live";
-import { breakSubstitutionLimit, condition, fitnessAt, inMatchFactor, matchResult, scoreOf, type MatchResult } from "../engine/match";
+import { pauseOf, playOn, type LivePause, type PausePhase, type PlayOnInput, type PlayOnUntil } from "../engine/live";
+import {
+  assistantInstruction,
+  breakSubstitutionLimit,
+  condition,
+  fitnessAt,
+  inMatchFactor,
+  instructionAt,
+  matchResult,
+  replacementFor,
+  scoreOf,
+  windowOpenAt,
+  type DecidedBy,
+  type Instruction,
+  type MatchResult,
+  type MatchState,
+  type Side,
+} from "../engine/match";
 import { formationPositions, type FormationName } from "../engine/formations";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
+import { DECISIONS_SELECT, EVENTS_SELECT, toDecisionView, toEventView, type DecisionView, type MatchEventView } from "./calendar";
 import { recordChallengeScore } from "./challenge";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
@@ -48,70 +65,63 @@ export class PauseMismatchError extends Error {
 /** The breaks a managed club's match waits at: half-time, and the end of regulation time of a level cup tie. */
 export type MatchBreak = "HALF_TIME" | "REGULATION_END";
 
-/** Statuses of a fixture paused at a break. */
-const PAUSED_STATUSES: MatchBreak[] = ["HALF_TIME", "REGULATION_END"];
-
-/** Statuses of a fixture whose match waits live: at a break, or between two segments. */
-const LIVE_STATUSES: ("IN_PLAY" | MatchBreak)[] = ["IN_PLAY", ...PAUSED_STATUSES];
+/** Statuses of a fixture whose match waits live: at a break, or between two segments (and between the periods of extra time). */
+const LIVE_STATUSES: ("IN_PLAY" | MatchBreak)[] = ["IN_PLAY", "HALF_TIME", "REGULATION_END"];
 
 /**
- * A player at a break, with his form, his fitness at that minute, the factor of his share of strength for his fitness
+ * A player at a pause, with his form, his fitness at that minute, the factor of his share of strength for his fitness
  * (fresh at kick-off, worn since, hurt if he plays on after a knock), and his whole factor for form, morale and fitness
  * (the engine's condition): what the next segment plays him at.
  */
 export type HalfTimePlayer = LineupPlayer & { form: number; fitness: number; fitnessFactor: number; condition: number };
 
-/** The managed club at a break, as the half-time (or end of regulation time) screen shows it. */
+/**
+ * The managed club at a pause of its match, as the Coaching panel shows it: named after half-time, its first pause, it
+ * opens at every one. The substitutions it may make there (MAX_SUBSTITUTIONS, one more from the end of regulation time;
+ * during play, in a window only), the instruction it plays the next segment with, its players as they stand.
+ */
 export type HalfTimeTeam = {
-  phase: MatchBreak;
+  phase: PausePhase;
+  minute: number; // the pause's: the minute the next segment starts from
   maxSubstitutions: number; // in the whole match: one more before extra time (breakSubstitutionLimit)
+  substitutions: number; // already made in the match
+  windows: { used: number; max: number; open: boolean }; // during play; open: a substitution may be made at this pause
+  manual: boolean; // its manager makes its substitutions himself: its assistant makes none any more
+  instruction: { current: Instruction; given: boolean; assistant: Instruction }; // given: by him or an event, not the rule
   formation: FormationName;
-  starters: (string | null)[]; // player key per slot: on the pitch, or injured in the first half and still in his slot
-  injured: string[]; // injured in the first half: off the pitch, to replace
+  starters: (string | null)[]; // player key per slot: on the pitch, or injured and still in his slot
+  injured: string[]; // injured and not replaced: off the pitch, to replace
   sentOff: { slot: number; playerKey: string }[]; // their slots stay empty
   bench: string[]; // substitutes who can still come on
   booked: string[]; // players with a yellow card, still on the pitch or not: a second one sends off
-  substitutions: number; // already made in the match
+  hurt: string[]; // playing on after a knock
   players: HalfTimePlayer[]; // every player above, rated as the engine plays him
   clubColors: ClubColors;
 };
 
-/** The managed club's side of its match paused at a break, or null when no match waits. */
-export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | null> {
-  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, currentDate: true } });
-  if (save.liveFixtureId === null) {
-    return null;
-  }
-  const fixture = await prisma.fixture.findFirst({
-    where: { id: save.liveFixtureId, saveId, status: { in: PAUSED_STATUSES } },
-    select: { id: true, liveState: true },
-  });
-  if (fixture === null) {
-    return null;
-  }
-  const { managedSide, state } = parseLiveState(fixture.id, fixture.liveState);
-  const team = state[managedSide];
-  const club = await prisma.clubSave.findFirstOrThrow({
-    where: { saveId, isManaged: true },
-    select: { club: { select: { primaryColor: true, secondaryColor: true } } },
-  });
+type Identity = { playerKey: string; firstName: string; lastName: string; birthDate: Date };
 
-  // The minute the next segment starts from: what the players have left in their legs then.
-  const breakMinute = state.phase === "REGULATION_END" ? REGULATION_MINUTES : HALF_TIME_MINUTE;
+/** The managed club's side of its match at a pause, from the state the engine plays and its players' identities. */
+function halfTimeTeamOf(
+  state: MatchState,
+  side: Side,
+  pause: LivePause,
+  identities: readonly Identity[],
+  today: Date,
+  clubColors: ClubColors,
+): HalfTimeTeam {
+  const team = state[side];
+  const minute = pause.minute;
+  // What the players have left in their legs when the next segment starts; a substitute has not played.
   const fitnessOf = new Map([
-    ...team.pitch.map((entry) => [entry.player.id, fitnessAt(entry, breakMinute)] as const),
+    ...team.pitch.map((entry) => [entry.player.id, fitnessAt(entry, minute)] as const),
     ...team.bench.map((player) => [player.id, player.fitness] as const),
   ]);
-  // A substitute has not played: his freshness of kick-off alone.
   const factorOf = new Map([
-    ...team.pitch.map((entry) => [entry.player.id, fitnessFactor(entry.player.fitness) * inMatchFactor(entry, breakMinute)] as const),
+    ...team.pitch.map((entry) => [entry.player.id, fitnessFactor(entry.player.fitness) * inMatchFactor(entry, minute)] as const),
     ...team.bench.map((player) => [player.id, fitnessFactor(player.fitness)] as const),
   ]);
   const squad = [...team.pitch.map((entry) => entry.player), ...team.bench];
-  const identities = await prisma.playerSave.findMany({
-    where: { saveId, playerKey: { in: squad.map((player) => player.id) } },
-    select: { playerKey: true, firstName: true, lastName: true, birthDate: true },
-  });
   const identityOf = new Map(identities.map((row) => [row.playerKey, row]));
   const injured = new Set(team.pitch.filter((entry) => entry.status === "INJURED").map((entry) => entry.player.id));
 
@@ -122,8 +132,21 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
     }
   }
   return {
-    phase: state.phase === "REGULATION_END" ? "REGULATION_END" : "HALF_TIME",
+    phase: pause.phase,
+    minute,
     maxSubstitutions: breakSubstitutionLimit(state),
+    substitutions: team.substitutions,
+    windows: {
+      used: team.windows?.length ?? 0,
+      max: MAX_SUBSTITUTION_WINDOWS,
+      open: pause.phase !== "IN_PLAY" || windowOpenAt(team, minute + 1),
+    },
+    manual: team.manual === true,
+    instruction: {
+      current: instructionAt(state, side),
+      given: state.modifiers?.instructions[side] !== undefined,
+      assistant: assistantInstruction(state, side, minute),
+    },
     formation: team.formation,
     starters,
     injured: [...injured],
@@ -132,12 +155,11 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
       .map((entry) => ({ slot: entry.index, playerKey: entry.player.id })),
     bench: team.bench.map((player) => player.id),
     booked: team.booked,
-    substitutions: team.substitutions,
+    hurt: team.pitch.filter((entry) => entry.status === "ON" && entry.hurt === true).map((entry) => entry.player.id),
     // The ratings of the snapshot the engine plays, not today's: nothing changes them until the final whistle.
     players: squad.map((player) => {
       const identity = getOrThrow(identityOf, player.id, "player");
-      const fitness = getOrThrow(fitnessOf, player.id, "fitness");
-      const fitnessFactorAtBreak = getOrThrow(factorOf, player.id, "fitness factor");
+      const fitnessFactorAtPause = getOrThrow(factorOf, player.id, "fitness factor");
       return {
         id: player.id,
         position: player.position,
@@ -145,29 +167,119 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
         injured: injured.has(player.id),
         injuredUntil: null,
         form: player.form,
-        fitness,
-        fitnessFactor: fitnessFactorAtBreak,
-        condition: condition(player) * fitnessFactorAtBreak,
+        fitness: getOrThrow(fitnessOf, player.id, "fitness"),
+        fitnessFactor: fitnessFactorAtPause,
+        condition: condition(player) * fitnessFactorAtPause,
         firstName: identity.firstName,
         lastName: identity.lastName,
-        age: ageInYears(identity.birthDate, save.currentDate),
+        age: ageInYears(identity.birthDate, today),
       };
     }),
-    clubColors: clubColorsOf(club.club),
+    clubColors,
   };
 }
 
-/** A choice event as the live page receives it: its options, each player named, the kick's chance shown. */
+/** The keys of every player of a side's squad in a match: on the pitch, gone off, or on the bench. */
+const squadKeys = (state: MatchState, side: Side): string[] => [
+  ...state[side].pitch.map((entry) => entry.player.id),
+  ...state[side].bench.map((player) => player.id),
+];
+
+/** The identities of a save's players, by key. */
+const identitiesOf = (saveId: string, keys: readonly string[]): Promise<Identity[]> =>
+  prisma.playerSave.findMany({
+    where: { saveId, playerKey: { in: [...keys] } },
+    select: { playerKey: true, firstName: true, lastName: true, birthDate: true },
+  });
+
+const managedClubColors = async (saveId: string): Promise<ClubColors> => {
+  const club = await prisma.clubSave.findFirstOrThrow({
+    where: { saveId, isManaged: true },
+    select: { club: { select: { primaryColor: true, secondaryColor: true } } },
+  });
+  return clubColorsOf(club.club);
+};
+
+/** The managed club's side of its match at the pause it waits at, or null when no match waits. */
+export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | null> {
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, currentDate: true } });
+  if (save.liveFixtureId === null) {
+    return null;
+  }
+  const fixture = await prisma.fixture.findFirst({
+    where: { id: save.liveFixtureId, saveId, status: { in: LIVE_STATUSES } },
+    select: { id: true, liveState: true },
+  });
+  if (fixture === null) {
+    return null;
+  }
+  const { managedSide, state } = parseLiveState(fixture.id, fixture.liveState);
+  const pause = pauseOf(state);
+  if (pause === null) {
+    return null;
+  }
+  const [identities, clubColors] = [await identitiesOf(saveId, squadKeys(state, managedSide)), await managedClubColors(saveId)];
+  return halfTimeTeamOf(state, managedSide, pause, identities, save.currentDate, clubColors);
+}
+
+/**
+ * A choice event as the live page receives it: the player it is about, its options, each player named, the kick's
+ * chance shown, and for an option that takes a player off the substitute who comes on.
+ */
 export type ChoiceEventView = {
   minute: number;
   kind: ChoiceKind;
   player: string | null; // the player it is about
-  options: { option: ChoiceOption; playerKey: string | null; player: string | null; chance: number | null }[];
+  playerKey: string | null;
+  options: {
+    option: ChoiceOption;
+    playerKey: string | null;
+    player: string | null;
+    chance: number | null;
+    replacement: { key: string; name: string } | null;
+  }[];
   assistant: number; // the assistant's option
 };
 
 /** Where the managed club's match waits, and the choice event open there; never what follows. */
 export type LivePauseView = LivePause & { choice: ChoiceEventView | null };
+
+const fullName = (identity: { firstName: string; lastName: string }): string => `${identity.firstName} ${identity.lastName}`;
+
+function choiceEventViewOf(event: ChoiceEvent, state: MatchState, side: Side, identities: readonly Identity[]): ChoiceEventView {
+  const names = new Map(identities.map((row) => [row.playerKey, fullName(row)]));
+  const nameOf = (key: string | undefined): string | null => (key === undefined ? null : (names.get(key) ?? null));
+  return {
+    minute: event.minute,
+    kind: event.kind,
+    player: nameOf(event.playerId),
+    playerKey: event.playerId ?? null,
+    options: event.options.map((option) => {
+      const replacement =
+        (option.option === "TAKE_OFF" || option.option === "REPLACE") && option.playerId !== undefined
+          ? replacementFor(state, side, option.playerId)
+          : undefined;
+      return {
+        option: option.option,
+        playerKey: option.playerId ?? null,
+        player: nameOf(option.playerId),
+        chance: option.chance ?? null,
+        replacement: replacement === undefined ? null : { key: replacement.id, name: nameOf(replacement.id) ?? replacement.id },
+      };
+    }),
+    assistant: event.assistant,
+  };
+}
+
+/** The pause a match waits at, with the choice event open there. */
+function livePauseViewOf(state: MatchState, side: Side, identities: readonly Identity[]): LivePauseView | null {
+  const pause = pauseOf(state);
+  if (pause === null) {
+    return null;
+  }
+  const event = state.choices?.pending ?? null;
+  return { ...pause, choice: event === null ? null : choiceEventViewOf(event, state, side, identities) };
+}
 
 /** The pause the managed club's match waits at, or null when no match waits. */
 export async function getLivePause(saveId: string): Promise<LivePauseView | null> {
@@ -182,34 +294,11 @@ export async function getLivePause(saveId: string): Promise<LivePauseView | null
   if (fixture === null) {
     return null;
   }
-  const { state } = parseLiveState(fixture.id, fixture.liveState);
-  const pause = pauseOf(state);
+  const { managedSide, state } = parseLiveState(fixture.id, fixture.liveState);
   const event = state.choices?.pending ?? null;
-  if (pause === null || event === null) {
-    return pause === null ? null : { ...pause, choice: null };
-  }
-  const keys = [event.playerId, ...event.options.map((option) => option.playerId)].filter((key): key is string => key !== undefined);
-  const rows = await prisma.playerSave.findMany({
-    where: { saveId, playerKey: { in: keys } },
-    select: { playerKey: true, firstName: true, lastName: true },
-  });
-  const names = new Map(rows.map((row) => [row.playerKey, `${row.firstName} ${row.lastName}`]));
-  const nameOf = (key: string | undefined): string | null => (key === undefined ? null : (names.get(key) ?? null));
-  return {
-    ...pause,
-    choice: {
-      minute: event.minute,
-      kind: event.kind,
-      player: nameOf(event.playerId),
-      options: event.options.map((option) => ({
-        option: option.option,
-        playerKey: option.playerId ?? null,
-        player: nameOf(option.playerId),
-        chance: option.chance ?? null,
-      })),
-      assistant: event.assistant,
-    },
-  };
+  // Names only when an event needs them.
+  const identities = event === null ? [] : await identitiesOf(saveId, squadKeys(state, managedSide));
+  return livePauseViewOf(state, managedSide, identities);
 }
 
 /** Where the match stands after a move: the pause it waits at, or its result once over. */
@@ -218,6 +307,10 @@ export type AdvancedMatch = {
   pause: LivePause | null; // null once over
   result: MatchResult | null;
   score: { homeGoals: number; awayGoals: number };
+  state: MatchState; // as the engine left it: at the pause, or over
+  managedSide: Side;
+  eventsBefore: number; // the match's events written before the move: those after it are new
+  decisionsBefore: number; // the same for its decisions
 };
 
 /**
@@ -226,13 +319,14 @@ export type AdvancedMatch = {
  * click, is refused with PauseMismatchError. The save is locked first, then the pause claimed by a conditional update
  * on the stored state: of two resumes at once, the second finds the pause gone and writes nothing.
  * - At a choice event: the manager's decision (null: the assistant's), written before anything that follows is played.
- * - At a break: the manager's changes (null: the automatic ones), with the opponent's at half-time.
- * Then the match plays on (playOn) one segment, to its next pause or to its next break, as `until` says: its events
- * written, and its state at the new pause, the half-time score once there. Once over: the rest of its events and
- * decisions, the final score, the cup tie's winner, season stats, form, fitness, injuries and suspensions, the cups'
- * prizes and draws, the challenge's score, then Save.liveFixtureId cleared. The same choices always give the same match,
- * and the assistant's decisions with the automatic changes the match played without a pause. A state of version 1 plays
- * on the same way, without choice events. An invalid choice throws HalfTimeChoiceError or ChoiceError and writes nothing.
+ * - At any pause: the manager's changes (null: none, the automatic ones at half-time, with the opponent's) and his
+ *   instruction (null: none).
+ * Then the match plays on (playOn) one segment, to its next pause or to its next break, as `until` says: its events and
+ * decisions written, and its state at the new pause, the half-time score once there. Once over: the final score, the cup
+ * tie's winner, season stats, form, fitness, injuries and suspensions, the cups' prizes and draws, the challenge's score,
+ * then Save.liveFixtureId cleared. The same choices always give the same match, and the assistant's decisions with no
+ * change but the automatic ones the match played without a pause. A state of version 1 plays on the same way, without
+ * choice events. An invalid choice throws HalfTimeChoiceError or ChoiceError and writes nothing.
  */
 export async function advanceLiveMatch(
   saveId: string,
@@ -299,19 +393,28 @@ export async function advanceLiveMatch(
       });
       const { squads, stateByKey } = squadsOf(rows, fixture.scheduledAt);
       const matchSeed = fixtureMatchSeed(save.seed, fixture);
+      const decisionsBefore = paused.choices?.decisions.length ?? 0;
 
       // The manager's decision on the open choice event, written before anything that follows is played.
       let state = paused;
-      let decisionsWritten = paused.choices?.decisions.length ?? 0;
       if ((paused.choices?.pending ?? null) !== null) {
         state = decideChoice(paused, matchSeed, input.decision ?? null);
-        const made = matchDecisionRows(fixture.id, state.choices?.decisions.slice(decisionsWritten) ?? [], stateByKey);
-        await tx.matchDecision.createMany({ data: made });
-        decisionsWritten += made.length;
+        await tx.matchDecision.createMany({
+          data: matchDecisionRows(fixture.id, state.choices?.decisions.slice(decisionsBefore) ?? [], stateByKey),
+        });
       }
-      state = playOn(state, managedSide, matchSeed, { changes: input.changes ?? null }, until);
-      const newEvents = state.events.slice(paused.events.length);
-      const newDecisions = state.choices?.decisions.slice(decisionsWritten) ?? [];
+      state = playOn(state, managedSide, matchSeed, { changes: input.changes ?? null, instruction: input.instruction ?? null }, until);
+      const decisionsWritten = (paused.choices?.pending ?? null) !== null ? decisionsBefore + 1 : decisionsBefore;
+      // Written here, before what a finished match records: a step's events and decisions, all of them.
+      const events = matchEventRows(fixture.id, state.events.slice(paused.events.length), stateByKey);
+      if (events.length > 0) {
+        await tx.matchEvent.createMany({ data: events });
+      }
+      const decisions = matchDecisionRows(fixture.id, state.choices?.decisions.slice(decisionsWritten) ?? [], stateByKey);
+      if (decisions.length > 0) {
+        await tx.matchDecision.createMany({ data: decisions });
+      }
+      const moved = { state, managedSide, eventsBefore: paused.events.length, decisionsBefore };
 
       if (state.phase !== "FULL_TIME") {
         const updated = await tx.fixture.updateMany({
@@ -325,15 +428,7 @@ export async function advanceLiveMatch(
         if (updated.count !== 1) {
           throw new Error(`Fixture ${fixture.id} could not wait at its next pause`);
         }
-        const events = matchEventRows(fixture.id, newEvents, stateByKey);
-        if (events.length > 0) {
-          await tx.matchEvent.createMany({ data: events });
-        }
-        const decisions = matchDecisionRows(fixture.id, newDecisions, stateByKey);
-        if (decisions.length > 0) {
-          await tx.matchDecision.createMany({ data: decisions });
-        }
-        return { fixtureId: fixture.id, pause: pauseOf(state), result: null, score: scoreOf(state) };
+        return { ...moved, fixtureId: fixture.id, pause: pauseOf(state), result: null, score: scoreOf(state) };
       }
 
       const result = matchResult(state);
@@ -346,8 +441,8 @@ export async function advanceLiveMatch(
             fixtureId: fixture.id,
             seasonId: fixture.seasonId,
             result,
-            newEvents,
-            newDecisions,
+            newEvents: [], // written above
+            newDecisions: [],
             managedSide,
             knockout: isKnockout(fixture.season),
             squads: {
@@ -364,6 +459,7 @@ export async function advanceLiveMatch(
       await recordChallengeScore(tx, saveId, save.challengeId);
       await tx.save.update({ where: { id: saveId }, data: { liveFixtureId: null } });
       return {
+        ...moved,
         fixtureId: fixture.id,
         pause: null,
         result,
@@ -372,4 +468,62 @@ export async function advanceLiveMatch(
     },
     { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS },
   );
+}
+
+/**
+ * What the live page shows after a move, read once the move is written: the match's new events and decisions as the
+ * screens show them, the pause it waits at now with its choice event and the managed club there (the Coaching panel's),
+ * or how it ended. Nothing past that pause, which is not played yet.
+ */
+export type LiveStep = {
+  events: MatchEventView[];
+  decisions: DecisionView[];
+  pause: LivePauseView | null;
+  team: HalfTimeTeam | null;
+  result: { homeGoals: number; awayGoals: number; decidedBy: DecidedBy | null; homePenalties: number | null; awayPenalties: number | null } | null;
+};
+
+export async function getLiveStep(saveId: string, moved: AdvancedMatch): Promise<LiveStep> {
+  const fixture = await prisma.fixture.findFirstOrThrow({
+    where: { id: moved.fixtureId, saveId },
+    select: {
+      scheduledAt: true,
+      events: EVENTS_SELECT,
+      decisions: { ...DECISIONS_SELECT, where: { sequence: { gt: moved.decisionsBefore } } },
+    },
+  });
+  // The events written before the move come first in match order: they never come after a new one.
+  const events = fixture.events.slice(moved.eventsBefore).map(toEventView(fixture.scheduledAt));
+  const decisions = fixture.decisions.map(toDecisionView);
+  const { state, managedSide } = moved;
+  const pause = moved.pause;
+  if (pause === null) {
+    const result = moved.result;
+    return {
+      events,
+      decisions,
+      pause: null,
+      team: null,
+      result:
+        result === null
+          ? null
+          : {
+              homeGoals: result.homeGoals,
+              awayGoals: result.awayGoals,
+              decidedBy: result.decidedBy ?? null,
+              homePenalties: result.homePenalties ?? null,
+              awayPenalties: result.awayPenalties ?? null,
+            },
+    };
+  }
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
+  const identities = await identitiesOf(saveId, squadKeys(state, managedSide));
+  const clubColors = await managedClubColors(saveId);
+  return {
+    events,
+    decisions,
+    pause: livePauseViewOf(state, managedSide, identities),
+    team: halfTimeTeamOf(state, managedSide, pause, identities, save.currentDate, clubColors),
+    result: null,
+  };
 }

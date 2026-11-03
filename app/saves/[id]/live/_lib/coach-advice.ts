@@ -1,11 +1,11 @@
-import type { MatchBreak } from "@/src/db/live-match";
+import type { PausePhase } from "@/src/engine/live";
 import type { Translator } from "@/src/i18n/translator";
 import { getOrThrow } from "@/src/lib/maps";
 import { substitutionsMade, type HalfTimeRules, type HalfTimeState, type SuggestedChange } from "./half-time-moves";
 
-/** What a break looks like to the assistant, with the manager's changes so far. */
+/** What a pause looks like to the assistant, with the manager's changes so far. */
 export type MatchSituation = {
-  phase: MatchBreak;
+  phase: PausePhase;
   goalDifference: number; // from the managed club's point of view
   state: HalfTimeState;
   rules: HalfTimeRules;

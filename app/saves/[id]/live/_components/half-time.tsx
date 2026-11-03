@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 import { ArrowRightLeftIcon, ChevronDownIcon, PlayIcon, SkipForwardIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type RefObject } from "react";
 import { toast } from "sonner";
 import { PlayerFace } from "@/src/components/player-face";
@@ -11,7 +10,6 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/src/compone
 import type { TeamView } from "@/src/db/calendar";
 import type { HalfTimePlayer, HalfTimeTeam } from "@/src/db/live-match";
 import { FORMATION_NAMES, FORMATIONS, isFormationName } from "@/src/engine/formations";
-import type { LivePause } from "@/src/engine/live";
 import { ratingAt, type Position } from "@/src/engine/positions";
 import type { Translator } from "@/src/i18n/translator";
 import type { ClubColors } from "@/src/lib/color";
@@ -23,7 +21,7 @@ import { Pitch } from "../../_components/pitch";
 import { PositionBadges } from "../../_components/position-badge";
 import { fitnessFigure } from "../../_lib/fitness";
 import { isOffPosition, positionFit } from "../../_lib/positions";
-import { resumeMatch } from "../../actions";
+import type { HalfTimeChoiceInput } from "../../actions";
 import { slotTarget, usePointerDrag, type DragSource, type DropTarget } from "../../lineup/_components/use-pointer-drag";
 import { coachAdvice } from "../_lib/coach-advice";
 import {
@@ -57,8 +55,6 @@ const SCORE_NAME =
   "min-w-0 font-heading leading-tight font-bold text-balance wrap-break-word max-[390px]:text-sm min-[390px]:max-sm:text-base sm:text-lg";
 
 type HalfTimeProps = {
-  saveId: string;
-  at: LivePause; // the break, as the page has it: the resume names it, and is refused once the match has gone on
   team: HalfTimeTeam;
   open: boolean; // closed, the changes stay here: the page's Coaching button opens the panel on them again
   onOpenChange: (open: boolean) => void;
@@ -67,9 +63,8 @@ type HalfTimeProps = {
   away: TeamView;
   homeGoals: number; // at this break
   awayGoals: number;
-  // The player resumes, before the server is asked: the page's clock is to go on from the break at its own pace, whatever
-  // took it there, even if the next segment comes with the answer.
-  onResume: () => void;
+  // The player resumes, with his changes or none: the page plays the next segment from the break, and goes on with it.
+  onResume: (changes: HalfTimeChoiceInput) => Promise<void>;
 };
 
 /**
@@ -82,8 +77,6 @@ type HalfTimeProps = {
  * lineup page's: a slot, then a substitute or another slot.
  */
 export function HalfTime({
-  saveId,
-  at,
   team,
   open,
   onOpenChange,
@@ -96,7 +89,6 @@ export function HalfTime({
 }: HalfTimeProps) {
   const t = useTranslations("halfTime");
   const tPositions = useTranslations("positions");
-  const router = useRouter();
   const [rules] = useState<HalfTimeRules>(() => ({
     injured: new Set(team.injured),
     sentOffSlots: new Set(team.sentOff.map((entry) => entry.slot)),
@@ -188,24 +180,10 @@ export function HalfTime({
     setSelected(null);
   };
 
-  // The server plays the next segment only, and the page goes on from the break with it. Refused, the match may have gone
-  // on from another tab: the page reads where it stands.
+  // The page plays the next segment and goes on from the break with it; it says why when it cannot.
   const resume = (withChanges: boolean): void => {
-    onResume();
     startTransition(async () => {
-      try {
-        const result = await resumeMatch(
-          saveId,
-          { phase: at.phase, minute: at.minute },
-          withChanges ? halfTimeChoice(state, rules, team.players) : null,
-        );
-        if (!result.ok) {
-          toast.error(result.message);
-        }
-        router.refresh();
-      } catch {
-        toast.error(t("resumeFailed"));
-      }
+      await onResume(withChanges ? halfTimeChoice(state, rules, team.players) : null);
     });
   };
 

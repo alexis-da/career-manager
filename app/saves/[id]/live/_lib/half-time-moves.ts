@@ -240,7 +240,7 @@ export function switchFormation<P extends LineupCandidate>(
   return { ...state, formation: to, starters };
 }
 
-/** The half-time choice resumeMatch receives. */
+/** The changes playLiveStepAction receives. */
 export type HalfTimeSubmission = {
   formation: FormationName;
   lineup: { slot: number; playerKey: string }[];

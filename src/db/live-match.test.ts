@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { HALF_TIME_MINUTE, MAX_SUBSTITUTIONS, SEGMENT_MINUTES } from "../engine/balance";
+import { HALF_TIME_MINUTE, MAX_SUBSTITUTION_WINDOWS, MAX_SUBSTITUTIONS, SEGMENT_MINUTES } from "../engine/balance";
 import { ChoiceError, optionIndex } from "../engine/choices";
 import { fitnessFactor, playingFactor } from "../engine/fitness";
 import type { LivePause } from "../engine/live";
@@ -10,7 +10,8 @@ import type { prisma as prismaClient } from "./client";
 
 // Throwaway twins of the demo save play their first matchday: one plays the managed club's match live, segment by
 // segment, its assistant deciding and no change at half-time; one plays it straight through; one changes the eleven at
-// half-time; one decides against its assistant; one is resumed twice at once. Runs against DATABASE_URL and is skipped
+// half-time; one decides against its assistant; one is resumed twice at once; one changes its eleven and its instruction
+// between two segments. Runs against DATABASE_URL and is skipped
 // without it; modules are imported lazily because the client throws without it.
 describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played live", () => {
   let db: typeof prismaClient | undefined;
@@ -23,7 +24,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
         season: typeof import("./season");
       }
     | undefined;
-  const saves = { live: "", straight: "", changed: "", decided: "", twice: "" };
+  const saves = { live: "", straight: "", changed: "", decided: "", twice: "", coached: "" };
 
   const database = (): typeof prismaClient => {
     if (db === undefined) {
@@ -104,12 +105,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
     ]);
     db = prisma;
     modules = { matchday, live, liveState, simulation, season };
-    [saves.live, saves.straight, saves.changed, saves.decided, saves.twice] = await Promise.all([
+    [saves.live, saves.straight, saves.changed, saves.decided, saves.twice, saves.coached] = await Promise.all([
       support.createDemoTwin("Test direct"),
       support.createDemoTwin("Test sans pause"),
       support.createDemoTwin("Test changements"),
       support.createDemoTwin("Test décision"),
       support.createDemoTwin("Test deux reprises"),
+      support.createDemoTwin("Test pause du joueur"),
     ]);
     await Promise.all([
       matchday.playNextMatchday(saves.live, { pauseManagedMatch: true }),
@@ -117,6 +119,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
       matchday.playNextMatchday(saves.changed, { pauseManagedMatch: true }),
       matchday.playNextMatchday(saves.decided, { pauseManagedMatch: true }),
       matchday.playNextMatchday(saves.twice, { pauseManagedMatch: true }),
+      matchday.playNextMatchday(saves.coached, { pauseManagedMatch: true }),
     ]);
   }, 300_000);
 
@@ -172,6 +175,29 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
       await expect(loaded().live.advanceLiveMatch(saves.live, at, {}, "segment")).rejects.toBeInstanceOf(loaded().live.PauseMismatchError);
     }
     expect(await managedFixture(saves.live)).toEqual(before);
+  });
+
+  it("brings each step's new events and decisions, its next pause and the managed club there, nothing further", async () => {
+    const { live } = loaded();
+    const before = await managedFixture(saves.live);
+    const moved = await live.advanceLiveMatch(saves.live, await pauseOf(saves.live), {}, "segment");
+    const step = await live.getLiveStep(saves.live, moved);
+    const after = await managedFixture(saves.live);
+
+    expect(step.events.map((event) => [event.minute, event.type])).toEqual(
+      after.events.slice(before.events.length).map((event) => [event.minute, event.type]),
+    );
+    expect(step.events.every((event) => event.minute > SEGMENT_MINUTES && event.minute <= 2 * SEGMENT_MINUTES)).toBe(true);
+    expect(step.decisions.map((decision) => decision.sequence)).toEqual(after.decisions.slice(before.decisions.length).map((decision) => decision.sequence));
+    expect(step.pause === null ? null : { phase: step.pause.phase, minute: step.pause.minute }).toEqual(await pauseOf(saves.live));
+    expect(step.team).toMatchObject({
+      phase: "IN_PLAY",
+      minute: 2 * SEGMENT_MINUTES,
+      windows: { used: 0, max: MAX_SUBSTITUTION_WINDOWS, open: true },
+      manual: false,
+      instruction: { given: false },
+    });
+    expect(step.result).toBeNull();
   });
 
   it("takes one resume of a pause, refuses the other of two at once, and never writes an event twice", async () => {
@@ -354,6 +380,61 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
     expect(after.events.length).toBeGreaterThanOrEqual(before.events.length);
     const next = await live.getLivePause(saves.decided);
     expect(next === null ? null : { phase: next.phase, minute: next.minute }).not.toEqual(at);
+  });
+
+  it("takes the manager's substitution and instruction between two segments, in one of his windows, then plays to the end", async () => {
+    const { live } = loaded();
+    // A pause between two segments with no event open: the changes are made on the eleven as it stands.
+    let view = await live.getLivePause(saves.coached);
+    while (view !== null && (view.phase !== "IN_PLAY" || view.choice !== null)) {
+      await live.advanceLiveMatch(saves.coached, view, {}, "segment");
+      view = await live.getLivePause(saves.coached);
+    }
+    if (view === null || view.minute > 2 * SEGMENT_MINUTES) {
+      throw new Error("No pause without an event before half-time");
+    }
+    const at: LivePause = { phase: view.phase, minute: view.minute };
+    const { managedSide, state } = await stored(saves.coached);
+    const team = state[managedSide];
+    const leaving = team.pitch.find((entry) => entry.status === "ON" && entry.slot !== "GK");
+    const substitute = team.bench.find((player) => player.position !== "GK");
+    if (leaving === undefined || substitute === undefined) {
+      throw new Error("No substitution to make");
+    }
+    const choice: HalfTimeChoice = {
+      formation: team.formation,
+      starters: team.pitch
+        .filter((entry) => entry.status === "ON")
+        .map((entry) => ({ slot: entry.index, playerKey: entry === leaving ? substitute.id : entry.player.id })),
+      substitutions: [{ in: substitute.id, out: leaving.player.id }],
+    };
+
+    await live.advanceLiveMatch(saves.coached, at, { changes: choice, instruction: "ATTACK" }, "segment");
+    const after = await stored(saves.coached);
+    expect(after.state[managedSide]).toMatchObject({ windows: [at.minute + 1], manual: true });
+    expect(after.state.modifiers?.instructions[managedSide]).toBe("ATTACK");
+    expect((await managedFixture(saves.coached)).events).toContainEqual({
+      minute: at.minute + 1,
+      type: "SUBSTITUTION",
+      side: managedSide === "home" ? "HOME" : "AWAY",
+      playerSave: { playerKey: substitute.id },
+      relatedPlayerSave: { playerKey: leaving.player.id },
+    });
+    expect(await live.getHalfTimeTeam(saves.coached)).toMatchObject({
+      windows: { used: 1, max: MAX_SUBSTITUTION_WINDOWS },
+      manual: true,
+      instruction: { current: "ATTACK", given: true },
+    });
+
+    // On to the end: the last step says how the match ended, and leaves nothing to wait at.
+    let pause = await live.getLivePause(saves.coached);
+    let last = null;
+    while (pause !== null) {
+      last = await live.getLiveStep(saves.coached, await live.advanceLiveMatch(saves.coached, pause, {}, "break"));
+      pause = await live.getLivePause(saves.coached);
+    }
+    const fixture = await managedFixture(saves.coached);
+    expect(last).toMatchObject({ pause: null, team: null, result: { homeGoals: fixture.homeGoals, awayGoals: fixture.awayGoals } });
   });
 
   it("never pauses in the quick simulation, and keeps the assistant's decisions with the match", async () => {

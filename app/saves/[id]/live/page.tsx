@@ -8,7 +8,7 @@ import { getHalfTimeTeam, getLivePause } from "@/src/db/live-match";
 import { formatDate } from "@/src/lib/format";
 import { stageLabel } from "../_lib/stage";
 import { LiveMatch } from "./_components/live-match";
-import { isMatchBreak, startMinute } from "./_lib/live-pause";
+import { startMinute } from "./_lib/live-pause";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +19,9 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * The managed club's match of the day, live. The server plays it one segment of 15 minutes at a time and the page only
  * ever has what is played: its clock runs up to where the match waits, then asks for the next segment, or for all that
- * comes before the next break once « live-skip » is pressed. « Jouer la journée » opens it with ?rejouer=1, from
- * kick-off; without it, a match waiting opens where it waits, on the Coaching panel at a break; a match over is replayed
- * whole, its shoot-out included.
+ * comes before the next break once « live-skip » is pressed, each step in one call that brings what the page shows.
+ * « Jouer la journée » opens it with ?rejouer=1, from kick-off; without it, a match waiting opens where it waits, on the
+ * Coaching panel at a break; a match over is replayed whole, its shoot-out included.
  */
 export default async function LivePage({ params, searchParams }: PageProps<"/saves/[id]/live">) {
   const { id } = await params;
@@ -33,16 +33,11 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
   const query = await searchParams;
   // Where the match waits, read first: a step played meanwhile (another tab) leaves the events ahead of it, never behind.
   const waiting = await getLivePause(id);
-  const [matchday, team] = await Promise.all([
-    getLiveMatchday(id),
-    waiting !== null && isMatchBreak(waiting.phase) ? getHalfTimeTeam(id) : null,
-  ]);
+  const [matchday, team] = await Promise.all([getLiveMatchday(id), waiting === null ? null : getHalfTimeTeam(id)]);
   if (matchday === null) {
     redirect(`/saves/${id}`);
   }
   const { match, stadium } = matchday;
-  // The choice event open at a pause has no card yet: its assistant decides it (G5 shows it).
-  const pause = waiting === null ? null : { phase: waiting.phase, minute: waiting.minute };
   // A cup tie names its cup in its stage: « Coupe — Finale ».
   const caption = [
     ...(match.cup ? [] : [competitionName(match.competitionCode, tWorld)]),
@@ -58,10 +53,10 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
       caption={caption}
       match={match}
       others={matchday.others}
-      pause={pause}
-      // The break's own: none when the match went on between the two reads, the page then reads it again.
-      breakTeam={team !== null && team.phase === pause?.phase ? team : null}
-      startMinute={startMinute(pause, query.rejouer === "1")}
+      pause={waiting}
+      // The pause's own: none when the match went on between the two reads.
+      team={team !== null && team.phase === waiting?.phase && team.minute === waiting.minute ? team : null}
+      startMinute={startMinute(waiting, query.rejouer === "1")}
     />
   );
 }
