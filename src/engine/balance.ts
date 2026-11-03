@@ -1,3 +1,4 @@
+import type { ChoiceKind } from "./choices";
 import type { Curve } from "./curves";
 import type { FormationName } from "./formations";
 import type { AttributeName } from "./generation";
@@ -437,6 +438,87 @@ export const SHOOTOUT_KICKER_FACTOR = 0.004; // per point of shooting
 export const SHOOTOUT_KEEPER_FACTOR = 0.004; // per point of goalkeeping
 export const SHOOTOUT_MIN_CHANCE = 0.55;
 export const SHOOTOUT_MAX_CHANCE = 0.9;
+
+// ------------------------------------------------------------------ Match: choice events (gameplay v1, G4)
+
+/**
+ * The managed club's matches only. How many choice events a match has, 1, 2 or 3, with these chances; the boundaries of
+ * regular time they come at, drawn among these without repeat; and the chance of one at 105' when a cup tie goes to
+ * extra time. All drawn at kick-off from the match's stream …:events.
+ */
+export const CHOICE_EVENT_COUNT_WEIGHTS: readonly number[] = [35, 45, 20];
+export const CHOICE_EVENT_MINUTES: readonly number[] = [15, 30, 60, 75];
+export const EXTRA_TIME_CHOICE_EVENT_CHANCE = 0.5;
+
+/**
+ * The goals of the managed club's choice events are taken from its match's: its expected goals are multiplied by this
+ * in every segment, so that its events, decided by its assistant, give it nothing by themselves (a penalty or a free kick
+ * scores goals the club would otherwise have scored in play). Its decisions win or lose points around that.
+ */
+export const OWN_GOALS_WITH_CHOICE_EVENTS = 0.89;
+
+/** The weight of each kind of event among those possible at its boundary. */
+export const CHOICE_EVENT_WEIGHTS: Readonly<Record<ChoiceKind, number>> = {
+  PENALTY: 3,
+  FREE_KICK: 12,
+  HOTHEAD: 14,
+  SCUFFLE: 10,
+  KNOCK: 12,
+  EXHAUSTED: 20,
+  LEADING: 24,
+  CHASING: 24,
+};
+
+/** Penalty: the best shooters on the pitch offered as takers, each kick's chance as in a shoot-out (shootoutChance). */
+export const PENALTY_TAKERS = 3;
+
+/**
+ * Dangerous free kick: a direct shot's chance, from the taker's shooting and the goalkeeper's goalkeeping away from the
+ * reference ratings, within the bounds; a worked combination multiplies the side's expected goals in the next segment.
+ * The assistant shoots when his best shooter has FREE_KICK_ASSISTANT_SHOOTING.
+ */
+export const FREE_KICK_BASE_CHANCE = 0.13;
+export const FREE_KICK_REFERENCE_SHOOTING = 75;
+export const FREE_KICK_REFERENCE_GOALKEEPING = 70;
+export const FREE_KICK_KICKER_FACTOR = 0.005; // per point of shooting
+export const FREE_KICK_KEEPER_FACTOR = 0.004; // per point of goalkeeping
+export const FREE_KICK_MIN_CHANCE = 0.08;
+export const FREE_KICK_MAX_CHANCE = 0.18;
+export const FREE_KICK_COMBINATION_GOALS = 1.5;
+export const FREE_KICK_ASSISTANT_SHOOTING = 75;
+
+/** A booked player losing his temper, from this minute: kept on, he is sent off in the next segment with this chance. */
+export const HOTHEAD_MINUTE = 30;
+export const HOTHEAD_RED_CHANCE = 0.12;
+
+/**
+ * A scuffle: protesting multiplies the side's expected goals in the next segment with the first chance, and books its
+ * captain (the best outfield player on the pitch) with the second.
+ */
+export const PROTEST_GOALS = 1.08;
+export const PROTEST_GOALS_CHANCE = 0.5;
+export const PROTEST_YELLOW_CHANCE = 0.3;
+
+/**
+ * A knock: played on, the player keeps KNOCK_SHARE of his share of strength until he goes off, and gets injured in the
+ * rest of the match with this chance, for these days.
+ */
+export const KNOCK_SHARE = 0.85;
+export const KNOCK_INJURY_CHANCE = 0.25;
+export const KNOCK_INJURY_DAYS_MIN = 7;
+export const KNOCK_INJURY_DAYS_MAX = 21;
+
+/**
+ * An exhausted player, from this minute: one who has lost this much fitness on the pitch. Kept on, he gets injured in
+ * the rest of the match with this chance, for INJURY_DAYS_MIN to INJURY_DAYS_MAX days.
+ */
+export const EXHAUSTED_MINUTE = 75;
+export const EXHAUSTED_FITNESS_LOST = 25;
+export const EXHAUSTED_INJURY_CHANCE = 0.1;
+
+/** The tactical events: at these boundaries; « Tu mènes » one or two goals ahead, « Tu es mené ou à égalité » otherwise. */
+export const TACTICAL_CHOICE_MINUTES: readonly number[] = [60, 75];
+export const LEADING_MAX_MARGIN = 2;
 
 // ------------------------------------------------------------------ Match events kept in the database
 

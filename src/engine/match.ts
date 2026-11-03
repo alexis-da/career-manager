@@ -30,10 +30,12 @@ import {
   INJURY_DAYS_MAX,
   INJURY_DAYS_MIN,
   INSTRUCTION_EFFECTS,
+  KNOCK_SHARE,
   MAX_EXPECTED_GOALS,
   MAX_STOPPAGE_MINUTES,
   MAX_SUBSTITUTIONS,
   OTHER_MATCH_EVENT_TYPES,
+  OWN_GOALS_WITH_CHOICE_EVENTS,
   RED_CARDS_PER_TEAM,
   REGULATION_GOAL_WEIGHTS,
   REGULATION_MINUTES,
@@ -54,6 +56,7 @@ import {
   SUBSTITUTIONS_PER_TEAM,
   YELLOW_CARDS_PER_TEAM,
 } from "./balance";
+import type { MatchChoices, MatchDecision } from "./choices";
 import { fitnessAfter, fitnessFactor, injuryRiskFactor, wearFactor } from "./fitness";
 import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "./formations";
 import { ATTRIBUTE_NAMES, clampRating, type AttributeName } from "./generation";
@@ -116,6 +119,7 @@ export type MatchResult = {
   decidedBy?: DecidedBy;
   homePenalties?: number;
   awayPenalties?: number;
+  decisions?: MatchDecision[]; // a match of the managed club: its choice events and the decisions made
 };
 
 export type TeamStrength = {
@@ -171,6 +175,7 @@ export type PitchEntry = {
   player: SquadPlayer;
   from: number; // minute the player came on, 0 for starters, HALF_TIME_MINUTE for a half-time substitute
   status: "ON" | "INJURED" | "SENT_OFF";
+  hurt?: true; // played on after a knock (a choice event): his share is KNOCK_SHARE of what it was
 };
 
 export type TeamLive = {
@@ -182,9 +187,23 @@ export type TeamLive = {
   goals: number;
 };
 
-/** Everything a match carries from one half to the next; plain data, stored as is while a match is paused. */
+/** An incident a choice event has set for later: a named player sent off, or injured for some days, at a minute. */
+export type ScheduledIncident = { minute: number; side: Side; kind: "RED_CARD" | "INJURY"; playerId: string; days: number };
+
+/**
+ * What choice events leave on a match for the segments that follow: a side's expected goals multiplied in the next
+ * segment, a side's instruction for the rest of regular time, incidents set for later.
+ */
+export type MatchModifiers = {
+  goals: Partial<Record<Side, number>>;
+  instructions: Partial<Record<Side, Instruction>>;
+  scheduled: ScheduledIncident[];
+};
+
+/** Everything a match carries from one segment to the next; plain data, stored as is while a match is paused. */
 export type MatchState = {
   phase: MatchPhase;
+  played: number; // minutes behind the match: 0 before kick-off, 15 after its first segment, 90 after regular time, 120 after extra time
   fullTime: number | null; // drawn with the second half
   home: TeamLive;
   away: TeamLive;
@@ -195,6 +214,9 @@ export type MatchState = {
   knockout?: true;
   regulationTime?: number; // minute the 90 minutes ended at, stoppage time included, when extra time followed
   penalties?: Record<Side, number>; // the shoot-out's score
+  // The managed club's matches only: its choice events (choices.ts), and what they leave for the segments to come.
+  choices?: MatchChoices;
+  modifiers?: MatchModifiers;
 };
 
 /** A team's half-time decisions: its formation, who plays in which slot, and the substitutions made. */
@@ -236,7 +258,8 @@ const INCIDENT_ORDER: Readonly<Record<IncidentKind, number>> = {
   SUBSTITUTION: 4,
 };
 
-type Incident = { minute: number; side: Side; kind: IncidentKind };
+/** An incident of a segment: drawn by its stream, or set by a choice event for a named player (playerId, days). */
+type Incident = { minute: number; side: Side; kind: IncidentKind; playerId?: string; days?: number };
 
 /**
  * Seed of a match stream, built from stable keys (season, matchday, club slugs), never from Fixture.id:
@@ -287,14 +310,14 @@ function weightedValue(player: SquadPlayer, weights: Partial<Record<AttributeNam
 /**
  * Attack and defense of the players on the pitch: each one's attributes weighted for the group of their slot,
  * reduced by their familiarity with the slot (as ratingAt reduces the overall), adjusted for form and morale, for his
- * freshness at kick-off (fitnessFactor) and for the wear of the match so far (wearOf, the fitness he has lost on the
- * pitch: none before kick-off). A line's value is shared among the formation's slots of that line, empty ones included:
- * a team down to ten is weaker. Without a formation, the starters' slots are the formation.
+ * freshness at kick-off (fitnessFactor) and for what the match has done to him so far (inMatch: his wear, a knock he
+ * plays on with; 1 before kick-off). A line's value is shared among the formation's slots of that line, empty ones
+ * included: a team down to ten is weaker. Without a formation, the starters' slots are the formation.
  */
 export function teamStrength(
   lineup: Lineup,
   formation: readonly Position[] = lineup.starters.map(({ slot }) => slot),
-  wearOf: (starter: LineupSlot) => number = () => 0,
+  inMatch: (starter: LineupSlot) => number = () => 1,
 ): TeamStrength {
   const lineSizes: Record<PositionGroup, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
   for (const slot of formation) {
@@ -305,7 +328,7 @@ export function teamStrength(
   for (const starter of lineup.starters) {
     const { player, slot } = starter;
     const group = positionGroup(slot);
-    const fitness = fitnessFactor(player.fitness) * wearFactor(wearOf(starter));
+    const fitness = fitnessFactor(player.fitness) * inMatch(starter);
     const share = (condition(player) * fitness * playerFamiliarity(player, slot)) / Math.max(1, lineSizes[group]);
     attack += ATTACK_LINE_WEIGHTS[group] * share * weightedValue(player, ATTACK_WEIGHTS[group]);
     defense += DEFENSE_LINE_WEIGHTS[group] * share * weightedValue(player, DEFENSE_WEIGHTS[group]);
@@ -338,24 +361,29 @@ export function lineupOnPitch(team: TeamLive): Lineup {
   };
 }
 
-/** Attack and defense of a lineup in a formation, the formation's profile applied; wearOf as teamStrength reads it. */
+/** Attack and defense of a lineup in a formation, the formation's profile applied; inMatch as teamStrength reads it. */
 export function formationStrength(
   lineup: Lineup,
   formation: FormationName,
-  wearOf?: (starter: LineupSlot) => number,
+  inMatch?: (starter: LineupSlot) => number,
 ): TeamStrength {
-  const { attack, defense } = teamStrength(lineup, formationPositions(formation), wearOf);
+  const { attack, defense } = teamStrength(lineup, formationPositions(formation), inMatch);
   const profile = FORMATION_PROFILES[formation];
   return { attack: attack * profile.attack, defense: defense * profile.defense };
 }
 
+/** What the match has done to a player at a minute: worn by his time on the pitch, and hurt if he plays on after a knock. */
+export function inMatchFactor(entry: PitchEntry, minute: number): number {
+  return wearFactor(entry.player.fitness - fitnessAt(entry, minute)) * (entry.hurt === true ? KNOCK_SHARE : 1);
+}
+
 /**
  * Attack and defense of a team as it stands at a minute: on ten after a red card, without an injured player until he is
- * replaced, every player at his freshness of kick-off and worn by his time on the pitch.
+ * replaced, every player at his freshness of kick-off, worn by his time on the pitch, hurt if he plays on after a knock.
  */
 export function liveStrength(team: TeamLive, minute: number): TeamStrength {
-  const lost = new Map(team.pitch.map((entry) => [entry.index, entry.player.fitness - fitnessAt(entry, minute)]));
-  return formationStrength(lineupOnPitch(team), team.formation, (starter) => lost.get(starter.index) ?? 0);
+  const factors = new Map(team.pitch.map((entry) => [entry.index, inMatchFactor(entry, minute)]));
+  return formationStrength(lineupOnPitch(team), team.formation, (starter) => factors.get(starter.index) ?? 1);
 }
 
 /**
@@ -425,6 +453,7 @@ export function startMatch(
 ): MatchState {
   const state: MatchState = {
     phase: "KICK_OFF",
+    played: 0,
     fullTime: null,
     home: startingTeam(home, formations.home),
     away: startingTeam(away, formations.away),
@@ -603,14 +632,12 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
 
   const lastMinute = segment === "s6" ? REGULATION_MINUTES + randomInt(rng, 0, MAX_STOPPAGE_MINUTES) : last;
   const played = first - 1;
-  const expected = stateExpectedGoals(
-    state,
-    {
-      home: instructions.home ?? assistantInstruction(state, "home", played),
-      away: instructions.away ?? assistantInstruction(state, "away", played),
-    },
-    played,
-  );
+  const modifiers = state.modifiers;
+  // A side's instruction: the one given, else the one a choice event set for the rest of regular time, else its
+  // assistant's.
+  const instructionOf = (side: Side): Instruction =>
+    instructions[side] ?? (extraTime ? undefined : modifiers?.instructions[side]) ?? assistantInstruction(state, side, played);
+  const expected = stateExpectedGoals(state, { home: instructionOf("home"), away: instructionOf("away") }, played);
   // The mean of the injury risks of a side's players on the pitch: 1 while all of them are fit enough.
   const injuryRisk = (side: Side): number => {
     const players = onPitch(teams[side]);
@@ -628,8 +655,11 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
       incidents.push({ minute: randomInt(rng, first, lastMinute), side, kind });
     }
   };
+  // The managed club's choice events score some of its goals: the rest of its play scores fewer.
+  const choiceGoals = (side: Side): number => (state.choices?.side === side ? OWN_GOALS_WITH_CHOICE_EVENTS : 1);
   for (const side of SIDES) {
-    schedule(side, "GOAL", poisson(rng, expected[side] * goalShare));
+    // A choice event may have multiplied the side's goals in this segment.
+    schedule(side, "GOAL", poisson(rng, expected[side] * goalShare * choiceGoals(side) * (modifiers?.goals[side] ?? 1)));
     schedule(side, "YELLOW_CARD", poisson(rng, YELLOW_CARDS_PER_TEAM * share));
     schedule(side, "RED_CARD", poisson(rng, RED_CARDS_PER_TEAM * share));
     schedule(side, "INJURY", poisson(rng, INJURIES_PER_TEAM * share * injuryRisk(side)));
@@ -641,6 +671,12 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
           incidents.push({ minute, side, kind: "SUBSTITUTION" });
         }
       }
+    }
+  }
+  // Incidents a choice event set for this segment: named players, drawn by the event's own stream, not this one.
+  for (const scheduled of modifiers?.scheduled ?? []) {
+    if (scheduled.minute >= first && scheduled.minute <= lastMinute) {
+      incidents.push({ ...scheduled });
     }
   }
   incidents.sort(compareIncidents);
@@ -662,7 +698,11 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
     state.events.push(mark({ minute, side, type: "SUBSTITUTION", playerId: player.id, relatedPlayerId: leaving.player.id }));
   };
 
-  for (const { minute, side, kind } of incidents) {
+  // A player a choice event named, if he is still on the pitch.
+  const named = (team: TeamLive, playerId: string): PitchEntry | undefined =>
+    onPitch(team).find((entry) => entry.player.id === playerId);
+
+  for (const { minute, side, kind, playerId, days } of incidents) {
     const team = teams[side];
     switch (kind) {
       case "GOAL": {
@@ -708,7 +748,10 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
         break;
       }
       case "RED_CARD": {
-        const sentOff = drawOnPitch(rng, onPitch(team), ({ slot }) => CARD_SLOT_WEIGHTS[positionGroup(slot)]);
+        const sentOff =
+          playerId === undefined
+            ? drawOnPitch(rng, onPitch(team), ({ slot }) => CARD_SLOT_WEIGHTS[positionGroup(slot)])
+            : named(team, playerId);
         if (sentOff === undefined) {
           break;
         }
@@ -717,13 +760,20 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
         break;
       }
       case "INJURY": {
-        const injured = drawOnPitch(rng, onPitch(team), (entry) => injuryRiskFactor(fitnessAt(entry, minute)));
+        const injured =
+          playerId === undefined
+            ? drawOnPitch(rng, onPitch(team), (entry) => injuryRiskFactor(fitnessAt(entry, minute)))
+            : named(team, playerId);
         if (injured === undefined) {
           break;
         }
         leave(side, injured, minute, "INJURED");
         state.events.push(mark({ minute, side, type: "INJURY", playerId: injured.player.id }));
-        state.injuries.push({ playerId: injured.player.id, side, days: randomInt(rng, INJURY_DAYS_MIN, INJURY_DAYS_MAX) });
+        state.injuries.push({
+          playerId: injured.player.id,
+          side,
+          days: days ?? randomInt(rng, INJURY_DAYS_MIN, INJURY_DAYS_MAX),
+        });
         substitute(side, injured, minute);
         break;
       }
@@ -737,6 +787,16 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
         break;
       }
     }
+  }
+
+  state.played = last;
+  if (modifiers !== undefined) {
+    // A choice event's goals count for one segment, its instruction for the rest of regular time.
+    state.modifiers = {
+      goals: {},
+      instructions: segment === "s6" ? {} : modifiers.instructions,
+      scheduled: modifiers.scheduled.filter((scheduled) => scheduled.minute > lastMinute),
+    };
   }
 
   if (segment === "s3") {
@@ -768,9 +828,40 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
   return state;
 }
 
-/** Plays a period's segments one after the other: a half ends at half-time, at the final whistle or before extra time. */
-export function playPeriod(start: MatchState, matchSeed: string, period: Period, instructions: Instructions = {}): MatchState {
-  return PERIOD_SEGMENTS[period].reduce((state, segment) => simulateSegment(state, matchSeed, segment, instructions), start);
+/** The segment a match plays next from where it stands. */
+export function nextSegment(state: MatchState): Segment {
+  const segment = (Object.keys(SEGMENTS) as Segment[]).find(
+    (candidate) => SEGMENTS[candidate].from === state.phase && SEGMENTS[candidate].first === state.played + 1,
+  );
+  if (segment === undefined) {
+    throw new Error(`No segment to play from ${state.phase} at ${state.played}'`);
+  }
+  return segment;
+}
+
+/**
+ * What happens at a boundary of a match where its manager may act between two segments, kick-off included: the managed
+ * club's choice events (choices.ts). Nothing in a match between AI clubs.
+ */
+export type BoundaryHook = (state: MatchState) => MatchState;
+
+const noChoices: BoundaryHook = (state) => state;
+
+/**
+ * Plays a period's segments one after the other, atBoundary between two of them: a half ends at half-time, at the final
+ * whistle or before extra time.
+ */
+export function playPeriod(
+  start: MatchState,
+  matchSeed: string,
+  period: Period,
+  instructions: Instructions = {},
+  atBoundary: BoundaryHook = noChoices,
+): MatchState {
+  return PERIOD_SEGMENTS[period].reduce(
+    (state, segment, index) => simulateSegment(index === 0 ? state : atBoundary(state), matchSeed, segment, instructions),
+    start,
+  );
 }
 
 /** Slot indexes of a team's sent-off players: they stay empty, whatever the formation. */
@@ -1047,6 +1138,7 @@ export function matchResult(state: MatchState): MatchResult {
     events: state.events,
     appearances: state.appearances,
     injuries: state.injuries,
+    ...(state.choices === undefined ? {} : { decisions: state.choices.decisions }),
   };
   if (state.knockout !== true) {
     return result;
@@ -1068,15 +1160,27 @@ export function knockoutWinner(result: MatchResult): Side {
 }
 
 /**
- * What follows the second half of a knockout match level after 90 minutes: both periods of extra time, then the
- * shoot-out if still level, each with its stream from matchSeed. A state already at FULL_TIME is returned as it is.
+ * What follows the second half of a knockout match level after 90 minutes: both periods of extra time, atBoundary
+ * between them, then the shoot-out if still level, each with its stream from matchSeed. A state already at FULL_TIME is
+ * returned as it is.
  */
-export function finishKnockout(state: MatchState, matchSeed: string, instructions: Instructions = {}): MatchState {
+export function finishKnockout(
+  state: MatchState,
+  matchSeed: string,
+  instructions: Instructions = {},
+  atBoundary: BoundaryHook = noChoices,
+): MatchState {
   if (state.phase !== "REGULATION_END") {
     return state;
   }
-  const extraTime = playPeriod(playPeriod(state, matchSeed, "e1", instructions), matchSeed, "e2", instructions);
-  return extraTime.phase === "SHOOTOUT" ? simulateShootout(extraTime, makeRng(phaseRngSeed(matchSeed, "shootout"))) : extraTime;
+  const firstPeriod = playPeriod(state, matchSeed, "e1", instructions);
+  const extraTime = playPeriod(atBoundary(firstPeriod), matchSeed, "e2", instructions);
+  return extraTime.phase === "SHOOTOUT" ? playShootout(extraTime, matchSeed) : extraTime;
+}
+
+/** The shoot-out of a knockout match level after extra time, on its own stream. */
+export function playShootout(state: MatchState, matchSeed: string): MatchState {
+  return simulateShootout(state, makeRng(phaseRngSeed(matchSeed, "shootout")));
 }
 
 /** Both clubs' automatic half-time changes, for clubs that do not choose. */
@@ -1088,7 +1192,8 @@ export function applyAutomaticHalfTime(state: MatchState, sides: readonly Side[]
  * Simulates a whole match without a pause: the first half, the automatic half-time changes of both clubs, then the
  * second half, segment by segment, each with its own stream derived from matchSeed (phaseRngSeed). A knockout match level
  * after 90 minutes goes on to extra time and a shoot-out (finishKnockout). Each side plays the instructions given, or
- * its assistant's.
+ * its assistant's; atBoundary runs at kick-off and between two segments where a manager may act (the managed club's
+ * choice events, decided by its assistant: assistantChoices, choices.ts).
  */
 export function simulateMatch(
   home: Lineup,
@@ -1097,10 +1202,11 @@ export function simulateMatch(
   formations?: Readonly<Record<Side, FormationName>>,
   knockout: boolean = false,
   instructions: Instructions = {},
+  atBoundary: BoundaryHook = noChoices,
 ): MatchResult {
-  const halfTime = playPeriod(startMatch(home, away, formations, knockout), matchSeed, "h1", instructions);
-  const regulation = playPeriod(applyAutomaticHalfTime(halfTime), matchSeed, "h2", instructions);
-  return matchResult(finishKnockout(regulation, matchSeed, instructions));
+  const halfTime = playPeriod(atBoundary(startMatch(home, away, formations, knockout)), matchSeed, "h1", instructions, atBoundary);
+  const regulation = playPeriod(applyAutomaticHalfTime(halfTime), matchSeed, "h2", instructions, atBoundary);
+  return matchResult(finishKnockout(regulation, matchSeed, instructions, atBoundary));
 }
 
 /**
@@ -1122,6 +1228,62 @@ export function resumeMatch(paused: MatchState, managedSide: Side, choice: HalfT
     return finishKnockout(choice === null ? paused : applyHalfTimeChoice(paused, managedSide, choice), matchSeed);
   }
   throw new HalfTimeChoiceError("not-half-time");
+}
+
+/** The substitutions a side may still make at a minute: one more than MAX_SUBSTITUTIONS once extra time is reached. */
+export function substitutionsLeft(state: MatchState, side: Side, minute: number): number {
+  const limit = minute >= REGULATION_MINUTES ? MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS : MAX_SUBSTITUTIONS;
+  return Math.min(limit - state[side].substitutions, state[side].bench.length);
+}
+
+/** An event past regular time is marked; one of regular time keeps the shape it always had. */
+const markedAt = (event: MatchEvent): MatchEvent => (event.minute > REGULATION_MINUTES ? { ...event, period: "EXTRA_TIME" } : event);
+
+/** A goal at a minute outside a segment's draws, a choice event's kick: no assist. */
+export function goalAt(start: MatchState, side: Side, playerId: string, minute: number): MatchState {
+  const state = cloneState(start);
+  state[side].goals++;
+  state.events.push(markedAt({ minute, side, type: "GOAL", playerId }));
+  return state;
+}
+
+/** A yellow card at a minute outside a segment's draws: a second one sends the player off, his slot empty from then. */
+export function bookingAt(start: MatchState, side: Side, playerId: string, minute: number): MatchState {
+  const state = cloneState(start);
+  const team = state[side];
+  const entry = onPitch(team).find((candidate) => candidate.player.id === playerId);
+  if (entry === undefined) {
+    throw new Error(`Player ${playerId} is not on the pitch`);
+  }
+  state.events.push(markedAt({ minute, side, type: "YELLOW_CARD", playerId }));
+  if (team.booked.includes(playerId)) {
+    state.events.push(markedAt({ minute, side, type: "RED_CARD", playerId }));
+    state.appearances.push(toAppearance(entry, side, minute, minute > REGULATION_MINUTES ? EXTRA_TIME_END_MINUTE : REGULATION_MINUTES));
+    entry.status = "SENT_OFF";
+  } else {
+    team.booked.push(playerId);
+  }
+  return state;
+}
+
+/**
+ * A substitution a manager makes at a pause between two segments, a choice event's: the player goes off at that minute,
+ * the substitute rated best in his slot comes on, the change dated the minute after, as a half-time one. Throws when
+ * the side has no substitution or no substitute left: an event only offers it when one is.
+ */
+export function substitutionAt(start: MatchState, side: Side, playerId: string, minute: number): MatchState {
+  const state = cloneState(start);
+  const team = state[side];
+  const leaving = onPitch(team).find((entry) => entry.player.id === playerId);
+  if (leaving === undefined || substitutionsLeft(start, side, minute) <= 0) {
+    throw new Error(`No substitution of ${playerId} at ${minute}'`);
+  }
+  state.appearances.push(toAppearance(leaving, side, minute, minute >= REGULATION_MINUTES ? EXTRA_TIME_END_MINUTE : REGULATION_MINUTES));
+  const [player] = team.bench.splice(replacementIndex(team.bench, leaving.slot), 1);
+  team.substitutions++;
+  team.pitch[team.pitch.indexOf(leaving)] = { index: leaving.index, slot: leaving.slot, player, from: minute, status: "ON" };
+  state.events.push(markedAt({ minute: minute + 1, side, type: "SUBSTITUTION", playerId: player.id, relatedPlayerId: leaving.player.id }));
+  return state;
 }
 
 /**

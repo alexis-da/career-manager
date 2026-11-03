@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { EXTRA_TIME_SUBSTITUTIONS, FULL_FITNESS, MAX_SUBSTITUTIONS } from "../engine/balance";
+import { EXTRA_TIME_SUBSTITUTIONS, FULL_FITNESS, HALF_TIME_MINUTE, MAX_SUBSTITUTIONS, REGULATION_MINUTES } from "../engine/balance";
 import { FORMATION_NAMES } from "../engine/formations";
 import type { MatchState, Side } from "../engine/match";
 import { POSITIONS } from "../engine/positions";
@@ -97,7 +97,10 @@ export function serializeLiveState(live: LiveState): Prisma.InputJsonValue {
   return value;
 }
 
-/** Fixture.liveState read back, validated: a malformed state is an error, never a match silently restarted. */
+/**
+ * Fixture.liveState read back, validated: a malformed state is an error, never a match silently restarted. The state
+ * comes back with the minutes it was paused at, 45 or 90.
+ */
 export function parseLiveState(fixtureId: string, value: unknown): LiveState {
   const parsed = liveStateSchema.safeParse(value);
   if (!parsed.success) {
@@ -107,5 +110,5 @@ export function parseLiveState(fixtureId: string, value: unknown): LiveState {
   if (state.phase !== "HALF_TIME" && state.phase !== "REGULATION_END") {
     throw new InvalidLiveStateError(fixtureId, new Error(`phase ${state.phase}`));
   }
-  return { managedSide, state };
+  return { managedSide, state: { ...state, played: state.phase === "HALF_TIME" ? HALF_TIME_MINUTE : REGULATION_MINUTES } };
 }
