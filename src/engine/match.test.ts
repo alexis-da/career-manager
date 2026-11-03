@@ -404,7 +404,8 @@ describe("a match in two halves", () => {
     const goals = (from: MatchState) =>
       seeds(2000, "second-halves").reduce((sum, second) => sum + secondHalf(from, second).homeGoals - from.home.goals, 0);
     expect(goals(applyAutomaticHalfTime(changed, ["away"]))).toBeLessThan(goals(applyAutomaticHalfTime(state)));
-  });
+    // 4 000 second halves: longer than the default 5 s while other files run.
+  }, 30_000);
 
   it("moves players between slots for free, and switches formation", () => {
     const { state } = intactFirstHalf("moves");
@@ -479,7 +480,8 @@ describe("a match in two halves", () => {
     const withEleven = totals(state);
     expect(withTen.scored).toBeLessThan(withEleven.scored);
     expect(withTen.conceded).toBeGreaterThan(withEleven.conceded);
-  });
+    // 4 000 second halves: longer than the default 5 s while other files run.
+  }, 30_000);
 
   it("allows five substitutions in a match, half-time ones included", () => {
     const { seed, state } = intactFirstHalf("five");
@@ -616,7 +618,8 @@ describe("a match in segments", () => {
 
     expect(ten.scored).toBeLessThan(eleven.scored);
     expect(ten.conceded).toBeGreaterThan(eleven.conceded);
-  });
+    // 12 000 segments: longer than the default 5 s while other files run.
+  }, 30_000);
 
   it("replaces an injured player at once, while substitutions remain", () => {
     let injuries = 0;
