@@ -5,11 +5,12 @@ import { WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 
 const TIE_DATE = new Date(Date.UTC(WORLD_START_YEAR, 7, 12)); // a Wednesday before the first matchday
-const OPPONENT_SLUG = "toulouse-fc";
+const OPPONENT_SLUG = "aj-auxerre";
 
 // A cup final of the managed club, stopped at half-time, then at the end of regulation time, then resumed, on a throwaway twin of the demo save (a
 // worldVersion 1 save, half as heavy as one with the cups, given a cup season and a tie by hand). With the demo's
-// seed, this tie is 1-1 after 90 minutes, 2-2 after extra time, and the managed club wins the shoot-out 5-3. Runs against
+// seed and the engine in segments, this final away at Auxerre is 1-1 after 90 minutes, 2-2 after extra time, and the
+// managed club wins the shoot-out 6-5, in sudden death. Runs against
 // DATABASE_URL and is skipped without it; modules are imported lazily because the client throws without it.
 describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the managed club", () => {
   let db: typeof prismaClient | undefined;
@@ -51,7 +52,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
     ]);
     const season = await prisma.season.create({ data: { saveId, competitionId: cup.id, startYear: WORLD_START_YEAR }, select: { id: true } });
     ({ id: fixtureId } = await prisma.fixture.create({
-      data: { saveId, seasonId: season.id, round: 6, scheduledAt: TIE_DATE, homeClubSaveId: managed.id, awayClubSaveId: opponent.id },
+      data: { saveId, seasonId: season.id, round: 6, scheduledAt: TIE_DATE, homeClubSaveId: opponent.id, awayClubSaveId: managed.id },
       select: { id: true },
     }));
 
@@ -107,12 +108,12 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
       awayGoals: 2,
       decidedBy: "PENALTIES",
       homePenalties: 5,
-      awayPenalties: 3,
+      awayPenalties: 6,
       winnerClubSaveId: clubs.managed,
     });
     expect(kicks.every((kick) => kick.type === "SHOOTOUT_GOAL" || kick.type === "SHOOTOUT_MISS")).toBe(true);
     expect(kicks.filter((kick) => kick.type === "SHOOTOUT_GOAL" && kick.side === "HOME")).toHaveLength(5);
-    expect(kicks.filter((kick) => kick.type === "SHOOTOUT_GOAL" && kick.side === "AWAY")).toHaveLength(3);
+    expect(kicks.filter((kick) => kick.type === "SHOOTOUT_GOAL" && kick.side === "AWAY")).toHaveLength(6);
     expect(kicks.every((kick) => kick.relatedPlayerSaveId !== null)).toBe(true); // the goalkeeper facing the kick
     expect(extraTime.every((event) => event.minute > REGULATION_MINUTES && event.minute <= EXTRA_TIME_END_MINUTE)).toBe(true);
     // Level after 90 minutes (1-1), then a goal each in extra time.
@@ -143,7 +144,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the manage
     expect(withCup).toBe(true);
     expect(bracket?.competitionCode).toBe("fr.cup");
     expect(bracket?.rounds.map((round) => round.ties.length)).toEqual([0, 0, 0, 0, 0, 1]);
-    expect(bracket?.rounds[5].ties[0]).toMatchObject({ played: true, decidedBy: "PENALTIES", homePenalties: 5, awayPenalties: 3 });
+    expect(bracket?.rounds[5].ties[0]).toMatchObject({ played: true, decidedBy: "PENALTIES", homePenalties: 5, awayPenalties: 6 });
     expect(bracket?.winner?.clubSaveId).toBe(clubs.managed);
     expect(bracket?.managedRun).toEqual({ firstRound: 6, lastRound: 6, status: "won" });
     expect(winner).toBe("Olympique Lyonnais");

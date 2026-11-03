@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { buildWorldPlan } from "../../prisma/seed/seed";
 import { ageInYears } from "../lib/dates";
 import { makeRng, randomInt } from "../lib/rng";
-import { HALF_TIME_MINUTE, MAX_STOPPAGE_MINUTES, MAX_SUBSTITUTIONS, REGULATION_MINUTES } from "./balance";
+import {
+  HALF_TIME_MINUTE,
+  MAX_STOPPAGE_MINUTES,
+  MAX_SUBSTITUTIONS,
+  REGULATION_MINUTES,
+  SEGMENT_MINUTES,
+} from "./balance";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "./generation";
 import { selectLineup, type Lineup, type SquadPlayer } from "./lineup";
 import {
@@ -11,19 +17,20 @@ import {
   applyHalfTimeChoice,
   automaticHalfTimeChoice,
   expectedGoals,
-  halfRngSeed,
   HalfTimeChoiceError,
   liveStrength,
   matchResult,
   nextForm,
   playerMatchStats,
-  simulateHalf,
+  playPeriod,
   simulateMatch,
+  simulateSegment,
   startMatch,
   type HalfTimeChoice,
   type MatchResult,
   type MatchState,
   type Outcome,
+  type Segment,
 } from "./match";
 import { ratingAt } from "./positions";
 import { WORLD_START_DATE } from "./world";
@@ -200,7 +207,12 @@ describe("eventsToPersist", () => {
   // A match with every kind of event: goals with and without an assist, cards, an injury, substitutions.
   const full = leagueResults.find((result) => {
     const types = new Set(result.events.map((event) => event.type));
-    return types.size === 5 && result.events.some((event) => event.type === "GOAL" && event.relatedPlayerId === undefined);
+    const goals = result.events.filter((event) => event.type === "GOAL");
+    return (
+      types.size === 5 &&
+      goals.some((event) => event.relatedPlayerId === undefined) &&
+      goals.some((event) => event.relatedPlayerId !== undefined)
+    );
   });
 
   it("keeps every event of a match of the managed club", () => {
@@ -277,9 +289,8 @@ describe("nextForm", () => {
 
 describe("a match in two halves", () => {
   const firstHalf = (seed: string): MatchState =>
-    simulateHalf(startMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc")), makeRng(halfRngSeed(seed, "h1")), "h1");
-  const secondHalf = (state: MatchState, seed: string): MatchResult =>
-    matchResult(simulateHalf(state, makeRng(halfRngSeed(seed, "h2")), "h2"));
+    playPeriod(startMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc")), seed, "h1");
+  const secondHalf = (state: MatchState, seed: string): MatchResult => matchResult(playPeriod(state, seed, "h2"));
   const seeds = (count: number, prefix: string): string[] => Array.from({ length: count }, (_, index) => `${prefix}:${index}`);
 
   /** A first half after which the home side still has its eleven, for half-time choices built by hand. */
@@ -533,3 +544,85 @@ describe("a match in two halves", () => {
     expect(refusal(startMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc")), choice)).toBe("not-half-time");
   });
 });
+
+describe("a match in segments", () => {
+  const SEGMENTS: readonly Segment[] = ["s1", "s2", "s3", "s4", "s5", "s6"];
+  const seeds = (count: number, prefix: string): string[] => Array.from({ length: count }, (_, index) => `${prefix}:${index}`);
+  const kickOff = (): MatchState => startMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc"));
+
+  it("plays six segments of 15 minutes, each from the state at its start: the very match simulateMatch plays", () => {
+    for (const seed of seeds(50, "segments")) {
+      let state = kickOff();
+      for (const [index, segment] of SEGMENTS.entries()) {
+        const before = index === 3 ? applyAutomaticHalfTime(state) : state;
+        state = simulateSegment(before, seed, segment);
+        const first = index * SEGMENT_MINUTES + 1;
+        const last = segment === "s6" ? REGULATION_MINUTES + MAX_STOPPAGE_MINUTES : (index + 1) * SEGMENT_MINUTES;
+        const minutes = state.events.slice(before.events.length).map((event) => event.minute);
+        expect(minutes.every((minute) => minute >= first && minute <= last)).toBe(true);
+        expect(state.phase).toBe(segment === "s3" ? "HALF_TIME" : segment === "s6" ? "FULL_TIME" : "IN_PLAY");
+      }
+      expect(matchResult(state)).toEqual(simulateMatch(lineupOf("liverpool-fc"), lineupOf("arsenal-fc"), seed));
+    }
+  });
+
+  it("refuses a segment out of order", () => {
+    expect(() => simulateSegment(kickOff(), "order", "s2")).toThrow();
+    expect(() => simulateSegment(playPeriod(kickOff(), "order", "h1"), "order", "s3")).toThrow();
+  });
+
+  it("counts a red card from the next segment, not from the next half: ten score less and concede more at once", () => {
+    // The 15 minutes after the first segment, from the same state, with the home side's centre midfielder sent off or not.
+    const totals = (sentOff: boolean) =>
+      seeds(3000, "next-segment").reduce(
+        (sum, seed) => {
+          const afterFirst = simulateSegment(kickOff(), seed, "s1");
+          const from: MatchState = sentOff
+            ? {
+                ...afterFirst,
+                home: {
+                  ...afterFirst.home,
+                  pitch: afterFirst.home.pitch.map((entry) => (entry.index === 7 ? { ...entry, status: "SENT_OFF" } : entry)),
+                },
+              }
+            : afterFirst;
+          const next = simulateSegment(from, seed, "s2");
+          return {
+            scored: sum.scored + next.home.goals - from.home.goals,
+            conceded: sum.conceded + next.away.goals - from.away.goals,
+          };
+        },
+        { scored: 0, conceded: 0 },
+      );
+    const ten = totals(true);
+    const eleven = totals(false);
+
+    expect(ten.scored).toBeLessThan(eleven.scored);
+    expect(ten.conceded).toBeGreaterThan(eleven.conceded);
+  });
+
+  it("replaces an injured player at once, while substitutions remain", () => {
+    let injuries = 0;
+    for (const result of leagueResults) {
+      result.events.forEach((event, index) => {
+        if (event.type !== "INJURY") {
+          return;
+        }
+        const made = result.events
+          .slice(0, index)
+          .filter((other) => other.type === "SUBSTITUTION" && other.side === event.side).length;
+        if (made < MAX_SUBSTITUTIONS) {
+          injuries++;
+          expect(result.events[index + 1]).toMatchObject({
+            minute: event.minute,
+            side: event.side,
+            type: "SUBSTITUTION",
+            relatedPlayerId: event.playerId,
+          });
+        }
+      });
+    }
+    expect(injuries).toBeGreaterThan(100);
+  });
+});
+

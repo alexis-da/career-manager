@@ -1,22 +1,16 @@
 import {
-  applyHalfTimeChoice,
-  automaticHalfTimeChoice,
   breakSubstitutionLimit,
   condition,
-  finishKnockout,
-  halfRngSeed,
   matchResult,
+  resumeMatch,
   scoreOf,
-  simulateHalf,
   type HalfTimeChoice,
   type MatchResult,
-  type MatchState,
 } from "../engine/match";
 import { formationPositions, type FormationName } from "../engine/formations";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
-import { makeRng } from "../lib/rng";
 import { recordChallengeScore } from "./challenge";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
@@ -141,11 +135,12 @@ export type ResumedMatch = {
 /**
  * Plays on the managed club's match paused at a break, in one transaction.
  * - At half-time: the manager's choice (null: the automatic changes, as an AI club makes them) and the opponent's
- *   automatic changes, then the second half with its own stream. A cup tie level after 90 minutes stops again at the
- *   end of regulation time: its second half's events and the engine state are written, the save still waits.
+ *   automatic changes, then the second half's segments (resumeMatch). A cup tie level after 90 minutes stops again at
+ *   the end of regulation time: its second half's events and the engine state are written, the save still waits.
  * - At the end of regulation time: the manager's choice only (null: no change, and the opponent never changes here, as
- *   in a cup tie played without a pause), then extra time and the shoot-out (finishKnockout).
- * The same choices always give the same match. Once over: the events not written yet, the final score, the cup tie's
+ *   in a cup tie played without a pause), then extra time and the shoot-out.
+ * The same choices always give the same match, and no choice the match played without a pause. A state paused before
+ * the segments (liveState version 1, the same shape) plays on the same way. Once over: the events not written yet, the final score, the cup tie's
  * winner, season stats, form and injuries, the cups' prizes and draws, then the live state and Save.liveFixtureId
  * are cleared. An invalid choice throws HalfTimeChoiceError and writes nothing.
  */
@@ -180,16 +175,8 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
       }
 
       const { managedSide, state: paused } = parseLiveState(fixture.id, fixture.liveState);
-      const opponentSide = managedSide === "home" ? "away" : "home";
       const matchSeed = fixtureMatchSeed(save.seed, fixture);
-      let state: MatchState;
-      if (paused.phase === "HALF_TIME") {
-        state = applyHalfTimeChoice(paused, managedSide, choice ?? automaticHalfTimeChoice(paused, managedSide));
-        state = applyHalfTimeChoice(state, opponentSide, automaticHalfTimeChoice(state, opponentSide));
-        state = simulateHalf(state, makeRng(halfRngSeed(matchSeed, "h2")), "h2");
-      } else {
-        state = choice === null ? paused : applyHalfTimeChoice(paused, managedSide, choice);
-      }
+      const state = resumeMatch(paused, managedSide, choice, matchSeed);
 
       // The clubs' current players, whose form and injuries change, and anyone of the match who has left since.
       const matchKeys = [...paused.home.pitch, ...paused.away.pitch].map((entry) => entry.player.id);
@@ -221,7 +208,6 @@ export async function resumeLiveMatch(saveId: string, choice: HalfTimeChoice | n
         return { fixtureId: fixture.id, from: paused.phase, result: null, score: scoreOf(state) };
       }
 
-      state = finishKnockout(state, matchSeed);
       const result = matchResult(state);
       await recordFinishedMatches(
         tx,

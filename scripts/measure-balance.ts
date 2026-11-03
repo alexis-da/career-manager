@@ -14,26 +14,31 @@
  */
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
-import { HOME_ADVANTAGE, POSITION_PROFILES } from "../src/engine/balance";
+import {
+  BASE_GOALS_PER_TEAM,
+  FORM_RETENTION,
+  HOME_ADVANTAGE,
+  POSITION_PROFILES,
+  STRENGTH_EXPONENT,
+} from "../src/engine/balance";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../src/engine/formations";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "../src/engine/generation";
 import { averageStarterRating, selectLineup, type Lineup, type SquadPlayer } from "../src/engine/lineup";
 import {
   applyAutomaticHalfTime,
   expectedGoals,
-  halfRngSeed,
   knockoutWinner,
   matchResult,
-  simulateHalf,
   simulateMatch,
+  simulateSegment,
   startMatch,
   teamStrength,
   type MatchResult,
   type MatchState,
+  type Segment,
   type Side,
 } from "../src/engine/match";
 import { positionGroup, ratingAt, secondaryPositions, type Position } from "../src/engine/positions";
-import { makeRng } from "../src/lib/rng";
 
 const OWNER = "test-owner-measure-engine";
 
@@ -172,30 +177,41 @@ function duel(tested: Lineup, other: Lineup, matches: number, venue: Venue = "bo
   return tally;
 }
 
-type Incident = { at: "kick-off" | "half-time"; slot: number; status: "INJURED" | "SENT_OFF" };
+const SEGMENTS: readonly Segment[] = ["s1", "s2", "s3", "s4", "s5", "s6"];
 
-/** The tested side loses a player: his slot is empty from there on, until half-time for an injured one. */
-function withIncident(state: MatchState, side: Side, { slot, status }: Incident): MatchState {
-  return {
-    ...state,
-    [side]: { ...state[side], pitch: state[side].pitch.map((entry) => (entry.index === slot ? { ...entry, status } : entry)) },
-  };
+/** Plays a match segment by segment, as simulateMatch does, with a change to the state before each segment. */
+function segmentBySegment(
+  home: Lineup,
+  away: Lineup,
+  before: (state: MatchState, segment: Segment) => MatchState,
+  seed: string,
+): MatchResult {
+  let state = startMatch(home, away);
+  for (const segment of SEGMENTS) {
+    state = simulateSegment(before(segment === "s4" ? applyAutomaticHalfTime(state) : state, segment), seed, segment);
+  }
+  return matchResult(state);
 }
 
-/**
- * A match where the tested team loses a player at kick-off or at half-time. The engine draws a period's goals at its
- * start: a player lost during the first half weighs on the second only, one lost during the second on nothing, as a
- * player lost at half-time does here.
- */
-const matchWithIncident =
-  (incident: Incident): Play =>
-  (home, away, seed, tested) => {
-    const start = startMatch(home, away);
-    const atKickOff = incident.at === "kick-off" ? withIncident(start, tested, incident) : start;
-    const first = simulateHalf(atKickOff, makeRng(halfRngSeed(seed, "h1")), "h1");
-    const atBreak = incident.at === "half-time" ? withIncident(first, tested, incident) : first;
-    return matchResult(simulateHalf(applyAutomaticHalfTime(atBreak), makeRng(halfRngSeed(seed, "h2")), "h2"));
-  };
+/** The tested side's player of a slot sent off when a segment starts: his slot is empty from there on. */
+const matchWithRedCard =
+  (segment: Segment, slot: number): Play =>
+  (home, away, seed, tested) =>
+    segmentBySegment(
+      home,
+      away,
+      (state, current) =>
+        current !== segment
+          ? state
+          : {
+              ...state,
+              [tested]: {
+                ...state[tested],
+                pitch: state[tested].pitch.map((entry) => (entry.index === slot ? { ...entry, status: "SENT_OFF" } : entry)),
+              },
+            },
+      seed,
+    );
 
 // ------------------------------------------------------------------ Engine report
 
@@ -344,20 +360,19 @@ function factorTables(options: Options, sections: string[]): void {
     { label: "GK, substitute 10 points below", team: replaced(SLOT.GK, 10) },
   ]);
 
-  const incident = (at: Incident["at"], slot: number, status: Incident["status"]): Play => matchWithIncident({ at, slot, status });
-  report("### Injured or sent off during a match: the slot empties when the period starts", [
-    { label: "injured ST before kick-off, replaced at half-time", play: incident("kick-off", SLOT.ST, "INJURED") },
-    { label: "injured CM before kick-off, replaced at half-time", play: incident("kick-off", SLOT.CM, "INJURED") },
-    { label: "injured ST in the first half, replaced at half-time", play: incident("half-time", SLOT.ST, "INJURED") },
-    { label: "injured GK in the first half, replaced at half-time", play: incident("half-time", SLOT.GK, "INJURED") },
-    { label: "red card before kick-off, CM: 90 minutes at ten", play: incident("kick-off", SLOT.CM, "SENT_OFF") },
-    { label: "red card before kick-off, ST", play: incident("kick-off", SLOT.ST, "SENT_OFF") },
-    { label: "red card before kick-off, CB", play: incident("kick-off", SLOT.CB, "SENT_OFF") },
-    { label: "red card in the first half, CM: second half at ten", play: incident("half-time", SLOT.CM, "SENT_OFF") },
-    { label: "red card in the first half, ST", play: incident("half-time", SLOT.ST, "SENT_OFF") },
-    { label: "red card in the first half, CB", play: incident("half-time", SLOT.CB, "SENT_OFF") },
-    { label: "red card in the first half, GK", play: incident("half-time", SLOT.GK, "SENT_OFF") },
+  // An injured player is replaced at once by the engine: the table above weighs his substitute.
+  report("### Sent off during a match: ten from the next segment on", [
+    { label: "red card before kick-off, CM: 90 minutes at ten", play: matchWithRedCard("s1", SLOT.CM) },
+    { label: "red card before kick-off, ST", play: matchWithRedCard("s1", SLOT.ST) },
+    { label: "red card before kick-off, CB", play: matchWithRedCard("s1", SLOT.CB) },
+    { label: "red card in the first 15 minutes, CM: 75 minutes at ten", play: matchWithRedCard("s2", SLOT.CM) },
+    { label: "red card in the first half, CM: second half at ten", play: matchWithRedCard("s4", SLOT.CM) },
+    { label: "red card in the first half, ST", play: matchWithRedCard("s4", SLOT.ST) },
+    { label: "red card in the first half, CB", play: matchWithRedCard("s4", SLOT.CB) },
+    { label: "red card in the first half, GK", play: matchWithRedCard("s4", SLOT.GK) },
+    { label: "red card before the 75th minute, CM: last 15 minutes at ten", play: matchWithRedCard("s6", SLOT.CM) },
   ]);
+
 
   const formationCases: Case[] = FORMATION_NAMES.map((formation) => ({
     label: formation,
@@ -736,7 +751,9 @@ async function main(): Promise<void> {
   const options = parseOptions(process.argv.slice(2));
   const started = performance.now();
   const sections: string[] = [
-    `Home advantage ${HOME_ADVANTAGE}. ${options.matches} matches a case: a share is good to about ±${fixed(
+    `Base ${BASE_GOALS_PER_TEAM} goals, exponent ${STRENGTH_EXPONENT}, home advantage ${HOME_ADVANTAGE}, form retention ${FORM_RETENTION}. ${
+      options.matches
+    } matches a case: a share is good to about ±${fixed(
       100 * 1.96 * Math.sqrt(0.25 / options.matches),
     )} points, a difference between two cases much closer, on the same seeds.`,
   ];

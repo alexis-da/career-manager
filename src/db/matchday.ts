@@ -3,13 +3,12 @@ import { autoFilledSlots, resolveLineup, selectLineup, type Lineup, type SquadPl
 import {
   cupMatchRngSeed,
   eventsToPersist,
-  halfRngSeed,
   knockoutWinner,
   matchRngSeed,
   nextForm,
   outcomeFor,
   playerMatchStats,
-  simulateHalf,
+  playPeriod,
   simulateMatch,
   startMatch,
   type MatchEvent,
@@ -19,7 +18,6 @@ import {
 } from "../engine/match";
 import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
-import { makeRng } from "../lib/rng";
 import { recordChallengeScore } from "./challenge";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
@@ -388,7 +386,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         const knockout = isKnockout(fixture.season);
 
         if (managedSide !== null && options.pauseManagedMatch === true) {
-          const halfTime = simulateHalf(startMatch(home.lineup, away.lineup, formations, knockout), makeRng(halfRngSeed(matchSeed, "h1")), "h1");
+          const halfTime = playPeriod(startMatch(home.lineup, away.lineup, formations, knockout), matchSeed, "h1");
           const homeHalfTimeGoals = halfTime.home.goals;
           const awayHalfTimeGoals = halfTime.away.goals;
           const updated = await tx.fixture.updateMany({

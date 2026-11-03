@@ -21,7 +21,7 @@ const PRELIMINARY_TIES: Record<string, number> = { "de.cup": 4, "en.cup": 12, "e
  * matches. The cups change nothing before their first tie (later, their matches change form, fitness and injuries, so
  * the league goes its own way).
  */
-const LEAGUE_DIGEST_BEFORE_CUP = "f1954ddac70bce34b4632a03134ba9ef028e8495b7b070caf7a97e5b793ec513";
+const LEAGUE_DIGEST_BEFORE_CUP = "72a635e629bd26c923d4ab69b2520804e8b285f2d84d49b887e25001d4ccb282";
 
 /** Clubs of each competition of a worldVersion 2 save: they never change, promotions and relegations included. */
 const DIVISION_SIZES: Record<string, number> = {

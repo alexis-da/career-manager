@@ -310,8 +310,14 @@ export const ASSIST_SLOT_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK
 export const REGULATION_MINUTES = 90;
 
 /**
- * Last minute of the first half. Each half gets half of the expected goals, cards and injuries; stoppage time
- * only follows the second half. Half-time changes are dated the minute after.
+ * The engine's unit of play, in minutes: six segments make regular time, one makes each period of extra time. Each gets
+ * its share of the expected goals, cards and injuries, from the strengths at its start.
+ */
+export const SEGMENT_MINUTES = 15;
+
+/**
+ * Last minute of the first half, after three segments; half-time changes are dated the minute after. Stoppage time only
+ * follows the last segment of the second half.
  */
 export const HALF_TIME_MINUTE = 45;
 
@@ -338,7 +344,7 @@ export const MAX_SUBSTITUTIONS = 5;
 
 /**
  * Tactical substitutions each team plans in the second half, within this minute range, while substitutions remain.
- * A player injured in the first half is replaced at half-time, one injured in the second half at once.
+ * An injured player is replaced at once.
  */
 export const SUBSTITUTIONS_PER_TEAM = 3;
 export const SUBSTITUTION_MINUTE_MIN = 55;

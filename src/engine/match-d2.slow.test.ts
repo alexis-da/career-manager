@@ -100,5 +100,6 @@ describe("second division calibration", () => {
     }
 
     expect(wins / MATCH_COUNT).toBeGreaterThan(0.55);
-  });
+    // 10 000 matches in segments: longer than the default 5 s.
+  }, 30_000);
 });

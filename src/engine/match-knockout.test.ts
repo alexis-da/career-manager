@@ -11,13 +11,12 @@ import {
   breakSubstitutionLimit,
   cupMatchRngSeed,
   finishKnockout,
-  halfRngSeed,
   HalfTimeChoiceError,
   knockoutWinner,
   matchResult,
   matchRngSeed,
+  playPeriod,
   shootoutChance,
-  simulateHalf,
   simulateMatch,
   startMatch,
   type MatchResult,
@@ -133,8 +132,8 @@ describe("knockout matches", () => {
     // The first seed of the 400 whose tie is level after 90 minutes, played as the live match plays it.
     const index = results.findIndex((result) => result.decidedBy !== "REGULATION");
     const seed = `knockout-test:${index}`;
-    const halfTime = simulateHalf(startMatch(HOME, AWAY, undefined, true), makeRng(halfRngSeed(seed, "h1")), "h1");
-    const regulationEnd = simulateHalf(applyAutomaticHalfTime(halfTime), makeRng(halfRngSeed(seed, "h2")), "h2");
+    const halfTime = playPeriod(startMatch(HOME, AWAY, undefined, true), seed, "h1");
+    const regulationEnd = playPeriod(applyAutomaticHalfTime(halfTime), seed, "h2");
     expect(regulationEnd.phase).toBe("REGULATION_END");
     expect(breakSubstitutionLimit(halfTime)).toBe(MAX_SUBSTITUTIONS);
     expect(breakSubstitutionLimit(regulationEnd)).toBe(MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS);

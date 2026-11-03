@@ -11,8 +11,8 @@ import { competitionTier } from "./tiers";
 import { firstMatchdayDate, WORLD_START_DATE } from "./world";
 
 // A whole league matchday of the real world (round 1 of the ten competitions, 99 matches), every event and score
-// reduced to a digest. Pinned before the cup's extra time and shoot-out: a league match must stay exactly the same,
-// draw for draw, whatever the knockout matches add after the 90th minute.
+// reduced to a digest. Pinned with the engine in segments of gameplay v1 (G1, docs/design/gameplay-v1.md): a league match
+// must stay exactly the same, draw for draw, until a change of the engine means to change it, and pins it again.
 const SAVE_SEED = "match-fingerprint";
 
 const lineups = new Map<string, Lineup>();
@@ -48,7 +48,7 @@ const lineupOf = (slug: string): Lineup => {
 };
 
 describe("league match fingerprint", () => {
-  it("plays a league matchday exactly as before the cup", () => {
+  it("plays a league matchday exactly as pinned", () => {
     const results = plan.flatMap(({ competition, clubs }) =>
       generateBalancedSchedule(
         clubs.map((club) => club.slug).sort(),
@@ -65,6 +65,6 @@ describe("league match fingerprint", () => {
     );
 
     expect(results).toHaveLength(99);
-    expect(createHash("sha256").update(JSON.stringify(results)).digest("hex")).toBe("b94ef8f432d6ee55a6659631260b13c3fc51d0ddf1a3095fd67146251881e593");
+    expect(createHash("sha256").update(JSON.stringify(results)).digest("hex")).toBe("12efd222de70cadf2fa3a92a25c2c4681368a188ebded567190ca343c8e5355f");
   });
 });
