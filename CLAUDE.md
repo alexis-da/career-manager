@@ -22,7 +22,7 @@ npx prisma studio      # inspecter la base
 npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
-npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs et consignes, saisons d'une partie 2 (base locale seulement)
+npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes et fatigue, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2 (base locale seulement)
 ```
 
@@ -82,9 +82,20 @@ les clubs, le club dirigé compris tant que le direct ne les propose pas (G5) ; 
 `Fixture.liveState` reste en version 1 : un direct en pause reprend avec les segments (`resumeMatch`), et simuler ou
 regarder sans choix du joueur donnent le même match (`src/db/live-state.test.ts`). Détails : skill `moteur-de-match`.
 
+**Fatigue (gameplay v1, G2).** `PlayerSave.fitness` (0–100, affichée « Condition » / « Fitness ») pèse sur la part de
+chaque joueur (× 1 − 0,003 × (100 − fitness)), lue au début de chaque segment ; un joueur sur le terrain perd 5 points par
+segment (1,5 pour le gardien), garde sa fitness de fin de match (`recordFinishedMatches`) et chacun récupère 5 points par
+jour jusqu'à 100, appliqués par `playNextMatchday` au changement de date (`recoveredFitness`, `src/engine/fitness.ts`) ;
+sous 70, son risque de blessure croît. Les clubs IA sortent le titulaire le plus fatigué aux minutes de changement et mettent
+au repos un joueur sous 75 quand un reposé vaut au plus 5 points de moins à son poste (`selectRestedLineup`) ; le club dirigé
+garde sa composition. L'état du direct garde la fitness de chaque joueur (100 pour une pause d'avant). Les écrans montrent
+la fitness au coup d'envoi du prochain match du club (`fitnessAtKickOff`, `src/db/fitness-view.ts`), le panneau Coaching
+celle de la reprise ; vert dès 90, ambre sous 75, rouge sous 70 (`app/saves/[id]/_lib/fitness.ts`). Le moral reste dans le
+moteur, neutre, et n'est affiché nulle part.
+
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
-première division vérifiée après chaque changement (2,64 buts, 44 % à domicile, 24 % de nuls, Bayern-Monza ~80 %,
+première division vérifiée après chaque changement (2,65 buts, 44 % à domicile, 24 % de nuls, Bayern-Monza ~80 %,
 `match.test.ts`) ; celle de deuxième est épinglée dans `match-d2.slow.test.ts`, les deux sur une saison avec forme dans
 `match-season.test.ts`. Jeunes : réputation et note lues dans
 la plage de la division du club (`YOUTH_OVERALL_BY_TIER`). Un club IA au-dessus de sa masse salariale vend en
@@ -254,8 +265,8 @@ parcours et les tours. Aucun bouton orange plein sur ces écrans : l'action de j
 sur téléphone. `e2e/match.spec.ts` les couvre à 1280, 390 et 360 px.
 
 **Match en direct.** `/live` rejoue un match déjà simulé jusqu'à sa prochaine pause (`LiveMatch`) : rien ne s'y change hors
-des pauses, mi-temps et fin du temps réglementaire d'une coupe nulle. Le moteur n'a ni fatigue, ni possession, ni tirs, et
-ses consignes suivent la règle de l'adjoint, sans choix du joueur : l'écran n'en montre pas. Carte du score sur le bleu
+des pauses, mi-temps et fin du temps réglementaire d'une coupe nulle. Le moteur n'a ni possession ni tirs, et ses
+consignes suivent la règle de l'adjoint, sans choix du joueur : l'écran n'en montre pas. Carte du score sur le bleu
 vif (`LiveScoreCard` : compétition, journée, date, stade s'il
 est connu, `Club.stadium` étant vide pour les 198 clubs ; score, minute en orange, barre de progression, pastille du
 résultat à la fin). Commandes (`LiveControls`, `live-controls`, un seul élément : dans la carte à partir de 1024 px, fixées
@@ -274,9 +285,10 @@ arrivent sous le pouce, et un double appui reprendrait le match pour de bon. `e2
 390 et 360 px.
 
 **Équipe.** Effectif (`/squad`, `SquadTable`) : sous 1024 px, des cartes, une seule table en DOM : tuile note et poste, âge,
-nationalité, jauge de forme, états (`PlayerBadges`), les trois tris rapides à la place de l'en-tête ; au-dessus, le tableau,
-ses colonnes suivant sa place (`@container` : sans Pot. ni Salaire sous 928 px, sans Valeur ni Contrat sous 672 px, à côté de
-la fiche). Le jeu n'a pas de suspension : aucun état « suspendu ». Composition (`/lineup`, `LineupEditor`, `LineupSquad`) :
+nationalité, jauge de forme, condition (cœur et chiffre, aucune pour un blessé), états (`PlayerBadges`), les trois tris
+rapides à la place de l'en-tête ; au-dessus, le tableau, ses colonnes suivant sa place (`@container` : sans Pot. ni Salaire
+sous 928 px, sans Valeur, Contrat ni Condition sous 672 px, à côté de la fiche ; la Condition, triable, a un cœur pour
+en-tête). Le jeu n'a pas de suspension : aucun état « suspendu ». Composition (`/lineup`, `LineupEditor`, `LineupSquad`) :
 sous 1024 px, terrain, résumé, banc, puis la liste ; de 1024 à 1279 px, l'effectif compact à gauche du terrain et la fiche en
 surimpression ; à partir de 1280 px, l'effectif, le terrain et la fiche sur une page, `pinned`, jamais vide : le titulaire du
 poste sélectionné, sinon le dernier joueur choisi, sinon le mieux noté (`pinnedSheetKey`). Un clic sur un poste le

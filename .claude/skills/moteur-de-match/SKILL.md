@@ -94,9 +94,9 @@ changement compte donc dès le segment suivant.
   `resumeLiveMatch` reprend par `resumeMatch(paused, managedSide, choice, matchSeed)` : sans changement, le résultat
   est exactement celui d'un match joué d'une traite, y compris depuis un état stocké avant les segments
   (`src/db/live-state.test.ts`, deux états v1 dans `src/db/data/`).
-- Calibration (G1, `npm run measure:balance`, trois saisons complètes du monde 2) : base 1,14, exposant 2,4, domicile
-  1,12 → 2,65 buts par match, 44 % de victoires à domicile, 25 % de nuls, 55 points entre le premier et le dernier, 23 %
-  de victoires du plus faible (≥ 1 point d'écart). Épinglée à forme 50 dans `match.test.ts` (premières divisions :
+- Calibration (G1, `npm run measure:balance`, trois saisons complètes du monde 2) : base 1,14 (1,16 depuis la fatigue, G2),
+  exposant 2,4, domicile 1,12 → 2,65 buts par match, 44 % de victoires à domicile, 25 % de nuls, 55 points entre le
+  premier et le dernier, 23 % de victoires du plus faible (≥ 1 point d'écart). Épinglée à forme 50 dans `match.test.ts` (premières divisions :
   2,5–2,8 buts, 42–46 % à domicile, 23–27 % de nuls, Bayern-Monza au-dessus de 75 %) et sur une saison avec forme et
   blessures dans `match-season.test.ts` (les cibles du cahier).
 - Forme (`nextForm`) : résultat ±2, but +1,5, passe +1, rouge −3 pour un joueur qui a joué, 1 point vers 50 sinon ;
@@ -110,6 +110,35 @@ mémoire : il ne change ni tirage ni score. Une saison passe de 23 600 à 5 800 
 
 Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 % de victoires à domicile, Bayern-Monza
 82,9 % inchangé.
+
+## Fatigue (G2)
+
+`src/engine/fitness.ts`, pur ; constantes dans `balance.ts` (section Fatigue). `SquadPlayer.fitness` (0–100,
+`FULL_FITNESS` reposé) : `PlayerSave.fitness` à la date du match.
+
+- Force : `teamStrength` multiplie la part de chaque joueur par `fitnessFactor` (1 − `STRENGTH_PER_FITNESS_POINT` 0,003
+  × (100 − fitness) : 0,91 à 70). Pendant le match, `fitnessAt(entry, minute)` = fitness au coup d'envoi moins ce que ses
+  minutes depuis `entry.from` lui ont coûté (`fitnessAfter` : `FITNESS_LOSS_PER_SEGMENT` 5 par 15 minutes,
+  `GOALKEEPER_FITNESS_LOSS_PER_SEGMENT` 1,5 au slot GK) ; `liveStrength(team, minute)` et `stateExpectedGoals(…, minute)`
+  la lisent au début de chaque segment. Un remplaçant entre avec la sienne : frais s'il n'a pas joué.
+- Blessures : sous `INJURY_RISK_FITNESS` (70), × (1 + (70 − fitness) / 30) (`injuryRiskFactor`) ; le nombre de blessures
+  d'un côté suit la moyenne de ses joueurs au début du segment, le blessé est tiré selon ce facteur à sa minute.
+- Changements : au changement tactique, le titulaire de champ le plus fatigué sort (`mostTiredStarter` ; à égalité, le
+  plus faible à son poste, comme avant) ; les minutes gardent leur flux `…:substitutions:side`. Le remplaçant est le
+  meilleur `ratingAt` × `fitnessFactor` au poste.
+- Après le match : `fitnessAfterMatch(fitness, apparitions)` (minutes hors arrêts de jeu : 30 de moins pour un match
+  entier), écrite par `recordFinishedMatches` ; un joueur qui n'a pas joué garde la sienne.
+- Récupération : `recoveredFitness(fitness, jours)`, `FITNESS_RECOVERY_PER_DAY` 5 jusqu'à 100 ; `playNextMatchday` l'applique
+  à tous les joueurs de la partie, en une requête, pour les jours depuis `Save.currentDate`. Cibles du cahier : 85 au 2e match
+  d'une semaine à deux matchs, 75 au 3e de trois matchs en 8 jours, frais six jours après un match entier
+  (`fitness.test.ts`). La présaison remet tout le monde à 100.
+- Clubs IA : `selectRestedLineup` (`lineup.ts`) : un joueur sous `ROTATION_FITNESS` (75) laisse sa place au meilleur
+  reposé valant au plus `ROTATION_MAX_RATING_GAP` (5) de moins au poste ; le club dirigé garde `resolveLineup`.
+- Direct : la fitness au coup d'envoi est dans l'état stocké (`live-state.ts`, 100 par défaut pour une pause d'avant G2) ;
+  le test des 600 matchs de `live-state.test.ts`, joueurs de 55 à 100, prouve simuler = regarder.
+- Calibration : base 1,16 (1,14 sans fatigue : le gardien se fatiguant moins, la défense baisse moins que l'attaque).
+  Saisons du monde 2 : titulaires IA à 96,8 de fitness en moyenne au coup d'envoi, 0,7 % sous 75, 2,6 joueurs mis au repos par
+  club et par saison ; un onze à 85 perd 0,20 point par match, à 75 0,34, un remplaçant frais à la 60e rapporte 0,01.
 
 ## Matchs à élimination : prolongation et tirs au but
 
