@@ -33,6 +33,7 @@ import {
   KNOCK_SHARE,
   MAX_EXPECTED_GOALS,
   MAX_STOPPAGE_MINUTES,
+  MAX_SUBSTITUTION_WINDOWS,
   MAX_SUBSTITUTIONS,
   OTHER_MATCH_EVENT_TYPES,
   OWN_GOALS_WITH_CHOICE_EVENTS,
@@ -185,14 +186,21 @@ export type TeamLive = {
   substitutions: number; // made so far, at most MAX_SUBSTITUTIONS
   booked: string[]; // players with a yellow card
   goals: number;
+  // Minutes it made a tactical substitution at during play, each one of its windows (MAX_SUBSTITUTION_WINDOWS); absent
+  // before the first.
+  windows?: number[];
+  // Its manager makes its substitutions himself since he made one in a live match: no tactical one is drawn for it any
+  // more. An injured player is still replaced at once.
+  manual?: true;
 };
 
 /** An incident a choice event has set for later: a named player sent off, or injured for some days, at a minute. */
 export type ScheduledIncident = { minute: number; side: Side; kind: "RED_CARD" | "INJURY"; playerId: string; days: number };
 
 /**
- * What choice events leave on a match for the segments that follow: a side's expected goals multiplied in the next
- * segment, a side's instruction for the rest of regular time, incidents set for later.
+ * What choice events and managers leave on a match for the segments that follow: a side's expected goals multiplied in
+ * the next segment, a side's instruction for the rest of the period of play it was given in (regular time, or extra time),
+ * incidents set for later.
  */
 export type MatchModifiers = {
   goals: Partial<Record<Side, number>>;
@@ -219,7 +227,10 @@ export type MatchState = {
   modifiers?: MatchModifiers;
 };
 
-/** A team's half-time decisions: its formation, who plays in which slot, and the substitutions made. */
+/**
+ * A team's changes at a pause of its match, half-time first of all, hence the name: its formation, who plays in which
+ * slot, and the substitutions made.
+ */
 export type HalfTimeChoice = {
   formation: FormationName;
   starters: { slot: number; playerKey: string }[];
@@ -227,8 +238,9 @@ export type HalfTimeChoice = {
 };
 
 export type HalfTimeChoiceIssue =
-  | "not-half-time"
+  | "not-half-time" // the match waits at no pause
   | "too-many-substitutions"
+  | "no-window" // substitutions during play, the side's windows all used
   | "unknown-player-off" // the player going off is neither on the pitch nor injured in this match
   | "sent-off-player" // a sent-off player is never replaced and never plays again
   | "unknown-substitute" // the player coming on is not on the bench: not a substitute, or already went off
@@ -401,6 +413,30 @@ export function assistantInstruction(state: MatchState, side: Side, played: numb
   }
   return "BALANCED";
 }
+
+/**
+ * A side's instruction given at a pause, by its manager or a choice event: it holds for the rest of the period of play it
+ * was given in, regular time or extra time, whatever the score does, until another one is given.
+ */
+export function giveInstruction(state: MatchState, side: Side, instruction: Instruction): MatchState {
+  const modifiers = state.modifiers ?? { goals: {}, instructions: {}, scheduled: [] };
+  return { ...state, modifiers: { ...modifiers, instructions: { ...modifiers.instructions, [side]: instruction } } };
+}
+
+/** The instruction a side plays its next segment with: the one given for the period of play, or its assistant's. */
+export function instructionAt(state: MatchState, side: Side): Instruction {
+  return state.modifiers?.instructions[side] ?? assistantInstruction(state, side, state.played);
+}
+
+/** Whether a side may make a tactical substitution at a minute of play: a window left, or one already open then. */
+export function windowOpenAt(team: TeamLive, minute: number): boolean {
+  const windows = team.windows ?? [];
+  return windows.includes(minute) || windows.length < MAX_SUBSTITUTION_WINDOWS;
+}
+
+/** A side's windows once it has made a tactical substitution at a minute of play. */
+const withWindow = (windows: readonly number[] = [], minute: number): number[] =>
+  windows.includes(minute) ? [...windows] : [...windows, minute];
 
 /**
  * Expected goals of each side over 90 minutes as the match stands at a minute: the strengths of the players on the
@@ -633,10 +669,10 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
   const lastMinute = segment === "s6" ? REGULATION_MINUTES + randomInt(rng, 0, MAX_STOPPAGE_MINUTES) : last;
   const played = first - 1;
   const modifiers = state.modifiers;
-  // A side's instruction: the one given, else the one a choice event set for the rest of regular time, else its
-  // assistant's.
+  // A side's instruction: the one given for the whole match, else the one its manager or a choice event gave for the
+  // period of play, else its assistant's.
   const instructionOf = (side: Side): Instruction =>
-    instructions[side] ?? (extraTime ? undefined : modifiers?.instructions[side]) ?? assistantInstruction(state, side, played);
+    instructions[side] ?? modifiers?.instructions[side] ?? assistantInstruction(state, side, played);
   const expected = stateExpectedGoals(state, { home: instructionOf("home"), away: instructionOf("away") }, played);
   // The mean of the injury risks of a side's players on the pitch: 1 while all of them are fit enough.
   const injuryRisk = (side: Side): number => {
@@ -778,11 +814,16 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
         break;
       }
       case "SUBSTITUTION": {
+        // A side whose manager makes his own substitutions gets none of its assistant's.
+        if (team.manual === true) {
+          break;
+        }
         const leaving =
           team.substitutions < substitutionLimit && team.bench.length > 0 ? mostTiredStarter(onPitch(team), minute) : undefined;
         if (leaving !== undefined) {
           state.appearances.push(toAppearance(leaving, side, minute, lastCounted));
           substitute(side, leaving, minute);
+          team.windows = withWindow(team.windows, minute);
         }
         break;
       }
@@ -791,7 +832,7 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
 
   state.played = last;
   if (modifiers !== undefined) {
-    // A choice event's goals count for one segment, its instruction for the rest of regular time.
+    // A choice event's goals count for one segment, an instruction for the rest of its period of play.
     state.modifiers = {
       goals: {},
       instructions: segment === "s6" ? {} : modifiers.instructions,
@@ -870,12 +911,15 @@ export function sentOffSlots(team: TeamLive): Set<number> {
 }
 
 /**
- * Substitutions a team may have made by the end of a break: MAX_SUBSTITUTIONS at half-time, one more
- * (EXTRA_TIME_SUBSTITUTIONS) at the end of regulation time before extra time.
+ * Substitutions a team may have made by the end of a pause: MAX_SUBSTITUTIONS in regular time, one more
+ * (EXTRA_TIME_SUBSTITUTIONS) from the end of regulation time before extra time.
  */
 export function breakSubstitutionLimit(state: MatchState): number {
-  return state.phase === "REGULATION_END" ? MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS : MAX_SUBSTITUTIONS;
+  return state.played >= REGULATION_MINUTES ? MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS : MAX_SUBSTITUTIONS;
 }
+
+/** The phases a match waits at for its manager: between two segments, at half-time, and the breaks of a cup tie. */
+const PAUSE_PHASES: readonly MatchPhase[] = ["IN_PLAY", "HALF_TIME", "REGULATION_END", "EXTRA_TIME_BREAK"];
 
 /**
  * The half-time changes of a club that does not choose: each player injured in the first half is replaced, in
@@ -903,24 +947,31 @@ export function automaticHalfTimeChoice(state: MatchState, side: Side): HalfTime
 }
 
 /**
- * Applies a team's choice at a break, half-time or the end of regulation time before extra time: the
- * substitutions, dated the minute after the break (46', or 91' in extra time), the players going off leaving at the
- * break (an injured one already left), then the formation and slots, moving players between slots being free.
- * Refused with a HalfTimeChoiceError when the choice breaks a rule: at most breakSubstitutionLimit in the match, a
- * player who went off never comes back, a sent-off player is not replaced and his slot stays empty, the eleven is
- * exactly the players on the pitch after the substitutions, and no slot stays empty while a substitution and a
- * substitute remain.
+ * Applies a team's choice at a pause: half-time, the end of regulation time before extra time, the break of extra time,
+ * or between two segments of play. The substitutions are dated the minute after the pause (46', 61', 91' in extra
+ * time…), the players going off leaving at the pause (an injured one already left), then the formation and slots, moving
+ * players between slots being free. Refused with a HalfTimeChoiceError when the choice breaks a rule: at most
+ * breakSubstitutionLimit in the match, substitutions during play only in a window (MAX_SUBSTITUTION_WINDOWS, the pause
+ * then becoming one), a player who went off never comes back, a sent-off player is not replaced and his slot stays empty,
+ * the eleven is exactly the players on the pitch after the substitutions, and no slot stays empty while a substitution and
+ * a substitute remain. A player who plays on after a knock stays hurt.
  */
 export function applyHalfTimeChoice(start: MatchState, side: Side, choice: HalfTimeChoice): MatchState {
-  const regulationEnd = start.phase === "REGULATION_END";
-  if (start.phase !== "HALF_TIME" && !regulationEnd) {
+  if (!PAUSE_PHASES.includes(start.phase)) {
     throw new HalfTimeChoiceError("not-half-time");
   }
   const limit = breakSubstitutionLimit(start);
-  const breakMinute = regulationEnd ? REGULATION_MINUTES : HALF_TIME_MINUTE;
+  const breakMinute = start.played;
+  const kickOff = breakMinute + 1;
   const team = start[side];
+  // During play, a substitution needs a window; the breaks need none.
+  const inPlay = start.phase === "IN_PLAY";
+  const canSubstitute = !inPlay || windowOpenAt(team, kickOff);
   if (team.substitutions + choice.substitutions.length > limit) {
     throw new HalfTimeChoiceError("too-many-substitutions");
+  }
+  if (choice.substitutions.length > 0 && !canSubstitute) {
+    throw new HalfTimeChoiceError("no-window");
   }
 
   const entryOf = new Map(team.pitch.map((entry) => [entry.player.id, entry]));
@@ -980,19 +1031,18 @@ export function applyHalfTimeChoice(start: MatchState, side: Side, choice: HalfT
   }
   const substitutionsLeft = limit - team.substitutions - choice.substitutions.length;
   const substitutesLeft = team.bench.length - comingOn.size;
-  if (placed.size < positions.length - barred.size && substitutionsLeft > 0 && substitutesLeft > 0) {
+  if (placed.size < positions.length - barred.size && substitutionsLeft > 0 && substitutesLeft > 0 && canSubstitute) {
     throw new HalfTimeChoiceError("incomplete-lineup");
   }
 
   const state = cloneState(start);
-  const kickOff = breakMinute + 1;
+  const lastCounted = breakMinute >= REGULATION_MINUTES ? EXTRA_TIME_END_MINUTE : REGULATION_MINUTES;
   for (const substitution of choice.substitutions) {
     const leaving = entryOf.get(substitution.out);
     if (leaving?.status === "ON") {
-      state.appearances.push(toAppearance(leaving, side, breakMinute));
+      state.appearances.push(toAppearance(leaving, side, breakMinute, lastCounted));
     }
-    const event: MatchEvent = { minute: kickOff, side, type: "SUBSTITUTION", playerId: substitution.in, relatedPlayerId: substitution.out };
-    state.events.push(regulationEnd ? { ...event, period: "EXTRA_TIME" } : event);
+    state.events.push(markedAt({ minute: kickOff, side, type: "SUBSTITUTION", playerId: substitution.in, relatedPlayerId: substitution.out }));
   }
 
   const pitch: PitchEntry[] = team.pitch
@@ -1006,7 +1056,8 @@ export function applyHalfTimeChoice(start: MatchState, side: Side, choice: HalfT
       throw new HalfTimeChoiceError("lineup-mismatch"); // unreachable: every placed player is playing
     }
     const from = comingOn.has(playerKey) ? breakMinute : (current?.from ?? 0);
-    pitch.push({ index: slot, slot: positions[slot], player, from, status: "ON" });
+    const hurt = !comingOn.has(playerKey) && current?.hurt === true;
+    pitch.push({ index: slot, slot: positions[slot], player, from, status: "ON", ...(hurt ? { hurt: true as const } : {}) });
   }
   pitch.sort((a, b) => a.index - b.index);
 
@@ -1016,8 +1067,18 @@ export function applyHalfTimeChoice(start: MatchState, side: Side, choice: HalfT
     pitch,
     bench: team.bench.filter((player) => !comingOn.has(player.id)),
     substitutions: team.substitutions + choice.substitutions.length,
+    ...(inPlay && choice.substitutions.length > 0 ? { windows: withWindow(team.windows, kickOff) } : {}),
   };
   return state;
+}
+
+/**
+ * A manager's own changes at a pause, as applyHalfTimeChoice applies them: from his first substitution on, his side's
+ * substitutions are his, none drawn for it any more.
+ */
+export function applyManagerChoice(start: MatchState, side: Side, choice: HalfTimeChoice): MatchState {
+  const state = applyHalfTimeChoice(start, side, choice);
+  return choice.substitutions.length === 0 || state[side].manual === true ? state : { ...state, [side]: { ...state[side], manual: true } };
 }
 
 /** Goals of each side so far. */
@@ -1245,10 +1306,18 @@ export function bookingAt(start: MatchState, side: Side, playerId: string, minut
   return state;
 }
 
+/** The substitute a pause's substitution of a player on the pitch brings on, as substitutionAt makes it, if any is left. */
+export function replacementFor(state: MatchState, side: Side, playerId: string): SquadPlayer | undefined {
+  const team = state[side];
+  const leaving = onPitch(team).find((entry) => entry.player.id === playerId);
+  return leaving === undefined || team.bench.length === 0 ? undefined : team.bench[replacementIndex(team.bench, leaving.slot)];
+}
+
 /**
  * A substitution a manager makes at a pause between two segments, a choice event's: the player goes off at that minute,
- * the substitute rated best in his slot comes on, the change dated the minute after, as a half-time one. Throws when
- * the side has no substitution or no substitute left: an event only offers it when one is.
+ * the substitute rated best in his slot comes on (replacementFor), the change dated the minute after, as a half-time
+ * one, in one of the side's windows during play. Throws when the side has no substitution or no substitute left: an event
+ * only offers it when one is.
  */
 export function substitutionAt(start: MatchState, side: Side, playerId: string, minute: number): MatchState {
   const state = cloneState(start);
@@ -1261,6 +1330,9 @@ export function substitutionAt(start: MatchState, side: Side, playerId: string, 
   const [player] = team.bench.splice(replacementIndex(team.bench, leaving.slot), 1);
   team.substitutions++;
   team.pitch[team.pitch.indexOf(leaving)] = { index: leaving.index, slot: leaving.slot, player, from: minute, status: "ON" };
+  if (start.phase === "IN_PLAY") {
+    team.windows = withWindow(team.windows, minute + 1);
+  }
   state.events.push(markedAt({ minute: minute + 1, side, type: "SUBSTITUTION", playerId: player.id, relatedPlayerId: leaving.player.id }));
   return state;
 }

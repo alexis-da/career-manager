@@ -38,12 +38,13 @@ import {
   assistantInstruction,
   bookingAt,
   fitnessAt,
+  giveInstruction,
   goalAt,
   shootoutChance,
   substitutionAt,
   substitutionsLeft,
+  windowOpenAt,
   type BoundaryHook,
-  type Instruction,
   type MatchModifiers,
   type MatchState,
   type PitchEntry,
@@ -189,10 +190,15 @@ function mostExhausted(entries: readonly PitchEntry[], minute: number): PitchEnt
   )[0];
 }
 
-/** Whether an event of a kind may come at a boundary, from the match as it stands. */
+/**
+ * Whether an event of a kind may come at a boundary, from the match as it stands. One that takes a player off needs a
+ * substitution left, and a window during play once the manager makes his substitutions himself.
+ */
 export function isChoicePossible(kind: ChoiceKind, state: MatchState, side: Side, minute: number): boolean {
   const outfield = outfieldOnPitch(state, side);
-  const canChange = substitutionsLeft(state, side, minute) > 0;
+  const team = state[side];
+  const canChange =
+    substitutionsLeft(state, side, minute) > 0 && (team.manual !== true || state.phase !== "IN_PLAY" || windowOpenAt(team, minute + 1));
   const margin = state[side].goals - state[otherSide(side)].goals;
   switch (kind) {
     case "PENALTY":
@@ -200,7 +206,7 @@ export function isChoicePossible(kind: ChoiceKind, state: MatchState, side: Side
     case "SCUFFLE":
       return outfield.length > 0 && onPitch(state, otherSide(side)).length > 0;
     case "HOTHEAD":
-      return minute >= HOTHEAD_MINUTE && canChange && outfield.some((entry) => state[side].booked.includes(entry.player.id));
+      return minute >= HOTHEAD_MINUTE && canChange && outfield.some((entry) => team.booked.includes(entry.player.id));
     case "KNOCK":
       return canChange && outfield.some((entry) => entry.hurt !== true);
     case "EXHAUSTED":
@@ -319,12 +325,6 @@ function withGoals(state: MatchState, side: Side, factor: number): MatchState {
   return { ...state, modifiers: { ...modifiers, goals: { ...modifiers.goals, [side]: (modifiers.goals[side] ?? 1) * factor } } };
 }
 
-/** The side's instruction for the rest of regular time. */
-function withInstruction(state: MatchState, side: Side, instruction: Instruction): MatchState {
-  const modifiers = modifiersOf(state);
-  return { ...state, modifiers: { ...modifiers, instructions: { ...modifiers.instructions, [side]: instruction } } };
-}
-
 function withScheduled(state: MatchState, incident: ScheduledIncident): MatchState {
   const modifiers = modifiersOf(state);
   return { ...state, modifiers: { ...modifiers, scheduled: [...modifiers.scheduled, incident] } };
@@ -377,7 +377,7 @@ function applyOption(state: MatchState, side: Side, event: ChoiceEvent, chosen: 
     case "CALM":
       return state;
     case "STEADY":
-      return withInstruction(state, side, "BALANCED");
+      return giveInstruction(state, side, "BALANCED");
     case "PROTEST": {
       const pushed = first < PROTEST_GOALS_CHANCE ? withGoals(state, side, PROTEST_GOALS) : state;
       return second < PROTEST_YELLOW_CHANCE ? bookingAt(pushed, side, playerOf(chosen), at) : pushed;
@@ -403,7 +403,7 @@ function applyOption(state: MatchState, side: Side, event: ChoiceEvent, chosen: 
     }
     case "DEFEND":
     case "ATTACK":
-      return withInstruction(state, side, chosen.option);
+      return giveInstruction(state, side, chosen.option);
   }
 }
 

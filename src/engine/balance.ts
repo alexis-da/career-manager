@@ -404,6 +404,13 @@ export const INJURY_DAYS_MAX = 42;
 export const MAX_SUBSTITUTIONS = 5;
 
 /**
+ * The windows a manager may substitute in during play, the real rule: half-time and the breaks before and in the middle of
+ * extra time are not windows, and an injured player's replacement, made at once, takes none. Every tactical substitution
+ * during play counts, the assistant's and a choice event's included, but the rule only binds a manager making his own.
+ */
+export const MAX_SUBSTITUTION_WINDOWS = 3;
+
+/**
  * Tactical substitutions each team plans in the second half, within this minute range, while substitutions remain.
  * An injured player is replaced at once.
  */

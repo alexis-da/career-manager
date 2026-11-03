@@ -51,6 +51,8 @@ const teamSchema = z.object({
   substitutions: z.number().int().min(0).max(MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS),
   booked: z.array(playerKey),
   goals: z.number().int().min(0),
+  windows: z.array(minute).max(MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS).optional(), // its windows during play
+  manual: z.literal(true).optional(), // its manager makes its substitutions himself
 });
 
 const eventsSchema = z.array(

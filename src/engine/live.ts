@@ -1,12 +1,15 @@
 import { ChoiceError, decideChoice, openChoice, type Decision } from "./choices";
 import {
   applyHalfTimeChoice,
+  applyManagerChoice,
   automaticHalfTimeChoice,
+  giveInstruction,
   HalfTimeChoiceError,
   nextSegment,
   playShootout,
   simulateSegment,
   type HalfTimeChoice,
+  type Instruction,
   type MatchState,
   type Side,
 } from "./match";
@@ -29,8 +32,12 @@ export function pauseOf(state: MatchState): LivePause | null {
   return isPausePhase(state.phase) ? { phase: state.phase, minute: state.played } : null;
 }
 
-/** What the manager brings to a pause: his changes at a break (null: the automatic ones), his decision on a choice event (null: the assistant's). */
-export type PlayOnInput = { changes?: HalfTimeChoice | null; decision?: Decision | null };
+/**
+ * What the manager brings to a pause: his decision on a choice event (null: the assistant's), his changes (null: none,
+ * the automatic ones at half-time), his instruction for the rest of the period of play (null: none, the one given or his
+ * assistant's rule going on).
+ */
+export type PlayOnInput = { decision?: Decision | null; changes?: HalfTimeChoice | null; instruction?: Instruction | null };
 
 /**
  * How far a match plays on: one segment ("segment": the next boundary, where the manager could ask for a pause), to the
@@ -43,12 +50,12 @@ const SIDES: readonly Side[] = ["home", "away"];
 
 /**
  * Plays the managed club's match on from where it waits, kick-off included: first what the manager brings to the pause,
- * his decision on the open choice event, his changes at half-time (the opponent's automatic ones with them, in the
- * order of a match played without a pause) or at the end of regulation time; then its segments, each boundary opening
- * the choice event planned there, up to where `until` says; a level extra time ends with the shoot-out at once. Taking
- * the automatic changes and the assistant's decisions at every pause plays the very match simulateMatch plays with
- * assistantChoices. Throws HalfTimeChoiceError for changes away from a break, ChoiceError for a decision without an open
- * event, as for an invalid choice.
+ * his decision on the open choice event, then his changes, at half-time with the opponent's automatic ones in the order of
+ * a match played without a pause, then his instruction; then its segments, each boundary opening the choice event
+ * planned there, up to where `until` says; a level extra time ends with the shoot-out at once. Taking the assistant's
+ * decisions, no change but the automatic ones and no instruction at every pause plays the very match simulateMatch plays
+ * with assistantChoices. Throws HalfTimeChoiceError for changes or an instruction away from a pause, ChoiceError for a
+ * decision without an open event, as for an invalid choice.
  */
 export function playOn(
   paused: MatchState,
@@ -58,8 +65,9 @@ export function playOn(
   until: PlayOnUntil = "segment",
 ): MatchState {
   const changes = input.changes ?? null;
+  const instruction = input.instruction ?? null;
   const open = paused.choices?.pending ?? null;
-  if (changes !== null && paused.phase !== "HALF_TIME" && paused.phase !== "REGULATION_END") {
+  if ((changes !== null || instruction !== null) && pauseOf(paused) === null) {
     throw new HalfTimeChoiceError("not-half-time");
   }
   if (input.decision !== undefined && input.decision !== null && open === null) {
@@ -69,14 +77,20 @@ export function playOn(
   let state = paused;
   if (open !== null) {
     state = decideChoice(state, matchSeed, input.decision ?? null);
-  } else if (state.phase === "HALF_TIME") {
+  }
+  if (state.phase === "HALF_TIME") {
     state = SIDES.reduce(
       (current, side) =>
-        applyHalfTimeChoice(current, side, side === managedSide && changes !== null ? changes : automaticHalfTimeChoice(current, side)),
+        side === managedSide && changes !== null
+          ? applyManagerChoice(current, side, changes)
+          : applyHalfTimeChoice(current, side, automaticHalfTimeChoice(current, side)),
       state,
     );
-  } else if (state.phase === "REGULATION_END" && changes !== null) {
-    state = applyHalfTimeChoice(state, managedSide, changes);
+  } else if (changes !== null) {
+    state = applyManagerChoice(state, managedSide, changes);
+  }
+  if (instruction !== null) {
+    state = giveInstruction(state, managedSide, instruction);
   }
 
   for (;;) {

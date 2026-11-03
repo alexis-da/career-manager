@@ -71,7 +71,8 @@
       "invalid-slot": "Un poste du dispositif est attribué deux fois ou n'existe pas.",
       "sent-off-slot": "Le poste d'un joueur exclu reste vide.",
       "lineup-mismatch": "Le onze ne correspond pas aux joueurs sur le terrain après les remplacements.",
-      "incomplete-lineup": "Un poste reste vide alors qu'un remplaçant peut entrer."
+      "incomplete-lineup": "Un poste reste vide alors qu'un remplaçant peut entrer.",
+      "no-window": "Plus de fenêtre de remplacement : tes trois fenêtres pendant le jeu sont utilisées."
     },
     "pauseGone": "Ce moment du match est déjà joué : la page se met à jour.",
     "invalidDecision": "Ce choix n'est pas proposé à ce moment du match."

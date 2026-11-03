@@ -71,7 +71,8 @@
       "invalid-slot": "A position in the formation is filled twice or doesn't exist.",
       "sent-off-slot": "A sent-off player's position stays empty.",
       "lineup-mismatch": "The eleven doesn't match the players on the pitch after the substitutions.",
-      "incomplete-lineup": "A position is left empty while a substitute can still come on."
+      "incomplete-lineup": "A position is left empty while a substitute can still come on.",
+      "no-window": "No substitution window left: your three windows during play are used."
     },
     "pauseGone": "That moment of the match has already been played: the page is catching up.",
     "invalidDecision": "That choice isn't on offer at this moment of the match."
