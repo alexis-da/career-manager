@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getLiveMatchday } from "@/src/db/calendar";
-import { getHalfTimeTeam, getLivePause } from "@/src/db/live-match";
+import { getHalfTimeTeam, getLiveWaiting } from "@/src/db/live-match";
 import { formatDate } from "@/src/lib/format";
 import { stageLabel } from "../_lib/stage";
 import { LiveMatch } from "./_components/live-match";
@@ -31,8 +31,10 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
   const tStage = await getTranslations("stage");
   const locale = await getLocale();
   const query = await searchParams;
-  // Where the match waits, read first: a step played meanwhile (another tab) leaves the events ahead of it, never behind.
-  const waiting = await getLivePause(id);
+  // Where the match waits, read first with the instructions played up to there: a step played meanwhile (another tab)
+  // leaves the events ahead of it, never behind.
+  const live = await getLiveWaiting(id);
+  const waiting = live?.pause ?? null;
   const [matchday, team] = await Promise.all([getLiveMatchday(id), waiting === null ? null : getHalfTimeTeam(id)]);
   if (matchday === null) {
     redirect(`/saves/${id}`);
@@ -56,6 +58,8 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
       pause={waiting}
       // The pause's own: none when the match went on between the two reads.
       team={team !== null && team.phase === waiting?.phase && team.minute === waiting.minute ? team : null}
+      // None once the match is over: its state is gone, and they with it.
+      instructions={live?.instructions ?? null}
       startMinute={startMinute(waiting, query.rejouer === "1")}
     />
   );

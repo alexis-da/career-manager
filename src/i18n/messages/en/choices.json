@@ -97,7 +97,7 @@
       },
       "STEADY": {
         "label": "Carry on as you are",
-        "effect": "A balanced game until the 90th minute."
+        "effect": "Your starting instruction until the 90th minute: {instruction, select, ATTACK {a more open game} DEFEND {a tighter game} other {a balanced game}}."
       }
     },
     "CHASING": {
@@ -115,7 +115,7 @@
       },
       "STEADY": {
         "label": "Keep your shape",
-        "effect": "A balanced game until the 90th minute."
+        "effect": "Your starting instruction until the 90th minute: {instruction, select, ATTACK {a more open game} DEFEND {a tighter game} other {a balanced game}}."
       }
     }
   }

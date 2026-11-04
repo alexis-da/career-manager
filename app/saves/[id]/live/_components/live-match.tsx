@@ -10,12 +10,13 @@ import type { HalfTimeTeam, LivePauseView, LiveStep } from "@/src/db/live-match"
 import { EXTRA_TIME_END_MINUTE } from "@/src/engine/balance";
 import type { ChoiceOption } from "@/src/engine/choices";
 import type { LivePause } from "@/src/engine/live";
-import type { Instruction } from "@/src/engine/match";
+import type { Instruction, InstructionSpan } from "@/src/engine/match";
 import { decisionMoment } from "../../_lib/decisions";
 import { REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
 import { matchResultFor } from "../../_lib/stage";
 import { playLiveStepAction, type DecisionInput, type HalfTimeChoiceInput, type LiveMoveInput } from "../../actions";
 import { decidedTeam } from "../_lib/decided-team";
+import { shownInstruction } from "../_lib/live-instruction";
 import {
   coachingTarget,
   endMinute as endMinuteOf,
@@ -26,7 +27,7 @@ import {
   stepUntil,
   type StepUntil,
 } from "../_lib/live-pause";
-import { withStep, type LiveData } from "../_lib/live-step";
+import { readAgain, withStep, type LiveData } from "../_lib/live-step";
 import { countFor } from "../_lib/match-stats";
 import { ChoiceCard } from "./choice-card";
 import { HalfTime } from "./half-time";
@@ -77,10 +78,11 @@ type LiveMatchProps = {
   others: ScoreTimeline[];
   pause: LivePauseView | null; // where the match waits, with its choice event; null once over
   team: HalfTimeTeam | null; // the managed club at that pause: the Coaching panel's
+  instructions: InstructionSpan[] | null; // the managed club's up to that pause; null once over, its state gone
   startMinute: number; // 0 from kick-off; the pause's minute to go on from where the match waits
 };
 
-type ReplayProps = Omit<LiveMatchProps, "match" | "pause" | "team"> & {
+type ReplayProps = Omit<LiveMatchProps, "match" | "pause" | "team" | "instructions"> & {
   data: LiveData;
   onStep: (step: LiveStep) => void;
   speed: Speed;
@@ -103,7 +105,7 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
   const tCommon = useTranslations("common");
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
   const router = useRouter();
-  const { match, pause, team } = data;
+  const { match, pause, team, instructions } = data;
   const [clock, setClock] = useState(startMinute); // match minutes, fractional
   const [kicksTaken, setKicksTaken] = useState(0);
   const [skipping, setSkipping] = useState(false); // live-skip pressed: to the next break, or the end, at once
@@ -241,6 +243,10 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
   const taken = kicks.slice(0, shownKicks);
   const managedSide = match.home.isManaged ? "home" : "away";
   const panel = team === null ? null : decided !== null && choice !== null ? decidedTeam(team, choice, decided.index) : { team, change: null };
+  // The club's instruction at the clock's minute; at a pause, the one the decision on its card gives, as the panel has it.
+  // Gone with the final whistle, the result in its place.
+  const decidedInstruction = decided === null || choice === null ? null : (choice.options[decided.index]?.instruction ?? null);
+  const instruction = over ? null : shownInstruction(instructions, minute, decidedInstruction);
 
   const stoppedLabel =
     pause?.phase === "HALF_TIME"
@@ -276,6 +282,7 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
           running: !finished,
         }}
         result={over ? matchResultFor({ ...match, homeGoals, awayGoals }, match.home.isManaged) : null}
+        instruction={instruction}
       >
         <LiveControls
           dashboardHref={dashboardHref}
@@ -370,15 +377,16 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
 /**
  * The match live: one replay per match, whose clock and speed go on across its steps. The page's data is the server's
  * first, then each step's: the page is read again only when a step is refused, and once the match is over, when the
- * save's screens change; what it reads then replaces what the steps brought.
+ * save's screens change; what it reads then replaces what the steps brought, but for the instructions of the match over,
+ * which the server no longer has.
  */
-export function LiveMatch({ match, pause, team, ...props }: LiveMatchProps) {
+export function LiveMatch({ match, pause, team, instructions, ...props }: LiveMatchProps) {
   const [speed, setSpeed] = useState<Speed>(1);
-  const [data, setData] = useState<LiveData>({ match, pause, team });
+  const [data, setData] = useState<LiveData>({ match, pause, team, instructions });
   const [read, setRead] = useState(match);
   if (match !== read) {
     setRead(match);
-    setData({ match, pause, team });
+    setData(readAgain(data, { match, pause, team, instructions }));
   }
   const onStep = useCallback((step: LiveStep) => setData((current) => withStep(current, step)), []);
   return <Replay key={match.id} {...props} data={data} onStep={onStep} speed={speed} onSpeedChange={setSpeed} />;

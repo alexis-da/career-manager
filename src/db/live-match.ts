@@ -1,5 +1,5 @@
 import { MAX_SUBSTITUTION_WINDOWS } from "../engine/balance";
-import { decideChoice, type ChoiceEvent, type ChoiceKind, type ChoiceOption } from "../engine/choices";
+import { decideChoice, optionInstruction, type ChoiceEvent, type ChoiceKind, type ChoiceOption } from "../engine/choices";
 import { fitnessFactor } from "../engine/fitness";
 import { pauseOf, playOn, type LivePause, type PausePhase, type PlayOnInput, type PlayOnUntil } from "../engine/live";
 import {
@@ -8,12 +8,16 @@ import {
   fitnessAt,
   inMatchFactor,
   instructionAt,
+  instructionSourceAt,
   matchResult,
   replacementFor,
   scoreOf,
+  startingInstructionOf,
   windowOpenAt,
   type DecidedBy,
   type Instruction,
+  type InstructionSource,
+  type InstructionSpan,
   type MatchResult,
   type MatchState,
   type Side,
@@ -87,7 +91,9 @@ export type HalfTimeTeam = {
   substitutions: number; // already made in the match
   windows: { used: number; max: number; open: boolean }; // during play; open: a substitution may be made at this pause
   manual: boolean; // its manager makes its substitutions himself: its assistant makes none any more
-  instruction: { current: Instruction; given: boolean; assistant: Instruction }; // given: by him or an event, not the rule
+  // Who set the current one: given for the period of play by him (MANAGER) or an event, or else the assistant's rule,
+  // which comes back to the starting instruction (START) when it has nothing to say.
+  instruction: { current: Instruction; source: InstructionSource; assistant: Instruction; starting: Instruction };
   formation: FormationName;
   starters: (string | null)[]; // player key per slot: on the pitch, or injured and still in his slot
   injured: string[]; // injured and not replaced: off the pitch, to replace
@@ -144,8 +150,9 @@ function halfTimeTeamOf(
     manual: team.manual === true,
     instruction: {
       current: instructionAt(state, side),
-      given: state.modifiers?.instructions[side] !== undefined,
+      source: instructionSourceAt(state, side),
       assistant: assistantInstruction(state, side, minute),
+      starting: startingInstructionOf(team),
     },
     formation: team.formation,
     starters,
@@ -224,7 +231,8 @@ export async function getHalfTimeTeam(saveId: string): Promise<HalfTimeTeam | nu
 
 /**
  * A choice event as the live page receives it: the player it is about, its options, each player named, the kick's
- * chance shown, and for an option that takes a player off the substitute who comes on.
+ * chance shown, for an option that takes a player off the substitute who comes on, and for a late tactical choice the
+ * instruction it gives.
  */
 export type ChoiceEventView = {
   minute: number;
@@ -237,6 +245,7 @@ export type ChoiceEventView = {
     player: string | null;
     chance: number | null;
     replacement: { key: string; name: string } | null;
+    instruction: Instruction | null; // for the rest of regular time
   }[];
   assistant: number; // the assistant's option
 };
@@ -265,6 +274,7 @@ function choiceEventViewOf(event: ChoiceEvent, state: MatchState, side: Side, id
         player: nameOf(option.playerId),
         chance: option.chance ?? null,
         replacement: replacement === undefined ? null : { key: replacement.id, name: nameOf(replacement.id) ?? replacement.id },
+        instruction: optionInstruction(option.option, state[side]),
       };
     }),
     assistant: event.assistant,
@@ -281,8 +291,20 @@ function livePauseViewOf(state: MatchState, side: Side, identities: readonly Ide
   return { ...pause, choice: event === null ? null : choiceEventViewOf(event, state, side, identities) };
 }
 
-/** The pause the managed club's match waits at, or null when no match waits. */
-export async function getLivePause(saveId: string): Promise<LivePauseView | null> {
+/**
+ * The instructions a side has played its segments with, a span at each change and who set each: none in a state kept
+ * before them.
+ */
+const instructionsOf = (state: MatchState, side: Side): InstructionSpan[] => state[side].instructions ?? [];
+
+/**
+ * The managed club's match where it waits, as the live page first reads it: the pause, and the instructions the club has
+ * played its segments with up to there, from the same state. Each step brings its own (LiveStep).
+ */
+export type LiveWaiting = { pause: LivePauseView; instructions: InstructionSpan[] };
+
+/** Where the managed club's match waits, and its instructions up to there; null when no match waits. */
+export async function getLiveWaiting(saveId: string): Promise<LiveWaiting | null> {
   const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true } });
   if (save.liveFixtureId === null) {
     return null;
@@ -298,7 +320,13 @@ export async function getLivePause(saveId: string): Promise<LivePauseView | null
   const event = state.choices?.pending ?? null;
   // Names only when an event needs them.
   const identities = event === null ? [] : await identitiesOf(saveId, squadKeys(state, managedSide));
-  return livePauseViewOf(state, managedSide, identities);
+  const pause = livePauseViewOf(state, managedSide, identities);
+  return pause === null ? null : { pause, instructions: instructionsOf(state, managedSide) };
+}
+
+/** The pause the managed club's match waits at, or null when no match waits. */
+export async function getLivePause(saveId: string): Promise<LivePauseView | null> {
+  return (await getLiveWaiting(saveId))?.pause ?? null;
 }
 
 /** Where the match stands after a move: the pause it waits at, or its result once over. */
@@ -472,12 +500,15 @@ export async function advanceLiveMatch(
 
 /**
  * What the live page shows after a move, read once the move is written: the match's new events and decisions as the
- * screens show them, the pause it waits at now with its choice event and the managed club there (the Coaching panel's),
- * or how it ended. Nothing past that pause, which is not played yet.
+ * screens show them, the instructions the managed club has played with so far, the pause it waits at now with its choice
+ * event and the managed club there (the Coaching panel's), or how it ended. Nothing past that pause, which is not played
+ * yet.
  */
 export type LiveStep = {
   events: MatchEventView[];
   decisions: DecisionView[];
+  // All of them, from kick-off: once the match is over, its state goes, and these with it.
+  instructions: InstructionSpan[];
   pause: LivePauseView | null;
   team: HalfTimeTeam | null;
   result: { homeGoals: number; awayGoals: number; decidedBy: DecidedBy | null; homePenalties: number | null; awayPenalties: number | null } | null;
@@ -496,12 +527,14 @@ export async function getLiveStep(saveId: string, moved: AdvancedMatch): Promise
   const events = fixture.events.slice(moved.eventsBefore).map(toEventView(fixture.scheduledAt));
   const decisions = fixture.decisions.map(toDecisionView);
   const { state, managedSide } = moved;
+  const instructions = instructionsOf(state, managedSide);
   const pause = moved.pause;
   if (pause === null) {
     const result = moved.result;
     return {
       events,
       decisions,
+      instructions,
       pause: null,
       team: null,
       result:
@@ -522,6 +555,7 @@ export async function getLiveStep(saveId: string, moved: AdvancedMatch): Promise
   return {
     events,
     decisions,
+    instructions,
     pause: livePauseViewOf(state, managedSide, identities),
     team: halfTimeTeamOf(state, managedSide, pause, identities, save.currentDate, clubColors),
     result: null,

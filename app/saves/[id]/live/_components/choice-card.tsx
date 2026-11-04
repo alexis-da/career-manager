@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/src/compone
 import type { TeamView } from "@/src/db/calendar";
 import type { ChoiceEventView } from "@/src/db/live-match";
 import type { ChoiceKind, ChoiceOption } from "@/src/engine/choices";
+import { DEFAULT_INSTRUCTION } from "@/src/engine/instructions";
 import type { Translator } from "@/src/i18n/translator";
 import { cn } from "@/src/lib/utils";
 import { fitnessFigure } from "../../_lib/fitness";
@@ -142,10 +143,13 @@ function optionTexts(event: ChoiceEventView, offered: OfferedOption, t: Translat
       return event.kind === "LEADING"
         ? { label: t("LEADING.ATTACK.label"), effect: t("LEADING.ATTACK.effect") }
         : { label: t("CHASING.ATTACK.label"), effect: t("CHASING.ATTACK.effect") };
-    case "STEADY":
+    case "STEADY": {
+      // Carrying on as the club started: its starting instruction, which the option says.
+      const values = { instruction: offered.instruction ?? DEFAULT_INSTRUCTION };
       return event.kind === "LEADING"
-        ? { label: t("LEADING.STEADY.label"), effect: t("LEADING.STEADY.effect") }
-        : { label: t("CHASING.STEADY.label"), effect: t("CHASING.STEADY.effect") };
+        ? { label: t("LEADING.STEADY.label"), effect: t("LEADING.STEADY.effect", values) }
+        : { label: t("CHASING.STEADY.label"), effect: t("CHASING.STEADY.effect", values) };
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import type { FixtureWithEvents, TeamView } from "@/src/db/calendar";
 import { cn } from "@/src/lib/utils";
 import { ScoreNotes } from "../../_components/score-notes";
 import { RESULT_CLASSES, type ResultKind } from "../../_lib/results";
+import type { ShownInstruction } from "../_lib/live-instruction";
 
 function Team({ team, away }: { team: TeamView; away: boolean }) {
   return (
@@ -32,6 +33,29 @@ function Goals({ value }: { value: number }) {
   );
 }
 
+/**
+ * The instruction the managed club plays with, and who set it: « Consigne : Fermer · de départ ». Outlined on the blue,
+ * never orange: the screen's orange is its controls'. A status: a screen reader hears it change, and its name says it
+ * in a sentence. On two lines rather than wider than the card.
+ */
+function InstructionLine({ instruction, source }: ShownInstruction) {
+  const t = useTranslations("live");
+  const tHalfTime = useTranslations("halfTime");
+  const name = tHalfTime(`instruction.${instruction}`);
+  return (
+    <p
+      role="status"
+      aria-label={t("instruction.label", { instruction: name, source })}
+      data-instruction={instruction}
+      data-instruction-source={source}
+      data-testid="live-instruction"
+      className="max-w-full self-center rounded-full border border-on-blue/40 px-3 py-1 text-center text-xs leading-tight text-balance wrap-break-word text-on-blue lg:text-[0.8125rem]"
+    >
+      {t("instruction.title")} <span className="font-bold text-primary-foreground">{name}</span> · {t(`instruction.source.${source}`)}
+    </p>
+  );
+}
+
 type LiveScoreCardProps = {
   caption: string;
   dashboardHref: string;
@@ -42,14 +66,27 @@ type LiveScoreCardProps = {
   progress: number; // how much of the match has run, in percent
   status: { label: string; value: string; running: boolean }; // `value` for data-live-status
   result: ResultKind | null; // the managed club's, once the match is over
+  instruction: ShownInstruction | null; // the managed club's at the clock's minute, while the match is on and it is known
   children: ReactNode; // the controls: under the bar on a computer, out of the card below lg
 };
 
 /**
- * The head of the screen, in the bright blue: what is played, the score, the minute and how far the match has run. Below
- * lg, it reaches the screen's top and sides; the page cancels <main>'s margins for it.
+ * The head of the screen, in the bright blue: what is played, the score, the minute, the managed club's instruction and
+ * how far the match has run. Below lg, it reaches the screen's top and sides; the page cancels <main>'s margins for it.
  */
-export function LiveScoreCard({ caption, dashboardHref, match, homeGoals, awayGoals, minute, progress, status, result, children }: LiveScoreCardProps) {
+export function LiveScoreCard({
+  caption,
+  dashboardHref,
+  match,
+  homeGoals,
+  awayGoals,
+  minute,
+  progress,
+  status,
+  result,
+  instruction,
+  children,
+}: LiveScoreCardProps) {
   const t = useTranslations("live");
   const tResults = useTranslations("results");
   return (
@@ -103,6 +140,8 @@ export function LiveScoreCard({ caption, dashboardHref, match, homeGoals, awayGo
           <ScoreNotes match={match} />
         </p>
       )}
+
+      {instruction !== null && <InstructionLine {...instruction} />}
 
       <div aria-hidden className="h-2 overflow-hidden rounded-full bg-background">
         <div className="h-full rounded-full bg-(--club)" style={{ width: `${progress}%` }} />

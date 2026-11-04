@@ -90,6 +90,7 @@ const offer = (option: ChoiceOption, details: Partial<OptionView> = {}): OptionV
   player: null,
   chance: null,
   replacement: null,
+  instruction: null,
   ...details,
 });
 
@@ -113,8 +114,14 @@ const HOTHEAD = choice("HOTHEAD", 30, [offer("TAKE_OFF", { ...BERNARD, replaceme
 const SCUFFLE = choice("SCUFFLE", 30, [offer("CALM"), offer("PROTEST", PETIT)], 0, PETIT);
 const KNOCK = choice("KNOCK", 60, [offer("TAKE_OFF", { ...MARTIN, replacement: SUBSTITUTE }), offer("PLAY_ON", MARTIN)], 0, MARTIN);
 const EXHAUSTED = choice("EXHAUSTED", 75, [offer("REPLACE", { ...BERNARD, replacement: SUBSTITUTE }), offer("KEEP", BERNARD)], 0, BERNARD);
-const LEADING = choice("LEADING", 75, [offer("DEFEND"), offer("ATTACK"), offer("STEADY")], 0);
-const CHASING = choice("CHASING", 60, [offer("ATTACK"), offer("STEADY")], 0);
+// A club started balanced: carrying on is playing balanced.
+const LEADING = choice(
+  "LEADING",
+  75,
+  [offer("DEFEND", { instruction: "DEFEND" }), offer("ATTACK", { instruction: "ATTACK" }), offer("STEADY", { instruction: "BALANCED" })],
+  0,
+);
+const CHASING = choice("CHASING", 60, [offer("ATTACK", { instruction: "ATTACK" }), offer("STEADY", { instruction: "BALANCED" })], 0);
 
 type CardProps = ComponentProps<typeof ChoiceCard>;
 
@@ -277,6 +284,24 @@ describe("the choice card", () => {
     const level = textOf(render({ ...CHASING, minute: 75, assistant: 1 }));
     expect(level).toContain("À égalité, fin de match");
     expect(level).toContain("75e minute, 1-1 : il reste 15 minutes pour faire la différence.");
+  });
+
+  it("says that carrying on is the starting instruction, whichever it is", () => {
+    const steadyOf = (event: ChoiceEventView, locale: Locale = "fr"): string =>
+      textOf(optionsOf(render(event, { ownGoals: 2, otherGoals: 1 }, locale)).find((row) => attribute(row, "data-option") === "STEADY") ?? "");
+    const startedAs = (event: ChoiceEventView, instruction: "ATTACK" | "DEFEND"): ChoiceEventView => ({
+      ...event,
+      options: event.options.map((offered) => (offered.option === "STEADY" ? { ...offered, instruction } : offered)),
+    });
+
+    expect(steadyOf(LEADING)).toContain("Rester tel quel");
+    expect(steadyOf(LEADING)).toContain("Ta consigne de départ jusqu'à la 90e : jeu équilibré.");
+    expect(steadyOf(startedAs(LEADING, "DEFEND"))).toContain("Ta consigne de départ jusqu'à la 90e : match plus fermé.");
+    expect(steadyOf(startedAs(CHASING, "ATTACK"))).toContain("Rester en place");
+    expect(steadyOf(startedAs(CHASING, "ATTACK"))).toContain("Ta consigne de départ jusqu'à la 90e : match plus ouvert.");
+    expect(steadyOf(LEADING, "en")).toContain("Your starting instruction until the 90th minute: a balanced game.");
+    expect(steadyOf(startedAs(LEADING, "DEFEND"), "en")).toContain("Your starting instruction until the 90th minute: a tighter game.");
+    expect(steadyOf(startedAs(CHASING, "ATTACK"), "en")).toContain("Your starting instruction until the 90th minute: a more open game.");
   });
 
   it("speaks British English", () => {

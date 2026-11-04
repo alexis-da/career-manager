@@ -159,10 +159,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
     expect(others).toEqual([{ status: "PLAYED", _count: 47 }]);
     expect(save.liveFixtureId).toBe(fixture.id);
     expect(save.currentDate.toISOString()).toBe(firstMatchdayDate(WORLD_START_YEAR).toISOString());
-    // From kick-off, the starting instruction saved with its lineup.
+    // From kick-off, the starting instruction saved with its lineup, which the live page reads with the pause.
     const { managedSide, state } = await stored(saves.live);
     expect(state[managedSide].startingInstruction).toBe("DEFEND");
     expect(state[managedSide].instructions?.[0]).toEqual({ from: 0, instruction: "DEFEND", source: "START" });
+    const waiting = await loaded().live.getLiveWaiting(saves.live);
+    expect(waiting?.pause).toMatchObject({ phase: "IN_PLAY", minute: SEGMENT_MINUTES });
+    expect(waiting?.instructions).toEqual([{ from: 0, instruction: "DEFEND", source: "START" }]);
   });
 
   it("refuses to play on, simulate or change season while the match waits", async () => {
@@ -201,12 +204,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
     expect(step.events.every((event) => event.minute > SEGMENT_MINUTES && event.minute <= 2 * SEGMENT_MINUTES)).toBe(true);
     expect(step.decisions.map((decision) => decision.sequence)).toEqual(after.decisions.slice(before.decisions.length).map((decision) => decision.sequence));
     expect(step.pause === null ? null : { phase: step.pause.phase, minute: step.pause.minute }).toEqual(await pauseOf(saves.live));
+    // Closed from the start, and nothing has changed it: a span from kick-off, the rule giving it again next.
+    expect(step.instructions).toEqual([{ from: 0, instruction: "DEFEND", source: "START" }]);
     expect(step.team).toMatchObject({
       phase: "IN_PLAY",
       minute: 2 * SEGMENT_MINUTES,
       windows: { used: 0, max: MAX_SUBSTITUTION_WINDOWS, open: true },
       manual: false,
-      instruction: { given: false },
+      instruction: { current: "DEFEND", source: "START", assistant: "DEFEND", starting: "DEFEND" },
     });
     expect(step.result).toBeNull();
   });
@@ -372,6 +377,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
     }
     expect(view.choice).toMatchObject({ minute: event.minute, kind: event.kind, assistant: event.assistant });
     expect(view.choice.options.map((option) => option.option)).toEqual(event.options.map((option) => option.option));
+    // A late tactical choice says the instruction it gives, carrying on the starting one: Équilibré, no lineup saved.
+    const gives = (option: string) => (option === "DEFEND" || option === "ATTACK" ? option : option === "STEADY" ? "BALANCED" : null);
+    expect(view.choice.options.map((option) => option.instruction)).toEqual(event.options.map((option) => gives(option.option)));
 
     // Not offered: refused, nothing written.
     const before = await managedFixture(saves.decided);
@@ -420,10 +428,15 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
       substitutions: [{ in: substitute.id, out: leaving.player.id }],
     };
 
-    await live.advanceLiveMatch(saves.coached, at, { changes: choice, instruction: "ATTACK" }, "segment");
+    const step = await live.getLiveStep(
+      saves.coached,
+      await live.advanceLiveMatch(saves.coached, at, { changes: choice, instruction: "ATTACK" }, "segment"),
+    );
     const after = await stored(saves.coached);
     expect(after.state[managedSide]).toMatchObject({ windows: [at.minute + 1], manual: true });
     expect(after.state.modifiers?.instructions[managedSide]).toBe("ATTACK");
+    // His from that pause on, which the step brings to the score card.
+    expect(step.instructions.at(-1)).toEqual({ from: at.minute, instruction: "ATTACK", source: "MANAGER" });
     expect((await managedFixture(saves.coached)).events).toContainEqual({
       minute: at.minute + 1,
       type: "SUBSTITUTION",
@@ -434,7 +447,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
     expect(await live.getHalfTimeTeam(saves.coached)).toMatchObject({
       windows: { used: 1, max: MAX_SUBSTITUTION_WINDOWS },
       manual: true,
-      instruction: { current: "ATTACK", given: true },
+      instruction: { current: "ATTACK", source: "MANAGER", starting: "BALANCED" },
     });
 
     // On to the end: the last step says how the match ended, and leaves nothing to wait at.

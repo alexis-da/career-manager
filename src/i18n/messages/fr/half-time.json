@@ -94,7 +94,7 @@
         "DEFEND": "Match plus fermé : utile pour garder une avance ou face à plus fort."
       },
       "given": "{extraTime, select, true {Jusqu'à la fin de la prolongation} other {Jusqu'à la fin du temps réglementaire}}, quel que soit le score.",
-      "assistant": "Sans choix de ta part, l'adjoint l'adapte au score : attaquer s'il faut revenir après la 60e, fermer avec un but d'avance après la 75e."
+      "assistant": "Sans choix de ta part, l'adjoint l'adapte au score : attaquer s'il faut revenir après la 60e, fermer avec un but d'avance après la 75e, sinon ta consigne de départ ({starting})."
     }
   }
 }

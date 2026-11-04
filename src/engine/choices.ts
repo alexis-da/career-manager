@@ -46,11 +46,13 @@ import {
   substitutionsLeft,
   windowOpenAt,
   type BoundaryHook,
+  type Instruction,
   type MatchModifiers,
   type MatchState,
   type PitchEntry,
   type ScheduledIncident,
   type Side,
+  type TeamLive,
 } from "./match";
 import { ratingAt } from "./positions";
 
@@ -378,8 +380,6 @@ function applyOption(state: MatchState, side: Side, event: ChoiceEvent, chosen: 
         : state;
     case "CALM":
       return state;
-    case "STEADY":
-      return giveInstruction(state, side, startingInstructionOf(state[side]), "EVENT");
     case "PROTEST": {
       const pushed = first < PROTEST_GOALS_CHANCE ? withGoals(state, side, PROTEST_GOALS) : state;
       return second < PROTEST_YELLOW_CHANCE ? bookingAt(pushed, side, playerOf(chosen), at) : pushed;
@@ -405,8 +405,21 @@ function applyOption(state: MatchState, side: Side, event: ChoiceEvent, chosen: 
     }
     case "DEFEND":
     case "ATTACK":
-      return giveInstruction(state, side, chosen.option, "EVENT");
+    case "STEADY":
+      return giveInstruction(state, side, tacticalInstruction(chosen.option, state[side]), "EVENT");
   }
+}
+
+/** The options of the late tactical events, ahead or not: each an instruction for the rest of regular time. */
+type TacticalOption = Extract<ChoiceOption, "DEFEND" | "ATTACK" | "STEADY">;
+
+/** The instruction a late tactical option gives its club: carrying on as it started is its starting instruction. */
+const tacticalInstruction = (option: TacticalOption, team: TeamLive): Instruction =>
+  option === "STEADY" ? startingInstructionOf(team) : option;
+
+/** The instruction an option gives its club for the rest of regular time: a late tactical one's, none for any other. */
+export function optionInstruction(option: ChoiceOption, team: TeamLive): Instruction | null {
+  return option === "DEFEND" || option === "ATTACK" || option === "STEADY" ? tacticalInstruction(option, team) : null;
 }
 
 /** The option a decision names among those offered, or -1: a penalty's taker must be one of the takers offered. */

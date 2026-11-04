@@ -13,6 +13,16 @@
     },
     "live": "Live",
     "extraTimeLive": "Extra time · live",
+    "instruction": {
+      "title": "Instruction:",
+      "label": "Current instruction: {instruction}, {source, select, START {your starting one} ASSISTANT {given by your assistant} MANAGER {given by you} other {given by a tactical call}}",
+      "source": {
+        "START": "starting",
+        "ASSISTANT": "assistant's",
+        "MANAGER": "yours",
+        "EVENT": "tactical call"
+      }
+    },
     "continue": "Continue",
     "speed": "Speed",
     "speedFactor": "x{factor}",

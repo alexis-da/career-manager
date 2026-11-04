@@ -376,6 +376,17 @@ export function instructionAt(state: MatchState, side: Side): Instruction {
   return state.modifiers?.instructions[side] ?? assistantInstruction(state, side, state.played);
 }
 
+/**
+ * Who set the instruction a side plays its next segment with (instructionAt): its manager or a choice event when one was
+ * given for the period of play, else its assistant's rule, or its starting instruction when the rule has nothing to say.
+ */
+export function instructionSourceAt(state: MatchState, side: Side): InstructionSource {
+  if (state.modifiers?.instructions[side] !== undefined) {
+    return state.modifiers.givenBy?.[side] ?? "MANAGER";
+  }
+  return instructionAt(state, side) === startingInstructionOf(state[side]) ? "START" : "ASSISTANT";
+}
+
 /** Whether a side may make a tactical substitution at a minute of play: a window left, or one already open then. */
 export function windowOpenAt(team: TeamLive, minute: number): boolean {
   const windows = team.windows ?? [];
@@ -625,15 +636,11 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
   // period of play, else its assistant's, his rule or its starting instruction.
   const instructionOf = (side: Side): Instruction =>
     instructions[side] ?? modifiers?.instructions[side] ?? assistantInstruction(state, side, played);
-  const sourceOf = (side: Side, instruction: Instruction): InstructionSource => {
-    if (instructions[side] === undefined && modifiers?.instructions[side] !== undefined) {
-      return modifiers.givenBy?.[side] ?? "MANAGER";
-    }
-    return instructions[side] === undefined && instruction !== startingInstructionOf(teams[side]) ? "ASSISTANT" : "START";
-  };
+  // Who set it, kept with the segments; an instruction given for the whole match counts as the side's start.
+  const sourceOf = (side: Side): InstructionSource => (instructions[side] === undefined ? instructionSourceAt(state, side) : "START");
   for (const side of SIDES) {
     const instruction = instructionOf(side);
-    const source = sourceOf(side, instruction);
+    const source = sourceOf(side);
     const last = teams[side].instructions?.at(-1);
     if (last === undefined || last.instruction !== instruction || last.source !== source) {
       teams[side].instructions = [...(teams[side].instructions ?? []), { from: played, instruction, source }];

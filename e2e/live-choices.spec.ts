@@ -3,9 +3,9 @@ import { createSave, deleteSave, expectOrangeActions } from "./helpers";
 
 // A match live with the player's own decisions, on a Lyon of the seed « g5-365 »: its first match, at Marseille, has one
 // choice event, a scuffle at 15', and no other. The player protests against his assistant's advice, makes a substitution
-// and gives an instruction in the Coaching panel that follows the card, asks for a stop at 30', where the panel opens
-// again, goes to half-time at once and asks for a stop at 60', then goes to the result: the decision and its effect are in
-// the feed and on the match sheet.
+// and gives an instruction in the Coaching panel that follows the card, which the score card shows from then on, asks for
+// a stop at 30', where the panel opens again, goes to half-time at once and asks for a stop at 60', then goes to the
+// result: the decision and its effect are in the feed and on the match sheet.
 
 const LYON = "Olympique Lyonnais";
 const SEED = "g5-365";
@@ -47,6 +47,14 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await expectOrangeActions(page, ["live-coaching-request"]);
   await expect(page.getByTestId("live-skip")).toHaveText("Aller à la mi-temps");
 
+  // The score card says the club's instruction from kick-off: no lineup saved, the balanced start.
+  const line = page.getByTestId("live-instruction");
+  await expect(line).toHaveText("Consigne : Équilibré · de départ");
+  await expect(line).toHaveAttribute("data-instruction", "BALANCED");
+  await expect(line).toHaveAttribute("data-instruction-source", "START");
+  await expect(line).toHaveRole("status");
+  await expect(line).toHaveAccessibleName("Consigne en cours : Équilibré, ta consigne de départ");
+
   // The card at 15', which has the focus and keeps it: Escape does nothing, the choice is the player's to make.
   const card = page.getByTestId("choice-card");
   await expect(card).toBeVisible({ timeout: 30_000 });
@@ -66,6 +74,9 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await card.locator('[data-testid="choice-option"][data-option="PROTEST"]').click();
   await page.getByTestId("choice-validate").click();
   await expect(card).toBeHidden();
+  // A protest gives no instruction: the start's holds.
+  await expect(line).toHaveAttribute("data-instruction", "BALANCED");
+  await expect(line).toHaveAttribute("data-instruction-source", "START");
 
   // The Coaching panel follows, at the 15th minute: the rule, no window used yet, the assistant's changes to come.
   const panel = page.getByTestId("half-time");
@@ -88,15 +99,25 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await expect(rule.substitutions).toHaveText("Remplacements : 1/5");
   await expect(panel.locator(`[data-off-player-key="${outgoing}"]`)).toBeVisible();
 
-  // An instruction, each with what it does in words.
+  // An instruction, each with what it does in words; left alone, the assistant's rule, back to the start's when it has
+  // nothing to say.
   const instruction = panel.getByTestId("half-time-instruction");
   await expect(instruction.locator("[data-instruction]")).toHaveCount(3);
   await expect(instruction.locator('[data-instruction="ATTACK"]')).toContainText("utile si tu es le plus fort ou si tu cours après le score");
   await expect(instruction.locator('[data-instruction="BALANCED"] input')).toBeChecked();
+  await expect(instruction).toContainText("sinon ta consigne de départ (Équilibré)");
   await instruction.locator('[data-instruction="ATTACK"]').click();
   await expect(instruction).toContainText("Jusqu'à la fin du temps réglementaire");
+  // Chosen in the panel, it is not played yet: the score card keeps the start's until the match goes on.
+  await expect(line).toHaveAttribute("data-instruction", "BALANCED");
   await page.getByTestId("half-time-resume").click();
   await expect(panel).toBeHidden();
+
+  // From the next segment on, the player's own.
+  await expect(line).toHaveText("Consigne : Attaquer · la tienne");
+  await expect(line).toHaveAttribute("data-instruction", "ATTACK");
+  await expect(line).toHaveAttribute("data-instruction-source", "MANAGER");
+  await expect(line).toHaveAccessibleName("Consigne en cours : Attaquer, donnée par toi");
 
   // A stop asked for at the next boundary: pressed, then the clock reaches it and the panel opens there.
   await expect(request).toHaveText("Coaching à la 30e");
@@ -106,10 +127,13 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await expect(panel).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("half-time-title")).toHaveText("30e minute");
   await expect(page.getByTestId("live-score").locator("xpath=following-sibling::p")).toHaveText("30'");
-  // The substitution of 15' took a window, and the player has taken the changes over; his instruction holds.
+  // The substitution of 15' took a window, and the player has taken the changes over; his instruction holds, on the
+  // score card beside the panel too.
   await expect(rule.windows).toHaveText("Fenêtres pendant le jeu : 1/3");
   await expect(rule.assistant).toHaveText("Tu fais tes changements : l'adjoint n'en fait plus.");
   await expect(instruction.locator('[data-instruction="ATTACK"] input')).toBeChecked();
+  await expect(line).toHaveAttribute("data-instruction", "ATTACK");
+  await expect(line).toHaveAttribute("data-instruction-source", "MANAGER");
   await page.getByTestId("half-time-resume-unchanged").click();
   await expect(panel).toBeHidden();
 
@@ -123,9 +147,10 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await page.getByTestId("half-time-resume-unchanged").click();
   await expect(panel).toBeHidden();
 
-  // Then to the result.
+  // Then to the result, which takes the instruction's place on the score card.
   await page.getByTestId("live-skip").click();
   await expect(page.getByTestId("live-continue")).toBeVisible();
+  await expect(line).toHaveCount(0);
 
   // The decision in the feed with its effect, the substitution at 16'.
   const decision = page.getByTestId("live-decision");

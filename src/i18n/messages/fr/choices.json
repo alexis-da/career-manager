@@ -97,7 +97,7 @@
       },
       "STEADY": {
         "label": "Rester tel quel",
-        "effect": "Jeu équilibré jusqu'à la 90e."
+        "effect": "Ta consigne de départ jusqu'à la 90e : {instruction, select, ATTACK {match plus ouvert} DEFEND {match plus fermé} other {jeu équilibré}}."
       }
     },
     "CHASING": {
@@ -115,7 +115,7 @@
       },
       "STEADY": {
         "label": "Rester en place",
-        "effect": "Jeu équilibré jusqu'à la 90e."
+        "effect": "Ta consigne de départ jusqu'à la 90e : {instruction, select, ATTACK {match plus ouvert} DEFEND {match plus fermé} other {jeu équilibré}}."
       }
     }
   }

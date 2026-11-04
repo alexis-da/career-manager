@@ -13,6 +13,16 @@
     },
     "live": "En direct",
     "extraTimeLive": "Prolongation · en direct",
+    "instruction": {
+      "title": "Consigne :",
+      "label": "Consigne en cours : {instruction}, {source, select, START {ta consigne de départ} ASSISTANT {donnée par ton adjoint} MANAGER {donnée par toi} other {donnée par une réaction tactique}}",
+      "source": {
+        "START": "de départ",
+        "ASSISTANT": "de l'adjoint",
+        "MANAGER": "la tienne",
+        "EVENT": "réaction tactique"
+      }
+    },
     "continue": "Continuer",
     "speed": "Vitesse",
     "speedFactor": "x{factor}",

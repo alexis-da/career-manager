@@ -94,7 +94,7 @@
         "DEFEND": "A tighter game: useful to protect a lead or against a stronger side."
       },
       "given": "{extraTime, select, true {Until the end of extra time} other {Until the end of normal time}}, whatever the score.",
-      "assistant": "Unless you choose, your assistant adapts it to the score: attack when behind from the 60th minute, sit back one goal up from the 75th."
+      "assistant": "Unless you choose, your assistant adapts it to the score: attack when behind from the 60th minute, sit back one goal up from the 75th, otherwise your starting instruction ({starting})."
     }
   }
 }

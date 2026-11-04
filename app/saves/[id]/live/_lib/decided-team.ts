@@ -1,20 +1,12 @@
 import type { ChoiceEventView, HalfTimeTeam } from "@/src/db/live-match";
 import { KNOCK_SHARE } from "@/src/engine/balance";
-import type { Instruction } from "@/src/engine/match";
-
-/** The instruction a late tactical choice gives for the rest of regular time. */
-const INSTRUCTION_OF: Partial<Record<ChoiceEventView["options"][number]["option"], Instruction>> = {
-  DEFEND: "DEFEND",
-  ATTACK: "ATTACK",
-  STEADY: "BALANCED",
-};
 
 /**
  * The managed club at a pause as the player's decision on its choice event leaves it, before anything is played: the
  * player an option takes off replaced in his slot by the substitute the event names, in this pause's window; a player
- * played on after a knock hurt; a late tactical choice's instruction given. The Coaching panel opens on it after the
- * event card and its changes go on from it, as the server makes the same decision first. `change`: the substitution the
- * decision makes, which the panel shows and cannot undo.
+ * played on after a knock hurt; a late tactical choice's instruction given by the event, the starting one to carry on as
+ * the club started. The Coaching panel opens on it after the event card and its changes go on from it, as the server
+ * makes the same decision first. `change`: the substitution the decision makes, which the panel shows and cannot undo.
  */
 export function decidedTeam(
   team: HalfTimeTeam,
@@ -25,9 +17,8 @@ export function decidedTeam(
   if (chosen === undefined) {
     return { team, change: null };
   }
-  const instruction = INSTRUCTION_OF[chosen.option];
-  if (instruction !== undefined) {
-    return { team: { ...team, instruction: { ...team.instruction, current: instruction, given: true } }, change: null };
+  if (chosen.instruction !== null) {
+    return { team: { ...team, instruction: { ...team.instruction, current: chosen.instruction, source: "EVENT" } }, change: null };
   }
   const playerKey = chosen.playerKey;
   if (chosen.option === "PLAY_ON" && playerKey !== null) {

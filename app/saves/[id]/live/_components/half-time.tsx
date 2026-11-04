@@ -232,6 +232,8 @@ export function HalfTime({
           ? t("title.regulationEnd")
           : t("title.halfTime");
   const extraTime = team.minute >= REGULATION_MINUTES;
+  // Given for the period of play, by the player or an event: the assistant's rule no longer changes it.
+  const given = team.instruction.source === "MANAGER" || team.instruction.source === "EVENT";
 
   return (
     // Modal: only Escape and the cross close it, a drag may end anywhere.
@@ -370,9 +372,9 @@ export function HalfTime({
                 ))}
               </div>
               <p className="text-[0.8125rem] text-muted-foreground">
-                {team.instruction.given || instruction !== team.instruction.current
+                {given || instruction !== team.instruction.current
                   ? t("instruction.given", { extraTime: String(extraTime) })
-                  : t("instruction.assistant")}
+                  : t("instruction.assistant", { starting: t(`instruction.${team.instruction.starting}`) })}
               </p>
             </fieldset>
 

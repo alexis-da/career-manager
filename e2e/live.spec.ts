@@ -50,6 +50,7 @@ const PHONES = [
       skip: "Aller à la mi-temps",
       toResult: "Aller au résultat",
       title: "Mi-temps",
+      instruction: "Consigne : Équilibré · de départ",
     },
   },
   {
@@ -62,6 +63,7 @@ const PHONES = [
       skip: "Go to half-time",
       toResult: "Go to the result",
       title: "Half-time",
+      instruction: "Instruction: Balanced · starting",
     },
   },
 ];
@@ -239,6 +241,10 @@ test("runs the first half: the clock, its speeds, and its ways on, which say whe
 
   await expect(page.getByTestId("live-caption")).toHaveText("France — Division 1 · Journée 1 · 15 août 2026");
   await expect(page.getByTestId("live-status")).toHaveText("En direct");
+  // The club's instruction under the score: the start's, nothing given in a first half.
+  const instruction = page.getByTestId("live-instruction");
+  await expect(instruction).toHaveText("Consigne : Équilibré · de départ");
+  await expect(instruction).toHaveAttribute("data-instruction-source", "START");
 
   // A computer keeps its column, under Match: the way out is there, not the phone's.
   await expect(page.getByTestId("save-nav")).toBeVisible();
@@ -469,12 +475,17 @@ for (const { name, locale, viewport, says } of PHONES) {
       await expect(page.getByTestId("live-status")).toHaveText(says.status);
       await expectNoSidewaysScroll(page, "match running");
 
-      // Neither the club's line nor the navigation: both in the page, without a box. The score has the top of the screen.
+      // Neither the club's line nor the navigation: both in the page, without a box. The score has the top of the screen,
+      // with the club's instruction under it, whole within the card.
       await expect(page.getByTestId("save-nav")).toHaveCount(1);
       await expect(page.getByTestId("save-nav")).toBeHidden();
       await expect(page.getByTestId("header-club")).toHaveCount(1);
       await expect(page.getByTestId("header-club")).toBeHidden();
       expect(await boxOf(scoreCardOf(page))).toMatchObject({ x: 0, y: 0, width: viewport.width });
+      const instruction = page.getByTestId("live-instruction");
+      await expect(instruction).toHaveText(says.instruction);
+      await expect(instruction).toBeInViewport({ ratio: 1 });
+      expect(await sidewaysOverflow(instruction)).toBeLessThanOrEqual(0);
 
       // The bar of controls at the foot of the screen, the only thing pinned to it, whole, a thumb high.
       const controls = page.getByTestId("live-controls");
