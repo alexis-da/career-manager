@@ -76,8 +76,10 @@ une blessure ou un changement compte donc dès le segment suivant.
   slots (`ON`, `INJURED`, `SENT_OFF`, `hurt` pour un joueur qui joue touché), le banc, les remplacements faits
   (`MAX_SUBSTITUTIONS` = 5 par match) et les avertis ; pour le club dirigé, ses événements à choix (`choices`) et ce
   qu'ils laissent aux segments suivants (`modifiers` : buts du segment suivant, consigne jusqu'à la fin du temps
-  réglementaire, incidents à venir). Ni les consignes de la règle ni les minutes des changements tactiques n'y sont :
-  elles se recalculent. Un état de version 1 (mi-temps ou fin du temps réglementaire, d'avant) revient avec `played`
+  réglementaire et qui l'a donnée, `givenBy`, incidents à venir). Les minutes des changements tactiques n'y sont pas :
+  elles se recalculent. Chaque équipe garde la consigne de chacun de ses segments joués, à chaque changement, et qui
+  l'a donnée (`TeamLive.instructions`, `InstructionSpan` : départ, adjoint, manager, événement), pour le direct ; sa
+  consigne de départ, `TeamLive.startingInstruction`, absente pour Équilibré. Un état de version 1 (mi-temps ou fin du temps réglementaire, d'avant) revient avec `played`
   45 ou 90 et se termine sans événements.
 - Un blessé est remplacé aussitôt, tant qu'il reste des changements, par le remplaçant au meilleur `ratingAt` au slot.
   Les remplacements tactiques (3 prévus, 55'–85', minutes tirées du flux `…:substitutions:home|away`, les mêmes quoi
@@ -91,11 +93,20 @@ une blessure ou un changement compte donc dès le segment suivant.
   mener d'un but à partir de la 75e Fermer rapporte, la règle restant à 0,01 point de toute variante mesurée ; un favori
   gagne toujours à un match ouvert, un outsider à un match fermé. Règle de l'adjoint et des clubs IA, `assistantInstruction(state,
   side, played)`, lue au début de chaque segment : mené à partir de la 60e → Attaquer, mène d'un but à partir de la
-  75e → Fermer, sinon Équilibré. `simulateMatch`, `playPeriod` et `simulateSegment` acceptent des consignes par
-  côté (`Instructions`) ; un côté sans consigne suit la règle. En direct, le joueur en donne une à une pause
-  (`giveInstruction`, celle des événements tactiques aussi) : elle vit dans `MatchState.modifiers.instructions` jusqu'à
-  la fin de la période de jeu, temps réglementaire (effacée après `s6`) ou prolongation, quel que soit le score ;
-  `instructionAt` dit celle du segment suivant.
+  75e → Fermer, sinon la consigne de départ de l'équipe (`startingInstructionOf` : Équilibré pour un club IA).
+  Consigne de départ (G6) : celle de la composition du club dirigé (`Lineup.instruction`, `resolveLineup` la reprend de
+  la composition enregistrée), posée par `startMatch`, simulé comme en direct ; Équilibré laisse l'état et le match
+  d'avant. Effet : `npm run measure:balance -- --starting-only`. `simulateMatch`, `playPeriod` et `simulateSegment`
+  acceptent des consignes par côté (`Instructions`, pour les mesures) ; un côté sans consigne suit la règle. En direct,
+  le joueur en donne une à une pause (`giveInstruction(state, side, instruction, "MANAGER")`, celle des événements
+  tactiques avec `"EVENT"`) : elle vit dans `MatchState.modifiers.instructions` jusqu'à la fin de la période de jeu,
+  temps réglementaire (effacée après `s6`) ou prolongation, quel que soit le score ; `instructionAt` dit celle du
+  segment suivant, `instructionSourceAt` qui l'a donnée.
+- Force d'une équipe : une seule source, `src/engine/strength.ts` (`condition`, `teamStrength`, `formationStrength`,
+  `expectedGoals`, `expectedGoalDifference`, `compareFormations`), sans tirage, que le moteur et l'écran de la
+  composition importent (le navigateur aussi : n'y importer que des modules légers). La composition y recalcule la
+  force du onze à chaque modification et compare les sept dispositifs avec la composition de l'adjoint dans chacun
+  (`selectRestedLineup`).
 - Mi-temps : `automaticHalfTimeChoice` (clubs IA, simulation rapide, club dirigé sans choix) remplace seulement les
   blessés restés dans leur slot (plus aucun changement, ou état d'avant les segments, dont la première période les y
   laissait), par le meilleur `ratingAt` au slot. `applyHalfTimeChoice` valide et applique un choix à toute pause
@@ -224,9 +235,10 @@ joueur nommé à une minute tirée.
   l'adjoint le remplace. Ces trois-là ne viennent qu'avec un changement et un remplaçant disponibles, et, une fois que le
   manager fait ses remplacements (`manual`), avec une fenêtre pendant le jeu.
 - Le club mène d'un ou deux buts (60' ou 75') : fermer, chercher le break ou rester tel quel, une consigne (Fermer,
-  Attaquer, Équilibré) jusqu'à la fin du temps réglementaire quel que soit le score ; l'adjoint ferme si sa règle ferme
-  (un but d'avance à 75'), sinon reste. Mené ou à égalité : tout pour l'attaque (Attaquer) ou rester en place
-  (Équilibré) ; l'adjoint attaque s'il est mené.
+  Attaquer, ou la consigne de départ, Équilibré sans autre : `optionInstruction`) jusqu'à la fin du temps
+  réglementaire quel que soit le score ; l'adjoint ferme si sa règle ferme (un but d'avance à 75'), sinon reste. Mené ou
+  à égalité : tout pour l'attaque (Attaquer) ou rester en place (la consigne de départ) ; l'adjoint attaque s'il est
+  mené.
 - Les buts des événements sont pris sur ceux du club : `OWN_GOALS_WITH_CHOICE_EVENTS` (0,89) multiplie ses buts
   attendus à chaque segment d'un match qui a des événements, pour que, décidés par l'adjoint, ils ne lui rapportent rien
   d'eux-mêmes (mesuré : +0,11 point par match sans cela).

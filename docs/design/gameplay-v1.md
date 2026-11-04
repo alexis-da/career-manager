@@ -218,6 +218,35 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
 - **Dispositif** : sous le choix du dispositif, son profil (attaque / défense) et la **force d'attaque et de défense du onze actuel**, recalculées à chaque modification avec la formule du moteur (fatigue et postes compris), à côté de celles du prochain adversaire.
 - « Composition automatique » tient compte de la fatigue et des suspensions.
 
+### Retenu (04/11)
+
+- **Poste** : chaque joueur placé a sa note au poste et l'écart à sa note (« 71 → 65 ») dès qu'il y en a un, et un libellé : À son poste, Poste secondaire, Dépanne (ambre, même ligne), Hors poste (rouge, autre ligne), les couleurs d'alerte qui existaient. Sur le terrain, l'écart sous le nom ; dans la liste à partir de 1024 px, sur la ligne de chaque titulaire, avec le libellé ; le résumé compte les quatre.
+- **Faire un changement** : toucher un poste ouvre ses candidats, tout l'effectif sauf le joueur du poste, triés par note à ce poste : note au poste, libellé, condition, forme (flèche), blessé, suspendu ou 4 jaunes, et où il joue ; un toucher place le joueur ou échange deux titulaires. Sous 1024 px, une feuille sur la page ; au-dessus, la liste de l'effectif devient celle des candidats, et le glisser-déposer reste.
+- **Dispositif** : sous son choix, le profil en mots et en barres (« Plus offensif : +3 % en attaque, −3 % en défense »), l'attaque et la défense du onze qui jouerait, recalculées à chaque modification par la fonction du moteur, à côté de celles du onze prévu du prochain adversaire, et le comparatif des sept dispositifs avec la composition de l'adjoint dans chacun : attaque, défense, écart de buts attendu au prochain match (au centième : au dixième, le meilleur semblait souvent arbitraire), le meilleur signalé, « Choisir » qui l'applique. Une seule source de calcul : `src/engine/strength.ts`, que le moteur et l'écran importent.
+- **Composition automatique** : celle de l'adjoint, comme les clubs IA (`selectRestedLineup`) : blessés et suspendus écartés, comme avant, et un joueur sous 75 reposé quand un reposé vaut au plus 5 points de moins à son poste.
+- **Consigne de départ** : Attaquer, Équilibré ou Fermer, choisie dans la composition et enregistrée avec elle dans `ClubSave.lineup` (`instruction`, facultative : Équilibré sans elle, aucune migration). Le club dirigé la joue au coup d'envoi, simulé comme en direct ; la règle de l'adjoint y revient quand elle n'a rien à dire (mené à partir de 60', Attaquer ; un but d'avance à partir de 75', Fermer ; sinon la consigne de départ), et « Rester tel quel » d'une réaction tactique la garde. En Équilibré, l'état et le match sont ceux d'avant : le test des 600 matchs est inchangé, et 120 matchs en Attaquer ou Fermer, simulés et regardés à travers l'état stocké, sont identiques. Principe affiché : « Plus fort que l'adversaire : ouvre le jeu ; plus faible : ferme-le. »
+- **Effet mesuré** (`npm run measure:balance -- --starting-only`, 20 000 matchs par ligne, l'équipe testée jouée comme le club dirigé, ses événements décidés par l'adjoint, contre un niveau 70 en Équilibré ; Δ points par match face à Équilibré, sur les mêmes graines) :
+
+| Équipe testée | Attaquer | Fermer |
+|---|---|---|
+| Net favori (80) | +0,013 | −0,019 |
+| Favori (75) | −0,003 | −0,017 |
+| Égal (70) | −0,023 | 0,000 |
+| Outsider (65) | −0,033 | +0,017 |
+| Gros outsider (60) | −0,049 | +0,023 |
+
+  Le principe tient, en petit : plus faible, fermer rapporte ; plus fort, ouvrir ne rapporte qu'au net favori et coûte à égalité (Attaquer donne 1,15 à l'adversaire pour 1,13 à soi). Moins d'un point sur une saison de 38 matchs : la consigne de départ oriente un match sans le décider.
+- **Direct** : la carte du score dit à chaque minute la consigne que joue le club et qui l'a donnée (« Consigne : Fermer · de départ », de l'adjoint, la tienne, réaction tactique), y compris celle d'une carte d'événement, dès sa décision. Le moteur garde la consigne de chaque segment et qui l'a donnée (`TeamLive.instructions`).
+- **Écarts au cahier et à la demande** :
+  - sur le terrain, le libellé n'est pas écrit sous chaque joueur (88 px de large, cinq joueurs de front en 5-3-2 à 360 px) : l'écart y est, dans la couleur du libellé, et le libellé est dans le détail (survol, poste sélectionné) et dans le nom lu ; la liste et les candidats l'écrivent ;
+  - sur téléphone, le panneau du dispositif et la consigne viennent après le banc, le terrain d'abord, plutôt que juste sous le choix du dispositif ;
+  - dans les candidats, les blessés et les suspendus viennent après les disponibles, chaque groupe trié par note au poste ;
+  - la forme en flèche n'est que dans les candidats ;
+  - sans composition enregistrée, le match joue toujours le meilleur onze : seul le bouton repose les fatigués ;
+  - le meilleur dispositif est jugé les deux équipes en Équilibré, sans la consigne de départ ; sans prochain match, il n'y en a pas ;
+  - un changement de consigne pendant le match ne paraît ni dans le fil ni sur la feuille de match : seule la carte du score le dit ;
+  - « Rester tel quel » garde la consigne de départ (Équilibré, comme décidé en G4, quand il n'y en a pas d'autre) : avec Attaquer ou Fermer au départ, une réaction tactique peut offrir deux choix au même effet, et après une consigne du joueur en cours de match, « Rester tel quel » revient à celle de départ. À trancher.
+
 ## Ordre et méthode
 
 G1 → G2 → G3 → G4 → G5 → G6, chacun sur la branche `gameplay`, avec la méthode habituelle : un commit par changement cohérent, tsc + lint + Vitest verts à chaque commit, E2E complets en fin de chantier, `measure:balance` avant/après pour G1, G2, G3 et G4, migrations d'ajout uniquement, base locale, rien contre Neon, rien de poussé sans demande explicite, textes FR et EN.

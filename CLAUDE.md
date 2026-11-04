@@ -22,7 +22,7 @@ npx prisma studio      # inspecter la base
 npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
-npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes et fatigue, saisons d'une partie 2 (base locale seulement)
+npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2 (base locale seulement)
 ```
 
@@ -78,8 +78,9 @@ le prochain match du club, où seules les autres compétitions jouent, par tranc
 (`…:s1` à `…:s6`, `…:e1`, `…:e2`) et la force des équipes recalculée à son début : un rouge, une blessure (remplacée
 aussitôt) ou un changement compte dès le segment suivant. Profils de dispositif (`FORMATION_PROFILES`) et consignes
 Attaquer / Équilibré / Fermer (`INSTRUCTION_EFFECTS`), données par la règle de l'adjoint (`assistantInstruction`) à tous
-les clubs, sauf au club dirigé quand, en direct, son joueur en choisit une (`giveInstruction`, règle « Remplacements et
-consigne en direct ») ; forme calmée (`FORM_RETENTION`). Les buts
+les clubs, qui revient à leur consigne de départ quand elle n'a rien à dire (Équilibré pour un club IA, règle
+« Composition et consigne de départ »), sauf au club dirigé quand, en direct, son joueur en choisit une
+(`giveInstruction`, règle « Remplacements et consigne en direct ») ; forme calmée (`FORM_RETENTION`). Les buts
 viennent plus tard dans le match : un poids par quart d'heure (`REGULATION_GOAL_WEIGHTS`, de 0,76 à 1,38) et par période
 de prolongation (`EXTRA_TIME_GOAL_WEIGHTS`), moyenne 1 (14 % des buts au premier quart d'heure, 21 % au dernier). Le
 direct du club dirigé se joue segment par segment (`playOn`, `src/engine/live.ts`) : `Fixture.liveState`, en version 2,
@@ -125,7 +126,7 @@ type parmi ceux possibles à ce moment (`CHOICE_EVENT_WEIGHTS`) et ses joueurs d
 Catalogue v1 du cahier : penalty (le tireur parmi les trois meilleurs, sa chance affichée), coup franc (frapper ou
 combiner), joueur averti qui s'énerve, échauffourée, joueur touché, joueur à bout (25 points de fitness perdus sur le
 terrain, à partir de 75'), le club mène, le club est mené ou à égalité (une consigne jusqu'à la fin du temps
-réglementaire). Les buts des événements sont pris sur ceux du club (`OWN_GOALS_WITH_CHOICE_EVENTS`, 0,89 sur ses buts
+réglementaire ; « Rester tel quel », la consigne de départ, `optionInstruction`). Les buts des événements sont pris sur ceux du club (`OWN_GOALS_WITH_CHOICE_EVENTS`, 0,89 sur ses buts
 attendus) : décidés par l'adjoint, ils ne lui rapportent rien d'eux-mêmes. L'adjoint décide avec la même fonction pure
 en simulation (`assistantChoices`, `simulateMatch`) et en direct quand le joueur saute la pause (« live-skip ») ; sinon
 le joueur décide sur la carte d'événement (G5, règle « Match en direct »), la décision de l'adjoint présélectionnée. Chaque
@@ -143,6 +144,23 @@ remplacement (`applyManagerChoice`, `TeamLive.manual`), l'adjoint ne fait plus l
 aussitôt, et un événement qui sort un joueur demande alors une fenêtre. Sa consigne, donnée à une pause, tient jusqu'à
 la fin de la période de jeu, temps réglementaire ou prolongation, quel que soit le score (`giveInstruction`) ; sans
 consigne, la règle de l'adjoint. Sans décision ni changement ni consigne, le match reste celui de la simulation.
+
+**Composition et consigne de départ (gameplay v1, G6).** La force d'une équipe a une seule source,
+`src/engine/strength.ts` (`condition`, `teamStrength`, `formationStrength`, `expectedGoals`, `expectedGoalDifference`,
+`compareFormations`), que le moteur et l'écran de la composition importent : l'éditeur recalcule dans le navigateur
+l'attaque et la défense du onze qui jouerait (`resolveLineup` de son état, `EditorPlayer` : attributs, forme, moral,
+fitness au prochain match), à côté de celles du onze probable du prochain adversaire (`OpponentPreview.strength`), et
+compare les sept dispositifs avec la composition de l'adjoint dans chacun, le meilleur étant le plus grand écart de buts
+attendu contre lui, les deux Équilibré. « Composition automatique » est celle de l'adjoint (`automaticState`,
+`selectRestedLineup` : sans blessé ni suspendu, un fatigué sous 75 reposé quand un reposé vaut au plus 5 points de moins
+à son poste) ; sans composition enregistrée, le match joue toujours `selectLineup`. Consigne de départ (Attaquer,
+Équilibré, Fermer) : choisie dans la composition, enregistrée avec elle dans `ClubSave.lineup` (`instruction`,
+facultative, Équilibré sans elle, aucune migration), jouée par le club dirigé au coup d'envoi, simulé comme en direct
+(`Lineup.instruction`, `TeamLive.startingInstruction`, absente pour Équilibré : l'état et le match d'avant) ; la règle de
+l'adjoint y revient, et « Rester tel quel » la garde. Chaque équipe garde la consigne de chacun de ses segments et qui
+l'a donnée (`TeamLive.instructions`, `InstructionSpan`, `src/engine/instructions.ts` : départ, adjoint, manager,
+événement ; `MatchModifiers.givenBy` ; `instructionSourceAt`), lue par le direct. Effet mesuré par `npm run
+measure:balance -- --starting-only` : petit, Fermer rapportant à l'outsider, Attaquer au seul net favori.
 
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
@@ -335,7 +353,10 @@ arrêt à l'autre d'un coup, événements compris (`stepUntil` : « segment », 
 possession ni tirs : l'écran n'en montre pas. Carte du score sur le bleu
 vif (`LiveScoreCard` : compétition, journée, date, stade s'il
 est connu, `Club.stadium` étant vide pour les 198 clubs ; score, minute en orange, barre de progression, pastille du
-résultat à la fin). Commandes (`LiveControls`, `live-controls`, un seul élément : dans la carte à partir de 1024 px, fixées
+résultat à la fin ; au-dessus de la barre, la consigne que joue le club à la minute de l'horloge et qui l'a donnée,
+`live-instruction`, « Consigne : Fermer · de départ », de l'adjoint, la tienne, réaction tactique : `shownInstruction`
+sur les consignes gardées par segment, que la page reçoit au chargement, `getLiveWaiting`, et à chaque étape ; à une
+pause, celle que donne la décision prise sur la carte, aussitôt ; elle laisse la place au résultat). Commandes (`LiveControls`, `live-controls`, un seul élément : dans la carte à partir de 1024 px, fixées
 au pied de l'écran en dessous) : vitesse x1, x2, x4 (`live-speed-*`), `live-coaching-request` et `live-skip`, qui dit où
 il mène (jamais la pause de la 90e, qui annoncerait un nul avant qu'il soit joué) ; `live-coaching` à un arrêt,
 `live-continue` à la fin. Carte d'événement (`ChoiceCard`, `choice-card`, zone de messages `choices`) : `Sheet` modal
@@ -368,12 +389,25 @@ nationalité, jauge de forme, condition (cœur et chiffre, aucune pour un bless�
 rapides à la place de l'en-tête ; au-dessus, le tableau, ses colonnes suivant sa place (`@container` : sans Pot. ni Salaire
 sous 928 px, sans Valeur, Contrat ni Condition sous 672 px, à côté de la fiche ; la Condition, triable, a un cœur pour
 en-tête). États : blessé, suspendu, à 4 jaunes (règle « Suspensions »). Composition (`/lineup`, `LineupEditor`, `LineupSquad`) :
-sous 1024 px, terrain, résumé, banc, puis la liste ; de 1024 à 1279 px, l'effectif compact à gauche du terrain et la fiche en
-surimpression ; à partir de 1280 px, l'effectif, le terrain et la fiche sur une page, `pinned`, jamais vide : le titulaire du
-poste sélectionné, sinon le dernier joueur choisi, sinon le mieux noté (`pinnedSheetKey`). Un clic sur un poste le
-sélectionne ; poste sélectionné, un clic sur une ligne y place le joueur (`lineup-reserve`) ou échange deux postes
-(`lineup-starter`, à partir de `lg`) ; sans poste sélectionné, il ouvre la fiche ; sous 1280 px, `lineup-open-sheet` ouvre
-celle du titulaire. Fiche (`PlayerSheet`, partagée avec le marché avancé, `?player=`) : tête sur le bleu vif, initiales
+sous 1024 px, terrain, résumé, banc, le panneau du dispositif et la consigne de départ, puis la liste ; à partir de 1024 px,
+ce panneau sous le choix du dispositif, puis de 1024 à 1279 px l'effectif compact à gauche du terrain et la fiche en
+surimpression, à partir de 1280 px l'effectif, le terrain et la fiche sur une page, `pinned`, jamais vide : le titulaire
+du poste sélectionné, sinon le dernier joueur choisi, sinon le mieux noté (`pinnedSheetKey`). Chaque joueur placé a sa
+note au poste et l'écart à sa note (« 71 → 65 », `RatingGap`, la flèche en SVG) dès qu'il y en a un, et un libellé
+(`FitLabel`, `positions.fit` : À son poste, Poste secondaire, Dépanne en ambre, Hors poste en rouge) : sur le terrain,
+l'écart sous le nom, le libellé dans le détail et le nom lu, 88 px n'en laissant pas la place ; dans la liste à partir de
+`lg`, sur la ligne de chaque titulaire ; le résumé compte les quatre. Toucher un poste le sélectionne et ouvre ses
+candidats (`slotCandidates`, `app/saves/[id]/lineup/_lib/candidates.ts` : tout l'effectif sauf le joueur du poste, triés
+par note à ce poste, les blessés et suspendus après ; note au poste, libellé, condition, forme en flèche, `FormArrow`,
+états, place actuelle ; `lineup-candidate`) : sous 1024 px dans une feuille sur la page (`lineup-candidates-sheet`), au-dessus
+à la place de la liste de l'effectif (`PanelCandidates`, que « Tout l'effectif » ou Échap rendent) ; un toucher y place le
+joueur ou échange deux titulaires (`placeInSlot`), et le glisser-déposer reste ; `lineup-open-sheet` et
+`lineup-send-to-bench` avec le joueur du poste ; sans poste sélectionné, une ligne ouvre la fiche. Panneau du dispositif
+(`FormationPanel`, zone de messages `lineup-plan`) : le profil en mots et en barres (`formationProfile`), l'attaque et la
+défense du onze à côté de celles de l'adversaire (règle « Composition et consigne de départ ») et, déplié, le comparatif
+des sept dispositifs, écart au centième, le meilleur signalé, « Choisir » l'appliquant avec le onze de l'adjoint ; la
+consigne de départ (`StartingInstruction`) : une bascule, ce qu'elle fait au match, le principe en une phrase et la règle
+de l'adjoint ; dans l'état de l'éditeur, enregistrée avec lui. Fiche (`PlayerSheet`, partagée avec le marché avancé, `?player=`) : tête sur le bleu vif, initiales
 (`playerInitials`, le visage reste partout ailleurs), note et poste en grand, saison, barres, contrat, transferts ; Prolonger
 orange, secondaire dans la Composition, dont l'orange est « Enregistrer » (`primary`) ; une vente impossible se lit dans le
 pied, `sell-player` désactivé (`player-sale-refusal`). Sur toute l'entrée, l'action de jeu de la colonne est secondaire
@@ -611,6 +645,8 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
                       # live.spec.ts : le direct et le panneau Coaching ; live-choices.spec.ts : un direct avec une
                       # décision du joueur, un changement et un arrêt demandé ; team.spec.ts : Effectif, Composition et fiche ;
+                      # lineup-candidates.spec.ts : le changement en un toucher sur téléphone ; starting-instruction.spec.ts :
+                      # le panneau du dispositif et la consigne de départ, de la composition au direct ;
                       # club.spec.ts : Club, son défi, ses réglages, le palmarès et le bilan d'une saison ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
