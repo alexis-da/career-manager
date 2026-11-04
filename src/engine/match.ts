@@ -4,14 +4,9 @@ import {
   ASSIST_SLOT_WEIGHTS,
   ASSISTANT_ATTACK_MINUTE,
   ASSISTANT_DEFEND_MINUTE,
-  ATTACK_LINE_WEIGHTS,
-  ATTACK_WEIGHTS,
-  BASE_GOALS_PER_TEAM,
   BOOKED_PLAYER_CARD_FACTOR,
   CARD_SLOT_WEIGHTS,
   CONDITION_NEUTRAL,
-  DEFENSE_LINE_WEIGHTS,
-  DEFENSE_WEIGHTS,
   EXTRA_TIME_END_MINUTE,
   EXTRA_TIME_GOAL_WEIGHTS,
   EXTRA_TIME_INTENSITY,
@@ -23,7 +18,6 @@ import {
   FORM_REST_DRIFT,
   FORM_RETENTION,
   FORM_SENT_OFF,
-  FORMATION_PROFILES,
   HALF_TIME_MINUTE,
   HOME_ADVANTAGE,
   INJURIES_PER_TEAM,
@@ -49,9 +43,6 @@ import {
   SHOOTOUT_MAX_CHANCE,
   SHOOTOUT_MIN_CHANCE,
   SHOOTOUT_REFERENCE_RATING,
-  STRENGTH_EXPONENT,
-  STRENGTH_PER_FORM_POINT,
-  STRENGTH_PER_MORALE_POINT,
   SUBSTITUTION_MINUTE_MAX,
   SUBSTITUTION_MINUTE_MIN,
   SUBSTITUTIONS_PER_TEAM,
@@ -60,12 +51,14 @@ import {
 import type { MatchChoices, MatchDecision } from "./choices";
 import { fitnessAfter, fitnessFactor, injuryRiskFactor, wearFactor } from "./fitness";
 import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "./formations";
-import { ATTRIBUTE_NAMES, clampRating, type AttributeName } from "./generation";
+import { clampRating } from "./generation";
 import { DEFAULT_INSTRUCTION, type Instruction, type InstructionSource, type InstructionSpan } from "./instructions";
-import type { Lineup, LineupSlot, SquadPlayer } from "./lineup";
-import { playerFamiliarity, positionGroup, ratingAt, type Position, type PositionGroup } from "./positions";
+import type { Lineup, SquadPlayer } from "./lineup";
+import { positionGroup, ratingAt, type Position } from "./positions";
+import { expectedGoals, formationStrength, type TeamStrength } from "./strength";
 
 export type { Instruction, InstructionSource, InstructionSpan } from "./instructions";
+export type { TeamStrength } from "./strength";
 
 export type Side = "home" | "away";
 
@@ -124,11 +117,6 @@ export type MatchResult = {
   homePenalties?: number;
   awayPenalties?: number;
   decisions?: MatchDecision[]; // a match of the managed club: its choice events and the decisions made
-};
-
-export type TeamStrength = {
-  attack: number;
-  defense: number;
 };
 
 export type PlayerMatchStats = {
@@ -317,56 +305,6 @@ function substitutionRngSeed(matchSeed: string, side: Side): string {
 
 const otherSide = (side: Side): Side => (side === "home" ? "away" : "home");
 
-export function condition(player: SquadPlayer): number {
-  return (
-    1 +
-    (player.form - CONDITION_NEUTRAL) * STRENGTH_PER_FORM_POINT +
-    (player.morale - CONDITION_NEUTRAL) * STRENGTH_PER_MORALE_POINT
-  );
-}
-
-function weightedValue(player: SquadPlayer, weights: Partial<Record<AttributeName, number>>): number {
-  return ATTRIBUTE_NAMES.reduce((sum, name) => sum + player[name] * (weights[name] ?? 0), 0);
-}
-
-/**
- * Attack and defense of the players on the pitch: each one's attributes weighted for the group of their slot,
- * reduced by their familiarity with the slot (as ratingAt reduces the overall), adjusted for form and morale, for his
- * freshness at kick-off (fitnessFactor) and for what the match has done to him so far (inMatch: his wear, a knock he
- * plays on with; 1 before kick-off). A line's value is shared among the formation's slots of that line, empty ones
- * included: a team down to ten is weaker. Without a formation, the starters' slots are the formation.
- */
-export function teamStrength(
-  lineup: Lineup,
-  formation: readonly Position[] = lineup.starters.map(({ slot }) => slot),
-  inMatch: (starter: LineupSlot) => number = () => 1,
-): TeamStrength {
-  const lineSizes: Record<PositionGroup, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
-  for (const slot of formation) {
-    lineSizes[positionGroup(slot)]++;
-  }
-  let attack = 0;
-  let defense = 0;
-  for (const starter of lineup.starters) {
-    const { player, slot } = starter;
-    const group = positionGroup(slot);
-    const fitness = fitnessFactor(player.fitness) * inMatch(starter);
-    const share = (condition(player) * fitness * playerFamiliarity(player, slot)) / Math.max(1, lineSizes[group]);
-    attack += ATTACK_LINE_WEIGHTS[group] * share * weightedValue(player, ATTACK_WEIGHTS[group]);
-    defense += DEFENSE_LINE_WEIGHTS[group] * share * weightedValue(player, DEFENSE_WEIGHTS[group]);
-  }
-  return { attack, defense };
-}
-
-/** Expected goals of a team against an opponent; venueFactor is HOME_ADVANTAGE at home, its inverse away. */
-export function expectedGoals(team: TeamStrength, opponent: TeamStrength, venueFactor: number): number {
-  if (team.attack <= 0) {
-    return 0;
-  }
-  const ratio = team.attack / Math.max(opponent.defense, 1);
-  return Math.min(MAX_EXPECTED_GOALS, BASE_GOALS_PER_TEAM * Math.pow(ratio, STRENGTH_EXPONENT) * venueFactor);
-}
-
 /** A player's fitness at a minute of the match: his fitness at kick-off, less what his time on the pitch has cost. */
 export function fitnessAt(entry: PitchEntry, minute: number): number {
   return fitnessAfter(entry.player.fitness, entry.slot, minute - entry.from);
@@ -381,17 +319,6 @@ export function lineupOnPitch(team: TeamLive): Lineup {
       .map(({ player, slot, index }) => ({ player, slot, index })),
     bench: team.bench,
   };
-}
-
-/** Attack and defense of a lineup in a formation, the formation's profile applied; inMatch as teamStrength reads it. */
-export function formationStrength(
-  lineup: Lineup,
-  formation: FormationName,
-  inMatch?: (starter: LineupSlot) => number,
-): TeamStrength {
-  const { attack, defense } = teamStrength(lineup, formationPositions(formation), inMatch);
-  const profile = FORMATION_PROFILES[formation];
-  return { attack: attack * profile.attack, defense: defense * profile.defense };
 }
 
 /** What the match has done to a player at a minute: worn by his time on the pitch, and hurt if he plays on after a knock. */

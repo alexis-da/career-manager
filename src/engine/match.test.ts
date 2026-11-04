@@ -20,9 +20,7 @@ import {
   eventsToPersist,
   applyHalfTimeChoice,
   automaticHalfTimeChoice,
-  expectedGoals,
   fitnessAt,
-  formationStrength,
   HalfTimeChoiceError,
   liveStrength,
   matchResult,
@@ -33,7 +31,6 @@ import {
   simulateSegment,
   startMatch,
   stateExpectedGoals,
-  teamStrength,
   type HalfTimeChoice,
   type Instruction,
   type MatchResult,
@@ -42,6 +39,7 @@ import {
   type Segment,
 } from "./match";
 import { ratingAt } from "./positions";
+import { expectedGoals, formationStrength, teamStrength } from "./strength";
 import { WORLD_START_DATE } from "./world";
 
 const SAVE_SEED = "match-test";

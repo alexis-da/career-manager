@@ -5,7 +5,6 @@ import { pauseOf, playOn, type LivePause, type PausePhase, type PlayOnInput, typ
 import {
   assistantInstruction,
   breakSubstitutionLimit,
-  condition,
   fitnessAt,
   inMatchFactor,
   instructionAt,
@@ -20,6 +19,7 @@ import {
   type Side,
 } from "../engine/match";
 import { formationPositions, type FormationName } from "../engine/formations";
+import { condition } from "../engine/strength";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";

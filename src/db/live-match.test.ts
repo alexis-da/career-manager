@@ -4,7 +4,8 @@ import { HALF_TIME_MINUTE, MAX_SUBSTITUTION_WINDOWS, MAX_SUBSTITUTIONS, SEGMENT_
 import { ChoiceError, optionIndex } from "../engine/choices";
 import { fitnessFactor, playingFactor } from "../engine/fitness";
 import type { LivePause } from "../engine/live";
-import { automaticHalfTimeChoice, condition, fitnessAt, HalfTimeChoiceError, type HalfTimeChoice } from "../engine/match";
+import { automaticHalfTimeChoice, fitnessAt, HalfTimeChoiceError, type HalfTimeChoice } from "../engine/match";
+import { condition } from "../engine/strength";
 import { firstMatchdayDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 

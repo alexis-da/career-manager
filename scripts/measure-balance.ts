@@ -51,8 +51,6 @@ import { playOn } from "../src/engine/live";
 import {
   applyAutomaticHalfTime,
   assistantInstruction,
-  expectedGoals,
-  formationStrength,
   knockoutWinner,
   matchResult,
   shootoutChance,
@@ -66,6 +64,7 @@ import {
   type Side,
 } from "../src/engine/match";
 import { positionGroup, ratingAt, secondaryPositions, type Position } from "../src/engine/positions";
+import { expectedGoals, formationStrength } from "../src/engine/strength";
 
 const OWNER = "test-owner-measure-engine";
 
