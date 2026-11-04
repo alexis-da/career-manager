@@ -92,19 +92,29 @@ une blessure ou un changement compte donc dès le segment suivant.
   gagne toujours à un match ouvert, un outsider à un match fermé. Règle de l'adjoint et des clubs IA, `assistantInstruction(state,
   side, played)`, lue au début de chaque segment : mené à partir de la 60e → Attaquer, mène d'un but à partir de la
   75e → Fermer, sinon Équilibré. `simulateMatch`, `playPeriod` et `simulateSegment` acceptent des consignes par
-  côté (`Instructions`) ; un côté sans consigne suit la règle. Le jeu n'en donne encore aucune : tous les clubs, le
-  club dirigé compris en direct, suivent la règle jusqu'à l'interface du direct (G5).
+  côté (`Instructions`) ; un côté sans consigne suit la règle. En direct, le joueur en donne une à une pause
+  (`giveInstruction`, celle des événements tactiques aussi) : elle vit dans `MatchState.modifiers.instructions` jusqu'à
+  la fin de la période de jeu, temps réglementaire (effacée après `s6`) ou prolongation, quel que soit le score ;
+  `instructionAt` dit celle du segment suivant.
 - Mi-temps : `automaticHalfTimeChoice` (clubs IA, simulation rapide, club dirigé sans choix) remplace seulement les
   blessés restés dans leur slot (plus aucun changement, ou état d'avant les segments, dont la première période les y
-  laissait), par le meilleur `ratingAt` au slot. `applyHalfTimeChoice` valide et applique un choix (dispositif,
-  joueur par slot, remplacements datés de 46', sortants clos à 45') et lève `HalfTimeChoiceError` sinon.
+  laissait), par le meilleur `ratingAt` au slot. `applyHalfTimeChoice` valide et applique un choix à toute pause
+  (mi-temps, `REGULATION_END`, `EXTRA_TIME_BREAK`, et `IN_PLAY` entre deux segments : dispositif, joueur par slot,
+  remplacements datés de la minute suivante, sortants clos à la pause, un joueur touché le restant) et lève
+  `HalfTimeChoiceError` sinon. Pendant le jeu, un remplacement demande une fenêtre (`MAX_SUBSTITUTION_WINDOWS`, 3,
+  `windowOpenAt`, « no-window ») : `TeamLive.windows` garde les minutes des remplacements tactiques pendant le jeu (ceux
+  de l'adjoint dans `simulateSegment`, d'un événement dans `substitutionAt`, du manager), jamais celles d'une pause de
+  jeu ni du remplacement immédiat d'un blessé ; la règle ne lie que le manager. `applyManagerChoice` applique ses
+  changements à lui : dès son premier remplacement, `TeamLive.manual`, et `simulateSegment` ne fait plus de remplacement
+  tactique pour ce côté (le blessé reste remplacé aussitôt). Rien de cela ne touche un match sans manager : les empreintes
+  ne bougent pas.
 - `simulateMatch(home, away, matchSeed, formations?, knockout?, instructions?, atBoundary?)` = h1, mi-temps
   automatique des deux côtés, h2 ; `atBoundary` (un `BoundaryHook`) passe au coup d'envoi et entre deux segments où un
   manager peut agir : pour le club dirigé, `assistantChoices(side, seed)` (ses événements à choix, décidés par l'adjoint).
 - Direct (`src/engine/live.ts`) : `playOn(paused, managedSide, matchSeed, input, until)` joue un match du club dirigé
   depuis sa pause (`pauseOf` : phase et minute), coup d'envoi compris : d'abord ce que le manager y apporte (sa décision
-  sur l'événement ouvert, null = l'adjoint ; ses changements à une pause de jeu, null = les automatiques, ceux de
-  l'adversaire avec à la mi-temps), puis ses segments, chaque limite ouvrant l'événement prévu, jusqu'où `until` dit :
+  sur l'événement ouvert, null = l'adjoint ; ses changements à toute pause, null = aucun, les automatiques à la mi-temps
+  avec ceux de l'adversaire ; sa consigne, null = aucune), puis ses segments, chaque limite ouvrant l'événement prévu, jusqu'où `until` dit :
   `"segment"` (la limite suivante), `"pause"` (un événement, une pause de jeu, la fin), `"break"` (la pause de jeu
   suivante, l'adjoint décidant en chemin) ; une prolongation nulle finit aux tirs au but d'un coup. Le club dirigé joue
   son premier segment dans `playNextMatchday(saveId, { pauseManagedMatch: true })`, la suite par `advanceLiveMatch` :
@@ -211,7 +221,8 @@ joueur nommé à une minute tirée.
   dans la suite du match à `KNOCK_INJURY_CHANCE`) ; l'adjoint le sort.
 - Joueur à bout (à partir de 75', celui qui a perdu le plus de fitness sur le terrain, au moins
   `EXHAUSTED_FITNESS_LOST` 25) : le remplacer ou le garder (blessé dans la suite à `EXHAUSTED_INJURY_CHANCE`) ;
-  l'adjoint le remplace. Ces trois-là ne viennent qu'avec un changement et un remplaçant disponibles.
+  l'adjoint le remplace. Ces trois-là ne viennent qu'avec un changement et un remplaçant disponibles, et, une fois que le
+  manager fait ses remplacements (`manual`), avec une fenêtre pendant le jeu.
 - Le club mène d'un ou deux buts (60' ou 75') : fermer, chercher le break ou rester tel quel, une consigne (Fermer,
   Attaquer, Équilibré) jusqu'à la fin du temps réglementaire quel que soit le score ; l'adjoint ferme si sa règle ferme
   (un but d'avance à 75'), sinon reste. Mené ou à égalité : tout pour l'attaque (Attaquer) ou rester en place

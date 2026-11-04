@@ -184,6 +184,32 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
 - Le fil du match affiche les décisions prises et leur effet (« Tu as protesté : Mendy averti »).
 - Une seule action orange par écran, textes FR et EN.
 
+### Retenu (04/11)
+
+- **Carte d'événement** (`ChoiceCard`) : le direct s'arrête à la limite, la carte s'ouvre en modal comme le panneau Coaching (plein écran sous 1024 px, 440 px à droite au-dessus), sans croix ni minuterie ; Échap ne la ferme pas, le focus va sur elle. Sa famille et sa minute, le titre, la situation en une phrase (joueurs nommés, minute, score vu du club : « 60e minute, tu mènes 2-1 : … »), deux ou trois choix et leur conséquence en mots, le remplaçant nommé quand un choix sort un joueur, sans pourcentage hors la réussite du penalty ; le choix de l'adjoint signalé (« Conseil de l'adjoint ») et présélectionné ; « Valider », seule action orange, inactif 500 ms. La décision automatique de l'adjoint dans la page est retirée.
+- **Panneau Coaching à chaque arrêt** : mi-temps, fin du temps réglementaire d'une coupe nulle, après chaque carte, et à la demande. Après une carte, il s'ouvre sur l'équipe telle que la décision la laisse (le remplaçant de l'événement à sa place, montré et non annulable ; un joueur touché ; la consigne choisie), et la décision part avec sa reprise, dans le même appel. Titre selon la pause (« Mi-temps », « 60e minute », « Pause de la prolongation »).
+- **« Coaching » à la demande** : pendant que l'horloge court, le bouton (l'orange de l'écran) arrête le match à la prochaine limite non jouée, 15', 30', 60', 75' ou 105' (« Coaching à la 30e », puis « Arrêt demandé · 30e », un second appui annule). Avant la 45e il dit « Coaching à la mi-temps », inactif, le panneau s'y ouvrant de lui-même ; inactif aussi dans le dernier segment du temps réglementaire et de la prolongation, quoi qu'il suive : dans une coupe, un arrêt à la 90e n'existe que si le match est nul, et le bouton l'annoncerait. Le saut devient secondaire : « Aller à la mi-temps », « Aller au résultat » (une icône sous 640 px), l'adjoint décidant les événements en chemin, comme en G4.
+- **Remplacements** : 5 au plus (un 6e en prolongation), en 3 fenêtres pendant le jeu, la mi-temps et les pauses de la prolongation n'en prenant pas ; règle affichée dans le panneau avec les fenêtres utilisées (« Fenêtres pendant le jeu : 1/3 ») ; sans fenêtre, le banc refuse et le dit. Chaque remplacement tactique pendant le jeu ouvre une fenêtre, celui de l'adjoint et celui d'un événement compris ; le remplacement immédiat d'un blessé n'en prend pas. La règle ne lie que le joueur. Dès son premier remplacement, l'adjoint ne fait plus les siens (le panneau le dit : « Tu fais tes changements : l'adjoint n'en fait plus ») ; un blessé reste remplacé aussitôt, et un événement qui sort un joueur demande alors une fenêtre.
+- **Consignes** : Attaquer, Équilibré, Fermer, chacune avec une phrase (« Attaquer : match plus ouvert, utile si tu es le plus fort ou si tu cours après le score » ; « Équilibré : ni plus ni moins d'occasions » ; « Fermer : match plus fermé, utile pour garder une avance ou face à plus fort »). Celle en cours est cochée ; sans choix, la règle de l'adjoint, que le panneau rappelle. Choisie, elle tient jusqu'à la fin de la période de jeu (temps réglementaire ou prolongation), quel que soit le score.
+- **Fil et feuille de match** : chaque décision, lue dans `MatchDecision`, avec son effet tiré des événements de la minute suivante : « Penalty de Diallo : but », « Tu as protesté : Mendy averti », « Mendy, touché, sort : Diaby entre », « Consigne jusqu'à la fin : fermer le jeu ». Les phrases restent justes quand l'adjoint a décidé (match simulé, pause sautée) ; seule la protestation, que l'adjoint ne choisit jamais, dit « tu ».
+- **Coût** : un appel par étape, qui renvoie ce que la page affiche (`playLiveStepAction`, `getLiveStep`), sans relecture de la page ni revalidation, sauf à la fin du match (l'en-tête de la partie change). Match regardé en entier à x4, même graine et même club, cinq étapes du coup d'envoi au coup de sifflet, mi-temps et événements compris ; build de production local, requêtes comptées par le protocole DevTools :
+
+| Match regardé en entier | Actions | Relectures de page | Préchargements de liens | Requêtes | Reçu (compressé) | Reçu (décompressé) |
+|---|---|---|---|---|---|---|
+| Avant (G4) | 5 | 5 | 71 | 81 | 256,7 Ko | 851,6 Ko |
+| Après (G5) | 5 | 0 | 22 | 27 | 44,0 Ko | 142,4 Ko |
+
+  Une étape pesait une action et une relecture de la page, chacune d'environ 22 Ko compressés (72 Ko décompressés), puis douze préchargements des liens de la partie ; elle pèse désormais une action de 1,4 à 1,8 Ko (5 à 6 Ko décompressés). Seule la dernière, qui relit la page pour l'en-tête, en pèse 25 avec ses douze préchargements. Les arrêts (carte, panneau, arrêt demandé) ne coûtent aucun appel de plus : la décision, les changements et la consigne partent avec la reprise. Même score au coup de sifflet avant et après (0-2) : le joueur qui prend les choix de l'adjoint rejoue le match simulé.
+
+- **Accessibilité** : focus sur la carte à l'ouverture, Échap sans effet, choix en boutons radio (flèches), cibles de 44 px sous 640 px ; mouvement réduit : le match va d'un arrêt à l'autre d'un coup, événements compris ; double appui bloqué 500 ms sur « Valider » comme sur la reprise.
+- **Écarts au cahier** :
+  - la décision de la carte n'est pas envoyée seule : elle part avec la reprise du panneau qui suit, pour un seul appel par étape ; son effet (but, carton) se voit quand le match reprend ;
+  - en mouvement réduit, il n'y a pas d'horloge, donc pas d'arrêt à la demande : le match s'arrête à ses événements et à ses pauses de jeu ;
+  - un blessé remplacé aussitôt ne prend pas de fenêtre (la vraie règle en prend une) : une équipe ne finit jamais à dix faute de fenêtre ;
+  - une consigne choisie ne rend pas la main à la règle de l'adjoint avant la fin de la période de jeu, et ne paraît pas dans le fil (seules les décisions des événements sont gardées) ;
+  - un arrêt demandé ne survit pas au rechargement de la page ;
+  - corrigé au passage dans le moteur G4 : un joueur qui continuait après un coup perdait son malus à la pause suivante.
+
 ## G6 — Composition plus claire
 
 - **État des joueurs** partout dans la composition (terrain, banc, liste) : fitness, forme (flèche), blessé, suspendu, jaunes à risque.

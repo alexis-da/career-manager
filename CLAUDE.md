@@ -78,7 +78,8 @@ le prochain match du club, où seules les autres compétitions jouent, par tranc
 (`…:s1` à `…:s6`, `…:e1`, `…:e2`) et la force des équipes recalculée à son début : un rouge, une blessure (remplacée
 aussitôt) ou un changement compte dès le segment suivant. Profils de dispositif (`FORMATION_PROFILES`) et consignes
 Attaquer / Équilibré / Fermer (`INSTRUCTION_EFFECTS`), données par la règle de l'adjoint (`assistantInstruction`) à tous
-les clubs, le club dirigé compris tant que le direct ne les propose pas (G5) ; forme calmée (`FORM_RETENTION`). Les buts
+les clubs, sauf au club dirigé quand, en direct, son joueur en choisit une (`giveInstruction`, règle « Remplacements et
+consigne en direct ») ; forme calmée (`FORM_RETENTION`). Les buts
 viennent plus tard dans le match : un poids par quart d'heure (`REGULATION_GOAL_WEIGHTS`, de 0,76 à 1,38) et par période
 de prolongation (`EXTRA_TIME_GOAL_WEIGHTS`), moyenne 1 (14 % des buts au premier quart d'heure, 21 % au dernier). Le
 direct du club dirigé se joue segment par segment (`playOn`, `src/engine/live.ts`) : `Fixture.liveState`, en version 2,
@@ -126,9 +127,22 @@ combiner), joueur averti qui s'énerve, échauffourée, joueur touché, joueur �
 terrain, à partir de 75'), le club mène, le club est mené ou à égalité (une consigne jusqu'à la fin du temps
 réglementaire). Les buts des événements sont pris sur ceux du club (`OWN_GOALS_WITH_CHOICE_EVENTS`, 0,89 sur ses buts
 attendus) : décidés par l'adjoint, ils ne lui rapportent rien d'eux-mêmes. L'adjoint décide avec la même fonction pure
-en simulation (`assistantChoices`, `simulateMatch`) et en direct quand le joueur le suit ; jusqu'à la carte
-d'événement (G5), la page du direct prend sa décision. Chaque décision est gardée dans `MatchDecision` (migration
-d'ajout `…_choice_events`, (fixtureId, sequence) unique), écrite dans la transaction qui joue la suite, avant elle.
+en simulation (`assistantChoices`, `simulateMatch`) et en direct quand le joueur saute la pause (« live-skip ») ; sinon
+le joueur décide sur la carte d'événement (G5, règle « Match en direct »), la décision de l'adjoint présélectionnée. Chaque
+décision est gardée dans `MatchDecision` (migration d'ajout `…_choice_events`, (fixtureId, sequence) unique), écrite
+dans la transaction qui joue la suite, avant elle ; le fil du direct et la feuille de match la montrent avec son effet.
+
+**Remplacements et consigne en direct (gameplay v1, G5).** Le joueur change son équipe à toute pause de son match :
+mi-temps, fin du temps réglementaire d'une coupe nulle, pause de la prolongation, et entre deux segments (15', 30', 60',
+75'), ses remplacements datés de la minute suivante (`applyHalfTimeChoice`, `src/engine/match.ts`). Règle réelle :
+5 remplacements au plus (un 6e en prolongation), en 3 fenêtres pendant le jeu (`MAX_SUBSTITUTION_WINDOWS`,
+`TeamLive.windows`) ; la mi-temps et les pauses de la prolongation n'en prennent pas, ni le remplacement immédiat d'un
+blessé, qui reste automatique ; chaque remplacement tactique pendant le jeu en ouvre une, celui de l'adjoint et celui d'un
+événement compris, mais la règle ne lie que le joueur (`HalfTimeChoiceError` « no-window »). Dès son premier
+remplacement (`applyManagerChoice`, `TeamLive.manual`), l'adjoint ne fait plus les siens, un blessé restant remplacé
+aussitôt, et un événement qui sort un joueur demande alors une fenêtre. Sa consigne, donnée à une pause, tient jusqu'à
+la fin de la période de jeu, temps réglementaire ou prolongation, quel que soit le score (`giveInstruction`) ; sans
+consigne, la règle de l'adjoint. Sans décision ni changement ni consigne, le match reste celui de la simulation.
 
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
@@ -303,30 +317,51 @@ parcours et les tours. Aucun bouton orange plein sur ces écrans : l'action de j
 sur téléphone. `e2e/match.spec.ts` les couvre à 1280, 390 et 360 px.
 
 **Match en direct.** Le serveur joue le match du club dirigé un segment de 15 minutes à la fois, et `/live` (`LiveMatch`)
-n'a jamais que ce qui est joué : son horloge court jusqu'à la pause où le match attend (`getLivePause`), demande le
-segment suivant une fois (`continueMatchAction`, puis `router.refresh()`) et continue ; `live-skip`, et le mouvement
-réduit, demandent tout ce qui précède la prochaine pause de jeu (mi-temps, fin du temps réglementaire d'une coupe nulle) ou
-la fin. Chaque reprise nomme sa pause, phase et minute (`advanceLiveMatch`, `src/db/live-match.ts`) : la partie
-verrouillée (`lockSave`), la pause réclamée par une mise à jour conditionnelle sur `liveState`, la reprise d'une pause
-déjà jouée (deux onglets, deux clics) est refusée (`PauseMismatchError`) et rien n'est écrit deux fois. Le moteur n'a ni
-possession ni tirs, et ses consignes suivent la règle de l'adjoint, sans choix du joueur : l'écran n'en montre pas. Carte du score sur le bleu
+n'a jamais que ce qui est joué : son horloge court jusqu'à la pause où le match attend (`getLivePause`), demande la suite
+une fois et continue. Une étape, un appel : `playLiveStepAction` (`app/saves/[id]/actions.ts`) reçoit ce que le joueur
+apporte à la pause (décision sur son événement, changements, consigne), joue la suite (`advanceLiveMatch`) et renvoie ce
+que la page affiche (`getLiveStep`, `src/db/live-match.ts` : nouveaux événements et décisions, la pause atteinte avec son
+événement et l'équipe du club là, `HalfTimeTeam`, ou le résultat), que la page ajoute (`withStep`) sans se relire : ni
+`router.refresh()` ni `revalidatePath` à chaque étape, seulement à un refus et à la fin du match (l'en-tête de la partie
+change). Chaque reprise nomme sa pause, phase et minute : la partie verrouillée (`lockSave`), la pause réclamée par une
+mise à jour conditionnelle sur `liveState`, la reprise d'une pause déjà jouée (deux onglets, deux clics) est refusée
+(`PauseMismatchError`) et rien n'est écrit deux fois. Le match s'arrête pour le joueur à la mi-temps, à la fin du temps
+réglementaire d'une coupe nulle, à un événement à choix et là où il l'a demandé : `live-coaching-request` (« Coaching à
+la 30e », l'orange de l'écran pendant que l'horloge court) l'arrête à la prochaine limite non jouée, 15', 30', 60', 75' ou
+105' ; « Coaching à la mi-temps », inactif, avant la 45e, où le panneau s'ouvre de lui-même, et inactif dans le dernier
+segment, qui sinon annoncerait un nul. `live-skip` (« Aller à la mi-temps », « Aller au résultat », secondaire, une icône
+sous 640 px) mène à la prochaine pause de jeu ou à la fin, l'adjoint décidant en chemin ; le mouvement réduit va d'un
+arrêt à l'autre d'un coup, événements compris (`stepUntil` : « segment », « pause », « break »). Le moteur n'a ni
+possession ni tirs : l'écran n'en montre pas. Carte du score sur le bleu
 vif (`LiveScoreCard` : compétition, journée, date, stade s'il
 est connu, `Club.stadium` étant vide pour les 198 clubs ; score, minute en orange, barre de progression, pastille du
 résultat à la fin). Commandes (`LiveControls`, `live-controls`, un seul élément : dans la carte à partir de 1024 px, fixées
-au pied de l'écran en dessous) : vitesse x1, x2, x4 (`live-speed-*`) et `live-skip`, qui dit où il mène : « Coaching à la
-mi-temps », orange plein, jusqu'à la 45e, « Aller au résultat », secondaire, après (jamais la pause de la 90e, qui
-annoncerait un nul avant qu'il soit joué) ; `live-coaching` à une pause,
-`live-continue` à la fin. Dessous, sur deux colonnes à partir de `xl`, le fil (`LiveFeed`, `feedEntries` : événements et
+au pied de l'écran en dessous) : vitesse x1, x2, x4 (`live-speed-*`), `live-coaching-request` et `live-skip`, qui dit où
+il mène (jamais la pause de la 90e, qui annoncerait un nul avant qu'il soit joué) ; `live-coaching` à un arrêt,
+`live-continue` à la fin. Carte d'événement (`ChoiceCard`, `choice-card`, zone de messages `choices`) : `Sheet` modal
+comme le panneau, sans croix ni minuterie, Échap ne la ferme pas, le focus sur elle à l'ouverture ; sa famille et sa
+minute, son titre, la situation en une phrase (joueurs, minute, score vu du club), deux ou trois choix et leur conséquence
+en mots (seul pourcentage : la réussite du penalty ; le remplaçant nommé quand un choix sort un joueur), celui de
+l'adjoint signalé et présélectionné, « Valider », seule action orange, inactif 500 ms à l'ouverture. La décision part avec
+la reprise du panneau Coaching, qui s'ouvre ensuite sur l'équipe telle qu'elle la laisse (`decidedTeam` : le remplaçant de
+l'événement à sa place, ce changement montré et non annulable ; un joueur touché ; la consigne choisie). Dessous, sur deux colonnes à partir de `xl`, le fil (`LiveFeed`, `feedEntries` : événements et
 repères, le plus récent en haut, `EventIcon` en SVG, aussi dans la feuille de match), les statistiques en barres, comptées
-sur les seuls événements montrés (`matchStats`), et les autres matchs. Panneau Coaching (`HalfTime`) : `Sheet` modal,
-ouvert seul à la pause, fermé par Échap ou la croix, rouvert par `live-coaching`, ses changements gardés ; plein écran sous
-1024 px, 440 px à droite au-dessus. L'adjoint (`coachAdvice`, pur : blessés, exclus, score, changement, joueurs avertis, rien
-que de vrai), le changement conseillé (`suggestChange`, pur : un blessé d'abord, sinon le plus grand gain de niveau,
-`ratingAt` × `condition` du moteur, à partir d'un point ; rien sinon, et son bloc disparaît), les changements prévus,
-annulables (`cancelSubstitution`), le dispositif, la composition complète, repliée (terrain et banc, glisser-déposer), puis
+sur les seuls événements montrés (`matchStats`), et les autres matchs ; le fil montre aussi les décisions des événements
+avec leur effet, à la minute qui suit leur limite (`withDecisions`, `describeDecision`, `app/saves/[id]/_lib/decisions.ts`,
+zone `decisions` : « Penalty de Diallo : but », « Tu as protesté : Mendy averti »), comme la feuille de match. Panneau
+Coaching (`HalfTime`) : `Sheet` modal, ouvert seul à chaque arrêt, fermé par Échap ou la croix, rouvert par
+`live-coaching`, ses changements gardés ; plein écran sous 1024 px, 440 px à droite au-dessus ; son titre dit la pause
+(« Mi-temps », « 60e minute »). La règle des remplacements et les fenêtres utilisées (`half-time-windows` ; sans fenêtre,
+le banc refuse), qui fait les changements (l'adjoint jusqu'au premier du joueur), l'adjoint (`coachAdvice`, pur : blessés,
+exclus, score, changement, joueurs avertis, joueurs touchés, rien que de vrai), le changement conseillé (`suggestChange`,
+pur : un blessé d'abord, sinon le plus grand gain de niveau, `ratingAt` × `condition` du moteur, à partir d'un point ;
+rien sinon, et son bloc disparaît), les changements prévus, annulables (`cancelSubstitution`), la consigne (Attaquer,
+Équilibré, Fermer, chacune avec ce qu'elle fait en une phrase ; celle en cours cochée), le dispositif, la composition
+complète, repliée (terrain et banc, glisser-déposer), puis
 « Reprendre sans changement » et « Reprendre le match », inactifs 500 ms à l'ouverture (`RESUME_GUARD_MS`) : sur téléphone ils
 arrivent sous le pouce, et un double appui reprendrait le match pour de bon. `e2e/live.spec.ts` couvre l'écran à 1280, 768,
-390 et 360 px.
+390 et 360 px, `e2e/live-choices.spec.ts` un match avec une décision du joueur, un changement, une consigne et un arrêt
+demandé.
 
 **Équipe.** Effectif (`/squad`, `SquadTable`) : sous 1024 px, des cartes, une seule table en DOM : tuile note et poste, âge,
 nationalité, jauge de forme, condition (cœur et chiffre, aucune pour un blessé ni un suspendu), états (`PlayerBadges`), les trois tris
@@ -574,7 +609,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
-                      # live.spec.ts : le direct et le panneau Coaching ; team.spec.ts : Effectif, Composition et fiche ;
+                      # live.spec.ts : le direct et le panneau Coaching ; live-choices.spec.ts : un direct avec une
+                      # décision du joueur, un changement et un arrêt demandé ; team.spec.ts : Effectif, Composition et fiche ;
                       # club.spec.ts : Club, son défi, ses réglages, le palmarès et le bilan d'une saison ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
