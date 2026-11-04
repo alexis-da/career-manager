@@ -124,6 +124,7 @@ const starter = (id: string, discipline: DisciplineStatus, injured = false): Clu
   age: 25,
   injuredUntil: null,
   fitness: 100,
+  form: 50,
   discipline,
 });
 
@@ -193,6 +194,7 @@ describe("the pitch, before the next match", () => {
       age: 25,
       injuredUntil: null,
       fitness: 100,
+      form: 50,
     };
     const markup = renderToStaticMarkup(
       inLanguage(

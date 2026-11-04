@@ -14,6 +14,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("lineupInputSchema", () 
     expect(incomplete.error === undefined ? null : lineupIssueOf(incomplete.error)).toBe("incomplete");
   });
 
+  it("keeps the starting instruction saved with the lineup, none for a lineup saved before it was asked", async () => {
+    const { lineupInputSchema, parseSavedLineup } = await import("./lineup");
+    const lineup = { starters: starters(11), benchOrder: [] };
+
+    expect(lineupInputSchema.safeParse({ formation: "4-4-2", lineup: { ...lineup, instruction: "DEFEND" } }).data?.lineup.instruction).toBe("DEFEND");
+    expect(lineupInputSchema.safeParse({ formation: "4-4-2", lineup: { ...lineup, instruction: "PARK_THE_BUS" } }).success).toBe(false);
+    expect(parseSavedLineup({ ...lineup, instruction: "ATTACK" })?.instruction).toBe("ATTACK");
+    expect(parseSavedLineup(lineup)?.instruction).toBeUndefined();
+  });
+
   it("refuses a slot or a player given twice, and an unknown formation", async () => {
     const { lineupInputSchema } = await import("./lineup");
     const twice = [...starters(10), { slot: 9, playerKey: "club#99" }];

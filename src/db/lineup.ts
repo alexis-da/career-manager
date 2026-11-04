@@ -1,5 +1,7 @@
 import * as z from "zod";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, type FormationName } from "../engine/formations";
+import type { AttributeName } from "../engine/generation";
+import { DEFAULT_INSTRUCTION, INSTRUCTIONS, type Instruction } from "../engine/instructions";
 import { BENCH_SIZE, isAvailable, resolveLineup, type Lineup, type LineupCandidate, type SavedLineup } from "../engine/lineup";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
@@ -14,13 +16,15 @@ const SLOT_COUNT = 11;
 
 /**
  * Shape of ClubSave.lineup. On read, a player saved twice is left to resolveLineup, which keeps the first slot;
- * anything else malformed counts as no saved lineup.
+ * anything else malformed counts as no saved lineup. The starting instruction is absent from a lineup saved before it
+ * was asked: Équilibré.
  */
 export const savedLineupSchema = z.object({
   starters: z
     .array(z.object({ slot: z.number().int().min(0).max(SLOT_COUNT - 1), playerKey: z.string().min(1).max(100) }))
     .max(SLOT_COUNT),
   benchOrder: z.array(z.string().min(1).max(100)).max(BENCH_SIZE),
+  instruction: z.enum(INSTRUCTIONS).optional(),
 });
 
 /** Why a well-formed lineup is refused: the message of its Zod issue, a code the action words for the manager. */
@@ -68,6 +72,7 @@ export type LineupPlayer = LineupCandidate & {
   age: number; // at the save's current date
   injuredUntil: Date | null;
   fitness: number; // 0–100 at the match's kick-off, as injuries are judged on its day: today's, rested until then
+  form: number; // 1–99, 50 neutral
   // His suspensions and yellow cards at risk: a player of the managed club's before its next match only, none at a break
   // or for an opponent. `suspended` (LineupCandidate) is its own, the one the lineups read.
   discipline?: DisciplineStatus;
@@ -79,12 +84,19 @@ export type ClubLineupPlayer = LineupPlayer & {
   discipline: DisciplineStatus;
 };
 
+/**
+ * A player of the managed club in its lineup editor, with what the engine weighs him by: his attributes, form, morale and
+ * fitness. The screen computes its eleven's strength with the engine's own functions (src/engine/strength.ts).
+ */
+export type EditorPlayer = ClubLineupPlayer & Record<AttributeName, number> & { morale: number };
+
 export type LineupEditor = {
   formation: FormationName;
   saved: SavedLineup | null;
+  instruction: Instruction; // the starting instruction saved with the lineup, Équilibré without one
   matchDate: Date; // the next match of the managed club, or the current date: injuries are judged on that day
   clubColors: ClubColors;
-  players: ClubLineupPlayer[];
+  players: EditorPlayer[];
 };
 
 export type ManagedLineup = {
@@ -127,15 +139,26 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
       birthDate: true,
       position: true,
       overall: true,
+      pace: true,
+      shooting: true,
+      passing: true,
+      dribbling: true,
+      defending: true,
+      physical: true,
+      goalkeeping: true,
+      form: true,
+      morale: true,
       injuredUntil: true,
       fitness: true,
       ...DISCIPLINE_SELECT,
     },
   });
+  const saved = parseSavedLineup(club.lineup);
 
   return {
     formation: parseFormation(club.formation),
-    saved: parseSavedLineup(club.lineup),
+    saved,
+    instruction: saved?.instruction ?? DEFAULT_INSTRUCTION,
     matchDate,
     clubColors: clubColorsOf(club.club),
     players: rows.map((row) => {
@@ -146,6 +169,15 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
         lastName: row.lastName,
         position: row.position,
         overall: row.overall,
+        pace: row.pace,
+        shooting: row.shooting,
+        passing: row.passing,
+        dribbling: row.dribbling,
+        defending: row.defending,
+        physical: row.physical,
+        goalkeeping: row.goalkeeping,
+        form: row.form,
+        morale: row.morale,
         injuredUntil: row.injuredUntil,
         age: ageInYears(row.birthDate, save.currentDate),
         // Same rule as the matchday: a player is out while his injury runs past the match day.

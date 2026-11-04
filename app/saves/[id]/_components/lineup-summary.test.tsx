@@ -20,6 +20,7 @@ const player = (id: string, position: Position, lastName: string): LineupPlayer 
   age: 25,
   injuredUntil: null,
   fitness: 100,
+  form: 50,
 });
 
 /** The first test key whose secondary positions, drawn from the key alone, do or do not include a position. */

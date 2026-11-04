@@ -18,6 +18,7 @@ const player = (id: string, position: Position, overall: number, fitness = 100):
   age: 25,
   injuredUntil: null,
   fitness,
+  form: 50,
 });
 
 // A goalkeeper who starts, alone at his line; a striker on the pitch, one on the bench, one in the stands, tired.

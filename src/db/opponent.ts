@@ -1,7 +1,8 @@
 import { displayClubName } from "../engine/club-name";
 import { isSuspended } from "../engine/discipline";
 import { formationPositions, type FormationName } from "../engine/formations";
-import { averageStarterRating, selectRestedLineup, type Lineup } from "../engine/lineup";
+import { averageStarterRating, selectRestedLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
+import { formationStrength, type TeamStrength } from "../engine/strength";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
@@ -26,8 +27,9 @@ export type OpponentPreview = {
   clubName: string;
   clubColors: ClubColors;
   formation: FormationName;
-  lineup: Lineup<LineupPlayer>; // his probable eleven, injuries judged on the match day, suspensions for its competition
+  lineup: Lineup<LineupPlayer & SquadPlayer>; // his probable eleven, injuries judged on the match day, suspensions for its competition
   averageRating: number; // mean rating of his starters in their slots
+  strength: TeamStrength; // his eleven's attack and defense, as the engine plays them (strength.ts)
   managedAverageRating: number; // the same for the managed club's lineup of that match
   recent: OpponentResult[]; // his last played matches, most recent first, whatever the season
   topScorer: { name: string; goals: number } | null; // in his squad, this season
@@ -81,6 +83,15 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
         birthDate: true,
         position: true,
         overall: true,
+        pace: true,
+        shooting: true,
+        passing: true,
+        dribbling: true,
+        defending: true,
+        physical: true,
+        goalkeeping: true,
+        form: true,
+        morale: true,
         injuredUntil: true,
         fitness: true,
         ...DISCIPLINE_SELECT,
@@ -113,12 +124,22 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
     getManagedLineup(saveId),
   ]);
 
-  const players: LineupPlayer[] = rows.map((row) => ({
+  // What the engine weighs each one by, his strength's attributes included.
+  const players: (LineupPlayer & SquadPlayer)[] = rows.map((row) => ({
     id: row.playerKey,
     firstName: row.firstName,
     lastName: row.lastName,
     position: row.position,
     overall: row.overall,
+    pace: row.pace,
+    shooting: row.shooting,
+    passing: row.passing,
+    dribbling: row.dribbling,
+    defending: row.defending,
+    physical: row.physical,
+    goalkeeping: row.goalkeeping,
+    form: row.form,
+    morale: row.morale,
     injuredUntil: row.injuredUntil,
     age: ageInYears(row.birthDate, save.currentDate),
     // Same rule as the matchday: a player is out while his injury runs past the match day.
@@ -140,6 +161,7 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
     formation,
     lineup,
     averageRating: averageStarterRating(lineup),
+    strength: formationStrength(lineup, formation),
     managedAverageRating: averageStarterRating(managedLineup.lineup),
     recent: recentRows.map((fixture) => {
       const home = fixture.homeClubSaveId === opponentId;

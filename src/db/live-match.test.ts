@@ -95,7 +95,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
   };
 
   beforeAll(async () => {
-    const [{ prisma }, support, matchday, live, liveState, simulation, season] = await Promise.all([
+    const [{ prisma }, support, matchday, live, liveState, simulation, season, lineup] = await Promise.all([
       import("./client"),
       import("./test-support"),
       import("./matchday"),
@@ -103,6 +103,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
       import("./live-state"),
       import("./simulation"),
       import("./season"),
+      import("./lineup"),
     ]);
     db = prisma;
     modules = { matchday, live, liveState, simulation, season };
@@ -114,6 +115,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
       support.createDemoTwin("Test deux reprises"),
       support.createDemoTwin("Test pause du joueur"),
     ]);
+    // The two saves whose matches are compared start them closed: the starting instruction saved with the lineup, the
+    // eleven left to the automatic choice.
+    for (const saveId of [saves.live, saves.straight]) {
+      await lineup.saveManagedLineup(saveId, { formation: "4-3-3", lineup: { starters: [], benchOrder: [], instruction: "DEFEND" } });
+    }
     await Promise.all([
       matchday.playNextMatchday(saves.live, { pauseManagedMatch: true }),
       matchday.playNextMatchday(saves.straight),
@@ -153,6 +159,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
     expect(others).toEqual([{ status: "PLAYED", _count: 47 }]);
     expect(save.liveFixtureId).toBe(fixture.id);
     expect(save.currentDate.toISOString()).toBe(firstMatchdayDate(WORLD_START_YEAR).toISOString());
+    // From kick-off, the starting instruction saved with its lineup.
+    const { managedSide, state } = await stored(saves.live);
+    expect(state[managedSide].startingInstruction).toBe("DEFEND");
+    expect(state[managedSide].instructions?.[0]).toEqual({ from: 0, instruction: "DEFEND", source: "START" });
   });
 
   it("refuses to play on, simulate or change season while the match waits", async () => {

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { averageStarterRating, selectLineup } from "../engine/lineup";
+import { formationStrength } from "../engine/strength";
 import type { prisma as prismaClient } from "./client";
 import type { getOpponentPreview as getOpponentPreviewFunction } from "./opponent";
 
@@ -82,6 +83,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
       expected.starters.map(({ player, slot }) => [player.id, slot]),
     );
     expect(result?.averageRating).toBeCloseTo(averageStarterRating(expected), 10);
+    // His strength, as the engine plays his eleven: the lineup screen sets the managed club's beside it.
+    expect(result?.strength).toEqual(result === null ? undefined : formationStrength(result.lineup, result.formation));
+    expect(result?.strength.attack).toBeGreaterThan(30);
     expect(result?.managedAverageRating).toBeGreaterThan(0);
     // Nothing played yet in this save.
     expect(result?.recent).toEqual([]);

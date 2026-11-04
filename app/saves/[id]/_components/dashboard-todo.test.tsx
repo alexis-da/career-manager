@@ -30,6 +30,7 @@ const starter = (lastName: string, position: Position, overall: number): ClubLin
   age: 25,
   injuredUntil: null,
   fitness: 100,
+  form: 50,
   discipline: { suspended: false, suspendedLater: null, bookingRisks: [], bookingRiskNextMatch: false },
 });
 
