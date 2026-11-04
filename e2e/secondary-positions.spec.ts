@@ -91,12 +91,19 @@ test("shows secondary positions in the squad, and a player at his secondary posi
       throw new Error(`The seed ${SEED} no longer has a reserve with a secondary position of the 4-3-3`);
     }
 
+    // Among the slot's candidates, which take the list's place, he says it is one of his secondary positions.
     const slot = page.locator(`[data-slot-index="${choice.slotIndex}"]`);
     await slot.click();
-    await page.locator(`button[data-player-key="${choice.key}"]`).click();
+    const candidate = page.locator(`[data-testid="lineup-candidate"][data-player-key="${choice.key}"]`);
+    await expect(candidate).toHaveAttribute("data-candidate-fit", "secondary");
+    await expect(candidate.locator("[data-fit-label]")).toHaveText("Poste secondaire");
+    await candidate.click();
 
     await expect(slot).toHaveAttribute("data-slot-player-key", choice.key);
     await expect(slot.locator("[data-position]")).toHaveAttribute("data-fit", "secondary");
+    // Under his name, what it costs him (97 % of his rating), without a warning.
+    await expect(slot.locator("[data-rating-gap]")).toBeVisible();
+    await expect(slot.locator("[data-rating-gap]")).not.toHaveClass(/text-(warning|loss)/);
     await expect(summary.locator(`[data-off-position="${choice.key}"]`)).toHaveCount(0);
     await expect(summary.locator(`[data-off-position="${offStarter.key}"]`)).toHaveCount(1);
 

@@ -1,8 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ArmchairIcon, IdCardIcon, SaveIcon, SparklesIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { SaveIcon, SparklesIcon } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
@@ -11,7 +11,7 @@ import type { SquadView } from "@/src/db/squad";
 import { FORMATION_NAMES, FORMATIONS, isFormationName, type FormationName } from "@/src/engine/formations";
 import { BENCH_SIZE, changeFormation, isAvailable, resolveLineup, type Lineup, type SavedLineup } from "@/src/engine/lineup";
 import type { Position } from "@/src/engine/positions";
-import { useMediaQuery } from "@/src/hooks/use-media-query";
+import { COMPUTER_QUERY, useMediaQuery } from "@/src/hooks/use-media-query";
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../../_components/contract-actions";
 import { FitnessStrip } from "../../_components/fitness-gauge";
@@ -22,8 +22,8 @@ import { CardMark, disciplineBadges, nextMatchCard } from "../../_components/pla
 import { PlayerSheet } from "../../_components/player-sheet";
 import { PositionBadge, PositionBadges } from "../../_components/position-badge";
 import { fitnessFigure } from "../../_lib/fitness";
-import { positionTextClass } from "../../_lib/positions";
 import { saveLineupAction } from "../actions";
+import { slotCandidates } from "../_lib/candidates";
 import {
   moveToBenchFront,
   pinnedSheetKey,
@@ -33,6 +33,7 @@ import {
   type EditorState,
 } from "../_lib/editor-moves";
 import { LineupSquad, SlotRating } from "./lineup-squad";
+import { CandidateList, CandidatesSheet, PanelCandidates, SelectedSlot } from "./slot-candidates";
 import { BENCH_TARGET, slotTarget, usePointerDrag, type DragSource, type DropTarget } from "./use-pointer-drag";
 
 const SLOT_COUNT = 11;
@@ -100,26 +101,45 @@ type LineupEditorProps = LineupScreenProps & {
 };
 
 /**
- * The lineup editor. Two ways to move players, which do the same: click a slot then a player or another slot (the
- * keyboard way), or drag a player onto a slot or onto the bench. A line of the squad clicked with no slot selected shows
- * the player's sheet instead, with the actions of the squad screen: over the page under xl, in the third column from
- * there, which also follows the selected slot and is never empty.
+ * The lineup editor. Two ways to move players, which do the same: select a slot then pick a player or another slot (the
+ * keyboard way), or drag a player onto a slot or onto the bench. A selected slot lists its candidates, best rated there
+ * first, one touch away from it: over the page under lg, in place of the squad's lines from there. A line of the squad
+ * clicked with no slot selected shows the player's sheet instead, with the actions of the squad screen: over the page
+ * under xl, in the third column from there, which also follows the selected slot and is never empty.
  */
 function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorProps) {
   const { formation, saved, clubColors, players } = editor;
   const t = useTranslations("lineup");
   const tPlayer = useTranslations("player");
-  const tPositions = useTranslations("positions");
   const [initial] = useState(() => initialState(formation, saved, players));
   const [state, setState] = useState(initial);
   const [selected, setSelected] = useState<number | null>(null);
+  const [candidatesSlot, setCandidatesSlot] = useState<number | null>(null); // the last selected: the sheet's, as it closes
   const [sheetOpen, setSheetOpen] = useState(false); // under xl: over the page, until it is closed
   const [pending, startTransition] = useTransition();
   const sheetInColumn = useMediaQuery(SHEET_COLUMN_QUERY);
+  const computer = useMediaQuery(COMPUTER_QUERY);
   const { drag, sourceProps } = usePointerDrag((source, target) => {
     setState((current) => applyDrop(current, source, target));
     setSelected(null);
   });
+
+  // From lg, Escape lets the selected slot go, as the cross of the candidates' sheet does under it; not while a player's
+  // sheet is over the page, which it closes first, nor from a dialog opened from the sheet.
+  const sheetOverPage = sheetOpen && !sheetInColumn;
+  useEffect(() => {
+    if (!computer || selected === null || sheetOverPage) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      const inDialog = event.target instanceof Element && event.target.closest('[role="dialog"]') !== null;
+      if (event.key === "Escape" && !inDialog) {
+        setSelected(null);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [computer, selected, sheetOverPage]);
 
   const byKey = new Map(players.map((player) => [player.id, player]));
   const slots = FORMATIONS[state.formation];
@@ -134,6 +154,11 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
     }
     if (selected === null) {
       setSelected(index);
+      setCandidatesSlot(index);
+      // Under lg, its candidates come over the page in place of a player's sheet.
+      if (!computer) {
+        setSheetOpen(false);
+      }
       return;
     }
     setState(swapSlots(state, selected, index));
@@ -149,6 +174,22 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
     }
     setState(placeInSlot(state, selected, key));
     setSelected(null);
+  };
+
+  /** A candidate takes the selected slot: from outside the eleven, he sends its player to the bench; a starter exchanges. */
+  const pickCandidate = (key: string): void => {
+    if (selected === null) {
+      return; // the sheet closing, its slot already let go
+    }
+    onChoose(key);
+    setState(placeInSlot(state, selected, key));
+    setSelected(null);
+  };
+
+  /** The selected starter's sheet: over the page under xl, where it takes the place of the candidates' sheet. */
+  const openSelectedSheet = (key: string): void => {
+    onChoose(key);
+    setSheetOpen(true);
   };
 
   const sendToBench = (): void => {
@@ -228,10 +269,29 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
   const injuredStarters = startersOut.filter((player) => player.injured).length;
   const suspendedStarters = startersOut.length - injuredStarters;
   const selectedKey = selected === null ? null : state.starters[selected];
-  const selectedPlayer = selectedKey === null ? undefined : byKey.get(selectedKey);
   const overBench = drag?.over?.kind === "bench";
   const sheetKey = sheetInColumn ? pinnedSheetKey(selectedKey, chosen, players) : sheetOpen ? chosen : null;
   const profile = squad.players.find((player) => player.playerKey === sheetKey);
+
+  // The slot whose candidates show: the selected one, or under lg the last one while its sheet closes.
+  const listedSlot = selected ?? candidatesSlot;
+  const listedPosition = listedSlot === null ? null : slots[listedSlot].position;
+  const listedKey = listedSlot === null ? null : state.starters[listedSlot];
+  const candidates = listedSlot === null || listedPosition === null ? [] : slotCandidates(players, state, listedSlot, listedPosition);
+  const selection = (named: boolean) =>
+    listedPosition !== null && (
+      <SelectedSlot
+        position={listedPosition}
+        player={listedKey === null ? undefined : byKey.get(listedKey)}
+        named={named}
+        onOpenSheet={() => {
+          if (listedKey !== null) {
+            openSelectedSheet(listedKey);
+          }
+        }}
+        onSendToBench={sendToBench}
+      />
+    );
 
   return (
     <div className="space-y-4">
@@ -388,6 +448,7 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
 
         <LineupSquad
           players={players}
+          slots={slots}
           starters={state.starters}
           bench={state.bench}
           position={selectedPosition}
@@ -396,46 +457,36 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
           onLineClick={clickLine}
           sourceProps={sourceProps}
           selection={
-            <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 px-1" data-testid="lineup-selection">
-              {selectedPosition === null ? (
-                <p className="text-sm text-muted-foreground">{t("selectHint")}</p>
-              ) : (
-                <>
-                  <p className="text-sm">
-                    {t("selectedSlot")}{" "}
-                    <span className={cn("font-heading font-bold", positionTextClass(selectedPosition))}>
-                      {tPositions(`short.${selectedPosition}`)}
-                    </span>{" "}
-                    {tPositions(`label.${selectedPosition}`)}
-                    {selectedPlayer !== undefined && ` · ${selectedPlayer.firstName} ${selectedPlayer.lastName}`}
-                  </p>
-                  {selectedPlayer !== undefined && (
-                    <div className="flex flex-wrap gap-2">
-                      {/* The only way to a starter's sheet on a phone, whose lines leave out the eleven. */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          onChoose(selectedPlayer.id);
-                          setSheetOpen(true);
-                        }}
-                        className="xl:hidden"
-                        data-testid="lineup-open-sheet"
-                      >
-                        <IdCardIcon data-icon="inline-start" />
-                        {t("openSheet")}
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={sendToBench} data-testid="lineup-send-to-bench">
-                        <ArmchairIcon data-icon="inline-start" />
-                        {t("sendToBench")}
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            computer && selected !== null ? selection(true) : <p className="px-1 text-sm text-muted-foreground">{t("selectHint")}</p>
+          }
+          candidates={
+            computer && selected !== null && listedPosition !== null ? (
+              <PanelCandidates position={listedPosition} onBack={() => setSelected(null)}>
+                <CandidateList
+                  candidates={candidates}
+                  slots={slots}
+                  position={listedPosition}
+                  draggedKey={drag?.source.key ?? null}
+                  onPick={pickCandidate}
+                  sourceProps={sourceProps}
+                />
+              </PanelCandidates>
+            ) : null
           }
         />
+
+        {/* Under lg, over the page, until a candidate is picked or the slot let go. Never with a player's sheet, which its
+            player's button opens in its place, and which gives it back once closed. */}
+        <CandidatesSheet
+          open={!computer && selected !== null && !sheetOpen}
+          position={listedPosition}
+          onClose={() => setSelected(null)}
+          selection={selection(false)}
+        >
+          {listedPosition !== null && (
+            <CandidateList candidates={candidates} slots={slots} position={listedPosition} onPick={pickCandidate} />
+          )}
+        </CandidatesSheet>
 
         {/* The grid's next free cell from xl, the third column; out of the flow under it, over the page. */}
         {profile !== undefined && (

@@ -69,6 +69,20 @@ function autoScrollDirection({ touch, dragging, y }: Press): -1 | 0 | 1 {
 }
 
 /**
+ * Swallows the click on its way down from the window, the one that follows the press under way only: the drop may have
+ * re-rendered the source without its handlers (a slot emptied), and the click would then select it.
+ */
+function swallowNextClick(): void {
+  const swallow = (event: Event): void => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  window.addEventListener("click", swallow, { capture: true, once: true });
+  // The click of a mouse comes in the same task as its release: past it, the next click is the manager's.
+  window.setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
+}
+
+/**
  * Drag and drop with pointer events (mouse, pen and touch alike), for the lineup editor and the half-time screen. A
  * press only becomes a drag past DRAG_THRESHOLD_PX; a finger's, once it has rested TOUCH_HOLD_MS, so that a swipe
  * still scrolls the page (the sources leave touch-action alone, and a held finger's moves are kept from scrolling).
@@ -82,7 +96,6 @@ export function usePointerDrag(
 ) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const press = useRef<Press | null>(null);
-  const swallowClick = useRef(false);
   const scrollFrame = useRef<number | null>(null);
   const lastFrameAt = useRef<number | null>(null);
 
@@ -141,7 +154,6 @@ export function usePointerDrag(
   const sourceProps = (source: DragSource) => ({
     ref: holdOnTouch,
     onPointerDown: (event: PointerEvent<HTMLElement>) => {
-      swallowClick.current = false;
       if (event.button !== 0) {
         return;
       }
@@ -204,7 +216,7 @@ export function usePointerDrag(
       }
       end();
       if (current.dragging) {
-        swallowClick.current = true;
+        swallowNextClick();
         if (current.over !== null) {
           onDrop(current.source, current.over);
         }
@@ -215,13 +227,6 @@ export function usePointerDrag(
     onContextMenu: (event: MouseEvent<HTMLElement>) => {
       if (press.current?.touch === true) {
         event.preventDefault();
-      }
-    },
-    onClickCapture: (event: MouseEvent<HTMLElement>) => {
-      if (swallowClick.current) {
-        swallowClick.current = false;
-        event.preventDefault();
-        event.stopPropagation();
       }
     },
   });

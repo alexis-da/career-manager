@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { LineupPlayer } from "@/src/db/lineup";
+import { FORMATIONS } from "@/src/engine/formations";
 import type { Position } from "@/src/engine/positions";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage } from "@/src/i18n/test-intl";
@@ -21,7 +22,10 @@ const player = (id: string, position: Position, overall: number, fitness = 100):
   form: 50,
 });
 
-// A goalkeeper who starts, alone at his line; a striker on the pitch, one on the bench, one in the stands, tired.
+const SLOTS = FORMATIONS["4-3-3"]; // GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW
+
+// A goalkeeper who starts, alone at his line; a striker on the pitch, at right-back, one on the bench, one in the
+// stands, tired.
 const PLAYERS = [player("keeper", "GK", 80), player("starter", "ST", 75), player("sub", "ST", 74), player("stands", "ST", 70, 72)];
 
 type SquadProps = Pick<ComponentProps<typeof LineupSquad>, "activeKey" | "position">;
@@ -31,12 +35,14 @@ function Squad({ activeKey, position }: SquadProps) {
   return (
     <LineupSquad
       players={PLAYERS}
+      slots={SLOTS}
       starters={["keeper", "starter"]}
       bench={["sub"]}
       position={position}
       activeKey={activeKey}
       draggedKey={null}
       selection={null}
+      candidates={null}
       onLineClick={() => undefined}
       sourceProps={sourceProps}
     />
@@ -52,12 +58,14 @@ function Reserves({ players }: { players: LineupPlayer[] }) {
   return (
     <LineupSquad
       players={players}
+      slots={SLOTS}
       starters={[]}
       bench={[]}
       position={null}
       activeKey={null}
       draggedKey={null}
       selection={null}
+      candidates={null}
       onLineClick={() => undefined}
       sourceProps={sourceProps}
     />
@@ -92,8 +100,62 @@ describe("the squad beside the pitch", () => {
     expect(lines.join()).not.toContain("data-player-key");
     expect(lines.join()).not.toContain("data-bench");
     expect(markup).toMatch(/<li class="max-lg:hidden"><button[^>]*data-starter-key="starter"/);
-    expect(markup).toContain("Titulaire");
-    expect(render("en")).toContain("Starter");
+    expect(markup).toContain("Titulaire en G");
+    expect(render("en")).toContain("Starter at GK");
+  });
+
+  it("gives each starter's line his slot, his rating there against his own and his label, in the colour that warns of it", () => {
+    /** A starter's line: his slot, the gap's two ratings, his label and its colour. */
+    const placementOf = (markup: string, key: string) => {
+      const line = markup.slice(markup.indexOf(`data-starter-key="${key}"`));
+      const placement = line.slice(line.indexOf("data-starter-slot="), line.indexOf("</button>"));
+      return {
+        slot: /data-starter-slot="([A-Z]+)"/.exec(placement)?.[1],
+        gap: /data-rating-gap="([^"]+)"/.exec(placement)?.[1] ?? null,
+        label: /data-fit-label="[^"]+" class="([^"]*)">([^<]+)</.exec(placement)?.slice(1),
+        text: placement.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "),
+      };
+    };
+    const french = render();
+
+    // The goalkeeper in goal: no gap, and no warning. The striker at right-back, from another line: red.
+    expect(placementOf(french, "keeper")).toMatchObject({ slot: "GK", gap: null, label: ["font-semibold", "À son poste"] });
+    expect(placementOf(french, "starter")).toMatchObject({
+      slot: "RB",
+      gap: "75:45",
+      label: ["font-semibold text-loss", "Hors poste"],
+    });
+    expect(placementOf(french, "starter").text).toContain("Titulaire en DD 75 45 de 75 à 45 Hors poste");
+    expect(placementOf(render("en"), "starter").text).toContain("Starter at RB 75 45 from 75 to 45 Out of position");
+    expect(placementOf(render("en"), "keeper").label).toEqual(["font-semibold", "Natural position"]);
+    // Players outside the eleven play nowhere.
+    expect(tagsWith(french, "data-starter-slot=")).toHaveLength(2);
+  });
+
+  it("puts a slot's candidates in place of the squad by line, under what is selected", () => {
+    function WithCandidates() {
+      const { sourceProps } = usePointerDrag(() => undefined);
+      return (
+        <LineupSquad
+          players={PLAYERS}
+          slots={SLOTS}
+          starters={["keeper", "starter"]}
+          bench={["sub"]}
+          position="ST"
+          activeKey={null}
+          draggedKey={null}
+          selection={<p data-testid="selection" />}
+          candidates={<ul data-testid="candidates" />}
+          onLineClick={() => undefined}
+          sourceProps={sourceProps}
+        />
+      );
+    }
+    const markup = renderToStaticMarkup(inLanguage(<WithCandidates />));
+
+    expect(markup).toMatch(/data-testid="selection"><\/p><ul data-testid="candidates"><\/ul><\/section>$/);
+    expect(markup).not.toContain("lineup-group-");
+    expect(markup).not.toContain("data-player-key");
   });
 
   it("hides a line of the pitch that only has starters under lg, where his group would be an empty title", () => {

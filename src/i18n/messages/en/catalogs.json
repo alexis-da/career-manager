@@ -29,10 +29,16 @@
       "ST": "Striker"
     },
     "fit": {
-      "secondary": "secondary position",
-      "line": "out of position",
-      "other-line": "out of his line"
+      "exact": "Natural position",
+      "secondary": "Secondary position",
+      "line": "Filling in",
+      "other-line": "Out of position"
     },
+    "count": {
+      "secondary": "{count} in a secondary position",
+      "line": "{count} filling in"
+    },
+    "gap": "from {overall} to {rating}",
     "withFit": "{position} — {fit}",
     "secondaryList": ", secondary positions: "
   },
@@ -90,5 +96,10 @@
       "D": "Draw",
       "L": "Defeat"
     }
+  },
+  "form": {
+    "up": "Form {form}: good",
+    "flat": "Form {form}: average",
+    "down": "Form {form}: poor"
   }
 }

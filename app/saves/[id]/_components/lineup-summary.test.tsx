@@ -9,6 +9,7 @@ import { LineupSummary } from "./lineup-summary";
 const SLOTS = FORMATIONS["4-3-3"]; // GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW
 const DEFENSIVE_MIDFIELD = 5;
 const CENTRAL_MIDFIELD = 6;
+const STRIKER = 9;
 
 const player = (id: string, position: Position, lastName: string): LineupPlayer => ({
   id,
@@ -35,24 +36,53 @@ const keyWhere = (primary: Position, wanted: Position, has: boolean): string => 
 };
 
 describe("the lineup summary", () => {
-  it("counts a starter at a secondary position as at his position, and names each one off position by its key", () => {
+  it("counts the starters with the words of their labels, and names each one filling in by its key", () => {
     // Two starters both called Richard: a central midfielder in the defensive midfield slot, one of his secondary
-    // positions, and an attacking midfielder in a central midfield slot, which is none of his.
+    // positions, and an attacking midfielder in a central midfield slot, which is none of his: he fills in there.
     const secondary = player(keyWhere("CM", "CDM", true), "CM", "Richard");
-    const offPosition = player(keyWhere("CAM", "CM", false), "CAM", "Richard");
+    const fillingIn = player(keyWhere("CAM", "CM", false), "CAM", "Richard");
     const others = SLOTS.map((slot, index) => player(`exact#${index}`, slot.position, `Joueur${index}`));
     const starters = others.map((other, index) =>
-      index === DEFENSIVE_MIDFIELD ? secondary.id : index === CENTRAL_MIDFIELD ? offPosition.id : other.id,
+      index === DEFENSIVE_MIDFIELD ? secondary.id : index === CENTRAL_MIDFIELD ? fillingIn.id : other.id,
     );
-    const players = new Map([...others, secondary, offPosition].map((candidate) => [candidate.id, candidate]));
+    const players = new Map([...others, secondary, fillingIn].map((candidate) => [candidate.id, candidate]));
 
     const markup = renderToStaticMarkup(inLanguage(<LineupSummary slots={SLOTS} starters={starters} players={players} />));
 
-    expect(markup.replace(/<[^>]+>/g, "")).toBe("10 titulaires à leur poste · 1 hors poste : Richard (MOC en MC)");
-    expect([...markup.matchAll(/data-off-position="([^"]+)"/g)].map((match) => match[1])).toEqual([offPosition.id]);
+    expect(markup.replace(/<[^>]+>/g, "")).toBe(
+      "9 titulaires à leur poste · 1 à un poste secondaire · 1 en dépanne : Richard (MOC en MC) · 0 hors poste",
+    );
+    expect([...markup.matchAll(/data-off-position="([^"]+)"/g)].map((match) => match[1])).toEqual([fillingIn.id]);
+    expect(markup).toMatch(/<span class="text-warning">1 en dépanne<\/span>/);
 
     const english = renderToStaticMarkup(inLanguage(<LineupSummary slots={SLOTS} starters={starters} players={players} />, "en"));
-    expect(english.replace(/<[^>]+>/g, "")).toBe("10 starters in position · 1 out of position: Richard (CAM as CM)");
+    expect(english.replace(/<[^>]+>/g, "")).toBe(
+      "9 starters in position · 1 in a secondary position · 1 filling in: Richard (CAM as CM) · 0 out of position",
+    );
+  });
+
+  it("names a starter out of position, in another line, in red, after those filling in", () => {
+    const outOfPosition = player("centre-back", "CB", "Martin");
+    const fillingIn = player(keyWhere("CAM", "CM", false), "CAM", "Richard");
+    const others = SLOTS.map((slot, index) => player(`exact#${index}`, slot.position, `Joueur${index}`));
+    const starters = others.map((other, index) =>
+      index === STRIKER ? outOfPosition.id : index === CENTRAL_MIDFIELD ? fillingIn.id : other.id,
+    );
+    const players = new Map([...others, outOfPosition, fillingIn].map((candidate) => [candidate.id, candidate]));
+    const summary = (locale: "fr" | "en") =>
+      renderToStaticMarkup(inLanguage(<LineupSummary slots={SLOTS} starters={starters} players={players} />, locale));
+
+    expect(summary("fr").replace(/<[^>]+>/g, "")).toBe(
+      "9 titulaires à leur poste · 1 en dépanne : Richard (MOC en MC) · 1 hors poste : Martin (DC en BU)",
+    );
+    expect(summary("fr")).toMatch(/<span class="text-loss">1 hors poste<\/span>/);
+    expect([...summary("fr").matchAll(/data-off-position="([^"]+)"/g)].map((match) => match[1])).toEqual([
+      fillingIn.id,
+      outOfPosition.id,
+    ]);
+    expect(summary("en").replace(/<[^>]+>/g, "")).toBe(
+      "9 starters in position · 1 filling in: Richard (CAM as CM) · 1 out of position: Martin (CB as ST)",
+    );
   });
 
   it("counts one starter at his position, none, and the empty slots, a sent-off player's left out", () => {

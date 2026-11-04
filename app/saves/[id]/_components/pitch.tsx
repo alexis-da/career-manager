@@ -9,10 +9,10 @@ import { ratingAt } from "@/src/engine/positions";
 import type { ClubColors } from "@/src/lib/color";
 import { cn } from "@/src/lib/utils";
 import { fitnessFigure, type FitnessMoment } from "../_lib/fitness";
-import { isOffPosition, positionFit } from "../_lib/positions";
+import { fitTextClass, isOffPosition, positionFit } from "../_lib/positions";
 import { FitnessStrip } from "./fitness-gauge";
 import { CardMark, disciplineBadges, nextMatchCard } from "./player-badges";
-import { PositionBadge, SecondaryPositionBadges } from "./position-badge";
+import { FitLabel, PositionBadge, RatingGap, SecondaryPositionBadges } from "./position-badge";
 
 /** Pitch markings in metres, on a 68 × 105 pitch. */
 const WIDTH = 68;
@@ -106,11 +106,13 @@ type PitchProps = {
 
 /**
  * The formation on a vertical pitch, attacking upwards: each slot shows the slot's position, its player's face, his
- * rating there (yellow out of position, red when injured or suspended), his own position and his name, with his fitness
+ * rating there (yellow off position, red when injured or suspended), his own position and his name, with his fitness
  * along its foot where the eleven is chosen, and a card on his face before the next match: red suspended for it, yellow
- * one booking from a suspension in it. During a drag, every slot shows the rating the dragged player would have there
- * instead, and the slot under the pointer is highlighted. Shared by the lineup editor, the half-time screen and,
- * read-only and without the fitness, the opponent's preview.
+ * one booking from a suspension in it. Under the name, his secondary positions at his own position; at another, what it
+ * costs him, « 71 → 65 », in the colour of his fit, which his label and his detail (on hover, or selected) name: « À son
+ * poste », « Poste secondaire », « Dépanne », « Hors poste ». During a drag, every slot shows the rating the dragged
+ * player would have there instead, and the slot under the pointer is highlighted. Shared by the lineup editor, the
+ * half-time screen and, read-only and without the fitness, the opponent's preview.
  */
 export function Pitch({ slots, starters, players, clubColors, label, editing, sentOff, fitnessAt }: PitchProps) {
   const t = useTranslations("pitch");
@@ -163,6 +165,12 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
         const fit = player === undefined ? undefined : positionFit(player, slot.position);
         // Off position is a matter of fit, not of rating: a secondary position rates 0.97 and is not off position.
         const outOfPosition = fit !== undefined && isOffPosition(fit);
+        // Away from his own position, what it costs him, « 71 → 65 », in place of his secondary positions: the slot's own
+        // position, above his face, makes them moot there.
+        const gap =
+          player !== undefined && rating !== null && fit !== "exact" && Math.round(rating) !== player.overall
+            ? { overall: player.overall, rating: Math.round(rating) }
+            : null;
         const draggedRating = dragged === null ? null : ratingAt(dragged, slot.position);
         const badge = draggedRating ?? rating;
         const badgeOutOfPosition = dragged === null ? outOfPosition : isOffPosition(positionFit(dragged, slot.position));
@@ -180,20 +188,13 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
         // Injured or suspended: he will not play, whatever his slot.
         const unavailable = player !== undefined && !isAvailable(player);
         const card = nextMatchCard(player?.discipline);
-        // After the player, whether he is injured or suspended, else how he fits the slot when it is not his own position;
-        // then a later suspension or yellow cards at risk, his fitness, and when it is.
-        const missing = [
+        // After the player and his ratings, how he fits the slot (« dépanne »), whether he is injured or suspended, then a
+        // later suspension or yellow cards at risk, his fitness, and when it is.
+        const notes = [
+          ...(fit === undefined ? [] : [tPositions(`fit.${fit}`).toLocaleLowerCase(locale)]),
           ...(player?.injured === true ? [t("injured")] : []),
           ...(player?.suspended === true ? [t("suspended")] : []),
         ];
-        const note =
-          player === undefined || fit === undefined
-            ? null
-            : missing.length > 0
-              ? missing.join(", ")
-              : fit === "exact"
-                ? null
-                : tPositions(`fit.${fit}`);
         const discipline = disciplineBadges(player?.discipline, tPlayer)
           .filter(({ id }) => id !== "suspended")
           .map(({ label: badge }) => `, ${badge.toLocaleLowerCase(locale)}`)
@@ -206,7 +207,7 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
                 name: `${player.firstName} ${player.lastName}`,
                 detail: detail ?? "",
               }) +
-              (note === null ? "" : `, ${note}`) +
+              notes.map((note) => `, ${note}`).join("") +
               discipline +
               (fitness === null || fitnessAt === undefined ? "" : `, ${tPlayer(`fitnessAt.${fitnessAt}`, { fitness })}`);
         return (
@@ -293,20 +294,34 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
               {/* No text in it: the name is all the chip says, the label and the detail say the figure. */}
               {fitness !== null && <FitnessStrip fitness={fitness} />}
             </span>
-            {/* Under the name, which keeps the width of the slot. */}
-            {player !== undefined && <SecondaryPositionBadges playerKey={player.id} position={player.position} className="rounded-sm bg-background/85 p-px" />}
-            {detail !== null && dragged === null && (
+            {/* Under the name, which keeps the width of the slot: the gap as high as the badges, the slot as tall. */}
+            {gap !== null && fit !== undefined ? (
+              <RatingGap
+                overall={gap.overall}
+                rating={gap.rating}
+                className={cn("rounded-sm bg-background/85 px-1 py-px text-[0.6875rem] leading-4", fitTextClass(fit))}
+              />
+            ) : (
+              player !== undefined && (
+                <SecondaryPositionBadges playerKey={player.id} position={player.position} className="rounded-sm bg-background/85 p-px" />
+              )
+            )}
+            {detail !== null && fit !== undefined && dragged === null && (
+              // Two short lines rather than a long one, which the pitch's edge would cut beside a touchline.
               <span
                 aria-hidden
                 data-slot-detail
                 className={cn(
-                  "pointer-events-none absolute rounded-md border bg-popover px-2 py-0.5 text-xs whitespace-nowrap text-popover-foreground shadow-md",
+                  "pointer-events-none absolute flex-col rounded-md border bg-popover px-2 py-0.5 text-xs whitespace-nowrap text-popover-foreground shadow-md",
                   detailPlacement(slot),
-                  selected === index ? "block" : "hidden group-hover:block group-focus-visible:block",
+                  selected === index ? "flex" : "hidden group-hover:flex group-focus-visible:flex",
                 )}
               >
-                {detail}
-                {fitness !== null && ` · ${t("fitness", { fitness })}`}
+                <span>{detail}</span>
+                <span>
+                  <FitLabel fit={fit} />
+                  {fitness !== null && ` · ${t("fitness", { fitness })}`}
+                </span>
               </span>
             )}
           </SlotElement>

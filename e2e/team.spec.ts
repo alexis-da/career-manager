@@ -155,6 +155,10 @@ const linesOf = (page: Page): Locator => page.getByTestId("lineup-reserves").loc
 /** A player's line, wherever he stands. */
 const lineOf = (page: Page, key: string): Locator => page.locator(`[data-starter-key="${key}"], [data-player-key="${key}"]`);
 
+/** A player among the selected slot's candidates: over the page under 1024 px, in the list's place from there. */
+const candidateOf = (page: Page, key: string): Locator =>
+  page.getByTestId("lineup-candidate").and(page.locator(`[data-player-key="${key}"]`));
+
 /** The name a line of the list gives. */
 const nameOn = (line: Locator): Promise<string> => textOf(line.locator("span.block"));
 
@@ -385,29 +389,35 @@ for (const { name, locale, viewport, says } of PHONES) {
       await close.tap();
       await expect(sheet).toHaveCount(0);
 
-      // A slot selected: its button is the way to a starter's sheet, as his line is the computer's.
+      // A slot selected: its candidates come over the page, under its player, whose button is the way to his sheet, as his
+      // line is the computer's. The sheet of candidates gives way to his, and comes back once it is closed.
       const slot = slots.first();
+      const candidates = page.getByTestId("lineup-candidates-sheet");
       await slot.tap();
       await expect(slot).toHaveAttribute("aria-pressed", "true");
+      await expect(candidates).toBeVisible();
       await expect(sheet).toHaveCount(0);
       await expectThumbTarget(page.getByTestId("lineup-open-sheet"));
       await expectThumbTarget(page.getByTestId("lineup-send-to-bench"));
       await expectNoSidewaysScroll(page, "a slot selected");
       await page.getByTestId("lineup-open-sheet").tap();
       await expect(sheet).toBeVisible();
+      await expect(candidates).toHaveCount(0);
       const starterName = await textOf(sheetNameOf(page));
       expect(await slot.getAttribute("aria-label")).toContain(starterName);
-      await expect(page.getByTestId("lineup-selection")).toContainText(starterName);
       await expectSheetOverPage(page, viewport);
       await expectNoSidewaysScroll(page, "a starter's sheet");
       await close.tap();
       await expect(sheet).toHaveCount(0);
+      await expect(candidates).toBeVisible();
+      await expect(page.getByTestId("lineup-selection")).toContainText(starterName);
 
-      // Still selected, the slot takes the next player touched, and no sheet opens.
+      // Still selected, the slot takes the next player touched among its candidates, and no sheet opens.
       const incoming = (await reserves.first().getAttribute("data-player-key")) ?? "";
-      await lineOf(page, incoming).tap();
+      await candidateOf(page, incoming).tap();
       await expect(slot).toHaveAttribute("data-slot-player-key", incoming);
       await expect(slot).toHaveAttribute("aria-pressed", "false");
+      await expect(candidates).toHaveCount(0);
       await expect(sheet).toHaveCount(0);
       await expectNoSidewaysScroll(page, "a reserve placed");
 
@@ -525,12 +535,17 @@ test.describe("at 1100 px", () => {
     await page.keyboard.press("Escape");
     await expect(sheet).toHaveCount(0);
 
-    // A slot alone opens nothing: its button does, on the starter's sheet, which its cross closes.
+    // A slot alone opens no sheet: its candidates take the list's place, over nothing; its button opens the starter's
+    // sheet, which its cross closes.
     const slot = slotAt(page, FORWARD_SLOT);
     const starterName = await nameOn(lineOf(page, (await elevenOf(page))[FORWARD_SLOT]));
     await slot.click();
     await expect(slot).toHaveAttribute("aria-pressed", "true");
     await expect(sheet).toHaveCount(0);
+    await expect(page.getByTestId("lineup-reserves").getByTestId("lineup-candidates")).toBeVisible();
+    await expect(page.getByTestId("lineup-candidates-sheet")).toHaveCount(0);
+    await expect(page.getByTestId("lineup-reserve")).toHaveCount(0);
+    await expectNoSidewaysScroll(page, "a slot's candidates");
     await page.getByTestId("lineup-open-sheet").click();
     await expect(sheetNameOf(page)).toHaveText(starterName);
     const close = page.getByTestId("player-sheet-close");
@@ -603,6 +618,19 @@ test("keeps the sheet on the player last touched, a slot or a line, and needs no
   await slot.click();
   await expect(slot).toHaveAttribute("aria-pressed", "false");
   await expect(sheetNameOf(page)).toHaveText(forwardName);
+
+  // Escape lets it go too, and so does the way back to the squad: the list has its lines again.
+  const candidates = page.getByTestId("lineup-candidates");
+  await expect(candidates).toHaveCount(0);
+  await slot.click();
+  await expect(candidates).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(slot).toHaveAttribute("aria-pressed", "false");
+  await expect(candidates).toHaveCount(0);
+  await slot.click();
+  await page.getByTestId("lineup-candidates-back").click();
+  await expect(slot).toHaveAttribute("aria-pressed", "false");
+  await expect(candidates).toHaveCount(0);
 
   // No slot selected, a line changes nothing but the sheet, and lights up: a reserve's, a starter's.
   const reserve = page.getByTestId("lineup-reserve").first();
@@ -686,26 +714,30 @@ test("replaces a starter by a reserve, exchanges two starters, and finds all of 
   await expect(save).toBeEnabled();
   await expectOrangeActions(page, ["lineup-save"]);
 
-  // A slot, then a reserve: he takes it, the sheet follows him, the slot lets go, and the starter leaves for the bench.
+  // A slot, then a reserve among its candidates: he takes it, the sheet follows him, the slot lets go, and the starter
+  // leaves for the bench. The list has its lines again, the newcomer's with his slot.
   const slot = slotAt(page, FORWARD_SLOT);
   const outgoing = (await elevenOf(page))[FORWARD_SLOT];
   const reserve = page.getByTestId("lineup-group-fw").getByTestId("lineup-reserve").first();
   const incoming = (await reserve.getAttribute("data-player-key")) ?? "";
   const incomingName = await nameOn(reserve);
   await slot.click();
-  await lineOf(page, incoming).click();
+  await expect(candidateOf(page, incoming)).not.toHaveAttribute("data-candidate-place", "starter");
+  await candidateOf(page, incoming).click();
   await expect(slot).toHaveAttribute("data-slot-player-key", incoming);
   await expect(slot).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(`[data-starter-key="${incoming}"]`)).toBeVisible();
+  await expect(page.locator(`[data-starter-key="${incoming}"] [data-starter-slot]`)).toHaveAttribute("data-starter-slot", "ST");
   await expect(page.locator(`[data-player-key="${outgoing}"]`)).toHaveAttribute("data-bench", "true");
   await expect(sheetNameOf(page)).toHaveText(incomingName);
 
-  // A slot, then a starter's line: the two exchange their slots, and the bench does not move.
+  // A slot, then a starter among its candidates: the two exchange their slots, and the bench does not move.
   const other = slotAt(page, OTHER_FORWARD_SLOT);
   const otherKey = (await elevenOf(page))[OTHER_FORWARD_SLOT];
   const bench = await benchOf(page);
   await slot.click();
-  await page.locator(`[data-starter-key="${otherKey}"]`).click();
+  await expect(candidateOf(page, otherKey)).toHaveAttribute("data-candidate-place", "starter");
+  await candidateOf(page, otherKey).click();
   await expect(slot).toHaveAttribute("data-slot-player-key", otherKey);
   await expect(other).toHaveAttribute("data-slot-player-key", incoming);
   await expect(slot).toHaveAttribute("aria-pressed", "false");

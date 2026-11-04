@@ -29,10 +29,16 @@
       "ST": "Buteur"
     },
     "fit": {
-      "secondary": "poste secondaire",
-      "line": "hors poste",
-      "other-line": "hors de sa ligne"
+      "exact": "À son poste",
+      "secondary": "Poste secondaire",
+      "line": "Dépanne",
+      "other-line": "Hors poste"
     },
+    "count": {
+      "secondary": "{count} à un poste secondaire",
+      "line": "{count} en dépanne"
+    },
+    "gap": "de {overall} à {rating}",
     "withFit": "{position} — {fit}",
     "secondaryList": ", postes secondaires : "
   },
@@ -90,5 +96,10 @@
       "D": "Match nul",
       "L": "Défaite"
     }
+  },
+  "form": {
+    "up": "Forme {form} : bonne",
+    "flat": "Forme {form} : moyenne",
+    "down": "Forme {form} : mauvaise"
   }
 }

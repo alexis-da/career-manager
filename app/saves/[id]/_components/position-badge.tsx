@@ -1,8 +1,9 @@
 import { useTranslations } from "next-intl";
+import { ArrowRightIcon } from "lucide-react";
 import { secondaryPositions, type Position } from "@/src/engine/positions";
 import type { Translator } from "@/src/i18n/translator";
 import { cn } from "@/src/lib/utils";
-import { positionTextClass, type PositionFit } from "../_lib/positions";
+import { fitTextClass, positionTextClass, type PositionFit } from "../_lib/positions";
 
 const FIT_OUTLINE: Record<PositionFit, string> = {
   exact: "ring-white/15",
@@ -19,7 +20,8 @@ function badgeTitle(position: Position, fit: PositionFit | undefined, t: Transla
 
 /**
  * A player's real position, colored by line as in the squad. Given the slot he plays, its outline tells the fit:
- * yellow for another position of his line, red for another line; none at his own or a secondary position.
+ * yellow filling in (another position of his line), red out of position (another line); none at his own or a
+ * secondary position.
  */
 export function PositionBadge({ position, fit, className }: { position: Position; fit?: PositionFit; className?: string }) {
   const tPositions = useTranslations("positions");
@@ -79,6 +81,38 @@ export function SecondaryPositionBadges({
       {secondary.map((other) => (
         <SecondaryPositionBadge key={other} position={other} />
       ))}
+    </span>
+  );
+}
+
+/** How a player fits the slot he plays, in words (« Dépanne »), in the colour that warns of it. */
+export function FitLabel({ fit, className }: { fit: PositionFit; className?: string }) {
+  const tPositions = useTranslations("positions");
+  return (
+    <span data-fit-label={fit} className={cn("font-semibold", fitTextClass(fit), className)}>
+      {tPositions(`fit.${fit}`)}
+    </span>
+  );
+}
+
+/**
+ * « 71 → 65 »: a player's own rating, then his rating in the slot he plays, the arrow drawn; « de 71 à 65 » for the
+ * screen readers. Nothing when they are the same, at his own position.
+ */
+export function RatingGap({ overall, rating, className }: { overall: number; rating: number; className?: string }) {
+  const tPositions = useTranslations("positions");
+  if (overall === rating) {
+    return null;
+  }
+  return (
+    <span
+      data-rating-gap={`${overall}:${rating}`}
+      className={cn("inline-flex shrink-0 items-center gap-0.5 font-semibold whitespace-nowrap tabular-nums", className)}
+    >
+      <span aria-hidden>{overall}</span>
+      <ArrowRightIcon aria-hidden className="size-[1.1em]" strokeWidth={2.5} />
+      <span aria-hidden>{rating}</span>
+      <span className="sr-only">{tPositions("gap", { overall, rating })}</span>
     </span>
   );
 }

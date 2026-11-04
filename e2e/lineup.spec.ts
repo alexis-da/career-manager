@@ -36,7 +36,8 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
     // By key, not by name: Lyon has three Martins, and two of them can sit on the bench.
     const starterKey = (await slot.getAttribute("data-slot-player-key")) ?? "";
     await slot.click();
-    const substitute = page.locator('[data-bench="true"]').first();
+    // Its candidates in the list's place, a substitute among them.
+    const substitute = page.locator('[data-testid="lineup-candidate"][data-candidate-place="substitute"]').first();
     const substituteKey = (await substitute.getAttribute("data-player-key")) ?? "";
     await substitute.click();
 
@@ -136,6 +137,12 @@ test("shows a centre-back dragged up front with his DC badge outlined in red, an
     await expect(badge).toHaveText("DC");
     await expect(badge).toHaveAttribute("data-fit", "other-line");
     await expect(badge).toHaveClass(/ring-loss/);
+    // Under his name, what it costs him, in red: his rating, then his rating up front, lower.
+    const gap = striker.locator("[data-rating-gap]");
+    await expect(gap).toHaveClass(/text-loss/);
+    const [overall, rating] = ((await gap.getAttribute("data-rating-gap")) ?? "").split(":").map(Number);
+    expect(rating).toBeLessThan(overall);
+    await expect(striker).toHaveAttribute("aria-label", new RegExp(`DC ${overall} · joue BU : ${rating}, hors poste`));
 
     const summary = page.locator("[data-lineup-summary]");
     await expect(summary).toContainText("hors poste");
