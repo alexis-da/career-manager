@@ -234,8 +234,12 @@ describe("choice events", () => {
     const { state, event } = waitingOn(level || at60.home.goals < at60.away.goals ? "CHASING" : "LEADING", at60);
     const attack = decideChoice(state, "tactics", { option: "ATTACK" });
     expect(attack.modifiers?.instructions.home).toBe("ATTACK");
-    // Carrying on is an instruction too, Équilibré whatever the score does: never the same match as another option.
+    expect(attack.modifiers?.givenBy?.home).toBe("EVENT");
+    // Carrying on is an instruction too, the starting one (Équilibré unless the manager chose another) whatever the score
+    // does: never the same match as another option.
     expect(decideChoice(state, "tactics", { option: "STEADY" }).modifiers?.instructions.home).toBe("BALANCED");
+    const startedClosed: MatchState = { ...state, home: { ...state.home, startingInstruction: "DEFEND" } };
+    expect(decideChoice(startedClosed, "tactics", { option: "STEADY" }).modifiers?.instructions.home).toBe("DEFEND");
     const end = playOn(playOn(attack, "home", "tactics", {}, "segment"), "home", "tactics", {}, "segment");
     expect(end.modifiers?.instructions).toEqual({});
     expect(event.options[event.assistant].option).toBe(event.kind === "CHASING" && !level ? "ATTACK" : "STEADY");

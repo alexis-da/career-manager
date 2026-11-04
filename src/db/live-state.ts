@@ -2,6 +2,7 @@ import * as z from "zod";
 import { EXTRA_TIME_SUBSTITUTIONS, FULL_FITNESS, HALF_TIME_MINUTE, MAX_SUBSTITUTIONS, REGULATION_MINUTES } from "../engine/balance";
 import { CHOICE_KINDS, CHOICE_OPTIONS } from "../engine/choices";
 import { FORMATION_NAMES } from "../engine/formations";
+import { INSTRUCTIONS } from "../engine/instructions";
 import type { MatchState, Side } from "../engine/match";
 import { POSITIONS } from "../engine/positions";
 import type { Prisma } from "../generated/prisma/client";
@@ -13,7 +14,8 @@ const minute = z.number().int().min(0).max(200);
 const playerKey = z.string().min(1).max(100);
 const side = z.enum(["home", "away"]);
 const position = z.enum(POSITIONS);
-const instruction = z.enum(["ATTACK", "BALANCED", "DEFEND"]);
+const instruction = z.enum(INSTRUCTIONS);
+const givenBy = z.enum(["MANAGER", "EVENT"]);
 
 const squadPlayerSchema = z.object({
   id: playerKey,
@@ -53,6 +55,12 @@ const teamSchema = z.object({
   goals: z.number().int().min(0),
   windows: z.array(minute).max(MAX_SUBSTITUTIONS + EXTRA_TIME_SUBSTITUTIONS).optional(), // its windows during play
   manual: z.literal(true).optional(), // its manager makes its substitutions himself
+  startingInstruction: instruction.optional(), // the managed club's, unless Équilibré
+  // The instructions of its segments played, from the first one paused after they were kept.
+  instructions: z
+    .array(z.object({ from: minute, instruction, source: z.enum(["START", "ASSISTANT", "MANAGER", "EVENT"]) }))
+    .max(8) // one a segment at most
+    .optional(),
 });
 
 const eventsSchema = z.array(
@@ -109,6 +117,7 @@ const choicesSchema = z.object({
 const modifiersSchema = z.object({
   goals: z.object({ home: z.number().positive().optional(), away: z.number().positive().optional() }),
   instructions: z.object({ home: instruction.optional(), away: instruction.optional() }),
+  givenBy: z.object({ home: givenBy.optional(), away: givenBy.optional() }).optional(),
   scheduled: z.array(
     z.object({ minute, side, kind: z.enum(["RED_CARD", "INJURY"]), playerId: playerKey, days: z.number().int().min(0) }),
   ),

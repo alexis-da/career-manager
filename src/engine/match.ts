@@ -61,8 +61,11 @@ import type { MatchChoices, MatchDecision } from "./choices";
 import { fitnessAfter, fitnessFactor, injuryRiskFactor, wearFactor } from "./fitness";
 import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "./formations";
 import { ATTRIBUTE_NAMES, clampRating, type AttributeName } from "./generation";
+import { DEFAULT_INSTRUCTION, type Instruction, type InstructionSource, type InstructionSpan } from "./instructions";
 import type { Lineup, LineupSlot, SquadPlayer } from "./lineup";
 import { playerFamiliarity, positionGroup, ratingAt, type Position, type PositionGroup } from "./positions";
+
+export type { Instruction, InstructionSource, InstructionSpan } from "./instructions";
 
 export type Side = "home" | "away";
 
@@ -160,9 +163,6 @@ export type RngPhase = Segment | "shootout";
  */
 export type MatchPhase = "KICK_OFF" | "IN_PLAY" | "HALF_TIME" | "REGULATION_END" | "EXTRA_TIME_BREAK" | "SHOOTOUT" | "FULL_TIME";
 
-/** What a team plays for: Attaquer, Équilibré, Fermer. */
-export type Instruction = "ATTACK" | "BALANCED" | "DEFEND";
-
 /** Instructions given for every segment played, by side; a side left out follows the assistant's rule. */
 export type Instructions = Partial<Record<Side, Instruction>>;
 
@@ -192,6 +192,11 @@ export type TeamLive = {
   // Its manager makes its substitutions himself since he made one in a live match: no tactical one is drawn for it any
   // more. An injured player is still replaced at once.
   manual?: true;
+  // The instruction it starts with, its manager's, saved with his lineup: its assistant's rule comes back to it whenever
+  // it has nothing to say. Absent for Équilibré, as AI clubs always start.
+  startingInstruction?: Instruction;
+  // The instructions it has played its segments with, a span at each change, and who set each; absent before kick-off.
+  instructions?: InstructionSpan[];
 };
 
 /** An incident a choice event has set for later: a named player sent off, or injured for some days, at a minute. */
@@ -205,8 +210,13 @@ export type ScheduledIncident = { minute: number; side: Side; kind: "RED_CARD" |
 export type MatchModifiers = {
   goals: Partial<Record<Side, number>>;
   instructions: Partial<Record<Side, Instruction>>;
+  // Who gave each of those instructions; absent from a state paused before it was kept: its manager.
+  givenBy?: Partial<Record<Side, GivenBy>>;
   scheduled: ScheduledIncident[];
 };
+
+/** Who gives a side an instruction during its match: its manager at a pause, or a choice event's decision. */
+export type GivenBy = Extract<InstructionSource, "MANAGER" | "EVENT">;
 
 /** Everything a match carries from one segment to the next; plain data, stored as is while a match is paused. */
 export type MatchState = {
@@ -398,10 +408,14 @@ export function liveStrength(team: TeamLive, minute: number): TeamStrength {
   return formationStrength(lineupOnPitch(team), team.formation, (starter) => factors.get(starter.index) ?? 1);
 }
 
+/** The instruction a side started its match with: its manager's starting instruction, Équilibré without one. */
+export const startingInstructionOf = (team: TeamLive): Instruction => team.startingInstruction ?? DEFAULT_INSTRUCTION;
+
 /**
  * The instruction a club follows when it leaves it to its assistant, as AI clubs always do and the managed club in a
  * simulated match: Attaquer when behind once ASSISTANT_ATTACK_MINUTE minutes are played, Fermer when one goal ahead once
- * ASSISTANT_DEFEND_MINUTE are, Équilibré otherwise. `played`: the minutes played when the segment starts.
+ * ASSISTANT_DEFEND_MINUTE are, its starting instruction otherwise (Équilibré for AI clubs). `played`: the minutes played
+ * when the segment starts.
  */
 export function assistantInstruction(state: MatchState, side: Side, played: number): Instruction {
   const margin = state[side].goals - state[otherSide(side)].goals;
@@ -411,16 +425,23 @@ export function assistantInstruction(state: MatchState, side: Side, played: numb
   if (margin === 1 && played >= ASSISTANT_DEFEND_MINUTE) {
     return "DEFEND";
   }
-  return "BALANCED";
+  return startingInstructionOf(state[side]);
 }
 
 /**
  * A side's instruction given at a pause, by its manager or a choice event: it holds for the rest of the period of play it
  * was given in, regular time or extra time, whatever the score does, until another one is given.
  */
-export function giveInstruction(state: MatchState, side: Side, instruction: Instruction): MatchState {
+export function giveInstruction(state: MatchState, side: Side, instruction: Instruction, givenBy: GivenBy): MatchState {
   const modifiers = state.modifiers ?? { goals: {}, instructions: {}, scheduled: [] };
-  return { ...state, modifiers: { ...modifiers, instructions: { ...modifiers.instructions, [side]: instruction } } };
+  return {
+    ...state,
+    modifiers: {
+      ...modifiers,
+      instructions: { ...modifiers.instructions, [side]: instruction },
+      givenBy: { ...modifiers.givenBy, [side]: givenBy },
+    },
+  };
 }
 
 /** The instruction a side plays its next segment with: the one given for the period of play, or its assistant's. */
@@ -467,7 +488,7 @@ function startingTeam(lineup: Lineup, formation: FormationName): TeamLive {
       throw new RangeError(`Slot ${index} of ${formation} is ${positions[index]}, not ${slot}`);
     }
   }
-  return {
+  const team: TeamLive = {
     formation,
     pitch: lineup.starters.map(({ player, slot, index }) => ({ index, slot, player, from: 0, status: "ON" })),
     bench: [...lineup.bench],
@@ -475,6 +496,10 @@ function startingTeam(lineup: Lineup, formation: FormationName): TeamLive {
     booked: [],
     goals: 0,
   };
+  // Équilibré leaves the state as it always was.
+  return lineup.instruction === undefined || lineup.instruction === DEFAULT_INSTRUCTION
+    ? team
+    : { ...team, startingInstruction: lineup.instruction };
 }
 
 /**
@@ -670,9 +695,23 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
   const played = first - 1;
   const modifiers = state.modifiers;
   // A side's instruction: the one given for the whole match, else the one its manager or a choice event gave for the
-  // period of play, else its assistant's.
+  // period of play, else its assistant's, his rule or its starting instruction.
   const instructionOf = (side: Side): Instruction =>
     instructions[side] ?? modifiers?.instructions[side] ?? assistantInstruction(state, side, played);
+  const sourceOf = (side: Side, instruction: Instruction): InstructionSource => {
+    if (instructions[side] === undefined && modifiers?.instructions[side] !== undefined) {
+      return modifiers.givenBy?.[side] ?? "MANAGER";
+    }
+    return instructions[side] === undefined && instruction !== startingInstructionOf(teams[side]) ? "ASSISTANT" : "START";
+  };
+  for (const side of SIDES) {
+    const instruction = instructionOf(side);
+    const source = sourceOf(side, instruction);
+    const last = teams[side].instructions?.at(-1);
+    if (last === undefined || last.instruction !== instruction || last.source !== source) {
+      teams[side].instructions = [...(teams[side].instructions ?? []), { from: played, instruction, source }];
+    }
+  }
   const expected = stateExpectedGoals(state, { home: instructionOf("home"), away: instructionOf("away") }, played);
   // The mean of the injury risks of a side's players on the pitch: 1 while all of them are fit enough.
   const injuryRisk = (side: Side): number => {
@@ -833,9 +872,11 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
   state.played = last;
   if (modifiers !== undefined) {
     // A choice event's goals count for one segment, an instruction for the rest of its period of play.
+    const periodOver = segment === "s6";
     state.modifiers = {
       goals: {},
-      instructions: segment === "s6" ? {} : modifiers.instructions,
+      instructions: periodOver ? {} : modifiers.instructions,
+      ...(periodOver || modifiers.givenBy === undefined ? {} : { givenBy: modifiers.givenBy }),
       scheduled: modifiers.scheduled.filter((scheduled) => scheduled.minute > lastMinute),
     };
   }

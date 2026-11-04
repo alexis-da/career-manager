@@ -90,7 +90,7 @@ export function playOn(
     state = applyManagerChoice(state, managedSide, changes);
   }
   if (instruction !== null) {
-    state = giveInstruction(state, managedSide, instruction);
+    state = giveInstruction(state, managedSide, instruction, "MANAGER");
   }
 
   for (;;) {

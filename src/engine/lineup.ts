@@ -1,6 +1,7 @@
 import { ROTATION_FITNESS, ROTATION_MAX_RATING_GAP } from "./balance";
 import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "./formations";
 import type { AttributeName } from "./generation";
+import type { Instruction } from "./instructions";
 import { positionGroup, ratingAt, type Position } from "./positions";
 
 /** What picking a lineup needs to know about a player. */
@@ -31,12 +32,14 @@ export type LineupSlot<P extends LineupCandidate = SquadPlayer> = {
 export type Lineup<P extends LineupCandidate = SquadPlayer> = {
   starters: LineupSlot<P>[]; // in the order of the formation's slots
   bench: P[];
+  instruction?: Instruction; // the one its club starts the match with: its manager's, saved with it; Équilibré without one
 };
 
-/** A lineup chosen by the manager: a player key per slot index, and the substitutes in order. */
+/** A lineup chosen by the manager: a player key per slot index, the substitutes in order, and his starting instruction. */
 export type SavedLineup = {
   starters: { slot: number; playerKey: string }[];
   benchOrder: string[];
+  instruction?: Instruction; // absent from a lineup saved before it was asked: Équilibré
 };
 
 /** A formation: the positions of its 11 slots, filled in this order. */
@@ -152,7 +155,8 @@ export function selectRestedLineup<P extends LineupCandidate & { fitness: number
  * The lineup a club plays: the saved one where it still holds, completed automatically. A saved starter keeps
  * their slot unless injured, gone from the squad, or already starting in an earlier slot; the slots left empty
  * are filled as selectLineup does. The bench takes the saved substitutes still available, in order, then the
- * automatic bench. Without a saved lineup, this is selectLineup in the formation.
+ * automatic bench; the club starts the match with the instruction saved with it. Without a saved lineup, this is
+ * selectLineup in the formation.
  */
 export function resolveLineup<P extends LineupCandidate>(
   formation: FormationName,
@@ -187,7 +191,8 @@ export function resolveLineup<P extends LineupCandidate>(
     }
   }
   const bench = [...savedBench, ...automaticBench(remaining.filter((player) => !savedBench.includes(player)))];
-  return toLineup(positions, assigned, bench);
+  const lineup = toLineup(positions, assigned, bench);
+  return saved?.instruction === undefined ? lineup : { ...lineup, instruction: saved.instruction };
 }
 
 /**

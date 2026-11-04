@@ -6,7 +6,7 @@ import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engi
 import { assistantChoices, withChoices } from "../engine/choices";
 import { selectLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import { playOn } from "../engine/live";
-import { knockoutWinner, matchResult, simulateMatch, startMatch, type MatchState, type Side } from "../engine/match";
+import { knockoutWinner, matchResult, simulateMatch, startMatch, type Instruction, type MatchState, type Side } from "../engine/match";
 import { competitionTier } from "../engine/tiers";
 import { WORLD_START_DATE } from "../engine/world";
 import { ageInYears } from "../lib/dates";
@@ -168,4 +168,36 @@ describe("simulating or watching a match", () => {
     expect(decisions).toBeGreaterThan(paused);
     // 1 200 matches: longer than the default 5 s while other files run.
   }, 60_000);
+
+  it("plays the starting instruction of the managed club's lineup from kick-off, simulated or watched, then his assistant's rule", () => {
+    let switched = 0;
+    for (let index = 0; index < 120; index++) {
+      const knockout = index % 3 === 2;
+      const managedSide: Side = index % 2 === 0 ? "home" : "away";
+      const instruction: Instruction = index % 4 < 2 ? "ATTACK" : "DEFEND";
+      const homeClub = squads[(index * 5) % squads.length];
+      const awayClub = squads[(index * 13 + 3) % squads.length];
+      if (homeClub === awayClub) {
+        continue;
+      }
+      const lineup = (squad: SquadPlayer[], managed: boolean): Lineup =>
+        managed ? { ...selectLineup(squad), instruction } : selectLineup(squad);
+      const home = lineup(homeClub.squad, managedSide === "home");
+      const away = lineup(awayClub.squad, managedSide === "away");
+      const seed = `starting:${index}`;
+
+      let state = playOn(withChoices(startMatch(home, away, undefined, knockout), managedSide, seed), managedSide, seed, {}, "segment");
+      expect(state[managedSide].instructions?.[0]).toEqual({ from: 0, instruction, source: "START" });
+      while (state.phase !== "FULL_TIME") {
+        const live = parseLiveState("watched", serializeLiveState({ managedSide, state }));
+        expect(live.state[managedSide].startingInstruction).toBe(instruction);
+        state = playOn(live.state, live.managedSide, seed, {}, "segment");
+      }
+      switched += state[managedSide].instructions?.some((span) => span.source !== "START") === true ? 1 : 0;
+
+      expect(matchResult(state)).toEqual(simulateMatch(home, away, seed, undefined, knockout, {}, assistantChoices(managedSide, seed)));
+    }
+    // His assistant, or a late tactical event, changed it in some of them.
+    expect(switched).toBeGreaterThan(20);
+  }, 30_000);
 });

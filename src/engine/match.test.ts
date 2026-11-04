@@ -724,6 +724,74 @@ describe("instructions", () => {
       expect(simulateMatch(home, away, seed, undefined, false, {})).toEqual(simulateMatch(home, away, seed));
     }
   });
+
+  it("start from the lineup's starting instruction, the assistant's rule coming back to it when it has nothing to say", () => {
+    const started = (instruction: Instruction, home: number, away: number): MatchState => {
+      const state = scored(home, away);
+      return { ...state, home: { ...state.home, startingInstruction: instruction } };
+    };
+    expect(assistantInstruction(started("ATTACK", 0, 0), "home", 0)).toBe("ATTACK");
+    expect(assistantInstruction(started("ATTACK", 2, 0), "home", 75)).toBe("ATTACK");
+    expect(assistantInstruction(started("ATTACK", 1, 0), "home", 75)).toBe("DEFEND");
+    expect(assistantInstruction(started("DEFEND", 0, 0), "home", 60)).toBe("DEFEND");
+    expect(assistantInstruction(started("DEFEND", 0, 1), "home", 60)).toBe("ATTACK");
+    // The other side keeps its own: Équilibré.
+    expect(assistantInstruction(started("DEFEND", 0, 0), "away", 0)).toBe("BALANCED");
+
+    const home = lineupOf("liverpool-fc");
+    const away = lineupOf("arsenal-fc");
+    expect(startMatch({ ...home, instruction: "ATTACK" }, away).home.startingInstruction).toBe("ATTACK");
+    // Équilibré leaves the state and the match as they always were.
+    expect(startMatch({ ...home, instruction: "BALANCED" }, away)).toEqual(startMatch(home, away));
+    for (const seed of seeds(20, "balanced-start")) {
+      expect(simulateMatch({ ...home, instruction: "BALANCED" }, away, seed)).toEqual(simulateMatch(home, away, seed));
+    }
+  });
+
+  it("keep the instructions each side played with, from kick-off, and who set them", () => {
+    const state = (instruction: Instruction, seed: string): MatchState => {
+      let current = startMatch({ ...lineupOf("liverpool-fc"), instruction }, lineupOf("arsenal-fc"));
+      for (const segment of ["s1", "s2", "s3", "s4", "s5", "s6"] as const) {
+        current = simulateSegment(segment === "s4" ? applyAutomaticHalfTime(current) : current, seed, segment);
+      }
+      return current;
+    };
+    let switched = 0;
+    for (const seed of seeds(200, "spans")) {
+      const played = state("DEFEND", seed);
+      const spans = played.home.instructions ?? [];
+      expect(spans[0]).toEqual({ from: 0, instruction: "DEFEND", source: "START" });
+      expect(played.away.instructions?.[0]).toEqual({ from: 0, instruction: "BALANCED", source: "START" });
+      // A span at each change only, at a boundary: its starting instruction, or his assistant's other one.
+      for (const [index, span] of spans.entries()) {
+        expect(span.from % 15).toBe(0);
+        expect(span.source === "START" ? span.instruction === "DEFEND" : span.source === "ASSISTANT" && span.instruction !== "DEFEND").toBe(true);
+        expect(index === 0 || spans[index - 1].instruction !== span.instruction).toBe(true);
+      }
+      switched += spans.some((span) => span.source === "ASSISTANT") ? 1 : 0;
+    }
+    expect(switched).toBeGreaterThan(20);
+  });
+
+  it("change the match from kick-off when they start it: Attaquer scores and concedes more than Équilibré, Fermer less", () => {
+    const totals = (instruction: Instruction) =>
+      seeds(2000, "starting").reduce(
+        (sum, seed) => {
+          const result = simulateMatch({ ...lineupOf("liverpool-fc"), instruction }, lineupOf("arsenal-fc"), seed);
+          return { scored: sum.scored + result.homeGoals, conceded: sum.conceded + result.awayGoals };
+        },
+        { scored: 0, conceded: 0 },
+      );
+    const attack = totals("ATTACK");
+    const balanced = totals("BALANCED");
+    const defend = totals("DEFEND");
+
+    expect(attack.scored).toBeGreaterThan(balanced.scored);
+    expect(attack.conceded).toBeGreaterThan(balanced.conceded);
+    expect(defend.scored).toBeLessThan(balanced.scored);
+    expect(defend.conceded).toBeLessThan(balanced.conceded);
+    // 6 000 matches: longer than the default 5 s while other files run.
+  }, 30_000);
 });
 
 describe("formation profiles", () => {

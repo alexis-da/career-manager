@@ -147,6 +147,8 @@ describe("the manager at a pause between two segments", () => {
     const at30 = stateAt(30, "instruction", { choices: false });
     let state = playOn(at30, "home", "instruction", { instruction: "ATTACK" }, "segment");
     expect(instructionAt(state, "home")).toBe("ATTACK");
+    // Kept with the segments it plays, as his.
+    expect(state.home.instructions?.at(-1)).toEqual({ from: 30, instruction: "ATTACK", source: "MANAGER" });
     while (state.phase !== "FULL_TIME") {
       expect(state.modifiers?.instructions.home).toBe("ATTACK");
       state = playOn(state, "home", "instruction", {}, "segment");

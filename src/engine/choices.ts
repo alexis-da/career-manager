@@ -41,6 +41,7 @@ import {
   giveInstruction,
   goalAt,
   shootoutChance,
+  startingInstructionOf,
   substitutionAt,
   substitutionsLeft,
   windowOpenAt,
@@ -58,8 +59,9 @@ import { ratingAt } from "./positions";
  * two segments. The catalogue v1: a penalty for the club (its taker), a dangerous free kick (a shot or a combination),
  * a booked player losing his temper (taken off or kept), a scuffle (calm down or protest), a player knocked (taken off
  * or played on), an exhausted player (replaced or kept), and late in the match, ahead (close the game, look for the
- * goal that settles it, or carry on balanced) or not (all out attack, or carry on balanced): an instruction for the rest
- * of regular time, whatever the score does.
+ * goal that settles it, or carry on as it started) or not (all out attack, or carry on as it started: its starting
+ * instruction, Équilibré unless its manager chose another): an instruction for the rest of regular time, whatever the
+ * score does.
  */
 export const CHOICE_KINDS = ["PENALTY", "FREE_KICK", "HOTHEAD", "SCUFFLE", "KNOCK", "EXHAUSTED", "LEADING", "CHASING"] as const;
 export type ChoiceKind = (typeof CHOICE_KINDS)[number];
@@ -377,7 +379,7 @@ function applyOption(state: MatchState, side: Side, event: ChoiceEvent, chosen: 
     case "CALM":
       return state;
     case "STEADY":
-      return giveInstruction(state, side, "BALANCED");
+      return giveInstruction(state, side, startingInstructionOf(state[side]), "EVENT");
     case "PROTEST": {
       const pushed = first < PROTEST_GOALS_CHANCE ? withGoals(state, side, PROTEST_GOALS) : state;
       return second < PROTEST_YELLOW_CHANCE ? bookingAt(pushed, side, playerOf(chosen), at) : pushed;
@@ -403,7 +405,7 @@ function applyOption(state: MatchState, side: Side, event: ChoiceEvent, chosen: 
     }
     case "DEFEND":
     case "ATTACK":
-      return giveInstruction(state, side, chosen.option);
+      return giveInstruction(state, side, chosen.option, "EVENT");
   }
 }
 
