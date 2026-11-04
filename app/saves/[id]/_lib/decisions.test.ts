@@ -173,9 +173,10 @@ describe("describeDecision", () => {
     const cases: readonly [DecisionView, string, string][] = [
       [instruction("LEADING", "DEFEND"), "Consigne jusqu'à la fin : fermer le jeu", "Until full time: shut up shop"],
       [instruction("LEADING", "ATTACK"), "Consigne jusqu'à la fin : chercher le break", "Until full time: go for the killer goal"],
-      [instruction("LEADING", "STEADY"), "Consigne jusqu'à la fin : rester tel quel", "Until full time: stay as you are"],
+      [instruction("LEADING", "STEADY"), "Consigne jusqu'à la fin : garder l'équilibre", "Until full time: stay balanced"],
       [instruction("CHASING", "ATTACK"), "Consigne jusqu'à la fin : tout pour l'attaque", "Until full time: all-out attack"],
-      [instruction("CHASING", "STEADY"), "Consigne jusqu'à la fin : rester en place", "Until full time: hold your shape"],
+      [instruction("CHASING", "STEADY"), "Consigne jusqu'à la fin : garder l'équilibre", "Until full time: stay balanced"],
+      [instruction("CHASING", "DEFEND"), "Consigne jusqu'à la fin : fermer le jeu", "Until full time: shut up shop"],
     ];
     for (const [given, french, english] of cases) {
       expect(describeDecision(given, [], t)).toBe(french);

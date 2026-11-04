@@ -14,6 +14,7 @@
     },
     "choices": "Your choice",
     "assistant": "Assistant's pick",
+    "current": "(current)",
     "validate": "Confirm",
     "aPlayer": "a player",
     "PENALTY": {
@@ -96,8 +97,8 @@
         "effect": "A more open game until the 90th minute: more chances, but more risk too."
       },
       "STEADY": {
-        "label": "Carry on as you are",
-        "effect": "Your starting instruction until the 90th minute: {instruction, select, ATTACK {a more open game} DEFEND {a tighter game} other {a balanced game}}."
+        "label": "Stay balanced",
+        "effect": "A balanced game until the 90th minute: neither more open nor tighter."
       }
     },
     "CHASING": {
@@ -114,8 +115,12 @@
         "effect": "A more open game until the 90th minute: more chances for you, and for them."
       },
       "STEADY": {
-        "label": "Keep your shape",
-        "effect": "Your starting instruction until the 90th minute: {instruction, select, ATTACK {a more open game} DEFEND {a tighter game} other {a balanced game}}."
+        "label": "Stay balanced",
+        "effect": "A balanced game until the 90th minute: neither more open nor tighter."
+      },
+      "DEFEND": {
+        "label": "Close the game down",
+        "effect": "A tighter game until the 90th minute: fewer chances at both ends."
       }
     }
   }

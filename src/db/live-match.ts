@@ -5,6 +5,7 @@ import { pauseOf, playOn, type LivePause, type PausePhase, type PlayOnInput, typ
 import {
   assistantInstruction,
   breakSubstitutionLimit,
+  currentInstructionOf,
   fitnessAt,
   inMatchFactor,
   instructionAt,
@@ -246,6 +247,7 @@ export type ChoiceEventView = {
     chance: number | null;
     replacement: { key: string; name: string } | null;
     instruction: Instruction | null; // for the rest of regular time
+    current: boolean; // its instruction is the one the club has been playing with: « (actuelle) »
   }[];
   assistant: number; // the assistant's option
 };
@@ -257,6 +259,7 @@ const fullName = (identity: { firstName: string; lastName: string }): string => 
 
 function choiceEventViewOf(event: ChoiceEvent, state: MatchState, side: Side, identities: readonly Identity[]): ChoiceEventView {
   const names = new Map(identities.map((row) => [row.playerKey, fullName(row)]));
+  const current = currentInstructionOf(state[side]);
   const nameOf = (key: string | undefined): string | null => (key === undefined ? null : (names.get(key) ?? null));
   return {
     minute: event.minute,
@@ -274,7 +277,8 @@ function choiceEventViewOf(event: ChoiceEvent, state: MatchState, side: Side, id
         player: nameOf(option.playerId),
         chance: option.chance ?? null,
         replacement: replacement === undefined ? null : { key: replacement.id, name: nameOf(replacement.id) ?? replacement.id },
-        instruction: optionInstruction(option.option, state[side]),
+        instruction: optionInstruction(option.option),
+        current: optionInstruction(option.option) === current,
       };
     }),
     assistant: event.assistant,

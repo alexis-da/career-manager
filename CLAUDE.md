@@ -126,7 +126,8 @@ type parmi ceux possibles à ce moment (`CHOICE_EVENT_WEIGHTS`) et ses joueurs d
 Catalogue v1 du cahier : penalty (le tireur parmi les trois meilleurs, sa chance affichée), coup franc (frapper ou
 combiner), joueur averti qui s'énerve, échauffourée, joueur touché, joueur à bout (25 points de fitness perdus sur le
 terrain, à partir de 75'), le club mène, le club est mené ou à égalité (une consigne jusqu'à la fin du temps
-réglementaire ; « Rester tel quel », la consigne de départ, `optionInstruction`). Les buts des événements sont pris sur ceux du club (`OWN_GOALS_WITH_CHOICE_EVENTS`, 0,89 sur ses buts
+réglementaire : les trois consignes, Attaquer, Équilibré (l'option `STEADY`) et Fermer, chacune une fois, celle que le
+club joue marquée « (actuelle) », `optionInstruction`, `currentInstructionOf` ; l'adjoint prend celle de sa règle). Les buts des événements sont pris sur ceux du club (`OWN_GOALS_WITH_CHOICE_EVENTS`, 0,89 sur ses buts
 attendus) : décidés par l'adjoint, ils ne lui rapportent rien d'eux-mêmes. L'adjoint décide avec la même fonction pure
 en simulation (`assistantChoices`, `simulateMatch`) et en direct quand le joueur saute la pause (« live-skip ») ; sinon
 le joueur décide sur la carte d'événement (G5, règle « Match en direct »), la décision de l'adjoint présélectionnée. Chaque
@@ -157,7 +158,7 @@ attendu contre lui, les deux Équilibré. « Composition automatique » est cell
 Équilibré, Fermer) : choisie dans la composition, enregistrée avec elle dans `ClubSave.lineup` (`instruction`,
 facultative, Équilibré sans elle, aucune migration), jouée par le club dirigé au coup d'envoi, simulé comme en direct
 (`Lineup.instruction`, `TeamLive.startingInstruction`, absente pour Équilibré : l'état et le match d'avant) ; la règle de
-l'adjoint y revient, et « Rester tel quel » la garde. Chaque équipe garde la consigne de chacun de ses segments et qui
+l'adjoint y revient. Chaque équipe garde la consigne de chacun de ses segments et qui
 l'a donnée (`TeamLive.instructions`, `InstructionSpan`, `src/engine/instructions.ts` : départ, adjoint, manager,
 événement ; `MatchModifiers.givenBy` ; `instructionSourceAt`), lue par le direct. Effet mesuré par `npm run
 measure:balance -- --starting-only` : petit, Fermer rapportant à l'outsider, Attaquer au seul net favori.

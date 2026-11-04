@@ -44,11 +44,12 @@
     "leading": {
       "DEFEND": "Consigne jusqu'à la fin : fermer le jeu",
       "ATTACK": "Consigne jusqu'à la fin : chercher le break",
-      "STEADY": "Consigne jusqu'à la fin : rester tel quel"
+      "STEADY": "Consigne jusqu'à la fin : garder l'équilibre"
     },
     "chasing": {
       "ATTACK": "Consigne jusqu'à la fin : tout pour l'attaque",
-      "STEADY": "Consigne jusqu'à la fin : rester en place"
+      "STEADY": "Consigne jusqu'à la fin : garder l'équilibre",
+      "DEFEND": "Consigne jusqu'à la fin : fermer le jeu"
     },
     "unknownPlayer": "Joueur inconnu",
     "substitute": "un remplaçant"

@@ -132,6 +132,6 @@ export function describeDecision(decision: DecisionView, events: readonly MatchE
     case "LEADING":
       return t(decision.option === "DEFEND" ? "leading.DEFEND" : decision.option === "ATTACK" ? "leading.ATTACK" : "leading.STEADY");
     case "CHASING":
-      return t(decision.option === "ATTACK" ? "chasing.ATTACK" : "chasing.STEADY");
+      return t(decision.option === "ATTACK" ? "chasing.ATTACK" : decision.option === "DEFEND" ? "chasing.DEFEND" : "chasing.STEADY");
   }
 }

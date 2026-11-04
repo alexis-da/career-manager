@@ -232,17 +232,43 @@ describe("choice events", () => {
     const at60 = stateAt(60, "tactics");
     const level = at60.home.goals === at60.away.goals;
     const { state, event } = waitingOn(level || at60.home.goals < at60.away.goals ? "CHASING" : "LEADING", at60);
+    // The three instructions, each once, in the screens' order: Attaquer, Équilibré (STEADY), Fermer.
+    expect(event.options.map((offered) => offered.option)).toEqual(["ATTACK", "STEADY", "DEFEND"]);
     const attack = decideChoice(state, "tactics", { option: "ATTACK" });
     expect(attack.modifiers?.instructions.home).toBe("ATTACK");
     expect(attack.modifiers?.givenBy?.home).toBe("EVENT");
-    // Carrying on is an instruction too, the starting one (Équilibré unless the manager chose another) whatever the score
-    // does: never the same match as another option.
+    expect(decideChoice(state, "tactics", { option: "DEFEND" }).modifiers?.instructions.home).toBe("DEFEND");
+    // Équilibré whatever the score does, and whatever the club started with: never the same match as another option.
     expect(decideChoice(state, "tactics", { option: "STEADY" }).modifiers?.instructions.home).toBe("BALANCED");
     const startedClosed: MatchState = { ...state, home: { ...state.home, startingInstruction: "DEFEND" } };
-    expect(decideChoice(startedClosed, "tactics", { option: "STEADY" }).modifiers?.instructions.home).toBe("DEFEND");
+    expect(decideChoice(startedClosed, "tactics", { option: "STEADY" }).modifiers?.instructions.home).toBe("BALANCED");
     const end = playOn(playOn(attack, "home", "tactics", {}, "segment"), "home", "tactics", {}, "segment");
     expect(end.modifiers?.instructions).toEqual({});
     expect(event.options[event.assistant].option).toBe(event.kind === "CHASING" && !level ? "ATTACK" : "STEADY");
+  });
+
+  it("offer the three instructions to a late tactical card whatever the score, the assistant picking the one his rule plays", () => {
+    const at75 = stateAt(75, "rule");
+    const scored = (home: number, away: number, starting?: "ATTACK" | "DEFEND"): MatchState => ({
+      ...at75,
+      home: { ...at75.home, goals: home, ...(starting === undefined ? {} : { startingInstruction: starting }) },
+      away: { ...at75.away, goals: away },
+    });
+    const pickOf = (kind: "LEADING" | "CHASING", state: MatchState): string => {
+      const { event } = waitingOn(kind, state);
+      expect(event.options.map((offered) => offered.option)).toEqual(["ATTACK", "STEADY", "DEFEND"]);
+      return event.options[event.assistant].option;
+    };
+    // Unchanged from G4 for a club that started balanced: one goal ahead at 75', Fermer; two, Équilibré; behind, Attaquer;
+    // level, Équilibré.
+    expect(pickOf("LEADING", scored(2, 1))).toBe("DEFEND");
+    expect(pickOf("LEADING", scored(3, 1))).toBe("STEADY");
+    expect(pickOf("CHASING", scored(0, 1))).toBe("ATTACK");
+    expect(pickOf("CHASING", scored(1, 1))).toBe("STEADY");
+    // His rule comes back to the starting instruction when it has nothing to say.
+    expect(pickOf("CHASING", scored(1, 1, "ATTACK"))).toBe("ATTACK");
+    expect(pickOf("LEADING", scored(3, 1, "DEFEND"))).toBe("DEFEND");
+    expect(pickOf("LEADING", scored(2, 1, "ATTACK"))).toBe("DEFEND");
   });
 
   it("refuse a decision without an open event, or one not offered", () => {

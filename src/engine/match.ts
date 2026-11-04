@@ -380,6 +380,13 @@ export function instructionAt(state: MatchState, side: Side): Instruction {
  * Who set the instruction a side plays its next segment with (instructionAt): its manager or a choice event when one was
  * given for the period of play, else its assistant's rule, or its starting instruction when the rule has nothing to say.
  */
+/**
+ * The instruction a side has been playing with: its last segment's, its starting instruction before kick-off (or in a state
+ * kept before the instructions of its segments were).
+ */
+export const currentInstructionOf = (team: TeamLive): Instruction =>
+  team.instructions?.at(-1)?.instruction ?? startingInstructionOf(team);
+
 export function instructionSourceAt(state: MatchState, side: Side): InstructionSource {
   if (state.modifiers?.instructions[side] !== undefined) {
     return state.modifiers.givenBy?.[side] ?? "MANAGER";

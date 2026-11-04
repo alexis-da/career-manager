@@ -234,11 +234,12 @@ joueur nommé à une minute tirée.
   `EXHAUSTED_FITNESS_LOST` 25) : le remplacer ou le garder (blessé dans la suite à `EXHAUSTED_INJURY_CHANCE`) ;
   l'adjoint le remplace. Ces trois-là ne viennent qu'avec un changement et un remplaçant disponibles, et, une fois que le
   manager fait ses remplacements (`manual`), avec une fenêtre pendant le jeu.
-- Le club mène d'un ou deux buts (60' ou 75') : fermer, chercher le break ou rester tel quel, une consigne (Fermer,
-  Attaquer, ou la consigne de départ, Équilibré sans autre : `optionInstruction`) jusqu'à la fin du temps
-  réglementaire quel que soit le score ; l'adjoint ferme si sa règle ferme (un but d'avance à 75'), sinon reste. Mené ou
-  à égalité : tout pour l'attaque (Attaquer) ou rester en place (la consigne de départ) ; l'adjoint attaque s'il est
-  mené.
+- Le club mène d'un ou deux buts (60' ou 75'), ou il est mené ou à égalité : les trois consignes, chacune une fois,
+  dans l'ordre des écrans (`TACTICAL_OPTIONS` : `ATTACK`, `STEADY` pour Équilibré, nom gardé des décisions stockées,
+  `DEFEND` ; `optionInstruction`), jusqu'à la fin du temps réglementaire quel que soit le score ; l'adjoint prend celle
+  de sa règle (`assistantInstruction` : fermer avec un but d'avance à 75', attaquer mené à partir de 60', sinon la
+  consigne de départ). La carte marque « (actuelle) » la consigne du dernier segment joué (`currentInstructionOf`).
+  Pour un club parti en Équilibré, les décisions de l'adjoint, donc les matchs simulés, sont celles de G4.
 - Les buts des événements sont pris sur ceux du club : `OWN_GOALS_WITH_CHOICE_EVENTS` (0,89) multiplie ses buts
   attendus à chaque segment d'un match qui a des événements, pour que, décidés par l'adjoint, ils ne lui rapportent rien
   d'eux-mêmes (mesuré : +0,11 point par match sans cela).

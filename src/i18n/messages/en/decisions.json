@@ -44,11 +44,12 @@
     "leading": {
       "DEFEND": "Until full time: shut up shop",
       "ATTACK": "Until full time: go for the killer goal",
-      "STEADY": "Until full time: stay as you are"
+      "STEADY": "Until full time: stay balanced"
     },
     "chasing": {
       "ATTACK": "Until full time: all-out attack",
-      "STEADY": "Until full time: hold your shape"
+      "STEADY": "Until full time: stay balanced",
+      "DEFEND": "Until full time: shut up shop"
     },
     "unknownPlayer": "Unknown player",
     "substitute": "a substitute"

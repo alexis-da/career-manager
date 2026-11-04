@@ -8,7 +8,6 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/src/compone
 import type { TeamView } from "@/src/db/calendar";
 import type { ChoiceEventView } from "@/src/db/live-match";
 import type { ChoiceKind, ChoiceOption } from "@/src/engine/choices";
-import { DEFAULT_INSTRUCTION } from "@/src/engine/instructions";
 import type { Translator } from "@/src/i18n/translator";
 import { cn } from "@/src/lib/utils";
 import { fitnessFigure } from "../../_lib/fitness";
@@ -137,19 +136,19 @@ function optionTexts(event: ChoiceEventView, offered: OfferedOption, t: Translat
       return { label: t("KNOCK.PLAY_ON.label"), effect: t("KNOCK.PLAY_ON.effect") };
     case "REPLACE":
       return { label: t("EXHAUSTED.REPLACE.label"), effect: t("EXHAUSTED.REPLACE.effect", { replacement }) };
+    // The late tactical choices: one instruction each, Attaquer, Équilibré (STEADY) and Fermer, in the event's words.
     case "DEFEND":
-      return { label: t("LEADING.DEFEND.label"), effect: t("LEADING.DEFEND.effect") };
+      return event.kind === "LEADING"
+        ? { label: t("LEADING.DEFEND.label"), effect: t("LEADING.DEFEND.effect") }
+        : { label: t("CHASING.DEFEND.label"), effect: t("CHASING.DEFEND.effect") };
     case "ATTACK":
       return event.kind === "LEADING"
         ? { label: t("LEADING.ATTACK.label"), effect: t("LEADING.ATTACK.effect") }
         : { label: t("CHASING.ATTACK.label"), effect: t("CHASING.ATTACK.effect") };
-    case "STEADY": {
-      // Carrying on as the club started: its starting instruction, which the option says.
-      const values = { instruction: offered.instruction ?? DEFAULT_INSTRUCTION };
+    case "STEADY":
       return event.kind === "LEADING"
-        ? { label: t("LEADING.STEADY.label"), effect: t("LEADING.STEADY.effect", values) }
-        : { label: t("CHASING.STEADY.label"), effect: t("CHASING.STEADY.effect", values) };
-    }
+        ? { label: t("LEADING.STEADY.label"), effect: t("LEADING.STEADY.effect") }
+        : { label: t("CHASING.STEADY.label"), effect: t("CHASING.STEADY.effect") };
   }
 }
 
@@ -167,7 +166,8 @@ type ChoiceCardProps = {
 /**
  * The card of a choice event, for the player's club's match paused at a boundary: the screen's whole size under lg, a
  * panel beside the match from there, as the Coaching panel. Its family and minute, a title, the situation in one sentence,
- * then two or three options, each with what it does in plain words; the assistant's is marked, and chosen to begin with.
+ * then two or three options, each with what it does in plain words; the assistant's is marked, and chosen to begin with,
+ * and on a late tactical card, the instruction the club has been playing with is « (actuelle) ».
  * The choice is required: no cross, no timer, neither Escape nor a press outside closes the card, and « Valider », the
  * screen's one orange action, answers only once the card has been open for CONFIRM_GUARD_MS.
  */
@@ -335,6 +335,8 @@ function OptionRow({ group, index, offered, texts, checked, assistant, onPick }:
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span id={labelId} className="text-base leading-tight font-bold wrap-break-word">
             {texts.label}
+            {/* The instruction the club has been playing with, read with the label. */}
+            {offered.current && <span className="font-normal text-muted-foreground"> {t("current")}</span>}
           </span>
           {assistant && (
             <span

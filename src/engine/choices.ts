@@ -41,7 +41,6 @@ import {
   giveInstruction,
   goalAt,
   shootoutChance,
-  startingInstructionOf,
   substitutionAt,
   substitutionsLeft,
   windowOpenAt,
@@ -52,7 +51,6 @@ import {
   type PitchEntry,
   type ScheduledIncident,
   type Side,
-  type TeamLive,
 } from "./match";
 import { ratingAt } from "./positions";
 
@@ -60,10 +58,8 @@ import { ratingAt } from "./positions";
  * Choice events (gameplay v1, G4): moments of the managed club's matches where its manager decides, at a boundary between
  * two segments. The catalogue v1: a penalty for the club (its taker), a dangerous free kick (a shot or a combination),
  * a booked player losing his temper (taken off or kept), a scuffle (calm down or protest), a player knocked (taken off
- * or played on), an exhausted player (replaced or kept), and late in the match, ahead (close the game, look for the
- * goal that settles it, or carry on as it started) or not (all out attack, or carry on as it started: its starting
- * instruction, Équilibré unless its manager chose another): an instruction for the rest of regular time, whatever the
- * score does.
+ * or played on), an exhausted player (replaced or kept), and late in the match, ahead or not, the three instructions
+ * (attack, stay balanced, close the game), each offered once: one for the rest of regular time, whatever the score does.
  */
 export const CHOICE_KINDS = ["PENALTY", "FREE_KICK", "HOTHEAD", "SCUFFLE", "KNOCK", "EXHAUSTED", "LEADING", "CHASING"] as const;
 export type ChoiceKind = (typeof CHOICE_KINDS)[number];
@@ -279,19 +275,16 @@ export function choiceEvent(kind: ChoiceKind, state: MatchState, side: Side, min
       return about(exhausted, ["REPLACE", "KEEP"], 0);
     }
     case "LEADING":
+    case "CHASING": {
+      // The three instructions, in the screens' order; the assistant takes the one his rule plays from here.
+      const rule = assistantInstruction(state, side, minute);
       return {
         minute,
         kind,
-        options: [{ option: "DEFEND" }, { option: "ATTACK" }, { option: "STEADY" }],
-        assistant: assistantInstruction(state, side, minute) === "DEFEND" ? 0 : 2,
+        options: TACTICAL_OPTIONS.map((option) => ({ option })),
+        assistant: Math.max(0, TACTICAL_OPTIONS.findIndex((option) => tacticalInstruction(option) === rule)),
       };
-    case "CHASING":
-      return {
-        minute,
-        kind,
-        options: [{ option: "ATTACK" }, { option: "STEADY" }],
-        assistant: state[side].goals < state[otherSide(side)].goals ? 0 : 1,
-      };
+    }
   }
 }
 
@@ -406,20 +399,25 @@ function applyOption(state: MatchState, side: Side, event: ChoiceEvent, chosen: 
     case "DEFEND":
     case "ATTACK":
     case "STEADY":
-      return giveInstruction(state, side, tacticalInstruction(chosen.option, state[side]), "EVENT");
+      return giveInstruction(state, side, tacticalInstruction(chosen.option), "EVENT");
   }
 }
 
 /** The options of the late tactical events, ahead or not: each an instruction for the rest of regular time. */
 type TacticalOption = Extract<ChoiceOption, "DEFEND" | "ATTACK" | "STEADY">;
 
-/** The instruction a late tactical option gives its club: carrying on as it started is its starting instruction. */
-const tacticalInstruction = (option: TacticalOption, team: TeamLive): Instruction =>
-  option === "STEADY" ? startingInstructionOf(team) : option;
+/**
+ * The late tactical events' options, one per instruction, in the screens' order (INSTRUCTIONS): Attaquer, Équilibré
+ * (STEADY, the option's name since G4: stored decisions keep it), Fermer.
+ */
+const TACTICAL_OPTIONS: readonly TacticalOption[] = ["ATTACK", "STEADY", "DEFEND"];
+
+/** The instruction a late tactical option gives its club. */
+const tacticalInstruction = (option: TacticalOption): Instruction => (option === "STEADY" ? "BALANCED" : option);
 
 /** The instruction an option gives its club for the rest of regular time: a late tactical one's, none for any other. */
-export function optionInstruction(option: ChoiceOption, team: TeamLive): Instruction | null {
-  return option === "DEFEND" || option === "ATTACK" || option === "STEADY" ? tacticalInstruction(option, team) : null;
+export function optionInstruction(option: ChoiceOption): Instruction | null {
+  return option === "DEFEND" || option === "ATTACK" || option === "STEADY" ? tacticalInstruction(option) : null;
 }
 
 /** The option a decision names among those offered, or -1: a penalty's taker must be one of the takers offered. */

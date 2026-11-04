@@ -14,6 +14,7 @@
     },
     "choices": "Ton choix",
     "assistant": "Conseil de l'adjoint",
+    "current": "(actuelle)",
     "validate": "Valider",
     "aPlayer": "un joueur",
     "PENALTY": {
@@ -96,8 +97,8 @@
         "effect": "Match plus ouvert jusqu'à la 90e : plus d'occasions, mais aussi plus de risques."
       },
       "STEADY": {
-        "label": "Rester tel quel",
-        "effect": "Ta consigne de départ jusqu'à la 90e : {instruction, select, ATTACK {match plus ouvert} DEFEND {match plus fermé} other {jeu équilibré}}."
+        "label": "Garder l'équilibre",
+        "effect": "Jeu équilibré jusqu'à la 90e : ni plus ouvert, ni plus fermé."
       }
     },
     "CHASING": {
@@ -114,8 +115,12 @@
         "effect": "Match plus ouvert jusqu'à la 90e : plus d'occasions pour toi, et pour eux."
       },
       "STEADY": {
-        "label": "Rester en place",
-        "effect": "Ta consigne de départ jusqu'à la 90e : {instruction, select, ATTACK {match plus ouvert} DEFEND {match plus fermé} other {jeu équilibré}}."
+        "label": "Garder l'équilibre",
+        "effect": "Jeu équilibré jusqu'à la 90e : ni plus ouvert, ni plus fermé."
+      },
+      "DEFEND": {
+        "label": "Fermer le jeu",
+        "effect": "Match plus fermé jusqu'à la 90e : moins d'occasions des deux côtés."
       }
     }
   }

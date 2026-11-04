@@ -765,6 +765,7 @@ const ASSISTANT_TAKES: Readonly<Record<string, string>> = {
   "LEADING STEADY": "otherwise",
   "CHASING ATTACK": "behind",
   "CHASING STEADY": "level",
+  "CHASING DEFEND": "never",
 };
 
 const SCORES = ["1 goal ahead", "2 goals ahead", "level", "behind"];
@@ -919,7 +920,7 @@ function choiceTables(options: Options, sections: string[]): void {
     "#### The tactical events by score and minute: each option against the assistant's",
     [
       "Each option holds an instruction for the rest of regular time, whatever the score, until a later tactical event:",
-      "DEFEND Fermer, ATTACK Attaquer, STEADY the starting instruction (Équilibré here); the assistant's rule no longer",
+      "DEFEND Fermer, ATTACK Attaquer, STEADY Équilibré, the three offered on either card; the assistant's rule no longer",
       "plays once the event is decided.",
     ].join(" "),
     table(["kind", "situation", "option", "the assistant's", ...DELTA_HEADERS], situationRows),

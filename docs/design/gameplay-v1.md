@@ -33,6 +33,7 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
 - **Événements à choix** : 1 à 3 par match pour le club dirigé, 4 familles, l'adjoint choisit en simulation.
 - **Buts des événements pris sur ceux du club** (G4, validé le 03/11) : dans un match qui a des événements, les buts attendus du club dirigé sont multipliés par 0,89 (`OWN_GOALS_WITH_CHOICE_EVENTS`), pour que les événements décidés par l'adjoint ne lui rapportent rien de plus qu'au même club joué par l'IA.
 - **« Rester tel quel » est la consigne Équilibré** (G4, validé le 03/11) : une consigne jusqu'à la fin du temps réglementaire, comme les autres options des réactions tactiques, et non « la règle de l'adjoint continue », qui rejouait le même match que Fermer ou Attaquer.
+- **Les réactions tactiques offrent les trois consignes** (04/11, après G6) : Attaquer, Équilibré et Fermer, chacune une fois, sous leurs libellés d'événement, celle que le club joue marquée « (actuelle) ». Plus de « Rester tel quel » : avec une consigne de départ, il faisait double emploi avec Attaquer ou Fermer. Règle de l'adjoint inchangée.
 
 ## G1 — Moteur par segments, profils de dispositif, consignes, forme calmée
 
@@ -121,8 +122,8 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
 | Discipline et arbitre | Échauffourée | — | Calmer tes joueurs / Protester | Protester : 50 % λ × 1,08 au segment suivant, 30 % de jaune au capitaine | calmer |
 | Blessures et coups durs | Joueur touché | — | Le sortir / Le laisser jouer | Laisser : part × 0,75 jusqu'à la fin, 35 % de blessure aggravée (7–21 jours) | sortir s'il reste un changement |
 | Blessures et coups durs | Joueur à bout | un de tes joueurs < 55 de fitness en match (après G2) | Le remplacer / Le garder | Garder : il continue fatigué, risque de blessure accru | remplacer |
-| Réactions tactiques | Tu mènes, fin de match | mène d'1 ou 2 buts, 60' ou 75' | Fermer le jeu / Chercher le break / Rester tel quel | consigne sur les segments restants | règle de l'adjoint |
-| Réactions tactiques | Tu es mené ou à égalité | 60' ou 75' | Tout pour l'attaque / Rester en place | consigne sur les segments restants | règle de l'adjoint |
+| Réactions tactiques | Tu mènes, fin de match | mène d'1 ou 2 buts, 60' ou 75' | Chercher le break / Garder l'équilibre / Fermer le jeu (avant le 04/11 : Fermer le jeu / Chercher le break / Rester tel quel) | consigne sur les segments restants | règle de l'adjoint |
+| Réactions tactiques | Tu es mené ou à égalité | 60' ou 75' | Tout pour l'attaque / Garder l'équilibre / Fermer le jeu (avant le 04/11 : Tout pour l'attaque / Rester en place) | consigne sur les segments restants | règle de l'adjoint |
 
 - Les effets chiffrés sont calibrés pour qu'aucun choix ne soit toujours le meilleur et que le choix de l'adjoint soit raisonnable sans être optimal partout. Mesure à fournir : effet moyen de chaque choix en points par match.
 - **Anti-rechargement et cohérence** (exigences tirées de l'audit) :
@@ -224,7 +225,7 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
 - **Faire un changement** : toucher un poste ouvre ses candidats, tout l'effectif sauf le joueur du poste, triés par note à ce poste : note au poste, libellé, condition, forme (flèche), blessé, suspendu ou 4 jaunes, et où il joue ; un toucher place le joueur ou échange deux titulaires. Sous 1024 px, une feuille sur la page ; au-dessus, la liste de l'effectif devient celle des candidats, et le glisser-déposer reste.
 - **Dispositif** : sous son choix, le profil en mots et en barres (« Plus offensif : +3 % en attaque, −3 % en défense »), l'attaque et la défense du onze qui jouerait, recalculées à chaque modification par la fonction du moteur, à côté de celles du onze prévu du prochain adversaire, et le comparatif des sept dispositifs avec la composition de l'adjoint dans chacun : attaque, défense, écart de buts attendu au prochain match (au centième : au dixième, le meilleur semblait souvent arbitraire), le meilleur signalé, « Choisir » qui l'applique. Une seule source de calcul : `src/engine/strength.ts`, que le moteur et l'écran importent.
 - **Composition automatique** : celle de l'adjoint, comme les clubs IA (`selectRestedLineup`) : blessés et suspendus écartés, comme avant, et un joueur sous 75 reposé quand un reposé vaut au plus 5 points de moins à son poste.
-- **Consigne de départ** : Attaquer, Équilibré ou Fermer, choisie dans la composition et enregistrée avec elle dans `ClubSave.lineup` (`instruction`, facultative : Équilibré sans elle, aucune migration). Le club dirigé la joue au coup d'envoi, simulé comme en direct ; la règle de l'adjoint y revient quand elle n'a rien à dire (mené à partir de 60', Attaquer ; un but d'avance à partir de 75', Fermer ; sinon la consigne de départ), et « Rester tel quel » d'une réaction tactique la garde. En Équilibré, l'état et le match sont ceux d'avant : le test des 600 matchs est inchangé, et 120 matchs en Attaquer ou Fermer, simulés et regardés à travers l'état stocké, sont identiques. Principe affiché : « Plus fort que l'adversaire : ouvre le jeu ; plus faible : ferme-le. »
+- **Consigne de départ** : Attaquer, Équilibré ou Fermer, choisie dans la composition et enregistrée avec elle dans `ClubSave.lineup` (`instruction`, facultative : Équilibré sans elle, aucune migration). Le club dirigé la joue au coup d'envoi, simulé comme en direct ; la règle de l'adjoint y revient quand elle n'a rien à dire (mené à partir de 60', Attaquer ; un but d'avance à partir de 75', Fermer ; sinon la consigne de départ) ; une réaction tactique offre les trois consignes, celle que le club joue marquée « (actuelle) ». En Équilibré, l'état et le match sont ceux d'avant : le test des 600 matchs est inchangé, et 120 matchs en Attaquer ou Fermer, simulés et regardés à travers l'état stocké, sont identiques. Principe affiché : « Plus fort que l'adversaire : ouvre le jeu ; plus faible : ferme-le. »
 - **Effet mesuré** (`npm run measure:balance -- --starting-only`, 20 000 matchs par ligne, l'équipe testée jouée comme le club dirigé, ses événements décidés par l'adjoint, contre un niveau 70 en Équilibré ; Δ points par match face à Équilibré, sur les mêmes graines) :
 
 | Équipe testée | Attaquer | Fermer |
@@ -245,7 +246,7 @@ Chaque chantier se termine par un tableau « avant / après » de ces mesures.
   - sans composition enregistrée, le match joue toujours le meilleur onze : seul le bouton repose les fatigués ;
   - le meilleur dispositif est jugé les deux équipes en Équilibré, sans la consigne de départ ; sans prochain match, il n'y en a pas ;
   - un changement de consigne pendant le match ne paraît ni dans le fil ni sur la feuille de match : seule la carte du score le dit ;
-  - « Rester tel quel » garde la consigne de départ (Équilibré, comme décidé en G4, quand il n'y en a pas d'autre) : avec Attaquer ou Fermer au départ, une réaction tactique peut offrir deux choix au même effet, et après une consigne du joueur en cours de match, « Rester tel quel » revient à celle de départ. À trancher.
+  - « Rester tel quel » gardait la consigne de départ et pouvait doubler un autre choix : tranché le 04/11, les deux réactions tactiques offrent désormais les trois consignes, chacune une fois, l'actuelle marquée (voir « Décisions de jeu »).
 
 ## Ordre et méthode
 

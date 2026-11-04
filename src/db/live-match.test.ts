@@ -1,10 +1,10 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HALF_TIME_MINUTE, MAX_SUBSTITUTION_WINDOWS, MAX_SUBSTITUTIONS, SEGMENT_MINUTES } from "../engine/balance";
-import { ChoiceError, optionIndex } from "../engine/choices";
+import { CHOICE_OPTIONS, ChoiceError, optionIndex } from "../engine/choices";
 import { fitnessFactor, playingFactor } from "../engine/fitness";
 import type { LivePause } from "../engine/live";
-import { automaticHalfTimeChoice, fitnessAt, HalfTimeChoiceError, type HalfTimeChoice } from "../engine/match";
+import { automaticHalfTimeChoice, currentInstructionOf, fitnessAt, HalfTimeChoiceError, type HalfTimeChoice } from "../engine/match";
 import { condition } from "../engine/strength";
 import { firstMatchdayDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
@@ -370,22 +370,23 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
       throw new Error("The match had no choice event");
     }
     const at: LivePause = { phase: view.phase, minute: view.minute };
-    const { state } = await stored(saves.decided);
+    const { state, managedSide } = await stored(saves.decided);
     const event = state.choices?.pending;
     if (event === undefined || event === null) {
       throw new Error("No event stored");
     }
     expect(view.choice).toMatchObject({ minute: event.minute, kind: event.kind, assistant: event.assistant });
     expect(view.choice.options.map((option) => option.option)).toEqual(event.options.map((option) => option.option));
-    // A late tactical choice says the instruction it gives, carrying on the starting one: Équilibré, no lineup saved.
+    // A late tactical choice says the instruction it gives (STEADY: Équilibré), and marks the one the club plays with.
     const gives = (option: string) => (option === "DEFEND" || option === "ATTACK" ? option : option === "STEADY" ? "BALANCED" : null);
     expect(view.choice.options.map((option) => option.instruction)).toEqual(event.options.map((option) => gives(option.option)));
+    const current = currentInstructionOf(state[managedSide]);
+    expect(view.choice.options.map((option) => option.current)).toEqual(event.options.map((option) => gives(option.option) === current));
 
     // Not offered: refused, nothing written.
     const before = await managedFixture(saves.decided);
-    await expect(live.advanceLiveMatch(saves.decided, at, { decision: { option: event.kind === "CHASING" ? "DEFEND" : "STEADY" } }, "segment")).rejects.toBeInstanceOf(
-      ChoiceError,
-    );
+    const notOffered = CHOICE_OPTIONS.find((option) => !event.options.some((offered) => offered.option === option)) ?? "TAKER";
+    await expect(live.advanceLiveMatch(saves.decided, at, { decision: { option: notOffered } }, "segment")).rejects.toBeInstanceOf(ChoiceError);
     expect(await managedFixture(saves.decided)).toEqual(before);
 
     // Another option than the assistant's: written as the manager's, then the match plays on.
