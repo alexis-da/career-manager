@@ -73,6 +73,11 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prism
 - Modèles en `PascalCase` singulier, champs en `camelCase`.
 - Clés primaires : `id String @id @default(cuid())`.
 - Index explicite sur chaque colonne servant de filtre fréquent, `saveId` en tête.
+- Toute clé étrangère vers une table d'où le jeu supprime (partie, club, joueur, saison, match de partie, utilisateur) a
+  un index qui commence par ses colonnes : PostgreSQL applique une cascade, ou vérifie un Restrict, une ligne supprimée
+  à la fois, et sans cet index chaque requête parcourt toute la table, les autres parties comprises (une partie à deux
+  divisions se supprimait en 30 s, 0,4 s depuis `…_save_deletion_indexes`). Un index dont la clé n'est que la deuxième
+  colonne, comme `(saveId, clubSaveId)`, ne sert pas. `src/db/foreign-key-indexes.test.ts` le vérifie sur le catalogue.
 - Les suppressions en cascade partent de `Save` : supprimer une sauvegarde efface toute la partie.
   Partout ailleurs, `onDelete: Restrict` — une suppression silencieuse de données de jeu est un bug.
 - Au-dessus de `Save`, `User` : `Save.ownerId` est en `Cascade` vers `User`, supprimer un utilisateur supprime ses

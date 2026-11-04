@@ -69,6 +69,9 @@ model Player {
 // Supprimer une partie passe par la cascade depuis Save. PostgreSQL vérifie Restrict et même NoAction à
 // chaque étape interne de cette cascade : MatchEvent et Transfer, qui référencent PlayerSave, sont donc en
 // Cascade vers PlayerSave, sans quoi une partie jouée ne pourrait pas être supprimée.
+// Chaque clé étrangère de cette cascade a un index qui commence par sa colonne : PostgreSQL l'applique ligne par
+// ligne, une requête par ligne supprimée (PlayerSave, ClubSave, Season…), et sans index chacune parcourt toute la
+// table, les autres parties comprises (une partie à deux divisions se supprimait en 30 s, contre 0,5 s avec ces index).
 
 // ---------------------------------------------------------------- COMPTES
 // Un joueur du site. ANONYMOUS : reconnu par le cookie lw_uid, sans compte ; REGISTERED : compte (session suivante).
@@ -213,6 +216,7 @@ model PlayerSave {
   @@unique([saveId, playerId])
   @@unique([saveId, playerKey])
   @@index([saveId, clubSaveId])
+  @@index([clubSaveId]) // vérification NoAction de chaque ClubSave supprimé
 }
 
 model Fixture {
@@ -244,6 +248,11 @@ model Fixture {
 
   @@index([saveId, seasonId, round])
   @@index([saveId, scheduledAt])
+  // Cascades depuis Season et ClubSave
+  @@index([seasonId])
+  @@index([homeClubSaveId])
+  @@index([awayClubSaveId])
+  @@index([winnerClubSaveId])
 }
 
 model MatchEvent {
@@ -295,6 +304,7 @@ model Transfer {
   date         DateTime
 
   @@index([saveId, date])
+  @@index([playerSaveId]) // cascade depuis PlayerSave
 }
 
 model PlayerSeasonStats {
@@ -314,6 +324,9 @@ model PlayerSeasonStats {
 
   @@unique([saveId, seasonId, playerSaveId])
   @@index([saveId, seasonId])
+  // Cascades depuis PlayerSave et Season
+  @@index([playerSaveId])
+  @@index([seasonId])
 }
 
 // Palmarès : le bilan du club dirigé dans une saison terminée de sa compétition, écrit par advanceToNextSeason avant
@@ -350,6 +363,7 @@ model SeasonResult {
   createdAt          DateTime    @default(now())
 
   @@unique([saveId, seasonId])
+  @@index([seasonId]) // cascade depuis Season
 }
 
 // --------------------------------------------------------------------- DÉFI
