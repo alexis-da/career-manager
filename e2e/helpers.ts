@@ -95,7 +95,8 @@ export async function boxOf(locator: Locator): Promise<{ x: number; y: number; w
 export async function expectThumbTarget(target: Locator): Promise<void> {
   const { width, height } = await boxOf(target);
   const name = (await target.getAttribute("data-testid")) ?? (await textOf(target));
-  expect(Math.min(width, height), name).toBeGreaterThanOrEqual(THUMB);
+  // To the hundredth of a pixel: a sheet still opening leaves a 44 px button at 43.99998.
+  expect(Math.round(Math.min(width, height) * 100) / 100, name).toBeGreaterThanOrEqual(THUMB);
 }
 
 /** Under 1024 px, a save's navigation touches the foot of the screen: its box ends with the window, to within a pixel. */

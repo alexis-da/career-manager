@@ -165,10 +165,10 @@ const nameOn = (line: Locator): Promise<string> => textOf(line.locator("span.blo
 /** The starters' lines a width shows: none under 1024 px, where the pitch is right above the list. */
 const visibleStartersOf = (page: Page): Locator => page.locator('[data-testid="lineup-starter"]:visible');
 
-/** A target a thumb can hit. */
+/** A target a thumb can hit, to the hundredth of a pixel: a sheet still opening leaves a 44 px button at 43.99998. */
 async function expectThumbTarget(target: Locator): Promise<void> {
   const { width, height } = await boxOf(target);
-  expect(Math.min(width, height), `${target}`).toBeGreaterThanOrEqual(THUMB);
+  expect(Math.round(Math.min(width, height) * 100) / 100, `${target}`).toBeGreaterThanOrEqual(THUMB);
 }
 
 /** Over the page at the right of the window, the whole of its height: the whole window on a phone. */
