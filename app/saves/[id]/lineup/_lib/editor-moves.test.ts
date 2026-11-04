@@ -16,6 +16,7 @@ const state: EditorState = {
   formation: "4-3-3",
   starters: ["s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10"],
   bench: ["b1", "b2", "b3", "b4", "b5", "b6", "b7"],
+  instruction: "BALANCED",
 };
 
 type Candidate = LineupCandidate & { fitness: number };

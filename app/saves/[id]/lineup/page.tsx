@@ -47,7 +47,17 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
         )}
       </div>
       {showsTip("secondary", firstSteps) && <FirstStepTip saveId={id} tip="secondary" />}
-      <LineupScreen saveId={id} editor={editor} squad={squad} />
+      <LineupScreen
+        saveId={id}
+        editor={editor}
+        squad={squad}
+        // Built once here: the panel keeps its comparison while the opponent stays the same object.
+        opponent={
+          opponent === null
+            ? null
+            : { name: opponent.clubName, formation: opponent.formation, strength: opponent.strength, atHome: opponent.atHome }
+        }
+      />
     </div>
   );
 }

@@ -168,7 +168,7 @@ export function LineupSquad({
   const average = Math.round(players.reduce((total, player) => total + player.overall, 0) / Math.max(players.length, 1));
 
   return (
-    <Panel className="space-y-3 p-3.5 lg:col-start-1 lg:row-start-1" data-testid="lineup-reserves">
+    <Panel className="space-y-3 p-3.5 lg:col-start-1 lg:row-start-2" data-testid="lineup-reserves">
       <PanelTitle className="px-1 text-[0.8125rem] tracking-normal">{t("squadTitle", { count: players.length, average })}</PanelTitle>
       {selection}
 

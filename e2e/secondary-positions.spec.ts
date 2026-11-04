@@ -49,7 +49,7 @@ test("shows secondary positions in the squad, and a player at his secondary posi
     await expect(page.locator("tbody [data-secondary-position]").first()).toBeVisible();
 
     await openScreen(page, "lineup");
-    await expect(page.getByLabel("Dispositif")).toHaveValue("4-3-3");
+    await expect(page.getByLabel("Dispositif", { exact: true })).toHaveValue("4-3-3");
 
     // The eleven as the pitch shows it: each slot's position, its starter's key and how he fits it.
     const slots: { index: number; short: string; key: string; fit: string }[] = [];

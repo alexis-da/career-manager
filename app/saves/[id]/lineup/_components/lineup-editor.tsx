@@ -2,20 +2,21 @@
 
 import { useTranslations } from "next-intl";
 import { SaveIcon, SparklesIcon } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
 import type { ClubLineupPlayer, LineupEditor as LineupEditorView } from "@/src/db/lineup";
 import type { SquadView } from "@/src/db/squad";
 import { FORMATION_NAMES, FORMATIONS, isFormationName, type FormationName } from "@/src/engine/formations";
+import type { Instruction } from "@/src/engine/instructions";
 import { BENCH_SIZE, changeFormation, isAvailable, resolveLineup, type Lineup, type SavedLineup } from "@/src/engine/lineup";
 import type { Position } from "@/src/engine/positions";
 import { COMPUTER_QUERY, useMediaQuery } from "@/src/hooks/use-media-query";
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../../_components/contract-actions";
 import { FitnessStrip } from "../../_components/fitness-gauge";
-import { PanelTitle } from "@/src/components/panel";
+import { Panel, PanelTitle } from "@/src/components/panel";
 import { LineupSummary } from "../../_components/lineup-summary";
 import { Pitch } from "../../_components/pitch";
 import { CardMark, disciplineBadges, nextMatchCard } from "../../_components/player-badges";
@@ -33,8 +34,10 @@ import {
   swapSlots,
   type EditorState,
 } from "../_lib/editor-moves";
+import { FormationPanel, type PanelOpponent } from "./formation-panel";
 import { LineupSquad, SlotRating } from "./lineup-squad";
 import { CandidateList, CandidatesSheet, PanelCandidates, SelectedSlot } from "./slot-candidates";
+import { StartingInstruction } from "./starting-instruction";
 import { BENCH_TARGET, slotTarget, usePointerDrag, type DragSource, type DropTarget } from "./use-pointer-drag";
 
 const SLOT_COUNT = 11;
@@ -55,7 +58,12 @@ function startersOf(lineup: Lineup<ClubLineupPlayer>): (string | null)[] {
 }
 
 /** What the match will play, except that saved starters now injured or suspended stay in their slot, shown in red. */
-function initialState(formation: FormationName, saved: SavedLineup | null, players: readonly ClubLineupPlayer[]): EditorState {
+function initialState(
+  formation: FormationName,
+  saved: SavedLineup | null,
+  players: readonly ClubLineupPlayer[],
+  instruction: Instruction,
+): EditorState {
   const resolved = resolveLineup(formation, saved, players);
   const starters = startersOf(resolved);
   const unavailable = new Set(players.filter((player) => !isAvailable(player)).map((player) => player.id));
@@ -68,10 +76,18 @@ function initialState(formation: FormationName, saved: SavedLineup | null, playe
     formation,
     starters,
     bench: resolved.bench.map((player) => player.id).filter((key) => !starters.includes(key)),
+    instruction,
   };
 }
 
 const sameState = (a: EditorState, b: EditorState): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/** The lineup being edited as it is saved: a player key per filled slot, the bench in order, the starting instruction. */
+const savedOf = (state: EditorState): SavedLineup => ({
+  starters: state.starters.flatMap((playerKey, slot) => (playerKey === null ? [] : [{ slot, playerKey }])),
+  benchOrder: state.bench,
+  instruction: state.instruction,
+});
 
 /** The change a drop makes, or the state unchanged. */
 function applyDrop(state: EditorState, source: DragSource, target: DropTarget): EditorState {
@@ -85,15 +101,16 @@ type LineupScreenProps = {
   saveId: string;
   editor: LineupEditorView;
   squad: SquadView;
+  opponent: PanelOpponent | null; // the next match's, his likely eleven's strength: the page's, the same object across renders
 };
 
 /** The screen around the editor: what it has to keep when the editor starts again, the player last chosen. */
-export function LineupScreen({ saveId, editor, squad }: LineupScreenProps) {
+export function LineupScreen({ saveId, editor, squad, opponent }: LineupScreenProps) {
   const [chosen, setChosen] = useState<string | null>(null);
   // A new key after each save, and after a sale or a release: the editor starts again from what is now saved, with no
   // key left of a player gone.
   const key = `${editor.formation}:${JSON.stringify(editor.saved)}:${editor.players.map((player) => player.id).join()}`;
-  return <LineupEditor key={key} saveId={saveId} editor={editor} squad={squad} chosen={chosen} onChoose={setChosen} />;
+  return <LineupEditor key={key} saveId={saveId} editor={editor} squad={squad} opponent={opponent} chosen={chosen} onChoose={setChosen} />;
 }
 
 type LineupEditorProps = LineupScreenProps & {
@@ -108,11 +125,11 @@ type LineupEditorProps = LineupScreenProps & {
  * clicked with no slot selected shows the player's sheet instead, with the actions of the squad screen: over the page
  * under xl, in the third column from there, which also follows the selected slot and is never empty.
  */
-function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorProps) {
+function LineupEditor({ saveId, editor, squad, opponent, chosen, onChoose }: LineupEditorProps) {
   const { formation, saved, clubColors, players } = editor;
   const t = useTranslations("lineup");
   const tPlayer = useTranslations("player");
-  const [initial] = useState(() => initialState(formation, saved, players));
+  const [initial] = useState(() => initialState(formation, saved, players, editor.instruction));
   const [state, setState] = useState(initial);
   const [selected, setSelected] = useState<number | null>(null);
   const [candidatesSlot, setCandidatesSlot] = useState<number | null>(null); // the last selected: the sheet's, as it closes
@@ -209,7 +226,13 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
     const bench = [...leaving, ...state.bench]
       .filter((key, index, keys) => !starters.includes(key) && keys.indexOf(key) === index)
       .slice(0, BENCH_SIZE);
-    setState({ formation: value, starters, bench });
+    setState({ ...state, formation: value, starters, bench });
+    setSelected(null);
+  };
+
+  /** A formation of the comparison, with the assistant's eleven in it: the one its row was worked out with. */
+  const applyFormation = (value: FormationName): void => {
+    setState(automaticState(state, value, players));
     setSelected(null);
   };
 
@@ -221,11 +244,7 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
 
   /** Fills only the empty slots, keeping every player already placed. */
   const completeEmptySlots = (): void => {
-    const current: SavedLineup = {
-      starters: state.starters.flatMap((playerKey, slot) => (playerKey === null ? [] : [{ slot, playerKey }])),
-      benchOrder: state.bench,
-    };
-    const starters = startersOf(resolveLineup(state.formation, current, players));
+    const starters = startersOf(resolveLineup(state.formation, savedOf(state), players));
     // Injured or suspended starters left in place by the manager stay in their slot, as the editor shows them.
     state.starters.forEach((key, slot) => {
       if (key !== null) {
@@ -244,13 +263,7 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
     }
     startTransition(async () => {
       try {
-        const result = await saveLineupAction(saveId, {
-          formation: state.formation,
-          lineup: {
-            starters: state.starters.flatMap((playerKey, slot) => (playerKey === null ? [] : [{ slot, playerKey }])),
-            benchOrder: state.bench,
-          },
-        });
+        const result = await saveLineupAction(saveId, { formation: state.formation, lineup: savedOf(state) });
         if (result.ok) {
           toast.success(result.message);
         } else {
@@ -273,6 +286,10 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
   const overBench = drag?.over?.kind === "bench";
   const sheetKey = sheetInColumn ? pinnedSheetKey(selectedKey, chosen, players) : sheetOpen ? chosen : null;
   const profile = squad.players.find((player) => player.playerKey === sheetKey);
+
+  // The eleven the match would play now, whose strengths the formation panel shows: the editor's, as the matchday
+  // resolves a saved lineup (an injured or suspended starter replaced, an empty slot filled).
+  const eleven = useMemo(() => resolveLineup(state.formation, savedOf(state), players), [state, players]);
 
   // The slot whose candidates show: the selected one, or under lg the last one while its sheet closes.
   const listedSlot = selected ?? candidatesSlot;
@@ -362,10 +379,11 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
       )}
 
       {/* One DOM, the pitch first, its columns placed by CSS. Under lg, a flex column rather than a grid, the pitch's column
-          dissolved in it: a grid item would be sticky within its own row only, and the bench stays in sight along the list. */}
+          dissolved in it: a grid item would be sticky within its own row only, and the bench stays in sight along the list.
+          From lg, the formation's panel takes the first row, under its choice. */}
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-5 xl:grid-cols-[17rem_minmax(0,1fr)_18.5rem] 2xl:grid-cols-[19rem_minmax(0,1fr)_22rem]">
         {/* Held in sight from lg: a player is carried to it from the foot of the list. */}
-        <div className="max-lg:contents lg:sticky lg:top-8 lg:col-start-2 lg:row-start-1 lg:space-y-3 lg:self-start">
+        <div className="max-lg:contents lg:sticky lg:top-8 lg:col-start-2 lg:row-start-2 lg:space-y-3 lg:self-start">
           <div className="mx-auto w-full max-w-lg space-y-2 lg:max-w-none">
             {/* From lg, no taller than leaves the screen room for the summary and the bench, sticky as they are. */}
             <div className="mx-auto lg:max-w-[max(20rem,calc((100dvh-13.5rem)*68/105))]">
@@ -445,6 +463,16 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
               })}
             </ol>
           </section>
+        </div>
+
+        {/* The formation's profile, the strengths of the eleven beside the next opponent's, the seven formations compared;
+            then the instruction the match starts with, saved with the lineup. From lg, the grid's first row, side by side;
+            under lg, after the bench: the pitch first on a phone, and the list after them. */}
+        <div className="grid grid-cols-1 gap-4 lg:col-span-full lg:row-start-1 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <FormationPanel formation={state.formation} eleven={eleven} players={players} opponent={opponent} onApply={applyFormation} />
+          <Panel className="p-4 sm:p-5">
+            <StartingInstruction value={state.instruction} onChange={(instruction) => setState({ ...state, instruction })} />
+          </Panel>
         </div>
 
         <LineupSquad

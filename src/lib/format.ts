@@ -13,6 +13,7 @@ function formattersOf(tag: string) {
   return {
     decimal: new Intl.NumberFormat(tag, { maximumFractionDigits: 1 }),
     oneDecimal: new Intl.NumberFormat(tag, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+    twoDecimals: new Intl.NumberFormat(tag, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     integer: new Intl.NumberFormat(tag, { maximumFractionDigits: 0 }),
     longDate: new Intl.DateTimeFormat(tag, { day: "numeric", month: "long", year: "numeric", timeZone: TIME_ZONE }),
     shortDate: new Intl.DateTimeFormat(tag, { weekday: "short", day: "numeric", month: "short", timeZone: TIME_ZONE }),
@@ -77,6 +78,11 @@ export function millionsFigure(euros: number, locale: Locale = "fr"): { value: s
 /** One decimal: « 68,2 » (« 68.2 » in English). */
 export function formatDecimal(value: number, locale: Locale = "fr"): string {
   return FORMATTERS[locale].oneDecimal.format(value);
+}
+
+/** « 0,94 », « 0.94 »: to a hundredth, where a tenth would make different figures look the same. */
+export function formatHundredths(value: number, locale: Locale = "fr"): string {
+  return FORMATTERS[locale].twoDecimals.format(value);
 }
 
 /** « 17 août 2026 », « 1er juillet 2026 »: the French ordinal for the first, as formatDayMonth. « 1 July 2026 ». */

@@ -1,0 +1,44 @@
+{
+  "formationPanel": {
+    "title": "Formation and strength",
+    "lean": {
+      "VERY_ATTACKING": "Very attacking",
+      "MORE_ATTACKING": "More attacking",
+      "SLIGHTLY_ATTACKING": "Slightly attacking",
+      "BALANCED": "Balanced",
+      "SLIGHTLY_DEFENSIVE": "Slightly defensive",
+      "MORE_DEFENSIVE": "More defensive",
+      "VERY_DEFENSIVE": "Very defensive"
+    },
+    "profile": "{lean}: {attack}% attack, {defense}% defence",
+    "attack": "Attack",
+    "defense": "Defence",
+    "attackShort": "Att.",
+    "defenseShort": "Def.",
+    "myEleven": "My eleven",
+    "myFormation": "In a {formation}",
+    "likelyEleven": "Likely eleven in a {formation}",
+    "compare": {
+      "toggle": "Compare the {count} formations",
+      "intro": "Each formation with its automatic line-up.",
+      "gap": "Margin: goals expected for, minus against, in the next match.",
+      "formation": "Formation",
+      "gapShort": "Margin",
+      "choice": "Choice",
+      "best": "Best",
+      "current": "Current",
+      "apply": "Pick",
+      "applyLabel": "Pick the {formation}"
+    }
+  },
+  "startingInstruction": {
+    "title": "Starting instruction",
+    "about": {
+      "ATTACK": "A more open game: more goals at both ends.",
+      "BALANCED": "Neither more open nor tighter: the two elevens' strength decides.",
+      "DEFEND": "A tighter game: fewer goals at both ends."
+    },
+    "principle": "Stronger than your opponent: open the game up; weaker: shut it down.",
+    "assistant": "It holds from kick-off, then your assistant adapts it to the score: attack when behind from the 60th minute, sit back one goal up from the 75th."
+  }
+}

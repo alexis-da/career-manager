@@ -16,6 +16,7 @@ import enHalfTime from "./en/half-time.json";
 import enHeader from "./en/header.json";
 import enHome from "./en/home.json";
 import enLineup from "./en/lineup.json";
+import enLineupPlan from "./en/lineup-plan.json";
 import enLive from "./en/live.json";
 import enMarket from "./en/market.json";
 import enMarketSell from "./en/market-sell.json";
@@ -44,6 +45,7 @@ import frHalfTime from "./fr/half-time.json";
 import frHeader from "./fr/header.json";
 import frHome from "./fr/home.json";
 import frLineup from "./fr/lineup.json";
+import frLineupPlan from "./fr/lineup-plan.json";
 import frLive from "./fr/live.json";
 import frMarket from "./fr/market.json";
 import frMarketSell from "./fr/market-sell.json";
@@ -77,6 +79,7 @@ export const ZONES = {
   squad: { fr: frSquad, en: enSquad },
   "player-sheet": { fr: frPlayerSheet, en: enPlayerSheet },
   lineup: { fr: frLineup, en: enLineup },
+  "lineup-plan": { fr: frLineupPlan, en: enLineupPlan },
   market: { fr: frMarket, en: enMarket },
   "market-sell": { fr: frMarketSell, en: enMarketSell },
   transfers: { fr: frTransfers, en: enTransfers },
@@ -108,6 +111,7 @@ const fr = {
   ...frSquad,
   ...frPlayerSheet,
   ...frLineup,
+  ...frLineupPlan,
   ...frMarket,
   ...frMarketSell,
   ...frTransfers,
@@ -144,6 +148,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enSquad,
     ...enPlayerSheet,
     ...enLineup,
+    ...enLineupPlan,
     ...enMarket,
     ...enMarketSell,
     ...enTransfers,

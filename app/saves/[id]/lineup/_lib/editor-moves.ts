@@ -1,11 +1,13 @@
 import { formationPositions, type FormationName } from "@/src/engine/formations";
+import type { Instruction } from "@/src/engine/instructions";
 import { BENCH_SIZE, selectRestedLineup, type LineupCandidate } from "@/src/engine/lineup";
 
-/** The lineup being edited: a player key per slot (null when empty) and the substitutes in order. */
+/** The lineup being edited: a player key per slot (null when empty), the substitutes in order, the starting instruction. */
 export type EditorState = {
   formation: FormationName;
   starters: (string | null)[];
   bench: string[]; // at most BENCH_SIZE
+  instruction: Instruction; // saved with the lineup: the one the match starts with
 };
 
 /** The bench with `key` inserted at `index` (at the end when undefined), without duplicates, cut to its size. */

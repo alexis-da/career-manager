@@ -97,8 +97,9 @@ export function PlayerSheet({ profile, startYear, footer, onClose, pinned = fals
       className={cn(
         "@container fixed inset-y-0 right-0 z-50 flex w-full max-w-[400px] flex-col overflow-hidden border-l bg-card shadow-2xl",
         // Over the page under xl, where the sidebar leaves the list too little room beside it. Next to the list from xl,
-        // the main column's margins, 32 px, under the top of the window and above its bottom.
-        "xl:sticky xl:top-8 xl:z-auto xl:h-[calc(100dvh-4rem)] xl:rounded-card xl:border xl:shadow-none",
+        // the main column's margins, 32 px, under the top of the window and above its bottom; held by its top only (no
+        // bottom left of inset-y-0): held by its bottom too, it would rise above its row to the top of its grid.
+        "xl:sticky xl:top-8 xl:bottom-auto xl:z-auto xl:h-[calc(100dvh-4rem)] xl:rounded-card xl:border xl:shadow-none",
       )}
     >
       <Button

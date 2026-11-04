@@ -1,0 +1,44 @@
+{
+  "formationPanel": {
+    "title": "Dispositif et forces",
+    "lean": {
+      "VERY_ATTACKING": "Très offensif",
+      "MORE_ATTACKING": "Plus offensif",
+      "SLIGHTLY_ATTACKING": "Un peu offensif",
+      "BALANCED": "Équilibré",
+      "SLIGHTLY_DEFENSIVE": "Un peu défensif",
+      "MORE_DEFENSIVE": "Plus défensif",
+      "VERY_DEFENSIVE": "Très défensif"
+    },
+    "profile": "{lean} : {attack} % en attaque, {defense} % en défense",
+    "attack": "Attaque",
+    "defense": "Défense",
+    "attackShort": "Att.",
+    "defenseShort": "Déf.",
+    "myEleven": "Mon onze",
+    "myFormation": "En {formation}",
+    "likelyEleven": "Onze prévu en {formation}",
+    "compare": {
+      "toggle": "Comparer les {count} dispositifs",
+      "intro": "Chaque dispositif avec sa composition automatique.",
+      "gap": "Écart : buts attendus pour, moins contre, au prochain match.",
+      "formation": "Dispositif",
+      "gapShort": "Écart",
+      "choice": "Choix",
+      "best": "Meilleur",
+      "current": "Actuel",
+      "apply": "Choisir",
+      "applyLabel": "Choisir le {formation}"
+    }
+  },
+  "startingInstruction": {
+    "title": "Consigne de départ",
+    "about": {
+      "ATTACK": "Match plus ouvert : plus de buts des deux côtés.",
+      "BALANCED": "Ni plus ouvert ni plus fermé : la force des deux onze décide.",
+      "DEFEND": "Match plus fermé : moins de buts des deux côtés."
+    },
+    "principle": "Plus fort que l'adversaire : ouvre le jeu ; plus faible : ferme-le.",
+    "assistant": "Elle vaut dès le coup d'envoi, puis l'adjoint l'adapte au score : attaquer s'il faut revenir après la 60e, fermer avec un but d'avance après la 75e."
+  }
+}
