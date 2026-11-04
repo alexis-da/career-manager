@@ -1,13 +1,14 @@
 /**
  * Balance of the match engine (npm run measure:balance -- [--matches=N] [--seeds=N] [--engine-only] [--world-only]
- * [--out=file.json]).
+ * [--starting-only] [--out=file.json]).
  *
  * Engine, on the pure functions, without a database: wins, draws and losses by strength gap, then the isolated effect of
  * each factor, everything else equal, the formations with their profiles and the instructions against the assistant's rule. Two teams of the same synthetic level, every player at his position's profile, no
  * random spread; only the tested team changes. A case plays --matches matches (default 20 000), half of them at home, half
  * away, unless it is about the venue, on the same seeds as every other case, so that two cases differ by the factor alone.
  * Then the managed club's choice events, the tested team's alone: how many and which, each option against the
- * assistant's (every option of an event played from that very state to the end), and what they are worth to the club.
+ * assistant's (every option of an event played from that very state to the end), and what they are worth to the club;
+ * and its starting instruction, as favourite, at equal strength and as underdog (--starting-only: that table alone).
  *
  * World, on a save of the local database: a complete season of a worldVersion 2 save for each of --seeds seeds (default
  * 3), its goals, draws, home wins, points gap, upsets and final form, the AI starters' fitness at kick-off, the players
@@ -44,6 +45,7 @@ import {
 } from "../src/engine/choices";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../src/engine/formations";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "../src/engine/generation";
+import { INSTRUCTIONS } from "../src/engine/instructions";
 import { isSuspended } from "../src/engine/discipline";
 import { recoveredFitness } from "../src/engine/fitness";
 import { averageStarterRating, selectLineup, selectRestedLineup, type Lineup, type SquadPlayer } from "../src/engine/lineup";
@@ -81,7 +83,7 @@ const LEVEL_GAPS = [2, 5, 10];
 /** The slots of the 4-3-3 the tests touch. */
 const SLOT = { GK: 0, CB: 2, CM: 6, ST: 9 } as const;
 
-type Options = { matches: number; seeds: number; engine: boolean; world: boolean; out: string | undefined };
+type Options = { matches: number; seeds: number; engine: boolean; world: boolean; startingOnly: boolean; out: string | undefined };
 
 function parseOptions(argv: readonly string[]): Options {
   const value = (name: string): string | undefined => argv.find((arg) => arg.startsWith(`--${name}=`))?.split("=")[1];
@@ -89,7 +91,8 @@ function parseOptions(argv: readonly string[]): Options {
     matches: Number(value("matches") ?? 20_000),
     seeds: Number(value("seeds") ?? 3),
     engine: !argv.includes("--world-only"),
-    world: !argv.includes("--engine-only"),
+    world: !argv.includes("--engine-only") && !argv.includes("--starting-only"),
+    startingOnly: argv.includes("--starting-only"),
     out: value("out"),
   };
 }
@@ -916,7 +919,8 @@ function choiceTables(options: Options, sections: string[]): void {
     "#### The tactical events by score and minute: each option against the assistant's",
     [
       "Each option holds an instruction for the rest of regular time, whatever the score, until a later tactical event:",
-      "DEFEND Fermer, ATTACK Attaquer, STEADY Équilibré; the assistant's rule no longer plays once the event is decided.",
+      "DEFEND Fermer, ATTACK Attaquer, STEADY the starting instruction (Équilibré here); the assistant's rule no longer",
+      "plays once the event is decided.",
     ].join(" "),
     table(["kind", "situation", "option", "the assistant's", ...DELTA_HEADERS], situationRows),
   );
@@ -933,6 +937,59 @@ function choiceTables(options: Options, sections: string[]): void {
   sections.push(
     `#### Net effect of the events on the managed club: decided by the assistant, against none (${options.matches} matches a row)`,
     table(["tested team", "choice events", ...RESULT_HEADERS], netRows),
+  );
+}
+
+// ------------------------------------------------------------------ Starting instruction of the managed club
+
+/** The tested side plays as the managed club: from a starting instruction, its choice events decided by its assistant. */
+const matchFromStart =
+  (instruction: Instruction): Play =>
+  (home, away, seed, tested) =>
+    simulateMatch(
+      tested === "home" ? { ...home, instruction } : home,
+      tested === "away" ? { ...away, instruction } : away,
+      seed,
+      undefined,
+      false,
+      {},
+      assistantChoices(tested, seed),
+    );
+
+/**
+ * The starting instruction (gameplay v1, G6): the tested team, as the managed club, starts with each instruction, then
+ * its assistant's rule plays as always (Attaquer behind from the 60th, Fermer one goal ahead from the 75th, the starting
+ * instruction otherwise) and its choice events are decided by him; the other team starts Équilibré. Δ against Équilibré.
+ */
+function startingInstructionTables(options: Options, sections: string[]): void {
+  const other = syntheticTeam("other", BASE_LEVEL);
+  const situations: readonly (readonly [string, number])[] = [
+    ["strong favourite", 10],
+    ["favourite", 5],
+    ["equal", 0],
+    ["underdog", -5],
+    ["big underdog", -10],
+  ];
+  const rows = situations.flatMap(([label, gap]) => {
+    const team = syntheticTeam("tested", BASE_LEVEL + gap);
+    const tallies = new Map(INSTRUCTIONS.map((instruction) => [instruction, duel(team, other, options.matches, "both", matchFromStart(instruction))]));
+    const reference = tallies.get("BALANCED");
+    if (reference === undefined) {
+      throw new Error("No Équilibré reference"); // unreachable: INSTRUCTIONS has it
+    }
+    return INSTRUCTIONS.map((instruction) => [
+      `level ${BASE_LEVEL + gap}, ${label}`,
+      instruction,
+      ...resultColumns(tallies.get(instruction) ?? reference, reference),
+    ]);
+  });
+  sections.push(
+    `### Starting instruction of the managed club, its choice events decided by its assistant (${options.matches} matches a row)`,
+    [
+      `The tested team starts with the instruction, against a team of level ${BASE_LEVEL} starting Équilibré, half the`,
+      "matches at home, on the seeds of every other case; then the assistant's rule as always. Δ: against Équilibré.",
+    ].join(" "),
+    table(["tested team", "starting instruction", ...RESULT_HEADERS], rows),
   );
 }
 
@@ -1362,11 +1419,14 @@ async function main(): Promise<void> {
       100 * 1.96 * Math.sqrt(0.25 / options.matches),
     )} points, a difference between two cases much closer, on the same seeds.`,
   ];
-  if (options.engine) {
+  if (options.startingOnly) {
+    startingInstructionTables(options, sections);
+  } else if (options.engine) {
     gapTables(options, sections);
     factorTables(options, sections);
     const choicesStarted = performance.now();
     choiceTables(options, sections);
+    startingInstructionTables(options, sections);
     const seconds = (from: number): number => Math.round((performance.now() - from) / 1000);
     console.log(`Engine: ${seconds(started)} s, of which choice events ${seconds(choicesStarted)} s`);
   }
