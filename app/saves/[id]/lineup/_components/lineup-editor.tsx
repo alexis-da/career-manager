@@ -25,6 +25,7 @@ import { fitnessFigure } from "../../_lib/fitness";
 import { saveLineupAction } from "../actions";
 import { slotCandidates } from "../_lib/candidates";
 import {
+  automaticState,
   moveToBenchFront,
   pinnedSheetKey,
   placeInSlot,
@@ -212,9 +213,9 @@ function LineupEditor({ saveId, editor, squad, chosen, onChoose }: LineupEditorP
     setSelected(null);
   };
 
+  /** The assistant's eleven in the formation: his rule rests the tired, and nobody plays injured or suspended. */
   const automatic = (): void => {
-    const resolved = resolveLineup(state.formation, null, players);
-    setState({ ...state, starters: startersOf(resolved), bench: resolved.bench.map((player) => player.id) });
+    setState(automaticState(state, state.formation, players));
     setSelected(null);
   };
 

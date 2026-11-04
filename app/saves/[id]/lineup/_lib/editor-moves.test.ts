@@ -1,12 +1,65 @@
 import { describe, expect, it } from "vitest";
-import { BENCH_SIZE } from "@/src/engine/lineup";
-import { moveToBenchFront, pinnedSheetKey, placeInSlot, sendSlotToBench, swapSlots, type EditorState } from "./editor-moves";
+import { ROTATION_FITNESS } from "@/src/engine/balance";
+import { formationPositions } from "@/src/engine/formations";
+import { BENCH_SIZE, type LineupCandidate } from "@/src/engine/lineup";
+import {
+  automaticState,
+  moveToBenchFront,
+  pinnedSheetKey,
+  placeInSlot,
+  sendSlotToBench,
+  swapSlots,
+  type EditorState,
+} from "./editor-moves";
 
 const state: EditorState = {
   formation: "4-3-3",
   starters: ["s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10"],
   bench: ["b1", "b2", "b3", "b4", "b5", "b6", "b7"],
 };
+
+type Candidate = LineupCandidate & { fitness: number };
+
+/** Two players at each position of the 4-3-3, the first one rated 80 and rested, the second 77, then a few at 60. */
+function squad(): Candidate[] {
+  return formationPositions("4-3-3").flatMap((position, index) => [
+    { id: `${position}${index}a`, position, overall: 80, injured: false, fitness: 100 },
+    { id: `${position}${index}b`, position, overall: 77, injured: false, fitness: 100 },
+  ]);
+}
+
+describe("the automatic eleven", () => {
+  it("is the assistant's: a tired player rested where a rested one is hardly worse, nobody injured or suspended", () => {
+    const players = squad().map((player) =>
+      player.id === "RB1a"
+        ? { ...player, fitness: ROTATION_FITNESS - 10 }
+        : player.id === "ST9a"
+          ? { ...player, suspended: true }
+          : player.id === "GK0a"
+            ? { ...player, injured: true }
+            : player,
+    );
+    const next = automaticState(state, "4-3-3", players);
+
+    expect(next.formation).toBe("4-3-3");
+    expect(next.starters[1]).toBe("RB1b");
+    expect(next.starters[9]).toBe("ST9b");
+    expect(next.starters[0]).toBe("GK0b");
+    expect(next.starters[2]).toBe("CB2a");
+    // The tired one sits on the bench, where the others are not.
+    expect(next.bench).toContain("RB1a");
+    expect(next.bench).not.toContain("ST9a");
+    expect(next.bench).not.toContain("GK0a");
+  });
+
+  it("switches the formation with it, every slot filled", () => {
+    const next = automaticState(state, "4-4-2", squad());
+
+    expect(next.formation).toBe("4-4-2");
+    expect(next.starters.every((key) => key !== null)).toBe(true);
+    expect(new Set(next.starters).size).toBe(11);
+  });
+});
 
 describe("editor moves", () => {
   it("puts a substitute in a slot and its occupant in the substitute's place on the bench", () => {
