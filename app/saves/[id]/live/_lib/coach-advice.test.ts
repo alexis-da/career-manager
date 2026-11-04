@@ -14,7 +14,13 @@ const BENCH = ["b1", "b2", "b3"];
 const PLAYERS = new Map([...STARTERS, ...BENCH].map((key) => [key, { lastName: key.toUpperCase() }]));
 
 const STATE: HalfTimeState = { formation: "4-3-3", starters: STARTERS, bench: BENCH, off: [], substitutions: [] };
-const RULES: HalfTimeRules = { injured: new Set(), sentOffSlots: new Set(), substitutionsBefore: 0, maxSubstitutions: MAX_SUBSTITUTIONS };
+const RULES: HalfTimeRules = {
+  injured: new Set(),
+  sentOffSlots: new Set(),
+  substitutionsBefore: 0,
+  maxSubstitutions: MAX_SUBSTITUTIONS,
+  canSubstitute: true,
+};
 
 const situation = (overrides: Partial<MatchSituation> = {}): MatchSituation => ({
   phase: "HALF_TIME",
@@ -23,6 +29,7 @@ const situation = (overrides: Partial<MatchSituation> = {}): MatchSituation => (
   rules: RULES,
   suggestion: null,
   booked: [],
+  hurt: [],
   players: PLAYERS,
   ...overrides,
 });
@@ -130,6 +137,12 @@ describe("what the assistant says", () => {
     expect(line("booked", { rules: { ...RULES, injured: new Set(["s4"]) }, booked: ["s4"] })).toBeUndefined();
     // A player who left the match earlier is no one on the pitch.
     expect(line("booked", { booked: ["gone"] })).toBeUndefined();
+  });
+
+  it("names the players playing on after a knock, while they are on the pitch", () => {
+    expect(line("hurt", { phase: "IN_PLAY", hurt: ["s7"] })).toBe("S7 joue touché : il est moins fort jusqu'à sa sortie.");
+    expect(line("hurt", { phase: "IN_PLAY", hurt: ["s7"] }, tEnglish)).toBe("S7 is playing hurt: weaker until he comes off.");
+    expect(line("hurt", { hurt: ["gone"] })).toBeUndefined();
   });
 
   it("says it all in order", () => {

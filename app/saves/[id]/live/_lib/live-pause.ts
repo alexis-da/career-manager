@@ -6,7 +6,10 @@ import type { DecidedBy } from "@/src/engine/match";
 // The server plays the managed club's match one segment of 15 minutes at a time, and the page only ever has what is
 // played: its clock runs up to where the stored match waits (a pause), then asks for what follows.
 
-/** The pauses with the Coaching panel: half-time, and the end of regulation time of a cup tie level after 90 minutes. */
+/**
+ * The breaks of a match, whose Coaching panel opens by itself: half-time, and the end of regulation time of a cup tie
+ * level after 90 minutes. Between two segments, it opens on a choice event, or when the player asks for it.
+ */
 export function isMatchBreak(phase: PausePhase): phase is MatchBreak {
   return phase === "HALF_TIME" || phase === "REGULATION_END";
 }
@@ -51,13 +54,29 @@ export function skipTarget(pause: LivePause | null): SkipTarget {
   return pause !== null && pause.minute <= HALF_TIME_MINUTE ? "halfTime" : "result";
 }
 
-/** How far the server plays from a pause between two segments: its next segment, or on to the next break or the end. */
-export type StepUntil = "segment" | "break";
+/** How far the server plays from a pause: its next segment, on to the next pause the player acts at, or to the next break. */
+export type StepUntil = "segment" | "pause" | "break";
 
 /**
- * One segment while the clock runs, the player watching; on to the next break, or the end, once « live-skip » is
- * pressed, or without motion, which shows the breaks and the end at once.
+ * One segment while the clock runs, the player watching, who may ask for a pause at its end; without motion, on to the
+ * next pause he acts at, a choice event or a break, shown at once; once « live-skip » is pressed, on to the next break or
+ * the end, his assistant deciding the choice events on the way.
  */
 export function stepUntil(skipping: boolean, reducedMotion: boolean): StepUntil {
-  return skipping || reducedMotion ? "break" : "segment";
+  return skipping ? "break" : reducedMotion ? "pause" : "segment";
+}
+
+/**
+ * Where the Coaching button stops the match while its clock runs: the next boundary not played yet, the pause the clock
+ * runs to, between two segments (15', 30', 60', 75') or the two periods of extra time (105'). Half-time's panel opens by
+ * itself. None in the last segment of regular time or of extra time, whatever follows it: a cup tie level after 90
+ * minutes stops there by itself, and a button that said so would tell a draw before it is played.
+ */
+export type CoachingTarget = { minute: number } | "halfTime" | null;
+
+export function coachingTarget(pause: LivePause | null): CoachingTarget {
+  if (pause === null || pause.phase === "REGULATION_END") {
+    return null;
+  }
+  return pause.phase === "HALF_TIME" ? "halfTime" : { minute: pause.minute };
 }

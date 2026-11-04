@@ -8,7 +8,8 @@
       "regulationEnd": "End of normal time",
       "finished": "Full time",
       "shootout": "Penalties",
-      "extraTime": "Extra time"
+      "extraTime": "Extra time",
+      "paused": "Stopped"
     },
     "live": "Live",
     "extraTimeLive": "Extra time · live",
@@ -16,7 +17,7 @@
     "speed": "Speed",
     "speedFactor": "x{factor}",
     "skip": {
-      "halfTime": "Coach at half-time",
+      "halfTime": "Go to half-time",
       "result": "Go to the result"
     },
     "stepFailed": "The rest of the match could not be played. Try again.",
@@ -44,6 +45,14 @@
       "SUBSTITUTION": "Substitutions",
       "INJURY": "Injuries"
     },
-    "otherMatches": "Other matches"
+    "otherMatches": "Other matches",
+    "request": {
+      "at": "Coach at {minute}’",
+      "asked": "Stopping at {minute}’",
+      "halfTime": "Coach at half-time",
+      "none": "Coaching",
+      "noneHint": "No more stoppages before the end",
+      "askedHint": "The match will stop at {minute}’ for your coaching. Tap again to cancel."
+    }
   }
 }

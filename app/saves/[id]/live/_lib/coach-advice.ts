@@ -11,11 +11,12 @@ export type MatchSituation = {
   rules: HalfTimeRules;
   suggestion: SuggestedChange | null;
   booked: readonly string[]; // players with a yellow card, on the pitch or not
+  hurt: readonly string[]; // players playing on after a knock
   players: ReadonlyMap<string, { lastName: string }>;
 };
 
 /** A sentence of the assistant's, by what it is about. */
-export type AdviceLine = { topic: "injured" | "sentOff" | "score" | "change" | "booked"; text: string };
+export type AdviceLine = { topic: "injured" | "sentOff" | "score" | "change" | "booked" | "hurt"; text: string };
 
 const scoreTopic = ({ phase, goalDifference }: MatchSituation) => {
   if (phase === "REGULATION_END") {
@@ -46,13 +47,13 @@ function changeLine(
 }
 
 /**
- * What the assistant says at a break, in order: the injured, a side short of players, the score, the suggested change
- * or why there is none, the players on a yellow card. Nothing but what is true of the match: he counts the players the
+ * What the assistant says at a pause, in order: the injured, a side short of players, the score, the suggested change
+ * or why there is none, the players on a yellow card, those playing on hurt. Nothing but what is true of the match: he counts the players the
  * choice sent at the restart leaves on the pitch, and at the end of regulation time, where resuming without a change
  * brings nobody on, he does not promise a substitute.
  */
 export function coachAdvice(situation: MatchSituation, t: Translator<"halfTime">): AdviceLine[] {
-  const { phase, state, rules, booked, players } = situation;
+  const { phase, state, rules, booked, hurt, players } = situation;
   const names = (keys: readonly string[]): string =>
     keys.map((key) => getOrThrow(players, key, "player").lastName).join(", ");
 
@@ -89,6 +90,10 @@ export function coachAdvice(situation: MatchSituation, t: Translator<"halfTime">
       topic: "booked",
       text: t("advice.booked", { count: bookedOnPitch.length, names: names(bookedOnPitch), players: atRestart - 1 }),
     });
+  }
+  const hurtOnPitch = onPitch.filter((key) => hurt.includes(key));
+  if (hurtOnPitch.length > 0) {
+    lines.push({ topic: "hurt", text: t("advice.hurt", { count: hurtOnPitch.length, names: names(hurtOnPitch) }) });
   }
   return lines;
 }

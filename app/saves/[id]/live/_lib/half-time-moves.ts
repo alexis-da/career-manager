@@ -6,24 +6,26 @@ import type { Translator } from "@/src/i18n/translator";
 /** The gain of level, in points, from which the assistant suggests a substitution. */
 const MIN_SUGGESTED_GAIN = 1;
 
-/** The managed club's changes being made at half-time. */
+/** The managed club's changes being made at a pause, half-time first of all, hence the name. */
 export type HalfTimeState = {
   formation: FormationName;
   starters: (string | null)[]; // player key per slot
   bench: string[]; // substitutes who can still come on
-  off: string[]; // players taken off at half-time: they cannot come back
+  off: string[]; // players taken off at this pause: they cannot come back
   substitutions: { in: string; out: string }[];
 };
 
 /**
- * What the break cannot change: who is injured, which slots are a sent-off player's, the substitutions made, and how
- * many the match allows by the end of this break (one more at the end of regulation time, before extra time).
+ * What the pause cannot change: who is injured, which slots are a sent-off player's, the substitutions made, how many the
+ * match allows by the end of this pause (one more from the end of regulation time, before extra time), and whether one
+ * may be made here at all: during play, only in a window.
  */
 export type HalfTimeRules = {
   injured: ReadonlySet<string>;
   sentOffSlots: ReadonlySet<number>;
   substitutionsBefore: number;
   maxSubstitutions: number;
+  canSubstitute: boolean;
 };
 
 export type Move = { ok: true; state: HalfTimeState } | { ok: false; message: string };
@@ -33,7 +35,8 @@ export const substitutionsMade = (state: HalfTimeState, rules: HalfTimeRules): n
 
 /**
  * A substitute dropped on a slot: its player goes off for good and the substitute comes on. On a player who came on
- * at this break, the substitute takes his place and he goes back to the bench, the substitution still counting once.
+ * at this pause, the substitute takes his place and he goes back to the bench, the substitution still counting once.
+ * Refused during play without a window.
  */
 export function substitute(
   state: HalfTimeState,
@@ -42,6 +45,9 @@ export function substitute(
   incoming: string,
   t: Translator<"halfTime">,
 ): Move {
+  if (!rules.canSubstitute) {
+    return { ok: false, message: t("refusals.noWindow") };
+  }
   if (rules.sentOffSlots.has(slot)) {
     return { ok: false, message: t("refusals.sentOffSlot") };
   }
@@ -83,7 +89,7 @@ export function substitute(
 }
 
 /**
- * Undoes a substitution of this break: the player going off takes back the place of the one coming on, wherever a
+ * Undoes a substitution of this pause: the player going off takes back the place of the one coming on, wherever a
  * move or a formation has put him, and the one coming on goes back to the bench.
  */
 export function cancelSubstitution(state: HalfTimeState, change: { in: string; out: string }): HalfTimeState {
@@ -150,9 +156,9 @@ const comesBefore = (a: SuggestedChange, b: SuggestedChange): boolean => {
 };
 
 /**
- * The substitution the assistant suggests, or null: none left, nobody on the bench, or nobody worth it. Each player on
- * the pitch is weighed against the best substitute in his slot, but for a sent-off player's slot and a player who came
- * on at this break, the manager's own choice. An injured player goes first, whatever the gain; otherwise the largest
+ * The substitution the assistant suggests, or null: none left, none allowed at this pause, nobody on the bench, or nobody
+ * worth it. Each player on the pitch is weighed against the best substitute in his slot, but for a sent-off player's slot
+ * and a player who came on at this pause, the manager's own choice. An injured player goes first, whatever the gain; otherwise the largest
  * gain, from MIN_SUGGESTED_GAIN, with what weighs most in it (mainReason). Ties go to the smaller key, so the input's
  * order changes nothing.
  */
@@ -163,7 +169,7 @@ export function suggestChange(
 ): SuggestedChange | null {
   const byKey = new Map(players.map((player) => [player.id, player]));
   const bench = state.bench.flatMap((key) => byKey.get(key) ?? []);
-  if (bench.length === 0 || substitutionsMade(state, rules) >= rules.maxSubstitutions) {
+  if (bench.length === 0 || !rules.canSubstitute || substitutionsMade(state, rules) >= rules.maxSubstitutions) {
     return null;
   }
   const positions = formationPositions(state.formation);
@@ -248,8 +254,8 @@ export type HalfTimeSubmission = {
 };
 
 /**
- * The choice to send: an injured player still in his slot is replaced, as the engine does on its own, by the
- * substitute rated best in the slot while substitutions remain; otherwise his slot is left empty.
+ * The changes to send: an injured player still in his slot is replaced, as the engine does on its own, by the
+ * substitute rated best in the slot while substitutions remain and one may be made here; otherwise his slot is left empty.
  */
 export function halfTimeChoice<P extends LineupCandidate>(
   state: HalfTimeState,
@@ -272,7 +278,7 @@ export function halfTimeChoice<P extends LineupCandidate>(
         best = candidate;
       }
     }
-    if (best === undefined || rules.substitutionsBefore + substitutions.length >= rules.maxSubstitutions) {
+    if (best === undefined || !rules.canSubstitute || rules.substitutionsBefore + substitutions.length >= rules.maxSubstitutions) {
       starters[slot] = null;
       return;
     }

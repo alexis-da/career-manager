@@ -40,6 +40,7 @@ const rules = (overrides: Partial<HalfTimeRules> = {}): HalfTimeRules => ({
   sentOffSlots: new Set(),
   substitutionsBefore: 0,
   maxSubstitutions: MAX_SUBSTITUTIONS,
+  canSubstitute: true,
   ...overrides,
 });
 
@@ -85,6 +86,13 @@ describe("half-time changes", () => {
     expect(substitute(state, rules(), 8, "b-rw", t)).toEqual({ ok: false, message: "Plus de remplacement possible : 5 sur 5." });
     expect(substitute(state, rules(), 8, "b-rw", tEnglish)).toEqual({ ok: false, message: "No substitutions left: 5 of 5." });
     expect(substitute(initial, rules({ substitutionsBefore: MAX_SUBSTITUTIONS }), 8, "b-rw", t).ok).toBe(false);
+  });
+
+  it("refuses a substitution during play without a window, moves and formations still free", () => {
+    const closed = rules({ canSubstitute: false });
+    expect(substitute(initial, closed, 9, "b-st", t)).toEqual({ ok: false, message: t("refusals.noWindow") });
+    expect(swapSlots(initial, closed, 9, 10, t)).toMatchObject({ ok: true });
+    expect(suggestChange(initial, closed, PLAYERS.map((candidate) => ({ ...candidate, condition: 1, fitness: 100, fitnessFactor: 1, overall: candidate.id === "b-st" ? 90 : candidate.overall })))).toBeNull();
   });
 
   it("moves players between slots for free, never into a sent-off player's slot", () => {

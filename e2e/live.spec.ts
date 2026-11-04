@@ -47,7 +47,7 @@ const PHONES = [
     says: {
       status: "En direct",
       exit: "Retour à l'accueil",
-      skip: "Coaching à la mi-temps",
+      skip: "Aller à la mi-temps",
       toResult: "Aller au résultat",
       title: "Mi-temps",
     },
@@ -59,7 +59,7 @@ const PHONES = [
     says: {
       status: "Live",
       exit: "Back to home",
-      skip: "Coach at half-time",
+      skip: "Go to half-time",
       toResult: "Go to the result",
       title: "Half-time",
     },
@@ -234,7 +234,7 @@ async function misplaceTwoPlayers(page: Page): Promise<{ keeper: string; forward
   return { keeper, forward };
 }
 
-test("runs the first half: the clock, its speeds, and one orange action that says where it leads", async ({ page }) => {
+test("runs the first half: the clock, its speeds, and its ways on, which say where they lead", async ({ page }) => {
   await replayFirstHalf(page);
 
   await expect(page.getByTestId("live-caption")).toHaveText("France — Division 1 · Journée 1 · 15 août 2026");
@@ -245,9 +245,13 @@ test("runs the first half: the clock, its speeds, and one orange action that say
   await expect(page.getByTestId("nav-match")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("live-exit")).toBeHidden();
 
-  // The way on names the break, and is the screen's only orange; the game's actions have left the column.
-  await expect(page.getByTestId("live-skip")).toHaveText("Coaching à la mi-temps");
-  await expectOrangeActions(page, ["live-skip"]);
+  // The ways on name the break: « Coaching », the orange of a match running to a boundary of play, waits for it here,
+  // where the panel opens by itself, and the skip goes there at once. The game's actions have left the column.
+  const coaching = page.getByTestId("live-coaching-request");
+  await expect(coaching).toHaveText("Coaching à la mi-temps");
+  await expect(coaching).toBeDisabled();
+  await expect(page.getByTestId("live-skip")).toHaveText("Aller à la mi-temps");
+  await expectOrangeActions(page, []);
   for (const action of ["next-match", "resume-match", "simulate-menu"]) {
     await expect(page.getByTestId(action)).toHaveCount(0);
   }
@@ -399,15 +403,17 @@ test("makes the change the assistant suggests, undoes it, keeps it through a clo
   await expect(change).toContainText(new RegExp(`remplace .*${outgoing}$`));
 });
 
-test("goes to the result without an orange action, then on from the final whistle, the only orange then", async ({ page }) => {
+test("goes to the result, « Coaching » the orange while the clock runs, then on from the final whistle, the only orange then", async ({ page }) => {
   await replaySecondHalf(page);
 
-  // Nothing waits past the 90th minute: a secondary way on, the speeds still there.
+  // Nothing waits past the 90th minute: a secondary way on, the speeds still there, and « Coaching », which would stop the
+  // match at the next boundary, the 60th.
   const skip = page.getByTestId("live-skip");
   await expect(skip).toHaveText("Aller au résultat");
   await expect(page.getByTestId("live-status")).toHaveText("En direct");
   await expectSpeed(page, 1);
-  await expectOrangeActions(page, []);
+  await expect(page.getByTestId("live-coaching-request")).toHaveText("Coaching à la 60e");
+  await expectOrangeActions(page, ["live-coaching-request"]);
   await skip.click();
 
   // The way on has the keyboard's focus, and the screen's orange.
@@ -481,8 +487,9 @@ for (const { name, locale, viewport, says } of PHONES) {
       await expect(skip).toHaveText(says.skip);
       await expect(skip).toBeInViewport({ ratio: 1 });
       await expectUncovered(skip);
-      await expectOrangeActions(page, ["live-skip"]);
-      for (const control of ["live-speed-1", "live-speed-2", "live-speed-4", "live-skip", "live-exit"]) {
+      await expect(page.getByTestId("live-coaching-request")).toBeInViewport({ ratio: 1 });
+      await expectOrangeActions(page, []);
+      for (const control of ["live-speed-1", "live-speed-2", "live-speed-4", "live-coaching-request", "live-skip", "live-exit"]) {
         const { width, height } = await boxOf(page.getByTestId(control));
         expect(height, control).toBeGreaterThanOrEqual(THUMB);
         expect(width, control).toBeGreaterThanOrEqual(THUMB);
@@ -547,7 +554,7 @@ for (const { name, locale, viewport, says } of PHONES) {
       // On to the final whistle, the way on in the bar.
       await page.getByTestId("half-time-resume-unchanged").click();
       await expect(skip).toHaveText(says.toResult);
-      await expectOrangeActions(page, []);
+      await expectOrangeActions(page, ["live-coaching-request"]);
       await expectNoSidewaysScroll(page, "second half");
       await skip.click();
       const proceed = page.getByTestId("live-continue");
@@ -568,7 +575,7 @@ test.describe("at 768 px", () => {
     await replayFirstHalf(page);
 
     // The first half: a tablet is no computer, the match has the screen and its own way out.
-    await expectOrangeActions(page, ["live-skip"]);
+    await expectOrangeActions(page, []);
     await expectNoSidewaysScroll(page, "match running");
     await expect(page.getByTestId("save-nav")).toBeHidden();
     await expect(page.getByTestId("header-club")).toBeHidden();
@@ -602,7 +609,7 @@ test.describe("at 768 px", () => {
     await page.getByTestId("live-coaching").click();
     await page.getByTestId("half-time-resume-unchanged").click();
     await expect(page.getByTestId("live-skip")).toBeVisible();
-    await expectOrangeActions(page, []);
+    await expectOrangeActions(page, ["live-coaching-request"]);
     await expectNoSidewaysScroll(page, "second half");
     await page.getByTestId("live-skip").click();
     await expect(page.getByTestId("live-result")).toBeVisible();

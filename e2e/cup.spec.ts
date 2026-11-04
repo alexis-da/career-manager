@@ -54,7 +54,7 @@ test("plays a cup final live: half-time, the end of regulation time, extra time 
     await expect(page).toHaveURL(/\/live\?rejouer=1$/);
     await expect(page.getByText("Coupe — Finale · 12 août 2026")).toBeVisible();
     const skip = page.getByTestId("live-skip");
-    await expect(skip).toHaveText("Coaching à la mi-temps");
+    await expect(skip).toHaveText("Aller à la mi-temps");
     await skip.click();
     const pause = page.locator("[data-half-time]");
     await expect(pause.getByRole("heading", { name: "Mi-temps" })).toBeVisible();

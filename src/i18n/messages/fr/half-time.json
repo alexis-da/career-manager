@@ -2,7 +2,10 @@
   "halfTime": {
     "title": {
       "halfTime": "Mi-temps",
-      "regulationEnd": "Fin du temps réglementaire"
+      "regulationEnd": "Fin du temps réglementaire",
+      "extraTimeBreak": "Pause de la prolongation",
+      "ordinal": "{minute}e",
+      "minute": "minute"
     },
     "paused": "Match en pause",
     "substitutions": "Remplacements : {made}/{max}",
@@ -31,7 +34,8 @@
         "noOther": "Je ne changerais rien d'autre.",
         "noSubstitutionLeft": "Il ne te reste aucun remplacement."
       },
-      "booked": "{count, plural, one {{names} a déjà un jaune} other {{names} ont déjà un jaune}} : un second et on finit à {players, plural, =10 {dix} =9 {neuf} =8 {huit} =7 {sept} other {#}}."
+      "booked": "{count, plural, one {{names} a déjà un jaune} other {{names} ont déjà un jaune}} : un second et on finit à {players, plural, =10 {dix} =9 {neuf} =8 {huit} =7 {sept} other {#}}.",
+      "hurt": "{count, plural, one {{names} joue touché : il est moins fort jusqu'à sa sortie} other {{names} jouent touchés : ils sont moins forts jusqu'à leur sortie}}."
     },
     "suggestion": {
       "title": "{count, plural, one {Changement conseillé · # restant} other {Changement conseillé · # restants}}",
@@ -44,13 +48,14 @@
     "planned": {
       "title": "Prévu à la reprise",
       "change": "{out} sort, {in} entre",
-      "cancel": "Annuler ce changement"
+      "cancel": "Annuler ce changement",
+      "decided": "{out} sort, {in} entre · ta décision"
     },
     "lineup": {
       "open": "Ouvrir la composition complète",
       "close": "Replier la composition complète"
     },
-    "pitch": "Mon onze à la mi-temps",
+    "pitch": "Mon onze à la reprise",
     "bench": "Banc",
     "benchHint": "Glisse un remplaçant sur un joueur pour le faire entrer",
     "rating": "Note",
@@ -63,13 +68,33 @@
     },
     "resuming": {
       "halfTime": "Seconde période…",
-      "regulationEnd": "Prolongation…"
+      "regulationEnd": "Prolongation…",
+      "inPlay": "Reprise…"
     },
     "selectFirst": "Sélectionne d'abord sur le terrain le joueur qui sort.",
     "refusals": {
       "sentOffSlot": "Le poste d'un joueur exclu reste vide : ton équipe joue à dix.",
       "substituteForPlayer": "Fais entrer un remplaçant à la place d'un joueur sur le terrain.",
-      "noSubstitutionLeft": "Plus de remplacement possible : {max} sur {max}."
+      "noSubstitutionLeft": "Plus de remplacement possible : {max} sur {max}.",
+      "noWindow": "Plus de fenêtre de remplacement pendant le jeu."
+    },
+    "windows": "Fenêtres pendant le jeu : {used}/{max}",
+    "rule": "{max} remplacements au plus, en {windows} fenêtres pendant le jeu : la mi-temps et les pauses de la prolongation n'en prennent pas, ni un blessé remplacé aussitôt.",
+    "assistantChanges": "Sans changement de ta part, l'adjoint fait les siens en seconde période.",
+    "ownChanges": "Tu fais tes changements : l'adjoint n'en fait plus.",
+    "noWindow": "Plus de fenêtre pendant le jeu : {beforeHalfTime, select, true {tes prochains changements à la mi-temps} other {plus de remplacement avant la fin du temps réglementaire}}.",
+    "instruction": {
+      "title": "Consigne",
+      "ATTACK": "Attaquer",
+      "BALANCED": "Équilibré",
+      "DEFEND": "Fermer",
+      "about": {
+        "ATTACK": "Match plus ouvert : utile si tu es le plus fort ou si tu cours après le score.",
+        "BALANCED": "Ni plus ni moins d'occasions : le match suit son cours.",
+        "DEFEND": "Match plus fermé : utile pour garder une avance ou face à plus fort."
+      },
+      "given": "{extraTime, select, true {Jusqu'à la fin de la prolongation} other {Jusqu'à la fin du temps réglementaire}}, quel que soit le score.",
+      "assistant": "Sans choix de ta part, l'adjoint l'adapte au score : attaquer s'il faut revenir après la 60e, fermer avec un but d'avance après la 75e."
     }
   }
 }

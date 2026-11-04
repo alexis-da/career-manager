@@ -1,0 +1,122 @@
+{
+  "choiceCard": {
+    "family": {
+      "setPiece": "Coup de pied arrêté",
+      "discipline": "Discipline",
+      "fitness": "Pépin physique",
+      "tactics": "Réaction tactique"
+    },
+    "minute": "{minute, selectordinal, one {#re} other {#e}}",
+    "context": {
+      "leading": "{minute, selectordinal, one {#re} other {#e}} minute, tu mènes {own}-{other}",
+      "behind": "{minute, selectordinal, one {#re} other {#e}} minute, tu es mené {own}-{other}",
+      "level": "{minute, selectordinal, one {#re} other {#e}} minute, {own}-{other}"
+    },
+    "choices": "Ton choix",
+    "assistant": "Conseil de l'adjoint",
+    "validate": "Valider",
+    "aPlayer": "un joueur",
+    "PENALTY": {
+      "title": "Penalty pour toi !",
+      "situation": "{context} : faute dans la surface adverse, l'arbitre te donne un penalty. Qui le tire ?",
+      "TAKER": {
+        "effect": "{chance} % de réussite"
+      }
+    },
+    "FREE_KICK": {
+      "title": "Coup franc dangereux",
+      "situation": "{context} : coup franc aux abords de la surface. {taker} est ton meilleur frappeur.",
+      "SHOOT": {
+        "label": "Frapper",
+        "effect": "{taker} tente sa chance directement : but ou rien."
+      },
+      "COMBINE": {
+        "label": "Jouer en combinaison",
+        "effect": "Pas de tir tout de suite, mais plus d'occasions dans le quart d'heure qui suit."
+      }
+    },
+    "HOTHEAD": {
+      "title": "Un averti s'énerve",
+      "situation": "{context} : {player}, déjà averti, s'en prend à l'arbitre.",
+      "TAKE_OFF": {
+        "label": "Le sortir",
+        "effect": "{replacement} entre à sa place : plus de risque de rouge."
+      },
+      "KEEP": {
+        "label": "Le garder",
+        "effect": "Il reste, mais un second jaune peut tomber dans le quart d'heure."
+      }
+    },
+    "SCUFFLE": {
+      "title": "Échauffourée",
+      "situation": "{context} : ça chauffe sur le terrain face à {opponent}. {captain}, ton capitaine, est au milieu.",
+      "CALM": {
+        "label": "Calmer tes joueurs",
+        "effect": "Tout le monde se calme : le match reprend comme avant."
+      },
+      "PROTEST": {
+        "label": "Protester",
+        "effect": "Tes joueurs peuvent se remobiliser, mais {captain} risque un carton."
+      }
+    },
+    "KNOCK": {
+      "title": "Joueur touché",
+      "situation": "{context} : {player} a pris un coup et boite.",
+      "TAKE_OFF": {
+        "label": "Le sortir",
+        "effect": "{replacement} entre à sa place."
+      },
+      "PLAY_ON": {
+        "label": "Le laisser jouer",
+        "effect": "Il joue diminué jusqu'à sa sortie, et sa blessure peut s'aggraver."
+      }
+    },
+    "EXHAUSTED": {
+      "title": "Joueur à bout",
+      "situation": "{context} : {player} n'a plus de jambes.",
+      "situationFitness": "{context} : {player} n'a plus de jambes (condition {fitness}).",
+      "REPLACE": {
+        "label": "Le remplacer",
+        "effect": "{replacement} entre avec des jambes neuves."
+      },
+      "KEEP": {
+        "label": "Le garder",
+        "effect": "Il reste malgré la fatigue, avec un risque de blessure."
+      }
+    },
+    "LEADING": {
+      "title": "Tu mènes, fin de match",
+      "situation": "{context} : il reste {remaining, plural, one {# minute} other {# minutes}}. Comment finir le match ?",
+      "DEFEND": {
+        "label": "Fermer le jeu",
+        "effect": "Match plus fermé jusqu'à la 90e : moins d'occasions des deux côtés."
+      },
+      "ATTACK": {
+        "label": "Chercher le break",
+        "effect": "Match plus ouvert jusqu'à la 90e : plus d'occasions, mais aussi plus de risques."
+      },
+      "STEADY": {
+        "label": "Rester tel quel",
+        "effect": "Jeu équilibré jusqu'à la 90e."
+      }
+    },
+    "CHASING": {
+      "title": {
+        "behind": "Tu es mené",
+        "level": "À égalité, fin de match"
+      },
+      "situation": {
+        "behind": "{context} : il reste {remaining, plural, one {# minute} other {# minutes}} pour revenir.",
+        "level": "{context} : il reste {remaining, plural, one {# minute} other {# minutes}} pour faire la différence."
+      },
+      "ATTACK": {
+        "label": "Tout pour l'attaque",
+        "effect": "Match plus ouvert jusqu'à la 90e : plus d'occasions pour toi, et pour eux."
+      },
+      "STEADY": {
+        "label": "Rester en place",
+        "effect": "Jeu équilibré jusqu'à la 90e."
+      }
+    }
+  }
+}

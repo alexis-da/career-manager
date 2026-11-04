@@ -4,6 +4,7 @@ import enAdmin from "./en/admin.json";
 import enCatalogs from "./en/catalogs.json";
 import enChallengeBanner from "./en/challenge-banner.json";
 import enChallengeScreen from "./en/challenge-screen.json";
+import enChoices from "./en/choices.json";
 import enClub from "./en/club.json";
 import enCup from "./en/cup.json";
 import enDashboard from "./en/dashboard.json";
@@ -31,6 +32,7 @@ import frAdmin from "./fr/admin.json";
 import frCatalogs from "./fr/catalogs.json";
 import frChallengeBanner from "./fr/challenge-banner.json";
 import frChallengeScreen from "./fr/challenge-screen.json";
+import frChoices from "./fr/choices.json";
 import frClub from "./fr/club.json";
 import frCup from "./fr/cup.json";
 import frDashboard from "./fr/dashboard.json";
@@ -86,6 +88,7 @@ export const ZONES = {
   "challenge-screen": { fr: frChallengeScreen, en: enChallengeScreen },
   live: { fr: frLive, en: enLive },
   "half-time": { fr: frHalfTime, en: enHalfTime },
+  choices: { fr: frChoices, en: enChoices },
   decisions: { fr: frDecisions, en: enDecisions },
   actions: { fr: frActions, en: enActions },
   admin: { fr: frAdmin, en: enAdmin },
@@ -116,6 +119,7 @@ const fr = {
   ...frChallengeScreen,
   ...frLive,
   ...frHalfTime,
+  ...frChoices,
   ...frDecisions,
   ...frActions,
   ...frAdmin,
@@ -151,6 +155,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enChallengeScreen,
     ...enLive,
     ...enHalfTime,
+    ...enChoices,
     ...enDecisions,
     ...enActions,
     ...enAdmin,

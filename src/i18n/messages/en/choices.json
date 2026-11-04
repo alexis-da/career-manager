@@ -1,0 +1,122 @@
+{
+  "choiceCard": {
+    "family": {
+      "setPiece": "Set piece",
+      "discipline": "Discipline",
+      "fitness": "Fitness worry",
+      "tactics": "Tactical call"
+    },
+    "minute": "{minute, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+    "context": {
+      "leading": "{minute, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} minute, you lead {own}-{other}",
+      "behind": "{minute, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} minute, you trail {own}-{other}",
+      "level": "{minute, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} minute, {own}-{other}"
+    },
+    "choices": "Your choice",
+    "assistant": "Assistant's pick",
+    "validate": "Confirm",
+    "aPlayer": "a player",
+    "PENALTY": {
+      "title": "Penalty to you!",
+      "situation": "{context}: a foul in the box, and the referee gives you a penalty. Who takes it?",
+      "TAKER": {
+        "effect": "{chance}% chance of scoring"
+      }
+    },
+    "FREE_KICK": {
+      "title": "Dangerous free kick",
+      "situation": "{context}: a free kick on the edge of the box. {taker} is your best shooter.",
+      "SHOOT": {
+        "label": "Shoot",
+        "effect": "{taker} goes for goal directly: it's a goal or nothing."
+      },
+      "COMBINE": {
+        "label": "Play it short",
+        "effect": "No shot straight away, but more chances in the next quarter of an hour."
+      }
+    },
+    "HOTHEAD": {
+      "title": "A booked player loses his cool",
+      "situation": "{context}: {player}, already booked, is having a go at the referee.",
+      "TAKE_OFF": {
+        "label": "Take him off",
+        "effect": "{replacement} comes on for him: no more risk of a red."
+      },
+      "KEEP": {
+        "label": "Keep him on",
+        "effect": "He stays on, but a second yellow could come in the next quarter of an hour."
+      }
+    },
+    "SCUFFLE": {
+      "title": "Scuffle",
+      "situation": "{context}: tempers flare against {opponent}. {captain}, your captain, is in the thick of it.",
+      "CALM": {
+        "label": "Calm your players down",
+        "effect": "Everyone settles down: play goes on as before."
+      },
+      "PROTEST": {
+        "label": "Protest",
+        "effect": "It may fire your players up, but {captain} risks a card."
+      }
+    },
+    "KNOCK": {
+      "title": "Player hurt",
+      "situation": "{context}: {player} has taken a knock and is limping.",
+      "TAKE_OFF": {
+        "label": "Take him off",
+        "effect": "{replacement} comes on for him."
+      },
+      "PLAY_ON": {
+        "label": "Let him play on",
+        "effect": "He plays on below his best until he comes off, and the injury could get worse."
+      }
+    },
+    "EXHAUSTED": {
+      "title": "Out on his feet",
+      "situation": "{context}: {player} has nothing left in his legs.",
+      "situationFitness": "{context}: {player} has nothing left in his legs (fitness {fitness}).",
+      "REPLACE": {
+        "label": "Replace him",
+        "effect": "{replacement} comes on with fresh legs."
+      },
+      "KEEP": {
+        "label": "Keep him on",
+        "effect": "He stays on despite the fatigue, at a risk of injury."
+      }
+    },
+    "LEADING": {
+      "title": "You're ahead, late on",
+      "situation": "{context}: {remaining, plural, one {# minute} other {# minutes}} left. How do you see the game out?",
+      "DEFEND": {
+        "label": "Close the game down",
+        "effect": "A tighter game until the 90th minute: fewer chances at both ends."
+      },
+      "ATTACK": {
+        "label": "Go for the killer goal",
+        "effect": "A more open game until the 90th minute: more chances, but more risk too."
+      },
+      "STEADY": {
+        "label": "Carry on as you are",
+        "effect": "A balanced game until the 90th minute."
+      }
+    },
+    "CHASING": {
+      "title": {
+        "behind": "You're behind",
+        "level": "All square, late on"
+      },
+      "situation": {
+        "behind": "{context}: {remaining, plural, one {# minute} other {# minutes}} left to get back into it.",
+        "level": "{context}: {remaining, plural, one {# minute} other {# minutes}} left to find a winner."
+      },
+      "ATTACK": {
+        "label": "All-out attack",
+        "effect": "A more open game until the 90th minute: more chances for you, and for them."
+      },
+      "STEADY": {
+        "label": "Keep your shape",
+        "effect": "A balanced game until the 90th minute."
+      }
+    }
+  }
+}

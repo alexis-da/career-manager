@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LivePause } from "@/src/engine/live";
-import { endMinute, goesToExtraTime, isMatchBreak, pauseKey, skipTarget, startMinute, stepUntil } from "./live-pause";
+import { coachingTarget, endMinute, goesToExtraTime, isMatchBreak, pauseKey, skipTarget, startMinute, stepUntil } from "./live-pause";
 
 const inPlay = (minute: number): LivePause => ({ phase: "IN_PLAY", minute });
 const HALF_TIME: LivePause = { phase: "HALF_TIME", minute: 45 };
@@ -93,9 +93,30 @@ describe("stepUntil", () => {
     expect(stepUntil(false, false)).toBe("segment");
   });
 
-  it("plays on to the next break once skipped, or without motion", () => {
+  it("plays on to the next pause the player acts at without motion: his choice events are his", () => {
+    expect(stepUntil(false, true)).toBe("pause");
+  });
+
+  it("plays on to the next break once skipped, his assistant deciding on the way", () => {
     expect(stepUntil(true, false)).toBe("break");
-    expect(stepUntil(false, true)).toBe("break");
     expect(stepUntil(true, true)).toBe("break");
+  });
+});
+
+describe("coachingTarget", () => {
+  it("stops at the next boundary between two segments, of regular time or of extra time", () => {
+    expect([inPlay(15), inPlay(30), inPlay(60), inPlay(75), EXTRA_TIME_BREAK].map(coachingTarget)).toEqual([
+      { minute: 15 },
+      { minute: 30 },
+      { minute: 60 },
+      { minute: 75 },
+      { minute: 105 },
+    ]);
+  });
+
+  it("leaves half-time to its own panel, and asks for nothing in the last segment, whatever follows it", () => {
+    expect(coachingTarget(HALF_TIME)).toBe("halfTime");
+    expect(coachingTarget(REGULATION_END)).toBeNull();
+    expect(coachingTarget(null)).toBeNull();
   });
 });

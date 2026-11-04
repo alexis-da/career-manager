@@ -9,7 +9,9 @@ import { Button } from "@/src/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/src/components/ui/sheet";
 import type { TeamView } from "@/src/db/calendar";
 import type { HalfTimePlayer, HalfTimeTeam } from "@/src/db/live-match";
+import { HALF_TIME_MINUTE, REGULATION_MINUTES } from "@/src/engine/balance";
 import { FORMATION_NAMES, FORMATIONS, isFormationName } from "@/src/engine/formations";
+import type { Instruction } from "@/src/engine/match";
 import { ratingAt, type Position } from "@/src/engine/positions";
 import type { Translator } from "@/src/i18n/translator";
 import type { ClubColors } from "@/src/lib/color";
@@ -50,34 +52,42 @@ const RESUME_GUARD_MS = 500;
 /** Side margins of the panel, its content and its foot alike. */
 const PANEL_GUTTER = "px-4 sm:px-6 lg:px-7";
 
+/** The instructions, from the most open game to the most closed. */
+const INSTRUCTIONS: readonly Instruction[] = ["ATTACK", "BALANCED", "DEFEND"];
+
 /** A club's name beside the score. On a phone, smaller: a word longer than its column wraps rather than being cut. */
 const SCORE_NAME =
   "min-w-0 font-heading leading-tight font-bold text-balance wrap-break-word max-[390px]:text-sm min-[390px]:max-sm:text-base sm:text-lg";
 
 type HalfTimeProps = {
-  team: HalfTimeTeam;
+  team: HalfTimeTeam; // as the decision on the pause's choice event leaves it, if there is one
+  decided: { out: string; in: string } | null; // the substitution that decision makes: shown, never undone here
   open: boolean; // closed, the changes stay here: the page's Coaching button opens the panel on them again
   onOpenChange: (open: boolean) => void;
   returnFocusTo: RefObject<HTMLElement | null>; // that button: the one that was pressed to get here has gone
   home: TeamView;
   away: TeamView;
-  homeGoals: number; // at this break
+  homeGoals: number; // at this pause
   awayGoals: number;
-  // The player resumes, with his changes or none: the page plays the next segment from the break, and goes on with it.
-  onResume: (changes: HalfTimeChoiceInput) => Promise<void>;
+  // The player resumes, with his changes and his instruction or none: the page plays the next segment from the pause,
+  // the decision on its choice event first, and goes on with it.
+  onResume: (changes: HalfTimeChoiceInput, instruction: Instruction | null) => Promise<void>;
 };
 
 /**
- * The Coaching panel, for a match paused at a break: half-time, or the end of regulation time of a level cup tie (one
- * more substitution then, before extra time). The screen's whole size under lg, beside the match from there. The
- * assistant says where things stand and suggests a substitution, made by touching it as by a drag; a change can be
- * undone until the restart. Unfolded, the full line-up: the eleven on the pitch (players injured in the first half in
- * red, a sent-off player's slot crossed out) and the bench. A substitute dropped on a slot comes on, the player in the
- * slot goes off; starters moved between slots or another formation cost no substitution. The keyboard way is the
+ * The Coaching panel, for a match paused: at half-time, at the end of regulation time of a level cup tie (one more
+ * substitution then, before extra time), between the periods of extra time, and between two segments of play after a
+ * choice event or when the player asked for it. The screen's whole size under lg, beside the match from there. The rule
+ * of substitutions, the windows used during play; the assistant says where things stand and suggests a substitution, made
+ * by touching it as by a drag; a change can be undone until the restart, but for the one the event's decision makes.
+ * The instruction for the rest of the period of play. Unfolded, the full line-up: the eleven on the pitch (injured
+ * players in red, a sent-off player's slot crossed out) and the bench. A substitute dropped on a slot comes on, the player
+ * in the slot goes off; starters moved between slots or another formation cost no substitution. The keyboard way is the
  * lineup page's: a slot, then a substitute or another slot.
  */
 export function HalfTime({
   team,
+  decided,
   open,
   onOpenChange,
   returnFocusTo,
@@ -94,8 +104,10 @@ export function HalfTime({
     sentOffSlots: new Set(team.sentOff.map((entry) => entry.slot)),
     substitutionsBefore: team.substitutions,
     maxSubstitutions: team.maxSubstitutions,
+    canSubstitute: team.windows.open,
   }));
   const regulationEnd = team.phase === "REGULATION_END";
+  const [instruction, setInstruction] = useState<Instruction>(team.instruction.current);
   const [state, setState] = useState<HalfTimeState>(() => ({
     formation: team.formation,
     starters: team.starters,
@@ -180,10 +192,14 @@ export function HalfTime({
     setSelected(null);
   };
 
-  // The page plays the next segment and goes on from the break with it; it says why when it cannot.
+  // The page plays the next segment and goes on from the pause with it; it says why when it cannot. Without changes,
+  // the instruction stays as it is too.
   const resume = (withChanges: boolean): void => {
     startTransition(async () => {
-      await onResume(withChanges ? halfTimeChoice(state, rules, team.players) : null);
+      await onResume(
+        withChanges ? halfTimeChoice(state, rules, team.players) : null,
+        withChanges && instruction !== team.instruction.current ? instruction : null,
+      );
     });
   };
 
@@ -199,10 +215,23 @@ export function HalfTime({
       rules,
       suggestion,
       booked: team.booked,
+      hurt: team.hurt,
       players: byKey,
     },
     t,
   );
+  // Between two segments, the minute: its ordinal keeps its case under the heading's capitals, « 15e MINUTE ».
+  const title =
+    team.phase === "IN_PLAY" ? (
+      <>
+        <span className="normal-case">{t("title.ordinal", { minute: team.minute })}</span> {t("title.minute")}
+      </>
+    ) : team.phase === "EXTRA_TIME_BREAK"
+        ? t("title.extraTimeBreak")
+        : regulationEnd
+          ? t("title.regulationEnd")
+          : t("title.halfTime");
+  const extraTime = team.minute >= REGULATION_MINUTES;
 
   return (
     // Modal: only Escape and the cross close it, a drag may end anywhere.
@@ -222,7 +251,7 @@ export function HalfTime({
               {/* The cross is in the corner of the panel. */}
               <div className="pr-10">
                 <SheetTitle data-testid="half-time-title" className="text-4xl leading-none font-bold">
-                  {regulationEnd ? t("title.regulationEnd") : t("title.halfTime")}
+                  {title}
                 </SheetTitle>
                 <SheetDescription className="mt-1 font-bold text-(--club)">{t("paused")}</SheetDescription>
               </div>
@@ -243,6 +272,15 @@ export function HalfTime({
                 {t("substitutions", { made, max: team.maxSubstitutions })}
                 {regulationEnd && ` · ${t("oneMore")}`}
               </p>
+              {/* The rule, then where the club stands with it: its windows during play, who makes its changes. */}
+              <div data-testid="half-time-rule" className="space-y-1 text-[0.8125rem] leading-snug text-muted-foreground">
+                <p data-testid="half-time-windows" className={cn(!team.windows.open && "font-semibold text-warning")}>
+                  {t("windows", { used: Math.min(team.windows.used, team.windows.max), max: team.windows.max })}
+                  {!team.windows.open && ` · ${t("noWindow", { beforeHalfTime: String(team.minute < HALF_TIME_MINUTE) })}`}
+                </p>
+                <p>{t("rule", { max: team.maxSubstitutions, windows: team.windows.max })}</p>
+                <p data-testid="half-time-assistant-changes">{team.manual ? t("ownChanges") : t("assistantChanges")}</p>
+              </div>
             </div>
 
             <p data-testid="half-time-advice" className="text-[0.9375rem] leading-[1.45] text-muted-foreground">
@@ -274,10 +312,18 @@ export function HalfTime({
               </section>
             )}
 
-            {state.substitutions.length > 0 && (
+            {(state.substitutions.length > 0 || decided !== null) && (
               <section aria-label={t("planned.title")} data-testid="half-time-off">
                 <h3 className="eyebrow text-highlight">{t("planned.title")}</h3>
                 <ul className="mt-1 divide-y">
+                  {decided !== null && (
+                    <li data-off-player-key={decided.out} data-testid="half-time-decided-change" className="py-2 text-sm font-semibold wrap-break-word">
+                      {t("planned.decided", {
+                        out: getOrThrow(byKey, decided.out, "player").lastName,
+                        in: getOrThrow(byKey, decided.in, "player").lastName,
+                      })}
+                    </li>
+                  )}
                   {state.substitutions.map((change) => (
                     // On a phone, the button under the names rather than the names cut.
                     <li key={change.out} data-off-player-key={change.out} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2">
@@ -295,6 +341,40 @@ export function HalfTime({
                 </ul>
               </section>
             )}
+
+            <fieldset data-testid="half-time-instruction" className="space-y-2">
+              <legend className="eyebrow text-highlight">{t("instruction.title")}</legend>
+              <div className="grid gap-2">
+                {INSTRUCTIONS.map((value) => (
+                  <label
+                    key={value}
+                    data-instruction={value}
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-lg border-2 bg-background px-3 py-2.5 transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50 max-sm:min-h-11",
+                      instruction === value ? "border-highlight" : "border-secondary hover:border-highlight/60",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="half-time-instruction"
+                      value={value}
+                      checked={instruction === value}
+                      onChange={() => setInstruction(value)}
+                      className="mt-1 size-4 shrink-0 accent-(--club)"
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-heading text-lg leading-tight font-bold">{t(`instruction.${value}`)}</span>
+                      <span className="block text-[0.8125rem] leading-snug text-muted-foreground">{t(`instruction.about.${value}`)}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-[0.8125rem] text-muted-foreground">
+                {team.instruction.given || instruction !== team.instruction.current
+                  ? t("instruction.given", { extraTime: String(extraTime) })
+                  : t("instruction.assistant")}
+              </p>
+            </fieldset>
 
             <div className="flex items-center justify-between gap-3">
               <label htmlFor="half-time-formation" className="eyebrow text-highlight">
@@ -439,7 +519,9 @@ export function HalfTime({
                 {pending
                   ? regulationEnd
                     ? t("resuming.regulationEnd")
-                    : t("resuming.halfTime")
+                    : team.phase === "HALF_TIME"
+                      ? t("resuming.halfTime")
+                      : t("resuming.inPlay")
                   : regulationEnd
                     ? t("resume.regulationEnd")
                     : t("resume.halfTime")}

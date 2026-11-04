@@ -8,7 +8,8 @@
       "regulationEnd": "Fin du temps réglementaire",
       "finished": "Terminé",
       "shootout": "Tirs au but",
-      "extraTime": "Prolongation"
+      "extraTime": "Prolongation",
+      "paused": "Match arrêté"
     },
     "live": "En direct",
     "extraTimeLive": "Prolongation · en direct",
@@ -16,7 +17,7 @@
     "speed": "Vitesse",
     "speedFactor": "x{factor}",
     "skip": {
-      "halfTime": "Coaching à la mi-temps",
+      "halfTime": "Aller à la mi-temps",
       "result": "Aller au résultat"
     },
     "stepFailed": "La suite du match n'a pas pu être jouée. Réessaie.",
@@ -44,6 +45,14 @@
       "SUBSTITUTION": "Remplacements",
       "INJURY": "Blessures"
     },
-    "otherMatches": "Autres matchs"
+    "otherMatches": "Autres matchs",
+    "request": {
+      "at": "Coaching à la {minute}e",
+      "asked": "Arrêt demandé · {minute}e",
+      "halfTime": "Coaching à la mi-temps",
+      "none": "Coaching",
+      "noneHint": "Plus d'arrêt de jeu avant la fin",
+      "askedHint": "Le match s'arrêtera à la {minute}e pour ton coaching. Touche encore pour annuler."
+    }
   }
 }

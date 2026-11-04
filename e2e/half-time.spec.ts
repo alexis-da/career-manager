@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { createSave, deleteSave, EMOJI, openScreen } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
@@ -25,7 +25,7 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
     // The way on goes to the break, not to the final whistle.
     const skip = page.getByTestId("live-skip");
-    await expect(skip).toHaveText("Coaching à la mi-temps");
+    await expect(skip).toHaveText("Aller à la mi-temps");
     await skip.click();
     const halfTime = page.locator("[data-half-time]");
     await expect(halfTime.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
@@ -91,19 +91,42 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
   }
 });
 
-test("with reduced motion, shows the break at once, then the final whistle at once", async ({ page }) => {
+test("with reduced motion, goes from one stop to the next at once: its choice events, the break, the final whistle", async ({ page }) => {
   const name = `E2E mi-temps sans animation ${Date.now()}`;
   saveName = name;
   try {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await createSave(page, name, LYON);
 
+    // Each choice event's card, then its panel, until half-time's panel, no clock running in between.
     await page.getByTestId("next-match").click();
-    await expect(page.locator("[data-half-time]").getByRole("heading", { name: "Mi-temps" })).toBeVisible();
+    const card = page.getByTestId("choice-card");
+    const panel = page.locator("[data-half-time]");
+    const halfTime = panel.getByRole("heading", { name: "Mi-temps" });
+    const stopsUntil = async (end: Locator): Promise<void> => {
+      for (;;) {
+        await expect(card.or(panel).or(end).first()).toBeVisible();
+        if (await end.isVisible()) {
+          return;
+        }
+        await expect(page.getByTestId("live-skip")).toHaveCount(0);
+        if (await card.isVisible()) {
+          await page.getByTestId("choice-validate").click();
+          await expect(card).toBeHidden();
+        } else {
+          // The next stop may be a panel too: this one has gone once its title has.
+          const title = (await page.getByTestId("half-time-title").textContent()) ?? "";
+          await page.getByRole("button", { name: "Reprendre sans changement" }).click();
+          await expect.poll(async () => (await page.getByTestId("half-time-title").allTextContents()).join()).not.toBe(title);
+        }
+      }
+    };
+    await stopsUntil(halfTime);
     await expect(page.getByTestId("live-skip")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Reprendre sans changement" }).click();
-    await expect(page.getByText("Terminé", { exact: true })).toBeVisible();
+    await expect(halfTime).toBeHidden();
+    await stopsUntil(page.getByText("Terminé", { exact: true }));
     await expect(page.getByTestId("live-skip")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Continuer" })).toBeVisible();
   } finally {

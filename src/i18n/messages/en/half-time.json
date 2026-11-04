@@ -2,7 +2,10 @@
   "halfTime": {
     "title": {
       "halfTime": "Half-time",
-      "regulationEnd": "End of normal time"
+      "regulationEnd": "End of normal time",
+      "extraTimeBreak": "Extra-time break",
+      "ordinal": "{minute, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+      "minute": "minute"
     },
     "paused": "Match paused",
     "substitutions": "Substitutions: {made}/{max}",
@@ -31,7 +34,8 @@
         "noOther": "I wouldn't change anything else.",
         "noSubstitutionLeft": "You have no substitutions left."
       },
-      "booked": "{count, plural, one {{names} is already on a yellow} other {{names} are already on a yellow}}: a second one and we finish with {players, plural, =10 {ten} =9 {nine} =8 {eight} =7 {seven} other {#}}."
+      "booked": "{count, plural, one {{names} is already on a yellow} other {{names} are already on a yellow}}: a second one and we finish with {players, plural, =10 {ten} =9 {nine} =8 {eight} =7 {seven} other {#}}.",
+      "hurt": "{count, plural, one {{names} is playing hurt: weaker until he comes off} other {{names} are playing hurt: weaker until they come off}}."
     },
     "suggestion": {
       "title": "Suggested change · {count} left",
@@ -44,13 +48,14 @@
     "planned": {
       "title": "At the restart",
       "change": "{out} off, {in} on",
-      "cancel": "Cancel this change"
+      "cancel": "Cancel this change",
+      "decided": "{out} off, {in} on · your call"
     },
     "lineup": {
       "open": "Open the full line-up",
       "close": "Close the full line-up"
     },
-    "pitch": "My eleven at half-time",
+    "pitch": "My eleven at the restart",
     "bench": "Bench",
     "benchHint": "Drag a substitute onto a player to bring him on",
     "rating": "Rating",
@@ -63,13 +68,33 @@
     },
     "resuming": {
       "halfTime": "Second half…",
-      "regulationEnd": "Extra time…"
+      "regulationEnd": "Extra time…",
+      "inPlay": "Restarting…"
     },
     "selectFirst": "Select the player coming off on the pitch first.",
     "refusals": {
       "sentOffSlot": "A sent-off player's position stays empty: your team plays with ten men.",
       "substituteForPlayer": "Bring a substitute on in place of a player on the pitch.",
-      "noSubstitutionLeft": "No substitutions left: {max} of {max}."
+      "noSubstitutionLeft": "No substitutions left: {max} of {max}.",
+      "noWindow": "No substitution window left during play."
+    },
+    "windows": "Windows during play: {used}/{max}",
+    "rule": "{max} substitutions at most, in {windows} windows during play: half-time and the breaks of extra time take none, nor does an injured player replaced at once.",
+    "assistantChanges": "Unless you make a change, your assistant makes his own in the second half.",
+    "ownChanges": "You make your own changes: your assistant makes none any more.",
+    "noWindow": "No window left during play: {beforeHalfTime, select, true {your next changes at half-time} other {no more substitutions before the end of normal time}}.",
+    "instruction": {
+      "title": "Instruction",
+      "ATTACK": "Attack",
+      "BALANCED": "Balanced",
+      "DEFEND": "Sit back",
+      "about": {
+        "ATTACK": "A more open game: useful if you are the stronger side or chasing the score.",
+        "BALANCED": "Neither more nor fewer chances: the game runs its course.",
+        "DEFEND": "A tighter game: useful to protect a lead or against a stronger side."
+      },
+      "given": "{extraTime, select, true {Until the end of extra time} other {Until the end of normal time}}, whatever the score.",
+      "assistant": "Unless you choose, your assistant adapts it to the score: attack when behind from the 60th minute, sit back one goal up from the 75th."
     }
   }
 }
