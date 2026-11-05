@@ -187,7 +187,8 @@ function FormationRow({ formation, rank, points, current, onPick, testId }: Form
           })}
         </span>
       </span>
-      <span className="text-right font-heading text-base leading-tight font-bold tabular-nums">
+      {/* A unit, which keeps its case (« pt/match »). */}
+      <span className="text-right font-heading text-base leading-tight font-bold normal-case tabular-nums">
         {t("picker.points", { points: formatHundredths(points, locale === "en" ? "en" : "fr") })}
       </span>
     </button>
