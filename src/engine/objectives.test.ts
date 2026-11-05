@@ -51,11 +51,11 @@ describe("rankingObjective", () => {
     expect(rankingObjective(14, FRANCE_1)).toEqual({ variant: "SURVIVAL", target: 16, exceed: 14 });
   });
 
-  it("asks the others for their expected rank plus two in a first division, plus three in a second, never the last place", () => {
-    expect(rankingObjective(14, ENGLAND_1)).toEqual({ variant: "FINISH", target: 16, exceed: 13 });
-    expect(rankingObjective(4, ENGLAND_1)).toEqual({ variant: "FINISH", target: 6, exceed: 3 });
-    expect(rankingObjective(5, ENGLAND_2)).toEqual({ variant: "FINISH", target: 8, exceed: 5 });
-    expect(rankingObjective(23, ENGLAND_2)).toEqual({ variant: "FINISH", target: 23, exceed: 20 });
+  it("asks the others to finish at their expected rank or better, three places better to exceed it, never the last place", () => {
+    expect(rankingObjective(14, ENGLAND_1)).toEqual({ variant: "FINISH", target: 14, exceed: 11 });
+    expect(rankingObjective(4, ENGLAND_1)).toEqual({ variant: "FINISH", target: 4, exceed: 1 });
+    expect(rankingObjective(5, ENGLAND_2)).toEqual({ variant: "FINISH", target: 5, exceed: 2 });
+    expect(rankingObjective(24, ENGLAND_2)).toEqual({ variant: "FINISH", target: 23, exceed: 20 });
     expect(rankingObjective(20, ENGLAND_ALONE)).toEqual({ variant: "FINISH", target: 19, exceed: 16 });
   });
 });

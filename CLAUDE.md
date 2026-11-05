@@ -24,6 +24,7 @@ npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2 (base locale seulement)
+npm run measure:seasons # budgets, plafonds, réputation et objectifs : cinq saisons d'une partie 2 (base locale seulement)
 ```
 
 ## Règles non négociables
@@ -220,12 +221,14 @@ passage de saison).
 (migration d'ajout `…_season_objectives`, avec `PlayerSeasonStats.starts`, les titularisations, comptées depuis),
 ouverts par `openSeasonObjectives` (`src/db/objectives.ts`) à la création de la partie et à chaque passage de saison,
 après la présaison et l'ouverture des coupes : le classement (`rankingObjective`, `src/engine/objectives.ts`, pur, sur
-le rang de réputation : top 3, montée, maintien ou « Xe ou mieux », jamais la dernière place), la coupe quand le pays en
+le rang de réputation : top 3, montée, maintien, ou finir à son rang attendu ou mieux, jamais la dernière place ; la marge
+du cahier, +2 et +3, ramenée à 0 par la mesure, `FINISH_OBJECTIVE_MARGIN_BY_TIER`), la coupe quand le pays en
 a une (`cupObjective` : quarts, huitièmes, seizièmes selon le tiers de réputation, au moins un tour après l'entrée ;
 dépassée deux tours plus loin), et trois des quatre objectifs au choix, tirés du flux de la saison
 (`proposedObjectives`, `objectivesRngSeed`) : Jeunesse (un joueur de 21 ans ou moins au 1er juillet, 15 titularisations
 en championnat), Spectacle (buts marqués ≥ attendus × 1,10), Solidité (buts encaissés ≤ attendus × 0,90 ; attendus :
-`expectedSeasonGoals`, l'effectif du départ dans son dispositif face à l'adversaire moyen de sa division), Bonne gestion
+`expectedSeasonGoals`, l'effectif du départ dans son dispositif face à l'adversaire moyen de sa division, × 0,93, ce
+qu'une saison en donne, `EXPECTED_SEASON_GOALS_FACTOR`), Bonne gestion
 (solde des transferts de la saison ≥ 0). Le joueur en choisit un sur l'écran de début de saison (`chooseObjective`, une
 fois, avant le premier match du club de la saison, la partie verrouillée), sinon l'adjoint, dans la transaction qui
 joue ce premier match (`ensureObjectiveChosen` : Jeunesse, ou le premier proposé). Où en est chacun : `objectiveProgress`
@@ -786,7 +789,7 @@ prisma/
   seed/               # import OpenFootball, couleurs des clubs, génération du monde ; reference-sql.ts : SQL des migrations de données
     data/             # calendriers OpenFootball (premières et deuxièmes divisions), club-colors.json, club-aliases-fallback.json
 scripts/              # measure-save-size.ts (npm run measure:size), measure-balance.ts (npm run measure:balance), measure-d2-balance.ts (npm run measure:divisions),
-                      # generate-reference-migration.ts
+                      # measure-seasons.ts (npm run measure:seasons), generate-reference-migration.ts
 ```
 
 ## Ordre de construction

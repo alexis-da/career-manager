@@ -1,6 +1,7 @@
 /**
- * Season budgets and reputation over several seasons (npm run measure:seasons -- [--seasons=N] [--out=file.md]
- * [--from=file.json]): the guard of gameplay v2, V2 (docs/design/gameplay-v2.md, « Garde-fou »).
+ * Season budgets, reputation and objectives over several seasons (npm run measure:seasons -- [--seasons=N]
+ * [--out=file.md] [--from=file.json]): the guard of gameplay v2, V2 (docs/design/gameplay-v2.md, « Garde-fou »), and the
+ * objectives' outcomes of V3, every club's measured with the game's rules.
  *
  * Plays a worldVersion 2 twin of the demo save (demo seed, demo club, the cups as the game gives them) for N complete
  * seasons (default 5), the assistant deciding everything and the player nothing, each season followed by
@@ -8,7 +9,8 @@
  * right after the transition, its preseason included: N + 1 starts) and end (every fixture played, the transition still
  * to come). Then prints, in markdown: six representative French AI clubs season by season; means by division and
  * reputation third; whether the wage budget rather than the transfer budget limits a typical signing; the managed
- * club's budget path at the game's coefficient and at the clamp's ends, recomputed afterwards; and the drifts.
+ * club's budget path at the game's coefficient and at the clamp's ends, recomputed afterwards; the drifts; and how often
+ * each season objective is exceeded, achieved or missed, by division and reputation third, with the managed club's own.
  *
  * --out writes the markdown there and the raw records beside it (the same name, .json), for later analyses;
  * --from reads such a JSON instead of playing, to print the report again without the database. The twin and its
@@ -21,9 +23,11 @@ import { prisma } from "../src/db/client";
 import { isLocalDatabase } from "../src/db/database-url";
 import { createSave } from "../src/db/saves";
 import { advanceToNextSeason, type SeasonTransition } from "../src/db/season";
+import { parseFormation } from "../src/db/lineup";
 import { getStandings } from "../src/db/standings";
 import { DEMO_CLUB_SLUG, DEMO_SEED, playRemainingMatchdays } from "../src/db/test-support";
 import {
+  YOUTH_OBJECTIVE_MAX_AGE,
   BUDGET_CARRY_OVER_SHARE,
   BUDGET_COEFFICIENT_RANGE,
   BUDGET_STEP,
@@ -34,14 +38,26 @@ import {
 } from "../src/engine/balance";
 import { cupRunOf, type PlayedTie } from "../src/engine/cup";
 import { clubFinances, marketValueFor, seasonFinances, wageFor, type SeasonFinances } from "../src/engine/economy";
+import { averageOpponent, chooseFormation } from "../src/engine/formation-choice";
+import { formationPositions } from "../src/engine/formations";
+import { selectLineup, type SquadPlayer } from "../src/engine/lineup";
 import {
   budgetCoefficient,
+  CUP_WON_ROUND,
+  cupObjective,
   divisionOf,
+  expectedSeasonGoals,
+  objectiveOutcome,
+  optionalTarget,
   rankingObjective,
   rankingOutcome,
+  reputationThird,
+  type ObjectiveKind,
   type ObjectiveOutcome,
   type RankingObjective,
 } from "../src/engine/objectives";
+import { formationStrength } from "../src/engine/strength";
+import { ageInYears } from "../src/lib/dates";
 import { reputationRanks } from "../src/engine/reputation";
 import { competitionTier, type CompetitionTier } from "../src/engine/tiers";
 import { seasonLabel, seasonStartDate, seasonStartYear } from "../src/engine/world";
@@ -91,6 +107,8 @@ type ClubState = {
 /** A club at a season's start: right after the creation or the transition, the preseason played. */
 type ClubStart = ClubState & {
   preseasonBalance: number; // fees received less fees paid on the season's first day: the preseason's wage sales
+  cupEntry?: number | null; // the cup round it enters at: 1 in the preliminary round, 2 exempt; null without a cup
+  expected?: { scored: number; conceded: number }; // its league goals expected over the season (expectedSeasonGoals)
 };
 
 /** A club at a season's end: every fixture played, the transition still to come. */
@@ -103,6 +121,18 @@ type ClubEnd = ClubState & {
   cupWinner: boolean;
   feesReceived: number; // transfers dated within the season, its first day included: the club selling
   feesPaid: number; // the club buying
+  youthStarts?: number; // the most league starts of its players aged YOUTH_OBJECTIVE_MAX_AGE or less on the season's first day
+};
+
+/** One of the managed club's objectives of a season, as the transition closed it. */
+type ManagedObjective = {
+  kind: ObjectiveKind;
+  imposed: boolean;
+  chosen: boolean;
+  byAssistant: boolean;
+  target: number;
+  exceed: number | null;
+  outcome: ObjectiveOutcome | null;
 };
 
 /** The managed club's SeasonBudget of a season. */
@@ -124,6 +154,7 @@ type SeasonSnapshot = {
   end: ClubEnd[] | null; // null for the season the last transition opened
   playSeconds: number | null; // its matches and its transition
   transition: SeasonTransition | null; // the one that closed it
+  managedObjectives?: ManagedObjective[]; // the managed club's objectives of the season, as the transition closed them
 };
 
 /** A typical signing for a club (c): how many its transfer budget pays, how many its wage room pays. */
@@ -144,6 +175,9 @@ type ClubSeasonEnd = Pick<
   outcome: ObjectiveOutcome;
   rankingCoefficient: number; // an AI club's coefficient for the next season (aiCoefficient)
   move: "PROMOTED" | "RELEGATED" | null;
+  // Every objective its season would have given it, with the game's rules (objectiveOutcome); null when it has none (the
+  // cup without a cup) or the records lack what it needs (records from before the objectives).
+  objectives: Record<ObjectiveKind, ObjectiveOutcome | null>;
 };
 
 /** A club's season, derived from the snapshots: its start, the finances it was given, its typical signing, its end. */
@@ -306,14 +340,80 @@ async function recordStart(saveId: string): Promise<{ startYear: number; clubs: 
   if (budgets.length !== 1) {
     console.warn(`  ${budgets.length} SeasonBudget rows for ${seasonLabel(startYear)}, one expected`);
   }
+  const cupEntries = await cupEntriesOf(saveId, startYear);
+  const expected = await expectedGoalsOf(saveId, clubs, firstDay);
   return {
     startYear,
     clubs: clubs.map((club) => ({
       ...club,
       preseasonBalance: (fees.received.get(club.clubId) ?? 0) - (fees.paid.get(club.clubId) ?? 0),
+      cupEntry: cupEntries(club),
+      expected: getOrThrow(expected, club.clubSaveId, "expected goals"),
     })),
     managedBudget: budgets[0] ?? null,
   };
+}
+
+/** The cup round each club enters at in a season: 1 when it plays the preliminary round, 2 exempt; null without a cup. */
+async function cupEntriesOf(saveId: string, startYear: number): Promise<(club: ClubState) => number | null> {
+  const cups = await prisma.season.findMany({
+    where: { saveId, startYear, competition: { kind: "CUP" } },
+    select: { id: true, competition: { select: { code: true } } },
+  });
+  const preliminary = await prisma.fixture.findMany({
+    where: { saveId, seasonId: { in: cups.map((cup) => cup.id) }, round: 1 },
+    select: { homeClubSaveId: true, awayClubSaveId: true },
+  });
+  const inPreliminary = new Set(preliminary.flatMap((tie) => [tie.homeClubSaveId, tie.awayClubSaveId]));
+  const countries = new Set(cups.map((cup) => cup.competition.code.split(".")[0]));
+  return (club) => (countries.has(club.code.split(".")[0]) ? (inPreliminary.has(club.clubSaveId) ? 1 : 2) : null);
+}
+
+/**
+ * Each club's league goals expected over the season (expectedSeasonGoals) from its squad at the start: an AI club in the
+ * formation it chooses (chooseFormation), the managed club in its own, as its objectives are set (openSeasonObjectives).
+ */
+async function expectedGoalsOf(
+  saveId: string,
+  clubs: readonly ClubState[],
+  firstDay: Date,
+): Promise<Map<string, { scored: number; conceded: number }>> {
+  const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true, formation: true } });
+  const rows = await prisma.playerSave.findMany({
+    where: { saveId, clubSaveId: { not: null } },
+    select: {
+      clubSaveId: true,
+      playerKey: true,
+      position: true,
+      overall: true,
+      pace: true,
+      shooting: true,
+      passing: true,
+      dribbling: true,
+      defending: true,
+      physical: true,
+      goalkeeping: true,
+      form: true,
+      morale: true,
+      fitness: true,
+      injuredUntil: true,
+    },
+  });
+  const squads = Map.groupBy(
+    rows.map(({ clubSaveId, playerKey, injuredUntil, ...player }) => ({
+      clubSaveId: clubSaveId ?? "",
+      player: { ...player, id: playerKey, injured: injuredUntil !== null && injuredUntil > firstDay } satisfies SquadPlayer,
+    })),
+    (row) => row.clubSaveId,
+  );
+  return new Map(
+    clubs.map((club) => {
+      const squad = (squads.get(club.clubSaveId) ?? []).map((row) => row.player);
+      const formation = club.clubSaveId === managed.id ? parseFormation(managed.formation) : chooseFormation(squad, club.tier).formation;
+      const strength = formationStrength(selectLineup(squad, formationPositions(formation)), formation);
+      return [club.clubSaveId, expectedSeasonGoals(strength, averageOpponent(club.tier), 2 * (club.clubCount - 1))];
+    }),
+  );
 }
 
 /** The season's end, every fixture played: every club, its final league rank and goals, its cup run, its fees. */
@@ -357,6 +457,19 @@ async function recordEnd(saveId: string, startYear: number): Promise<ClubEnd[]> 
   });
 
   const fees = await feesByClub(saveId, seasonStartDate(startYear), seasonStartDate(startYear + 1));
+  // Jeunesse: the most league starts of a club's players young enough on the season's first day.
+  const firstDay = seasonStartDate(startYear);
+  const stats = await prisma.playerSeasonStats.findMany({
+    where: { saveId, season: { startYear, competition: { kind: "LEAGUE" } } },
+    select: { starts: true, playerSave: { select: { clubSaveId: true, birthDate: true } } },
+  });
+  const youthStarts = new Map<string, number>();
+  for (const row of stats) {
+    const clubSaveId = row.playerSave.clubSaveId;
+    if (clubSaveId !== null && ageInYears(row.playerSave.birthDate, firstDay) <= YOUTH_OBJECTIVE_MAX_AGE) {
+      youthStarts.set(clubSaveId, Math.max(youthStarts.get(clubSaveId) ?? 0, row.starts));
+    }
+  }
   return clubs.map((club) => {
     const run = cupRunOf(ties, club.clubSaveId);
     return {
@@ -366,6 +479,7 @@ async function recordEnd(saveId: string, startYear: number): Promise<ClubEnd[]> 
       cupWinner: run?.won ?? false,
       feesReceived: fees.received.get(club.clubId) ?? 0,
       feesPaid: fees.paid.get(club.clubId) ?? 0,
+      youthStarts: youthStarts.get(club.clubSaveId) ?? 0,
     };
   });
 }
@@ -380,6 +494,10 @@ async function playSeasons(saveId: string, seasons: number): Promise<SeasonSnaps
     const end = await recordEnd(saveId, start.startYear);
     const transition = await advanceToNextSeason(saveId);
     const playSeconds = Math.round((performance.now() - began) / 1000);
+    const managedObjectives = await prisma.seasonObjective.findMany({
+      where: { saveId, season: { startYear: start.startYear } },
+      select: { kind: true, imposed: true, chosen: true, byAssistant: true, target: true, exceed: true, outcome: true },
+    });
     snapshots.push({
       season,
       startYear: start.startYear,
@@ -388,6 +506,7 @@ async function playSeasons(saveId: string, seasons: number): Promise<SeasonSnaps
       end,
       playSeconds,
       transition,
+      managedObjectives,
     });
     console.log(
       `  season ${season} (${seasonLabel(start.startYear)}): ${playSeconds} s, ${transition.moves} clubs promoted or relegated, ${transition.preseason.wageSales} wage sales`,
@@ -425,6 +544,41 @@ function typicalSigning(overall: number, budget: number, wageRoom: number): Sign
   return { overall, value, wage, byBudget, byWages, wageBound: byWages < byBudget };
 }
 
+/**
+ * Every objective a club's season would have given it, judged as the game judges the managed club's (objectiveOutcome,
+ * the season over): the ranking from its expected rank, the cup from its reputation third and its entry, the optional
+ * ones from its squad's expected goals, its young players' starts, its transfer balance.
+ */
+function objectivesOf(start: ClubStart, end: ClubEnd, ranking: RankingObjective): Record<ObjectiveKind, ObjectiveOutcome | null> {
+  const total = 2 * (start.clubCount - 1);
+  const reached = end.cupWinner ? CUP_WON_ROUND : (end.cupRound ?? 0);
+  const progress = {
+    played: total,
+    total,
+    rank: end.finalRank,
+    cup: { reached, out: !end.cupWinner },
+    youthStarts: end.youthStarts ?? 0,
+    scored: end.goalsFor,
+    conceded: end.goalsAgainst,
+    balance: end.feesReceived - end.feesPaid,
+    over: true,
+  };
+  const judge = (kind: ObjectiveKind, target: number, exceed: number | null): ObjectiveOutcome => objectiveOutcome({ kind, target, exceed }, progress);
+  const cup =
+    start.cupEntry === undefined || start.cupEntry === null
+      ? null
+      : cupObjective(start.tier, reputationThird(start.reputationRank, start.clubCount), start.cupEntry);
+  const expected = start.expected;
+  return {
+    RANKING: judge("RANKING", ranking.target, ranking.exceed),
+    CUP: cup === null ? null : judge("CUP", cup.target, cup.exceed),
+    YOUTH: end.youthStarts === undefined ? null : judge("YOUTH", optionalTarget("YOUTH", { scored: 0, conceded: 0 }), null),
+    ENTERTAINMENT: expected === undefined ? null : judge("ENTERTAINMENT", optionalTarget("ENTERTAINMENT", expected), null),
+    SOLIDITY: expected === undefined ? null : judge("SOLIDITY", optionalTarget("SOLIDITY", expected), null),
+    FINANCES: judge("FINANCES", 0, null),
+  };
+}
+
 function seasonEnd(start: ClubStart, end: ClubEnd, next: ClubStart | undefined): ClubSeasonEnd {
   const objective = rankingObjectiveOf(start);
   const outcome = rankingOutcome(objective, end.finalRank);
@@ -443,6 +597,7 @@ function seasonEnd(start: ClubStart, end: ClubEnd, next: ClubStart | undefined):
     outcome,
     rankingCoefficient: budgetCoefficient({ ranking: outcome }),
     move: next === undefined || next.tier === start.tier ? null : next.tier < start.tier ? "PROMOTED" : "RELEGATED",
+    objectives: objectivesOf(start, end, objective),
   };
 }
 
@@ -990,7 +1145,79 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
     mechanisms.map((line) => `- ${line}`).join("\n"),
   );
 
+  sections.push(...objectivesSections(snapshots, rows));
   return sections.join("\n\n");
+}
+
+const OBJECTIVE_NAMES: Readonly<Record<ObjectiveKind, string>> = {
+  RANKING: "Classement",
+  CUP: "Coupe",
+  YOUTH: "Jeunesse",
+  ENTERTAINMENT: "Spectacle",
+  SOLIDITY: "Solidité",
+  FINANCES: "Bonne gestion",
+};
+const OUTCOME_NAMES: Readonly<Record<ObjectiveOutcome, string>> = { EXCEEDED: "dépassé", ACHIEVED: "atteint", MISSED: "manqué" };
+
+/**
+ * f. The objectives: for each kind, how often the AI clubs' seasons exceed, achieve or miss it, by division and
+ * reputation third (the objective every club's season would have given it, judged with the game's rules); then the
+ * managed club's own objectives, season by season, as the transitions closed them.
+ */
+function objectivesSections(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[]): string[] {
+  const played = rows.filter((row) => !row.managed && row.end !== null);
+  if (played.length === 0 || played.every((row) => row.end?.objectives === undefined)) {
+    return [];
+  }
+  const groups: { label: string; keep: (row: ClubSeason) => boolean }[] = [
+    ...([1, 2] as const).flatMap((tier) => [
+      ...[1, 2, 3].map((third) => ({ label: `D${tier} ${THIRD_NAMES[third]}`, keep: (row: ClubSeason) => row.tier === tier && row.third === third })),
+      { label: `D${tier} (tous)`, keep: (row: ClubSeason) => row.tier === tier },
+    ]),
+    { label: "Tous", keep: () => true },
+  ];
+  const share = (count: number, total: number): string => (total === 0 ? "—" : `${fixed((100 * count) / total, 0)} %`);
+  const kinds: ObjectiveKind[] = ["RANKING", "CUP", "YOUTH", "ENTERTAINMENT", "SOLIDITY", "FINANCES"];
+  const tables = kinds.flatMap((kind) => {
+    const lines = groups.map(({ label, keep }) => {
+      const outcomes = played.filter(keep).flatMap((row) => {
+        const outcome = row.end?.objectives?.[kind];
+        return outcome === null || outcome === undefined ? [] : [outcome];
+      });
+      const count = (outcome: ObjectiveOutcome) => outcomes.filter((candidate) => candidate === outcome).length;
+      return [label, share(count("EXCEEDED"), outcomes.length), share(count("ACHIEVED"), outcomes.length), share(count("MISSED"), outcomes.length), share(count("EXCEEDED") + count("ACHIEVED"), outcomes.length), String(outcomes.length)];
+    });
+    return [`### ${OBJECTIVE_NAMES[kind]}`, table(["Groupe", "Dépassé", "Atteint", "Manqué", "Atteint ou dépassé", "Clubs-saisons"], lines)];
+  });
+  const managedLines = snapshots.flatMap((snapshot) =>
+    snapshot.end === null || snapshot.managedObjectives === undefined
+      ? []
+      : [
+          [
+            `S${snapshot.season} ${seasonLabel(snapshot.startYear)}`,
+            snapshot.managedObjectives
+              .filter((objective) => objective.imposed || objective.chosen)
+              .map((objective) => `${OBJECTIVE_NAMES[objective.kind]} ${objective.target}${objective.exceed === null ? "" : ` (${objective.exceed})`} : ${objective.outcome === null ? "—" : OUTCOME_NAMES[objective.outcome]}${objective.byAssistant ? ", choisi par l'adjoint" : ""}`)
+              .join(" · "),
+            coefficientText(snapshots[snapshot.season]?.managedBudget?.coefficient ?? Number.NaN),
+          ],
+        ],
+  );
+  return [
+    "## f. Objectifs de saison (gameplay v2, V3)",
+    [
+      "L'objectif que la saison de chaque club IA lui aurait donné, jugé avec les règles du jeu (objectiveOutcome, la saison finie) :",
+      "le classement d'après son rang attendu ; la coupe d'après son tiers de réputation et son tour d'entrée ; Jeunesse d'après",
+      "les titularisations de ses joueurs de 21 ans ou moins ; Spectacle et Solidité d'après les buts attendus de son effectif au",
+      "départ (dans le dispositif qu'il choisit) face à l'adversaire moyen de sa division ; Bonne gestion d'après son solde des",
+      "transferts. Groupes : division et tiers de réputation au début de la saison. Cible du classement : environ une saison sur",
+      "deux ; la coupe un peu moins souvent.",
+    ].join(" "),
+    ...tables,
+    "### Le club dirigé, ses objectifs fermés par chaque passage",
+    "Cible (dépassement) et issue ; coefficient de la dotation suivante.",
+    table(["Saison", "Objectifs", "Coefficient suivant"], managedLines),
+  ];
 }
 
 // ------------------------------------------------------------------ Main

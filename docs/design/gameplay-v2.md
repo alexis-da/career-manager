@@ -178,6 +178,30 @@ Club dirigé (Lyon), son budget réel et recalculé avec le coefficient maximal 
 ### Stockage
 - Objectifs de chaque saison du club dirigé (type, cible, statut, choisi ou imposé), gardés pour l'historique : table d'ajout liée à la saison, suppression en cascade avec la partie, index sur chaque clé étrangère (test existant).
 
+### Retenu (05/11)
+
+- **Stockage** : `SeasonObjective` (migration d'ajout `…_season_objectives`) : saison, type, imposé, choisi, par l'adjoint, variante du classement, cible, dépassement, issue ; une ligne par type et par saison (les trois proposés gardés, l'issue seulement pour les imposés et le choisi) ; cascade depuis la partie et depuis la saison, index sur chaque clé étrangère. La même migration ajoute `PlayerSeasonStats.starts` (titularisations, comptées depuis : Jeunesse en a besoin). Ouverts à la création de la partie et à chaque passage de saison ; une partie d'avant eux n'en a qu'à partir de sa saison suivante (coefficient 1 au passage).
+- **Règles** (`src/engine/objectives.ts`, pures) : celles du cahier, avec ces écarts.
+  1. Classement « Xe ou mieux » : **X = le rang attendu** (marge du cahier +2 en D1 et +3 en D2, ramenée à 0 par la mesure : atteint ou dépassé 69 % → 55 %) ; jamais la dernière place, là où personne ne descend (D2, partie 1 : X plafonné à l'avant-dernière place). Dépassé : trois places de mieux ; le maintien, trois places au-dessus de la zone.
+  2. Coupe : la cible est **au moins un tour après l'entrée du club** : les clubs de D1 sont exemptés du tour préliminaire, leurs « seizièmes » auraient été atteints au tirage (bas de D1 : huitièmes). Dépassé : deux tours de plus ; la victoire finale compte comme le tour 7.
+  3. Objectif au choix : trois des quatre, tirés du flux de la saison ; **Jeunesse n'étant pas toujours proposé**, l'adjoint prend alors le premier proposé (ordre Jeunesse, Spectacle, Solidité, Bonne gestion).
+  4. Spectacle et Solidité : « attendu » = les buts attendus du moteur pour l'effectif du départ, dans son dispositif, face à l'adversaire moyen de sa division, **× 0,93** (`EXPECTED_SEASON_GOALS_FACTOR` : une saison donne 94 % des buts attendus pour et 91 % contre ; sans ce facteur, Spectacle était atteint 15 % du temps et Solidité 48 %). Jeunesse : l'âge au 1er juillet de la saison. Bonne gestion : le solde des transferts du 1er juillet au 30 juin, ventes de la présaison comprises.
+  5. Confiance du président (`boardConfidence`) : 50, plus des points par objectif selon où il en est (classement +30, +20, +5, −10, −25 pour dépassé, atteint, en bonne voie, en danger, manqué ; coupe +15, +10, +2, −5, −10 ; choisi +10, +10, +2, −5, −10), réécrite après chaque match du club : 57 au début d'une saison avec une coupe. Affichée seulement.
+  6. Coefficient : valeurs du cahier ; le plus bas atteignable est 0,80.
+- **Écrans** : l'écran de début de saison (`/season-start`, sous Club) : dotation détaillée, plafond, objectifs imposés et choix ; la carte Objectifs de l'Accueil ; « Objectifs du président » et la confiance dans l'onglet Club ; le bilan de la saison et la pastille « Objectifs : 2/3 » de sa carte PNG. « En danger » en ambre.
+- **Mesure** (`npm run measure:seasons`, cinq saisons d'un jumeau 2 de la démo, l'adjoint aux commandes) : l'objectif que la saison de chaque club IA lui aurait donné, jugé avec les règles du jeu ; 985 clubs-saisons.
+
+| Objectif | Dépassé | Atteint | Manqué | Atteint ou dépassé | D1 | D2 |
+|---|---|---|---|---|---|---|
+| Classement | 28 % | 26 % | 45 % | **55 %** | 55 % | 54 % |
+| Coupe | 9 % | 40 % | 50 % | **50 %** | 53 % | 47 % |
+| Jeunesse | — | 43 % | 57 % | 43 % | 29 % | 55 % |
+| Spectacle | — | 31 % | 69 % | 31 % | 31 % | 30 % |
+| Solidité | — | 31 % | 69 % | 31 % | 31 % | 31 % |
+| Bonne gestion | — | 98 % | 2 % | 98 % | 97 % | 100 % |
+
+Par tiers de réputation, le classement va de 40 % (haut de D2 : la montée) à 65 % (bas de D2), la coupe de 37 % (bas de D2) à 59 % (milieu de D1). **Cibles** : le classement environ une saison sur deux (55 %), la coupe un peu moins souvent (50 %) : tenues. À savoir : Bonne gestion est presque toujours atteinte par les clubs IA, qui n'achètent guère ; pour le joueur, c'est vendre autant qu'il achète. Jeunesse dépend de la division (29 % en D1, 55 % en D2). Le club dirigé, joué par l'adjoint : Spectacle (Jeunesse non proposé) puis Jeunesse quatre saisons, coefficients 1,25, 1,00, 0,90, 0,90, 0,90.
+
 ## Ordre et méthode
 
 V1 → V2 → V3, sur une branche `gameplay-v2` partie de `main` après la mise en ligne du gameplay v1. Méthode habituelle : un commit par changement cohérent ; tsc, lint et Vitest verts à chaque commit ; E2E complets en fin de chantier ; `measure:balance` avant/après pour V1 et V2 ; migrations d'ajout uniquement, SQL montré ; base locale ; rien contre Neon ; rien de poussé sans demande ; FR et EN, tutoiement. Mise en ligne calée après un changement de semaine du défi si le moteur change (V1).

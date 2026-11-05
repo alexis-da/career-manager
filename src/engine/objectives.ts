@@ -9,6 +9,7 @@ import {
   CUP_OBJECTIVE_ROUNDS,
   ENTERTAINMENT_OBJECTIVE_FACTOR,
   EXCEEDED_OBJECTIVE_PLACES,
+  EXPECTED_SEASON_GOALS_FACTOR,
   FINISH_OBJECTIVE_MARGIN_BY_TIER,
   HOME_ADVANTAGE,
   NEUTRAL_BUDGET_COEFFICIENT,
@@ -158,11 +159,15 @@ export function cupObjective(tier: CompetitionTier, third: 1 | 2 | 3, entryRound
   return { target, exceed: target + CUP_OBJECTIVE_EXCEEDED_ROUNDS };
 }
 
-/** A club's goals expected over its league season: the engine's expected goals, home and away averaged, per match. */
+/**
+ * A club's goals expected over its league season: the engine's expected goals, home and away averaged, per match, as a
+ * season gives them (EXPECTED_SEASON_GOALS_FACTOR).
+ */
 export function expectedSeasonGoals(team: TeamStrength, opponent: TeamStrength, matches: number): { scored: number; conceded: number } {
   const scored = (expectedGoals(team, opponent, HOME_ADVANTAGE) + expectedGoals(team, opponent, 1 / HOME_ADVANTAGE)) / 2;
   const conceded = (expectedGoals(opponent, team, 1 / HOME_ADVANTAGE) + expectedGoals(opponent, team, HOME_ADVANTAGE)) / 2;
-  return { scored: scored * matches, conceded: conceded * matches };
+  const season = matches * EXPECTED_SEASON_GOALS_FACTOR;
+  return { scored: scored * season, conceded: conceded * season };
 }
 
 /**

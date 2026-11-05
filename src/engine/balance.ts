@@ -204,8 +204,12 @@ export const PROMOTION_OBJECTIVE_RANKS = 4;
 /** Places above the relegation zone whose clubs are still asked only to stay up. */
 export const SURVIVAL_OBJECTIVE_MARGIN = 3;
 
-/** Otherwise, a club is asked to finish its expected rank plus this, or better, by division. */
-export const FINISH_OBJECTIVE_MARGIN_BY_TIER: Readonly<Record<CompetitionTier, number>> = { 1: 2, 2: 3 };
+/**
+ * Otherwise, a club is asked to finish its expected rank plus this, or better, by division. The cahier started at +2
+ * and +3; measured over five seasons (npm run measure:seasons), the ranking objective was then met 69 % of the time,
+ * against a target of about one season in two: at its expected rank, 55 %.
+ */
+export const FINISH_OBJECTIVE_MARGIN_BY_TIER: Readonly<Record<CompetitionTier, number>> = { 1: 0, 2: 0 };
 
 /** Places better than its target a club must finish to exceed it (staying up: places above the relegation zone). */
 export const EXCEEDED_OBJECTIVE_PLACES = 3;
@@ -232,6 +236,14 @@ export const CUP_OBJECTIVE_EXCEEDED_ROUNDS = 2;
 export const YOUTH_OBJECTIVE_MAX_AGE = 21;
 /** …with at least this many league starts. */
 export const YOUTH_OBJECTIVE_STARTS = 15;
+
+/**
+ * A season's goals, as a share of the engine's expected goals against the division's average opponent: measured over
+ * five seasons (npm run measure:seasons), clubs score 94 % and concede 91 % of them (fatigue, injuries, rotations,
+ * the opponents' own choice of formation). Without it, Spectacle was met 15 % of the time and Solidité 48 %; with it,
+ * both 31 %.
+ */
+export const EXPECTED_SEASON_GOALS_FACTOR = 0.93;
 
 /** Spectacle: league goals scored at least the season's expected goals times this. */
 export const ENTERTAINMENT_OBJECTIVE_FACTOR = 1.1;
