@@ -157,6 +157,12 @@ test("plays a career in English up to its live match, then reads the table", asy
   await page.getByTestId("break-coaching").click();
   await expect(page.getByTestId("half-time-title")).toHaveText("Half-time");
   await expect(page.getByTestId("half-time-substitutions")).toContainText("Substitutions: 0/5");
+  // A substitution's comparison, side by side.
+  const compare = page.getByTestId("half-time-compare");
+  await expect(compare).toContainText("In this match");
+  await expect(compare).toContainText(/What counts (in goal|in defence|in midfield|in attack)/);
+  await expect(compare.locator('[data-compare-row="match"] td').last()).toHaveText("Not on yet");
+  await expect(page.getByTestId("half-time-compare-apply")).toHaveText("Make this substitution");
   await expect(page.getByTestId("half-time-resume-unchanged")).toHaveText("Resume without changes");
   await expect(page.getByTestId("half-time-resume")).toHaveText("Resume the match");
   await page.getByTestId("half-time-resume-unchanged").click();

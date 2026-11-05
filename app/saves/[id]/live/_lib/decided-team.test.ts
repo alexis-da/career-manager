@@ -3,21 +3,9 @@ import type { ChoiceEventView, HalfTimePlayer, HalfTimeTeam } from "@/src/db/liv
 import { KNOCK_SHARE, MAX_SUBSTITUTION_WINDOWS, MAX_SUBSTITUTIONS } from "@/src/engine/balance";
 import type { Instruction } from "@/src/engine/instructions";
 import { decidedTeam } from "./decided-team";
+import { halfTimePlayer } from "./test-team";
 
-const player = (id: string): HalfTimePlayer => ({
-  id,
-  position: "CM",
-  overall: 70,
-  injured: false,
-  injuredUntil: null,
-  form: 50,
-  fitness: 80,
-  fitnessFactor: 0.9,
-  condition: 0.9,
-  firstName: "Léo",
-  lastName: id,
-  age: 25,
-});
+const player = (id: string): HalfTimePlayer => halfTimePlayer(id);
 
 const STARTERS = Array.from({ length: 11 }, (_, index) => `s${index}`);
 

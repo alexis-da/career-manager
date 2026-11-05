@@ -4,7 +4,10 @@ import { MAX_SUBSTITUTION_WINDOWS, MAX_SUBSTITUTIONS } from "@/src/engine/balanc
 // The managed club at a pause, for the tests of the live page: a 4-3-3 of the same midfielder, its bench empty unless told
 // otherwise.
 
-/** A player at a pause: a midfielder rated 70, at 80 of fitness, unless told otherwise. */
+/**
+ * A player at a pause: a midfielder rated 70, his outfield attributes at 70, at 80 of fitness, nothing done in the match,
+ * unless told otherwise.
+ */
 export const halfTimePlayer = (id: string, overrides: Partial<HalfTimePlayer> = {}): HalfTimePlayer => ({
   id,
   position: "CM",
@@ -15,6 +18,8 @@ export const halfTimePlayer = (id: string, overrides: Partial<HalfTimePlayer> = 
   fitness: 80,
   fitnessFactor: 0.9,
   condition: 0.9,
+  attributes: { pace: 70, shooting: 70, passing: 70, dribbling: 70, defending: 70, physical: 70, goalkeeping: 20 },
+  actions: { goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
   firstName: "Léo",
   lastName: id,
   age: 25,

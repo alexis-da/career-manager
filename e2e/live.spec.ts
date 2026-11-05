@@ -75,11 +75,8 @@ const RESULTS = {
   L: { label: "Défaite", color: "rgb(248, 113, 113)" },
 };
 
-/**
- * The suggestion's card reads as one text: « Sort · forme 7 » (« Sort · condition 70 » when he comes off for his fitness),
- * his name, « Entre · BU 74 », his name.
- */
-const SUGGESTED_CHANGE = /^Sort · (?:forme [\d.,-]+|condition \d+|blessé)(.+)Entre · \S+ \d+(.+)$/;
+/** The rows of a substitution's comparison: the slot, the player's state and match, then the three attributes of the line. */
+const COMPARE_ROWS = ["rating", "fitness", "form", "match"];
 
 let saveId = "";
 let ownerId: string | null = null;
@@ -239,6 +236,15 @@ async function expectPanelWithinWidth(page: Page, step: string): Promise<void> {
   expect(await sidewaysOverflow(page.getByTestId("half-time").locator("> div").first()), step).toBeLessThanOrEqual(0);
 }
 
+/** The last names the comparison sets side by side: the player going off, then the one coming on. */
+async function comparedNames(page: Page): Promise<[string, string]> {
+  const compare = page.getByTestId("half-time-compare");
+  return [
+    await textOf(compare.locator('[data-compare-player="out"] [data-compare-name]')),
+    await textOf(compare.locator('[data-compare-player="in"] [data-compare-name]')),
+  ];
+}
+
 /** Unfolds the line-up and exchanges the first player of the pitch and the last by two clicks: a goalkeeper up front, a forward in goal. */
 async function misplaceTwoPlayers(page: Page): Promise<{ keeper: string; forward: string }> {
   await page.getByTestId("half-time-lineup-toggle").click();
@@ -384,42 +390,60 @@ test("stops at the break with its card, the way on its orange; the Coaching pane
   await expectOrangeActions(page, ["live-coaching"]);
 });
 
-test("makes the change the assistant suggests, undoes it, keeps it through a closed panel, and plays it at 46'", async ({ page }) => {
+test("compares the change the assistant suggests side by side, makes it, undoes it, makes another, and plays it at 46'", async ({ page }) => {
   await openBreak(page);
   const panel = page.getByTestId("half-time");
 
   // The line-up comes folded: nothing of the pitch or the bench. In this match of the seed, a starter tired by the first
-  // half would make way for a fresh substitute: the assistant says it is for his freshness, his card how tired he is.
+  // half would make way for a fresh substitute: the comparison opens on the assistant's change, the one he names for its
+  // freshness, the fresher player's condition the better one.
   const toggle = page.getByTestId("half-time-lineup-toggle");
-  const suggestion = page.getByTestId("half-time-suggestion");
+  const compare = page.getByTestId("half-time-compare");
   const advice = page.getByTestId("half-time-advice");
-  const card = page.getByTestId("half-time-suggestion-apply");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(panel.getByTestId("pitch")).toHaveCount(0);
   await expect(page.getByTestId("half-time-bench")).toHaveCount(0);
   await expect(advice).toContainText("Ton adjoint :");
-  await expect(card).toContainText(/^Sort · condition \d+/);
-  const [, tired, fresh] = SUGGESTED_CHANGE.exec(await textOf(card)) ?? [];
+  await expect(compare).toHaveAttribute("data-suggested", "true");
+  await expect(compare).toContainText("Changement conseillé · 5 restants");
+  await expect(compare).toContainText("Conseil de l'adjoint");
+  const [tired, fresh] = await comparedNames(page);
   await expect(advice).toContainText(`${fresh} est plus frais que ${tired} : il ferait mieux à ce poste.`);
+  await expect(compare.locator('[data-compare-row="fitness"]')).toHaveAttribute("data-better", "in");
 
+  // Side by side: the rating in the slot and how each fits it, the condition, the form, the match, then the three
+  // attributes the engine weighs most in the slot's line. The substitute has not played yet.
+  const rows = compare.locator("[data-compare-row]");
+  await expect(rows).toHaveCount(COMPARE_ROWS.length + 3);
+  expect((await rows.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-compare-row")))).slice(0, 4)).toEqual(
+    COMPARE_ROWS,
+  );
+  await expect(compare.locator('[data-compare-row="rating"] [data-fit-label]')).toHaveCount(2);
+  await expect(compare.locator('[data-compare-row="match"] td').last()).toHaveText("Pas encore entré");
+  await expect(compare).toContainText(/Ce qui compte (en défense|au milieu|en attaque)/);
+  await expect(compare.getByTestId("half-time-compare-out").locator("option")).toHaveCount(11);
+
+  const tiredKey = await compare.getAttribute("data-out-key");
   const { keeper, forward } = await misplaceTwoPlayers(page);
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByTestId("half-time-bench")).toBeVisible();
 
-  // One of the two is to come off now, for a far larger gain, and the assistant says the same as his card.
-  await expect(card).toContainText(/^Sort · forme /);
-  await expect(suggestion).toContainText("Changement conseillé · 5 restants");
-  const [, outgoing, incoming] = SUGGESTED_CHANGE.exec(await textOf(card)) ?? [];
+  // One of the two is to come off now, for a far larger gain, and the assistant says the same as his comparison.
+  await expect.poll(() => compare.getAttribute("data-out-key")).not.toBe(tiredKey);
+  await expect(compare).toHaveAttribute("data-suggested", "true");
+  await expect(compare).toContainText("Changement conseillé · 5 restants");
+  const [outgoing, incoming] = await comparedNames(page);
   expect([keeper, forward]).toContain(outgoing);
   await expect(advice).not.toContainText("Personne sur le banc");
   await expect(advice).toContainText(outgoing);
   await expect(advice).toContainText(incoming);
 
-  // The card makes the change, one line says so.
+  // The comparison makes the change, one line says so.
   const substitutions = page.getByTestId("half-time-substitutions");
   const planned = page.getByTestId("half-time-off");
+  const apply = page.getByTestId("half-time-compare-apply");
   await expect(planned).toHaveCount(0);
-  await card.click();
+  await apply.click();
   await expect(substitutions).toHaveText("Remplacements : 1/5");
   await expect(planned.locator("[data-off-player-key]")).toHaveCount(1);
   await expect(planned).toContainText(`${outgoing} sort, ${incoming} entre`);
@@ -428,12 +452,19 @@ test("makes the change the assistant suggests, undoes it, keeps it through a clo
   await page.getByTestId("half-time-cancel-change").click();
   await expect(substitutions).toHaveText("Remplacements : 0/5");
   await expect(planned).toHaveCount(0);
-  await expect(card).toContainText(outgoing);
-  await expect(card).toContainText(incoming);
+  await expect.poll(() => comparedNames(page)).toEqual([outgoing, incoming]);
+
+  // Another substitute picked from the list: no longer the assistant's change, the comparison follows, and makes it.
+  await compare.getByTestId("half-time-compare-in").selectOption({ index: 1 });
+  await expect(compare).toHaveAttribute("data-suggested", "false");
+  await expect(compare).toContainText("Remplacements · 5 restants");
+  const [, other] = await comparedNames(page);
+  expect(other).not.toBe(incoming);
+  await apply.click();
+  await expect(substitutions).toHaveText("Remplacements : 1/5");
+  await expect(planned).toContainText(`${outgoing} sort, ${other} entre`);
 
   // A change made, the panel closed and opened again: it is still there, and so is the whole pitch.
-  await card.click();
-  await expect(substitutions).toHaveText("Remplacements : 1/5");
   const slots = panel.getByTestId("pitch-slot");
   const pitch = await slots.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-slot-player-key")));
   await page.keyboard.press("Escape");
@@ -441,7 +472,7 @@ test("makes the change the assistant suggests, undoes it, keeps it through a clo
   await page.getByTestId("live-coaching").click();
   await expect(panel).toBeVisible();
   await expect(substitutions).toHaveText("Remplacements : 1/5");
-  await expect(planned).toContainText(`${outgoing} sort, ${incoming} entre`);
+  await expect(planned).toContainText(`${outgoing} sort, ${other} entre`);
   expect(await slots.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-slot-player-key")))).toEqual(pitch);
 
   // The clock goes on from the break, on the same page, and the change comes on with the second half.
@@ -449,7 +480,7 @@ test("makes the change the assistant suggests, undoes it, keeps it through a clo
   await expect(panel).toBeHidden();
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live$`));
   await expect(minuteOf(page)).toHaveText(/^(4[5-9]|[5-9]\d)'$/);
-  const change = feedOf(page).filter({ hasText: "46'" }).filter({ hasText: incoming });
+  const change = feedOf(page).filter({ hasText: "46'" }).filter({ hasText: other });
   await expect(change).toContainText("Remplacement");
   await expect(change).toContainText(new RegExp(`remplace .*${outgoing}$`));
 });
@@ -579,14 +610,27 @@ for (const { name, locale, viewport, says } of PHONES) {
       await expectOrangeActions(page, ["half-time-resume"]);
       await expectPanelWithinWidth(page, "panel");
 
+      // The comparison of a substitution, side by side within the width: its lists and its button a thumb's target, the
+      // names whole, nothing sideways in its table.
+      const compare = page.getByTestId("half-time-compare");
+      await compare.scrollIntoViewIfNeeded();
+      for (const control of ["half-time-compare-out", "half-time-compare-in", "half-time-compare-apply"]) {
+        expect((await boxOf(page.getByTestId(control))).height, control).toBeGreaterThanOrEqual(THUMB);
+      }
+      expect(await sidewaysOverflow(page.getByTestId("half-time-compare-table")), "comparison").toBeLessThanOrEqual(0);
+      const table = await boxOf(page.getByTestId("half-time-compare-table"));
+      expect(table.x).toBeGreaterThanOrEqual(0);
+      expect(table.x + table.width).toBeLessThanOrEqual(viewport.width);
+      await expectPanelWithinWidth(page, "comparison");
+
       // The line-up unfolded and the assistant's change made: as wide as ever, the ways on still there.
       const toggle = await boxOf(page.getByTestId("half-time-lineup-toggle"));
       expect(toggle.height).toBeGreaterThanOrEqual(THUMB);
       await misplaceTwoPlayers(page);
       await expectResumeInView(page);
       await expectPanelWithinWidth(page, "line-up unfolded");
-      await expect(page.getByTestId("half-time-suggestion")).toBeVisible();
-      await page.getByTestId("half-time-suggestion-apply").click();
+      await expect(compare).toHaveAttribute("data-suggested", "true");
+      await page.getByTestId("half-time-compare-apply").click();
       await expect(page.getByTestId("half-time-off")).toBeVisible();
       expect((await boxOf(page.getByTestId("half-time-cancel-change"))).height).toBeGreaterThanOrEqual(THUMB);
       await expectResumeInView(page);

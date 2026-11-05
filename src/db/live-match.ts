@@ -24,6 +24,7 @@ import {
   type Side,
 } from "../engine/match";
 import { formationPositions, type FormationName } from "../engine/formations";
+import type { AttributeName } from "../engine/generation";
 import { condition } from "../engine/strength";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
@@ -73,12 +74,52 @@ export type MatchBreak = "HALF_TIME" | "REGULATION_END";
 /** Statuses of a fixture whose match waits live: at a break, or between two segments (and between the periods of extra time). */
 const LIVE_STATUSES: ("IN_PLAY" | MatchBreak)[] = ["IN_PLAY", "HALF_TIME", "REGULATION_END"];
 
+/** What a player has done in a match so far: his goals, his assists and his cards. */
+export type MatchActions = { goals: number; assists: number; yellowCards: number; redCards: number };
+
 /**
  * A player at a pause, with his form, his fitness at that minute, the factor of his share of strength for his fitness
  * (fresh at kick-off, worn since, hurt if he plays on after a knock), and his whole factor for form, morale and fitness
- * (the engine's condition): what the next segment plays him at.
+ * (the engine's condition): what the next segment plays him at. With his attributes and what he has done in the match,
+ * which the Coaching panel's comparison of a substitution shows.
  */
-export type HalfTimePlayer = LineupPlayer & { form: number; fitness: number; fitnessFactor: number; condition: number };
+export type HalfTimePlayer = LineupPlayer & {
+  form: number;
+  fitness: number;
+  fitnessFactor: number;
+  condition: number;
+  attributes: Record<AttributeName, number>;
+  actions: MatchActions;
+};
+
+const NO_ACTION: MatchActions = { goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
+
+/** Each player's goals, assists and cards in a match so far, by key: a side's, the shoot-out left out. */
+function actionsOf(state: MatchState, side: Side): Map<string, MatchActions> {
+  const actions = new Map<string, MatchActions>();
+  const add = (key: string | undefined, action: keyof MatchActions): void => {
+    if (key === undefined) {
+      return;
+    }
+    const done = { ...(actions.get(key) ?? NO_ACTION) };
+    done[action] += 1;
+    actions.set(key, done);
+  };
+  for (const event of state.events) {
+    if (event.side !== side || event.period === "SHOOTOUT") {
+      continue;
+    }
+    if (event.type === "GOAL") {
+      add(event.playerId, "goals");
+      add(event.relatedPlayerId, "assists");
+    } else if (event.type === "YELLOW_CARD") {
+      add(event.playerId, "yellowCards");
+    } else if (event.type === "RED_CARD") {
+      add(event.playerId, "redCards");
+    }
+  }
+  return actions;
+}
 
 /**
  * The managed club at a pause of its match, as the Coaching panel shows it: named after half-time, its first pause, it
@@ -131,6 +172,7 @@ function halfTimeTeamOf(
   const squad = [...team.pitch.map((entry) => entry.player), ...team.bench];
   const identityOf = new Map(identities.map((row) => [row.playerKey, row]));
   const injured = new Set(team.pitch.filter((entry) => entry.status === "INJURED").map((entry) => entry.player.id));
+  const actions = actionsOf(state, side);
 
   const starters: (string | null)[] = formationPositions(team.formation).map(() => null);
   for (const entry of team.pitch) {
@@ -178,6 +220,16 @@ function halfTimeTeamOf(
         fitness: getOrThrow(fitnessOf, player.id, "fitness"),
         fitnessFactor: fitnessFactorAtPause,
         condition: condition(player) * fitnessFactorAtPause,
+        attributes: {
+          pace: player.pace,
+          shooting: player.shooting,
+          passing: player.passing,
+          dribbling: player.dribbling,
+          defending: player.defending,
+          physical: player.physical,
+          goalkeeping: player.goalkeeping,
+        },
+        actions: actions.get(player.id) ?? NO_ACTION,
         firstName: identity.firstName,
         lastName: identity.lastName,
         age: ageInYears(identity.birthDate, today),

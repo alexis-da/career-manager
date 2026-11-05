@@ -69,6 +69,30 @@ export function teamStrength(
   return { attack, defense };
 }
 
+/** How many of a slot's attributes the screens name as those that count most there. */
+export const KEY_ATTRIBUTES = 3;
+
+/**
+ * What a point of an attribute adds to a team's attack and defense for its player in a slot, as teamStrength weighs it:
+ * its weight in his attacking value times his line's share of the attack, plus the same for the defense, for a player
+ * alone in his line, fit and at his position (the share every attribute of his has in common divided out). The line of
+ * the slot decides: a centre-back and a full-back weigh the same attributes, and a goalkeeper only his goalkeeping.
+ */
+export function attributeWeight(slot: Position, name: AttributeName): number {
+  const group = positionGroup(slot);
+  return ATTACK_LINE_WEIGHTS[group] * (ATTACK_WEIGHTS[group][name] ?? 0) + DEFENSE_LINE_WEIGHTS[group] * (DEFENSE_WEIGHTS[group][name] ?? 0);
+}
+
+/**
+ * The attributes that count most in a slot for the engine, the heaviest first, at most `count`, none that weighs nothing:
+ * a goalkeeper has one. Equal weights keep the attributes' own order (ATTRIBUTE_NAMES).
+ */
+export function keyAttributesAt(slot: Position, count: number = KEY_ATTRIBUTES): AttributeName[] {
+  return ATTRIBUTE_NAMES.filter((name) => attributeWeight(slot, name) > 0)
+    .sort((a, b) => attributeWeight(slot, b) - attributeWeight(slot, a))
+    .slice(0, count);
+}
+
 /** Expected goals of a team against an opponent; venueFactor is HOME_ADVANTAGE at home, its inverse away. */
 export function expectedGoals(team: TeamStrength, opponent: TeamStrength, venueFactor: number): number {
   if (team.attack <= 0) {

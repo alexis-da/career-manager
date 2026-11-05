@@ -387,9 +387,16 @@ demandé), fermé par Échap ou la croix, rouvert par `live-coaching`, ses chang
 de reprise : rien ne reprend sans eux) ; plein écran sous 1024 px, 440 px à droite au-dessus ; son titre dit la pause
 (« Mi-temps », « 60e minute »). La règle des remplacements et les fenêtres utilisées (`half-time-windows` ; sans fenêtre,
 le banc refuse), qui fait les changements (l'adjoint jusqu'au premier du joueur), l'adjoint (`coachAdvice`, pur : blessés,
-exclus, score, changement, joueurs avertis, joueurs touchés, rien que de vrai), le changement conseillé (`suggestChange`,
-pur : un blessé d'abord, sinon le plus grand gain de niveau, `ratingAt` × `condition` du moteur, à partir d'un point ;
-rien sinon, et son bloc disparaît), les changements prévus, annulables (`cancelSubstitution`), la consigne (Attaquer,
+exclus, score, changement, joueurs avertis, joueurs touchés, rien que de vrai), le comparatif des remplacements
+(`SubstitutionCompare`, `half-time-compare`, `app/saves/[id]/live/_lib/substitution-compare.ts`, pur) : deux listes, qui
+sort (les joueurs sur le terrain, ni un exclu ni un entré à cette pause) et qui entre (le banc, le meilleur au poste
+d'abord), ouvertes sur le changement conseillé (`suggestChange`, pur : un blessé d'abord, sinon le plus grand gain de
+niveau, `ratingAt` × `condition` du moteur, à partir d'un point ; « Conseil de l'adjoint »), à défaut sur le meilleur
+changement possible (`bestChange`) ; côte à côte, la note au poste et son libellé, la condition à la reprise, la forme, le
+match (buts, passes décisives, cartons : `HalfTimePlayer.actions`, avec ses attributs, `attributes`) et les trois
+attributs que le moteur pèse le plus dans la ligne du poste (`keyAttributesAt`, `attributeWeight`,
+`src/engine/strength.ts` : un gardien n'en a qu'un), le meilleur chiffre en avant ; « Faire ce changement » ; rien sans
+remplacement possible. Puis les changements prévus, annulables (`cancelSubstitution`), la consigne (Attaquer,
 Équilibré, Fermer, chacune avec ce qu'elle fait en une phrase ; celle en cours cochée), le dispositif, la composition
 complète, repliée (terrain et banc, glisser-déposer), puis
 « Reprendre sans changement » et « Reprendre le match », inactifs 500 ms à l'ouverture (`RESUME_GUARD_MS`) : sur téléphone ils

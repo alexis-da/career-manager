@@ -4,7 +4,16 @@ import { FORMATION_NAMES, formationPositions } from "./formations";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "./generation";
 import { selectRestedLineup, type SquadPlayer } from "./lineup";
 import { POSITIONS, type Position } from "./positions";
-import { compareFormations, expectedGoalDifference, expectedGoals, formationStrength, type TeamStrength } from "./strength";
+import {
+  attributeWeight,
+  compareFormations,
+  expectedGoalDifference,
+  expectedGoals,
+  formationStrength,
+  keyAttributesAt,
+  teamStrength,
+  type TeamStrength,
+} from "./strength";
 
 function player(id: string, position: Position, level: number, fitness = 100): SquadPlayer {
   const attributes = Object.fromEntries(
@@ -57,5 +66,42 @@ describe("the comparison of the formations", () => {
     }
     expect(["3-4-3", "4-3-3"]).toContain(favourite.best);
     expect(["5-3-2", "4-1-4-1"]).toContain(underdog.best);
+  });
+});
+
+describe("the attributes that count in a slot", () => {
+  it("are the line's: defending, physical and pace at the back, passing, dribbling and defending in midfield", () => {
+    for (const slot of ["RB", "CB", "LB"] as const) {
+      expect(keyAttributesAt(slot)).toEqual(["defending", "physical", "pace"]);
+    }
+    for (const slot of ["CDM", "CM", "CAM", "RM", "LM"] as const) {
+      expect(keyAttributesAt(slot)).toEqual(["passing", "dribbling", "defending"]);
+    }
+    // Up front, pace and dribbling weigh the same: the attributes' own order settles it.
+    for (const slot of ["RW", "ST", "LW"] as const) {
+      expect(keyAttributesAt(slot)).toEqual(["shooting", "pace", "dribbling"]);
+    }
+  });
+
+  it("leave out what does not count: a goalkeeper's goalkeeping alone", () => {
+    expect(keyAttributesAt("GK")).toEqual(["goalkeeping"]);
+    expect(attributeWeight("GK", "passing")).toBe(0);
+    expect(keyAttributesAt("CB", 1)).toEqual(["defending"]);
+  });
+
+  it("weigh what a point of each attribute adds to the team's attack and defense, as the engine plays it", () => {
+    for (const slot of POSITIONS) {
+      const alone = player("alone", slot, 70);
+      const lineupOf = (candidate: SquadPlayer) => ({ starters: [{ player: candidate, slot, index: 0 }], bench: [] });
+      const total = (candidate: SquadPlayer): number => {
+        const { attack, defense } = teamStrength(lineupOf(candidate), [slot]);
+        return attack + defense;
+      };
+      for (const name of ATTRIBUTE_NAMES) {
+        const raised: SquadPlayer = { ...alone };
+        raised[name] = alone[name] + 10;
+        expect((total(raised) - total(alone)) / 10, `${slot} ${name}`).toBeCloseTo(attributeWeight(slot, name), 10);
+      }
+    }
   });
 });

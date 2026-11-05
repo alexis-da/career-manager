@@ -38,12 +38,28 @@
       "hurt": "{count, plural, one {{names} joue touché : il est moins fort jusqu'à sa sortie} other {{names} jouent touchés : ils sont moins forts jusqu'à leur sortie}}."
     },
     "suggestion": {
-      "title": "{count, plural, one {Changement conseillé · # restant} other {Changement conseillé · # restants}}",
-      "out": "Sort · forme {form}",
-      "outTired": "Sort · condition {fitness}",
-      "outInjured": "Sort · blessé",
-      "in": "Entre · {position} {rating}",
-      "apply": "Touche la carte pour faire ce changement."
+      "title": "{count, plural, one {Changement conseillé · # restant} other {Changement conseillé · # restants}}"
+    },
+    "compare": {
+      "title": "{count, plural, one {Remplacement · # restant} other {Remplacements · # restants}}",
+      "suggested": "Conseil de l'adjoint",
+      "out": "Sort",
+      "in": "Entre",
+      "outOption": "{position} · {name}{injured, select, true { · blessé} other {}}",
+      "inOption": "{name} · {rating} au poste",
+      "caption": "{out}, qui sort, et {in}, qui entre, côte à côte",
+      "rating": "Note en {position}",
+      "match": "Dans le match",
+      "actions": {
+        "goals": "{count, plural, one {# but} other {# buts}}",
+        "assists": "{count, plural, one {# passe déc.} other {# passes déc.}}",
+        "yellowCards": "{count, plural, one {averti} other {# jaunes}}",
+        "redCards": "{count, plural, one {exclu} other {exclu}}"
+      },
+      "nothing": "Rien",
+      "notOn": "Pas encore entré",
+      "keyAttributes": "{line, select, GK {Ce qui compte dans les buts} DF {Ce qui compte en défense} MF {Ce qui compte au milieu} other {Ce qui compte en attaque}}",
+      "apply": "Faire ce changement"
     },
     "planned": {
       "title": "Prévu à la reprise",

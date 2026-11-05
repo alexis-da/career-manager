@@ -1,27 +1,24 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ArrowRightLeftIcon, ChevronDownIcon, PlayIcon, SkipForwardIcon } from "lucide-react";
+import { ChevronDownIcon, PlayIcon, SkipForwardIcon } from "lucide-react";
 import { useEffect, useRef, useState, useTransition, type RefObject } from "react";
 import { toast } from "sonner";
 import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/src/components/ui/sheet";
 import type { TeamView } from "@/src/db/calendar";
-import type { HalfTimePlayer, HalfTimeTeam } from "@/src/db/live-match";
+import type { HalfTimeTeam } from "@/src/db/live-match";
 import { HALF_TIME_MINUTE, REGULATION_MINUTES } from "@/src/engine/balance";
 import { FORMATION_NAMES, FORMATIONS, isFormationName } from "@/src/engine/formations";
 import type { Instruction } from "@/src/engine/match";
 import { ratingAt, type Position } from "@/src/engine/positions";
-import type { Translator } from "@/src/i18n/translator";
-import type { ClubColors } from "@/src/lib/color";
 import { getOrThrow } from "@/src/lib/maps";
 import { cn } from "@/src/lib/utils";
 import { FitnessGauge } from "../../_components/fitness-gauge";
 import { LineupSummary } from "../../_components/lineup-summary";
 import { Pitch } from "../../_components/pitch";
 import { PositionBadges } from "../../_components/position-badge";
-import { fitnessFigure } from "../../_lib/fitness";
 import { isOffPosition, positionFit } from "../../_lib/positions";
 import type { HalfTimeChoiceInput } from "../../actions";
 import { slotTarget, usePointerDrag, type DragSource, type DropTarget } from "../../lineup/_components/use-pointer-drag";
@@ -39,10 +36,10 @@ import {
   type HalfTimeRules,
   type HalfTimeState,
   type Move,
-  type SuggestedChange,
 } from "../_lib/half-time-moves";
 import { RESUME_GUARD_MS } from "../_lib/live-pause";
 import { PauseScore } from "./pause-score";
+import { SubstitutionCompare } from "./substitution-compare";
 
 /** Gap between the pointer and the dragged player's tag. */
 const GHOST_OFFSET_PX = 14;
@@ -277,19 +274,15 @@ export function HalfTime({
               {t("advice.close")}
             </p>
 
-            {suggestion !== null && (
-              <section data-testid="half-time-suggestion" className="space-y-2">
-                <h3 className="eyebrow text-highlight">{t("suggestion.title", { count: team.maxSubstitutions - made })}</h3>
-                <SuggestionCard
-                  suggestion={suggestion}
-                  outgoing={getOrThrow(byKey, suggestion.out, "player")}
-                  incoming={getOrThrow(byKey, suggestion.in, "player")}
-                  clubColors={team.clubColors}
-                  onApply={() => apply(substitute(state, rules, suggestion.slot, suggestion.in, t))}
-                />
-                <p className="text-[0.8125rem] text-muted-foreground">{t("suggestion.apply")}</p>
-              </section>
-            )}
+            <SubstitutionCompare
+              state={state}
+              rules={rules}
+              players={byKey}
+              suggestion={suggestion}
+              substitutionsLeft={team.maxSubstitutions - made}
+              clubColors={team.clubColors}
+              onApply={(slot, incoming) => apply(substitute(state, rules, slot, incoming, t))}
+            />
 
             {(state.substitutions.length > 0 || decided !== null) && (
               <section aria-label={t("planned.title")} data-testid="half-time-off">
@@ -522,75 +515,5 @@ export function HalfTime({
         )}
       </SheetContent>
     </Sheet>
-  );
-}
-
-type SuggestionCardProps = {
-  suggestion: SuggestedChange;
-  outgoing: HalfTimePlayer;
-  incoming: HalfTimePlayer;
-  clubColors: ClubColors;
-  onApply: () => void;
-};
-
-/** What the card says of the player going off: injured, how tired when he is to come off for his fitness, or his form. */
-function outCaption({ reason }: SuggestedChange, outgoing: HalfTimePlayer, t: Translator<"halfTime">): string {
-  switch (reason) {
-    case "injured":
-      return t("suggestion.outInjured");
-    case "fitness":
-      return t("suggestion.outTired", { fitness: fitnessFigure(outgoing.fitness) });
-    default:
-      return t("suggestion.out", { form: outgoing.form });
-  }
-}
-
-/** The suggested change, one button: the player going off, the player coming on, why. */
-function SuggestionCard({ suggestion, outgoing, incoming, clubColors, onApply }: SuggestionCardProps) {
-  const t = useTranslations("halfTime");
-  const tPositions = useTranslations("positions");
-  return (
-    <button
-      type="button"
-      onClick={onApply}
-      data-testid="half-time-suggestion-apply"
-      className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_1.5rem_minmax(0,1fr)] items-center gap-2.5 rounded-lg border-2 border-secondary bg-background p-3.5 text-left transition-colors outline-none hover:border-highlight focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-    >
-      <ChangeEnd
-        player={outgoing}
-        clubColors={clubColors}
-        injured={suggestion.reason === "injured"}
-        caption={outCaption(suggestion, outgoing, t)}
-      />
-      <ArrowRightLeftIcon aria-hidden className="size-6 text-(--club)" />
-      <ChangeEnd
-        player={incoming}
-        clubColors={clubColors}
-        caption={t("suggestion.in", {
-          position: tPositions(`short.${suggestion.position}`),
-          rating: Math.round(ratingAt(incoming, suggestion.position)),
-        })}
-      />
-    </button>
-  );
-}
-
-type ChangeEndProps = {
-  player: HalfTimePlayer;
-  clubColors: ClubColors;
-  caption: string;
-  injured?: boolean;
-};
-
-/** One side of a suggested change. On a phone, no face: the name needs the room, on two lines at worst, never cut. */
-function ChangeEnd({ player, clubColors, caption, injured = false }: ChangeEndProps) {
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <PlayerFace playerKey={player.id} age={player.age} clubColors={clubColors} size={36} className="shrink-0 max-sm:hidden" />
-      <span className="flex min-w-0 flex-col">
-        <span className={cn("text-xs", injured ? "text-loss" : "text-muted-foreground")}>{caption}</span>
-        <span className="font-bold wrap-break-word">{player.lastName}</span>
-      </span>
-    </span>
   );
 }

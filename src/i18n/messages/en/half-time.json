@@ -38,12 +38,28 @@
       "hurt": "{count, plural, one {{names} is playing hurt: weaker until he comes off} other {{names} are playing hurt: weaker until they come off}}."
     },
     "suggestion": {
-      "title": "Suggested change · {count} left",
-      "out": "Off · form {form}",
-      "outTired": "Off · fitness {fitness}",
-      "outInjured": "Off · injured",
-      "in": "On · {position} {rating}",
-      "apply": "Tap the card to make this change."
+      "title": "Suggested change · {count} left"
+    },
+    "compare": {
+      "title": "{count, plural, one {Substitution · # left} other {Substitutions · # left}}",
+      "suggested": "Assistant's pick",
+      "out": "Off",
+      "in": "On",
+      "outOption": "{position} · {name}{injured, select, true { · injured} other {}}",
+      "inOption": "{name} · {rating} in the position",
+      "caption": "{out}, going off, and {in}, coming on, side by side",
+      "rating": "Rating at {position}",
+      "match": "In this match",
+      "actions": {
+        "goals": "{count, plural, one {# goal} other {# goals}}",
+        "assists": "{count, plural, one {# assist} other {# assists}}",
+        "yellowCards": "{count, plural, one {booked} other {# yellows}}",
+        "redCards": "{count, plural, one {sent off} other {sent off}}"
+      },
+      "nothing": "Nothing",
+      "notOn": "Not on yet",
+      "keyAttributes": "{line, select, GK {What counts in goal} DF {What counts in defence} MF {What counts in midfield} other {What counts in attack}}",
+      "apply": "Make this substitution"
     },
     "planned": {
       "title": "At the restart",

@@ -175,17 +175,14 @@ const comesBefore = (a: SuggestedChange, b: SuggestedChange): boolean => {
 };
 
 /**
- * The substitution the assistant suggests, or null: none left, none allowed at this pause, nobody on the bench, or nobody
- * worth it. Each player on the pitch is weighed against the best substitute in his slot, but for a sent-off player's slot
- * and a player who came on at this pause, the manager's own choice. An injured player goes first, whatever the gain; otherwise the largest
- * gain, from MIN_SUGGESTED_GAIN, with what weighs most in it (mainReason). Ties go to the smaller key, so the input's
- * order changes nothing.
+ * The best substitution there is, however small its gain, or null: none left, none allowed at this pause, or nobody on
+ * the bench. Each player on the pitch is weighed against the best substitute in his slot, but for a sent-off player's
+ * slot and a player who came on at this pause, the manager's own choice. An injured player goes first, whatever the gain;
+ * otherwise the largest gain, which may be nothing or less, with what weighs most in it (mainReason). Ties go to the
+ * smaller key, so the input's order changes nothing. The Coaching panel's comparison opens on it when the assistant
+ * suggests nothing.
  */
-export function suggestChange(
-  state: HalfTimeState,
-  rules: HalfTimeRules,
-  players: readonly RatedCandidate[],
-): SuggestedChange | null {
+export function bestChange(state: HalfTimeState, rules: HalfTimeRules, players: readonly RatedCandidate[]): SuggestedChange | null {
   const byKey = new Map(players.map((player) => [player.id, player]));
   const bench = state.bench.flatMap((key) => byKey.get(key) ?? []);
   if (bench.length === 0 || !rules.canSubstitute || substitutionsMade(state, rules) >= rules.maxSubstitutions) {
@@ -212,11 +209,25 @@ export function suggestChange(
       reason: rules.injured.has(outgoing.id) ? "injured" : mainReason(incoming, outgoing, position),
       gain: levelAt(incoming, position) - levelAt(outgoing, position),
     };
-    if ((isInjury(change) || change.gain >= MIN_SUGGESTED_GAIN) && (best === null || comesBefore(change, best))) {
+    if (best === null || comesBefore(change, best)) {
       best = change;
     }
   }
   return best;
+}
+
+/**
+ * The substitution the assistant suggests, or null: none left, none allowed at this pause, nobody on the bench, or nobody
+ * worth it. The best change there is (bestChange), when its player going off is injured, whatever the gain, or when its
+ * gain reaches MIN_SUGGESTED_GAIN: the best change is first an injured one, then the largest gain, so no other could pass.
+ */
+export function suggestChange(
+  state: HalfTimeState,
+  rules: HalfTimeRules,
+  players: readonly RatedCandidate[],
+): SuggestedChange | null {
+  const best = bestChange(state, rules, players);
+  return best !== null && (isInjury(best) || best.gain >= MIN_SUGGESTED_GAIN) ? best : null;
 }
 
 /** Two slots exchange their players: a free repositioning. A sent-off player's slot stays empty. */
