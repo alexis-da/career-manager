@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/src/auth/current-user";
 import type { ChallengePageView, ChallengeRankingRow } from "@/src/db/challenge-view";
+import type { ClubDotation } from "@/src/db/club";
 import type { SeasonResultView } from "@/src/db/season-results";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage, testTranslator } from "@/src/i18n/test-intl";
@@ -39,8 +40,8 @@ describe("the Club screen's head", () => {
 });
 
 describe("the finances", () => {
-  const WITHIN = { budget: 24_500_000, wageBudget: 70_000_000, payroll: 61_000_000, wageRoom: 9_000_000 };
-  const ABOVE = { budget: 2_000_000, wageBudget: 40_000_000, payroll: 41_500_000, wageRoom: -1_500_000 };
+  const WITHIN = { budget: 24_500_000, wageBudget: 70_000_000, payroll: 61_000_000, wageRoom: 9_000_000, dotation: null };
+  const ABOVE = { budget: 2_000_000, wageBudget: 40_000_000, payroll: 41_500_000, wageRoom: -1_500_000, dotation: null };
 
   it("gives the budget, the payroll against the wage budget and what it leaves", () => {
     const markup = render(<ClubFinancesCard finances={WITHIN} />);
@@ -64,14 +65,122 @@ describe("the finances", () => {
   });
 
   it("warns of a payroll near the wage budget as the dashboard does, the room staying what it is", () => {
-    const markup = render(<ClubFinancesCard finances={{ budget: 0, wageBudget: 70_000_000, payroll: 64_000_000, wageRoom: 6_000_000 }} />);
+    const markup = render(<ClubFinancesCard finances={{ budget: 0, wageBudget: 70_000_000, payroll: 64_000_000, wageRoom: 6_000_000, dotation: null }} />);
 
     expect(markup.match(/text-warning/g)).toHaveLength(1);
     expect(textOf(markup, "club-wage-room")).toBe("6 M€ de marge");
   });
 
   it("shows an empty bar without a wage budget or a payroll", () => {
-    expect(render(<ClubFinancesCard finances={{ budget: 0, wageBudget: 0, payroll: 0, wageRoom: 0 }} />)).toContain('aria-valuenow="0"');
+    expect(render(<ClubFinancesCard finances={{ budget: 0, wageBudget: 0, payroll: 0, wageRoom: 0, dotation: null }} />)).toContain(
+      'aria-valuenow="0"',
+    );
+  });
+});
+
+describe("the board's dotation", () => {
+  const MONEY = { budget: 24_500_000, wageBudget: 70_000_000, payroll: 61_000_000, wageRoom: 9_000_000 };
+
+  /** A second season's, after a bonus of the objectives and half of an unspent budget. */
+  const LATER: ClubDotation = {
+    startYear: 2027,
+    reputation: 74,
+    reputationRank: 5,
+    clubCount: 18,
+    dotation: 42_000_000,
+    coefficient: 110,
+    objectivesAmount: 4_200_000,
+    carryOver: 3_100_000,
+    budget: 49_300_000,
+    wageBudget: 70_000_000,
+    first: false,
+  };
+
+  /** A save's first season: its creation budget, nothing carried over, no objectives. */
+  const FIRST: ClubDotation = {
+    ...LATER,
+    startYear: 2026,
+    reputationRank: 1,
+    dotation: 30_000_000,
+    coefficient: 100,
+    objectivesAmount: 0,
+    carryOver: 0,
+    budget: 30_000_000,
+    first: true,
+  };
+
+  const card = (dotation: ClubDotation | null, locale?: Locale): string =>
+    render(<ClubFinancesCard finances={{ ...MONEY, dotation }} />, locale);
+
+  /** The texts of a line of the dotation, by its test id: its label, its detail when it has one, then its amount. */
+  const lineOf = (markup: string, testId: string): string[] | null => {
+    const line = new RegExp(`<div data-testid="${testId}"[^>]*>(.*?</dd>)</div>`).exec(markup)?.[1];
+    return line === undefined ? null : [...line.matchAll(/>([^<]+)</g)].map(([, text]) => text.replaceAll("&#x27;", "'"));
+  };
+
+  /** The class of a line's amount. */
+  const amountClass = (markup: string, testId: string): string | null =>
+    new RegExp(`<div data-testid="${testId}"[^>]*>.*?<dd class="([^"]*)">`).exec(markup)?.[1] ?? null;
+
+  it("details a later season's budget: the board's funding at the club's reputation rank, the objectives and the carry-over", () => {
+    const markup = card(LATER);
+
+    expect(markup).toContain('<h3 id="club-dotation-title" class="eyebrow">Saison 2027-28</h3>');
+    expect(lineOf(markup, "club-dotation-base")).toEqual(["Dotation de la direction", "Rang de réputation : 5e sur 18 de ta division", "42 M€"]);
+    expect(lineOf(markup, "club-dotation-objectives")).toEqual(["Objectifs de la saison passée", "Bonus : × 1,10", "+4,2 M€"]);
+    expect(amountClass(markup, "club-dotation-objectives")).toContain("text-win");
+    expect(lineOf(markup, "club-dotation-carry-over")).toEqual(["Report", "La moitié du budget non dépensé", "3,1 M€"]);
+    expect(lineOf(markup, "club-dotation-total")).toEqual(["Budget de la saison", "49,3 M€"]);
+    expect(lineOf(markup, "club-dotation-wage-budget")).toEqual(["Plafond salarial", "70 M€"]);
+    expect(lineOf(markup, "club-dotation-start")).toBeNull();
+    expect(lineOf(card({ ...LATER, reputationRank: 1 }), "club-dotation-base")?.[1]).toBe("Rang de réputation : 1er sur 18 de ta division");
+  });
+
+  it("takes a malus away, and says so of a season without objectives", () => {
+    const malus = card({ ...LATER, coefficient: 85, objectivesAmount: -6_300_000, budget: 38_800_000 });
+    const neutral = card({ ...LATER, coefficient: 100, objectivesAmount: 0, budget: 45_100_000 });
+
+    expect(lineOf(malus, "club-dotation-objectives")).toEqual(["Objectifs de la saison passée", "Malus : × 0,85", "-6,3 M€"]);
+    expect(amountClass(malus, "club-dotation-objectives")).toContain("text-loss");
+    expect(lineOf(neutral, "club-dotation-objectives")).toEqual(["Objectifs de la saison passée", "Ni bonus ni malus : × 1,00", "—"]);
+    expect(amountClass(neutral, "club-dotation-objectives")).toContain("text-muted-foreground");
+  });
+
+  it("gives a first season its starting budget in one line, then its wage cap", () => {
+    const markup = card(FIRST);
+
+    expect(markup).toContain('<h3 id="club-dotation-title" class="eyebrow">Saison 2026-27</h3>');
+    expect(lineOf(markup, "club-dotation-start")).toEqual(["Budget de départ", "30 M€"]);
+    expect(lineOf(markup, "club-dotation-wage-budget")).toEqual(["Plafond salarial", "70 M€"]);
+    for (const detail of ["club-dotation-base", "club-dotation-objectives", "club-dotation-carry-over", "club-dotation-total"]) {
+      expect(lineOf(markup, detail), detail).toBeNull();
+    }
+  });
+
+  it("says it all in British English", () => {
+    const later = card(LATER, "en");
+
+    expect(later).toContain(">2027-28 season</h3>");
+    expect(lineOf(later, "club-dotation-base")).toEqual(["Board funding", "Reputation rank: 5th of 18 in your division", "€42m"]);
+    expect(lineOf(later, "club-dotation-objectives")).toEqual(["Last season's objectives", "Bonus: × 1.10", "+€4.2m"]);
+    expect(lineOf(later, "club-dotation-carry-over")).toEqual(["Carried over", "Half of the unspent budget", "€3.1m"]);
+    expect(lineOf(later, "club-dotation-total")).toEqual(["Season budget", "€49.3m"]);
+    expect(lineOf(later, "club-dotation-wage-budget")).toEqual(["Wage cap", "€70m"]);
+    expect(lineOf(card({ ...LATER, coefficient: 85, objectivesAmount: -6_300_000 }, "en"), "club-dotation-objectives")).toEqual([
+      "Last season's objectives",
+      "Penalty: × 0.85",
+      "-€6.3m",
+    ]);
+    expect(lineOf(card({ ...LATER, reputationRank: 1 }, "en"), "club-dotation-base")?.[1]).toBe("Reputation rank: 1st of 18 in your division");
+    expect(lineOf(card(FIRST, "en"), "club-dotation-start")).toEqual(["Starting budget", "€30m"]);
+  });
+
+  it("is left out for a save from before the season budgets, and never adds an action to the card", () => {
+    expect(card(null)).not.toContain('data-testid="club-dotation"');
+    for (const markup of [card(LATER), card(FIRST)]) {
+      expect(markup).toContain('data-testid="club-dotation"');
+      expect(markup).not.toMatch(/<(a|button)\b/);
+    }
   });
 });
 

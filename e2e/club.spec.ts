@@ -77,6 +77,46 @@ async function expectThumbTargets(page: Page): Promise<void> {
   }
 }
 
+/** An amount of the dotation, as formatMoney writes it in French: « 42 M€ », « 850 k€ », « 0 € ». */
+const AMOUNT = /^\d+(,\d)? [Mk]?€$/;
+
+/** A line of the dotation, by its test id: its label (and its detail under it), then its amount. */
+async function expectDotationLine(dotation: Locator, testId: string, label: RegExp | string, amount: RegExp | string): Promise<void> {
+  const line = dotation.getByTestId(testId);
+  await expect(line.locator("dt")).toHaveText(label);
+  await expect(line.locator("dd")).toHaveText(amount);
+}
+
+/**
+ * The board's last dotation on the demo save, when it was made since the season budgets (an older one has none, and shows
+ * its money without it): its second season's, after a first season played, in detail, then its wage cap. Its objectives
+ * are none before the season objectives, a bonus or a malus since.
+ */
+async function expectDemoDotation(finances: Locator): Promise<void> {
+  const dotation = finances.getByTestId("club-dotation");
+  if ((await dotation.count()) === 0) {
+    return;
+  }
+  await expect(dotation.getByRole("heading")).toHaveText("Saison 2027-28");
+  // Lyon's division, the first of France in the demo's world: 18 clubs.
+  await expectDotationLine(
+    dotation,
+    "club-dotation-base",
+    /^Dotation de la direction\s*Rang de réputation : \d+(er|e) sur 18 de ta division$/,
+    AMOUNT,
+  );
+  await expectDotationLine(
+    dotation,
+    "club-dotation-objectives",
+    /^Objectifs de la saison passée\s*(Bonus|Malus|Ni bonus ni malus) : × \d,\d\d$/,
+    /^(—|[+-]\d+(,\d)? [Mk]?€)$/,
+  );
+  await expectDotationLine(dotation, "club-dotation-carry-over", /^Report\s*La moitié du budget non dépensé$/, AMOUNT);
+  await expectDotationLine(dotation, "club-dotation-total", "Budget de la saison", AMOUNT);
+  await expectDotationLine(dotation, "club-dotation-wage-budget", "Plafond salarial", AMOUNT);
+  await expect(dotation.getByTestId("club-dotation-start")).toHaveCount(0);
+}
+
 /** The screen of the demo save, whatever the width: its head, its money, the week's challenge, its season and the settings. */
 async function expectClubScreen(page: Page): Promise<void> {
   await expect(page.getByTestId("club-title")).toHaveText("Club");
@@ -94,8 +134,9 @@ async function expectClubScreen(page: Page): Promise<void> {
   const share = Number(await bar.getAttribute("aria-valuenow"));
   expect(share).toBeGreaterThanOrEqual(0);
   expect(share).toBeLessThanOrEqual(100);
-  // The money is read only here: nothing of a board's goals or of what comes in.
-  await expect(page.getByRole("main")).not.toContainText(/objectif|recette/i);
+  // The money is read only here: nothing of what comes in.
+  await expect(page.getByRole("main")).not.toContainText(/recette/i);
+  await expectDemoDotation(finances);
 
   const challenge = page.getByTestId("club-challenge");
   await expect(challenge).toHaveCSS("background-color", BRIGHT_BLUE);
@@ -498,6 +539,25 @@ test.describe("a Google account's Lyon", () => {
     await page.setViewportSize(SMALL_PHONE);
     await expectNoSidewaysScroll(page, "account");
     await expectThumbTargets(page);
+  });
+
+  test("gives its first season's budget in one line, the one it started with, and its wage cap, down to 360 px", async ({ page }) => {
+    await openSave(page, "/club");
+    const dotation = page.getByTestId("club-finances").getByTestId("club-dotation");
+    await expect(dotation.getByRole("heading")).toHaveText("Saison 2026-27");
+    // Nothing bought or sold yet: the budget it has.
+    await expectDotationLine(dotation, "club-dotation-start", "Budget de départ", await textOf(page.getByTestId("club-budget")));
+    await expectDotationLine(dotation, "club-dotation-wage-budget", "Plafond salarial", AMOUNT);
+    for (const detail of ["club-dotation-base", "club-dotation-objectives", "club-dotation-carry-over", "club-dotation-total"]) {
+      await expect(dotation.getByTestId(detail)).toHaveCount(0);
+    }
+    await expectOrangeActions(page, ["club-challenge-link"]);
+
+    for (const viewport of [PHONE, SMALL_PHONE]) {
+      await page.setViewportSize(viewport);
+      await expect(dotation).toBeVisible();
+      await expectNoSidewaysScroll(page, `dotation at ${viewport.width} px`);
+    }
   });
 
   test("plays the challenge from its tab, then finds that save from either career, with no second go", async ({ page }) => {

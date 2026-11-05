@@ -1,16 +1,121 @@
 import { useLocale, useTranslations } from "next-intl";
-import type { ClubFinances } from "@/src/db/club";
-import { formatMillionsAmount, formatMoney, millionsFigure } from "@/src/lib/format";
+import type { ClubDotation, ClubFinances } from "@/src/db/club";
+import { NEUTRAL_BUDGET_COEFFICIENT } from "@/src/engine/balance";
+import { seasonLabel } from "@/src/engine/world";
+import type { Locale } from "@/src/i18n/locale";
+import { formatHundredths, formatMillionsAmount, formatMoney, millionsFigure } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
 import { isPayrollHigh } from "../../_lib/payroll";
 import { ClubCardTitle } from "./club-card";
 
-/** The club's money, read only: its transfer budget, its payroll against its wage budget and what that leaves. */
+/** An amount added or taken away, with its sign: « +4,2 M€ », « -6,3 M€ » (« +€4.2m », « -€6.3m »). */
+function signedMoney(euros: number, locale: Locale): string {
+  return euros > 0 ? `+${formatMoney(euros, locale)}` : formatMoney(euros, locale);
+}
+
+type DotationLineProps = {
+  testId: string;
+  label: string;
+  detail?: string; // under the label, smaller
+  amount: string;
+  amountClassName?: string;
+  className?: string;
+};
+
+/** A line of the dotation: what it is, its detail under it, and its amount at the right, on the label's first line. */
+function DotationLine({ testId, label, detail, amount, amountClassName, className }: DotationLineProps) {
+  return (
+    <div data-testid={testId} className={cn("flex items-baseline justify-between gap-x-3", className)}>
+      <dt className="min-w-0 wrap-break-word">
+        {label}
+        {detail !== undefined && <span className="block text-[0.8125rem] text-muted-foreground">{detail}</span>}
+      </dt>
+      <dd className={cn("shrink-0 text-right font-bold tabular-nums", amountClassName)}>{amount}</dd>
+    </div>
+  );
+}
+
+/** What the objectives of the season before did to the dotation: a bonus, a malus, or nothing without any. */
+function ObjectivesLine({ coefficient, objectivesAmount }: Pick<ClubDotation, "coefficient" | "objectivesAmount">) {
+  const t = useTranslations("club.dotation");
+  const locale = useLocale();
+  const values = { coefficient: formatHundredths(coefficient / 100, locale) };
+  if (coefficient === NEUTRAL_BUDGET_COEFFICIENT) {
+    return (
+      <DotationLine
+        testId="club-dotation-objectives"
+        label={t("objectives")}
+        detail={t("neutral", values)}
+        amount="—"
+        amountClassName="text-muted-foreground"
+      />
+    );
+  }
+  const bonus = coefficient > NEUTRAL_BUDGET_COEFFICIENT;
+  return (
+    <DotationLine
+      testId="club-dotation-objectives"
+      label={t("objectives")}
+      detail={bonus ? t("bonus", values) : t("malus", values)}
+      amount={signedMoney(objectivesAmount, locale)}
+      amountClassName={bonus ? "text-win" : "text-loss"}
+    />
+  );
+}
+
+/**
+ * The board's last dotation: the season's budget, from the board's funding at the club's reputation rank, the objectives'
+ * bonus or malus and the carry-over, in one line for the save's first season; then the wage cap it came with.
+ */
+function DotationDetail({ dotation }: { dotation: ClubDotation }) {
+  const t = useTranslations("club.dotation");
+  const locale = useLocale();
+  return (
+    <section aria-labelledby="club-dotation-title" data-testid="club-dotation" className="space-y-2.5 border-t pt-4">
+      <h3 id="club-dotation-title" className="eyebrow">
+        {t("title", { season: seasonLabel(dotation.startYear) })}
+      </h3>
+      <dl className="space-y-2.5 text-sm">
+        {dotation.first ? (
+          <DotationLine testId="club-dotation-start" label={t("start")} amount={formatMoney(dotation.budget, locale)} />
+        ) : (
+          <>
+            <DotationLine
+              testId="club-dotation-base"
+              label={t("base")}
+              detail={t("reputationRank", { rank: dotation.reputationRank, count: dotation.clubCount })}
+              amount={formatMoney(dotation.dotation, locale)}
+            />
+            <ObjectivesLine coefficient={dotation.coefficient} objectivesAmount={dotation.objectivesAmount} />
+            <DotationLine
+              testId="club-dotation-carry-over"
+              label={t("carryOver")}
+              detail={t("carryOverDetail")}
+              amount={formatMoney(dotation.carryOver, locale)}
+            />
+            <DotationLine
+              testId="club-dotation-total"
+              label={t("total")}
+              amount={formatMoney(dotation.budget, locale)}
+              className="border-t pt-2.5 font-bold"
+            />
+          </>
+        )}
+        <DotationLine testId="club-dotation-wage-budget" label={t("wageBudget")} amount={formatMoney(dotation.wageBudget, locale)} />
+      </dl>
+    </section>
+  );
+}
+
+/**
+ * The club's money, read only: its transfer budget, its payroll against its wage budget and what that leaves, then the
+ * board's last dotation, for a save made since the season budgets (gameplay v2, V2).
+ */
 export function ClubFinancesCard({ finances }: { finances: ClubFinances }) {
   const t = useTranslations("club");
   const locale = useLocale();
-  const { budget, wageBudget, payroll, wageRoom } = finances;
+  const { budget, wageBudget, payroll, wageRoom, dotation } = finances;
   const over = wageRoom < 0;
   // The bar ends at its end, however far above the wage budget.
   const share = over ? 100 : wageBudget === 0 ? 0 : Math.round((payroll / wageBudget) * 100);
@@ -50,6 +155,7 @@ export function ClubFinancesCard({ finances }: { finances: ClubFinances }) {
           </p>
         </div>
       </div>
+      {dotation !== null && <DotationDetail dotation={dotation} />}
     </Panel>
   );
 }

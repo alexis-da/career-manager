@@ -493,8 +493,11 @@ secondaire (`GameActions`) : l'orange plein y reste à « Recruter » ou « Vend
 
 **Club.** Trois onglets, Club, Défi et Palmarès ; l'action de jeu de la colonne y est secondaire (`OWN_ORANGE_ACTION`). Club
 (`/club`) : pastille du manager (`club-manager`, saisons terminées + 1) ; finances en lecture seule (`getClubFinances`,
-`src/db/club.ts` : budget en grand, masse salariale en barre, marge ou dépassement ; ni recettes ni objectifs du président,
-le jeu n'en a pas) ; défi sur le bleu vif (où en est le joueur, tête du classement à partir de `lg`, « Voir le défi », seul
+`src/db/club.ts` : budget en grand, masse salariale en barre, marge ou dépassement, puis le détail de la dernière dotation,
+`ClubFinances.dotation` lue dans `SeasonBudget`, `club-dotation` : dotation et rang de réputation dans la division,
+objectifs de la saison passée (bonus, malus, ou ni l'un ni l'autre, × coefficient), report, budget de la saison, plafond
+salarial ; « Budget de départ » la première saison, rien pour une partie d'avant la dotation ; aucune recette, le jeu
+n'en a pas) ; défi sur le bleu vif (où en est le joueur, tête du classement à partir de `lg`, « Voir le défi », seul
 orange plein de l'écran) ; les trois dernières saisons, et, à partir de `lg`, l'aperçu de la dernière carte et ses boutons
 (`HonoursCardActions` ne les monte pas en dessous : un téléphone ne télécharge pas le PNG) ; Réglages (`ClubSettings` :
 langue, compte, parties utilisées sur la limite, changer de partie, confidentialité). Défi (`/saves/[id]/challenge`) : l'écran
