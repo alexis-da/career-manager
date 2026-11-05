@@ -46,7 +46,7 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
     await expect(page.locator(`[data-bench="true"][data-player-key="${starterKey}"]`)).toHaveCount(1);
 
     await page.getByRole("button", { name: "Enregistrer" }).click();
-    await expect(page.getByText("Composition en 4-4-2 enregistrée.")).toBeVisible();
+    await expect(page.getByText("Composition en 4-4-2 à plat enregistrée.")).toBeVisible();
     await expect(page.getByText("Composition enregistrée", { exact: true })).toBeVisible();
 
     await page.reload();
@@ -98,7 +98,7 @@ test("drags a substitute onto a slot and a starter to the bench, refuses an inco
     await expect(centreBack).toHaveAttribute("data-slot-player-key", reserveKey);
 
     await page.getByRole("button", { name: "Enregistrer" }).click();
-    await expect(page.getByText("Composition en 4-3-3 enregistrée.")).toBeVisible();
+    await expect(page.getByText("Composition en 4-3-3 sentinelle enregistrée.")).toBeVisible();
 
     await page.reload();
     await expect(page.locator('[data-slot-index="9"]')).toHaveAttribute("data-slot-player-key", substituteKey);

@@ -56,6 +56,7 @@ type NextMatchHeroProps = {
  */
 export function NextMatchHero({ saveId, dashboard, formation, opponent, className }: NextMatchHeroProps) {
   const t = useTranslations("dashboardHero");
+  const tFormations = useTranslations("formations");
   const tStage = useTranslations("stage");
   const tWorld = useTranslations("world");
   const locale = useLocale();
@@ -115,7 +116,7 @@ export function NextMatchHero({ saveId, dashboard, formation, opponent, classNam
 
       {nextMatch !== null && (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-on-blue">
-          <p>{t("formation", { formation })}</p>
+          <p>{t("formation", { formation: tFormations(`label.${formation}`) })}</p>
           {opponent !== null && <OpponentSheet preview={opponent} triggerClassName={ON_BLUE} />}
         </div>
       )}

@@ -8,7 +8,7 @@ import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
 import type { ClubLineupPlayer, LineupEditor as LineupEditorView } from "@/src/db/lineup";
 import type { SquadView } from "@/src/db/squad";
-import { FORMATION_NAMES, FORMATIONS, isFormationName, type FormationName } from "@/src/engine/formations";
+import { FORMATION_FAMILIES, FORMATION_NAMES, FORMATIONS, formationFamily, isFormationName, type FormationName } from "@/src/engine/formations";
 import type { Instruction } from "@/src/engine/instructions";
 import { BENCH_SIZE, changeFormation, isAvailable, resolveLineup, type Lineup, type SavedLineup } from "@/src/engine/lineup";
 import type { Position } from "@/src/engine/positions";
@@ -129,6 +129,7 @@ function LineupEditor({ saveId, editor, squad, opponent, chosen, onChoose }: Lin
   const { formation, saved, clubColors, players } = editor;
   const t = useTranslations("lineup");
   const tPlayer = useTranslations("player");
+  const tFormations = useTranslations("formations");
   const [initial] = useState(() => initialState(formation, saved, players, editor.instruction));
   const [state, setState] = useState(initial);
   const [selected, setSelected] = useState<number | null>(null);
@@ -323,13 +324,17 @@ function LineupEditor({ saveId, editor, squad, opponent, chosen, onChoose }: Lin
             id="lineup-formation"
             value={state.formation}
             onChange={(event) => switchFormation(event.target.value)}
-            className="h-8 rounded-lg border border-input bg-card px-2 font-heading text-base font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:h-11 max-sm:w-24"
+            className="h-8 rounded-lg border border-input bg-card px-2 font-heading text-base font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:h-11 max-sm:min-w-0 max-sm:flex-1"
             data-testid="lineup-formation"
           >
-            {FORMATION_NAMES.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
+            {FORMATION_FAMILIES.map((family) => (
+              <optgroup key={family} label={tFormations(`family.${family}`)}>
+                {FORMATION_NAMES.filter((name) => formationFamily(name) === family).map((name) => (
+                  <option key={name} value={name}>
+                    {tFormations(`label.${name}`)}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <Button variant="outline" onClick={automatic} className="max-sm:flex-1" data-testid="lineup-automatic">

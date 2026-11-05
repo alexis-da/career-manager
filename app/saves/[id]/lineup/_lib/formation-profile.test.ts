@@ -22,20 +22,31 @@ describe("a formation's profile on the lineup screen", () => {
     const leans = Object.fromEntries(FORMATION_NAMES.map((formation) => [formation, formationProfile(formation).lean]));
     expect(leans).toEqual({
       "3-4-3": "VERY_ATTACKING", // 10 points
+      "4-3-3-attacking": "VERY_ATTACKING", // 10
+      "3-4-2-1": "VERY_ATTACKING", // 8
+      "4-2-3-1-narrow": "MORE_ATTACKING", // 6
       "4-3-3": "MORE_ATTACKING", // 6
+      "4-3-3-flat": "MORE_ATTACKING", // 4
       "4-2-3-1": "SLIGHTLY_ATTACKING", // 3
+      "3-4-1-2": "MORE_ATTACKING", // 4
       "3-5-2": "SLIGHTLY_ATTACKING", // 2
+      "4-4-2-diamond": "SLIGHTLY_ATTACKING", // 2
       "4-4-2": "BALANCED",
+      "4-4-1-1": "BALANCED",
+      "4-3-3-defensive": "SLIGHTLY_DEFENSIVE", // −2
       "4-1-4-1": "MORE_DEFENSIVE", // −4
+      "4-4-2-defensive": "MORE_DEFENSIVE", // −6
       "5-3-2": "VERY_DEFENSIVE", // −10
+      "5-4-1": "VERY_DEFENSIVE", // −12
     });
   });
 
   it("fills half a bar at the largest bonus or penalty of a formation, from the middle", () => {
-    expect(PROFILE_SCALE).toBe(5);
-    expect(profileBarWidth(5)).toBe("50%");
-    expect(profileBarWidth(-3)).toBe("30%");
-    expect(profileBarWidth(1)).toBe("10%");
+    // The 5-4-1's 6 %.
+    expect(PROFILE_SCALE).toBe(6);
+    expect(profileBarWidth(6)).toBe("50%");
+    expect(profileBarWidth(-3)).toBe("25%");
+    expect(profileBarWidth(9)).toBe("50%");
     expect(profileBarWidth(0)).toBe("0%");
   });
 

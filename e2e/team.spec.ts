@@ -1,4 +1,5 @@
 import { expect, test, type Cookie, type Locator, type Page } from "@playwright/test";
+import { FORMATION_NAMES } from "../src/engine/formations";
 import { playerInitials } from "../src/lib/player-initials";
 import { deleteUsers, setSaveDate, USER_COOKIE, userIdOf } from "./db";
 import {
@@ -422,8 +423,9 @@ for (const { name, locale, viewport, says } of PHONES) {
       await expectNoSidewaysScroll(page, "a reserve placed");
 
       // Each formation has its eleven, within a pitch as wide as the screen allows.
-      const formations = await formation.locator("option").allTextContents();
-      expect(formations).toHaveLength(7);
+      // Grouped by family, every formation once.
+      const formations = await formation.locator("option").evaluateAll((options) => options.map((option) => option.getAttribute("value") ?? ""));
+      expect([...formations].sort()).toEqual([...FORMATION_NAMES].sort());
       for (const shape of formations) {
         await formation.selectOption(shape);
         await expect(formation).toHaveValue(shape);

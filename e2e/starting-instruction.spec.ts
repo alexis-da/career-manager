@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { FORMATION_NAMES } from "../src/engine/formations";
 import { createSave, deleteSave, expectOrangeActions, openScreen } from "./helpers";
 
 // The lineup's formation panel and starting instruction, on a Lyon of the seed « g6-start »: the eleven's strengths
@@ -58,13 +59,13 @@ test("compares the formations, saves a starting instruction with the lineup, and
   const opponent = await figuresOf(page.getByTestId("opponent-strength"));
   expect(opponent.attack).toBeGreaterThan(40);
 
-  // The seven formations, each with its automatic eleven, one flagged the best against him, the current one marked.
+  // Every formation, each with its automatic eleven, one flagged the best against him, the current one marked.
   const toggle = page.getByTestId("formation-compare-toggle");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   const options = page.getByTestId("formation-option");
-  await expect(options).toHaveCount(7);
+  await expect(options).toHaveCount(FORMATION_NAMES.length);
   await expect(page.locator('[data-testid="formation-option"][data-best="true"]')).toHaveCount(1);
   await expect(page.locator('[data-testid="formation-option"][aria-current="true"]')).toHaveAttribute("data-formation", "4-3-3");
 

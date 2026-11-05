@@ -104,10 +104,10 @@ describe("the formation panel of the lineup", () => {
     expect(render({ formation: "4-4-2", eleven: automatic("4-4-2") })).toContain("Équilibré : 0 % en attaque, 0 % en défense");
     expect(render({ locale: "en" })).toContain("More attacking: +3% attack, −3% defence");
 
-    // +3 % fills three fifths of the right half, −3 % as much of the left one.
+    // +3 % fills half of the right half, the 5-4-1's 6 % its end, −3 % as much of the left one.
     const profile = render().split('data-testid="formation-profile"')[1].split('data-testid="formation-strength"')[0];
-    expect(profile).toMatch(/class="[^"]*left-1\/2[^"]*bg-win[^"]*" style="width:30%"/);
-    expect(profile).toMatch(/class="[^"]*right-1\/2[^"]*bg-loss[^"]*" style="width:30%"/);
+    expect(profile).toMatch(/class="[^"]*left-1\/2[^"]*bg-win[^"]*" style="width:25%"/);
+    expect(profile).toMatch(/class="[^"]*right-1\/2[^"]*bg-loss[^"]*" style="width:25%"/);
   });
 
   it("shows the attack and defense the engine gives the eleven the match would play, beside the opponent's likely eleven", () => {
@@ -124,9 +124,9 @@ describe("the formation panel of the lineup", () => {
     expect(attributeOf(theirs, "data-defense")).toBe(String(Math.round(OPPONENT.strength.defense)));
     expect(markup).toContain(`>${Math.round(mine.attack)}</span>`);
     expect(markup).toContain("Mon onze");
-    expect(markup).toContain("En 4-3-3");
+    expect(markup).toContain("En 4-3-3 sentinelle");
     expect(markup).toContain("Rhône FC");
-    expect(markup).toContain("Onze prévu en 4-4-2");
+    expect(markup).toContain("Onze prévu en 4-4-2 à plat");
   });
 
   it("compares the seven formations with their automatic elevens, folded, and flags the engine's best", () => {
@@ -135,7 +135,7 @@ describe("the formation panel of the lineup", () => {
     const rows = rowsOf(markup);
 
     expect(tagsWith(markup, 'data-testid="formation-compare-toggle"')[0]).toContain('aria-expanded="false"');
-    expect(markup).toContain("Comparer les 7 dispositifs");
+    expect(markup).toContain(`Comparer les ${FORMATION_NAMES.length} dispositifs`);
     expect(tagsWith(markup, 'data-testid="formation-compare"')[0]).toContain("hidden");
     expect(rows.map((row) => attributeOf(row, "data-formation"))).toEqual([...FORMATION_NAMES]);
     rows.forEach((row, index) => {
@@ -164,7 +164,7 @@ describe("the formation panel of the lineup", () => {
     expect(current).toContain("Actuel");
     expect(current).not.toContain('data-testid="formation-apply"');
     expect(rows.filter((row) => row.includes('data-testid="formation-apply"'))).toHaveLength(FORMATION_NAMES.length - 1);
-    expect(pressed.has("Choisir le 4-3-3")).toBe(false);
+    expect(pressed.has("Choisir le 4-3-3 sentinelle")).toBe(false);
     pressed.get("Choisir le 5-3-2")?.();
     expect(onApply).toHaveBeenCalledWith("5-3-2");
   });
@@ -183,7 +183,7 @@ describe("the formation panel of the lineup", () => {
   it("speaks English", () => {
     const markup = render({ locale: "en" });
 
-    for (const text of ["My eleven", "In a 4-3-3", "Likely eleven in a 4-4-2", "Compare the 7 formations", "Margin", "Best", "Current", ">Pick<"]) {
+    for (const text of ["My eleven", "In a 4-3-3 holding", "Likely eleven in a 4-4-2 flat", `Compare the ${FORMATION_NAMES.length} formations`, "Margin", "Best", "Current", ">Pick<"]) {
       expect(markup).toContain(text);
     }
     expect(markup).toContain('aria-label="Pick the 5-3-2"');

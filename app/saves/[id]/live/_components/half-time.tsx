@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/src/compone
 import type { TeamView } from "@/src/db/calendar";
 import type { HalfTimeTeam } from "@/src/db/live-match";
 import { HALF_TIME_MINUTE, REGULATION_MINUTES } from "@/src/engine/balance";
-import { FORMATION_NAMES, FORMATIONS, isFormationName } from "@/src/engine/formations";
+import { FORMATION_FAMILIES, FORMATION_NAMES, FORMATIONS, formationFamily, isFormationName } from "@/src/engine/formations";
 import type { Instruction } from "@/src/engine/match";
 import { ratingAt, type Position } from "@/src/engine/positions";
 import { getOrThrow } from "@/src/lib/maps";
@@ -91,6 +91,7 @@ export function HalfTime({
 }: HalfTimeProps) {
   const t = useTranslations("halfTime");
   const tPositions = useTranslations("positions");
+  const tFormations = useTranslations("formations");
   const [rules] = useState<HalfTimeRules>(() => pauseRules(team));
   const regulationEnd = team.phase === "REGULATION_END";
   const [instruction, setInstruction] = useState<Instruction>(team.instruction.current);
@@ -359,10 +360,14 @@ export function HalfTime({
                 onChange={(event) => changeFormation(event.target.value)}
                 className="h-9 rounded-lg border border-input bg-input/30 px-2 font-heading text-base font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:h-11"
               >
-                {FORMATION_NAMES.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
+                {FORMATION_FAMILIES.map((family) => (
+                  <optgroup key={family} label={tFormations(`family.${family}`)}>
+                    {FORMATION_NAMES.filter((name) => formationFamily(name) === family).map((name) => (
+                      <option key={name} value={name}>
+                        {tFormations(`label.${name}`)}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>

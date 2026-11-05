@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, FORMATIONS, formationPositions, isFormationName } from "./formations";
+import {
+  DEFAULT_FORMATION_NAME,
+  FORMATION_FAMILIES,
+  FORMATION_NAMES,
+  FORMATIONS,
+  formationFamily,
+  formationPositions,
+  isFormationName,
+} from "./formations";
 import { positionGroup } from "./positions";
 
 describe("FORMATIONS", () => {
@@ -16,8 +24,9 @@ describe("FORMATIONS", () => {
     }
   });
 
-  it.each(FORMATION_NAMES)("%s matches its name: defenders, then midfielders and forwards", (name) => {
-    const lines = name.split("-").map(Number);
+  it.each(FORMATION_NAMES)("%s matches its name: defenders, then midfielders and forwards, whatever its variant", (name) => {
+    // « 4-3-3-attacking » is a 4-3-3: the variant after the figures names no line.
+    const lines = name.split("-").filter((part) => /^\d+$/.test(part)).map(Number);
     const counts = { DF: 0, MF: 0, FW: 0 };
     for (const position of formationPositions(name)) {
       const group = positionGroup(position);
@@ -46,6 +55,16 @@ describe("FORMATIONS", () => {
 
   it("recognises formation names", () => {
     expect(isFormationName("4-4-2")).toBe(true);
+    expect(isFormationName("4-4-2-diamond")).toBe(true);
     expect(isFormationName("4-4-3")).toBe(false);
+  });
+
+  it("has seventeen formations in three families, by their defenders: eleven with four, four with three, two with five", () => {
+    expect(FORMATION_NAMES).toHaveLength(17);
+    const counts = FORMATION_FAMILIES.map((family) => FORMATION_NAMES.filter((name) => formationFamily(name) === family).length);
+    expect(Object.fromEntries(FORMATION_FAMILIES.map((family, index) => [family, counts[index]]))).toEqual({ 3: 4, 4: 11, 5: 2 });
+    for (const name of FORMATION_NAMES) {
+      expect(formationFamily(name)).toBe(Number(name.split("-")[0]));
+    }
   });
 });

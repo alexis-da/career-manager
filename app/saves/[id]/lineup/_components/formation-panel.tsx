@@ -131,6 +131,7 @@ function FigureHead({ short, full }: { short: string; full: string }) {
  */
 export function FormationPanel({ formation, eleven, players, opponent, onApply }: FormationPanelProps) {
   const t = useTranslations("formationPanel");
+  const tFormations = useTranslations("formations");
   const locale = useLocale();
   const [comparing, setComparing] = useState(false);
   const comparisonId = useId();
@@ -169,7 +170,7 @@ export function FormationPanel({ formation, eleven, players, opponent, onApply }
           <TeamFigures
             testId="formation-strength"
             title={t("myEleven")}
-            subtitle={t("myFormation", { formation })}
+            subtitle={t("myFormation", { formation: tFormations(`label.${formation}`) })}
             strength={strength}
             mine
           />
@@ -177,7 +178,7 @@ export function FormationPanel({ formation, eleven, players, opponent, onApply }
             <TeamFigures
               testId="opponent-strength"
               title={opponent.name}
-              subtitle={t("likelyEleven", { formation: opponent.formation })}
+              subtitle={t("likelyEleven", { formation: tFormations(`label.${opponent.formation}`) })}
               strength={rounded(opponent.strength)}
               mine={false}
             />
@@ -241,7 +242,7 @@ export function FormationPanel({ formation, eleven, players, opponent, onApply }
                   <th scope="row" className="py-1 pr-1 pl-1.5 text-left font-normal">
                     {/* The flag under the formation when the row is narrow, rather than a wider row. */}
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="font-heading text-base font-bold">{option.formation}</span>
+                      <span className="font-heading text-base font-bold">{tFormations(`label.${option.formation}`)}</span>
                       {best && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-win">
                           <StarIcon aria-hidden className="size-3.5 fill-current" />
@@ -262,7 +263,7 @@ export function FormationPanel({ formation, eleven, players, opponent, onApply }
                         variant="outline"
                         className="px-2"
                         onClick={() => onApply(option.formation)}
-                        aria-label={t("compare.applyLabel", { formation: option.formation })}
+                        aria-label={t("compare.applyLabel", { formation: tFormations(`label.${option.formation}`) })}
                         data-testid="formation-apply"
                       >
                         {t("compare.apply")}

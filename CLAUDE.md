@@ -146,12 +146,20 @@ aussitôt, et un événement qui sort un joueur demande alors une fenêtre. Sa c
 la fin de la période de jeu, temps réglementaire ou prolongation, quel que soit le score (`giveInstruction`) ; sans
 consigne, la règle de l'adjoint. Sans décision ni changement ni consigne, le match reste celui de la simulation.
 
+**Dispositifs (gameplay v2, V1).** Dix-sept (`FORMATION_NAMES`, `src/engine/formations.ts`), du profil le plus offensif
+au plus défensif, en trois familles par leurs défenseurs (`formationFamily`, `FORMATION_FAMILIES` : 4, 3, 5) ; profils dans
+`FORMATION_PROFILES` (`balance.ts`), ceux de G1 inchangés. Un nom est un identifiant, gardé par une composition
+enregistrée (`ClubSave.formation`, `ClubSave.lineup` par index d'emplacement) et par un direct en pause : **ne jamais
+renommer un dispositif ni réordonner ses emplacements** (test : `src/db/lineup.test.ts` relit une composition de chacun
+des sept de G1). Seul le libellé change, message `formations.label` (zone `catalogs`) : le « 4-3-3 » est le « 4-3-3
+sentinelle », le « 4-2-3-1 » le « 4-2-3-1 large », le « 4-4-2 » le « 4-4-2 à plat » ; aucun écran n'affiche l'identifiant.
+
 **Composition et consigne de départ (gameplay v1, G6).** La force d'une équipe a une seule source,
 `src/engine/strength.ts` (`condition`, `teamStrength`, `formationStrength`, `expectedGoals`, `expectedGoalDifference`,
 `compareFormations`), que le moteur et l'écran de la composition importent : l'éditeur recalcule dans le navigateur
 l'attaque et la défense du onze qui jouerait (`resolveLineup` de son état, `EditorPlayer` : attributs, forme, moral,
 fitness au prochain match), à côté de celles du onze probable du prochain adversaire (`OpponentPreview.strength`), et
-compare les sept dispositifs avec la composition de l'adjoint dans chacun, le meilleur étant le plus grand écart de buts
+compare les dix-sept dispositifs avec la composition de l'adjoint dans chacun, le meilleur étant le plus grand écart de buts
 attendu contre lui, les deux Équilibré. « Composition automatique » est celle de l'adjoint (`automaticState`,
 `selectRestedLineup` : sans blessé ni suspendu, un fatigué sous 75 reposé quand un reposé vaut au plus 5 points de moins
 à son poste) ; sans composition enregistrée, le match joue toujours `selectLineup`. Consigne de départ (Attaquer,
@@ -425,7 +433,7 @@ joueur ou échange deux titulaires (`placeInSlot`), et le glisser-déposer reste
 `lineup-send-to-bench` avec le joueur du poste ; sans poste sélectionné, une ligne ouvre la fiche. Panneau du dispositif
 (`FormationPanel`, zone de messages `lineup-plan`) : le profil en mots et en barres (`formationProfile`), l'attaque et la
 défense du onze à côté de celles de l'adversaire (règle « Composition et consigne de départ ») et, déplié, le comparatif
-des sept dispositifs, écart au centième, le meilleur signalé, « Choisir » l'appliquant avec le onze de l'adjoint ; la
+des dix-sept dispositifs, écart au centième, le meilleur signalé, « Choisir » l'appliquant avec le onze de l'adjoint ; la
 consigne de départ (`StartingInstruction`) : une bascule, ce qu'elle fait au match, le principe en une phrase et la règle
 de l'adjoint ; dans l'état de l'éditeur, enregistrée avec lui. Fiche (`PlayerSheet`, partagée avec le marché avancé, `?player=`) : tête sur le bleu vif, initiales
 (`playerInitials`, le visage reste partout ailleurs), note et poste en grand, saison, barres, contrat, transferts ; Prolonger

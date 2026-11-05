@@ -278,17 +278,28 @@ export const ATTACK_LINE_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK
 export const DEFENSE_LINE_WEIGHTS: Readonly<Record<PositionGroup, number>> = { GK: 0.35, DF: 0.45, MF: 0.2, FW: 0 };
 
 /**
- * Multipliers of a team's attack and defense by formation: the 4-4-2 is neutral, more forwards attack more and defend
- * less. AI clubs play the 4-3-3.
+ * Multipliers of a team's attack and defense by formation: the 4-4-2 à plat and the 4-4-1-1 are neutral, more attack
+ * always costs defense. The seven of gameplay v1 keep their values (G1); the ten of gameplay v2 start from its table
+ * (docs/design/gameplay-v2.md, V1). AI clubs choose their formation (chooseFormation).
  */
 export const FORMATION_PROFILES: Readonly<Record<FormationName, { readonly attack: number; readonly defense: number }>> = {
   "3-4-3": { attack: 1.05, defense: 0.95 },
+  "4-3-3-attacking": { attack: 1.05, defense: 0.95 },
+  "3-4-2-1": { attack: 1.04, defense: 0.96 },
+  "4-2-3-1-narrow": { attack: 1.03, defense: 0.97 },
   "4-3-3": { attack: 1.03, defense: 0.97 },
+  "4-3-3-flat": { attack: 1.02, defense: 0.98 },
   "4-2-3-1": { attack: 1.02, defense: 0.99 },
-  "4-4-2": { attack: 1, defense: 1 },
+  "3-4-1-2": { attack: 1.02, defense: 0.98 },
   "3-5-2": { attack: 1.01, defense: 0.99 },
+  "4-4-2-diamond": { attack: 1.01, defense: 0.99 },
+  "4-4-2": { attack: 1, defense: 1 },
+  "4-4-1-1": { attack: 1, defense: 1 },
+  "4-3-3-defensive": { attack: 0.99, defense: 1.01 },
   "4-1-4-1": { attack: 0.98, defense: 1.02 },
+  "4-4-2-defensive": { attack: 0.97, defense: 1.03 },
   "5-3-2": { attack: 0.95, defense: 1.05 },
+  "5-4-1": { attack: 0.94, defense: 1.06 },
 };
 
 /** Form and morale (1–99) at which a player plays exactly at their attribute values. */

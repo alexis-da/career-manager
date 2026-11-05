@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HOME_ADVANTAGE, POSITION_PROFILES } from "./balance";
+import { FORMATION_PROFILES, HOME_ADVANTAGE, POSITION_PROFILES } from "./balance";
 import { FORMATION_NAMES, formationPositions } from "./formations";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "./generation";
 import { selectRestedLineup, type SquadPlayer } from "./lineup";
@@ -64,8 +64,9 @@ describe("the comparison of the formations", () => {
       const largest = Math.max(...options.map((option) => option.goalDifference ?? -Infinity));
       expect(options.find((option) => option.formation === best)?.goalDifference).toBe(largest);
     }
-    expect(["3-4-3", "4-3-3"]).toContain(favourite.best);
-    expect(["5-3-2", "4-1-4-1"]).toContain(underdog.best);
+    // G1's principle: the favourite opens the game, the underdog closes it.
+    expect(FORMATION_PROFILES[favourite.best ?? "4-4-2"].attack).toBeGreaterThan(1);
+    expect(FORMATION_PROFILES[underdog.best ?? "4-4-2"].defense).toBeGreaterThan(1);
   });
 });
 

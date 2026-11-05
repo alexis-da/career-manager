@@ -55,6 +55,7 @@ function RatingComparison({ preview }: { preview: OpponentPreview }) {
  */
 export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
   const t = useTranslations("opponent");
+  const tFormations = useTranslations("formations");
   const locale = useLocale();
   const slots = FORMATIONS[preview.formation];
   const { starters, players } = useMemo(() => {
@@ -75,7 +76,7 @@ export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
         </SheetTitle>
         <SheetDescription className="first-letter:uppercase">
           {formatShortDate(preview.matchDate, locale)} · {preview.atHome ? t("atHome") : t("away")} ·{" "}
-          {t("likelyEleven", { formation: preview.formation })}
+          {t("likelyEleven", { formation: tFormations(`label.${preview.formation}`) })}
         </SheetDescription>
       </SheetHeader>
 

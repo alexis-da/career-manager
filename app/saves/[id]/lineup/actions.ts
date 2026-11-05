@@ -26,5 +26,6 @@ export async function saveLineupAction(saveId: string, input: unknown): Promise<
     throw error;
   }
   revalidatePath(`/saves/${id}`, "layout");
-  return { ok: true, message: t("saved", { formation: parsed.data.formation }) };
+  const tFormations = await getTranslations("formations");
+  return { ok: true, message: t("saved", { formation: tFormations(`label.${parsed.data.formation}`) }) };
 }
