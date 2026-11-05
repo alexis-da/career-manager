@@ -109,6 +109,12 @@ test("with reduced motion, goes from one stop to the next at once: its choice ev
     const card = page.getByTestId("choice-card");
     const panel = page.locator("[data-half-time]");
     const halfTime = page.locator("[data-break]").getByRole("heading", { name: "Mi-temps" });
+    // The card open, by its event and its minute, read at once: a locator's own reading would wait for a card to come,
+    // and the next stop may be the break's.
+    const openCard = (): Promise<string> =>
+      card.evaluateAll((cards) =>
+        cards.map((element) => `${element.getAttribute("data-choice-kind")}:${element.querySelector("p.eyebrow")?.textContent ?? ""}`).join(),
+      );
     const stopsUntil = async (end: Locator): Promise<void> => {
       for (;;) {
         await expect(card.or(end).first()).toBeVisible();
@@ -117,11 +123,9 @@ test("with reduced motion, goes from one stop to the next at once: its choice ev
         }
         await expect(page.getByTestId("live-skip")).toHaveCount(0);
         // The next stop may be a card too: this one has gone once its minute has.
-        const kind = `${await card.getAttribute("data-choice-kind")}:${await card.locator("p.eyebrow").textContent()}`;
+        const shown = await openCard();
         await page.getByTestId("choice-validate").click();
-        await expect
-          .poll(async () => ((await card.isVisible()) ? `${await card.getAttribute("data-choice-kind")}:${await card.locator("p.eyebrow").textContent()}` : ""))
-          .not.toBe(kind);
+        await expect.poll(openCard).not.toBe(shown);
         await expect(panel).toHaveCount(0);
       }
     };
