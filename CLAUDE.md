@@ -192,11 +192,18 @@ présaison ses joueurs les mieux payés à d'autres clubs IA, jamais sous 80 % d
 finaux (même ordre que le classement affiché), puis `applyPromotionRelegation` (`src/engine/promotion.ts`, pure) avec
 `PROMOTION_RELEGATION` (`balance.ts`, par pays : 3 en Angleterre, Espagne, Italie ; 2 en Allemagne, France ; échanges
 directs, sans barrages, tailles constantes). Le résultat du club dirigé note `SeasonResult.promoted` / `relegated`
-(false pour une ligne reconstruite) ; avant la présaison, chaque club qui bouge change de `ClubSave.competitionId` et de
-finances (`financesAfterMove`, `economy.ts` : au moins le bas de la première division pour un promu, au plus le haut de
-la deuxième pour un relégué, rien d'autre ; joueurs et contrats intacts) ; `Season.movements` (Json validé par Zod,
-`src/db/promotion.ts`) garde sur chaque saison terminée les clubs qui quittent sa compétition. Une partie 1 n'a qu'une
-division par pays : aucun mouvement, `movements` reste null (test lent de non-régression).
+(false pour une ligne reconstruite) ; avant la présaison, chaque club qui bouge change de `ClubSave.competitionId` et
+d'argent (`financesAfterMove`, `economy.ts` : au moins le bas de la première division pour un promu, au plus le haut de
+la deuxième pour un relégué, budget et plafond salarial seulement ; joueurs et contrats intacts) ; `Season.movements`
+(Json validé par Zod, `src/db/promotion.ts`) garde sur chaque saison terminée les clubs qui quittent sa compétition.
+Une partie 1 n'a qu'une division par pays : aucun mouvement, `movements` reste null (test lent de non-régression).
+
+**Réputation (gameplay v2, V2).** `ClubSave.reputation` (1–99) suit les saisons, clubs IA et club dirigé, dans les deux
+mondes : à chaque `advanceToNextSeason`, `applySeasonReputations` (`src/db/season-finances.ts`) lit les classements
+finaux ; le rang attendu d'un club est son rang de réputation dans sa division pendant la saison (`reputationRanks`,
+`src/engine/reputation.ts`, pure : 1 + les clubs strictement au-dessus, ex aequo au meilleur rang), et sa réputation
+gagne un point par place au-dessus de ce rang, en perd un par place en dessous, cinq au plus (`REPUTATION_PLACES_CAP`),
+puis quatre de plus pour une montée, de moins pour une descente (`REPUTATION_MOVE`, `reputationAfterSeason`).
 
 **Coupes nationales (parties 2 seulement).** `CUPS_ENABLED` (`src/engine/cup.ts`) vaut **true** : toute nouvelle
 partie 2 a ses coupes dès sa création, une partie 2 d'avant les coupes les reçoit à son prochain passage de saison. À

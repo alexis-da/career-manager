@@ -4,6 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CUP_ROUNDS, PROMOTION_RELEGATION } from "../engine/balance";
 import { cupDates, cupRunOf, type CupRun } from "../engine/cup";
 import { financesAfterMove, type ClubFinances } from "../engine/economy";
+import type { MoveReason } from "../engine/promotion";
+import { reputationAfterSeason, reputationRanks } from "../engine/reputation";
 import { countryOf } from "../engine/promotion";
 import { seasonStartDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
@@ -44,6 +46,7 @@ type TransitionCheck = {
   transition: SeasonTransition;
   movements: { code: string; movements: unknown }[]; // Season.movements of the closed seasons
   expected: { clubId: string; from: string; to: string; reason: string; rank: number }[]; // from the final tables
+  tables: Map<string, string[]>; // the final tables, Club.id in order, by competition code
   clubsByCompetition: Record<string, number>; // clubs of each new season, from its fixtures
   fixturesByCompetition: Record<string, number>;
   competitionOf: Map<string, string>; // ClubSave.competitionId by Club.id, after
@@ -231,6 +234,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         transition,
         movements: movements.map((row) => ({ code: row.competition.code, movements: row.movements })).sort((a, b) => a.code.localeCompare(b.code)),
         expected,
+        tables,
         clubsByCompetition: Object.fromEntries([...clubSets].map(([code, set]) => [code, set.size])),
         fixturesByCompetition,
         competitionOf: new Map(clubs.map((club) => [club.clubId, club.competitionId])),
@@ -415,15 +419,33 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     );
   });
 
-  it.each([0, 1])("gives the moving clubs the finances of their new division, and leaves the others alone (transition %i)", (index) => {
+  it.each([0, 1])("gives the moving clubs the money of their new division, every club the reputation of its season (transition %i)", (index) => {
     const check = checks[index];
-    const reasonOf = new Map(check.expected.map((move) => [move.clubId, move.reason as "PROMOTED" | "RELEGATED"]));
+    const reasonOf = new Map(check.expected.map((move) => [move.clubId, move.reason as MoveReason]));
+    const reputationOf = (clubId: string): number => check.financesBefore.get(clubId)?.reputation ?? NaN;
+
+    // Each club's expected rank, its reputation rank in its division as the season was played, against its final one.
+    const reputations = new Map<string, number>();
+    for (const table of check.tables.values()) {
+      const expectedRanks = reputationRanks(table.map((clubId) => ({ key: clubId, reputation: reputationOf(clubId) })));
+      table.forEach((clubId, place) => {
+        const expectedRank = expectedRanks.get(clubId) ?? NaN;
+        reputations.set(clubId, reputationAfterSeason(reputationOf(clubId), expectedRank, place + 1, reasonOf.get(clubId) ?? null));
+      });
+    }
+    // Reputations do move: some clubs rise, some fall.
+    const moves = [...check.financesBefore].map(([clubId, before]) => (reputations.get(clubId) ?? NaN) - before.reputation);
+    expect(moves.some((change) => change > 0) && moves.some((change) => change < 0)).toBe(true);
 
     // The preseason's AI sales for wage bills move budgets too: their fees are added back to what the move gives.
     for (const [clubId, before] of check.financesBefore) {
       const reason = reasonOf.get(clubId);
-      const moved = reason === undefined ? before : financesAfterMove(before, reason);
-      expect(check.financesAfter.get(clubId)).toEqual({ ...moved, budget: moved.budget + (check.saleFees.get(clubId) ?? 0) });
+      const money = reason === undefined ? before : financesAfterMove(before, reason);
+      expect(check.financesAfter.get(clubId)).toEqual({
+        budget: money.budget + (check.saleFees.get(clubId) ?? 0),
+        wageBudget: money.wageBudget,
+        reputation: reputations.get(clubId),
+      });
     }
   });
 

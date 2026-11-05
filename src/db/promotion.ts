@@ -142,8 +142,8 @@ export async function getCountryMoves(saveId: string, seasonId: string): Promise
 
 /**
  * Applies the moves of a closing season, inside advanceToNextSeason's transaction and before the preseason: each
- * moving club changes competition in the save (ClubSave.competitionId) and gets its finances for its new division
- * (financesAfterMove); players and contracts are not touched. Each completed season of a worldVersion 2 save keeps the
+ * moving club changes competition in the save (ClubSave.competitionId) and gets its money for its new division
+ * (financesAfterMove; its reputation follows its season, applySeasonReputations); players and contracts are not touched. Each completed season of a worldVersion 2 save keeps the
  * moves out of its competition in Season.movements, an empty list when there are none.
  */
 export async function applySeasonMoves(
@@ -166,16 +166,16 @@ export async function applySeasonMoves(
   const competitionIdByCode = new Map(seasons.map((season) => [season.competition.code, season.competitionId]));
   const clubs = await tx.clubSave.findMany({
     where: { saveId, id: { in: moves.map((move) => move.clubSaveId) } },
-    select: { id: true, budget: true, wageBudget: true, reputation: true },
+    select: { id: true, budget: true, wageBudget: true },
   });
   const clubById = new Map(clubs.map((club) => [club.id, club]));
   for (const move of moves) {
-    const { budget, wageBudget, reputation } = getOrThrow(clubById, move.clubSaveId, "moving club");
+    const { budget, wageBudget } = getOrThrow(clubById, move.clubSaveId, "moving club");
     await tx.clubSave.update({
       where: { id: move.clubSaveId, saveId },
       data: {
         competitionId: getOrThrow(competitionIdByCode, move.to, "competition of the move"),
-        ...financesAfterMove({ budget, wageBudget, reputation }, move.reason),
+        ...financesAfterMove({ budget, wageBudget }, move.reason),
       },
     });
   }

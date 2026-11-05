@@ -58,23 +58,25 @@ export function clubFinances(initialRank: number, clubCount: number, tier: Compe
   };
 }
 
+/** A club's money: its transfer budget and its wage budget. */
+export type ClubMoney = Pick<ClubFinances, "budget" | "wageBudget">;
+
 /**
- * A club's finances once it changes division: a promoted club gets at least the bottom of the first division's ranges
- * (budget, wage budget, reputation), a relegated one keeps at most the top of the second division's. Each figure moves
- * on its own, and only towards the new division: a rich promoted club keeps its money. Contracts are not touched.
+ * A club's money once it changes division: a promoted club gets at least the bottom of the first division's ranges
+ * (budget, wage budget), a relegated one keeps at most the top of the second division's. Each figure moves on its own,
+ * and only towards the new division: a rich promoted club keeps its money. Its reputation follows its season instead
+ * (src/engine/reputation.ts). Contracts are not touched.
  */
-export function financesAfterMove(finances: ClubFinances, reason: MoveReason): ClubFinances {
+export function financesAfterMove(finances: ClubMoney, reason: MoveReason): ClubMoney {
   if (reason === "PROMOTED") {
     return {
       budget: Math.max(finances.budget, CLUB_BUDGET_BY_TIER[1].worst),
       wageBudget: Math.max(finances.wageBudget, CLUB_WAGE_BUDGET_BY_TIER[1].worst),
-      reputation: Math.max(finances.reputation, CLUB_REPUTATION_BY_TIER[1].worst),
     };
   }
   return {
     budget: Math.min(finances.budget, CLUB_BUDGET_BY_TIER[2].best),
     wageBudget: Math.min(finances.wageBudget, CLUB_WAGE_BUDGET_BY_TIER[2].best),
-    reputation: Math.min(finances.reputation, CLUB_REPUTATION_BY_TIER[2].best),
   };
 }
 

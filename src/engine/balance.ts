@@ -158,6 +158,19 @@ export const CLUB_REPUTATION_BY_TIER: Readonly<Record<CompetitionTier, RankRange
 /** Budgets are rounded to this step, in euros. */
 export const BUDGET_STEP = 100_000;
 
+// ------------------------------------------------------------------ Reputation over the seasons (gameplay v2, V2)
+// At the end of each season, a club's reputation follows its place against its expected rank, its reputation rank in
+// its division (src/engine/reputation.ts): AI clubs and the managed club alike.
+
+/** Reputation points per place a club finishes above its expected rank, or lost per place below it. */
+export const REPUTATION_PER_PLACE = 1;
+
+/** The most a season's places move a club's reputation, up or down, before a promotion or a relegation. */
+export const REPUTATION_PLACES_CAP = 5;
+
+/** Reputation a promoted club gains, and a relegated one loses, on top of its places. */
+export const REPUTATION_MOVE = 4;
+
 // ------------------------------------------------------------------ Promotion and relegation (worldVersion 2)
 
 /**
