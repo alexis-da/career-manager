@@ -112,6 +112,43 @@ Défenses : 4 défenseurs = DD, DC, DC, DG ; 3 = DC, DC, DC ; 5 = DD, DC, DC, DC
 - **Écran de début de saison** (avant le premier match) : « La direction t'accorde X M€ » avec le détail (dotation, bonus ou malus des objectifs, report), le nouveau plafond salarial, et le choix de l'objectif (V3).
 - Onglet **Club**, carte Finances : budget, détail de la dernière dotation, plafond et marge salariale.
 
+### Retenu (05/11)
+
+- **Réputation** (`reputationAfterSeason`, `src/engine/reputation.ts`) : les valeurs de départ du cahier (±1 par place, ±5 au plus, montée +4, descente −4), clubs IA et club dirigé, dans les deux mondes. Le rang attendu est le rang de réputation dans la division pendant la saison, **un club par rang** : à réputation égale, le plus haut plafond salarial d'abord (le rang qu'avait le club), puis le slug. Avec les ex aequo au meilleur rang, la somme des rangs attendus d'une division tombait sous celle des rangs finaux : toutes les réputations glissaient (−4, −51, −60, −35, −39 points aux cinq premiers passages) et la masse des dotations gonflait (×1,03 à 1,06). Un club par rang : −1, −3, −17, +4, +6 points, masse ×1,000.
+- **Dotation** (`seasonFinances`, `applySeasonFinances`) : comme le cahier. Elle remplace le plancher des promus et le plafond des relégués (`financesAfterMove`) : le rang de réputation dans la nouvelle division les donne. Coefficient d'un club IA : son seul objectif de classement ; du club dirigé : ses objectifs (V3), 1 sans eux. Le détail de la dotation du club dirigé est gardé dans `SeasonBudget` (migration d'ajout `…_season_budget`), sur sa saison de championnat, écrit à la création (son budget de départ) et à chaque passage.
+- **Carte Finances** (onglet Club) : budget, masse salariale et marge, puis la dernière dotation : dotation et rang de réputation, bonus ou malus des objectifs avec leur coefficient (« Ni bonus ni malus » à 1,00 : des objectifs peuvent s'annuler), report, budget de la saison, plafond salarial ; « Budget de départ » la première saison.
+- **Mesure** (`npm run measure:seasons`, cinq saisons d'un jumeau 2 de la démo, l'adjoint aux commandes, base locale ; 3 minutes). Début de chaque saison, clubs IA ; les tiers de réputation en annexe du rapport du script :
+
+| Mesure | S1 | S2 | S3 | S4 | S5 | S6 |
+|---|---|---|---|---|---|---|
+| Masse des dotations / création, D1 et D2 | 1,000 | 1,000 | 1,000 | 1,000 | 1,000 | 1,000 |
+| Dotation / création moyenne, D1 | 1,00 | 0,97 | 1,05 | 1,02 | 1,08 | 1,07 |
+| Dotation / création moyenne, D2 | 1,00 | 1,23 | 1,26 | 1,34 | 1,31 | 1,34 |
+| Budget / création moyen, D1 | 1,00 | 1,59 | 1,98 | 2,13 | 2,31 | 2,31 |
+| Budget / création moyen, D2 | 1,00 | 1,87 | 2,35 | 2,62 | 2,75 | 2,86 |
+| Masse salariale / plafond (médiane), D1 | 0,44 | 0,45 | 0,43 | 0,46 | 0,44 | 0,47 |
+| Masse salariale / plafond (médiane), D2 | 0,61 | 0,63 | 0,63 | 0,62 | 0,65 | 0,68 |
+| Clubs dont les salaires limitent les achats, D1 | 0 % | 0 % | 2 % | 5 % | 3 % | 2 % |
+| Clubs dont les salaires limitent les achats, D2 | 2 % | 10 % | 20 % | 18 % | 29 % | 34 % |
+| Réputation moyenne, D1 haut / bas | 85,4 / 60,4 | 85,0 / 63,3 | 84,7 / 63,1 | 84,2 / 63,3 | 83,8 / 63,1 | 83,4 / 63,6 |
+| Réputation moyenne, tous les clubs IA | 60,8 | 60,8 | 60,8 | 60,7 | 60,8 | 60,8 |
+
+Club dirigé (Lyon), son budget réel et recalculé avec le coefficient maximal puis minimal (le budget du club dirigé ne rejaillit sur rien dans une partie jouée par l'adjoint), en M€ et en multiple du budget de création :
+
+| Saison | Division | Dotation | Coef. du jeu | Budget réel | Coefficient 1,40 | Coefficient 0,70 |
+|---|---|---|---|---|---|---|
+| S1 | D1 | 77,2 | 1,00 | 77,2 (1,00) | 77,2 (1,00) | 77,2 (1,00) |
+| S2 | D1 | 89,8 | 1,15 | 142,0 (1,84) | 164,4 (2,13) | 101,6 (1,32) |
+| S3 | D1 | 89,8 | 1,25 | 183,7 (2,38) | 208,3 (2,70) | 114,1 (1,48) |
+| S4 | D1 | 89,8 | 1,15 | 195,3 (2,53) | 230,0 (2,98) | 120,1 (1,56) |
+| S5 | D2 | 20,0 | 0,90 | 115,6 (1,50) | 143,0 (1,85) | 74,0 (0,96) |
+| S6 | D2 | 20,0 | 0,90 | 75,8 (0,98) | 99,5 (1,29) | 51,0 (0,66) |
+
+0,70 est la borne du cahier ; avec ses valeurs, le plus bas atteignable est 0,80.
+
+- **Cibles du cahier.** « La dotation reste du même ordre que le budget de création » : **tenue** (masses identiques ; par tiers, de 0,65 à 1,74 fois en moyenne ; un club de 0,22 à 8,25 fois, selon son rang de réputation, la pente du bas de D2 étant forte). « Le plafond salarial reste la vraie limite des achats » : **pas tenue, et déjà pas à la création** : la masse salariale ne fait que 44 % du plafond en D1 (61 % en D2) et une recrue type coûte cinq à huit fois son salaire annuel : le budget permet trois achats, la marge salariale vingt (D1). Le report rapproche la D2 de la cible (34 % des clubs limités par les salaires en S6), pas la D1 (2 %). Leviers, non appliqués (à décider) : rapprocher `CLUB_WAGE_BUDGET_BY_TIER` des masses salariales générées (environ la moitié en D1), ou réduire le report.
+- **Dérives signalées.** (1) Les budgets des clubs IA doublent en cinq saisons (×2,3 en D1, ×2,9 en D2) : ils ne dépensent qu'en présaison, et le report de 50 % se cumule vers 2 × dotation × coefficient ; un tiers dépasse 3 fois la création (D2 milieu, S4 et S6) et un club 13,7 fois (Sampdoria, it.2). Borné, mais l'argent dort. (2) Le club attendu 1er ne peut que perdre et le dernier que gagner : −2,8 points par saison en moyenne pour le premier attendu (38 cas) ; la réputation se resserre dans chaque division (D1 haut 85,4 → 83,4, D1 bas 60,4 → 63,6). Inhérent à la règle ; à revoir si l'écart doit tenir. (3) Joué par l'adjoint, le club dirigé ne renouvelle aucun contrat : son effectif fond (25 → 6 joueurs) et il descend en S4 ; artefact du mode adjoint, d'avant V2.
+
 ## V3 — Objectifs de saison (migration d'ajout)
 
 ### Objectifs imposés

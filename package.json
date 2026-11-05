@@ -17,6 +17,7 @@
     "measure:size": "tsx scripts/measure-save-size.ts",
     "measure:balance": "tsx scripts/measure-balance.ts",
     "measure:divisions": "tsx scripts/measure-d2-balance.ts",
+    "measure:seasons": "tsx scripts/measure-seasons.ts",
     "test:slow": "vitest run --config vitest.slow.config.mts",
     "test:e2e": "tsx scripts/e2e-reset.ts && playwright test"
   },
