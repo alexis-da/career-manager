@@ -57,7 +57,8 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {/* Each card at its own height: the finances, with their dotation, run longer than the challenge. */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <ClubFinancesCard finances={finances} />
         <ClubChallenge saveId={id} view={view} />
       </div>
