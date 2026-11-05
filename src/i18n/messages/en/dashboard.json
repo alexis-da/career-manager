@@ -25,7 +25,14 @@
     "goalkeepers": "{count, plural, one {# goalkeeper} other {# goalkeepers}}",
     "averageAge": "Average age {age}",
     "table": "Table",
-    "fullTable": "Full table"
+    "fullTable": "Full table",
+    "objectives": {
+      "title": "Objectives",
+      "detail": "See details",
+      "optional": "Optional objective",
+      "choose": "Choose your objective for the season",
+      "met": "Season over: {met} of {total, plural, one {# objective} other {# objectives}} met"
+    }
   },
   "lineupSummary": {
     "atPosition": "{count, plural, one {# starter in position} other {# starters in position}}",

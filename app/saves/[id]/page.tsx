@@ -5,11 +5,13 @@ import { getChallengeBanner } from "@/src/db/challenge-view";
 import { getDashboard } from "@/src/db/dashboard";
 import { getManagedLineup } from "@/src/db/lineup";
 import { getMarketSales } from "@/src/db/market-sales";
+import { getSeasonObjectives } from "@/src/db/objectives";
 import { getOpponentPreview } from "@/src/db/opponent";
 import { hasPlayedMatch } from "@/src/db/saves";
 import { AccountBanner } from "./_components/account-banner";
 import { ChallengeCard } from "./_components/challenge-banner";
 import { LastMatchCard } from "./_components/dashboard-last-match";
+import { DashboardObjectives } from "./_components/dashboard-objectives";
 import { DashboardPills, DashboardTiles } from "./_components/dashboard-summary";
 import { DashboardTable } from "./_components/dashboard-table";
 import { DashboardTodo } from "./_components/dashboard-todo";
@@ -32,7 +34,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   await requireOwnedSave(id);
   const t = await getTranslations("dashboard");
   const tGame = await getTranslations("gameActions");
-  const [dashboard, lineup, opponent, user, challenge, firstSteps] = await Promise.all([
+  const [dashboard, lineup, opponent, user, challenge, firstSteps, objectives] = await Promise.all([
     getDashboard(id),
     getManagedLineup(id),
     getOpponentPreview(id),
@@ -40,6 +42,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
     // Not simulation code: whether the challenge is over is real time.
     getChallengeBanner(id, new Date()),
     getFirstSteps(id),
+    getSeasonObjectives(id),
   ]);
   // Only an anonymous player's save is at risk: it lives in this browser's cookie.
   const askToSignIn = user?.kind === "ANONYMOUS" && (await hasPlayedMatch(id));
@@ -58,7 +61,8 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
       {showsTip("simulation", firstSteps) && <FirstStepTip saveId={id} tip="simulation" />}
 
       {/* One column the screen's width under lg (minmax(0, 1fr)): never as wide as its widest content. The small table last
-          on a phone, beside the hero from xl, the sidebar leaving no room for it before. */}
+          on a phone, beside the hero from xl, the sidebar leaving no room for it before. The season's objectives under the
+          tiles, across the page: none in a save from before them. */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 xl:grid-cols-3">
         <NextMatchHero
           saveId={id}
@@ -72,6 +76,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
         <div className={WIDE}>
           <DashboardTiles dashboard={dashboard} />
         </div>
+        {objectives !== null && <DashboardObjectives saveId={id} view={objectives} className={WIDE} />}
         <DashboardTodo saveId={id} dashboard={dashboard} lineup={lineup} sales={sales} />
         <LastMatchCard
           saveId={id}

@@ -117,7 +117,47 @@ async function expectDemoDotation(finances: Locator): Promise<void> {
   await expect(dotation.getByTestId("club-dotation-start")).toHaveCount(0);
 }
 
-/** The screen of the demo save, whatever the width: its head, its money, the week's challenge, its season and the settings. */
+/** The president's confidence: its figure, 1 to 99, on a gauge of 0 to 99, its words, and that it acts on nothing. */
+async function expectConfidence(objectives: Locator): Promise<void> {
+  const confidence = objectives.getByTestId("club-confidence");
+  await expect(confidence).toHaveAttribute("data-confidence", /^\d+$/);
+  const value = Number(await confidence.getAttribute("data-confidence"));
+  expect(value).toBeGreaterThanOrEqual(1);
+  expect(value).toBeLessThanOrEqual(99);
+  const gauge = confidence.getByRole("meter");
+  await expect(gauge).toHaveAttribute("aria-valuenow", String(value));
+  await expect(gauge).toHaveAttribute("aria-valuemin", "0");
+  await expect(gauge).toHaveAttribute("aria-valuemax", "99");
+  await expect(confidence).toContainText(/Il te fait confiance|Il attend des résultats|Il s'inquiète/);
+  await expect(confidence).toContainText("La direction ne renvoie jamais son entraîneur : un échec réduit seulement le budget suivant.");
+}
+
+/**
+ * The president's objectives on the demo save, when it was made since the season objectives (an older one has none, and
+ * no card): its second season's, on its first day, the optional one still to choose. One division a country in its world:
+ * the league's objective is the only one imposed, without a cup.
+ */
+async function expectDemoObjectives(page: Page): Promise<void> {
+  const objectives = page.getByTestId("club-objectives");
+  if ((await objectives.count()) === 0) {
+    return;
+  }
+  await expect(objectives.getByRole("heading", { level: 2 })).toHaveText("Objectifs du président");
+  await expect(objectives).toContainText("Saison 2027-28");
+  const imposed = objectives.locator("[data-objective]");
+  await expect(imposed).toHaveCount(1);
+  await expect(imposed).toHaveAttribute("data-objective", "RANKING");
+  await expect(imposed).toContainText("Classement · Imposé par la direction");
+  await expect(imposed.getByTestId("objective-status")).toHaveText("En bonne voie");
+  await expect(objectives.getByTestId("club-objectives-proposals").locator("[data-proposal]")).toHaveCount(3);
+  await expect(objectives.getByTestId("club-objectives-choose")).toHaveAttribute("href", `/saves/${demo}/season-start`);
+  await expectConfidence(objectives);
+}
+
+/**
+ * The screen of the demo save, whatever the width: its head, its money, the week's challenge, its objectives, its season
+ * and the settings.
+ */
 async function expectClubScreen(page: Page): Promise<void> {
   await expect(page.getByTestId("club-title")).toHaveText("Club");
   await expect(page.getByTestId("club-manager")).toHaveText("Manager : Test · 2e saison");
@@ -145,6 +185,8 @@ async function expectClubScreen(page: Page): Promise<void> {
   await expect(link).toHaveText("Voir le défi");
   await expect(link).toHaveAttribute("href", `/saves/${demo}/challenge`);
   await expectOrangeActions(page, ["club-challenge-link"]);
+
+  await expectDemoObjectives(page);
 
   const season = page.getByTestId("club-honours").getByTestId(HONOURS_LINE);
   await expect(season).toContainText("2026-27");
@@ -427,13 +469,13 @@ for (const viewport of [COMPUTER, PHONE]) {
       await expectOrangeActions(page, [shares ? "season-card-share" : "season-card-download"]);
       await expectNoSidewaysScroll(page, "season");
 
-      // The demo stands on the first day of 2027-28, the season after the only one it has finished.
+      // The demo stands on the first day of 2027-28, the season after the only one it has finished: its start screen.
       const next = page.getByTestId("season-next");
       await expect(next).toHaveText("Cap sur la saison 2027-28");
-      await expect(next).toHaveAttribute("href", `/saves/${demo}`);
+      await expect(next).toHaveAttribute("href", `/saves/${demo}/season-start`);
       await next.click();
-      await expect(page).toHaveURL((url) => url.pathname === `/saves/${demo}`);
-      await expect(page.getByTestId("dashboard-title")).toBeVisible();
+      await expect(page).toHaveURL((url) => url.pathname === `/saves/${demo}/season-start`);
+      await expect(page.getByTestId("season-start-title")).toBeVisible();
     });
   });
 }
@@ -449,6 +491,14 @@ test.describe("in English, at 390 px", () => {
     await expect(page.getByTestId("club-budget")).toHaveText(/^€\d+(\.\d+)?m$/);
     await expect(page.getByTestId("club-payroll")).toHaveText(/^€\d+\.\d+m \/ €\d+\.\d+m$/);
     await expect(page.getByTestId("club-challenge-link")).toHaveText("See the challenge");
+    // The president's objectives, on a demo made since them.
+    const objectives = page.getByTestId("club-objectives");
+    if ((await objectives.count()) > 0) {
+      await expect(objectives.getByRole("heading", { level: 2 })).toHaveText("Chairman's objectives");
+      await expect(objectives.getByTestId("club-confidence")).toContainText(
+        "The board never sacks its manager: a failure only cuts the next budget.",
+      );
+    }
     await expect(page.getByTestId("club-settings").getByRole("heading")).toHaveText("Settings");
     await expect(page.getByTestId("settings-saves")).toContainText("1 of 1 used");
     await expect(page.getByTestId("settings-change-save")).toHaveText("Switch career");
@@ -557,6 +607,44 @@ test.describe("a Google account's Lyon", () => {
       await page.setViewportSize(viewport);
       await expect(dotation).toBeVisible();
       await expectNoSidewaysScroll(page, `dotation at ${viewport.width} px`);
+    }
+  });
+
+  test("sets out the president's objectives, the optional one still to choose, and his confidence, down to 360 px", async ({ page }) => {
+    await openSave(page, "/club");
+    const objectives = page.getByTestId("club-objectives");
+    await expect(objectives.getByRole("heading", { level: 2 })).toHaveText("Objectifs du président");
+    await expect(objectives).toContainText("Saison 2026-27");
+
+    // Imposed by the board, on track before a ball is kicked: the league, then France's cup, each with what exceeds it.
+    const imposed = objectives.locator("[data-objective]");
+    await expect(imposed).toHaveCount(2);
+    const [ranking, cup] = [imposed.nth(0), imposed.nth(1)];
+    await expect(ranking).toHaveAttribute("data-objective", "RANKING");
+    await expect(ranking).toContainText("Classement · Imposé par la direction");
+    await expect(ranking).toContainText(/Dépassé (avec le titre|en finissant \d+(er|e) ou mieux)/);
+    await expect(cup).toHaveAttribute("data-objective", "CUP");
+    await expect(cup).toContainText("Coupe · Imposé par la direction");
+    await expect(cup).toContainText(/Atteindre les (seizièmes|huitièmes|quarts) de finale/);
+    await expect(cup).toContainText(/Dépassé en atteignant (les|la) /);
+    await expect(objectives.getByTestId("objective-status")).toHaveText(["En bonne voie", "En bonne voie"]);
+
+    // Three of the four optional objectives, what each asks, the assistant's pick if the player makes none (Jeunesse, or
+    // Spectacle when Jeunesse is not proposed), and the way to the choice, on the season's start screen.
+    const proposals = objectives.getByTestId("club-objectives-proposals");
+    await expect(proposals.locator("[data-proposal]")).toHaveCount(3);
+    await expect(proposals).toContainText(/Sans choix, l'adjoint prendra (Jeunesse|Spectacle)\./);
+    await expect(objectives.getByTestId("club-objectives-choose")).toHaveAttribute("href", `/saves/${saveId}/season-start`);
+
+    await expectConfidence(objectives);
+    // « Voir le défi » keeps the screen's one full orange.
+    await expectOrangeActions(page, ["club-challenge-link"]);
+
+    for (const viewport of [PHONE, SMALL_PHONE]) {
+      await page.setViewportSize(viewport);
+      await expect(objectives).toBeVisible();
+      await expectNoSidewaysScroll(page, `objectives at ${viewport.width} px`);
+      await expectThumbTarget(objectives.getByTestId("club-objectives-choose"));
     }
   });
 

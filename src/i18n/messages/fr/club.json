@@ -26,7 +26,18 @@
     "challengeScore": "{points, plural, one {# point} other {# points}}",
     "challengeRank": "{points, plural, one {# point} other {# points}} · {rank, selectordinal, one {#er} other {#e}} provisoire",
     "points": "{points, plural, one {# pt} other {# pts}}",
-    "allHonours": "Tout le palmarès"
+    "allHonours": "Tout le palmarès",
+    "objectives": {
+      "title": "Objectifs du président",
+      "season": "Saison {season}",
+      "met": "Saison terminée : {met, plural, one {# objectif atteint} other {# objectifs atteints}} sur {total}",
+      "metDetail": "Ce bilan fixe le bonus ou le malus du budget de la saison prochaine.",
+      "choiceTitle": "Objectif au choix",
+      "choiceDetail": "Choisis-en un avant ton premier match de la saison. Sans choix, l'adjoint prendra {objective}.",
+      "choose": "Choisir mon objectif",
+      "confidenceFollows": "Elle suit tes objectifs, match après match.",
+      "neverSacked": "La direction ne renvoie jamais son entraîneur : un échec réduit seulement le budget suivant."
+    }
   },
   "settings": {
     "title": "Réglages",

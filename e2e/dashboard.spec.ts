@@ -31,6 +31,9 @@ const WEAK_SPOT = /^Ton point faible : (.+)Note (\d+) · voir le marché$/;
 /** « Lille OSC propose 12,5 M€ pour Jean Morel », then « 3 offres pour tes remplaçants ». */
 const BEST_OFFER = /^(.+) propose (.+) pour (.+?)(\d+) offres? pour tes remplaçants$/;
 
+/** An optional objective's name, as the card names the three the board proposes. */
+const OPTIONAL = "(Jeunesse|Spectacle|Solidité|Bonne gestion)";
+
 let saveId = "";
 let ownerId: string | null = null;
 let ownerCookies: Cookie[] = [];
@@ -140,6 +143,46 @@ test("shows the player's club in the small table, and leads to the full one", as
   await expect(page.locator('[data-testid="standings-table"]:visible tr[data-managed]')).toContainText(LYON);
 });
 
+test("sets the season's objectives out, the optional one still to choose, and the president's confidence", async ({ page }) => {
+  await openDashboard(page);
+  const objectives = page.getByTestId("dashboard-objectives");
+  await expect(objectives.getByRole("heading")).toHaveText("Objectifs");
+
+  // Imposed by the board, on track before a ball is kicked: the league, then France's cup.
+  const imposed = objectives.locator("[data-objective]");
+  await expect(imposed).toHaveCount(2);
+  await expect(imposed.nth(0)).toHaveAttribute("data-objective", "RANKING");
+  await expect(imposed.nth(1)).toHaveAttribute("data-objective", "CUP");
+  await expect(imposed.nth(1)).toContainText(/Atteindre les (seizièmes|huitièmes|quarts) de finale/);
+  const statuses = objectives.getByTestId("objective-status");
+  await expect(statuses).toHaveText(["En bonne voie", "En bonne voie"]);
+  for (const status of await statuses.all()) {
+    await expect(status).toHaveAttribute("data-status", "ON_TRACK");
+  }
+
+  // The optional one is the player's to choose, of three the board proposes, on the season's start screen: never in the
+  // full orange, the hero's.
+  const choose = objectives.getByTestId("dashboard-objectives-choose");
+  await expect(choose).toHaveAttribute("href", `/saves/${saveId}/season-start`);
+  await expect(choose).toContainText("Choisis ton objectif de la saison");
+  await expect(choose.getByTestId("dashboard-objectives-proposals")).toHaveText(new RegExp(`^${OPTIONAL}, ${OPTIONAL} ou ${OPTIONAL}$`));
+  await expect(choose).not.toHaveCSS("background-color", ACTION_ORANGE);
+
+  // The president's confidence in one line, the same as on the Club screen, whose card of the objectives, their detail,
+  // the link leads straight to.
+  const confidence = objectives.getByTestId("dashboard-confidence");
+  await expect(confidence).toHaveAttribute("data-confidence", /^\d+$/);
+  const value = (await confidence.getAttribute("data-confidence")) ?? "";
+  await expect(confidence.locator("dt")).toHaveText("Confiance du président");
+  await expect(confidence.locator("dd")).toHaveText(new RegExp(`^${value} · (Il te fait confiance|Il attend des résultats|Il s'inquiète)$`));
+  await objectives.getByTestId("dashboard-objectives-detail").click();
+  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/club#objectifs$`));
+  const detail = page.getByTestId("club-objectives");
+  // Scrolled to: under the finances and the challenge, it would start near the foot of the window.
+  await expect(detail).toBeInViewport({ ratio: 0.5 });
+  await expect(detail.getByTestId("club-confidence")).toHaveAttribute("data-confidence", value);
+});
+
 test("sends the weak spot to the market and, while the window is open, the best offer to its sales", async ({ page }) => {
   await openDashboard(page);
 
@@ -199,6 +242,18 @@ test.describe("on a phone, in English", () => {
     for (const control of ["next-match", "dashboard-lineup", "simulate-menu", "view-opponent"]) {
       expect((await boxOf(hero.getByTestId(control))).height).toBeGreaterThanOrEqual(44);
     }
+
+    // The season's objectives under the tiles: the imposed ones on track, the optional one to choose, its ways a thumb high.
+    const objectives = page.getByTestId("dashboard-objectives");
+    await expect(objectives.getByRole("heading")).toHaveText("Objectives");
+    await expect(objectives.getByTestId("objective-status")).toHaveText(["On track", "On track"]);
+    await expect(objectives.getByTestId("dashboard-objectives-choose")).toContainText("Choose your objective for the season");
+    await expect(objectives.getByTestId("dashboard-confidence").locator("dt")).toHaveText("Chairman's confidence");
+    for (const link of ["dashboard-objectives-choose", "dashboard-objectives-detail"]) {
+      const { width, height } = await boxOf(objectives.getByTestId(link));
+      expect(Math.min(width, height), link).toBeGreaterThanOrEqual(44);
+    }
+
     await expectOneOrangeAction(page, "next-match");
     await expectNoSidewaysScroll(page, "dashboard");
 
@@ -257,6 +312,15 @@ test("plays the match from the hero, offers only to resume it at the break, then
   await expect(page.getByTestId("dashboard-points")).toContainText(/\d/);
   await expect(page.getByTestId("dashboard-form").locator("span[title]")).toHaveCount(1);
 
+  // The optional objective chosen by kick-off, by the assistant when the player made no choice: three objectives, the
+  // choice closed, the league's judged on the club's place now.
+  const objectives = page.getByTestId("dashboard-objectives");
+  const inPlay = objectives.locator("[data-objective]");
+  await expect(inPlay).toHaveCount(3);
+  await expect(inPlay.nth(2)).toHaveAttribute("data-objective", /^(YOUTH|ENTERTAINMENT|SOLIDITY|FINANCES)$/);
+  await expect(objectives.getByTestId("dashboard-objectives-choose")).toHaveCount(0);
+  await expect(objectives.locator('[data-objective="RANKING"]').getByTestId("objective-current")).toHaveText(/^\d+(er|e) actuellement$/);
+
   await lastResult.getByTestId("dashboard-match-report").click();
   // On the month of the match played: the calendar alone would open on the next one's.
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/fixtures\\?mois=2026-08$`));
@@ -280,6 +344,15 @@ test("leads only to the next season once this one is over, with no offer to show
   await expect(page.getByTestId("simulate-menu")).toHaveCount(0);
   await expect(page.getByTestId("header-next-match")).toBeHidden();
   await expectOneOrangeAction(page, "next-season");
+
+  // Every objective has its outcome, and the card counts those met.
+  const objectives = page.getByTestId("dashboard-objectives");
+  await expect(objectives.getByTestId("dashboard-objectives-met")).toHaveText(/^Saison terminée : \d objectifs? atteints? sur 3$/);
+  const outcomes = objectives.getByTestId("objective-status");
+  await expect(outcomes).toHaveCount(3);
+  for (const outcome of await outcomes.all()) {
+    await expect(outcome).toHaveAttribute("data-status", /^(ACHIEVED|EXCEEDED|MISSED)$/);
+  }
 
   await expect(page.getByTestId("dashboard-window")).toHaveText("Fenêtre fermée jusqu'au 1er juil.");
   await expect(page.getByTestId("alert-weak-spot").getByTestId("alert-action")).toHaveAttribute("href", `/saves/${saveId}/transfers`);

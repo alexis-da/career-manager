@@ -25,7 +25,14 @@
     "goalkeepers": "{count, plural, one {# gardien} other {# gardiens}}",
     "averageAge": "Âge moyen {age}",
     "table": "Classement",
-    "fullTable": "Tableau complet"
+    "fullTable": "Tableau complet",
+    "objectives": {
+      "title": "Objectifs",
+      "detail": "Voir le détail",
+      "optional": "Objectif au choix",
+      "choose": "Choisis ton objectif de la saison",
+      "met": "Saison terminée : {met, plural, one {# objectif atteint} other {# objectifs atteints}} sur {total}"
+    }
   },
   "lineupSummary": {
     "atPosition": "{count, plural, =1 {# titulaire à son poste} other {# titulaires à leur poste}}",

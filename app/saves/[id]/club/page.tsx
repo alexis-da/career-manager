@@ -5,11 +5,13 @@ import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { ensureCurrentChallenge } from "@/src/db/challenge";
 import { getChallengePage } from "@/src/db/challenge-view";
 import { getClubFinances, getManagerName } from "@/src/db/club";
+import { getSeasonObjectives } from "@/src/db/objectives";
 import { countOwnedSaves } from "@/src/db/saves";
 import { getSeasonResults } from "@/src/db/season-results";
 import { ClubChallenge } from "./_components/club-challenge";
 import { ClubFinancesCard } from "./_components/club-finances";
 import { ClubHonours } from "./_components/club-honours";
+import { ClubObjectives } from "./_components/club-objectives";
 import { ClubSettings } from "./_components/club-settings";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +20,10 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getTranslations("club"))("title") };
 }
 
-/** The entry Club's first screen: the club's money, the week's challenge, its latest seasons and the player's settings. */
+/**
+ * The entry Club's first screen: the club's money, the week's challenge, the president's objectives for the season, its
+ * latest seasons and the player's settings.
+ */
 export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">) {
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
@@ -30,11 +35,12 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
   }
   // Not simulation code: the real week.
   const challenge = await ensureCurrentChallenge(new Date());
-  const [t, managerName, finances, view, { seasons }, ownedSaves] = await Promise.all([
+  const [t, managerName, finances, view, objectives, { seasons }, ownedSaves] = await Promise.all([
     getTranslations("club"),
     getManagerName(id),
     getClubFinances(id),
     getChallengePage(challenge, { id: user.id, kind: user.kind }),
+    getSeasonObjectives(id),
     getSeasonResults(id),
     countOwnedSaves(user.id),
   ]);
@@ -55,6 +61,9 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
         <ClubFinancesCard finances={finances} />
         <ClubChallenge saveId={id} view={view} />
       </div>
+
+      {/* Across the page, between the season's money and the past seasons: none in a save from before the objectives. */}
+      {objectives !== null && <ClubObjectives saveId={id} view={objectives} />}
 
       {/* Side by side only from xl: at 1024 px, the content's 704 px are for the card's preview and the seasons. */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">

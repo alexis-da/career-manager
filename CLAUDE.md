@@ -341,7 +341,11 @@ l'écran, même `next-match`, « Jouer la journée » dans une partie 1), « Pr�
 secondaires, le onze et « Voir l'adversaire ». Match en suspens : « Match en cours — reprendre » seul ; saison finie :
 « Passer à la saison suivante » seul, et la carte de la colonne, vide, disparaît (`lg:empty:hidden`). Sa colonne de droite à partir de `xl`, en fin de page sur téléphone : le
 mini-classement (`DashboardTable`, `tableAround`, six lignes autour du club, rang, club et points). Puis quatre tuiles
-(`DashboardTiles` : classement et mouvement, points et différence, forme, effectif ; « — » avant le premier match), « À
+(`DashboardTiles` : classement et mouvement, points et différence, forme, effectif ; « — » avant le premier match), la
+carte Objectifs (`DashboardObjectives`, `dashboard-objectives`, toute la largeur, dans une partie qui en a : chaque
+objectif, son état en pastille, `objective-status`, et son chiffre ; la confiance du président ; tant que le choix est
+ouvert, la case de l'objectif au choix mène à l'écran de début de saison, `dashboard-objectives-choose` ; « Voir le
+détail » mène à l'onglet Club, `#objectifs`), « À
 faire » (`DashboardTodo`, du plus pressant au reste : titulaires blessés, titulaires suspendus, autres blessés, joueurs à
 4 jaunes, meilleure offre reçue, point faible, contrats, gardiens, effectif ; toute la ligne est un lien, sauf « Effectif
 complet »), le dernier match
@@ -521,7 +525,11 @@ secondaire (`GameActions`) : l'orange plein y reste à « Recruter » ou « Vend
 `ClubFinances.dotation` lue dans `SeasonBudget`, `club-dotation` : dotation et rang de réputation dans la division,
 objectifs de la saison passée (bonus, malus, ou ni l'un ni l'autre, × coefficient), report, budget de la saison, plafond
 salarial ; « Budget de départ » la première saison, rien pour une partie d'avant la dotation ; aucune recette, le jeu
-n'en a pas) ; défi sur le bleu vif (où en est le joueur, tête du classement à partir de `lg`, « Voir le défi », seul
+n'en a pas) ; les objectifs du président (`ClubObjectives`, `club-objectives`, `id="objectifs"`, toute la largeur :
+chaque objectif, imposé ou choisi, et par qui, son but, ce qui le dépasse, son état et son chiffre ; la confiance du
+président, `club-confidence`, jauge de 0 à 99 et ses mots, affichage seulement, la direction ne renvoyant jamais son
+entraîneur ; tant que le choix est ouvert, les trois propositions et « Choisir mon objectif » vers l'écran de début de
+saison) ; défi sur le bleu vif (où en est le joueur, tête du classement à partir de `lg`, « Voir le défi », seul
 orange plein de l'écran) ; les trois dernières saisons, et, à partir de `lg`, l'aperçu de la dernière carte et ses boutons
 (`HonoursCardActions` ne les monte pas en dessous : un téléphone ne télécharge pas le PNG) ; Réglages (`ClubSettings` :
 langue, compte, parties utilisées sur la limite, changer de partie, confidentialité). Défi (`/saves/[id]/challenge`) : l'écran
@@ -546,7 +554,8 @@ imposés, avec ce qui les dépasse, et le choix parmi les trois proposés, en ca
 l'adjoint présélectionné et signalé (« Sans choix avant ton premier match, ton adjoint choisira… ») ; « Valider mon
 objectif » (`objective-validate`, seule action orange de l'écran, `chooseObjectiveAction` : `requireOwnedSave`, Zod, refus
 `actions.objective.refusals`), puis l'objectif verrouillé (`objective-chosen`, « Ton choix » ou « Choisi par l'adjoint »).
-Montants en `data-amount`, coefficient en `data-coefficient`. `e2e/objectives.spec.ts` passe une fin de saison
+Montants en `data-amount`, coefficient en `data-coefficient`. On y arrive par « Cap sur la saison » du bilan, et, tant
+que le choix est ouvert, par la carte Objectifs de l'Accueil et l'onglet Club. `e2e/objectives.spec.ts` passe une fin de saison
 (`e2e/season-end-save.mts` : un jumeau 1 de la démo, sa saison jouée), vérifie la nouvelle dotation et choisit un objectif,
 à 1280, 390 et 360 px.
 
