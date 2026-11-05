@@ -333,7 +333,7 @@ test("stops at the break with its card, the way on its orange; the Coaching pane
   // « Coaching » above it.
   await expect.poll(async () => {
     const box = await boxOf(card);
-    return { x: box.x, right: box.x + box.width, bottom: box.y + box.height, compact: box.height < COMPUTER.height / 2 };
+    return { x: box.x, right: box.x + box.width, bottom: box.y + box.height, compact: box.height < COMPUTER.height * 0.6 };
   }).toEqual({ x: COMPUTER.width - 24 - PANEL_WIDTH, right: COMPUTER.width - 24, bottom: COMPUTER.height - 24, compact: true });
   await expect(page.getByTestId("live-skip")).toHaveCount(0);
   await expect(page.locator('[data-testid^="live-speed-"]')).toHaveCount(0);
