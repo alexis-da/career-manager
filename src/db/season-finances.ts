@@ -39,7 +39,11 @@ export async function applySeasonReputations(
   tables: FinalTables,
   moves: readonly SeasonMove[],
 ): Promise<ClubSeasonEnd[]> {
-  const clubs = await tx.clubSave.findMany({ where: { saveId }, select: { id: true, reputation: true } });
+  const clubs = await tx.clubSave.findMany({
+    where: { saveId },
+    select: { id: true, reputation: true, wageBudget: true, club: { select: { slug: true } } },
+  });
+  const clubOf = new Map(clubs.map((club) => [club.id, club]));
   const reputationOf = new Map(clubs.map((club) => [club.id, club.reputation]));
   const moveOf = new Map(moves.map((move) => [move.clubSaveId, move.reason]));
 
@@ -49,7 +53,10 @@ export async function applySeasonReputations(
       finalRank: row.rank,
     }));
     const expected = reputationRanks(
-      members.map(({ clubSaveId }) => ({ key: clubSaveId, reputation: getOrThrow(reputationOf, clubSaveId, "club") })),
+      members.map(({ clubSaveId }) => {
+        const club = getOrThrow(clubOf, clubSaveId, "club");
+        return { key: clubSaveId, reputation: club.reputation, wageBudget: club.wageBudget, slug: club.club.slug };
+      }),
     );
     return members.map(({ clubSaveId, finalRank }) => {
       const reputationBefore = getOrThrow(reputationOf, clubSaveId, "club");
@@ -106,7 +113,16 @@ export async function applySeasonFinances(
 ): Promise<ManagedDotation> {
   const clubs = await tx.clubSave.findMany({
     where: { saveId },
-    select: { id: true, isManaged: true, budget: true, reputation: true, competitionId: true, competition: { select: { tier: true } } },
+    select: {
+      id: true,
+      isManaged: true,
+      budget: true,
+      reputation: true,
+      wageBudget: true,
+      competitionId: true,
+      competition: { select: { tier: true } },
+      club: { select: { slug: true } },
+    },
   });
   const endOf = new Map(ends.map((end) => [end.clubSaveId, end]));
   const byDivision = Map.groupBy(clubs, (club) => club.competitionId);
@@ -114,7 +130,10 @@ export async function applySeasonFinances(
   let managed: ManagedDotation | null = null;
   const updates: { clubSaveId: string; finances: SeasonFinances }[] = [];
   for (const division of byDivision.values()) {
-    const ranks = reputationRanks(division.map((club) => ({ key: club.id, reputation: club.reputation })));
+    // Ranked by the new reputations; equal ones by the wage budgets of the season closed.
+    const ranks = reputationRanks(
+      division.map((club) => ({ key: club.id, reputation: club.reputation, wageBudget: club.wageBudget, slug: club.club.slug })),
+    );
     for (const club of division) {
       const reputationRank = getOrThrow(ranks, club.id, "reputation rank");
       const coefficient = club.isManaged
@@ -148,12 +167,15 @@ export async function applySeasonFinances(
 export async function firstSeasonDotation(tx: Db, saveId: string): Promise<{ seasonId: string; dotation: ManagedDotation }> {
   const managed = await tx.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
-    select: { competitionId: true, budget: true, wageBudget: true, reputation: true },
+    select: { id: true, competitionId: true, budget: true, wageBudget: true, reputation: true },
   });
   const rivals = await tx.clubSave.findMany({
     where: { saveId, competitionId: managed.competitionId },
-    select: { reputation: true },
+    select: { id: true, reputation: true, wageBudget: true, club: { select: { slug: true } } },
   });
+  const ranks = reputationRanks(
+    rivals.map((club) => ({ key: club.id, reputation: club.reputation, wageBudget: club.wageBudget, slug: club.club.slug })),
+  );
   const season = await tx.season.findFirstOrThrow({
     where: { saveId, competitionId: managed.competitionId, completed: false },
     select: { id: true },
@@ -167,7 +189,7 @@ export async function firstSeasonDotation(tx: Db, saveId: string): Promise<{ sea
       budget: managed.budget,
       wageBudget: managed.wageBudget,
       reputation: managed.reputation,
-      reputationRank: 1 + rivals.filter((rival) => rival.reputation > managed.reputation).length,
+      reputationRank: getOrThrow(ranks, managed.id, "reputation rank"),
     },
   };
 }

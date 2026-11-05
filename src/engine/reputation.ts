@@ -6,12 +6,26 @@ import type { MoveReason } from "./promotion";
 // rank expected of it; at the end of a season, its reputation follows its final place against that rank, and a
 // promotion or a relegation. Pure: the transition reads the tables and writes the clubs (src/db/season-finances.ts).
 
+/** A club as its reputation rank reads it: its reputation, then what orders equal reputations. */
+export type RankedClub<K> = {
+  key: K;
+  reputation: number;
+  wageBudget: number; // its wage budget, given at the rank it had: the higher first among equal reputations
+  slug: string; // then its slug, the same in every save: a replayed save ranks its clubs alike
+};
+
 /**
- * Each club's rank by reputation among the clubs given (a division), ties sharing the best one: 1 + the clubs strictly
- * above. The rank expected of a club in the season, and the rank its dotation is given at.
+ * Each club's rank by reputation among the clubs given (a division): 1 for the highest, one club a rank, equal
+ * reputations ordered by wage budget (the higher first: the club that was ranked higher stays so), then by slug. The
+ * rank expected of a club in the season, and the rank its dotation is given at. Unique ranks keep a division's sums:
+ * its expected ranks add up as its final ranks do, so that its reputations move only by the caps; its dotations add up
+ * to its creation's.
  */
-export function reputationRanks<K>(clubs: readonly { key: K; reputation: number }[]): Map<K, number> {
-  return new Map(clubs.map(({ key, reputation }) => [key, 1 + clubs.filter((other) => other.reputation > reputation).length]));
+export function reputationRanks<K>(clubs: readonly RankedClub<K>[]): Map<K, number> {
+  const ordered = [...clubs].sort(
+    (a, b) => b.reputation - a.reputation || b.wageBudget - a.wageBudget || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0),
+  );
+  return new Map(ordered.map((club, index) => [club.key, index + 1]));
 }
 
 /**

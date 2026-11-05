@@ -49,6 +49,7 @@ type TransitionCheck = {
   movements: { code: string; movements: unknown }[]; // Season.movements of the closed seasons
   expected: { clubId: string; from: string; to: string; reason: string; rank: number }[]; // from the final tables
   tables: Map<string, string[]>; // the final tables, Club.id in order, by competition code
+  slugOf: Map<string, string>; // club slug by Club.id
   clubsByCompetition: Record<string, number>; // clubs of each new season, from its fixtures
   fixturesByCompetition: Record<string, number>;
   competitionOf: Map<string, string>; // ClubSave.competitionId by Club.id, after
@@ -252,6 +253,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         movements: movements.map((row) => ({ code: row.competition.code, movements: row.movements })).sort((a, b) => a.code.localeCompare(b.code)),
         expected,
         tables,
+        slugOf: new Map([...clubIdBySlug].map(([slug, clubId]) => [clubId, slug])),
         clubsByCompetition: Object.fromEntries([...clubSets].map(([code, set]) => [code, set.size])),
         fixturesByCompetition,
         competitionOf: new Map(clubs.map((club) => [club.clubId, club.competitionId])),
@@ -450,7 +452,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     const reputations = new Map<string, number>();
     const coefficients = new Map<string, number>();
     for (const [code, table] of check.tables) {
-      const expectedRanks = reputationRanks(table.map((clubId) => ({ key: clubId, reputation: before(clubId).reputation })));
+      const expectedRanks = reputationRanks(
+        table.map((clubId) => ({ key: clubId, ...before(clubId), slug: check.slugOf.get(clubId) ?? "" })),
+      );
       const division = divisionOf(code, tierOf(code), table.length, 2);
       table.forEach((clubId, place) => {
         const expectedRank = expectedRanks.get(clubId) ?? NaN;
@@ -459,7 +463,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         coefficients.set(clubId, clubId === check.managedClubId ? 100 : budgetCoefficient({ ranking: outcome }));
       });
     }
-    // Reputations do move: some clubs rise, some fall; coefficients too.
+    // Reputations do move: some clubs rise, some fall; coefficients too. Each division's expected ranks add up as its
+    // final ones (one club a rank), so its total reputation moves only by the caps of five places and by the moves.
     const changes = [...check.financesBefore].map(([clubId, finances]) => (reputations.get(clubId) ?? NaN) - finances.reputation);
     expect(changes.some((change) => change > 0) && changes.some((change) => change < 0)).toBe(true);
     expect(new Set(coefficients.values())).toEqual(new Set([85, 100, 110, 120]));
@@ -469,7 +474,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     const divisions = Map.groupBy([...check.financesBefore.keys()], (clubId) => check.competitionOf.get(clubId) ?? "");
     for (const [competitionId, members] of divisions) {
       const tier = tierOf(check.codeOf.get(competitionId) ?? "");
-      const ranks = reputationRanks(members.map((clubId) => ({ key: clubId, reputation: reputations.get(clubId) ?? NaN })));
+      const ranks = reputationRanks(
+        members.map((clubId) => ({
+          key: clubId,
+          reputation: reputations.get(clubId) ?? NaN,
+          wageBudget: before(clubId).wageBudget,
+          slug: check.slugOf.get(clubId) ?? "",
+        })),
+      );
       for (const clubId of members) {
         const reputationRank = ranks.get(clubId) ?? NaN;
         const finances = seasonFinances(reputationRank, members.length, tier, coefficients.get(clubId) ?? NaN, before(clubId).budget);

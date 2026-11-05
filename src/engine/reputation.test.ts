@@ -2,15 +2,27 @@ import { describe, expect, it } from "vitest";
 import { reputationAfterSeason, reputationRanks } from "./reputation";
 
 describe("reputationRanks", () => {
-  it("ranks a division by reputation, ties sharing the best rank", () => {
+  it("ranks a division by reputation, one club a rank: equal reputations by wage budget, then by slug", () => {
     const ranks = reputationRanks([
-      { key: "a", reputation: 70 },
-      { key: "b", reputation: 82 },
-      { key: "c", reputation: 70 },
-      { key: "d", reputation: 55 },
+      { key: "a", reputation: 70, wageBudget: 40_000_000, slug: "zeta" },
+      { key: "b", reputation: 82, wageBudget: 90_000_000, slug: "beta" },
+      { key: "c", reputation: 70, wageBudget: 55_000_000, slug: "gamma" },
+      { key: "d", reputation: 70, wageBudget: 40_000_000, slug: "alpha" },
+      { key: "e", reputation: 55, wageBudget: 20_000_000, slug: "delta" },
     ]);
 
-    expect(Object.fromEntries(ranks)).toEqual({ b: 1, a: 2, c: 2, d: 4 });
+    expect(Object.fromEntries(ranks)).toEqual({ b: 1, c: 2, d: 3, a: 4, e: 5 });
+  });
+
+  it("gives the same ranks whatever the order of the clubs", () => {
+    const clubs = [
+      { key: 1, reputation: 60, wageBudget: 10, slug: "b" },
+      { key: 2, reputation: 60, wageBudget: 10, slug: "a" },
+      { key: 3, reputation: 61, wageBudget: 5, slug: "c" },
+    ];
+
+    expect(reputationRanks(clubs)).toEqual(reputationRanks([...clubs].reverse()));
+    expect(Object.fromEntries(reputationRanks(clubs))).toEqual({ 3: 1, 2: 2, 1: 3 });
   });
 });
 

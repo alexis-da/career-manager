@@ -201,18 +201,20 @@ Une partie 1 n'a qu'une division par pays : aucun mouvement, `movements` reste n
 **Réputation et budget de saison (gameplay v2, V2).** `ClubSave.reputation` (1–99) suit les saisons, clubs IA et club
 dirigé, dans les deux mondes : à chaque `advanceToNextSeason`, `applySeasonReputations` (`src/db/season-finances.ts`)
 lit les classements finaux ; le rang attendu d'un club est son rang de réputation dans sa division pendant la saison
-(`reputationRanks`, `src/engine/reputation.ts`, pure : 1 + les clubs strictement au-dessus, ex aequo au meilleur rang),
-et sa réputation gagne un point par place au-dessus de ce rang, en perd un par place en dessous, cinq au plus
-(`REPUTATION_PLACES_CAP`), puis quatre de plus pour une montée, de moins pour une descente (`REPUTATION_MOVE`,
-`reputationAfterSeason`). Puis, avant la présaison, chaque club reçoit sa dotation (`applySeasonFinances`,
-`seasonFinances`, `economy.ts`) : le budget de création (`clubFinances`) à son nouveau rang de réputation dans sa
-nouvelle division, × son coefficient, + la moitié de son budget non dépensé (`BUDGET_CARRY_OVER_SHARE`, ventes et primes
-comprises) ; son plafond salarial est recalculé de même, sans coefficient. Coefficient en centièmes, 70 à 140
-(`budgetCoefficient`, `src/engine/objectives.ts`) : un club IA a celui de son seul objectif de classement
-(`rankingObjective` sur son rang attendu, `rankingOutcome` sur son rang final : dépassé +20, atteint +10, manqué −15),
-le club dirigé 100 tant que ses saisons n'ont pas d'objectifs (une partie d'avant eux, au prochain passage). Le détail
-de la dotation du club dirigé est gardé par saison dans `SeasonBudget` (migration d'ajout `…_season_budget`, une ligne
-par saison de championnat, écrite par `createSave`, son budget de départ, puis à chaque passage de saison).
+(`reputationRanks`, `src/engine/reputation.ts`, pure : un club par rang, à réputation égale le plus haut plafond
+salarial d'abord, puis le slug, pour qu'une division garde ses sommes : ses rangs attendus valent ses rangs finaux, ses
+dotations son budget de création), et sa réputation gagne un point par place au-dessus de ce rang, en perd un par place
+en dessous, cinq au plus (`REPUTATION_PLACES_CAP`), puis quatre de plus pour une montée, de moins pour une descente
+(`REPUTATION_MOVE`, `reputationAfterSeason`). Puis, avant la présaison, chaque club reçoit sa dotation
+(`applySeasonFinances`, `seasonFinances`, `economy.ts`) : le budget de création (`clubFinances`) à son nouveau rang de
+réputation dans sa nouvelle division, × son coefficient, + la moitié de son budget non dépensé
+(`BUDGET_CARRY_OVER_SHARE`, ventes et primes comprises) ; son plafond salarial est recalculé de même, sans coefficient.
+Coefficient en centièmes, 70 à 140 (`budgetCoefficient`, `src/engine/objectives.ts`) : un club IA a celui de son seul
+objectif de classement (`rankingObjective` sur son rang attendu, `rankingOutcome` sur son rang final : dépassé +20,
+atteint +10, manqué −15), le club dirigé 100 tant que ses saisons n'ont pas d'objectifs (une partie d'avant eux, au
+prochain passage). Le détail de la dotation du club dirigé est gardé par saison dans `SeasonBudget` (migration d'ajout
+`…_season_budget`, une ligne par saison de championnat, écrite par `createSave`, son budget de départ, puis à chaque
+passage de saison).
 
 **Coupes nationales (parties 2 seulement).** `CUPS_ENABLED` (`src/engine/cup.ts`) vaut **true** : toute nouvelle
 partie 2 a ses coupes dès sa création, une partie 2 d'avant les coupes les reçoit à son prochain passage de saison. À
