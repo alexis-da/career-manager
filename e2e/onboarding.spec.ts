@@ -110,25 +110,24 @@ for (const journey of JOURNEYS) {
         await expect(page.getByTestId("live-skip")).toBeVisible();
         await expect(page.getByTestId("resume-match")).toHaveCount(0);
         await page.getByTestId("live-skip").click();
-        await expect(page.getByTestId("half-time-title")).toBeVisible();
+        await expect(page.getByTestId("break-title")).toBeVisible();
         await expect(page.getByTestId("resume-match")).toHaveCount(0);
-        await expect(page.getByTestId("half-time-resume-unchanged")).toBeEnabled();
-        await expect(page.getByTestId("half-time-resume")).toBeEnabled();
-        await expect(page.getByTestId("half-time-resume-unchanged")).toBeInViewport({ ratio: 1 });
-        await expect(page.getByTestId("half-time-resume")).toBeInViewport({ ratio: 1 });
-        await expectUncovered(page.getByTestId("half-time-resume-unchanged"));
-        await expectUncovered(page.getByTestId("half-time-resume"));
+        for (const action of ["break-coaching", "break-resume"]) {
+          await expect(page.getByTestId(action)).toBeEnabled();
+          await expect(page.getByTestId(action)).toBeInViewport({ ratio: 1 });
+          await expectUncovered(page.getByTestId(action));
+        }
         await expectNoSidewaysScroll(page, "half-time");
 
-        // At half-time the other clubs have played, the player's club has not: the list stays, the way back too. The panel
-        // closed first: it is modal.
+        // At half-time the other clubs have played, the player's club has not: the list stays, the way back too. The break's
+        // card closed first: it is modal.
         await page.keyboard.press("Escape");
-        await expect(page.getByTestId("half-time")).toBeHidden();
+        await expect(page.getByTestId("break-card")).toBeHidden();
         await page.getByTestId(journey.leaveMatch).click();
         await expect(firstAction(page, "match")).toHaveAttribute("data-done", "false");
         await heroAction(page, "resume-match").click();
-        await expect(page.getByTestId("half-time-title")).toBeVisible();
-        await page.getByTestId("half-time-resume-unchanged").click();
+        await expect(page.getByTestId("break-title")).toBeVisible();
+        await page.getByTestId("break-resume").click();
         await page.getByTestId("live-skip").click();
         await page.getByTestId("live-continue").click();
 

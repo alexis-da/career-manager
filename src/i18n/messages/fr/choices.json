@@ -16,6 +16,9 @@
     "assistant": "Conseil de l'adjoint",
     "current": "(actuelle)",
     "validate": "Valider",
+    "coaching": "Coaching",
+    "coachingHint": "Valide ce choix, puis ouvre le Coaching avant la reprise.",
+    "resuming": "Reprise…",
     "aPlayer": "un joueur",
     "PENALTY": {
       "title": "Penalty pour toi !",

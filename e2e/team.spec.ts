@@ -885,7 +885,7 @@ test("counts a match played in the tiles of the sheet", async ({ page }) => {
   await page.getByTestId("dashboard-next-match").getByTestId("next-match").click();
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?rejouer=1$`), { timeout: 120_000 });
   await page.getByTestId("live-skip").click();
-  await page.getByTestId("half-time-resume-unchanged").click();
+  await page.getByTestId("break-resume").click();
   await page.getByTestId("live-skip").click();
   await page.getByTestId("live-continue").click();
   await expect(page.getByTestId("dashboard-last-result")).toBeVisible();

@@ -8,7 +8,6 @@ import { isNewVersionError } from "@/app/_lib/new-version";
 import type { FixtureWithEvents, MatchEventView, ScoreTimeline } from "@/src/db/calendar";
 import type { HalfTimeTeam, LivePauseView, LiveStep } from "@/src/db/live-match";
 import { EXTRA_TIME_END_MINUTE } from "@/src/engine/balance";
-import type { ChoiceOption } from "@/src/engine/choices";
 import type { LivePause } from "@/src/engine/live";
 import type { Instruction, InstructionSpan } from "@/src/engine/match";
 import { decisionMoment } from "../../_lib/decisions";
@@ -29,7 +28,8 @@ import {
 } from "../_lib/live-pause";
 import { readAgain, withStep, type LiveData } from "../_lib/live-step";
 import { countFor } from "../_lib/match-stats";
-import { ChoiceCard } from "./choice-card";
+import { BreakCard } from "./break-card";
+import { ChoiceCard, type ChoiceCardDecision, type ChoiceThen } from "./choice-card";
 import { HalfTime } from "./half-time";
 import { LiveControls, type Speed } from "./live-controls";
 import { LiveFeed } from "./live-feed";
@@ -67,8 +67,17 @@ const clockMinute = (event: { minute: number; period: MatchEventView["period"] }
 /** Nothing brought to a pause: the assistant's decision, no change, no instruction. */
 const NO_MOVE: LiveMoveInput = { decision: null, changes: null, instruction: null };
 
-/** The player's decision on the choice event of a pause, taken on its card, sent with what the panel brings. */
-type Chosen = { at: string; decision: DecisionInput; index: number };
+/**
+ * The player's decision on the choice event of a pause, taken on its card: sent at once (« Valider », the card staying
+ * until the match goes on), or with what the Coaching panel brings (« Coaching », or a stop asked for at that pause).
+ */
+type Chosen = { at: string; decision: DecisionInput; index: number; then: ChoiceThen };
+
+/**
+ * What a stop shows once its choice event is answered: a break's card, the Coaching panel, or the match alone, the bar
+ * keeping the ways on. A break opens on its card, any other stop on the panel: one asked for, or the card's « Coaching ».
+ */
+type StopView = "break" | "coaching" | "none";
 
 type LiveMatchProps = {
   saveId: string;
@@ -93,12 +102,13 @@ type ReplayProps = Omit<LiveMatchProps, "match" | "pause" | "team" | "instructio
  * The match as the server plays it: a clock runs and the saved events appear as it passes their minute; nothing is
  * drawn here. The server plays one segment of 15 minutes at a time, one call a step that brings what the page shows,
  * never read again: the clock runs up to the pause the match waits at, holds there while the page asks for the next
- * segment, once per pause, then goes on with what comes back. The match stops for its manager at a break, at a choice
- * event, whose card he answers first, and where he asked for it with « Coaching »: the Coaching panel opens there, and
- * the clock goes on once he resumes. « live-skip » takes the clock to the pause and asks for all that comes before the
- * next break, or the end, his assistant deciding the choice events on the way. A cup tie that went to extra time runs on
- * to 120' (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the match goes from one stop to the
- * next at once, its choice events and breaks shown.
+ * segment, once per pause, then goes on with what comes back. The match stops for its manager at a break, with its card
+ * (the score, a word of his assistant's, « Reprendre » and « Coaching »), at a choice event, whose card he answers, the
+ * match going on at once unless he asks for the panel, and where he asked for it with « Coaching », where the panel
+ * opens. The Coaching panel never opens by itself. « live-skip » takes the clock to the pause and asks for all that
+ * comes before the next break, or the end, his assistant deciding the choice events on the way. A cup tie that went to
+ * extra time runs on to 120' (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the match goes
+ * from one stop to the next at once, its choice events and breaks shown.
  */
 function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onStep, speed, onSpeedChange }: ReplayProps) {
   const t = useTranslations("live");
@@ -109,16 +119,21 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
   const [clock, setClock] = useState(startMinute); // match minutes, fractional
   const [kicksTaken, setKicksTaken] = useState(0);
   const [skipping, setSkipping] = useState(false); // live-skip pressed: to the next break, or the end, at once
-  const [closedAt, setClosedAt] = useState<string | null>(null); // the pause whose Coaching panel the player closed
+  const [shownAt, setShownAt] = useState<{ at: string; view: StopView } | null>(null); // what a stop shows, once changed
+  const [coachedAt, setCoachedAt] = useState<string | null>(null); // the break whose Coaching panel has been opened
+  const [resumingAt, setResumingAt] = useState<string | null>(null); // the pause the match is going on from
   const [failedAt, setFailedAt] = useState<string | null>(null); // the pause whose next step failed: live-skip asks again
   const [stopAt, setStopAt] = useState<string | null>(null); // the pause « Coaching » asked the match to stop at
   const [chosen, setChosen] = useState<Chosen | null>(null);
   const askedAt = useRef<string | null>(null); // the pause the next step was asked from: once per pause
+  const resuming = useRef<string | null>(null); // the same, for a resume: one per pause, however fast the presses
   const coachingRef = useRef<HTMLButtonElement>(null);
+  const resumeRef = useRef<HTMLButtonElement>(null);
   const continueRef = useRef<HTMLAnchorElement>(null);
 
   const key = pause === null ? null : pauseKey(pause);
-  const atBreak = pause !== null && isMatchBreak(pause.phase);
+  const breakPhase = pause !== null && isMatchBreak(pause.phase) ? pause.phase : null;
+  const atBreak = breakPhase !== null;
   const choice = pause?.choice ?? null;
   const decided = chosen !== null && chosen.at === key ? chosen : null;
   // Where the match stops for its manager: a break; a choice event, or a stop he asked for, unless he skips them.
@@ -135,7 +150,13 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
   const stopped = clockDone && (stopsHere || pause === null);
   const over = finished && pause === null;
   const atStop = clockDone && stopsHere;
-  const cardOpen = atStop && choice !== null && decided === null;
+  // The choice event's card, until it is answered, or until the match goes on with a decision sent at once.
+  const cardOpen = atStop && choice !== null && (decided === null || decided.then === "resume");
+  const view: StopView = shownAt !== null && shownAt.at === key ? shownAt.view : atBreak ? "break" : "coaching";
+  const breakOpen = atStop && atBreak && team !== null && view === "break";
+  const panelOpen = atStop && !cardOpen && team !== null && view === "coaching";
+  // At a break whose panel has not been opened, no change can be lost: the bar has the card's way on too.
+  const resumeOffered = atStop && atBreak && coachedAt !== key;
   const minute = clockDone ? endMinute : Math.floor(clock);
   const inExtraTime = minute > REGULATION_MINUTES;
   // At the end, every event; before, those whose minute has come (the other matches stop where the clock is too).
@@ -216,23 +237,65 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
     setStopAt(null);
   };
 
-  // The card answered: the panel opens on the team as the decision leaves it, which goes to the server with the panel's.
-  const confirmChoice = (decision: { option: ChoiceOption; playerKey: string | null }): void => {
+  /**
+   * The pause resumed, once: the clock goes on from it once its step is played (play). Refused or failed, the ways on come
+   * back, the card's and the panel's as the bar's.
+   */
+  const resumeWith = (move: LiveMoveInput): Promise<void> => {
+    if (pause === null || key === null || resuming.current === key) {
+      return Promise.resolve();
+    }
+    resuming.current = key;
+    setResumingAt(key);
+    return play(pause, move, stepUntil(false, reducedMotion), true).finally(() => {
+      resuming.current = null;
+      setResumingAt(null);
+    });
+  };
+
+  // What the stop shows: its card, the panel or the match alone.
+  const show = (shownView: StopView): void => {
+    if (key !== null) {
+      setShownAt({ at: key, view: shownView });
+    }
+  };
+
+  // The Coaching panel, on demand: from a break's card, the bar, or a choice event's card.
+  const openPanel = (): void => {
+    show("coaching");
+    setCoachedAt(key);
+  };
+
+  /**
+   * The card answered. With « Valider », the decision goes to the server at once and the match goes on, the card staying
+   * until it has; with « Coaching », or at a stop he asked for there, the panel opens on the team as the decision leaves it,
+   * and the decision goes with what the panel brings.
+   */
+  const confirmChoice = (decision: ChoiceCardDecision, then: ChoiceThen): void => {
     if (key === null || choice === null) {
       return;
     }
     const index = choice.options.findIndex(
       (offered) => offered.option === decision.option && (offered.option !== "TAKER" || offered.playerKey === decision.playerKey),
     );
-    setChosen({ at: key, decision: { option: decision.option, ...(decision.playerKey === null ? {} : { playerKey: decision.playerKey }) }, index });
-    setClosedAt(null);
+    const input: DecisionInput = { option: decision.option, ...(decision.playerKey === null ? {} : { playerKey: decision.playerKey }) };
+    const next: ChoiceThen = then === "coaching" || stopAt === key ? "coaching" : "resume";
+    setChosen({ at: key, decision: input, index, then: next });
+    if (next === "coaching") {
+      openPanel();
+    } else {
+      void resumeWith({ decision: input, changes: null, instruction: null });
+    }
   };
 
-  // The pause resumed, with the decision on its card: the clock goes on from it once its step is played (play).
+  // The pause resumed from the panel, with the decision on its card if there is one.
   const resume = (changes: HalfTimeChoiceInput, instruction: Instruction | null): Promise<void> =>
-    pause === null
-      ? Promise.resolve()
-      : play(pause, { decision: decided?.decision ?? null, changes, instruction }, stepUntil(false, reducedMotion), true);
+    resumeWith({ decision: decided?.decision ?? null, changes, instruction });
+
+  // A break resumed from its card or the bar: no change, the assistant's as the match would have been simulated.
+  const resumeUnchanged = (): void => {
+    void resumeWith({ decision: decided?.decision ?? null, changes: null, instruction: null });
+  };
 
   const shown = match.events.filter((event) => event.period !== "SHOOTOUT" && isShown(event));
   // A decision comes with its effect, the minute after its boundary.
@@ -299,9 +362,19 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
           speed={speed}
           onSpeedChange={onSpeedChange}
           onSkip={skip}
-          panelOpen={closedAt !== key}
-          onOpenPanel={() => setClosedAt(null)}
+          overlaid={cardOpen || breakOpen || panelOpen}
+          onOpenPanel={openPanel}
+          resume={
+            resumeOffered
+              ? {
+                  label: breakPhase === "REGULATION_END" ? t("break.resume.regulationEnd") : t("break.resume.halfTime"),
+                  pending: resumingAt === key,
+                  onResume: resumeUnchanged,
+                }
+              : null
+          }
           coachingRef={coachingRef}
+          resumeRef={resumeRef}
           continueRef={continueRef}
         />
       </LiveScoreCard>
@@ -316,18 +389,39 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
           ownGoals={managedSide === "home" ? homeGoals : awayGoals}
           otherGoals={managedSide === "home" ? awayGoals : homeGoals}
           playerFitness={team?.players.find((candidate) => candidate.id === choice.playerKey)?.fitness ?? null}
+          pending={resumingAt === key}
           onConfirm={confirmChoice}
+        />
+      )}
+
+      {atStop && breakPhase !== null && team !== null && (
+        <BreakCard
+          // A card of its own at each break.
+          key={`${key}:break`}
+          phase={breakPhase}
+          team={team}
+          open={breakOpen}
+          onOpenChange={(open) => show(open ? "break" : "none")}
+          home={match.home}
+          away={match.away}
+          homeGoals={homeGoals}
+          awayGoals={awayGoals}
+          events={shown}
+          pending={resumingAt === key}
+          onResume={resumeUnchanged}
+          onCoaching={openPanel}
+          returnFocusTo={resumeRef}
         />
       )}
 
       {atStop && pause !== null && panel !== null && !cardOpen && (
         <HalfTime
-          // A panel of its own at each pause, which opens by itself.
+          // A panel of its own at each pause, which opens on demand only.
           key={pauseKey(pause)}
           team={panel.team}
           decided={panel.change}
-          open={closedAt !== key}
-          onOpenChange={(open) => setClosedAt(open ? null : key)}
+          open={panelOpen}
+          onOpenChange={(open) => (open ? openPanel() : show("none"))}
           returnFocusTo={coachingRef}
           home={match.home}
           away={match.away}

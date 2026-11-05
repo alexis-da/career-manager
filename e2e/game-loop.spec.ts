@@ -28,7 +28,7 @@ test("creates a save with Lyon, plays a matchday, replays its match, and shows o
     await expect(page.getByText(/Journée 1 · 15 août 2026$/)).toBeVisible();
     // To the break, on through the second half without a change, to the final whistle.
     await page.getByTestId("live-skip").click();
-    await page.getByRole("button", { name: "Reprendre sans changement" }).click();
+    await page.getByTestId("break-resume").click();
     await page.getByTestId("live-skip").click();
     await page.getByRole("link", { name: "Continuer" }).click();
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();

@@ -37,6 +37,12 @@ const FAMILIES = {
 /** The player's decision, as the card sends it: an option, and the player it names (a penalty's taker), if any. */
 export type ChoiceCardDecision = { option: ChoiceOption; playerKey: string | null };
 
+/**
+ * What follows the decision: the match goes on at once (« Valider »), or the Coaching panel opens first (« Coaching »),
+ * the decision going to the server with what the panel brings.
+ */
+export type ChoiceThen = "resume" | "coaching";
+
 type OfferedOption = ChoiceEventView["options"][number];
 
 /** The score at the pause, the player's club's goals first. */
@@ -159,7 +165,8 @@ type ChoiceCardProps = {
   ownGoals: number; // the score at the pause, the player's club's first
   otherGoals: number;
   playerFitness: number | null; // what the player it is about has left now (« Joueur à bout »); null for any other event
-  onConfirm: (decision: ChoiceCardDecision) => void; // « Valider », once per opening
+  pending: boolean; // the match goes on with the decision: the card stays until it has, nothing left to press
+  onConfirm: (decision: ChoiceCardDecision, then: ChoiceThen) => void; // « Valider » or « Coaching »
   returnFocusTo?: RefObject<HTMLElement | null>; // where the keyboard goes once it closes; by default, where it was before
 };
 
@@ -168,8 +175,9 @@ type ChoiceCardProps = {
  * panel beside the match from there, as the Coaching panel. Its family and minute, a title, the situation in one sentence,
  * then two or three options, each with what it does in plain words; the assistant's is marked, and chosen to begin with,
  * and on a late tactical card, the instruction the club has been playing with is « (actuelle) ».
- * The choice is required: no cross, no timer, neither Escape nor a press outside closes the card, and « Valider », the
- * screen's one orange action, answers only once the card has been open for CONFIRM_GUARD_MS.
+ * The choice is required: no cross, no timer, neither Escape nor a press outside closes the card. « Valider », the
+ * screen's one orange action, takes the decision and the match goes on at once, the card staying until it has; « Coaching »
+ * takes it too and opens the Coaching panel first. Both answer only once the card has been open for CONFIRM_GUARD_MS.
  */
 export function ChoiceCard({
   event,
@@ -178,6 +186,7 @@ export function ChoiceCard({
   ownGoals,
   otherGoals,
   playerFitness,
+  pending,
   onConfirm,
   returnFocusTo,
 }: ChoiceCardProps) {
@@ -185,7 +194,6 @@ export function ChoiceCard({
   const group = useId();
   const [picked, setPicked] = useState<{ minute: number; index: number } | null>(null);
   const [settled, setSettled] = useState(false); // the card has been open for CONFIRM_GUARD_MS
-  const [confirmedAt, setConfirmedAt] = useState<number | null>(null); // the minute of the event « Valider » was pressed on
   const scroller = useRef<HTMLDivElement>(null);
 
   // Armed again for each opening, and for each event if the page keeps the card open from one to the next.
@@ -197,18 +205,18 @@ export function ChoiceCard({
     return () => {
       window.clearTimeout(timer);
       setSettled(false);
-      setConfirmedAt(null); // opened again after a choice the page could not send: it may be sent again
     };
   }, [open, event.minute]);
 
   // The assistant's option, until the player picks another one for this event.
   const selected = picked !== null && picked.minute === event.minute ? picked.index : event.assistant;
   const { title, situation } = eventTexts(event, { opponent, score: { own: ownGoals, other: otherGoals }, playerFitness }, t);
+  // A decision the page could not send leaves the card open: it may be sent again.
+  const disabled = !settled || pending;
 
-  const confirm = (): void => {
+  const confirm = (then: ChoiceThen): void => {
     const chosen = event.options[selected];
-    setConfirmedAt(event.minute);
-    onConfirm({ option: chosen.option, playerKey: chosen.playerKey });
+    onConfirm({ option: chosen.option, playerKey: chosen.playerKey }, then);
   };
 
   return (
@@ -262,18 +270,31 @@ export function ChoiceCard({
             </fieldset>
           </div>
 
-          {/* Stuck to the foot of the card, which can be taller than a screen: the only way on. */}
+          {/* Stuck to the foot of the card, which can be taller than a screen: the only ways on, the panel's way above. */}
           <div className="sticky bottom-0 z-20 border-t bg-card">
-            <div className={cn("mx-auto w-full max-w-lg pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-5", PANEL_GUTTER)}>
+            <div className={cn("mx-auto flex w-full max-w-lg flex-col gap-2 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-5", PANEL_GUTTER)}>
+              <Button
+                variant="outline"
+                className="h-11 w-full"
+                disabled={disabled}
+                onClick={() => confirm("coaching")}
+                aria-describedby={`${group}-coaching`}
+                data-testid="choice-coaching"
+              >
+                {t("coaching")}
+              </Button>
+              <span id={`${group}-coaching`} className="sr-only">
+                {t("coachingHint")}
+              </span>
               <Button
                 variant="club"
                 className="h-14 w-full font-heading text-2xl font-semibold"
-                disabled={!settled || confirmedAt === event.minute}
-                onClick={confirm}
+                disabled={disabled}
+                onClick={() => confirm("resume")}
                 data-testid="choice-validate"
               >
                 <CheckIcon data-icon="inline-start" />
-                {t("validate")}
+                {pending ? t("resuming") : t("validate")}
               </Button>
             </div>
           </div>

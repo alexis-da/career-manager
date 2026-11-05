@@ -1,3 +1,4 @@
+import type { HalfTimeTeam } from "@/src/db/live-match";
 import { formationPositions, type FormationName } from "@/src/engine/formations";
 import { changeFormation, type LineupCandidate } from "@/src/engine/lineup";
 import { ratingAt, type Position } from "@/src/engine/positions";
@@ -29,6 +30,24 @@ export type HalfTimeRules = {
 };
 
 export type Move = { ok: true; state: HalfTimeState } | { ok: false; message: string };
+
+/** What a pause cannot change, from the managed club there. */
+export const pauseRules = (team: HalfTimeTeam): HalfTimeRules => ({
+  injured: new Set(team.injured),
+  sentOffSlots: new Set(team.sentOff.map((entry) => entry.slot)),
+  substitutionsBefore: team.substitutions,
+  maxSubstitutions: team.maxSubstitutions,
+  canSubstitute: team.windows.open,
+});
+
+/** The managed club at a pause before any change of its manager's: its eleven and its bench as they stand. */
+export const pauseState = (team: HalfTimeTeam): HalfTimeState => ({
+  formation: team.formation,
+  starters: team.starters,
+  bench: team.bench,
+  off: [],
+  substitutions: [],
+});
 
 export const substitutionsMade = (state: HalfTimeState, rules: HalfTimeRules): number =>
   rules.substitutionsBefore + state.substitutions.length;

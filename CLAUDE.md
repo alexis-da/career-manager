@@ -347,7 +347,7 @@ mise à jour conditionnelle sur `liveState`, la reprise d'une pause déjà joué
 (`PauseMismatchError`) et rien n'est écrit deux fois. Le match s'arrête pour le joueur à la mi-temps, à la fin du temps
 réglementaire d'une coupe nulle, à un événement à choix et là où il l'a demandé : `live-coaching-request` (« Coaching à
 la 30e », l'orange de l'écran pendant que l'horloge court) l'arrête à la prochaine limite non jouée, 15', 30', 60', 75' ou
-105' ; « Coaching à la mi-temps », inactif, avant la 45e, où le panneau s'ouvre de lui-même, et inactif dans le dernier
+105' ; « Coaching à la mi-temps », inactif, avant la 45e, où le match s'arrête de lui-même, et inactif dans le dernier
 segment, qui sinon annoncerait un nul. `live-skip` (« Aller à la mi-temps », « Aller au résultat », secondaire, une icône
 sous 640 px) mène à la prochaine pause de jeu ou à la fin, l'adjoint décidant en chemin ; le mouvement réduit va d'un
 arrêt à l'autre d'un coup, événements compris (`stepUntil` : « segment », « pause », « break »). Le moteur n'a ni
@@ -359,20 +359,32 @@ résultat à la fin ; au-dessus de la barre, la consigne que joue le club à la 
 sur les consignes gardées par segment, que la page reçoit au chargement, `getLiveWaiting`, et à chaque étape ; à une
 pause, celle que donne la décision prise sur la carte, aussitôt ; elle laisse la place au résultat). Commandes (`LiveControls`, `live-controls`, un seul élément : dans la carte à partir de 1024 px, fixées
 au pied de l'écran en dessous) : vitesse x1, x2, x4 (`live-speed-*`), `live-coaching-request` et `live-skip`, qui dit où
-il mène (jamais la pause de la 90e, qui annoncerait un nul avant qu'il soit joué) ; `live-coaching` à un arrêt,
-`live-continue` à la fin. Carte d'événement (`ChoiceCard`, `choice-card`, zone de messages `choices`) : `Sheet` modal
+il mène (jamais la pause de la 90e, qui annoncerait un nul avant qu'il soit joué) ; à un arrêt, `live-coaching` (le
+panneau) et, à une pause de jeu dont le panneau n'a pas été ouvert, `live-resume` (la reprise sans changement de sa
+carte, l'orange quand rien n'est ouvert) ; `live-continue` à la fin. **Le panneau Coaching ne s'ouvre jamais de
+lui-même** (retours du 05/11). Carte de pause (`BreakCard`, `break-card`, `data-break`) : à la mi-temps et à la fin du
+temps réglementaire d'une coupe nulle, `Sheet` modal compact, depuis le pied de l'écran sous 1024 px, au pied de la
+colonne du panneau (440 px, en bas à droite) au-dessus ; le titre de la pause, le score (`PauseScore`, partagé avec le
+panneau), buteurs et exclus de chaque côté (`breakMarks`), un mot de l'adjoint (blessés, exclus, changement conseillé ou
+pourquoi aucun ; avant la prolongation, ce qui suit), « Coaching » (`break-coaching`) puis « Reprendre »
+(`break-resume`, « Jouer la prolongation » avant la prolongation), seule action orange, inactifs 500 ms
+(`RESUME_GUARD_MS`, `live-pause.ts`) ; Échap et sa croix la ferment, la barre gardant ses deux voies. Carte
+d'événement (`ChoiceCard`, `choice-card`, zone de messages `choices`) : `Sheet` modal
 comme le panneau, sans croix ni minuterie, Échap ne la ferme pas, le focus sur elle à l'ouverture ; sa famille et sa
 minute, son titre, la situation en une phrase (joueurs, minute, score vu du club), deux ou trois choix et leur conséquence
 en mots (seul pourcentage : la réussite du penalty ; le remplaçant nommé quand un choix sort un joueur), celui de
-l'adjoint signalé et présélectionné, « Valider », seule action orange, inactif 500 ms à l'ouverture. La décision part avec
-la reprise du panneau Coaching, qui s'ouvre ensuite sur l'équipe telle qu'elle la laisse (`decidedTeam` : le remplaçant de
-l'événement à sa place, ce changement montré et non annulable ; un joueur touché ; la consigne choisie). Dessous, sur deux colonnes à partir de `xl`, le fil (`LiveFeed`, `feedEntries` : événements et
+l'adjoint signalé et présélectionné, « Valider », seule action orange, et au-dessus « Coaching » (`choice-coaching`),
+inactifs 500 ms à l'ouverture. « Valider » envoie la décision et le match reprend aussitôt, la carte restant jusqu'à la
+suite (« Reprise… ») ; « Coaching », ou un arrêt demandé à cette limite, ouvre le panneau sur l'équipe telle que la
+décision la laisse (`decidedTeam` : le remplaçant de l'événement à sa place, ce changement montré et non annulable ; un
+joueur touché ; la consigne choisie), et la décision part avec sa reprise. Dessous, sur deux colonnes à partir de `xl`, le fil (`LiveFeed`, `feedEntries` : événements et
 repères, le plus récent en haut, `EventIcon` en SVG, aussi dans la feuille de match), les statistiques en barres, comptées
 sur les seuls événements montrés (`matchStats`), et les autres matchs ; le fil montre aussi les décisions des événements
 avec leur effet, à la minute qui suit leur limite (`withDecisions`, `describeDecision`, `app/saves/[id]/_lib/decisions.ts`,
 zone `decisions` : « Penalty de Diallo : but », « Tu as protesté : Mendy averti »), comme la feuille de match. Panneau
-Coaching (`HalfTime`) : `Sheet` modal, ouvert seul à chaque arrêt, fermé par Échap ou la croix, rouvert par
-`live-coaching`, ses changements gardés ; plein écran sous 1024 px, 440 px à droite au-dessus ; son titre dit la pause
+Coaching (`HalfTime`) : `Sheet` modal, ouvert à la demande seulement (carte de pause, carte d'événement, barre, arrêt
+demandé), fermé par Échap ou la croix, rouvert par `live-coaching`, ses changements gardés (la barre n'offre plus alors
+de reprise : rien ne reprend sans eux) ; plein écran sous 1024 px, 440 px à droite au-dessus ; son titre dit la pause
 (« Mi-temps », « 60e minute »). La règle des remplacements et les fenêtres utilisées (`half-time-windows` ; sans fenêtre,
 le banc refuse), qui fait les changements (l'adjoint jusqu'au premier du joueur), l'adjoint (`coachAdvice`, pur : blessés,
 exclus, score, changement, joueurs avertis, joueurs touchés, rien que de vrai), le changement conseillé (`suggestChange`,

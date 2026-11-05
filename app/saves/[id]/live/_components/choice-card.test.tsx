@@ -137,6 +137,7 @@ const render = (event: ChoiceEventView, props: Partial<CardProps> = {}, locale: 
         ownGoals={1}
         otherGoals={1}
         playerFitness={null}
+        pending={false}
         onConfirm={vi.fn()}
         {...props}
       />,
@@ -201,13 +202,31 @@ describe("the choice card", () => {
     expect(cancel).toHaveBeenCalledOnce();
   });
 
-  it("holds « Valider », its one orange action, out of reach as it opens", () => {
+  it("holds « Valider », its one orange action, and « Coaching » above it, both out of reach as it opens", () => {
     const markup = render(HOTHEAD);
     const validate = markup.match(/<button[^>]*data-testid="choice-validate"[^>]*>/)?.[0] ?? "";
     expect(validate).toContain("bg-(--club)");
     expect(validate).toContain('disabled=""');
     expect(markup.match(/bg-\(--club\)/g)).toHaveLength(1);
     expect(textOf(markup)).toContain("Valider");
+    // The panel's way, secondary, before the match goes on: it says, to a screen reader, that it takes the choice too.
+    const coaching = markup.match(/<button[^>]*data-testid="choice-coaching"[^>]*>/)?.[0] ?? "";
+    expect(coaching).not.toContain("bg-(--club)");
+    expect(coaching).toContain('disabled=""');
+    expect(markup.indexOf('data-testid="choice-coaching"')).toBeLessThan(markup.indexOf('data-testid="choice-validate"'));
+    const hint = attribute(coaching, "aria-describedby") ?? "";
+    expect(markup).toContain(`id="${hint}"`);
+    expect(textOf(markup)).toContain("Valide ce choix, puis ouvre le Coaching avant la reprise.");
+  });
+
+  it("says the match goes on while the decision is sent, nothing left to press", () => {
+    const markup = render(HOTHEAD, { pending: true });
+    expect(textOf(markup)).toContain("Reprise…");
+    expect(textOf(markup)).not.toContain("Valider");
+    for (const action of ["choice-validate", "choice-coaching"]) {
+      expect(markup.match(new RegExp(`<button[^>]*data-testid="${action}"[^>]*>`))?.[0]).toContain('disabled=""');
+    }
+    expect(textOf(render(HOTHEAD, { pending: true }, "en"))).toContain("Restarting…");
   });
 
   it("names a penalty's three takers with their chance of scoring, rounded: the only figure a card shows", () => {

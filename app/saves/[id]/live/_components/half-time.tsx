@@ -29,6 +29,8 @@ import { coachAdvice } from "../_lib/coach-advice";
 import {
   cancelSubstitution,
   halfTimeChoice,
+  pauseRules,
+  pauseState,
   substitute,
   substitutionsMade,
   suggestChange,
@@ -39,15 +41,11 @@ import {
   type Move,
   type SuggestedChange,
 } from "../_lib/half-time-moves";
+import { RESUME_GUARD_MS } from "../_lib/live-pause";
+import { PauseScore } from "./pause-score";
 
 /** Gap between the pointer and the dragged player's tag. */
 const GHOST_OFFSET_PX = 14;
-
-/**
- * How long the ways on stay out of reach once the panel opens: on a phone they come right under the bar's button, and a
- * second tap meant for it, or one that came as the clock reached the break, would resume the match for good.
- */
-const RESUME_GUARD_MS = 500;
 
 /** Side margins of the panel, its content and its foot alike. */
 const PANEL_GUTTER = "px-4 sm:px-6 lg:px-7";
@@ -55,14 +53,10 @@ const PANEL_GUTTER = "px-4 sm:px-6 lg:px-7";
 /** The instructions, from the most open game to the most closed. */
 const INSTRUCTIONS: readonly Instruction[] = ["ATTACK", "BALANCED", "DEFEND"];
 
-/** A club's name beside the score. On a phone, smaller: a word longer than its column wraps rather than being cut. */
-const SCORE_NAME =
-  "min-w-0 font-heading leading-tight font-bold text-balance wrap-break-word max-[390px]:text-sm min-[390px]:max-sm:text-base sm:text-lg";
-
 type HalfTimeProps = {
   team: HalfTimeTeam; // as the decision on the pause's choice event leaves it, if there is one
   decided: { out: string; in: string } | null; // the substitution that decision makes: shown, never undone here
-  open: boolean; // closed, the changes stay here: the page's Coaching button opens the panel on them again
+  open: boolean; // closed, the changes stay here: the bar's Coaching button opens the panel on them again
   onOpenChange: (open: boolean) => void;
   returnFocusTo: RefObject<HTMLElement | null>; // that button: the one that was pressed to get here has gone
   home: TeamView;
@@ -75,9 +69,10 @@ type HalfTimeProps = {
 };
 
 /**
- * The Coaching panel, for a match paused: at half-time, at the end of regulation time of a level cup tie (one more
- * substitution then, before extra time), between the periods of extra time, and between two segments of play after a
- * choice event or when the player asked for it. The screen's whole size under lg, beside the match from there. The rule
+ * The Coaching panel, for a match paused, never opened by itself: from a break's card or the bar at half-time and at the
+ * end of regulation time of a level cup tie (one more substitution then, before extra time), from a choice event's card,
+ * and where the player asked for it, between two segments of play or the two periods of extra time. The screen's whole
+ * size under lg, beside the match from there. The rule
  * of substitutions, the windows used during play; the assistant says where things stand and suggests a substitution, made
  * by touching it as by a drag; a change can be undone until the restart, but for the one the event's decision makes.
  * The instruction for the rest of the period of play. Unfolded, the full line-up: the eleven on the pitch (injured
@@ -99,22 +94,10 @@ export function HalfTime({
 }: HalfTimeProps) {
   const t = useTranslations("halfTime");
   const tPositions = useTranslations("positions");
-  const [rules] = useState<HalfTimeRules>(() => ({
-    injured: new Set(team.injured),
-    sentOffSlots: new Set(team.sentOff.map((entry) => entry.slot)),
-    substitutionsBefore: team.substitutions,
-    maxSubstitutions: team.maxSubstitutions,
-    canSubstitute: team.windows.open,
-  }));
+  const [rules] = useState<HalfTimeRules>(() => pauseRules(team));
   const regulationEnd = team.phase === "REGULATION_END";
   const [instruction, setInstruction] = useState<Instruction>(team.instruction.current);
-  const [state, setState] = useState<HalfTimeState>(() => ({
-    formation: team.formation,
-    starters: team.starters,
-    bench: team.bench,
-    off: [],
-    substitutions: [],
-  }));
+  const [state, setState] = useState<HalfTimeState>(() => pauseState(team));
   const [selected, setSelected] = useState<number | null>(null);
   const [lineupOpen, setLineupOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -258,13 +241,7 @@ export function HalfTime({
                 <SheetDescription className="mt-1 font-bold text-(--club)">{t("paused")}</SheetDescription>
               </div>
 
-              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 max-sm:gap-2">
-                <p className={cn(SCORE_NAME, "text-right")}>{home.name}</p>
-                <p className="font-heading text-4xl font-bold tabular-nums">
-                  {homeGoals} – {awayGoals}
-                </p>
-                <p className={SCORE_NAME}>{away.name}</p>
-              </div>
+              <PauseScore home={home} away={away} homeGoals={homeGoals} awayGoals={awayGoals} />
 
               <p
                 data-substitutions

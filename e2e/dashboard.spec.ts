@@ -226,11 +226,12 @@ test("plays the match from the hero, offers only to resume it at the break, then
   await play.click();
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?rejouer=1$`), { timeout: 120_000 });
   await page.getByTestId("live-skip").click();
-  await expect(page.getByTestId("half-time-title")).toBeVisible();
+  await expect(page.getByTestId("break-title")).toBeVisible();
 
-  // The match waits: the hero's one way on is back to it, and nothing can be simulated. The panel closed first: it is modal.
+  // The match waits: the hero's one way on is back to it, and nothing can be simulated. The break's card closed first: it
+  // is modal.
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("half-time")).toBeHidden();
+  await expect(page.getByTestId("break-card")).toBeHidden();
   await openScreen(page, "dashboard");
   const resume = hero.getByTestId("resume-match");
   await expect(resume).toHaveText("Match en cours — reprendre");
@@ -241,7 +242,7 @@ test("plays the match from the hero, offers only to resume it at the break, then
 
   await resume.click();
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live$`));
-  await page.getByTestId("half-time-resume-unchanged").click();
+  await page.getByTestId("break-resume").click();
   await page.getByTestId("live-skip").click();
   await page.getByTestId("live-continue").click();
 

@@ -750,7 +750,7 @@ test("after the club's first match, the calendar, the table, its form and its su
   await page.getByTestId("dashboard-next-match").getByTestId("next-match").click();
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?rejouer=1$`), { timeout: 120_000 });
   await page.getByTestId("live-skip").click();
-  await page.getByTestId("half-time-resume-unchanged").click();
+  await page.getByTestId("break-resume").click();
   await page.getByTestId("live-skip").click();
   await page.getByTestId("live-continue").click();
   await expect(page.getByTestId("dashboard-last-result")).toBeVisible();

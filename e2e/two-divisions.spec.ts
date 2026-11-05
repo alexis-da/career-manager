@@ -18,7 +18,7 @@ test.afterEach(async ({ page }) => {
 /** From the break, on through the second half without a change, to the final whistle, then back to the dashboard. */
 async function finishLiveMatch(page: Page): Promise<void> {
   await page.getByTestId("live-skip").click();
-  await page.getByRole("button", { name: "Reprendre sans changement" }).click();
+  await page.getByTestId("break-resume").click();
   await page.getByTestId("live-skip").click();
   await page.getByRole("link", { name: "Continuer" }).click();
   await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();

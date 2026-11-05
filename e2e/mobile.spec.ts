@@ -61,9 +61,9 @@ test("plays a career on a phone, from the home page to the honours, never wider 
   await expect(page.getByTestId("next-match")).toHaveCount(0);
   await expectNoSidewaysScroll(page, "live match");
   await page.getByTestId("live-skip").click();
-  await expect(page.getByTestId("half-time-title")).toBeVisible();
+  await expect(page.getByTestId("break-title")).toBeVisible();
   await expectNoSidewaysScroll(page, "half-time");
-  await page.getByTestId("half-time-resume-unchanged").click();
+  await page.getByTestId("break-resume").click();
   await page.getByTestId("live-skip").click();
   await expect(page.getByTestId("live-status")).toHaveText("Terminé");
   await expectNoSidewaysScroll(page, "full time");

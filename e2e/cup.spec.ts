@@ -56,32 +56,38 @@ test("plays a cup final live: half-time, the end of regulation time, extra time 
     const skip = page.getByTestId("live-skip");
     await expect(skip).toHaveText("Aller à la mi-temps");
     await skip.click();
-    const pause = page.locator("[data-half-time]");
-    await expect(pause.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
-    await pause.getByRole("button", { name: "Reprendre sans changement" }).click();
+    const card = page.locator("[data-break]");
+    await expect(card.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
+    await card.getByTestId("break-resume").click();
 
     // The way on never announces the break of a tie level after 90 minutes, which would tell the draw before its minutes
     // are played: a secondary way to the result, on the same page. The match stops there all the same.
-    await expect(pause).toBeHidden();
+    await expect(card).toBeHidden();
     await expect(page).toHaveURL(/\/live\?rejouer=1$/);
     await expect(skip).toHaveText("Aller au résultat");
     await expect(skip).not.toHaveCSS("background-color", ACTION_ORANGE);
     await skip.click();
-    await expect(pause.getByRole("heading", { name: "Fin du temps réglementaire" })).toBeVisible();
+    await expect(card.getByRole("heading", { name: "Fin du temps réglementaire" })).toBeVisible();
+    await expect(card).toHaveAttribute("data-break", "REGULATION_END");
+    // Its card: the assistant on what follows, and extra time on its way on.
+    await expect(page.getByTestId("break-advice")).toContainText("À égalité après 90 minutes : prolongation, puis tirs au but");
+    await expect(page.getByTestId("break-resume")).toHaveText("Jouer la prolongation");
+    // Its panel, from the card: one substitution more, and extra time on its button too.
+    await page.getByTestId("break-coaching").click();
+    const pause = page.locator("[data-half-time]");
     await expect(pause).toHaveAttribute("data-half-time", "REGULATION_END");
-    // The panel of that break: one substitution more, the assistant on what follows, and extra time on its button.
     await expect(pause.locator("[data-substitutions]")).toContainText("/6 · un de plus pour la prolongation");
     await expect(page.getByTestId("half-time-advice")).toContainText("À égalité après 90 minutes : prolongation, puis tirs au but");
     await expect(page.getByTestId("half-time-resume")).toHaveText("Jouer la prolongation");
     await expect(page.locator("[data-live-status]")).toHaveText("Fin du temps réglementaire");
     await expect(page.getByTestId("live-events").locator("li").first()).toContainText("Fin du temps réglementaire");
-    // The match waits there: the page opens on it again, nothing left to skip.
+    // The match waits there: the page opens on its card again, nothing left to skip.
     await page.goto(`/saves/${saveId}/live`);
-    await expect(pause.getByRole("heading", { name: "Fin du temps réglementaire" })).toBeVisible();
+    await expect(card.getByRole("heading", { name: "Fin du temps réglementaire" })).toBeVisible();
     await expect(skip).toHaveCount(0);
-    await pause.getByRole("button", { name: "Reprendre sans changement" }).click();
+    await card.getByTestId("break-resume").click();
 
-    await expect(pause).toBeHidden();
+    await expect(card).toBeHidden();
     await expect(skip).toHaveText("Aller au résultat");
     await skip.click();
     await expect(page.locator("[data-live-status]")).toHaveText("Terminé");

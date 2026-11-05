@@ -21,16 +21,19 @@ const SECONDARY_ACTION = cn(ACTION, "text-[0.9375rem] leading-tight font-bold");
 
 type LiveControlsProps = {
   dashboardHref: string;
-  finished: boolean; // the replay has reached what it stops at: a pause with the Coaching panel, or the end of the match
-  atStop: boolean; // what it stops at is a pause with its Coaching panel
+  finished: boolean; // the replay has reached what it stops at: a pause where its manager acts, or the end of the match
+  atStop: boolean; // what it stops at is a pause where its manager acts
   skipTo: SkipTarget; // where live-skip leads while the match runs: half-time before it, the result after
   coaching: { target: CoachingTarget; asked: boolean; busy: boolean; onToggle: () => void }; // the stop asked for while it runs
   speed: Speed;
   onSpeedChange: (speed: Speed) => void;
   onSkip: () => void;
-  panelOpen: boolean; // the Coaching panel, which has the pause's own orange action
+  overlaid: boolean; // a card or the Coaching panel is open over the page, with the pause's own orange action
   onOpenPanel: () => void;
+  // At a break whose panel has not been opened, nothing to lose: the way on without a change, as its card has it.
+  resume: { label: string; pending: boolean; onResume: () => void } | null;
   coachingRef: Ref<HTMLButtonElement>;
+  resumeRef: Ref<HTMLButtonElement>;
   continueRef: Ref<HTMLAnchorElement>;
 };
 
@@ -38,7 +41,8 @@ type LiveControlsProps = {
  * The screen's controls, one element: in the card from lg, fixed to the foot of the screen under it. While the match runs,
  * its speed, « Coaching », the screen's main action, which stops the match at the next boundary for the Coaching panel,
  * and the way to what comes next, which says where it leads: half-time before it, the result after, the assistant deciding
- * on the way; on a phone, an icon. At a pause with the panel, the way back to it; at the end, the way on.
+ * on the way; on a phone, an icon. At a pause, the way to the panel, and at a break whose panel has not been opened the
+ * way on without a change, its card's two ways; at the end, the way on.
  */
 export function LiveControls({
   dashboardHref,
@@ -49,9 +53,11 @@ export function LiveControls({
   speed,
   onSpeedChange,
   onSkip,
-  panelOpen,
+  overlaid,
   onOpenPanel,
+  resume,
   coachingRef,
+  resumeRef,
   continueRef,
 }: LiveControlsProps) {
   const t = useTranslations("live");
@@ -78,7 +84,7 @@ export function LiveControls({
               </Button>
             ))}
           </div>
-          {/* Half-time opens its panel by itself, and the last segment stops nowhere: the button says so, disabled. */}
+          {/* Half-time stops by itself, and the last segment stops nowhere: the button says so, disabled. */}
           <Button
             variant={minute === null ? "outline" : "club"}
             className={cn(MAIN_ACTION, minute === null && ON_BLUE)}
@@ -109,16 +115,30 @@ export function LiveControls({
           </Button>
         </>
       ) : atStop ? (
-        // One full orange action a screen: the open panel has its own.
-        <Button
-          ref={coachingRef}
-          variant={panelOpen ? "outline" : "club"}
-          className={cn(MAIN_ACTION, panelOpen && ON_BLUE)}
-          onClick={onOpenPanel}
-          data-testid="live-coaching"
-        >
-          {t("coaching")}
-        </Button>
+        // One full orange action a screen: an open card or panel has its own; else the way on, or the panel's.
+        <>
+          <Button
+            ref={coachingRef}
+            variant={overlaid || resume !== null ? "outline" : "club"}
+            className={cn(resume === null ? MAIN_ACTION : SECONDARY_ACTION, (overlaid || resume !== null) && ON_BLUE)}
+            onClick={onOpenPanel}
+            data-testid="live-coaching"
+          >
+            {t("coaching")}
+          </Button>
+          {resume !== null && (
+            <Button
+              ref={resumeRef}
+              variant={overlaid ? "outline" : "club"}
+              className={cn(MAIN_ACTION, overlaid && ON_BLUE)}
+              disabled={resume.pending}
+              onClick={resume.onResume}
+              data-testid="live-resume"
+            >
+              {resume.label}
+            </Button>
+          )}
+        </>
       ) : (
         <Link ref={continueRef} href={dashboardHref} data-testid="live-continue" className={buttonVariants({ variant: "club", className: MAIN_ACTION })}>
           {t("continue")}

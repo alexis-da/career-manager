@@ -27,26 +27,31 @@ test("stops the match at half-time, makes a substitution and switches to 4-4-2, 
     const skip = page.getByTestId("live-skip");
     await expect(skip).toHaveText("Aller à la mi-temps");
     await skip.click();
+    // The break's card, the panel shut until it is asked for.
+    const card = page.locator("[data-break]");
     const halfTime = page.locator("[data-half-time]");
-    await expect(halfTime.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
-    await expect(halfTime.locator("[data-substitutions]")).toHaveText("Remplacements : 0/5");
+    await expect(card.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
+    await expect(halfTime).toHaveCount(0);
 
     // While the match waits, no main button on its page, where it would lead nowhere; from any other, it leads back to
     // the match, and the page opens on the break.
     await expect(page.getByTestId("next-match")).toHaveCount(0);
     await expect(page.getByTestId("resume-match")).toHaveCount(0);
-    // The panel closed first: it is modal, and keeps the sidebar out of reach.
+    // The card closed first: it is modal, and keeps the sidebar out of reach.
     await page.keyboard.press("Escape");
-    await expect(halfTime).toBeHidden();
+    await expect(card).toBeHidden();
     await openScreen(page, "dashboard");
     await expect(page.getByTestId("next-match")).toHaveCount(0);
     await page.getByTestId("resume-match").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live$/);
-    await expect(halfTime.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
+    await expect(card.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
     await expect(skip).toHaveCount(0);
 
-    // The line-up unfolded: the panel opens without the pitch and the bench. The last player of the 4-3-3 still on the
-    // pitch makes way for the last substitute.
+    // The panel from the card, the line-up unfolded: it opens without the pitch and the bench. The last player of the
+    // 4-3-3 still on the pitch makes way for the last substitute.
+    await card.getByRole("button", { name: "Coaching" }).click();
+    await expect(halfTime.getByRole("heading", { name: "Mi-temps" })).toBeVisible();
+    await expect(halfTime.locator("[data-substitutions]")).toHaveText("Remplacements : 0/5");
     await halfTime.getByTestId("half-time-lineup-toggle").click();
     const slotIndex = await halfTime.locator("button[data-slot-player-key]").last().getAttribute("data-slot-index");
     const striker = halfTime.locator(`button[data-slot-index="${slotIndex}"]`);
@@ -98,33 +103,33 @@ test("with reduced motion, goes from one stop to the next at once: its choice ev
     await page.emulateMedia({ reducedMotion: "reduce" });
     await createSave(page, name, LYON);
 
-    // Each choice event's card, then its panel, until half-time's panel, no clock running in between.
+    // Each choice event's card, « Valider » and the match goes on at once, until half-time's card, no clock running in
+    // between: the Coaching panel never opens by itself.
     await page.getByTestId("next-match").click();
     const card = page.getByTestId("choice-card");
     const panel = page.locator("[data-half-time]");
-    const halfTime = panel.getByRole("heading", { name: "Mi-temps" });
+    const halfTime = page.locator("[data-break]").getByRole("heading", { name: "Mi-temps" });
     const stopsUntil = async (end: Locator): Promise<void> => {
       for (;;) {
-        await expect(card.or(panel).or(end).first()).toBeVisible();
+        await expect(card.or(end).first()).toBeVisible();
         if (await end.isVisible()) {
           return;
         }
         await expect(page.getByTestId("live-skip")).toHaveCount(0);
-        if (await card.isVisible()) {
-          await page.getByTestId("choice-validate").click();
-          await expect(card).toBeHidden();
-        } else {
-          // The next stop may be a panel too: this one has gone once its title has.
-          const title = (await page.getByTestId("half-time-title").textContent()) ?? "";
-          await page.getByRole("button", { name: "Reprendre sans changement" }).click();
-          await expect.poll(async () => (await page.getByTestId("half-time-title").allTextContents()).join()).not.toBe(title);
-        }
+        // The next stop may be a card too: this one has gone once its minute has.
+        const kind = `${await card.getAttribute("data-choice-kind")}:${await card.locator("p.eyebrow").textContent()}`;
+        await page.getByTestId("choice-validate").click();
+        await expect
+          .poll(async () => ((await card.isVisible()) ? `${await card.getAttribute("data-choice-kind")}:${await card.locator("p.eyebrow").textContent()}` : ""))
+          .not.toBe(kind);
+        await expect(panel).toHaveCount(0);
       }
     };
     await stopsUntil(halfTime);
     await expect(page.getByTestId("live-skip")).toHaveCount(0);
+    await expect(panel).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Reprendre sans changement" }).click();
+    await page.getByTestId("break-resume").click();
     await expect(halfTime).toBeHidden();
     await stopsUntil(page.getByText("Terminé", { exact: true }));
     await expect(page.getByTestId("live-skip")).toHaveCount(0);

@@ -7,8 +7,17 @@ import type { DecidedBy } from "@/src/engine/match";
 // played: its clock runs up to where the stored match waits (a pause), then asks for what follows.
 
 /**
- * The breaks of a match, whose Coaching panel opens by itself: half-time, and the end of regulation time of a cup tie
- * level after 90 minutes. Between two segments, it opens on a choice event, or when the player asks for it.
+ * How long the ways on of a stop stay out of reach once its card or its Coaching panel opens: on a phone they come right
+ * under the bar's buttons, and a second tap meant for them, or one that came as the clock reached the stop, would resume
+ * the match for good.
+ */
+export const RESUME_GUARD_MS = 500;
+
+/**
+ * The breaks of a match, where it stops by itself with a card of their own: half-time, and the end of regulation time of
+ * a cup tie level after 90 minutes. Between two segments, it stops on a choice event, or where the player asked for his
+ * Coaching panel. The panel never opens by itself: at a break, from its card or the bar; after a choice event, from its
+ * card; at a stop asked for, there, since he asked.
  */
 export function isMatchBreak(phase: PausePhase): phase is MatchBreak {
   return phase === "HALF_TIME" || phase === "REGULATION_END";
@@ -68,8 +77,8 @@ export function stepUntil(skipping: boolean, reducedMotion: boolean): StepUntil 
 
 /**
  * Where the Coaching button stops the match while its clock runs: the next boundary not played yet, the pause the clock
- * runs to, between two segments (15', 30', 60', 75') or the two periods of extra time (105'). Half-time's panel opens by
- * itself. None in the last segment of regular time or of extra time, whatever follows it: a cup tie level after 90
+ * runs to, between two segments (15', 30', 60', 75') or the two periods of extra time (105'). Half-time stops by itself,
+ * its card offering the panel. None in the last segment of regular time or of extra time, whatever follows it: a cup tie level after 90
  * minutes stops there by itself, and a button that said so would tell a draw before it is played.
  */
 export type CoachingTarget = { minute: number } | "halfTime" | null;

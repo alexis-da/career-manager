@@ -16,6 +16,9 @@
     "assistant": "Assistant's pick",
     "current": "(current)",
     "validate": "Confirm",
+    "coaching": "Coaching",
+    "coachingHint": "Confirms this choice, then opens Coaching before the restart.",
+    "resuming": "Restarting…",
     "aPlayer": "a player",
     "PENALTY": {
       "title": "Penalty to you!",

@@ -149,6 +149,12 @@ test("plays a career in English up to its live match, then reads the table", asy
   await expect(page.getByTestId("live-instruction")).toHaveAccessibleName("Current instruction: Balanced, your starting one");
   await expect(page.getByTestId("live-skip")).toHaveText("Go to half-time");
   await page.getByTestId("live-skip").click();
+  // The break's card, then its Coaching panel.
+  await expect(page.getByTestId("break-title")).toHaveText("Half-time");
+  await expect(page.getByTestId("break-advice")).toContainText("Your assistant:");
+  await expect(page.getByTestId("break-resume")).toHaveText("Resume");
+  await expect(page.getByTestId("break-coaching")).toHaveText("Coaching");
+  await page.getByTestId("break-coaching").click();
   await expect(page.getByTestId("half-time-title")).toHaveText("Half-time");
   await expect(page.getByTestId("half-time-substitutions")).toContainText("Substitutions: 0/5");
   await expect(page.getByTestId("half-time-resume-unchanged")).toHaveText("Resume without changes");

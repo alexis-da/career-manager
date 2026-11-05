@@ -32,6 +32,15 @@
     },
     "stepFailed": "La suite du match n'a pas pu être jouée. Réessaie.",
     "coaching": "Coaching",
+    "break": {
+      "resume": {
+        "halfTime": "Reprendre",
+        "regulationEnd": "Jouer la prolongation"
+      },
+      "noGoal": "Pas encore de but.",
+      "goal": "But :",
+      "redCard": "Exclu :"
+    },
     "shootout": "Tirs au but",
     "kick": {
       "scored": "réussi",

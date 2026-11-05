@@ -131,16 +131,16 @@ async function reachBreak(page: Page): Promise<void> {
   } else {
     await openSave(page, "/live");
   }
-  const panel = page.getByTestId("half-time");
+  const card = page.getByTestId("break-card");
   const skip = page.getByTestId("live-skip");
-  await expect(panel.or(skip)).toBeVisible();
-  if (await panel.isVisible()) {
+  await expect(card.or(skip)).toBeVisible();
+  if (await card.isVisible()) {
     return;
   }
   const pastTheBreak = (await skip.getAttribute("data-skip-to")) === "result";
   await skip.click();
   if (!pastTheBreak) {
-    await expect(panel).toBeVisible();
+    await expect(card).toBeVisible();
     return;
   }
   await page.getByTestId("live-continue").click();
@@ -157,19 +157,37 @@ async function replayFirstHalf(page: Page): Promise<void> {
   await expect(page.getByTestId("live-skip")).toBeVisible();
 }
 
-/** The break, as a player finds it again: the Coaching panel open on it. */
+/** The break, as a player finds it again: its card, then the Coaching panel opened from it. */
 async function openBreak(page: Page): Promise<void> {
   await reachBreak(page);
   await openSave(page, "/live");
+  await page.getByTestId("break-coaching").click();
   await expect(page.getByTestId("half-time")).toBeVisible();
 }
 
-/** The second half, the break passed without a change: the panel gone, the clock goes on from 45'. */
+/** The second half, the break passed without a change from its card: the card gone, the clock goes on from 45'. */
 async function replaySecondHalf(page: Page): Promise<void> {
-  await openBreak(page);
-  await page.getByTestId("half-time-resume-unchanged").click();
-  await expect(page.getByTestId("half-time")).toBeHidden();
+  await reachBreak(page);
+  await openSave(page, "/live");
+  await page.getByTestId("break-resume").click();
+  await expect(page.getByTestId("break-card")).toBeHidden();
   await expect(page.getByTestId("live-skip")).toBeVisible();
+}
+
+/** The break's card, from the foot of the window under 1024 px, its two ways on whole and a thumb's target. */
+async function expectBreakCardAtFoot(page: Page, { width, height }: { width: number; height: number }): Promise<void> {
+  await expect
+    .poll(async () => {
+      const box = await boxOf(page.getByTestId("break-card"));
+      return { x: box.x, width: box.width, bottom: Math.round(box.y + box.height) };
+    })
+    .toEqual({ x: 0, width, bottom: height });
+  for (const action of ["break-coaching", "break-resume"]) {
+    await expect(page.getByTestId(action)).toBeEnabled();
+    await expect(page.getByTestId(action)).toBeInViewport({ ratio: 1 });
+    await expectUncovered(page.getByTestId(action));
+    expect((await boxOf(page.getByTestId(action))).height, action).toBeGreaterThanOrEqual(THUMB);
+  }
 }
 
 /** The blue card at the head of the screen. */
@@ -252,7 +270,7 @@ test("runs the first half: the clock, its speeds, and its ways on, which say whe
   await expect(page.getByTestId("live-exit")).toBeHidden();
 
   // The ways on name the break: « Coaching », the orange of a match running to a boundary of play, waits for it here,
-  // where the panel opens by itself, and the skip goes there at once. The game's actions have left the column.
+  // where the match stops by itself, and the skip goes there at once. The game's actions have left the column.
   const coaching = page.getByTestId("live-coaching-request");
   await expect(coaching).toHaveText("Coaching à la mi-temps");
   await expect(coaching).toBeDisabled();
@@ -286,32 +304,42 @@ test("runs the first half: the clock, its speeds, and its ways on, which say whe
   await expect(page.getByTestId("live-events")).not.toContainText(EMOJI);
 });
 
-test("opens the Coaching panel by itself at the break, which only Escape and its cross close", async ({ page }) => {
+test("stops at the break with its card, the way on its orange; the Coaching panel opens only when asked for", async ({ page }) => {
   await replayFirstHalf(page);
   await page.getByTestId("live-speed-4").click();
 
-  // Nothing touched since: the clock gets there.
+  // Nothing touched since: the clock gets there, and the break's card opens, never the panel.
+  const card = page.getByTestId("break-card");
   const panel = page.getByTestId("half-time");
-  await expect(panel).toBeVisible();
-  await expect(panel).toHaveRole("dialog");
-  await expect(panel).toHaveAccessibleName("Mi-temps");
-  await expect(page.getByTestId("half-time-title")).toHaveText("Mi-temps");
-  await expect(page.getByTestId("half-time-substitutions")).toHaveText("Remplacements : 0/5");
+  await expect(card).toBeVisible();
+  await expect(card).toHaveRole("dialog");
+  await expect(card).toHaveAccessibleName("Mi-temps");
+  await expect(card).toHaveAttribute("data-break", "HALF_TIME");
+  await expect(panel).toHaveCount(0);
   await expect(page.getByTestId("live-status")).toHaveText("Mi-temps");
   await expect(minuteOf(page)).toHaveText("45'");
+
+  // The score as the screen has it, the scorers or none, and a word of the assistant's.
+  await expect(page.getByTestId("break-score")).toHaveText(await textOf(page.getByTestId("live-score")));
+  await expect(page.getByTestId("break-marks")).toBeVisible();
+  await expect(page.getByTestId("break-advice")).toContainText("Ton adjoint : « ");
 
   // The feed stops there, the half-time above the rest with its score.
   await expect(feedOf(page).first()).toContainText("Mi-temps");
   await expect(feedOf(page).first()).toContainText(await textOf(page.getByTestId("live-score")));
   await expect(feedOf(page).last()).toContainText("Coup d'envoi");
 
-  // Beside the match, against the right of the screen, the whole of its height. Nothing left to skip or to speed up.
-  await expect.poll(() => boxOf(panel)).toEqual({ x: COMPUTER.width - PANEL_WIDTH, y: 0, width: PANEL_WIDTH, height: COMPUTER.height });
+  // At the foot of the panel's column, compact. Nothing left to skip or to speed up; « Reprendre » the one orange action,
+  // « Coaching » above it.
+  await expect.poll(async () => {
+    const box = await boxOf(card);
+    return { x: box.x, right: box.x + box.width, bottom: box.y + box.height, compact: box.height < COMPUTER.height / 2 };
+  }).toEqual({ x: COMPUTER.width - 24 - PANEL_WIDTH, right: COMPUTER.width - 24, bottom: COMPUTER.height - 24, compact: true });
   await expect(page.getByTestId("live-skip")).toHaveCount(0);
   await expect(page.locator('[data-testid^="live-speed-"]')).toHaveCount(0);
-  await expect(page.getByTestId("half-time-resume")).toHaveText("Reprendre le match");
-  await expectResumeInView(page);
-  await expectOrangeActions(page, ["half-time-resume"]);
+  await expect(page.getByTestId("break-resume")).toHaveText("Reprendre");
+  await expect(page.getByTestId("break-coaching")).toHaveText("Coaching");
+  await expectOrangeActions(page, ["break-resume"]);
 
   // Modal: the column is out of reach, of a screen reader as of a click, and a click on it closes nothing.
   const shell = page.locator("[data-save-shell]");
@@ -320,20 +348,37 @@ test("opens the Coaching panel by itself at the break, which only Escape and its
   const beside = { x: entry.x + entry.width / 2, y: entry.y + entry.height / 2 };
   expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.getAttribute("data-slot"), beside)).toBe("sheet-overlay");
   await page.mouse.click(beside.x, beside.y);
-  await expect(panel).not.toHaveAttribute("data-closed");
-  await expect(panel).toBeVisible();
+  await expect(card).toBeVisible();
 
-  // Escape: the page is back, its own button takes the keyboard's focus and the orange, and opens the panel again.
+  // Escape: the page is back, its bar has the card's two ways, the way on the orange and the keyboard's focus.
   await page.keyboard.press("Escape");
-  await expect(panel).toBeHidden();
+  await expect(card).toBeHidden();
   await expect(shell).not.toHaveAttribute("aria-hidden", "true");
-  await expect(page.getByTestId("live-coaching")).toBeFocused();
-  await expectOrangeActions(page, ["live-coaching"]);
+  await expect(page.getByTestId("live-resume")).toBeFocused();
+  await expect(page.getByTestId("live-resume")).toHaveText("Reprendre");
+  await expectOrangeActions(page, ["live-resume"]);
+
+  // « Coaching » opens the panel: beside the match, against the right of the screen, the whole of its height.
   await page.getByTestId("live-coaching").click();
   await expect(panel).toBeVisible();
+  await expect(panel).toHaveAccessibleName("Mi-temps");
+  await expect(page.getByTestId("half-time-substitutions")).toHaveText("Remplacements : 0/5");
+  await expect.poll(() => boxOf(panel)).toEqual({ x: COMPUTER.width - PANEL_WIDTH, y: 0, width: PANEL_WIDTH, height: COMPUTER.height });
+  await expect(page.getByTestId("half-time-resume")).toHaveText("Reprendre le match");
+  await expectResumeInView(page);
   await expectOrangeActions(page, ["half-time-resume"]);
 
+  // Closed by Escape, it leaves the bar the way to it, the orange now: its changes would stay there, nothing resumes
+  // without them.
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(page.getByTestId("live-coaching")).toBeFocused();
+  await expect(page.getByTestId("live-resume")).toHaveCount(0);
+  await expectOrangeActions(page, ["live-coaching"]);
+
   // The cross closes it too.
+  await page.getByTestId("live-coaching").click();
+  await expect(panel).toBeVisible();
   await panel.getByRole("button", { name: "Fermer" }).click();
   await expect(panel).toBeHidden();
   await expectOrangeActions(page, ["live-coaching"]);
@@ -461,7 +506,7 @@ test("keeps the speed chosen through the break, into the second half", async ({ 
   await replayFirstHalf(page);
   await page.getByTestId("live-speed-4").click();
   await page.getByTestId("live-skip").click();
-  await page.getByTestId("half-time-resume-unchanged").click();
+  await page.getByTestId("break-resume").click();
   await expect(page.getByTestId("live-skip")).toHaveText("Aller au résultat");
   await expectSpeed(page, 4);
 });
@@ -512,15 +557,23 @@ for (const { name, locale, viewport, says } of PHONES) {
       await expect.poll(async () => (await boxOf(last)).y + (await boxOf(last)).height).toBeLessThanOrEqual(bar.y);
       await expectNoSidewaysScroll(page, "foot of the match");
 
-      // The break: the panel has the window to itself, its ways on in view. They come right under the thumb, and wait: a
+      // The break: its card from the foot of the screen, its ways on in view. They come right under the thumb, and wait: a
       // double tap on the bar's button does not resume the match.
       const { x, y, width, height } = await boxOf(skip);
       await page.mouse.click(x + width / 2, y + height / 2);
       await page.waitForTimeout(DOUBLE_TAP_MS);
       await page.mouse.click(x + width / 2, y + height / 2);
+      await expect(page.getByTestId("break-title")).toHaveText(says.title);
+      await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?rejouer=1$`));
+      await expectBreakCardAtFoot(page, viewport);
+      await expectOrangeActions(page, ["break-resume"]);
+      await expectNoSidewaysScroll(page, "break's card");
+      expect(await sidewaysOverflow(page.getByTestId("break-card").locator("> div").first()), "break's card").toBeLessThanOrEqual(0);
+
+      // « Coaching » from the card: the panel has the window to itself, its ways on in view.
+      await page.getByTestId("break-coaching").click();
       const panel = page.getByTestId("half-time");
       await expect(page.getByTestId("half-time-title")).toHaveText(says.title);
-      await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?rejouer=1$`));
       await expectPanelOverWindow(page, viewport);
       await expectResumeInView(page);
       await expectOrangeActions(page, ["half-time-resume"]);
@@ -549,21 +602,20 @@ for (const { name, locale, viewport, says } of PHONES) {
       await expectUncovered(page.getByTestId("live-coaching"));
       await expectNoSidewaysScroll(page, "panel closed");
 
-      // The hero leads back to the match, which opens on its break.
+      // The hero leads back to the match, which opens on its break's card.
       await page.getByTestId("live-exit").click();
       const resume = page.getByTestId("dashboard-next-match").getByTestId("resume-match");
       await expect(resume).toBeVisible();
       await expectNoSidewaysScroll(page, "dashboard");
       await resume.click();
       await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live$`));
-      await expect(page.getByTestId("half-time-title")).toHaveText(says.title);
-      await expectPanelOverWindow(page, viewport);
-      await expectResumeInView(page);
+      await expect(page.getByTestId("break-title")).toHaveText(says.title);
+      await expectBreakCardAtFoot(page, viewport);
       await expect(skip).toHaveCount(0);
-      await expectPanelWithinWidth(page, "back at the break");
+      await expectNoSidewaysScroll(page, "back at the break");
 
       // On to the final whistle, the way on in the bar.
-      await page.getByTestId("half-time-resume-unchanged").click();
+      await page.getByTestId("break-resume").click();
       await expect(skip).toHaveText(says.toResult);
       await expectOrangeActions(page, ["live-coaching-request"]);
       await expectNoSidewaysScroll(page, "second half");
@@ -604,8 +656,18 @@ test.describe("at 768 px", () => {
     expect(bar).toMatchObject({ x: 0, width: TABLET.width });
     expect(bar.y + bar.height).toBe(TABLET.height);
 
-    // The break: the panel over the whole screen, then the page's own button.
+    // The break: its card from the foot of the screen, then, closed, the bar's two ways, the way on the orange.
     await page.getByTestId("live-skip").click();
+    await expect(page.getByTestId("break-title")).toBeVisible();
+    await expectBreakCardAtFoot(page, TABLET);
+    await expectOrangeActions(page, ["break-resume"]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("break-card")).toBeHidden();
+    await expectOrangeActions(page, ["live-resume"]);
+    await expectNoSidewaysScroll(page, "card closed");
+
+    // The panel from the bar, over the whole screen; closed, the bar's button is the orange.
+    await page.getByTestId("live-coaching").click();
     await expect(page.getByTestId("half-time-title")).toBeVisible();
     await expectPanelOverWindow(page, TABLET);
     await expectResumeInView(page);

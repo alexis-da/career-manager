@@ -21,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * ever has what is played: its clock runs up to where the match waits, then asks for the next segment, or for all that
  * comes before the next break once « live-skip » is pressed, each step in one call that brings what the page shows.
  * « Jouer la journée » opens it with ?rejouer=1, from kick-off; without it, a match waiting opens where it waits, on the
- * Coaching panel at a break; a match over is replayed whole, its shoot-out included.
+ * break's card at a break; a match over is replayed whole, its shoot-out included.
  */
 export default async function LivePage({ params, searchParams }: PageProps<"/saves/[id]/live">) {
   const { id } = await params;

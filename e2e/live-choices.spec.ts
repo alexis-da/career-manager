@@ -2,10 +2,10 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createSave, deleteSave, expectOrangeActions } from "./helpers";
 
 // A match live with the player's own decisions, on a Lyon of the seed « g5-365 »: its first match, at Marseille, has one
-// choice event, a scuffle at 15', and no other. The player protests against his assistant's advice, makes a substitution
-// and gives an instruction in the Coaching panel that follows the card, which the score card shows from then on, asks for
-// a stop at 30', where the panel opens again, goes to half-time at once and asks for a stop at 60', then goes to the
-// result: the decision and its effect are in the feed and on the match sheet.
+// choice event, a scuffle at 15', and no other. The player protests against his assistant's advice and asks for his
+// Coaching panel from the card, where he makes a substitution and gives an instruction, which the score card shows from
+// then on, asks for a stop at 30', where the panel opens again, goes to half-time at once, whose card has the way on, and
+// asks for a stop at 60', then goes to the result: the decision and its effect are in the feed and on the match sheet.
 
 const LYON = "Olympique Lyonnais";
 const SEED = "g5-365";
@@ -65,20 +65,21 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await expect(card).toBeVisible();
   await expect(page.getByTestId("live-score").locator("xpath=following-sibling::p")).toHaveText("15'");
 
-  // Two options, the assistant's marked and taken by default; one orange action.
+  // Two options, the assistant's marked and taken by default; one orange action, « Valider », and « Coaching » above it.
   const options = card.getByTestId("choice-option");
   await expect(options).toHaveCount(2);
   await expect(card.locator('[data-testid="choice-option"][data-assistant="true"]')).toHaveAttribute("data-option", "CALM");
   await expect(card).toContainText("Conseil de l'adjoint");
   await expectOrangeActions(page, ["choice-validate"]);
+  await expect(page.getByTestId("choice-coaching")).toHaveText("Coaching");
   await card.locator('[data-testid="choice-option"][data-option="PROTEST"]').click();
-  await page.getByTestId("choice-validate").click();
+  await page.getByTestId("choice-coaching").click();
   await expect(card).toBeHidden();
   // A protest gives no instruction: the start's holds.
   await expect(line).toHaveAttribute("data-instruction", "BALANCED");
   await expect(line).toHaveAttribute("data-instruction-source", "START");
 
-  // The Coaching panel follows, at the 15th minute: the rule, no window used yet, the assistant's changes to come.
+  // The Coaching panel, asked for, at the 15th minute: the rule, no window used yet, the assistant's changes to come.
   const panel = page.getByTestId("half-time");
   await expect(panel).toBeVisible();
   await expect(page.getByTestId("half-time-title")).toHaveText("15e minute");
@@ -137,10 +138,13 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await page.getByTestId("half-time-resume-unchanged").click();
   await expect(panel).toBeHidden();
 
-  // To half-time at once; from there the clock goes on at its own pace: a stop asked for at 60' stops the match there.
+  // To half-time at once, its card the screen's orange, the panel shut; from there the clock goes on at its own pace: a
+  // stop asked for at 60' stops the match there.
   await page.getByTestId("live-skip").click();
-  await expect(page.getByTestId("half-time-title")).toHaveText("Mi-temps");
-  await page.getByTestId("half-time-resume-unchanged").click();
+  await expect(page.getByTestId("break-title")).toHaveText("Mi-temps");
+  await expect(panel).toBeHidden();
+  await expectOrangeActions(page, ["break-resume"]);
+  await page.getByTestId("break-resume").click();
   await expect(request).toHaveText("Coaching à la 60e");
   await request.click();
   await expect(page.getByTestId("half-time-title")).toHaveText("60e minute", { timeout: 30_000 });

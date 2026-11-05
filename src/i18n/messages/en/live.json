@@ -32,6 +32,15 @@
     },
     "stepFailed": "The rest of the match could not be played. Try again.",
     "coaching": "Coaching",
+    "break": {
+      "resume": {
+        "halfTime": "Resume",
+        "regulationEnd": "Play extra time"
+      },
+      "noGoal": "No goal yet.",
+      "goal": "Goal:",
+      "redCard": "Sent off:"
+    },
     "shootout": "Penalty shoot-out",
     "kick": {
       "scored": "scored",
