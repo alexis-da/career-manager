@@ -1,4 +1,4 @@
-import { CONDITION_NEUTRAL, FULL_FITNESS } from "../engine/balance";
+import { CONDITION_NEUTRAL, FULL_FITNESS, NEUTRAL_BUDGET_COEFFICIENT } from "../engine/balance";
 import { marketValueFor } from "../engine/economy";
 import type { PlayerAttributes } from "../engine/generation";
 import { progressionRngSeed, progressPlayer, willRetire } from "../engine/progression";
@@ -16,7 +16,7 @@ import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
 import { runPreseasonInTransaction, type PreseasonSummary } from "./preseason";
 import { applySeasonMoves, readFinalTables, seasonMovesOf } from "./promotion";
-import { applySeasonReputations } from "./season-finances";
+import { applySeasonFinances, applySeasonReputations, recordDotation } from "./season-finances";
 import { recordSeasonResult } from "./season-results";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
@@ -59,11 +59,12 @@ type PlayerUpdate = PlayerAttributes & {
  * SeasonResult is written, every player progresses (retired players excepted) and gets his market value
  * from his new rating and age, some retire, expired contracts of the managed club turn its players into free
  * agents, form, morale, fitness, injuries and yellow cards are reset (a suspension still to serve carries over), the
- * seasons are marked completed (with their moves), the moving clubs change competition and finances, every club's
- * reputation follows its final place against its expected rank, in both worlds (src/db/season-finances.ts), the save
- * moves to 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created, with the
- * cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables: when the save already had
- * cups, or the game gives them (CUPS_ENABLED). Every cup tie must have been played too: the season ends with the cups'
+ * seasons are marked completed (with their moves), the moving clubs change competition, every club's reputation
+ * follows its final place against its expected rank and every club gets its finances for the new season, its dotation
+ * plus half of its unspent budget, in both worlds (src/db/season-finances.ts), the save moves to 1 July, the preseason
+ * runs (young players, AI squads), and next season's seasons and fixtures are created, with the managed club's dotation
+ * (SeasonBudget) and the cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables: when
+ * the save already had cups, or the game gives them (CUPS_ENABLED). Every cup tie must have been played too: the season ends with the cups'
  * finals.
  * PlayerSave.marketValue is read as is everywhere else: this is where it changes.
  */
@@ -213,10 +214,12 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       }
 
       await tx.season.updateMany({ where: { saveId, id: { in: seasonIds } }, data: { completed: true } });
-      // The moving clubs change competition and finances, and every club's reputation follows its season, before the
-      // preseason, whose AI clubs plan with them.
+      // The moving clubs change competition, every club's reputation follows its season, then every club gets its
+      // finances for the new season, before the preseason, whose AI clubs plan with them.
       await applySeasonMoves(tx, saveId, worldVersion, leagueSeasons, moves);
-      await applySeasonReputations(tx, saveId, tables, moves);
+      const ends = await applySeasonReputations(tx, saveId, tables, moves);
+      // The managed club's coefficient: 100 until its seasons have objectives.
+      const dotation = await applySeasonFinances(tx, saveId, ends, worldVersion, NEUTRAL_BUDGET_COEFFICIENT);
       await tx.save.update({ where: { id: saveId }, data: { currentDate: transitionDate } });
 
       const preseason = await runPreseasonInTransaction(tx, saveId);
@@ -229,8 +232,15 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       // Each club plays its current competition in the save (ClubSave.competitionId), never the world's.
       const clubSaves = await tx.clubSave.findMany({
         where: { saveId },
-        select: { id: true, competitionId: true, club: { select: { slug: true } } },
+        select: { id: true, isManaged: true, competitionId: true, club: { select: { slug: true } } },
       });
+      // The managed club's dotation, on its new league season.
+      const managedCompetitionId = clubSaves.find((clubSave) => clubSave.isManaged)?.competitionId;
+      const managedSeason = nextSeasons.find((season) => season.competitionId === managedCompetitionId);
+      if (managedSeason === undefined) {
+        throw new Error(`Save ${saveId} has no league season for its managed club in ${startYear}`);
+      }
+      await recordDotation(tx, saveId, managedSeason.id, dotation);
 
       const fixtures = nextSeasons.flatMap((season) =>
         seasonFixtures({

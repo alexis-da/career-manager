@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
 import { CONTRACT_YEARS_WEIGHTS } from "./balance";
-import { clubFinances, contractYears, financesAfterMove, generateContract } from "./economy";
+import { clubFinances, contractYears, generateContract, seasonFinances } from "./economy";
 import { WORLD_START_DATE } from "./world";
 
 const MAX_DATABASE_INT = 2_147_483_647;
@@ -39,28 +39,33 @@ describe("clubFinances", () => {
   });
 });
 
-describe("financesAfterMove", () => {
-  it("lifts a promoted club to the bottom of the first division, and keeps what it has above", () => {
-    const poor = { budget: 1_000_000, wageBudget: 5_000_000 };
-    const rich = { budget: 20_000_000, wageBudget: 30_000_000 };
+describe("seasonFinances", () => {
+  it("gives the creation's finances at the reputation rank, times the coefficient, plus half of the unspent budget", () => {
+    const creation = clubFinances(4, 20, 1);
+    const finances = seasonFinances(4, 20, 1, 110, 7_300_000);
 
-    expect(financesAfterMove(poor, "PROMOTED")).toEqual({ budget: 5_000_000, wageBudget: 20_000_000 });
-    expect(financesAfterMove(rich, "PROMOTED")).toEqual(rich);
+    expect(finances).toEqual({
+      dotation: creation.budget,
+      coefficient: 110,
+      carryOver: 3_650_000,
+      budget: Math.round((creation.budget * 1.1) / 100_000) * 100_000 + 3_650_000,
+      wageBudget: creation.wageBudget,
+    });
   });
 
-  it("brings a relegated club down to the top of the second division, and keeps what it has below", () => {
-    const rich = { budget: 150_000_000, wageBudget: 200_000_000 };
-    const poor = { budget: 5_000_000, wageBudget: 20_000_000 };
+  it("keeps the wage budget out of the coefficient, and carries nothing over from an overspent budget", () => {
+    const low = seasonFinances(12, 18, 2, 70, -2_000_000);
+    const high = seasonFinances(12, 18, 2, 140, 0);
 
-    expect(financesAfterMove(rich, "RELEGATED")).toEqual({ budget: 20_000_000, wageBudget: 30_000_000 });
-    expect(financesAfterMove(poor, "RELEGATED")).toEqual(poor);
+    expect(low.wageBudget).toBe(high.wageBudget);
+    expect(low.carryOver).toBe(0);
+    expect(low.budget).toBeLessThan(high.budget);
+    expect(high.budget).toBe(Math.round((high.dotation * 1.4) / 100_000) * 100_000);
   });
 
-  it("moves each figure on its own, only towards the new division", () => {
-    const mixed = { budget: 2_000_000, wageBudget: 40_000_000 };
-
-    expect(financesAfterMove(mixed, "PROMOTED")).toEqual({ budget: 5_000_000, wageBudget: 40_000_000 });
-    expect(financesAfterMove(mixed, "RELEGATED")).toEqual({ budget: 2_000_000, wageBudget: 30_000_000 });
+  it("gives the same dotation to clubs sharing a reputation rank, and more to a better rank", () => {
+    expect(seasonFinances(3, 20, 1, 100, 0)).toEqual(seasonFinances(3, 20, 1, 100, 0));
+    expect(seasonFinances(2, 20, 1, 100, 0).dotation).toBeGreaterThan(seasonFinances(3, 20, 1, 100, 0).dotation);
   });
 });
 

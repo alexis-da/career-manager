@@ -1,7 +1,6 @@
 import * as z from "zod";
 import { PROMOTION_RELEGATION } from "../engine/balance";
 import { displayClubName } from "../engine/club-name";
-import { financesAfterMove } from "../engine/economy";
 import { applyPromotionRelegation, countryOf, type CompetitionStanding, type MoveReason } from "../engine/promotion";
 import { computeStandings } from "../engine/standings";
 import { competitionTier } from "../engine/tiers";
@@ -142,9 +141,9 @@ export async function getCountryMoves(saveId: string, seasonId: string): Promise
 
 /**
  * Applies the moves of a closing season, inside advanceToNextSeason's transaction and before the preseason: each
- * moving club changes competition in the save (ClubSave.competitionId) and gets its money for its new division
- * (financesAfterMove; its reputation follows its season, applySeasonReputations); players and contracts are not touched. Each completed season of a worldVersion 2 save keeps the
- * moves out of its competition in Season.movements, an empty list when there are none.
+ * moving club changes competition in the save (ClubSave.competitionId); its reputation and its finances follow, as
+ * every club's do (src/db/season-finances.ts); players and contracts are not touched. Each completed season of a
+ * worldVersion 2 save keeps the moves out of its competition in Season.movements, an empty list when there are none.
  */
 export async function applySeasonMoves(
   tx: Db,
@@ -164,19 +163,11 @@ export async function applySeasonMoves(
   }
 
   const competitionIdByCode = new Map(seasons.map((season) => [season.competition.code, season.competitionId]));
-  const clubs = await tx.clubSave.findMany({
-    where: { saveId, id: { in: moves.map((move) => move.clubSaveId) } },
-    select: { id: true, budget: true, wageBudget: true },
-  });
-  const clubById = new Map(clubs.map((club) => [club.id, club]));
   for (const move of moves) {
-    const { budget, wageBudget } = getOrThrow(clubById, move.clubSaveId, "moving club");
     await tx.clubSave.update({
       where: { id: move.clubSaveId, saveId },
-      data: {
-        competitionId: getOrThrow(competitionIdByCode, move.to, "competition of the move"),
-        ...financesAfterMove({ budget, wageBudget }, move.reason),
-      },
+      data: { competitionId: getOrThrow(competitionIdByCode, move.to, "competition of the move") },
+      select: { id: true },
     });
   }
 }

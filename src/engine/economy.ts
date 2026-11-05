@@ -1,5 +1,6 @@
 import { weightedIndex, type Rng } from "../lib/rng";
 import {
+  BUDGET_CARRY_OVER_SHARE,
   BUDGET_STEP,
   CLUB_BUDGET_BY_TIER,
   CLUB_REPUTATION_BY_TIER,
@@ -17,7 +18,6 @@ import {
 } from "./balance";
 import { interpolate, lerp, rankStrength } from "./curves";
 import { clampRating } from "./generation";
-import type { MoveReason } from "./promotion";
 import type { CompetitionTier } from "./tiers";
 import { seasonEndDate, seasonStartYear } from "./world";
 
@@ -58,25 +58,36 @@ export function clubFinances(initialRank: number, clubCount: number, tier: Compe
   };
 }
 
-/** A club's money: its transfer budget and its wage budget. */
-export type ClubMoney = Pick<ClubFinances, "budget" | "wageBudget">;
+/** What a club's board gives it for a season (gameplay v2, V2): the transfer budget's parts, and the wage budget. */
+export type SeasonFinances = {
+  dotation: number; // euros: the creation's budget (clubFinances) at its reputation rank in its division
+  coefficient: number; // hundredths: its objectives' (budgetCoefficient)
+  carryOver: number; // euros: BUDGET_CARRY_OVER_SHARE of the transfer budget it left unspent
+  budget: number; // euros: the dotation times the coefficient, rounded to BUDGET_STEP, plus the carry-over
+  wageBudget: number; // euros per season: the creation's wage budget at that rank, without the coefficient
+};
 
 /**
- * A club's money once it changes division: a promoted club gets at least the bottom of the first division's ranges
- * (budget, wage budget), a relegated one keeps at most the top of the second division's. Each figure moves on its own,
- * and only towards the new division: a rich promoted club keeps its money. Its reputation follows its season instead
- * (src/engine/reputation.ts). Contracts are not touched.
+ * A club's finances for a new season: its dotation, the transfer budget clubFinances gives its reputation rank in its
+ * (new) division, times its objectives' coefficient, plus half of what it left unspent (sales and cup prizes
+ * included); its wage budget recalculated the same way, without the coefficient. Its reputation is its own
+ * (src/engine/reputation.ts).
  */
-export function financesAfterMove(finances: ClubMoney, reason: MoveReason): ClubMoney {
-  if (reason === "PROMOTED") {
-    return {
-      budget: Math.max(finances.budget, CLUB_BUDGET_BY_TIER[1].worst),
-      wageBudget: Math.max(finances.wageBudget, CLUB_WAGE_BUDGET_BY_TIER[1].worst),
-    };
-  }
+export function seasonFinances(
+  reputationRank: number,
+  clubCount: number,
+  tier: CompetitionTier,
+  coefficient: number,
+  unspent: number,
+): SeasonFinances {
+  const { budget: dotation, wageBudget } = clubFinances(reputationRank, clubCount, tier);
+  const carryOver = Math.round(Math.max(0, unspent) * BUDGET_CARRY_OVER_SHARE);
   return {
-    budget: Math.min(finances.budget, CLUB_BUDGET_BY_TIER[2].best),
-    wageBudget: Math.min(finances.wageBudget, CLUB_WAGE_BUDGET_BY_TIER[2].best),
+    dotation,
+    coefficient,
+    carryOver,
+    budget: roundToStep((dotation * coefficient) / 100, BUDGET_STEP) + carryOver,
+    wageBudget,
   };
 }
 

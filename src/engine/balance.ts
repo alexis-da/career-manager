@@ -3,6 +3,7 @@ import type { Curve } from "./curves";
 import type { FormationName } from "./formations";
 import type { AttributeName } from "./generation";
 import type { Instruction, MatchEventType, Outcome } from "./match";
+import type { ObjectiveOutcome } from "./objectives";
 import type { Position, PositionGroup } from "./positions";
 import type { CompetitionTier } from "./tiers";
 
@@ -170,6 +171,44 @@ export const REPUTATION_PLACES_CAP = 5;
 
 /** Reputation a promoted club gains, and a relegated one loses, on top of its places. */
 export const REPUTATION_MOVE = 4;
+
+// ------------------------------------------------------------------ Season budgets (gameplay v2, V2)
+// Each new season, every club gets a dotation from its board: the creation's finances (clubFinances) at its reputation
+// rank in its new division, times a coefficient of its objectives, plus half of its unspent transfer budget; its wage
+// budget is recalculated the same way, without the coefficient (src/engine/economy.ts, seasonFinances).
+
+/** Share of a club's unspent transfer budget it keeps into the next season, on top of its dotation. */
+export const BUDGET_CARRY_OVER_SHARE = 0.5;
+
+/** A coefficient without objectives, in hundredths: the managed club of a save from before them, the first season. */
+export const NEUTRAL_BUDGET_COEFFICIENT = 100;
+
+/** The coefficient's range, in hundredths. */
+export const BUDGET_COEFFICIENT_RANGE: RankRange = { worst: 70, best: 140 };
+
+/** What each objective's outcome adds to the coefficient, in hundredths: the ranking's (every club's), the cup's and
+ * the chosen objective's (the managed club's). */
+export const RANKING_COEFFICIENT: Readonly<Record<ObjectiveOutcome, number>> = { EXCEEDED: 20, ACHIEVED: 10, MISSED: -15 };
+export const CUP_COEFFICIENT: Readonly<Record<ObjectiveOutcome, number>> = { EXCEEDED: 10, ACHIEVED: 5, MISSED: -5 };
+export const CHOSEN_COEFFICIENT: Readonly<Record<ObjectiveOutcome, number>> = { EXCEEDED: 10, ACHIEVED: 10, MISSED: 0 };
+
+// ------------------------------------------------------------------ The ranking objective (gameplay v2, V2 and V3)
+// Set from a club's expected rank, its reputation rank in its division (src/engine/objectives.ts).
+
+/** In a first division, a club expected this high or higher is asked for the top three; exceeded: the title. */
+export const TOP_OBJECTIVE_RANKS = 3;
+
+/** In a second division, a club expected this high or higher is asked to go up; exceeded: the title. */
+export const PROMOTION_OBJECTIVE_RANKS = 4;
+
+/** Places above the relegation zone whose clubs are still asked only to stay up. */
+export const SURVIVAL_OBJECTIVE_MARGIN = 3;
+
+/** Otherwise, a club is asked to finish its expected rank plus this, or better, by division. */
+export const FINISH_OBJECTIVE_MARGIN_BY_TIER: Readonly<Record<CompetitionTier, number>> = { 1: 2, 2: 3 };
+
+/** Places better than its target a club must finish to exceed it (staying up: places above the relegation zone). */
+export const EXCEEDED_OBJECTIVE_PLACES = 3;
 
 // ------------------------------------------------------------------ Promotion and relegation (worldVersion 2)
 

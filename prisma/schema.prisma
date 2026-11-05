@@ -122,6 +122,7 @@ model Save {
   transfers      Transfer[]
   stats          PlayerSeasonStats[]
   seasonResults  SeasonResult[]
+  seasonBudgets  SeasonBudget[]
   challengeEntry ChallengeEntry?
 
   @@index([ownerId])
@@ -140,6 +141,7 @@ model Season {
   fixtures      Fixture[]
   stats         PlayerSeasonStats[]
   results       SeasonResult[] // au plus une : @@unique([saveId, seasonId])
+  budget        SeasonBudget? // la dotation du club dirigé, sur sa saison de championnat
 
   @@unique([saveId, competitionId, startYear])
   @@index([saveId])
@@ -364,6 +366,26 @@ model SeasonResult {
 
   @@unique([saveId, seasonId])
   @@index([seasonId]) // cascade depuis Season
+}
+
+// La dotation de la direction au club dirigé pour une saison (gameplay v2, V2), pour la carte Finances de l'onglet Club
+// et l'écran de début de saison : écrite à la création de la partie (son budget de départ), puis à chaque passage de
+// saison (src/db/season-finances.ts). Les clubs IA reçoivent la leur sans ligne : seuls leurs montants changent.
+model SeasonBudget {
+  id             String @id @default(cuid())
+  save           Save   @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId         String
+  season         Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId       String @unique // la saison de championnat du club dirigé qu'elle ouvre
+  reputation     Int // la réputation du club à l'ouverture de la saison (1–99)
+  reputationRank Int // son rang de réputation dans sa division : la dotation en dépend
+  dotation       Int // euros : le budget de création (clubFinances) à ce rang, dans la division de la saison
+  coefficient    Int // centièmes : 100 sans objectifs, 70 à 140 selon ceux de la saison écoulée
+  carryOver      Int // euros : la moitié du budget non dépensé de la saison écoulée ; 0 à la création
+  budget         Int // euros : dotation × coefficient + report, le budget de transferts donné
+  wageBudget     Int // euros par saison : le plafond salarial, recalculé comme la dotation, sans coefficient
+
+  @@index([saveId])
 }
 
 // --------------------------------------------------------------------- DÉFI

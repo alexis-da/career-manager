@@ -192,18 +192,27 @@ présaison ses joueurs les mieux payés à d'autres clubs IA, jamais sous 80 % d
 finaux (même ordre que le classement affiché), puis `applyPromotionRelegation` (`src/engine/promotion.ts`, pure) avec
 `PROMOTION_RELEGATION` (`balance.ts`, par pays : 3 en Angleterre, Espagne, Italie ; 2 en Allemagne, France ; échanges
 directs, sans barrages, tailles constantes). Le résultat du club dirigé note `SeasonResult.promoted` / `relegated`
-(false pour une ligne reconstruite) ; avant la présaison, chaque club qui bouge change de `ClubSave.competitionId` et
-d'argent (`financesAfterMove`, `economy.ts` : au moins le bas de la première division pour un promu, au plus le haut de
-la deuxième pour un relégué, budget et plafond salarial seulement ; joueurs et contrats intacts) ; `Season.movements`
-(Json validé par Zod, `src/db/promotion.ts`) garde sur chaque saison terminée les clubs qui quittent sa compétition.
+(false pour une ligne reconstruite) ; avant la présaison, chaque club qui bouge change de `ClubSave.competitionId`, sa
+réputation et ses finances suivant comme celles de tous les clubs (règle « Réputation et budget de saison ») ; joueurs et
+contrats intacts ; `Season.movements` (Json validé par Zod, `src/db/promotion.ts`) garde sur chaque saison terminée les
+clubs qui quittent sa compétition.
 Une partie 1 n'a qu'une division par pays : aucun mouvement, `movements` reste null (test lent de non-régression).
 
-**Réputation (gameplay v2, V2).** `ClubSave.reputation` (1–99) suit les saisons, clubs IA et club dirigé, dans les deux
-mondes : à chaque `advanceToNextSeason`, `applySeasonReputations` (`src/db/season-finances.ts`) lit les classements
-finaux ; le rang attendu d'un club est son rang de réputation dans sa division pendant la saison (`reputationRanks`,
-`src/engine/reputation.ts`, pure : 1 + les clubs strictement au-dessus, ex aequo au meilleur rang), et sa réputation
-gagne un point par place au-dessus de ce rang, en perd un par place en dessous, cinq au plus (`REPUTATION_PLACES_CAP`),
-puis quatre de plus pour une montée, de moins pour une descente (`REPUTATION_MOVE`, `reputationAfterSeason`).
+**Réputation et budget de saison (gameplay v2, V2).** `ClubSave.reputation` (1–99) suit les saisons, clubs IA et club
+dirigé, dans les deux mondes : à chaque `advanceToNextSeason`, `applySeasonReputations` (`src/db/season-finances.ts`)
+lit les classements finaux ; le rang attendu d'un club est son rang de réputation dans sa division pendant la saison
+(`reputationRanks`, `src/engine/reputation.ts`, pure : 1 + les clubs strictement au-dessus, ex aequo au meilleur rang),
+et sa réputation gagne un point par place au-dessus de ce rang, en perd un par place en dessous, cinq au plus
+(`REPUTATION_PLACES_CAP`), puis quatre de plus pour une montée, de moins pour une descente (`REPUTATION_MOVE`,
+`reputationAfterSeason`). Puis, avant la présaison, chaque club reçoit sa dotation (`applySeasonFinances`,
+`seasonFinances`, `economy.ts`) : le budget de création (`clubFinances`) à son nouveau rang de réputation dans sa
+nouvelle division, × son coefficient, + la moitié de son budget non dépensé (`BUDGET_CARRY_OVER_SHARE`, ventes et primes
+comprises) ; son plafond salarial est recalculé de même, sans coefficient. Coefficient en centièmes, 70 à 140
+(`budgetCoefficient`, `src/engine/objectives.ts`) : un club IA a celui de son seul objectif de classement
+(`rankingObjective` sur son rang attendu, `rankingOutcome` sur son rang final : dépassé +20, atteint +10, manqué −15),
+le club dirigé 100 tant que ses saisons n'ont pas d'objectifs (une partie d'avant eux, au prochain passage). Le détail
+de la dotation du club dirigé est gardé par saison dans `SeasonBudget` (migration d'ajout `…_season_budget`, une ligne
+par saison de championnat, écrite par `createSave`, son budget de départ, puis à chaque passage de saison).
 
 **Coupes nationales (parties 2 seulement).** `CUPS_ENABLED` (`src/engine/cup.ts`) vaut **true** : toute nouvelle
 partie 2 a ses coupes dès sa création, une partie 2 d'avant les coupes les reçoit à son prochain passage de saison. À

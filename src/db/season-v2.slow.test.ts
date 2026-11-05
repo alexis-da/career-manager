@@ -3,9 +3,11 @@ import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CUP_ROUNDS, PROMOTION_RELEGATION } from "../engine/balance";
 import { cupDates, cupRunOf, type CupRun } from "../engine/cup";
-import { financesAfterMove, type ClubFinances } from "../engine/economy";
+import { seasonFinances, type ClubFinances } from "../engine/economy";
+import { budgetCoefficient, divisionOf, rankingObjective, rankingOutcome } from "../engine/objectives";
 import type { MoveReason } from "../engine/promotion";
 import { reputationAfterSeason, reputationRanks } from "../engine/reputation";
+import { competitionTier } from "../engine/tiers";
 import { countryOf } from "../engine/promotion";
 import { seasonStartDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
@@ -51,6 +53,9 @@ type TransitionCheck = {
   fixturesByCompetition: Record<string, number>;
   competitionOf: Map<string, string>; // ClubSave.competitionId by Club.id, after
   codeOf: Map<string, string>; // competition code by id
+  tierOf: Map<string, number>; // competition tier by code
+  managedClubId: string; // Club.id
+  dotation: Record<string, number> | null; // the managed club's SeasonBudget on its new season
   financesBefore: Map<string, ClubFinances>; // by Club.id
   financesAfter: Map<string, ClubFinances>;
   saleFees: Map<string, number>; // budget change by Club.id from the preseason's AI sales for wage bills
@@ -207,8 +212,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         where: { saveId, startYear, competition: { kind: "LEAGUE" } },
         select: { movements: true, competition: { select: { code: true } } },
       }),
-      db.competition.findMany({ select: { id: true, code: true } }),
-      db.clubSave.findMany({ where: { saveId }, select: { clubId: true, competitionId: true } }),
+      db.competition.findMany({ select: { id: true, code: true, tier: true } }),
+      db.clubSave.findMany({ where: { saveId }, select: { clubId: true, competitionId: true, isManaged: true } }),
       db.fixture.findMany({
         where: { saveId, season: { startYear: startYear + 1, competition: { kind: "LEAGUE" } } },
         select: { homeClubSaveId: true, awayClubSaveId: true, season: { select: { competition: { select: { code: true } } } } },
@@ -219,6 +224,18 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
       }),
       db.seasonResult.findFirst({ where: { saveId, season: { startYear } }, select: { cupRound: true, trophies: true } }),
     ]);
+    const dotation = await db.seasonBudget.findFirst({
+      where: { saveId, season: { startYear: startYear + 1 } },
+      select: {
+        reputation: true,
+        reputationRank: true,
+        dotation: true,
+        coefficient: true,
+        carryOver: true,
+        budget: true,
+        wageBudget: true,
+      },
+    });
     const clubSets = new Map<string, Set<string>>();
     const fixturesByCompetition: Record<string, number> = {};
     for (const fixture of nextFixtures) {
@@ -239,6 +256,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         fixturesByCompetition,
         competitionOf: new Map(clubs.map((club) => [club.clubId, club.competitionId])),
         codeOf: new Map(competitions.map((competition) => [competition.id, competition.code])),
+        tierOf: new Map(competitions.map((competition) => [competition.code, competition.tier])),
+        managedClubId: clubs.find((club) => club.isManaged)?.clubId ?? "",
+        dotation,
         financesBefore,
         financesAfter: await financesOf(saveId),
         saleFees: await saleFeesOn(seasonStartDate(startYear + 1)),
@@ -419,33 +439,49 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     );
   });
 
-  it.each([0, 1])("gives the moving clubs the money of their new division, every club the reputation of its season (transition %i)", (index) => {
+  it.each([0, 1])("gives every club the reputation of its season and its dotation in its new division (transition %i)", (index) => {
     const check = checks[index];
     const reasonOf = new Map(check.expected.map((move) => [move.clubId, move.reason as MoveReason]));
-    const reputationOf = (clubId: string): number => check.financesBefore.get(clubId)?.reputation ?? NaN;
+    const before = (clubId: string): ClubFinances => check.financesBefore.get(clubId) ?? { budget: NaN, wageBudget: NaN, reputation: NaN };
+    const tierOf = (code: string) => competitionTier(check.tierOf.get(code) ?? NaN);
 
-    // Each club's expected rank, its reputation rank in its division as the season was played, against its final one.
+    // Each club's expected rank, its reputation rank in its division as the season was played, against its final one:
+    // its new reputation, and an AI club's coefficient, its ranking objective's (the managed club's 100, no objectives).
     const reputations = new Map<string, number>();
-    for (const table of check.tables.values()) {
-      const expectedRanks = reputationRanks(table.map((clubId) => ({ key: clubId, reputation: reputationOf(clubId) })));
+    const coefficients = new Map<string, number>();
+    for (const [code, table] of check.tables) {
+      const expectedRanks = reputationRanks(table.map((clubId) => ({ key: clubId, reputation: before(clubId).reputation })));
+      const division = divisionOf(code, tierOf(code), table.length, 2);
       table.forEach((clubId, place) => {
         const expectedRank = expectedRanks.get(clubId) ?? NaN;
-        reputations.set(clubId, reputationAfterSeason(reputationOf(clubId), expectedRank, place + 1, reasonOf.get(clubId) ?? null));
+        reputations.set(clubId, reputationAfterSeason(before(clubId).reputation, expectedRank, place + 1, reasonOf.get(clubId) ?? null));
+        const outcome = rankingOutcome(rankingObjective(expectedRank, division), place + 1);
+        coefficients.set(clubId, clubId === check.managedClubId ? 100 : budgetCoefficient({ ranking: outcome }));
       });
     }
-    // Reputations do move: some clubs rise, some fall.
-    const moves = [...check.financesBefore].map(([clubId, before]) => (reputations.get(clubId) ?? NaN) - before.reputation);
-    expect(moves.some((change) => change > 0) && moves.some((change) => change < 0)).toBe(true);
+    // Reputations do move: some clubs rise, some fall; coefficients too.
+    const changes = [...check.financesBefore].map(([clubId, finances]) => (reputations.get(clubId) ?? NaN) - finances.reputation);
+    expect(changes.some((change) => change > 0) && changes.some((change) => change < 0)).toBe(true);
+    expect(new Set(coefficients.values())).toEqual(new Set([85, 100, 110, 120]));
 
-    // The preseason's AI sales for wage bills move budgets too: their fees are added back to what the move gives.
-    for (const [clubId, before] of check.financesBefore) {
-      const reason = reasonOf.get(clubId);
-      const money = reason === undefined ? before : financesAfterMove(before, reason);
-      expect(check.financesAfter.get(clubId)).toEqual({
-        budget: money.budget + (check.saleFees.get(clubId) ?? 0),
-        wageBudget: money.wageBudget,
-        reputation: reputations.get(clubId),
-      });
+    // Each new division ranked by the new reputations: the dotation, plus half of the unspent budget; the preseason's AI
+    // sales for wage bills move budgets too, their fees added back.
+    const divisions = Map.groupBy([...check.financesBefore.keys()], (clubId) => check.competitionOf.get(clubId) ?? "");
+    for (const [competitionId, members] of divisions) {
+      const tier = tierOf(check.codeOf.get(competitionId) ?? "");
+      const ranks = reputationRanks(members.map((clubId) => ({ key: clubId, reputation: reputations.get(clubId) ?? NaN })));
+      for (const clubId of members) {
+        const reputationRank = ranks.get(clubId) ?? NaN;
+        const finances = seasonFinances(reputationRank, members.length, tier, coefficients.get(clubId) ?? NaN, before(clubId).budget);
+        expect(check.financesAfter.get(clubId)).toEqual({
+          budget: finances.budget + (check.saleFees.get(clubId) ?? 0),
+          wageBudget: finances.wageBudget,
+          reputation: reputations.get(clubId),
+        });
+        if (clubId === check.managedClubId) {
+          expect(check.dotation).toEqual({ ...finances, reputation: reputations.get(clubId), reputationRank });
+        }
+      }
     }
   });
 
