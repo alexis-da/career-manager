@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import type { CSSProperties, ReactNode } from "react";
+import type { ClosedObjectivesView } from "@/src/db/objectives";
 import type { SeasonResultView } from "@/src/db/season-results";
 import { seasonLabel } from "@/src/engine/world";
 import { competitionName } from "@/src/i18n/countries";
@@ -26,12 +27,16 @@ export type CardTranslators = {
   world: Translator<"world">;
   seasons: Translator<"seasons">;
   seasonCard: Translator<"seasonCard">;
+  objectives: Translator<"objectives">;
 };
 
 export const CARD_SIZES: Record<CardFormat, { width: number; height: number }> = {
   landscape: { width: 1200, height: 630 },
   square: { width: 1080, height: 1080 },
 };
+
+/** What a card says of a season's objectives: how many were met, out of how many counted. */
+export type CardObjectives = Pick<ClosedObjectivesView, "met" | "total">;
 
 const MIDNIGHT_BLUE = "#0B1340";
 const FACE_BACKGROUND = "#1A2560";
@@ -137,13 +142,25 @@ export function cardBadge(
   return season.promoted ? { badge: t.seasonCard("promoted"), line: t.seasonCard("place", { rank }) } : null;
 }
 
-/** The card of a season as a PNG response, 1200 × 630 or 1080 × 1080, in the player's language. */
+/**
+ * The line of a season's objectives on its card, the screens' own words: « Objectifs : 2/3 » (« Objectives: 2/3 »);
+ * null for a season without objectives, a save's from before them.
+ */
+export function objectivesLine(objectives: CardObjectives | null, t: Pick<CardTranslators, "objectives">): string | null {
+  return objectives === null ? null : t.objectives("met", { met: objectives.met, total: objectives.total });
+}
+
+/**
+ * The card of a season as a PNG response, 1200 × 630 or 1080 × 1080, in the player's language, with its objectives
+ * (getClosedObjectives) when it had some.
+ */
 export async function seasonCardResponse(
   season: SeasonResultView,
   clubColors: ClubColors,
   format: CardFormat,
   t: CardTranslators,
   locale: Locale,
+  objectives: CardObjectives | null,
 ): Promise<ImageResponse> {
   const [fonts, logo] = await Promise.all([imageFonts(), brandIcon()]);
   const square = format === "square";
@@ -172,10 +189,29 @@ export async function seasonCardResponse(
       </div>
     );
 
+  // « Objectifs : 2/3 » in an orange pill beside the season, on its line: nothing under it moves, in either format.
+  const objectivesText = objectivesLine(objectives, t);
   const headline = (
     <div style={column}>
-      <div style={{ fontSize: 44, color: accent, letterSpacing: 2 }}>
-        {t.seasonCard("season", { season: seasonLabel(season.startYear) })}
+      <div style={{ ...row, alignItems: "center" }}>
+        <div style={{ fontSize: 44, color: accent, letterSpacing: 2 }}>
+          {t.seasonCard("season", { season: seasonLabel(season.startYear) })}
+        </div>
+        {objectivesText !== null && (
+          <div
+            style={{
+              display: "flex",
+              marginLeft: 28,
+              padding: "5px 18px",
+              border: `3px solid ${ORANGE}`,
+              borderRadius: 40,
+              fontSize: square ? 32 : 28,
+              color: ORANGE,
+            }}
+          >
+            {objectivesText}
+          </div>
+        )}
       </div>
       <div style={{ marginTop: 2, fontSize: 32, color: MUTED }}>{competitionName(season.competitionCode, t.world)}</div>
       <div style={{ display: "flex", marginTop: square ? 28 : 12 }}>{rank}</div>

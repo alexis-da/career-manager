@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
+import { getClosedObjectives } from "@/src/db/objectives";
 import { getSeasonResult } from "@/src/db/season-results";
 import { seasonCardResponse } from "./season-card";
 
@@ -14,17 +15,25 @@ export async function GET(request: Request, { params }: RouteContext<"/saves/[id
   const { id, seasonId } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const result = await getSeasonResult(id, seasonId);
+  const [result, objectives] = await Promise.all([getSeasonResult(id, seasonId), getClosedObjectives(id, seasonId)]);
   if (result === null) {
     notFound();
   }
   const format = new URL(request.url).searchParams.get("format") === "square" ? "square" : "landscape";
-  const [positions, world, seasons, seasonCard, locale] = await Promise.all([
+  const [positions, world, seasons, seasonCard, tObjectives, locale] = await Promise.all([
     getTranslations("positions"),
     getTranslations("world"),
     getTranslations("seasons"),
     getTranslations("seasonCard"),
+    getTranslations("objectives"),
     getLocale(),
   ]);
-  return seasonCardResponse(result.season, result.clubColors, format, { positions, world, seasons, seasonCard }, locale);
+  return seasonCardResponse(
+    result.season,
+    result.clubColors,
+    format,
+    { positions, world, seasons, seasonCard, objectives: tObjectives },
+    locale,
+    objectives,
+  );
 }

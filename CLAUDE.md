@@ -529,11 +529,13 @@ de la page publique (`ChallengeScreen`, `app/challenge/_components`), quelle que
 (semaine et fin, `formatParisWeekdayTime`), carte « Ta partie » (`ownChallenge`, pur : journées, score une fois soumis et
 reprise, « Jouer le défi », ou pourquoi pas ; aucun score provisoire, le jeu ne l'écrit qu'à la 10e journée, jamais de
 « Relancer »), classements (`RankingTable`, partagée : ta ligne en bleu, l'anonyme toujours grisé). Palmarès (`/seasons`) : des
-cartes sous 1024 px, toute la carte menant à la saison, le tableau au-dessus. Bilan (`/seasons/[seasonId]`) : la carte PNG,
-inchangée, `SeasonCardActions` (« Partager » en orange où le navigateur partage des fichiers, sinon « Télécharger »), montées et
-descentes, et, pour la dernière saison terminée (`isLastCompletedSeason`), « Cap sur la saison 2027-28 » vers le tableau de
-bord : `advanceSeasonAction` mène ici une fois la saison suivante commencée. `e2e/club.spec.ts` couvre ces écrans à 1280,
-390 et 360 px.
+cartes sous 1024 px, toute la carte menant à la saison, le tableau au-dessus. Bilan (`/seasons/[seasonId]`) : la carte PNG
+(avec, pour une saison qui a des objectifs, la pastille « Objectifs : 2/3 », `objectivesLine`, à côté de la saison),
+`SeasonCardActions` (« Partager » en orange où le navigateur partage des fichiers, sinon « Télécharger »), le bilan des
+objectifs (`season-objectives`, `getClosedObjectives` : « Objectifs : 2/3 », chacun avec son issue), montées et descentes, et,
+pour la dernière saison terminée (`isLastCompletedSeason`), « Cap sur la saison 2027-28 » vers l'écran de début de saison
+(règle « Début de saison ») : `advanceSeasonAction` mène ici une fois la saison suivante commencée. `e2e/club.spec.ts` couvre
+ces écrans à 1280, 390 et 360 px.
 
 **Début de saison (gameplay v2, V3).** `/saves/[id]/season-start` (`app/saves/[id]/season-start`, sous l'entrée Club, sans
 onglet), `season-start` : la saison ; « La direction t'accorde X » (`season-start-budget`, le budget de la dotation de la

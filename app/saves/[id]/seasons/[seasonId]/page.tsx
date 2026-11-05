@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { buttonVariants } from "@/src/components/ui/button";
 import { getCupWinnerName } from "@/src/db/cup-view";
+import { getClosedObjectives } from "@/src/db/objectives";
 import { getCountryMoves } from "@/src/db/promotion";
 import { getSaveSummary } from "@/src/db/saves";
 import { getSeasonResult } from "@/src/db/season-results";
@@ -23,6 +24,7 @@ import {
 } from "../../_lib/seasons";
 import { SeasonCardPanel } from "../_components/season-card-panel";
 import { SeasonMovesPanel } from "../_components/season-moves-panel";
+import { SeasonObjectivesPanel } from "../_components/season-objectives-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +42,12 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
     getTranslations("world"),
     getTranslations("stage"),
   ]);
-  const [result, moves, save] = await Promise.all([getSeasonResult(id, seasonId), getCountryMoves(id, seasonId), getSaveSummary(id)]);
+  const [result, moves, save, objectives] = await Promise.all([
+    getSeasonResult(id, seasonId),
+    getCountryMoves(id, seasonId),
+    getSaveSummary(id),
+    getClosedObjectives(id, seasonId),
+  ]);
   if (result === null || save === null) {
     notFound();
   }
@@ -50,8 +57,9 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
   // The cup's line: the managed club's run, and the winner when it is another club.
   const cup = cupLabel(season, tStage);
   const cupWinner = cup === null || season.cupWinner ? null : await getCupWinnerName(id, season.startYear);
-  // One column, centred under lg; the whole page on a computer, for the moves beside the card: a save with one division has none.
-  const beside = moves.length > 0;
+  // One column, centred under lg; the whole page on a computer, for the objectives and the moves beside the card: a save
+  // with one division has no moves, a season from before the objectives no objectives.
+  const beside = objectives !== null || moves.length > 0;
 
   return (
     <div className={cn("mx-auto max-w-xl space-y-5 lg:mx-0 lg:max-w-md", beside && "lg:max-w-none")}>
@@ -94,10 +102,15 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
           shareTitle={t("completed.shareTitle", { season: label })}
         />
         <div className="space-y-5 empty:hidden">
-          {beside && <SeasonMovesPanel moves={moves} />}
-          {/* The next season has already begun: this is the way back to it, in the blue, the screen's orange being the card's. */}
+          {objectives !== null && <SeasonObjectivesPanel objectives={objectives} />}
+          {moves.length > 0 && <SeasonMovesPanel moves={moves} />}
+          {/* The next season has begun: the way on to its start screen, in the blue, the screen's orange being the card's. */}
           {isLastCompletedSeason(season.startYear, save.currentDate) && (
-            <Link href={`/saves/${id}`} data-testid="season-next" className={cn(buttonVariants(), "h-14 w-full text-[1.0625rem] font-bold")}>
+            <Link
+              href={`/saves/${id}/season-start`}
+              data-testid="season-next"
+              className={cn(buttonVariants(), "h-14 w-full text-[1.0625rem] font-bold")}
+            >
               {t("completed.next", { season: seasonLabel(season.startYear + 1) })}
             </Link>
           )}

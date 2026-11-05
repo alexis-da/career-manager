@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { SeasonResultView } from "@/src/db/season-results";
+import type { SeasonBestPlayer, SeasonResultView } from "@/src/db/season-results";
 import type { Locale } from "@/src/i18n/locale";
 import { testTranslator } from "@/src/i18n/test-intl";
 import { seasonCardFileName } from "../../../_lib/seasons";
-import { CARD_SIZES, cardBadge, seasonCardResponse, type CardFormat, type CardTranslators } from "./season-card";
+import {
+  CARD_SIZES,
+  cardBadge,
+  objectivesLine,
+  seasonCardResponse,
+  type CardFormat,
+  type CardObjectives,
+  type CardTranslators,
+} from "./season-card";
 
 /** The card's words in a language, as its route gets them. */
 function translators(locale: Locale): CardTranslators {
@@ -12,10 +20,21 @@ function translators(locale: Locale): CardTranslators {
     world: testTranslator(locale, "world"),
     seasons: testTranslator(locale, "seasons"),
     seasonCard: testTranslator(locale, "seasonCard"),
+    objectives: testTranslator(locale, "objectives"),
   };
 }
 
 const LYON = { primary: "#1B3E8F", secondary: "#E2001A" };
+
+const BEST_PLAYER: SeasonBestPlayer = {
+  playerKey: "olympique-lyonnais#9",
+  name: "Prénom Nom",
+  position: "ST",
+  goals: 24,
+  assists: 6,
+  rating: 7.6,
+  age: 27,
+};
 
 const CHAMPION: SeasonResultView = {
   seasonId: "season",
@@ -35,7 +54,7 @@ const CHAMPION: SeasonResultView = {
   goalsFor: 81,
   goalsAgainst: 25,
   formation: "4-3-3",
-  bestPlayer: { playerKey: "olympique-lyonnais#9", name: "Prénom Nom", position: "ST", goals: 24, assists: 6, rating: 7.6, age: 27 },
+  bestPlayer: BEST_PLAYER,
 };
 
 /** Width and height of a PNG, from its IHDR chunk; throws when the bytes are not a PNG. */
@@ -47,8 +66,13 @@ function pngSize(bytes: Buffer): { width: number; height: number } {
 /** A test that draws a card: the first drawing loads the fonts and the image engine, more than 5 s on a busy machine. */
 const DRAWING_TIMEOUT_MS = 15_000;
 
-async function render(season: SeasonResultView, format: CardFormat, locale: Locale = "fr"): Promise<Buffer> {
-  const response = await seasonCardResponse(season, LYON, format, translators(locale), locale);
+async function render(
+  season: SeasonResultView,
+  format: CardFormat,
+  locale: Locale = "fr",
+  objectives: CardObjectives | null = null,
+): Promise<Buffer> {
+  const response = await seasonCardResponse(season, LYON, format, translators(locale), locale, objectives);
   expect(response.headers.get("content-type")).toBe("image/png");
   expect(response.headers.get("cache-control")).toBe("private, max-age=0");
   return Buffer.from(await response.arrayBuffer());
@@ -125,6 +149,42 @@ describe("seasonCardResponse", () => {
     for (const season of [CHAMPION, cupWinner, midTable]) {
       for (const format of ["landscape", "square"] as const) {
         expect(pngSize(await render(season, format, "en"))).toEqual(CARD_SIZES[format]);
+      }
+    }
+  }, DRAWING_TIMEOUT_MS);
+
+  it("counts the season's objectives met in the screens' words, nothing for a season without them", () => {
+    expect(objectivesLine({ met: 2, total: 3 }, translators("fr"))).toBe("Objectifs : 2/3");
+    expect(objectivesLine({ met: 0, total: 2 }, translators("fr"))).toBe("Objectifs : 0/2");
+    expect(objectivesLine({ met: 3, total: 3 }, translators("en"))).toBe("Objectives: 3/3");
+    expect(objectivesLine(null, translators("fr"))).toBeNull();
+  });
+
+  it("draws the objectives beside the season in both formats and languages, the tallest headline and the widest stats too", async () => {
+    // The double of a promoted club: a badge with its line, the most the headline holds.
+    const double = { ...CHAMPION, competitionCode: "fr.2", cupWinner: true, promoted: true };
+    // A second division of 24 clubs: three figures, and a name over two lines beside them in landscape.
+    const wide = {
+      ...CHAMPION,
+      competitionCode: "en.2",
+      rank: 22,
+      champion: false,
+      points: 102,
+      won: 18,
+      drawn: 10,
+      lost: 18,
+      goalsFor: 102,
+      goalsAgainst: 88,
+      bestPlayer: { ...BEST_PLAYER, name: "Jean-Christophe Lemaire-Dubois" },
+    };
+    for (const [season, objectives] of [
+      [double, { met: 2, total: 3 }],
+      [wide, { met: 0, total: 2 }],
+    ] as const) {
+      for (const locale of ["fr", "en"] as const) {
+        for (const format of ["landscape", "square"] as const) {
+          expect(pngSize(await render(season, format, locale, objectives))).toEqual(CARD_SIZES[format]);
+        }
       }
     }
   }, DRAWING_TIMEOUT_MS);

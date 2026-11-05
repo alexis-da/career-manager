@@ -1,6 +1,34 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { demoSaveId, DEMO_USER_ID, signedUserCookie, USER_COOKIE } from "./db";
-import { openScreen } from "./helpers";
+import { boxOf, openScreen } from "./helpers";
+
+/**
+ * The objectives of the demo's season, when the demo save was made since the season objectives (an older one has none,
+ * and shows no block): its ranking, then the one its assistant chose before the first match, its owner never choosing,
+ * and no cup in its world. « Objectifs : N/2 », N the ones not missed; beside the card on a computer.
+ */
+async function expectSeasonObjectives(page: Page): Promise<void> {
+  const block = page.getByTestId("season-objectives");
+  if ((await block.count()) === 0) {
+    return;
+  }
+  const lines = block.locator("[data-objective]");
+  await expect(lines).toHaveCount(2);
+  await expect(lines.first()).toHaveAttribute("data-objective", "RANKING");
+  await expect(lines.first().getByTestId("season-objective-assistant")).toHaveCount(0);
+  await expect(lines.nth(1).getByTestId("season-objective-assistant")).toHaveText("Choisi par l'adjoint");
+  for (const line of await lines.all()) {
+    await expect(line).toHaveAttribute("data-outcome", /^(EXCEEDED|ACHIEVED|MISSED)$/);
+    await expect(line).toContainText(/(Dépassé|Atteint|Manqué)$/);
+  }
+  const met = await block.locator('[data-objective]:not([data-outcome="MISSED"])').count();
+  await expect(block).toHaveAttribute("data-total", "2");
+  await expect(block).toHaveAttribute("data-met", String(met));
+  await expect(block.getByRole("heading")).toHaveText(`Objectifs : ${met}/2`);
+
+  const card = await boxOf(page.getByTestId("season-card"));
+  expect((await boxOf(block)).x).toBeGreaterThanOrEqual(card.x + card.width);
+}
 
 test("shows the demo save's palmarès, its completed season and the season's card", async ({ page, context, request, baseURL }) => {
   const saveId = await demoSaveId();
@@ -17,6 +45,10 @@ test("shows the demo save's palmarès, its completed season and the season's car
 
   await season.getByRole("link", { name: "Voir la carte de la saison 2026-27" }).click();
   await expect(page.getByRole("heading", { name: "Saison terminée" })).toBeVisible();
+  await expectSeasonObjectives(page);
+  // The demo stands on the first day of 2027-28: the way on leads to that season's start.
+  await expect(page.getByTestId("season-next")).toHaveAttribute("href", `/saves/${saveId}/season-start`);
+
   // Square by default, previewed and downloaded; landscape from the quieter link.
   const download = page.getByRole("link", { name: "Télécharger" });
   await expect(download).toHaveAttribute("download", "late-winner-saison-2026-27.png");
