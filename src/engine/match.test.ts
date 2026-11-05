@@ -11,7 +11,8 @@ import {
   REGULATION_MINUTES,
   SEGMENT_MINUTES,
 } from "./balance";
-import { formationPositions } from "./formations";
+import { chooseFormation } from "./formation-choice";
+import { formationPositions, type FormationName } from "./formations";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "./generation";
 import { selectLineup, type Lineup, type SquadPlayer } from "./lineup";
 import {
@@ -46,31 +47,30 @@ const SAVE_SEED = "match-test";
 const MATCH_COUNT = 10_000;
 
 // The real 2024-25 first divisions, with attributes generated for one save and every player at neutral form: the
-// calibration below is the one of the first divisions, as before the second ones.
+// calibration below is the one of the first divisions, as before the second ones. Each club plays it in the formation
+// it chooses for its squad, as AI clubs play their season (chooseFormation); the other tests take its automatic 4-3-3.
 const competitions = buildWorldPlan()
   .filter(({ competition }) => competition.tier === 1)
   .map(({ competition, clubs }) => ({
   code: competition.code,
-  clubs: clubs.map((club) => ({
-    slug: club.slug,
-    lineup: selectLineup(
-      club.players.map(
-        (player): SquadPlayer => ({
-          ...generateAttributes(
-            { position: player.position, age: ageInYears(player.birthDate, WORLD_START_DATE) },
-            clubLevelFromRank(club.initialRank, clubs.length, 1),
-            makeRng(attributeRngSeed(SAVE_SEED, club.slug, player.squadSlot)),
-          ),
-          id: `${club.slug}#${player.squadSlot}`,
-          position: player.position,
-          form: 50,
-          morale: 50,
-          fitness: 100,
-          injured: false,
-        }),
-      ),
-    ),
-  })),
+  clubs: clubs.map((club) => {
+    const squad = club.players.map(
+      (player): SquadPlayer => ({
+        ...generateAttributes(
+          { position: player.position, age: ageInYears(player.birthDate, WORLD_START_DATE) },
+          clubLevelFromRank(club.initialRank, clubs.length, 1),
+          makeRng(attributeRngSeed(SAVE_SEED, club.slug, player.squadSlot)),
+        ),
+        id: `${club.slug}#${player.squadSlot}`,
+        position: player.position,
+        form: 50,
+        morale: 50,
+        fitness: 100,
+        injured: false,
+      }),
+    );
+    return { slug: club.slug, lineup: selectLineup(squad), chosen: chooseFormation(squad, 1) };
+  }),
 }));
 
 function lineupOf(slug: string): Lineup {
@@ -81,6 +81,21 @@ function lineupOf(slug: string): Lineup {
   return club.lineup;
 }
 
+/** A club as AI clubs play: in the formation it chooses, its eleven in it. */
+function chosenOf(slug: string): { formation: FormationName; lineup: Lineup } {
+  const club = competitions.flatMap((competition) => competition.clubs).find((candidate) => candidate.slug === slug);
+  if (club === undefined) {
+    throw new Error(`Unknown club ${slug}`);
+  }
+  return club.chosen;
+}
+
+/** A match between two clubs, each in the formation it chooses. */
+const chosenMatch = (home: string, away: string, seed: string): MatchResult => {
+  const [homeTeam, awayTeam] = [chosenOf(home), chosenOf(away)];
+  return simulateMatch(homeTeam.lineup, awayTeam.lineup, seed, { home: homeTeam.formation, away: awayTeam.formation });
+};
+
 /** League matches between random pairs of clubs of the same competition, one fixed seed per match. */
 const leagueResults: MatchResult[] = (() => {
   const rng = makeRng("league-pairs");
@@ -88,17 +103,15 @@ const leagueResults: MatchResult[] = (() => {
     const { clubs } = competitions[index % competitions.length];
     const homeIndex = randomInt(rng, 0, clubs.length - 1);
     const awayIndex = (homeIndex + randomInt(rng, 1, clubs.length - 1)) % clubs.length;
-    return simulateMatch(clubs[homeIndex].lineup, clubs[awayIndex].lineup, `league:${index}`);
+    return chosenMatch(clubs[homeIndex].slug, clubs[awayIndex].slug, `league:${index}`);
   });
 })();
 
 /** Bayern against Monza, alternating home and away. */
 const bayernMonza = Array.from({ length: MATCH_COUNT }, (_, index) => {
   const bayernAtHome = index % 2 === 0;
-  const [home, away] = bayernAtHome
-    ? [lineupOf("fc-bayern-munchen"), lineupOf("ac-monza")]
-    : [lineupOf("ac-monza"), lineupOf("fc-bayern-munchen")];
-  return { bayernAtHome, result: simulateMatch(home, away, `bayern-monza:${index}`) };
+  const [home, away] = bayernAtHome ? ["fc-bayern-munchen", "ac-monza"] : ["ac-monza", "fc-bayern-munchen"];
+  return { bayernAtHome, result: chosenMatch(home, away, `bayern-monza:${index}`) };
 });
 
 describe("simulateMatch", () => {

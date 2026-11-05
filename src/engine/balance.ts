@@ -312,11 +312,12 @@ export const STRENGTH_PER_MORALE_POINT = 0.001;
 // ------------------------------------------------------------------ Match: goals
 
 /**
- * Expected goals of a team facing an equal opponent on neutral ground, both in the neutral 4-4-2: two 4-3-3s, as AI
- * clubs play, score about 15 % more (FORMATION_PROFILES). Calibrated with npm run measure:balance on complete seasons,
- * fatigue included: the outfield players wearing faster than the goalkeeper, a match's last segments see fewer goals.
+ * Expected goals of a team facing an equal opponent on neutral ground, both in the neutral 4-4-2 à plat. Calibrated with
+ * npm run measure:balance on complete seasons, fatigue included, AI clubs in the formation each chooses (chooseFormation:
+ * an underdog closes the game, a favourite opens it, fewer goals on the whole than two 4-3-3s): 1.23 when they all played
+ * the 4-3-3, 1.31 since gameplay v2 (V1), the six targets of docs/design/gameplay-v1.md where they were.
  */
-export const BASE_GOALS_PER_TEAM = 1.23;
+export const BASE_GOALS_PER_TEAM = 1.31;
 
 /**
  * When a match's goals come: the weight of each quarter of an hour of regular time in its expected goals, from kick-off

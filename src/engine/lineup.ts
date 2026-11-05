@@ -54,13 +54,15 @@ const byId = (a: LineupCandidate, b: LineupCandidate): number => (a.id < b.id ? 
 
 const byOverall = (a: LineupCandidate, b: LineupCandidate): number => b.overall - a.overall || byId(a, b);
 
-/** The best player for a slot: rating in the slot, then id. */
+/** The best player for a slot: rating in the slot, then id. Each candidate's rating is read once. */
 function bestFor<P extends LineupCandidate>(candidates: readonly P[], slot: Position): P | undefined {
   let best: P | undefined;
+  let bestRating = 0;
   for (const candidate of candidates) {
-    const gap = best === undefined ? 1 : ratingAt(candidate, slot) - ratingAt(best, slot);
-    if (best === undefined || gap > 0 || (gap === 0 && byId(candidate, best) < 0)) {
+    const rating = ratingAt(candidate, slot);
+    if (best === undefined || rating > bestRating || (rating === bestRating && byId(candidate, best) < 0)) {
       best = candidate;
+      bestRating = rating;
     }
   }
   return best;

@@ -5,15 +5,17 @@ import { makeRng } from "../lib/rng";
 import { FULL_FITNESS } from "./balance";
 import { fitnessAfterMatch, recoveredFitness } from "./fitness";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "./generation";
-import { averageStarterRating, selectLineup, selectRestedLineup, type SquadPlayer } from "./lineup";
+import { chooseFormation } from "./formation-choice";
+import { formationPositions } from "./formations";
+import { averageStarterRating, selectLineup, type SquadPlayer } from "./lineup";
 import { matchRngSeed, nextForm, outcomeFor, playerMatchStats, simulateMatch, type Appearance } from "./match";
 import { generateBalancedSchedule, matchdayDates } from "./schedule";
-import { competitionTier } from "./tiers";
+import { competitionTier, type CompetitionTier } from "./tiers";
 import { firstMatchdayDate, WORLD_START_DATE } from "./world";
 
 // The ten leagues of the real world over a whole season, played as a save of world 2 plays them, on its calendar
-// (matchdayDates: Saturdays, and Tuesdays for the longest seasons): AI lineups picked before every match and their tired
-// players rested (selectRestedLineup), injured players left out, form and fitness carried from one match to the next for
+// (matchdayDates: Saturdays, and Tuesdays for the longest seasons): AI formations and lineups picked before every match
+// (chooseFormation) and their tired players rested, injured players left out, form and fitness carried from one match to the next for
 // every player of both clubs (nextForm, fitnessAfterMatch, as recordFinishedMatches applies them) and fitness recovered
 // day by day (recoveredFitness, as playNextMatchday applies it). The cups are left out. The calibration of match.test.ts
 // is at neutral form and full fitness; the targets of the gameplay sheet (docs/design/gameplay-v1.md), measured on saves
@@ -27,8 +29,10 @@ type Played = { homeGoals: number; awayGoals: number; homeStrength: number; away
 const season = (() => {
   const plan = buildWorldPlan();
   const squads = new Map<string, SquadPlayer[]>();
+  const tierOf = new Map<string, CompetitionTier>();
   for (const { competition, clubs } of plan) {
     for (const club of clubs) {
+      tierOf.set(club.slug, competitionTier(competition.tier));
       squads.set(
         club.slug,
         club.players.map((player) => ({
@@ -78,17 +82,17 @@ const season = (() => {
     }
     const lineup = (slug: string) => {
       const available = squadOf(slug).map((player) => ({ ...player, injured: (injuredUntil.get(player.id) ?? 0) > date }));
-      const rested = selectRestedLineup(available);
-      const plain = new Set(selectLineup(available).starters.map((starter) => starter.player.id));
-      rotations += rested.starters.filter((starter) => !plain.has(starter.player.id)).length;
-      starterFitness.push(...rested.starters.map((starter) => starter.player.fitness));
-      return rested;
+      const chosen = chooseFormation(available, tierOf.get(slug) ?? 1);
+      const plain = new Set(selectLineup(available, formationPositions(chosen.formation)).starters.map((starter) => starter.player.id));
+      rotations += chosen.lineup.starters.filter((starter) => !plain.has(starter.player.id)).length;
+      starterFitness.push(...chosen.lineup.starters.map((starter) => starter.player.fitness));
+      return chosen;
     };
-    const result = simulateMatch(
-      lineup(match.home),
-      lineup(match.away),
-      matchRngSeed(SAVE_SEED, START_YEAR, match.round, match.home, match.away),
-    );
+    const [home, away] = [lineup(match.home), lineup(match.away)];
+    const result = simulateMatch(home.lineup, away.lineup, matchRngSeed(SAVE_SEED, START_YEAR, match.round, match.home, match.away), {
+      home: home.formation,
+      away: away.formation,
+    });
     const stats = new Map(playerMatchStats(result).map((line) => [line.playerId, line]));
     const spells = new Map<string, Appearance[]>();
     for (const appearance of result.appearances) {

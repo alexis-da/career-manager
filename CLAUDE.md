@@ -153,6 +153,14 @@ enregistrée (`ClubSave.formation`, `ClubSave.lineup` par index d'emplacement) e
 renommer un dispositif ni réordonner ses emplacements** (test : `src/db/lineup.test.ts` relit une composition de chacun
 des sept de G1). Seul le libellé change, message `formations.label` (zone `catalogs`) : le « 4-3-3 » est le « 4-3-3
 sentinelle », le « 4-2-3-1 » le « 4-2-3-1 large », le « 4-4-2 » le « 4-4-2 à plat » ; aucun écran n'affiche l'identifiant.
+**Les clubs IA choisissent leur dispositif** avant chaque match (`chooseFormation`, `src/engine/formation-choice.ts`,
+pure) : de tous, avec la composition de l'adjoint dans chacun (`selectRestedLineup` : blessés et suspendus écartés,
+fatigués reposés), celui qui rapporte le plus de points attendus (`expectedPoints` : buts attendus du moteur, loi de
+Poisson, domicile et extérieur moyennés) face à l'adversaire moyen de leur division (`averageOpponent` : un onze de son
+niveau moyen, `CLUB_LEVEL_BY_TIER`, en 4-3-3 sentinelle) ; égalité au premier de `FORMATION_NAMES`. La même fonction pour
+le match (`lineupOf`, `src/db/matchday.ts`), l'aperçu de l'adversaire (`getOpponentPreview`) et les tests
+(`src/db/opponent.test.ts` compare l'aperçu au match joué). Le club dirigé garde le sien. Base des buts recalibrée pour
+les six cibles : `BASE_GOALS_PER_TEAM` 1,23 → 1,31.
 
 **Composition et consigne de départ (gameplay v1, G6).** La force d'une équipe a une seule source,
 `src/engine/strength.ts` (`condition`, `teamStrength`, `formationStrength`, `expectedGoals`, `expectedGoalDifference`,
@@ -173,10 +181,10 @@ measure:balance -- --starting-only` : petit, Fermer rapportant à l'outsider, At
 
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
-première division vérifiée après chaque changement (2,64 buts, 44 % à domicile, 24 % de nuls, Bayern-Monza ~80 %,
-`match.test.ts`) ; celle de deuxième est épinglée dans `match-d2.slow.test.ts`, les deux sur une saison avec forme dans
-`match-season.test.ts`. Jeunes : réputation et note lues dans
-la plage de la division du club (`YOUTH_OVERALL_BY_TIER`). Un club IA au-dessus de sa masse salariale vend en
+première division vérifiée après chaque changement (`match.test.ts`, chaque club dans le dispositif qu'il choisit :
+2,5 à 2,8 buts, 42 à 46 % à domicile, 23 à 27 % de nuls, Bayern bat Monza plus de 75 fois sur 100) ; celle de deuxième
+est épinglée dans `match-d2.slow.test.ts`, les deux sur une saison avec forme dans `match-season.test.ts`. Jeunes :
+réputation et note lues dans la plage de la division du club (`YOUTH_OVERALL_BY_TIER`). Un club IA au-dessus de sa masse salariale vend en
 présaison ses joueurs les mieux payés à d'autres clubs IA, jamais sous 80 % de leur valeur (`planWageSales`).
 
 **Montées et descentes (parties 2 seulement).** À chaque `advanceToNextSeason`, dans sa transaction : les classements

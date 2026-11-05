@@ -85,8 +85,12 @@ une blessure ou un changement compte donc dès le segment suivant.
   Les remplacements tactiques (3 prévus, 55'–85', minutes tirées du flux `…:substitutions:home|away`, les mêmes quoi
   qu'il arrive) n'ont lieu qu'en seconde période. Un exclu n'est jamais remplacé et son slot reste vide.
 - Profils de dispositif (`FORMATION_PROFILES`, `balance.ts`, appliqués par `formationStrength`) : multiplicateurs de
-  l'attaque et de la défense, 4-4-2 neutre, 3-4-3 +5 % / −5 %, 4-3-3 +3 / −3, 4-2-3-1 +2 / −1, 3-5-2 +1 / −1,
-  4-1-4-1 −2 / +2, 5-3-2 −5 / +5. Les clubs IA jouent le 4-3-3.
+  l'attaque et de la défense, dix-sept dispositifs (gameplay v2, V1), du 3-4-3 et du 4-3-3 offensif (+5 % / −5 %) au
+  5-4-1 (−6 / +6), le 4-4-2 à plat et le 4-4-1-1 neutres ; ceux de G1 inchangés (4-3-3 sentinelle +3 / −3, 4-2-3-1 large
+  +2 / −1, 3-5-2 +1 / −1, 4-1-4-1 −2 / +2, 5-3-2 −5 / +5). Les clubs IA choisissent le leur avant chaque match
+  (`chooseFormation`, `src/engine/formation-choice.ts`, pure) : le plus de points attendus (`expectedPoints`, Poisson,
+  domicile et extérieur moyennés) avec la composition de l'adjoint dans chacun, face à l'adversaire moyen de leur
+  division (`averageOpponent`) ; la même fonction pour le match, l'aperçu de l'adversaire et l'écran de composition.
 - Consignes (`Instruction` : `ATTACK`, `BALANCED`, `DEFEND` ; `INSTRUCTION_EFFECTS`) : Attaquer ouvre le match
   (λ propre × 1,13, λ adverse × 1,15), Fermer le ferme (× 0,89 des deux côtés). Réglées pour qu'entre équipes égales
   aucune ne s'écarte de plus de 0,015 point par match d'Équilibré, que mené à partir de la 60e Attaquer rapporte et que
@@ -105,7 +109,7 @@ une blessure ou un changement compte donc dès le segment suivant.
 - Force d'une équipe : une seule source, `src/engine/strength.ts` (`condition`, `teamStrength`, `formationStrength`,
   `expectedGoals`, `expectedGoalDifference`, `compareFormations`), sans tirage, que le moteur et l'écran de la
   composition importent (le navigateur aussi : n'y importer que des modules légers). La composition y recalcule la
-  force du onze à chaque modification et compare les sept dispositifs avec la composition de l'adjoint dans chacun
+  force du onze à chaque modification et compare les dix-sept dispositifs avec la composition de l'adjoint dans chacun
   (`selectRestedLineup`).
 - Mi-temps : `automaticHalfTimeChoice` (clubs IA, simulation rapide, club dirigé sans choix) remplace seulement les
   blessés restés dans leur slot (plus aucun changement, ou état d'avant les segments, dont la première période les y
@@ -132,7 +136,8 @@ une blessure ou un changement compte donc dès le segment suivant.
   avec les décisions de l'adjoint et sans changement, le match est exactement celui de `simulateMatch` avec
   `assistantChoices` (`choices.test.ts` dans les trois modes ; `src/db/live-state.test.ts`, 600 matchs à travers l'état
   stocké, et deux états v1 dans `src/db/data/`).
-- Calibration (G1, `npm run measure:balance`, trois saisons complètes du monde 2) : base 1,14 (1,23 depuis la fatigue, G2),
+- Calibration (G1, `npm run measure:balance`, trois saisons complètes du monde 2) : base 1,14 (1,23 depuis la fatigue, G2,
+  1,31 depuis que les clubs IA choisissent leur dispositif, gameplay v2),
   exposant 2,4, domicile 1,12 → 2,65 buts par match, 44 % de victoires à domicile, 25 % de nuls, 55 points entre le
   premier et le dernier, 23 % de victoires du plus faible (≥ 1 point d'écart). Épinglée à forme 50 dans `match.test.ts` (premières divisions :
   2,5–2,8 buts, 42–46 % à domicile, 23–27 % de nuls, Bayern-Monza au-dessus de 75 %) et sur une saison avec forme et
@@ -177,7 +182,8 @@ Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 %
   reposé valant au plus `ROTATION_MAX_RATING_GAP` (5) de moins au poste ; le club dirigé garde `resolveLineup`.
 - Direct : la fitness au coup d'envoi est dans l'état stocké (`live-state.ts`, 100 par défaut pour une pause d'avant G2) ;
   le test des 600 matchs de `live-state.test.ts`, joueurs de 55 à 100, prouve simuler = regarder.
-- Calibration : base 1,23 (1,14 sans fatigue, 1,16 avec un seul coefficient sur la fitness du moment) : le gardien
+- Calibration : base 1,23 (1,14 sans fatigue, 1,16 avec un seul coefficient sur la fitness du moment ; 1,31 depuis le choix
+  du dispositif par l'IA, gameplay v2, V1) : le gardien
   s'usant trois fois moins vite que ses partenaires, la défense baisse moins que l'attaque, et les buts baissent au fil du
   match (−19 % au dernier quart d'heure face au premier, à équipes égales). Un onze à 85 au coup d'envoi perd
   0,097 point par match, à 75 0,164 ; un milieu ou un attaquant frais du même niveau entré à la 60e rapporte
@@ -351,15 +357,16 @@ Affectation gloutonne : pour chaque slot dans l'ordre, le meilleur `ratingAt` pa
 exclus, égalités départagées par `playerKey`. Un DD à 70 passe donc devant un DC à 74 (68,08) au slot RB.
 Banc : le gardien remplaçant d'abord, puis les meilleures notes.
 
-**Dispositifs et composition enregistrée.** `src/engine/formations.ts` : 7 dispositifs (`FORMATION_NAMES`), chacun
+**Dispositifs et composition enregistrée.** `src/engine/formations.ts` : 17 dispositifs (`FORMATION_NAMES`, trois familles
+par leurs défenseurs, `formationFamily` ; l'identifiant ne change jamais, seul le libellé, message `formations.label`), chacun
 11 slots ordonnés avec leur `Position` et leurs coordonnées (x, y en %, attaque vers le haut). Une partie stocke
 la composition par **index de slot** : ne jamais réordonner les slots d'un dispositif (le 4-3-3 garde l'ordre
 historique, celui des clubs IA). Le club dirigé a `ClubSave.formation` et `ClubSave.lineup`
 (`{ starters: [{ slot, playerKey }], benchOrder }`, validé par Zod dans `src/db/lineup.ts`, en lecture comme en
 écriture). `resolveLineup(formation, saved, squad)` part de la composition enregistrée : un slot dont le joueur
 est blessé, absent de l'effectif ou déjà titulaire plus tôt est recomplété par l'affectation gloutonne ; sans
-composition, c'est `selectLineup` dans le dispositif. `playNextMatchday` l'utilise pour le club dirigé ; les
-clubs IA restent en 4-3-3 automatique. `changeFormation` réaffecte un onze d'un dispositif à l'autre (même
+composition, c'est `selectLineup` dans le dispositif. `playNextMatchday` l'utilise pour le club dirigé ; un
+club IA joue le dispositif qu'il choisit et sa composition automatique (`chooseFormation`). `changeFormation` réaffecte un onze d'un dispositif à l'autre (même
 poste, puis même ligne, puis automatique).
 
 **Le moteur utilise `ratingAt` du slot occupé, jamais `overall` seul :**

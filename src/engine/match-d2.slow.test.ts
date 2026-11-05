@@ -3,6 +3,8 @@ import { buildWorldPlan } from "../../prisma/seed/seed";
 import { ageInYears } from "../lib/dates";
 import { makeRng, randomInt } from "../lib/rng";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "./generation";
+import { chooseFormation } from "./formation-choice";
+import type { FormationName } from "./formations";
 import { averageStarterRating, selectLineup, type Lineup } from "./lineup";
 import { simulateMatch, type MatchResult } from "./match";
 import { competitionTier } from "./tiers";
@@ -16,31 +18,36 @@ const MATCH_COUNT = 10_000;
 // same competition, one fixed seed per match. Measured when the second divisions were balanced: 2.77 goals per match,
 // 45.7 % home wins, 24.2 % draws; at kickoff, each second division's champion as strong as its first division's 15th.
 // With the engine in segments, calibrated again (gameplay v1, G1): 2.59 goals, 43.0 % home wins, 26.2 % draws, a
-// champion beating its last club in 68.7 % of matches.
+// champion beating its last club in 68.7 % of matches. Since gameplay v2 (V1), each club plays in the formation it
+// chooses (chooseFormation), as AI clubs play; its strength at kickoff is still its automatic 4-3-3's.
 const plan = buildWorldPlan();
 const tables = plan.map(({ competition, clubs }) => ({
   code: competition.code,
   tier: competitionTier(competition.tier),
-  clubs: clubs.map((club) => ({
-    rank: club.initialRank,
-    lineup: selectLineup(
-      club.players.map((player) => ({
-        ...generateAttributes(
-          { position: player.position, age: ageInYears(player.birthDate, WORLD_START_DATE) },
-          clubLevelFromRank(club.initialRank, clubs.length, competitionTier(competition.tier)),
-          makeRng(attributeRngSeed(SAVE_SEED, club.slug, player.squadSlot)),
-        ),
-        id: `${club.slug}#${player.squadSlot}`,
-        position: player.position,
-        form: 50,
-        morale: 50,
-        fitness: 100,
-        injured: false,
-      })),
-    ),
-  })),
+  clubs: clubs.map((club) => {
+    const squad = club.players.map((player) => ({
+      ...generateAttributes(
+        { position: player.position, age: ageInYears(player.birthDate, WORLD_START_DATE) },
+        clubLevelFromRank(club.initialRank, clubs.length, competitionTier(competition.tier)),
+        makeRng(attributeRngSeed(SAVE_SEED, club.slug, player.squadSlot)),
+      ),
+      id: `${club.slug}#${player.squadSlot}`,
+      position: player.position,
+      form: 50,
+      morale: 50,
+      fitness: 100,
+      injured: false,
+    }));
+    return { rank: club.initialRank, lineup: selectLineup(squad), chosen: chooseFormation(squad, competitionTier(competition.tier)) };
+  }),
 }));
 const secondDivisions = tables.filter((table) => table.tier === 2);
+
+type Chosen = { formation: FormationName; lineup: Lineup };
+
+/** A match between two clubs, each in the formation it chooses. */
+const chosenMatch = (home: Chosen, away: Chosen, seed: string): MatchResult =>
+  simulateMatch(home.lineup, away.lineup, seed, { home: home.formation, away: away.formation });
 
 const leagueResults: MatchResult[] = (() => {
   const rng = makeRng("league-pairs");
@@ -48,17 +55,19 @@ const leagueResults: MatchResult[] = (() => {
     const { clubs } = secondDivisions[index % secondDivisions.length];
     const homeIndex = randomInt(rng, 0, clubs.length - 1);
     const awayIndex = (homeIndex + randomInt(rng, 1, clubs.length - 1)) % clubs.length;
-    return simulateMatch(clubs[homeIndex].lineup, clubs[awayIndex].lineup, `league-d2:${index}`);
+    return chosenMatch(clubs[homeIndex].chosen, clubs[awayIndex].chosen, `league-d2:${index}`);
   });
 })();
 
-const lineupAt = (code: string, rank: number): Lineup => {
+const clubAt = (code: string, rank: number) => {
   const club = tables.find((table) => table.code === code)?.clubs.find((candidate) => candidate.rank === rank);
   if (club === undefined) {
     throw new Error(`No club ranked ${rank} in ${code}`);
   }
-  return club.lineup;
+  return club;
 };
+
+const lineupAt = (code: string, rank: number): Lineup => clubAt(code, rank).lineup;
 
 describe("second division calibration", () => {
   it("averages 2.4 to 3.2 goals per match over 10 000 second division matches", () => {
@@ -91,13 +100,13 @@ describe("second division calibration", () => {
   it("lets a second division's champion beat its last club in more than 55 % of 10 000 matches", () => {
     let wins = 0;
     for (const [index, table] of secondDivisions.entries()) {
-      const champion = lineupAt(table.code, 1);
-      const last = lineupAt(table.code, table.clubs.length);
+      const champion = clubAt(table.code, 1).chosen;
+      const last = clubAt(table.code, table.clubs.length).chosen;
       for (let match = 0; match < MATCH_COUNT / secondDivisions.length; match++) {
         const atHome = match % 2 === 0;
         const result = atHome
-          ? simulateMatch(champion, last, `d2-top-bottom:${index}:${match}`)
-          : simulateMatch(last, champion, `d2-top-bottom:${index}:${match}`);
+          ? chosenMatch(champion, last, `d2-top-bottom:${index}:${match}`)
+          : chosenMatch(last, champion, `d2-top-bottom:${index}:${match}`);
         wins += (atHome ? result.homeGoals > result.awayGoals : result.awayGoals > result.homeGoals) ? 1 : 0;
       }
     }

@@ -2,8 +2,9 @@ import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS } from "../engine/balance";
 import { assistantChoices, withChoices, type MatchDecision } from "../engine/choices";
 import { disciplineAfterMatch, isSuspended, type CompetitionKind, type Discipline } from "../engine/discipline";
 import { fitnessAfterMatch } from "../engine/fitness";
-import { DEFAULT_FORMATION_NAME, type FormationName } from "../engine/formations";
-import { autoFilledSlots, resolveLineup, selectRestedLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
+import { chooseFormation } from "../engine/formation-choice";
+import type { FormationName } from "../engine/formations";
+import { autoFilledSlots, resolveLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import {
   cupMatchRngSeed,
   eventsToPersist,
@@ -22,6 +23,7 @@ import {
   type Side,
 } from "../engine/match";
 import { playOn } from "../engine/live";
+import { competitionTier } from "../engine/tiers";
 import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import { recordChallengeScore } from "./challenge";
@@ -91,7 +93,14 @@ export type PlayerState = {
   discipline: Discipline;
 };
 
-const TEAM_SELECT = { isManaged: true, formation: true, lineup: true, club: { select: { slug: true } } } as const;
+const TEAM_SELECT = {
+  isManaged: true,
+  formation: true,
+  lineup: true,
+  club: { select: { slug: true } },
+  // Its division, whose average opponent an AI club weighs its formations against.
+  competition: { select: { tier: true } },
+} as const;
 
 export const PLAYER_SELECT = {
   id: true,
@@ -119,17 +128,19 @@ export const PLAYER_SELECT = {
 
 type PlayerRow = Prisma.PlayerSaveGetPayload<{ select: typeof PLAYER_SELECT }>;
 
-type Team = { isManaged: boolean; formation: string; lineup: unknown };
+type Team = { isManaged: boolean; formation: string; lineup: unknown; competition: { tier: number } };
 
 type TeamLineup = { lineup: Lineup; formation: FormationName; autoFilledSlots: number };
 
 /**
- * The managed club plays its saved lineup, completed automatically; AI clubs pick their 4-3-3 automatically, resting
- * their tired players where a rested one is hardly worse (selectRestedLineup).
+ * The managed club plays its saved lineup, completed automatically; an AI club chooses its formation for its squad as it
+ * stands before the match (chooseFormation: the most points expected against the average opponent of its division) and
+ * plays its automatic eleven in it, resting its tired players where a rested one is hardly worse (selectRestedLineup).
  */
 function lineupOf(team: Team, squad: readonly SquadPlayer[]): TeamLineup {
   if (!team.isManaged) {
-    return { lineup: selectRestedLineup(squad), formation: DEFAULT_FORMATION_NAME, autoFilledSlots: 0 };
+    const { formation, lineup } = chooseFormation(squad, competitionTier(team.competition.tier));
+    return { lineup, formation, autoFilledSlots: 0 };
   }
   const saved = parseSavedLineup(team.lineup);
   const formation = parseFormation(team.formation);

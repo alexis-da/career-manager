@@ -1,6 +1,6 @@
 /**
  * Balance of the match engine (npm run measure:balance -- [--matches=N] [--seeds=N] [--engine-only] [--world-only]
- * [--starting-only] [--out=file.json]).
+ * [--starting-only] [--formations-only] [--real-formations] [--out=file.json]).
  *
  * Engine, on the pure functions, without a database: wins, draws and losses by strength gap, then the isolated effect of
  * each factor, everything else equal, the formations with their profiles and the instructions against the assistant's rule. Two teams of the same synthetic level, every player at his position's profile, no
@@ -9,11 +9,13 @@
  * Then the managed club's choice events, the tested team's alone: how many and which, each option against the
  * assistant's (every option of an event played from that very state to the end), and what they are worth to the club;
  * and its starting instruction, as favourite, at equal strength and as underdog (--starting-only: that table alone).
+ * The formations, an ideal eleven in each against a 4-3-3 sentinelle (--formations-only: that table alone).
  *
  * World, on a save of the local database: a complete season of a worldVersion 2 save for each of --seeds seeds (default
  * 3), its goals, draws, home wins, points gap, upsets and final form, the AI starters' fitness at kick-off, the players
- * they rest and the suspensions they serve; the same leagues played on paper, squads frozen at kick-off, form at 50, for what a season's form,
- * fatigue and injuries add; and the formations on real squads. Each save and its
+ * they rest and the suspensions they serve, and the formations they choose (chooseFormation) by division and by level;
+ * the same leagues played on paper, squads frozen at kick-off, form at 50, each club in the formation it chooses, for what
+ * a season's form, fatigue and injuries add; and, with --real-formations, the formations on real squads. Each save and its
  * throwaway owner are deleted at the end. Writes to the database: the local one only.
  */
 import "dotenv/config";
@@ -43,12 +45,14 @@ import {
   type ChoiceKind,
   type MatchDecision,
 } from "../src/engine/choices";
+import { averageLevel, chooseFormation } from "../src/engine/formation-choice";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../src/engine/formations";
+import { competitionTier, type CompetitionTier } from "../src/engine/tiers";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "../src/engine/generation";
 import { INSTRUCTIONS } from "../src/engine/instructions";
 import { isSuspended } from "../src/engine/discipline";
 import { recoveredFitness } from "../src/engine/fitness";
-import { averageStarterRating, selectLineup, selectRestedLineup, type Lineup, type SquadPlayer } from "../src/engine/lineup";
+import { averageStarterRating, selectLineup, type Lineup, type SquadPlayer } from "../src/engine/lineup";
 import { playOn } from "../src/engine/live";
 import {
   applyAutomaticHalfTime,
@@ -83,7 +87,16 @@ const LEVEL_GAPS = [2, 5, 10];
 /** The slots of the 4-3-3 the tests touch. */
 const SLOT = { GK: 0, CB: 2, CM: 6, ST: 9 } as const;
 
-type Options = { matches: number; seeds: number; engine: boolean; world: boolean; startingOnly: boolean; out: string | undefined };
+type Options = {
+  matches: number;
+  seeds: number;
+  engine: boolean;
+  world: boolean;
+  startingOnly: boolean;
+  formationsOnly: boolean;
+  realFormations: boolean;
+  out: string | undefined;
+};
 
 function parseOptions(argv: readonly string[]): Options {
   const value = (name: string): string | undefined => argv.find((arg) => arg.startsWith(`--${name}=`))?.split("=")[1];
@@ -91,8 +104,10 @@ function parseOptions(argv: readonly string[]): Options {
     matches: Number(value("matches") ?? 20_000),
     seeds: Number(value("seeds") ?? 3),
     engine: !argv.includes("--world-only"),
-    world: !argv.includes("--engine-only") && !argv.includes("--starting-only"),
+    world: !argv.includes("--engine-only") && !argv.includes("--starting-only") && !argv.includes("--formations-only"),
     startingOnly: argv.includes("--starting-only"),
+    formationsOnly: argv.includes("--formations-only"),
+    realFormations: argv.includes("--real-formations"),
     out: value("out"),
   };
 }
@@ -355,6 +370,44 @@ function caseRows(cases: readonly Case[], options: Options, base: Lineup, other:
 
 const CASE_HEADERS = ["case", "mean rating", "λ tested", "λ other", ...RESULT_HEADERS];
 
+/**
+ * Each formation, an ideal eleven at level BASE_LEVEL in it (every player at his position, his profile), its profile
+ * applied, against a 4-3-3 sentinelle of the same level: what the formation alone is worth, in points a match.
+ */
+function formationTable(options: Options, sections: string[]): void {
+  const base = syntheticTeam("tested", BASE_LEVEL);
+  const other = syntheticTeam("other", BASE_LEVEL);
+  const baseline = duel(base, other, options.matches);
+  const formationCases: Case[] = FORMATION_NAMES.map((formation) => ({
+    label: formation,
+    team: syntheticTeam("tested", BASE_LEVEL, formation),
+    play: plainMatch({ tested: formation, other: DEFAULT_FORMATION_NAME }),
+  }));
+  const formationRows = formationCases.map(({ label, team, play }) => {
+    const lineup = team ?? base;
+    const tally = duel(lineup, other, options.matches, "both", play);
+    const formation = label as FormationName;
+    const strength = formationStrength(lineup, formation);
+    const profile = FORMATION_PROFILES[formation];
+    return [
+      label,
+      `${signed(100 * (profile.attack - 1), 0)} % / ${signed(100 * (profile.defense - 1), 0)} %`,
+      fixed(strength.attack, 2),
+      fixed(strength.defense, 2),
+      ...resultColumns(tally, baseline),
+    ];
+  });
+  const lines = FORMATION_NAMES.map((formation) => {
+    const positions = formationPositions(formation).map(positionGroup);
+    return `${formation}: ${(["DF", "MF", "FW"] as const).map((line) => `${positions.filter((group) => group === line).length} ${line}`).join(", ")}`;
+  });
+  sections.push(
+    `### Formation, an ideal eleven at level ${BASE_LEVEL} in each, its profile applied, against a 4-3-3`,
+    lines.join(" · "),
+    table(["formation", "profile attack / defense", "attack", "defense", ...RESULT_HEADERS], formationRows),
+  );
+}
+
 function factorTables(options: Options, sections: string[]): void {
   const base = syntheticTeam("tested", BASE_LEVEL);
   const other = syntheticTeam("other", BASE_LEVEL);
@@ -496,35 +549,6 @@ function factorTables(options: Options, sections: string[]): void {
         ...instructionCases(syntheticTeam("tested", BASE_LEVEL - 5), other, `level ${BASE_LEVEL - 5}, weaker`),
       ],
     ),
-  );
-
-  const formationCases: Case[] = FORMATION_NAMES.map((formation) => ({
-    label: formation,
-    team: syntheticTeam("tested", BASE_LEVEL, formation),
-    play: plainMatch({ tested: formation, other: DEFAULT_FORMATION_NAME }),
-  }));
-  const formationRows = formationCases.map(({ label, team, play }) => {
-    const lineup = team ?? base;
-    const tally = duel(lineup, other, options.matches, "both", play);
-    const formation = label as FormationName;
-    const strength = formationStrength(lineup, formation);
-    const profile = FORMATION_PROFILES[formation];
-    return [
-      label,
-      `${signed(100 * (profile.attack - 1), 0)} % / ${signed(100 * (profile.defense - 1), 0)} %`,
-      fixed(strength.attack, 2),
-      fixed(strength.defense, 2),
-      ...resultColumns(tally, baseline),
-    ];
-  });
-  const lines = FORMATION_NAMES.map((formation) => {
-    const positions = formationPositions(formation).map(positionGroup);
-    return `${formation}: ${(["DF", "MF", "FW"] as const).map((line) => `${positions.filter((group) => group === line).length} ${line}`).join(", ")}`;
-  });
-  sections.push(
-    `### Formation, an ideal eleven at level ${BASE_LEVEL} in each, its profile applied, against a 4-3-3`,
-    lines.join(" · "),
-    table(["formation", "profile attack / defense", "attack", "defense", ...RESULT_HEADERS], formationRows),
   );
 
   const knockoutCase = (gap: number): string[] => {
@@ -1059,7 +1083,17 @@ type FatigueRecord = {
   clubSeasons: number; // AI clubs' seasons
   byMonth: Map<string, number[]>;
   suspensions: { red: number; yellows: number }; // AI players' matches missed through suspension, by cause
+  formations: Map<string, number>; // AI matches by « tier|level band|formation »
 };
+
+/** Where an AI club's eleven stands against its division's average level, in points of mean rating. */
+const LEVEL_BANDS = ["below", "around", "above"] as const;
+const LEVEL_BAND_GAP = 3;
+
+function levelBand(rating: number, tier: CompetitionTier): (typeof LEVEL_BANDS)[number] {
+  const gap = rating - averageLevel(tier);
+  return gap < -LEVEL_BAND_GAP ? "below" : gap > LEVEL_BAND_GAP ? "above" : "around";
+}
 
 /**
  * Plays a save's remaining dates as playRemainingMatchdays does, looking first at each date's AI lineups: their players
@@ -1086,8 +1120,8 @@ async function playSeasonWatchingFatigue(
     const fixtures = await prisma.fixture.findMany({
       where: { saveId, played: false, scheduledAt: next.scheduledAt },
       select: {
-        homeClubSave: { select: { id: true, isManaged: true } },
-        awayClubSave: { select: { id: true, isManaged: true } },
+        homeClubSave: { select: { id: true, isManaged: true, competition: { select: { tier: true } } } },
+        awayClubSave: { select: { id: true, isManaged: true, competition: { select: { tier: true } } } },
         season: { select: { competition: { select: { kind: true } } } },
       },
     });
@@ -1109,8 +1143,13 @@ async function playSeasonWatchingFatigue(
           fatigue.suspensions[discipline.suspendedMatches > 0 ? "red" : "yellows"]++;
         }
       }
-      const rested = selectRestedLineup(squad);
-      const plain = new Set(selectLineup(squad).starters.map((starter) => starter.player.id));
+      // The formation it chooses, as the matchday has it choose (chooseFormation), and its eleven in it.
+      const tier = competitionTier(club.competition.tier);
+      const chosen = chooseFormation(squad, tier);
+      const key = `${tier}|${levelBand(averageStarterRating(chosen.lineup), tier)}|${chosen.formation}`;
+      fatigue.formations.set(key, (fatigue.formations.get(key) ?? 0) + 1);
+      const rested = chosen.lineup;
+      const plain = new Set(selectLineup(squad, formationPositions(chosen.formation)).starters.map((starter) => starter.player.id));
       fatigue.rotations += rested.starters.filter((starter) => !plain.has(starter.player.id)).length;
       const fitness = rested.starters.map((starter) => starter.player.fitness);
       fatigue.starters.push(...fitness);
@@ -1239,7 +1278,14 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
   }
 
   const records: LeagueRecord[] = [];
-  const fatigue: FatigueRecord = { starters: [], rotations: 0, clubSeasons: 0, byMonth: new Map(), suspensions: { red: 0, yellows: 0 } };
+  const fatigue: FatigueRecord = {
+    starters: [],
+    rotations: 0,
+    clubSeasons: 0,
+    byMonth: new Map(),
+    suspensions: { red: 0, yellows: 0 },
+    formations: new Map(),
+  };
   const frozen: LeagueRecord[] = [];
   const formationRows: string[][] = [];
   const club = await prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } });
@@ -1265,7 +1311,7 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
         select: { id: true, competition: { select: { code: true, tier: true } } },
       });
 
-      if (seedIndex === 0) {
+      if (seedIndex === 0 && options.realFormations) {
         formationRows.push(...(await measureFormations(saveId, seasons, squads, options, prisma)));
       }
 
@@ -1324,12 +1370,45 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
 
   worldTables(records, frozen, sections);
   fatigueTables(fatigue, sections);
+  formationChoiceTables(fatigue, sections);
+  if (options.realFormations) {
+    sections.push(
+      "### Formations on real squads, against the median club of the league in its 4-3-3",
+      table(
+        ["club", "formation", "mean rating", "attack", "defense", "off-position starters", ...RESULT_HEADERS.slice(0, 3), "Δ pts/match against the 4-3-3"],
+        formationRows,
+      ),
+    );
+  }
+}
+
+/** The formations AI clubs chose for their matches, by division and by where their eleven stands against its average. */
+function formationChoiceTables(fatigue: FatigueRecord, sections: string[]): void {
+  const counted = [...fatigue.formations].map(([key, count]) => {
+    const [tier, band, formation] = key.split("|");
+    return { tier: Number(tier), band, formation, count };
+  });
+  const rows: string[][] = [];
+  for (const tier of [1, 2]) {
+    for (const band of ["all", ...LEVEL_BANDS]) {
+      const scope = counted.filter((entry) => entry.tier === tier && (band === "all" || entry.band === band));
+      const total = scope.reduce((sum, entry) => sum + entry.count, 0);
+      if (total === 0) {
+        continue;
+      }
+      const byFormation = new Map<string, number>();
+      for (const entry of scope) {
+        byFormation.set(entry.formation, (byFormation.get(entry.formation) ?? 0) + entry.count);
+      }
+      const shares = [...byFormation]
+        .sort(([, a], [, b]) => b - a)
+        .map(([formation, count]) => `${formation} ${fixed(percent(count, total))} %`);
+      rows.push([`D${tier}`, band, String(total), shares.join(", ")]);
+    }
+  }
   sections.push(
-    "### Formations on real squads, against the median club of the league in its 4-3-3",
-    table(
-      ["club", "formation", "mean rating", "attack", "defense", "off-position starters", ...RESULT_HEADERS.slice(0, 3), "Δ pts/match against the 4-3-3"],
-      formationRows,
-    ),
+    `### Formations chosen by AI clubs, league and cup matches (level: their eleven's mean rating against the division's average level, ±${LEVEL_BAND_GAP})`,
+    table(["division", "level", "matches", "formations"], rows),
   );
 }
 
@@ -1343,16 +1422,20 @@ function frozenLeague(
   strength: ReadonlyMap<string, number>,
   seedIndex: number,
 ): LeagueRecord {
-  const lineups = new Map(clubs.map((club) => [club, selectLineup((squads.get(club) ?? []).map((player) => ({ ...player, form: 50 })))]));
+  const tier = competitionTier(season.competition.tier);
+  const lineups = new Map(clubs.map((club) => [club, chooseFormation((squads.get(club) ?? []).map((player) => ({ ...player, form: 50 })), tier)]));
   const points = new Map(clubs.map((club) => [club, 0]));
   const fixtures: LeagueFixture[] = [];
   for (const home of clubs) {
     for (const away of clubs) {
-      const [homeLineup, awayLineup] = [lineups.get(home), lineups.get(away)];
-      if (home === away || homeLineup === undefined || awayLineup === undefined) {
+      const [homeTeam, awayTeam] = [lineups.get(home), lineups.get(away)];
+      if (home === away || homeTeam === undefined || awayTeam === undefined) {
         continue;
       }
-      const { homeGoals, awayGoals } = simulateMatch(homeLineup, awayLineup, `frozen:${seedIndex}:${home}:${away}`);
+      const { homeGoals, awayGoals } = simulateMatch(homeTeam.lineup, awayTeam.lineup, `frozen:${seedIndex}:${home}:${away}`, {
+        home: homeTeam.formation,
+        away: awayTeam.formation,
+      });
       points.set(home, (points.get(home) ?? 0) + (homeGoals > awayGoals ? 3 : homeGoals === awayGoals ? 1 : 0));
       points.set(away, (points.get(away) ?? 0) + (awayGoals > homeGoals ? 3 : homeGoals === awayGoals ? 1 : 0));
       fixtures.push({ homeGoals, awayGoals, homeStrength: strength.get(home) ?? 0, awayStrength: strength.get(away) ?? 0 });
@@ -1422,9 +1505,12 @@ async function main(): Promise<void> {
   ];
   if (options.startingOnly) {
     startingInstructionTables(options, sections);
+  } else if (options.formationsOnly) {
+    formationTable(options, sections);
   } else if (options.engine) {
     gapTables(options, sections);
     factorTables(options, sections);
+    formationTable(options, sections);
     const choicesStarted = performance.now();
     choiceTables(options, sections);
     startingInstructionTables(options, sections);

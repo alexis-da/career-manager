@@ -1,7 +1,9 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { averageStarterRating, selectLineup } from "../engine/lineup";
+import { chooseFormation } from "../engine/formation-choice";
+import { averageStarterRating, type SquadPlayer } from "../engine/lineup";
 import { formationStrength } from "../engine/strength";
+import { competitionTier } from "../engine/tiers";
 import type { prisma as prismaClient } from "./client";
 import type { getOpponentPreview as getOpponentPreviewFunction } from "./opponent";
 
@@ -13,7 +15,8 @@ const DAY_MS = 86_400_000;
 describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", () => {
   let db: typeof prismaClient | undefined;
   let getOpponentPreview: typeof getOpponentPreviewFunction | undefined;
-  let playNextMatchday: ((saveId: string) => Promise<unknown>) | undefined;
+  let playNextMatchday: ((saveId: string, options?: { pauseManagedMatch?: boolean }) => Promise<unknown>) | undefined;
+  let parseLiveState: typeof import("./live-state").parseLiveState | undefined;
   let saveId = "";
 
   const database = (): typeof prismaClient => {
@@ -29,7 +32,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
     return getOpponentPreview(saveId);
   };
 
-  /** The opponent of the managed club's next match, his squad as the matchday reads it, and the match date. */
+  /**
+   * The opponent of the managed club's next match, his squad as the matchday reads it before he has played (fit, nobody
+   * suspended), his division and the match date.
+   */
   async function nextOpponent() {
     const managed = await database().clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
     const next = await database().fixture.findFirstOrThrow({
@@ -38,29 +44,52 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
       select: { scheduledAt: true, homeClubSaveId: true, awayClubSaveId: true },
     });
     const clubSaveId = next.homeClubSaveId === managed.id ? next.awayClubSaveId : next.homeClubSaveId;
+    const club = await database().clubSave.findFirstOrThrow({
+      where: { id: clubSaveId, saveId },
+      select: { competition: { select: { tier: true } } },
+    });
     const rows = await database().playerSave.findMany({
       where: { saveId, clubSaveId },
-      select: { playerKey: true, position: true, overall: true, injuredUntil: true },
+      orderBy: { playerKey: "asc" },
+      select: {
+        playerKey: true,
+        position: true,
+        overall: true,
+        pace: true,
+        shooting: true,
+        passing: true,
+        dribbling: true,
+        defending: true,
+        physical: true,
+        goalkeeping: true,
+        form: true,
+        morale: true,
+        fitness: true,
+        injuredUntil: true,
+      },
     });
-    const squad = rows.map((row) => ({
-      id: row.playerKey,
-      position: row.position,
-      overall: row.overall,
-      injured: row.injuredUntil !== null && row.injuredUntil > next.scheduledAt,
-    }));
-    return { clubSaveId, matchDate: next.scheduledAt, squad };
+    const squad = rows.map(
+      ({ playerKey, injuredUntil, ...row }): SquadPlayer => ({
+        ...row,
+        id: playerKey,
+        injured: injuredUntil !== null && injuredUntil > next.scheduledAt,
+      }),
+    );
+    return { clubSaveId, matchDate: next.scheduledAt, squad, tier: competitionTier(club.competition.tier) };
   }
 
   beforeAll(async () => {
-    const [{ prisma }, support, opponent, matchday] = await Promise.all([
+    const [{ prisma }, support, opponent, matchday, liveState] = await Promise.all([
       import("./client"),
       import("./test-support"),
       import("./opponent"),
       import("./matchday"),
+      import("./live-state"),
     ]);
     db = prisma;
     getOpponentPreview = opponent.getOpponentPreview;
     playNextMatchday = matchday.playNextMatchday;
+    parseLiveState = liveState.parseLiveState;
     saveId = await support.createDemoTwin("Test adversaire");
   }, 120_000);
 
@@ -72,12 +101,12 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
     await db?.$disconnect();
   }, 120_000);
 
-  it("shows the eleven the matchday will play for an AI club: its automatic 4-3-3", async () => {
+  it("shows the formation an AI club chooses for its squad, and its eleven in it", async () => {
     const result = await preview();
-    const { squad } = await nextOpponent();
-    const expected = selectLineup(squad);
+    const { squad, tier } = await nextOpponent();
+    const { formation, lineup: expected } = chooseFormation(squad, tier);
 
-    expect(result?.formation).toBe("4-3-3");
+    expect(result?.formation).toBe(formation);
     expect(result?.lineup.starters).toHaveLength(11);
     expect(result?.lineup.starters.map(({ player, slot }) => [player.id, slot])).toEqual(
       expected.starters.map(({ player, slot }) => [player.id, slot]),
@@ -92,7 +121,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
     expect(result?.topScorer).toBeNull();
   });
 
-  it("leaves out a starter injured past the match day, and keeps one back on that day", async () => {
+  it("leaves out a starter injured past the match day, keeps one back on that day, and chooses again without him", async () => {
     const { clubSaveId, matchDate } = await nextOpponent();
     const before = await preview();
     const [first, second] = before?.lineup.starters.map(({ player }) => player.id) ?? [];
@@ -101,10 +130,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
     await injure(first, new Date(matchDate.getTime() + DAY_MS));
     await injure(second, matchDate);
 
-    const keys = (await preview())?.lineup.starters.map(({ player }) => player.id);
+    const result = await preview();
+    const { squad, tier } = await nextOpponent();
+    const keys = result?.lineup.starters.map(({ player }) => player.id);
     expect(keys).toHaveLength(11);
     expect(keys).not.toContain(first);
-    expect(keys).toContain(second);
+    expect(squad.find((player) => player.id === second)?.injured).toBe(false);
+    // His squad as it stands: the choice made again, the injured one left out of every formation weighed.
+    const chosen = chooseFormation(squad, tier);
+    expect(result?.formation).toBe(chosen.formation);
+    expect(keys).toEqual(chosen.lineup.starters.map(({ player }) => player.id));
 
     await database().playerSave.updateMany({ where: { saveId, clubSaveId }, data: { injuredUntil: null } });
   });
@@ -128,5 +163,25 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
       expect(result?.topScorer?.goals).toBe(best);
     }
     // A whole matchday, about 4 s alone: more than the 5 s default while every database suite runs at once.
+  }, 60_000);
+
+  it("previews the formation and the eleven the match then plays: the same choice, made the same way", async () => {
+    const result = await preview();
+    await playNextMatchday?.(saveId, { pauseManagedMatch: true });
+    const fixture = await database().fixture.findFirstOrThrow({
+      where: { saveId, status: { in: ["IN_PLAY", "HALF_TIME"] } },
+      select: { id: true, liveState: true },
+    });
+    const live = parseLiveState?.(fixture.id, fixture.liveState);
+    const opponent = live === undefined ? undefined : live.state[live.managedSide === "home" ? "away" : "home"];
+
+    expect(opponent?.formation).toBe(result?.formation);
+    // Fifteen minutes in, the starters still on are the previewed ones, slot for slot.
+    const starters = new Map(result?.lineup.starters.map(({ index, player }) => [index, player.id]));
+    const stillOn = opponent?.pitch.filter((entry) => entry.from === 0) ?? [];
+    expect(stillOn.length).toBeGreaterThanOrEqual(9);
+    for (const entry of stillOn) {
+      expect(entry.player.id).toBe(starters.get(entry.index));
+    }
   }, 60_000);
 });

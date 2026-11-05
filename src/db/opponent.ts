@@ -1,13 +1,15 @@
 import { displayClubName } from "../engine/club-name";
 import { isSuspended } from "../engine/discipline";
-import { formationPositions, type FormationName } from "../engine/formations";
-import { averageStarterRating, selectRestedLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
+import { chooseFormation } from "../engine/formation-choice";
+import type { FormationName } from "../engine/formations";
+import { averageStarterRating, type Lineup, type SquadPlayer } from "../engine/lineup";
 import { formationStrength, type TeamStrength } from "../engine/strength";
+import { competitionTier } from "../engine/tiers";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
 import { DISCIPLINE_SELECT } from "./discipline-view";
-import { getManagedLineup, parseFormation, type LineupPlayer } from "./lineup";
+import { getManagedLineup, type LineupPlayer } from "./lineup";
 import { fitnessAtKickOff } from "./fitness-view";
 
 /** Results shown in the opponent's recent form. */
@@ -36,10 +38,10 @@ export type OpponentPreview = {
 };
 
 /**
- * The managed club's next opponent, or the opponent of one of its unplayed fixtures, as he will likely line up: his
- * eleven picked as the matchday picks an AI club's, its tired players rested (selectRestedLineup) and its suspended ones
- * out (withSuspensions), his recent results and his top scorer. Null when the managed club has no match left, or when
- * fixtureId is not an unplayed fixture of the managed club.
+ * The managed club's next opponent, or the opponent of one of its unplayed fixtures, as he will likely line up: the
+ * formation he chooses and his eleven in it, as the matchday picks an AI club's (chooseFormation), its tired players
+ * rested (selectRestedLineup) and its suspended ones out (withSuspensions), his recent results and his top scorer.
+ * Null when the managed club has no match left, or when fixtureId is not an unplayed fixture of the managed club.
  */
 export async function getOpponentPreview(saveId: string, fixtureId?: string): Promise<OpponentPreview | null> {
   const [save, managed] = await Promise.all([
@@ -71,7 +73,10 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
   const [opponent, rows, recentRows, scorer, managedLineup] = await Promise.all([
     prisma.clubSave.findFirstOrThrow({
       where: { id: opponentId, saveId },
-      select: { formation: true, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
+      select: {
+        competition: { select: { tier: true } },
+        club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } },
+      },
     }),
     prisma.playerSave.findMany({
       where: { saveId, clubSaveId: opponentId },
@@ -150,8 +155,8 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
     // Rested until then, unless his club plays before: the preview does not show it.
     fitness: fitnessAtKickOff(row.fitness, save.currentDate, matchDate),
   }));
-  const formation = parseFormation(opponent.formation);
-  const lineup = selectRestedLineup(players, formationPositions(formation));
+  // The formation he chooses for this squad, as the matchday will (chooseFormation), and his eleven in it.
+  const { formation, lineup } = chooseFormation(players, competitionTier(opponent.competition.tier));
 
   return {
     matchDate,

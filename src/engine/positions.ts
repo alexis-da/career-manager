@@ -41,8 +41,8 @@ export function positionGroup(position: Position): PositionGroup {
 /** What placing a player in a slot needs to know: his identity (playerKey) and his primary position. */
 export type PositionedPlayer = { id: string; position: Position };
 
-/** Secondary positions already drawn, by primary position and player key: drawing them is pure, so is caching. */
-const secondaryCache = new Map<string, readonly Position[]>();
+/** Secondary positions already drawn, by primary position, then player key: drawing them is pure, so is caching. */
+const secondaryCache = new Map<Position, Map<string, readonly Position[]>>();
 
 /**
  * A player's secondary positions: none, one or two, drawn from his own stream (« secondary:playerKey ») among the
@@ -50,8 +50,12 @@ const secondaryCache = new Map<string, readonly Position[]>();
  * goalkeeper has none. Nothing is stored: the same key always gives the same positions, in every save.
  */
 export function secondaryPositions(playerKey: string, primary: Position): readonly Position[] {
-  const cacheKey = `${primary}|${playerKey}`;
-  const cached = secondaryCache.get(cacheKey);
+  let byKey = secondaryCache.get(primary);
+  if (byKey === undefined) {
+    byKey = new Map();
+    secondaryCache.set(primary, byKey);
+  }
+  const cached = byKey.get(playerKey);
   if (cached !== undefined) {
     return cached;
   }
@@ -67,7 +71,7 @@ export function secondaryPositions(playerKey: string, primary: Position): readon
       drawn.push(position);
     }
   }
-  secondaryCache.set(cacheKey, drawn);
+  byKey.set(playerKey, drawn);
   return drawn;
 }
 

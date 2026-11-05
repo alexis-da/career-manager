@@ -40,6 +40,58 @@ Défenses : 4 défenseurs = DD, DC, DC, DG ; 3 = DC, DC, DC ; 5 = DD, DC, DC, DC
 - **Recalibrage** : la base des buts (et au besoin le domicile) est réajustée pour que les six cibles de `gameplay-v1.md` tiennent avec l'IA qui choisit. Mesure de la répartition des dispositifs choisis par l'IA, par division et par niveau.
 - **Écran** : le choix du dispositif est groupé par famille (4 défenseurs, 3, 5), avec le libellé, le profil et, en tête, les 3 meilleurs pour ton effectif. Le comparatif complet reste accessible. Lisible à 390 px. L'aperçu de l'adversaire affiche son dispositif.
 
+### Retenu (05/11)
+
+- **Identifiants et libellés** : les sept dispositifs de G1 gardent leur identifiant et l'ordre de leurs emplacements (`src/db/lineup.test.ts` relit une composition enregistrée de chacun) ; les dix nouveaux s'appellent `4-3-3-attacking`, `3-4-2-1`, `4-2-3-1-narrow`, `4-3-3-flat`, `3-4-1-2`, `4-4-2-diamond`, `4-4-1-1`, `4-3-3-defensive`, `4-4-2-defensive` et `5-4-1`, dans l'ordre du tableau (`FORMATION_NAMES`). Libellés dans `formations.label` (en anglais « 4-3-3 holding », « 4-2-3-1 wide », « 4-4-2 flat »…), familles par le nombre de défenseurs (`formationFamily`). Profils de départ du tableau, gardés tels quels.
+- **Choix de l'IA** (`chooseFormation`, `src/engine/formation-choice.ts`, pure) : pour chacun des dix-sept, la composition de l'adjoint (`selectRestedLineup` : blessés et suspendus écartés, fatigués reposés), puis ses points attendus (`expectedPoints` : buts attendus du moteur, loi de Poisson, domicile et extérieur moyennés) face à l'adversaire moyen de la division (`averageOpponent` : un onze synthétique au niveau moyen de `CLUB_LEVEL_BY_TIER`, 69 en D1 et 58 en D2, en 4-3-3 sentinelle, Équilibré) ; égalité au premier de `FORMATION_NAMES`. L'adversaire moyen plutôt que celui du jour : l'aperçu ne dépend pas de ta composition, et les deux choix ne se répondent pas. Appelée par la journée (`lineupOf`, championnat et coupe), l'aperçu de l'adversaire (`getOpponentPreview` ; `src/db/opponent.test.ts` compare l'aperçu au match joué) et les tests du moteur, qui jouent chaque club dans le dispositif qu'il choisit. 0,44 ms par club, 0,09 s par journée de 198 clubs (sélection de la composition allégée, résultats identiques).
+- **Recalibrage** : `BASE_GOALS_PER_TEAM` 1,23 → **1,31**, domicile 1,12 inchangé. À 1,23, l'IA qui choisit faisait tomber les buts à 2,48 et monter les nuls à 26,3 % (les clubs faibles se ferment) ; à 1,31, les six cibles reviennent à leur place. Trois saisons complètes du monde 2 (`measure:balance -- --world-only`, graines 1 à 3) :
+
+| Mesure | Avant (IA en 4-3-3, base 1,23) | IA qui choisit, base 1,23 | Après (base 1,31) | Cible |
+|---|---|---|---|---|
+| Buts par match | 2,65 | 2,48 | 2,64 | 2,6 à 2,8 |
+| Nuls | 24,4 % | 26,3 % | 25,1 % | 24 à 27 % |
+| Victoires à domicile | 44,2 % | 42,8 % | 43,6 % | 43 à 46 % |
+| Écart 1er − dernier | 56,0 pts | 53,9 pts | 55,2 pts | 50 à 60 pts |
+| Forme des onze en fin de saison | 35,2 à 73,8 | 36,2 à 71,1 | 35,3 à 73,7 | environ 30 à 75 |
+| Le plus faible gagne (≥ 1 pt d'écart) | 23,2 % | 23,1 % | 23,2 % | 20 à 25 % |
+
+- **Répartition des dispositifs choisis** (matchs de championnat et de coupe des clubs IA, mêmes saisons ; niveau : la note moyenne de leur onze face au niveau moyen de la division, ±3) : les dix-sept sont joués, aucun plus de 14 % du temps ; les plus faibles se ferment, les plus forts s'ouvrent. Les moins choisis : 4-4-2 défensif (0,5 % en D1, 1,3 % en D2) et 3-5-2 (0,8 %, 1,9 %).
+
+| Division | Niveau | Matchs | Les plus choisis |
+|---|---|---|---|
+| D1 | tous | 11 040 | 4-3-3 offensif 13,8 %, 5-3-2 12,2 %, 4-1-4-1 11,1 %, 3-4-2-1 10,3 %, 4-3-3 sentinelle 7,8 % |
+| D1 | sous la moyenne | 3 412 | 5-3-2 32,6 %, 5-4-1 21,2 %, 4-1-4-1 10,5 %, 4-3-3 défensif 8,6 % |
+| D1 | autour | 3 689 | 4-3-3 offensif 13,0 %, 4-1-4-1 12,8 %, 3-4-2-1 10,9 %, 4-3-3 à plat 8,8 % |
+| D1 | au-dessus | 3 939 | 4-3-3 offensif 26,3 %, 3-4-2-1 17,2 %, 4-3-3 sentinelle 11,3 %, 4-1-4-1 10,1 % |
+| D2 | tous | 12 557 | 3-4-2-1 13,8 %, 4-1-4-1 11,7 %, 5-3-2 11,4 %, 4-3-3 offensif 9,0 %, 5-4-1 8,5 % |
+| D2 | sous la moyenne | 3 268 | 5-3-2 27,1 %, 5-4-1 21,5 %, 4-1-4-1 13,6 %, 4-3-3 défensif 7,4 % |
+| D2 | autour | 5 659 | 3-4-2-1 14,0 %, 4-1-4-1 11,8 %, 4-3-3 offensif 9,1 %, 4-2-3-1 large 9,0 % |
+| D2 | au-dessus | 3 630 | 3-4-2-1 23,6 %, 4-3-3 offensif 16,4 %, 4-1-4-1 9,8 %, 4-2-3-1 étroit 8,2 % |
+
+- **Effet de chaque dispositif avec un effectif idéal** (`measure:balance -- --formations-only` : un onze idéal de niveau 70 dans chacun, face à un onze égal en 4-3-3 sentinelle, 20 000 matchs) : tous entre −0,053 et +0,015 pt/match, aucun ne domine ; le choix vient de l'effectif (ses postes et ses notes), pas du dispositif.
+
+| Dispositif | Profil | Pts/match | Écart au 4-3-3 sentinelle |
+|---|---|---|---|
+| 3-4-3 | +5 / −5 | 1,345 | −0,027 |
+| 4-3-3 offensif | +5 / −5 | 1,361 | −0,011 |
+| 3-4-2-1 | +4 / −4 | 1,328 | −0,044 |
+| 4-2-3-1 étroit | +3 / −3 | 1,325 | −0,047 |
+| 4-3-3 sentinelle | +3 / −3 | 1,372 | 0 |
+| 4-3-3 à plat | +2 / −2 | 1,388 | +0,015 |
+| 4-2-3-1 large | +2 / −1 | 1,354 | −0,018 |
+| 3-4-1-2 | +2 / −2 | 1,336 | −0,037 |
+| 3-5-2 | +1 / −1 | 1,320 | −0,053 |
+| 4-4-2 losange | +1 / −1 | 1,362 | −0,010 |
+| 4-4-2 à plat | 0 / 0 | 1,365 | −0,008 |
+| 4-4-1-1 | 0 / 0 | 1,355 | −0,017 |
+| 4-3-3 défensif | −1 / +1 | 1,356 | −0,016 |
+| 4-1-4-1 | −2 / +2 | 1,362 | −0,011 |
+| 4-4-2 défensif | −3 / +3 | 1,338 | −0,035 |
+| 5-3-2 | −5 / +5 | 1,359 | −0,013 |
+| 5-4-1 | −6 / +6 | 1,344 | −0,028 |
+
+- **Mise en ligne** : le moteur change (chaque club IA joue le dispositif qu'il choisit) ; à caler après un changement de semaine du défi.
+
 ## V2 — Budget de saison et réputation
 
 ### Réputation qui suit les résultats
