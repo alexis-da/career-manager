@@ -129,7 +129,7 @@ describe("the formation panel of the lineup", () => {
     expect(markup).toContain("Onze prévu en 4-4-2 à plat");
   });
 
-  it("compares the seven formations with their automatic elevens, folded, and flags the engine's best", () => {
+  it("compares the seventeen formations with their automatic elevens, folded, and flags the engine's best", () => {
     const markup = render();
     const { options, best } = compareFormations(PLAYERS, { strength: OPPONENT.strength, atHome: OPPONENT.atHome });
     const rows = rowsOf(markup);

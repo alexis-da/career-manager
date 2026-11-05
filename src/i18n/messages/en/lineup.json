@@ -3,6 +3,16 @@
     "title": "Line-up",
     "instructions": "For the match on {date} · click a position, then a player",
     "formation": "Formation",
+    "picker": {
+      "open": "Formation: {formation}",
+      "title": "Formation",
+      "about": "Ranked for your squad as an AI club ranks them: your assistant's eleven in each, against an average opponent of your division.",
+      "best": "{count, plural, one {The best for your squad} other {The # best for your squad}}",
+      "rank": "{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+      "current": "Current",
+      "profile": "Attack {attack}% · defence {defense}%",
+      "points": "{points} pts/match"
+    },
     "automatic": "Automatic line-up",
     "unsaved": "Unsaved changes",
     "saved": "Line-up saved",

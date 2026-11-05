@@ -3,6 +3,7 @@ import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, type FormationName } from "../
 import type { AttributeName } from "../engine/generation";
 import { DEFAULT_INSTRUCTION, INSTRUCTIONS, type Instruction } from "../engine/instructions";
 import { BENCH_SIZE, isAvailable, resolveLineup, type Lineup, type LineupCandidate, type SavedLineup } from "../engine/lineup";
+import { competitionTier, type CompetitionTier } from "../engine/tiers";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
@@ -96,6 +97,7 @@ export type LineupEditor = {
   instruction: Instruction; // the starting instruction saved with the lineup, Équilibré without one
   matchDate: Date; // the next match of the managed club, or the current date: injuries are judged on that day
   clubColors: ClubColors;
+  tier: CompetitionTier; // its division: the formations are ranked for its squad against that division's average opponent
   players: EditorPlayer[];
 };
 
@@ -115,6 +117,7 @@ const managedClub = (saveId: string) =>
       formation: true,
       lineup: true,
       club: { select: { primaryColor: true, secondaryColor: true } },
+      competition: { select: { tier: true } },
     },
   });
 
@@ -161,6 +164,7 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
     instruction: saved?.instruction ?? DEFAULT_INSTRUCTION,
     matchDate,
     clubColors: clubColorsOf(club.club),
+    tier: competitionTier(club.competition.tier),
     players: rows.map((row) => {
       const discipline = disciplineStatus(row, ahead);
       return {

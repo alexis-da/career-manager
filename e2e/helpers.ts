@@ -215,6 +215,18 @@ const ENTRY_OF_TAB: Partial<Record<SaveScreen, "team" | "match" | "club">> = {
   seasons: "club",
 };
 
+/**
+ * Picks the lineup's formation, as a player does: the formation's button, then the formation in its family in the sheet
+ * that opens, which closes. The button says the formation by its label, and keeps its name in data-formation.
+ */
+export async function pickFormation(page: Page, formation: string): Promise<void> {
+  await page.getByTestId("lineup-formation").click();
+  const picker = page.getByTestId("formation-picker");
+  await picker.locator(`[data-testid="formation-choice"][data-formation="${formation}"]`).click();
+  await expect(picker).toBeHidden();
+  await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", formation);
+}
+
 /** Opens a screen of a save from its navigation: its entry, then its tab when it is one, or the market's link. */
 export async function openScreen(page: Page, screen: SaveScreen): Promise<void> {
   if (screen === "advanced") {

@@ -3,8 +3,8 @@ import { FORMATION_NAMES } from "../src/engine/formations";
 import { createSave, deleteSave, expectOrangeActions, openScreen } from "./helpers";
 
 // The lineup's formation panel and starting instruction, on a Lyon of the seed « g6-start »: the eleven's strengths
-// beside the next opponent's, the seven formations compared and one picked, then Fermer chosen and saved with the lineup,
-// and the next match started live with it, which its score card says.
+// beside the next opponent's, the seventeen formations compared and one picked, then Fermer chosen and saved with the
+// lineup, and the next match started live with it, which its score card says.
 
 const LYON = "Olympique Lyonnais";
 const SEED = "g6-start";
@@ -73,7 +73,7 @@ test("compares the formations, saves a starting instruction with the lineup, and
   const fiveThreeTwo = page.locator('[data-testid="formation-option"][data-formation="5-3-2"]');
   const row = await figuresOf(fiveThreeTwo);
   await fiveThreeTwo.getByTestId("formation-apply").click();
-  await expect(page.getByTestId("lineup-formation")).toHaveValue("5-3-2");
+  await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "5-3-2");
   await expect(mine).toHaveAttribute("data-attack", String(row.attack));
   await expect(mine).toHaveAttribute("data-defense", String(row.defense));
   await expect(page.getByTestId("formation-profile")).toHaveText(/^Très défensif/);
@@ -90,7 +90,7 @@ test("compares the formations, saves a starting instruction with the lineup, and
   // Found again after a reload, with the formation.
   await page.reload();
   await expect(instruction(page, "DEFEND").radio).toBeChecked();
-  await expect(page.getByTestId("lineup-formation")).toHaveValue("5-3-2");
+  await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "5-3-2");
 
   // The next match live: it starts closed, and the score card says so, and who chose it.
   await page.getByTestId("nav-dashboard").click();

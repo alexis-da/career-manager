@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSave, deleteSave, openScreen } from "./helpers";
+import { createSave, deleteSave, openScreen, pickFormation } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 
@@ -26,10 +26,12 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
 
     await openScreen(page, "lineup");
     await expect(page.getByRole("heading", { name: "Composition" })).toBeVisible();
-    const formation = page.getByLabel("Dispositif", { exact: true });
-    await expect(formation).toHaveValue("4-3-3");
+    const formation = page.getByTestId("lineup-formation");
+    await expect(formation).toHaveAttribute("data-formation", "4-3-3");
+    await expect(formation).toHaveText("4-3-3 sentinelle");
 
-    await formation.selectOption("4-4-2");
+    await pickFormation(page, "4-4-2");
+    await expect(formation).toHaveText("4-4-2 à plat");
     await expect(page.getByText("Modifications non enregistrées")).toBeVisible();
 
     const slot = page.locator(`[data-slot-index="${STRIKER_SLOT}"]`);
@@ -50,7 +52,7 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
     await expect(page.getByText("Composition enregistrée", { exact: true })).toBeVisible();
 
     await page.reload();
-    await expect(page.getByLabel("Dispositif", { exact: true })).toHaveValue("4-4-2");
+    await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "4-4-2");
     await expect(page.locator(`[data-slot-index="${STRIKER_SLOT}"]`)).toHaveAttribute("data-slot-player-key", substituteKey);
     await expect(page.locator(`[data-player-key="${substituteKey}"]`)).toHaveCount(0);
   } finally {
@@ -67,7 +69,7 @@ test("drags a substitute onto a slot and a starter to the bench, refuses an inco
   try {
     await createSave(page, name, LYON);
     await openScreen(page, "lineup");
-    await expect(page.getByLabel("Dispositif", { exact: true })).toHaveValue("4-3-3");
+    await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "4-3-3");
 
     // 4-3-3 slots: GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW.
     const striker = page.locator('[data-slot-index="9"]');
@@ -118,7 +120,7 @@ test("shows a centre-back dragged up front with his DC badge outlined in red, an
   try {
     await createSave(page, name, LYON);
     await openScreen(page, "lineup");
-    await expect(page.getByLabel("Dispositif", { exact: true })).toHaveValue("4-3-3");
+    await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "4-3-3");
 
     // 4-3-3 slots: GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW. Take a centre-back slot held by a real centre-back.
     const centreBackSlots = [page.locator('[data-slot-index="2"]'), page.locator('[data-slot-index="3"]')];

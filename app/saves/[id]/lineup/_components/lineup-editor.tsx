@@ -8,7 +8,7 @@ import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
 import type { ClubLineupPlayer, LineupEditor as LineupEditorView } from "@/src/db/lineup";
 import type { SquadView } from "@/src/db/squad";
-import { FORMATION_FAMILIES, FORMATION_NAMES, FORMATIONS, formationFamily, isFormationName, type FormationName } from "@/src/engine/formations";
+import { FORMATIONS, isFormationName, type FormationName } from "@/src/engine/formations";
 import type { Instruction } from "@/src/engine/instructions";
 import { BENCH_SIZE, changeFormation, isAvailable, resolveLineup, type Lineup, type SavedLineup } from "@/src/engine/lineup";
 import type { Position } from "@/src/engine/positions";
@@ -35,6 +35,7 @@ import {
   type EditorState,
 } from "../_lib/editor-moves";
 import { FormationPanel, type PanelOpponent } from "./formation-panel";
+import { FormationPicker } from "./formation-picker";
 import { LineupSquad, SlotRating } from "./lineup-squad";
 import { CandidateList, CandidatesSheet, PanelCandidates, SelectedSlot } from "./slot-candidates";
 import { StartingInstruction } from "./starting-instruction";
@@ -129,7 +130,6 @@ function LineupEditor({ saveId, editor, squad, opponent, chosen, onChoose }: Lin
   const { formation, saved, clubColors, players } = editor;
   const t = useTranslations("lineup");
   const tPlayer = useTranslations("player");
-  const tFormations = useTranslations("formations");
   const [initial] = useState(() => initialState(formation, saved, players, editor.instruction));
   const [state, setState] = useState(initial);
   const [selected, setSelected] = useState<number | null>(null);
@@ -317,26 +317,10 @@ function LineupEditor({ saveId, editor, squad, opponent, chosen, onChoose }: Lin
       {/* Two rows on a phone, with the label left to the screen readers; the same two groups in one row when they fit. */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-2 max-sm:w-full">
-          <label htmlFor="lineup-formation" className="eyebrow max-sm:sr-only">
+          <span aria-hidden className="eyebrow max-sm:hidden">
             {t("formation")}
-          </label>
-          <select
-            id="lineup-formation"
-            value={state.formation}
-            onChange={(event) => switchFormation(event.target.value)}
-            className="h-8 rounded-lg border border-input bg-card px-2 font-heading text-base font-semibold outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:h-11 max-sm:min-w-0 max-sm:flex-1"
-            data-testid="lineup-formation"
-          >
-            {FORMATION_FAMILIES.map((family) => (
-              <optgroup key={family} label={tFormations(`family.${family}`)}>
-                {FORMATION_NAMES.filter((name) => formationFamily(name) === family).map((name) => (
-                  <option key={name} value={name}>
-                    {tFormations(`label.${name}`)}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+          </span>
+          <FormationPicker formation={state.formation} players={players} tier={editor.tier} onPick={switchFormation} />
           <Button variant="outline" onClick={automatic} className="max-sm:flex-1" data-testid="lineup-automatic">
             <SparklesIcon data-icon="inline-start" />
             {t("automatic")}

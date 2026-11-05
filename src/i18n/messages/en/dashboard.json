@@ -39,6 +39,7 @@
     "atHome": "at home",
     "away": "away",
     "likelyEleven": "likely XI in a {formation}",
+    "formation": "Their formation, chosen for their squad",
     "pitchLabel": "Likely {club} XI",
     "averageRating": "Starters' average rating",
     "myEleven": "My XI",

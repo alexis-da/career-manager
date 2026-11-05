@@ -39,6 +39,7 @@
     "atHome": "à domicile",
     "away": "à l'extérieur",
     "likelyEleven": "onze probable en {formation}",
+    "formation": "Son dispositif, choisi pour son effectif",
     "pitchLabel": "Onze probable de {club}",
     "averageRating": "Note moyenne des titulaires",
     "myEleven": "Mon onze",

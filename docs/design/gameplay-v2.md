@@ -90,6 +90,7 @@ Défenses : 4 défenseurs = DD, DC, DC, DG ; 3 = DC, DC, DC ; 5 = DD, DC, DC, DC
 | 5-3-2 | −5 / +5 | 1,359 | −0,013 |
 | 5-4-1 | −6 / +6 | 1,344 | −0,028 |
 
+- **Écran** : dans la composition, un bouton qui dit le dispositif (`lineup-formation`) ouvre une feuille (`FormationPicker`), depuis le pied de l'écran sous 1024 px, à droite au-dessus : les trois meilleurs pour ton effectif (`rankFormations`, classés comme un club IA les classe : la composition de l'adjoint dans chacun, face à l'adversaire moyen de ta division), puis les dix-sept par famille (4 défenseurs, 3, 5), chacun avec son libellé, son profil et ses points attendus, l'actuel marqué. Le comparatif complet reste dans le panneau du dispositif. L'aperçu de l'adversaire montre son dispositif et son profil (`opponent-formation`), celui que la journée lui fera jouer.
 - **Mise en ligne** : le moteur change (chaque club IA joue le dispositif qu'il choisit) ; à caler après un changement de semaine du défi.
 
 ## V2 — Budget de saison et réputation

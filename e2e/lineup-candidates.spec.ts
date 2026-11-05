@@ -58,7 +58,7 @@ test("lists a slot's candidates over the page, places a reserve and exchanges tw
   try {
     await createSave(page, name, LYON);
     await openScreen(page, "lineup");
-    await expect(page.getByTestId("lineup-formation")).toHaveValue("4-3-3");
+    await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "4-3-3");
     const eleven = await elevenOf(page);
     const squadSize = 11 + (await page.getByTestId("lineup-reserve").count());
 

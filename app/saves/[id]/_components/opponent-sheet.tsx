@@ -10,6 +10,7 @@ import type { OpponentPreview } from "@/src/db/opponent";
 import { FORMATIONS } from "@/src/engine/formations";
 import { formatDecimal, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { formationProfile, signedFigure } from "../lineup/_lib/formation-profile";
 import { resultFor } from "../_lib/results";
 import { Pitch } from "./pitch";
 import { ResultPill } from "./result-pill";
@@ -56,8 +57,10 @@ function RatingComparison({ preview }: { preview: OpponentPreview }) {
 export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
   const t = useTranslations("opponent");
   const tFormations = useTranslations("formations");
+  const tPlan = useTranslations("formationPanel");
   const locale = useLocale();
   const slots = FORMATIONS[preview.formation];
+  const profile = formationProfile(preview.formation);
   const { starters, players } = useMemo(() => {
     const keys: (string | null)[] = slots.map(() => null);
     const byKey = new Map<string, LineupPlayer>();
@@ -81,6 +84,19 @@ export function OpponentPanel({ preview }: { preview: OpponentPreview }) {
       </SheetHeader>
 
       <div className="space-y-6 px-4 pb-6">
+        {/* The formation he chooses for his squad, as the matchday will, and what it does. */}
+        <section className="space-y-1" data-testid="opponent-formation" data-formation={preview.formation}>
+          <SectionTitle>{t("formation")}</SectionTitle>
+          <p className="font-heading text-xl leading-tight font-bold">{tFormations(`label.${preview.formation}`)}</p>
+          <p className="text-sm text-muted-foreground">
+            {tPlan("profile", {
+              lean: tPlan(`lean.${profile.lean}`),
+              attack: signedFigure(profile.attack),
+              defense: signedFigure(profile.defense),
+            })}
+          </p>
+        </section>
+
         <Pitch
           slots={slots}
           starters={starters}

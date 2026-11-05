@@ -9,6 +9,7 @@ import {
   expectNoSidewaysScroll,
   expectOrangeActions,
   expectUncovered,
+  pickFormation,
   pinnedToScreen,
   saveHeader,
   saveIdOf,
@@ -349,7 +350,7 @@ for (const { name, locale, viewport, says } of PHONES) {
       const slots = slotsOf(page);
       const formation = page.getByTestId("lineup-formation");
       await expect(slots).toHaveCount(11);
-      await expect(formation).toHaveValue("4-3-3");
+      await expect(formation).toHaveAttribute("data-formation", "4-3-3");
       await expectPitchBenchList(page);
       const substitute = page.getByTestId("lineup-bench-player").first();
       await expect(substitute).toHaveText(/^\d{2}/);
@@ -422,13 +423,9 @@ for (const { name, locale, viewport, says } of PHONES) {
       await expect(sheet).toHaveCount(0);
       await expectNoSidewaysScroll(page, "a reserve placed");
 
-      // Each formation has its eleven, within a pitch as wide as the screen allows.
-      // Grouped by family, every formation once.
-      const formations = await formation.locator("option").evaluateAll((options) => options.map((option) => option.getAttribute("value") ?? ""));
-      expect([...formations].sort()).toEqual([...FORMATION_NAMES].sort());
-      for (const shape of formations) {
-        await formation.selectOption(shape);
-        await expect(formation).toHaveValue(shape);
+      // Each formation has its eleven, within a pitch as wide as the screen allows, picked in its sheet.
+      for (const shape of FORMATION_NAMES) {
+        await pickFormation(page, shape);
         await expect(slots).toHaveCount(11);
         await expectSlotsWithinPitch(page, shape);
         await expectNoSidewaysScroll(page, `formation ${shape}`);
@@ -711,7 +708,7 @@ test("replaces a starter by a reserve, exchanges two starters, and finds all of 
   await expect(sheetOf(page)).toBeVisible();
 
   // Something to save, the screen's only orange, and the sheet's renewal stays secondary.
-  await formation.selectOption("4-4-2");
+  await pickFormation(page, "4-4-2");
   await expect(status).toHaveText("Modifications non enregistrées");
   await expect(save).toBeEnabled();
   await expectOrangeActions(page, ["lineup-save"]);
@@ -757,7 +754,7 @@ test("replaces a starter by a reserve, exchanges two starters, and finds all of 
   await expectOrangeActions(page, []);
 
   await openSave(page, "/lineup");
-  await expect(formation).toHaveValue("4-4-2");
+  await expect(formation).toHaveAttribute("data-formation", "4-4-2");
   await expect(slot).toHaveAttribute("data-slot-player-key", incoming);
   expect(await elevenOf(page)).toEqual(eleven);
   expect(await benchOf(page)).toEqual(bench);

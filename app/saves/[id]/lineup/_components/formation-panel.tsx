@@ -126,7 +126,7 @@ function FigureHead({ short, full }: { short: string; full: string }) {
 /**
  * Under the lineup's formation: its profile in words and bars, the attack and defense of the eleven the match would play
  * (formationStrength, the engine's: positions, familiarity, form and morale, fitness), recomputed at each change, beside
- * the next opponent's likely eleven; and, unfolded, the seven formations compared with their automatic elevens
+ * the next opponent's likely eleven; and, unfolded, the seventeen formations compared with their automatic elevens
  * (compareFormations), the best against the opponent flagged, each one to pick. Its columns follow the room it is given.
  */
 export function FormationPanel({ formation, eleven, players, opponent, onApply }: FormationPanelProps) {

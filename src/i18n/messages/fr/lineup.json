@@ -3,6 +3,16 @@
     "title": "Composition",
     "instructions": "Pour le match du {date} · clique sur un poste, puis sur un joueur",
     "formation": "Dispositif",
+    "picker": {
+      "open": "Dispositif : {formation}",
+      "title": "Dispositif",
+      "about": "Classés pour ton effectif comme un club IA les classe : la composition de l'adjoint dans chacun, face à un adversaire moyen de ta division.",
+      "best": "{count, plural, one {Le meilleur pour ton effectif} other {Les # meilleurs pour ton effectif}}",
+      "rank": "{rank, selectordinal, one {#er} other {#e}}",
+      "current": "Actuel",
+      "profile": "Attaque {attack} % · défense {defense} %",
+      "points": "{points} pt/match"
+    },
     "automatic": "Composition automatique",
     "unsaved": "Modifications non enregistrées",
     "saved": "Composition enregistrée",

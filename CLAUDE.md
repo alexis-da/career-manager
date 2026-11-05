@@ -158,7 +158,8 @@ pure) : de tous, avec la composition de l'adjoint dans chacun (`selectRestedLine
 fatigués reposés), celui qui rapporte le plus de points attendus (`expectedPoints` : buts attendus du moteur, loi de
 Poisson, domicile et extérieur moyennés) face à l'adversaire moyen de leur division (`averageOpponent` : un onze de son
 niveau moyen, `CLUB_LEVEL_BY_TIER`, en 4-3-3 sentinelle) ; égalité au premier de `FORMATION_NAMES`. La même fonction pour
-le match (`lineupOf`, `src/db/matchday.ts`), l'aperçu de l'adversaire (`getOpponentPreview`) et les tests
+le match (`lineupOf`, `src/db/matchday.ts`), l'aperçu de l'adversaire (`getOpponentPreview`, qui montre son dispositif
+et son profil, `opponent-formation`), les trois meilleurs de l'écran de composition (`rankFormations`) et les tests
 (`src/db/opponent.test.ts` compare l'aperçu au match joué). Le club dirigé garde le sien. Base des buts recalibrée pour
 les six cibles : `BASE_GOALS_PER_TEAM` 1,23 → 1,31.
 
@@ -438,7 +439,13 @@ par note à ce poste, les blessés et suspendus après ; note au poste, libellé
 états, place actuelle ; `lineup-candidate`) : sous 1024 px dans une feuille sur la page (`lineup-candidates-sheet`), au-dessus
 à la place de la liste de l'effectif (`PanelCandidates`, que « Tout l'effectif » ou Échap rendent) ; un toucher y place le
 joueur ou échange deux titulaires (`placeInSlot`), et le glisser-déposer reste ; `lineup-open-sheet` et
-`lineup-send-to-bench` avec le joueur du poste ; sans poste sélectionné, une ligne ouvre la fiche. Panneau du dispositif
+`lineup-send-to-bench` avec le joueur du poste ; sans poste sélectionné, une ligne ouvre la fiche. Choix du dispositif
+(`FormationPicker`, `formation-picker`) : un bouton qui dit son libellé (`lineup-formation`, `data-formation`) ouvre une
+feuille depuis le pied de l'écran sous 1024 px, à droite au-dessus : les trois meilleurs pour l'effectif
+(`formation-best`, classés par `rankFormations` comme un club IA, points attendus face à l'adversaire moyen de la
+division, `LineupEditor.tier`), puis les dix-sept par famille, 4, 3 et 5 défenseurs (`formation-choice`), chacun avec
+son libellé, son profil et ses points attendus, l'actuel marqué ; choisir garde les joueurs à leur place quand ils y
+tiennent (`switchFormation`) et ferme la feuille. Panneau du dispositif
 (`FormationPanel`, zone de messages `lineup-plan`) : le profil en mots et en barres (`formationProfile`), l'attaque et la
 défense du onze à côté de celles de l'adversaire (règle « Composition et consigne de départ ») et, déplié, le comparatif
 des dix-sept dispositifs, écart au centième, le meilleur signalé, « Choisir » l'appliquant avec le onze de l'adjoint ; la
