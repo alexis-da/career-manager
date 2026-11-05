@@ -91,24 +91,24 @@ test("plays a cup final live: half-time, the end of regulation time, extra time 
     await expect(skip).toHaveText("Aller au résultat");
     await skip.click();
     await expect(page.locator("[data-live-status]")).toHaveText("Terminé");
-    await expect(page.locator("[data-shootout-score]")).toHaveText("4 – 5");
-    await expect(page.locator("[data-shootout] li")).toHaveCount(10);
+    await expect(page.locator("[data-shootout-score]")).toHaveText("5 – 6");
+    await expect(page.locator("[data-shootout] li")).toHaveCount(14);
     await expect(page.locator('[data-score-note="extra-time"]').first()).toHaveText("a.p.");
-    await expect(page.locator('[data-score-note="penalties"]').first()).toHaveText("4-5 t.a.b.");
+    await expect(page.locator('[data-score-note="penalties"]').first()).toHaveText("5-6 t.a.b.");
 
     // The match sheet: « a.p. », « t.a.b. », extra time and the shoot-out kick by kick.
     await page.goto(`/saves/${saveId}/fixtures`);
     const row = page.getByTestId("fixture-row").filter({ hasText: "Coupe — Finale" });
-    await expect(row).toContainText("a.p. · 4-5 t.a.b.");
+    await expect(row).toContainText("a.p. · 5-6 t.a.b.");
     await expect(row.locator("[data-result]")).toContainText("2 – 2");
     await row.getByTestId("match-sheet-trigger").click();
     const sheet = page.getByRole("dialog");
     await expect(sheet.locator('[data-score-note="extra-time"]')).toHaveText("a.p.");
-    await expect(sheet.locator('[data-score-note="penalties"]')).toHaveText("4-5 t.a.b.");
+    await expect(sheet.locator('[data-score-note="penalties"]')).toHaveText("5-6 t.a.b.");
     await expect(sheet.getByRole("heading", { name: "Prolongation" })).toBeVisible();
     await expect(sheet.getByRole("heading", { name: "Tirs au but" })).toBeVisible();
-    await expect(sheet.locator("[data-kick]")).toHaveCount(10);
-    await expect(sheet.locator('[data-kick="missed"]')).toHaveCount(1);
+    await expect(sheet.locator("[data-kick]")).toHaveCount(14);
+    await expect(sheet.locator('[data-kick="missed"]')).toHaveCount(3);
   } finally {
     await deleteUsers([userId]);
   }

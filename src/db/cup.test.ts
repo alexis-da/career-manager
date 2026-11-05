@@ -7,11 +7,12 @@ import type { prisma as prismaClient } from "./client";
 const TIE_DATE = new Date(Date.UTC(WORLD_START_YEAR, 7, 12)); // a Wednesday before the first matchday
 const OPPONENT_SLUG = "aj-auxerre";
 
-// A cup final of the managed club, stopped at half-time, then at the end of regulation time, then resumed, on a throwaway twin of the demo save (a
-// worldVersion 1 save, half as heavy as one with the cups, given a cup season and a tie by hand). With the demo's
-// seed, the engine with fatigue, Auxerre in the formation it chooses (gameplay v2) and the managed club in a 5-3-2, this
-// final away at Auxerre is 1-1 after 90 minutes, 2-2 after extra time, and the managed club wins the shoot-out 6-5. Runs against
-// DATABASE_URL and is skipped without it; modules are imported lazily because the client throws without it.
+// A cup final of the managed club, stopped at half-time, then at the end of regulation time, then resumed, on a
+// throwaway twin of the demo save (a worldVersion 1 save, half as heavy as one with the cups, given a cup season and a
+// tie by hand). With the demo's seed, the engine with fatigue, Auxerre in the formation it chooses (gameplay v2) and the
+// managed club in a 5-3-2, this final away at Auxerre is 1-1 after 90 minutes, 2-2 after extra time, and the managed
+// club wins the shoot-out 6-5 (e2e/cup.spec.ts plays it live). Runs against DATABASE_URL and is skipped without it;
+// modules are imported lazily because the client throws without it.
 describe.skipIf(process.env.DATABASE_URL === undefined)("a cup tie of the managed club", () => {
   let db: typeof prismaClient | undefined;
   let saveId = "";
