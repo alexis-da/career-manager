@@ -38,6 +38,16 @@
       "signedOpenEnded": "Contract signed, for {wage} per season.",
       "offerAccepted": "Offer accepted: transfer for {fee}, contract until {until} at {wage} per season.",
       "offerAcceptedOpenEnded": "Offer accepted: transfer for {fee}, contract at {wage} per season."
+    },
+    "objective": {
+      "invalid": "Unknown objective: choose one of the three the board offers.",
+      "chosen": "Season objective: {objective}.",
+      "refusals": {
+        "no-objectives": "No objective to choose this season: objectives arrive with next season.",
+        "not-proposed": "The board isn't offering that objective this season.",
+        "already-chosen": "This season's objective has already been chosen: it can't be changed.",
+        "season-started": "Your first match of the season has been played: the objective can no longer be chosen."
+      }
     }
   },
   "refusals": {

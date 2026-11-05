@@ -1,0 +1,51 @@
+{
+  "seasonStart": {
+    "title": "Début de saison",
+    "season": "Saison {season}",
+    "back": "Tableau de bord",
+    "intro": "Avant ton premier match : le budget que t'accorde la direction, ton plafond salarial et tes objectifs.",
+    "budget": {
+      "granted": "La direction t'accorde",
+      "grantedNote": "Ton budget transferts pour la saison {season}.",
+      "current": "Ton budget transferts",
+      "noDotation": "La direction fixera ta dotation au début de la saison prochaine."
+    },
+    "detail": {
+      "title": "Le détail",
+      "start": "Budget de départ",
+      "startDetail": "Ta première saison au club : ni report ni objectifs",
+      "dotation": "Dotation de la direction",
+      "reputationRank": "Rang de réputation : {rank, selectordinal, one {#er} other {#e}} sur {count} de ta division",
+      "objectives": "Objectifs de la saison passée",
+      "bonus": "Bonus : × {coefficient}",
+      "malus": "Malus : × {coefficient}",
+      "neutral": "Ni bonus ni malus : × {coefficient}",
+      "lastObjectives": "Objectifs de la saison {season}",
+      "carryOver": "Report",
+      "carryOverDetail": "La moitié de ton budget non dépensé",
+      "total": "Budget de la saison"
+    },
+    "wages": {
+      "title": "Plafond salarial",
+      "payroll": "Masse salariale",
+      "room": "Marge",
+      "overrun": "Dépassement",
+      "note": "Un recrutement dont le salaire dépasse ta marge est refusé."
+    },
+    "objectives": {
+      "title": "Objectifs de la saison",
+      "imposed": "Imposés par la direction",
+      "optional": "Ton objectif au choix",
+      "choose": "Choisis-en un parmi les trois que te propose la direction.",
+      "assistantTag": "Choix de l'adjoint",
+      "assistantDefault": "Sans choix avant ton premier match, ton adjoint choisira {objective}.",
+      "stakes": "Atteint, il ajoute {bonus} au coefficient de ta prochaine dotation. Ton choix est définitif : il ne se change plus.",
+      "validate": "Valider mon objectif",
+      "validating": "Validation…",
+      "failed": "Ton choix n'a pas pu être enregistré. Réessaie.",
+      "locked": "Il ne se change plus.",
+      "closed": "Ton premier match de la saison est joué : le choix est fermé.",
+      "none": "Pas d'objectifs cette saison : la direction les fixera à partir de la saison prochaine."
+    }
+  }
+}

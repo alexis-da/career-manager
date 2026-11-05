@@ -38,6 +38,16 @@
       "signedOpenEnded": "Contrat signé, pour {wage} par saison.",
       "offerAccepted": "Offre acceptée : transfert pour {fee}, contrat jusqu'au {until} à {wage} par saison.",
       "offerAcceptedOpenEnded": "Offre acceptée : transfert pour {fee}, contrat à {wage} par saison."
+    },
+    "objective": {
+      "invalid": "Objectif inconnu : choisis l'un des trois que propose la direction.",
+      "chosen": "Objectif de la saison : {objective}.",
+      "refusals": {
+        "no-objectives": "Pas d'objectif à choisir cette saison : les objectifs arrivent avec la saison prochaine.",
+        "not-proposed": "La direction ne propose pas cet objectif cette saison.",
+        "already-chosen": "L'objectif de la saison est déjà choisi : il ne se change plus.",
+        "season-started": "Ton premier match de la saison est joué : le choix de l'objectif est fermé."
+      }
     }
   },
   "refusals": {

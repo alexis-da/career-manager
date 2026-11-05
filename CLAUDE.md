@@ -304,7 +304,8 @@ Défi de l'entrée Club (règle « Club »), où mènent les liens de la carte, 
 **Navigation d'une partie.** Cinq entrées, dans `SECTIONS` (`app/saves/[id]/_lib/sections.ts`, pur et testé) : Accueil ·
 Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
 `nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement et Coupe
-(seulement avec une coupe), Club a Club, Défi et Palmarès ; le direct est sous Match, sans onglet ; l'entrée Match mène au Calendrier sous 1024 px, au
+(seulement avec une coupe), Club a Club, Défi et Palmarès ; le direct est sous Match et l'écran de début de saison sous Club,
+sans onglet l'un et l'autre (`SCREENS_WITHOUT_TAB`) ; l'entrée Match mène au Calendrier sous 1024 px, au
 Classement à partir de là, où il a le calendrier et la coupe à côté ; l'entrée Équipe à l'Effectif sous 1024 px, à la
 Composition à partir de là, où elle a l'effectif et la fiche à côté (`computerHome`, choisi par `SaveNav` après
 l'hydratation) ; l'entrée Club mène à `/club` à toutes les largeurs. Ces sous-onglets sont une bascule
@@ -534,6 +535,19 @@ descentes, et, pour la dernière saison terminée (`isLastCompletedSeason`), « 
 bord : `advanceSeasonAction` mène ici une fois la saison suivante commencée. `e2e/club.spec.ts` couvre ces écrans à 1280,
 390 et 360 px.
 
+**Début de saison (gameplay v2, V3).** `/saves/[id]/season-start` (`app/saves/[id]/season-start`, sous l'entrée Club, sans
+onglet), `season-start` : la saison ; « La direction t'accorde X » (`season-start-budget`, le budget de la dotation de la
+saison, `SeasonBudget` lu par `getClubFinances`) et son détail : dotation et rang de réputation dans la division, objectifs
+de la saison passée et leur apport au coefficient (`getLastClosedObjectives`), report, total ; « Budget de départ » la
+première saison ; puis le plafond salarial, la masse et la marge. Ensuite les objectifs (`getSeasonObjectives`) : les
+imposés, avec ce qui les dépasse, et le choix parmi les trois proposés, en cartes radio (`objective-choice`), celui de
+l'adjoint présélectionné et signalé (« Sans choix avant ton premier match, ton adjoint choisira… ») ; « Valider mon
+objectif » (`objective-validate`, seule action orange de l'écran, `chooseObjectiveAction` : `requireOwnedSave`, Zod, refus
+`actions.objective.refusals`), puis l'objectif verrouillé (`objective-chosen`, « Ton choix » ou « Choisi par l'adjoint »).
+Montants en `data-amount`, coefficient en `data-coefficient`. `e2e/objectives.spec.ts` passe une fin de saison
+(`e2e/season-end-save.mts` : un jumeau 1 de la démo, sa saison jouée), vérifie la nouvelle dotation et choisit un objectif,
+à 1280, 390 et 360 px.
+
 **Pages hors partie.** Accueil, `/challenge`, `/login`, `/privacy`, `/admin/stats` et 404 passent par `PublicPage`
 (`app/_components/public-page.tsx`) : la marque du jeu (`public-home`) et la langue sur une ligne, le contenu, le pied
 (`BrandFooter`, ce que la page y ajoute et `privacy-link`) ; `tools`, ce qu'une page offre à côté de la marque à partir de 1024 px,
@@ -723,7 +737,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # avec le code (_components/privacy-document.tsx : les deux versions, une date de mise à jour)
   api/                # Auth.js et les routes de maintenance (purge, défi de la semaine), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
-                      # club (club/ : finances, réglages), défi (challenge/), palmarès (seasons/, et
+                      # club (club/ : finances, réglages), début de saison (season-start/ : dotation, choix de
+                      # l'objectif), défi (challenge/), palmarès (seasons/, et
                       # seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
@@ -736,7 +751,8 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # home.spec.ts : l'accueil, le choix du club et les pages hors partie ;
-                      # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone
+                      # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone ;
+                      # objectives.spec.ts : une fin de saison, la nouvelle dotation et le choix d'un objectif
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC ; challenge.yml : défi du lundi, 05:00 UTC
 src/
   components/         # composants partagés : panneau, visage du joueur, initiales du club, bascule, styles de tableau

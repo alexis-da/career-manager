@@ -1,0 +1,51 @@
+{
+  "seasonStart": {
+    "title": "Season start",
+    "season": "{season} season",
+    "back": "Dashboard",
+    "intro": "Before your first match: the budget the board gives you, your wage cap and your objectives.",
+    "budget": {
+      "granted": "The board gives you",
+      "grantedNote": "Your transfer budget for the {season} season.",
+      "current": "Your transfer budget",
+      "noDotation": "The board will set your funding at the start of next season."
+    },
+    "detail": {
+      "title": "Breakdown",
+      "start": "Starting budget",
+      "startDetail": "Your first season at the club: nothing carried over, no objectives",
+      "dotation": "Board funding",
+      "reputationRank": "Reputation rank: {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} of {count} in your division",
+      "objectives": "Last season's objectives",
+      "bonus": "Bonus: × {coefficient}",
+      "malus": "Penalty: × {coefficient}",
+      "neutral": "Neither bonus nor penalty: × {coefficient}",
+      "lastObjectives": "{season} season objectives",
+      "carryOver": "Carried over",
+      "carryOverDetail": "Half of your unspent budget",
+      "total": "Season budget"
+    },
+    "wages": {
+      "title": "Wage cap",
+      "payroll": "Wage bill",
+      "room": "Wage room",
+      "overrun": "Over budget",
+      "note": "A signing whose wage exceeds your wage room is refused."
+    },
+    "objectives": {
+      "title": "Season objectives",
+      "imposed": "Set by the board",
+      "optional": "Your chosen objective",
+      "choose": "Pick one of the three the board offers you.",
+      "assistantTag": "Assistant's pick",
+      "assistantDefault": "If you haven't chosen before your first match, your assistant will pick {objective}.",
+      "stakes": "If achieved, it adds {bonus} to the coefficient of your next funding. Your choice is final: it can't be changed.",
+      "validate": "Confirm my objective",
+      "validating": "Confirming…",
+      "failed": "Your choice couldn't be saved. Try again.",
+      "locked": "It can't be changed.",
+      "closed": "Your first match of the season has been played: the choice is closed.",
+      "none": "No objectives this season: the board will set them from next season."
+    }
+  }
+}

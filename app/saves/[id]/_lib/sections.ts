@@ -19,6 +19,15 @@ export const SECTIONS: readonly Section[] = [
 
 const LIVE_PATH = "/live";
 
+/**
+ * The screens reached by playing rather than from a menu, each under an entry but without a tab: the match live under
+ * Match, the season's start (its budget and its objectives) under Club.
+ */
+const SCREENS_WITHOUT_TAB: readonly { path: string; entry: Section["key"] }[] = [
+  { path: LIVE_PATH, entry: "match" },
+  { path: "/season-start", entry: "club" },
+];
+
 const isUnder = (path: string, parent: string): boolean => path === parent || path.startsWith(`${parent}/`);
 
 /** Whether a path within a save is the match live. */
@@ -29,14 +38,17 @@ export function tabAt(path: string): SectionTab | undefined {
   return SECTIONS.flatMap(({ tabs }) => tabs).find((tab) => isUnder(path, `/${tab}`));
 }
 
-/** The entry a path within a save lies under: the match live under Match, without a tab; « » is the dashboard. */
+/**
+ * The entry a path within a save lies under: the match live under Match and the season's start under Club, without a
+ * tab; « » is the dashboard.
+ */
 export function sectionAt(path: string): Section {
   const tab = tabAt(path);
   const section = SECTIONS.find(
     ({ key, home, tabs }) =>
       (tab !== undefined && tabs.includes(tab)) ||
       (home !== "" && isUnder(path, home)) ||
-      (key === "match" && isLivePath(path)),
+      SCREENS_WITHOUT_TAB.some((screen) => screen.entry === key && isUnder(path, screen.path)),
   );
   return section ?? SECTIONS[0];
 }

@@ -16,6 +16,7 @@ describe("a save's sections", () => {
     expect(entryOf("/challenge")).toBe("club");
     expect(entryOf("/seasons")).toBe("club");
     expect(entryOf("/seasons/season-1")).toBe("club");
+    expect(entryOf("/season-start")).toBe("club");
   });
 
   it("gives the live match no tab: it is reached by playing, not from a menu", () => {
@@ -24,10 +25,17 @@ describe("a save's sections", () => {
     expect(tabAt("")).toBeUndefined();
   });
 
+  it("puts the season's start under Club without a tab: it is reached from the season's review, not from a menu", () => {
+    expect(sectionAt("/season-start").key).toBe("club");
+    expect(tabAt("/season-start")).toBeUndefined();
+    expect(isLivePath("/season-start")).toBe(false);
+  });
+
   it("does not take a path that merely starts like a screen's for that screen", () => {
     expect(tabAt("/squadron")).toBeUndefined();
     expect(sectionAt("/liveness").key).toBe("dashboard");
     expect(isLivePath("/liveness")).toBe(false);
+    expect(sectionAt("/season-starter").key).toBe("dashboard");
   });
 
   it("knows the live match, whose own buttons are the way on", () => {

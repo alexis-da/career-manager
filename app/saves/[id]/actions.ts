@@ -8,6 +8,7 @@ import { getManagedClubFixtureOn } from "@/src/db/calendar";
 import { advanceLiveMatch, getLiveStep, NoMatchInProgressError, PauseMismatchError, type LiveStep } from "@/src/db/live-match";
 import { formationSchema } from "@/src/db/lineup";
 import { MatchInProgressError, playNextMatchday } from "@/src/db/matchday";
+import { chooseObjective, ObjectiveChoiceError } from "@/src/db/objectives";
 import { getOpponentPreview, type OpponentPreview } from "@/src/db/opponent";
 import { advanceToNextSeason, SeasonNotFinishedError } from "@/src/db/season";
 import {
@@ -24,9 +25,11 @@ import {
 import { EXTRA_TIME_SUBSTITUTIONS, MAX_SUBSTITUTIONS } from "@/src/engine/balance";
 import { CHOICE_OPTIONS, ChoiceError } from "@/src/engine/choices";
 import { HalfTimeChoiceError } from "@/src/engine/match";
+import { OPTIONAL_OBJECTIVES, type OptionalObjective } from "@/src/engine/objectives";
 import { seasonLabel } from "@/src/engine/world";
 import type { Translator } from "@/src/i18n/translator";
 import { formatDate } from "@/src/lib/format";
+import type { ActionResult } from "./_lib/action-result";
 import { halfTimeRefusalMessage } from "./_lib/live-match";
 import { extraTimeNote, penaltiesNote, stageLabel, type Decision } from "./_lib/stage";
 
@@ -135,6 +138,36 @@ export async function advanceSeasonAction(saveId: string): Promise<GameActionRes
     }
     throw error;
   }
+}
+
+/** An optional objective, as the season's start screen sends it. */
+const optionalObjectiveSchema = z.enum(OPTIONAL_OBJECTIVES);
+
+/**
+ * The player's choice of the season's optional objective, on the season's start screen: one of the three the board
+ * proposes, once, before the managed club's first match of the season (chooseObjective). A refusal says why; the screens
+ * that show the objectives are read again once it is chosen.
+ */
+export async function chooseObjectiveAction(saveId: string, kind: OptionalObjective): Promise<ActionResult> {
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
+  const [t, tObjectives] = await Promise.all([getTranslations("actions.objective"), getTranslations("objectives")]);
+  const parsed = optionalObjectiveSchema.safeParse(kind);
+  if (!parsed.success) {
+    return { ok: false, message: t("invalid") };
+  }
+  try {
+    await chooseObjective(id, parsed.data);
+  } catch (error) {
+    if (error instanceof ObjectiveChoiceError) {
+      return { ok: false, message: t(`refusals.${error.reason}`) };
+    }
+    throw error;
+  }
+  // The dashboard, the Club screen and the season's start show the objectives.
+  for (const screen of ["", "/club", "/season-start"]) {
+    revalidatePath(`/saves/${id}${screen}`);
+  }
+  return { ok: true, message: t("chosen", { objective: tObjectives(`kind.${parsed.data}`) }) };
 }
 
 /**

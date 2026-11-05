@@ -24,6 +24,7 @@ import enObjectives from "./en/objectives.json";
 import enOnboarding from "./en/onboarding.json";
 import enPlayerSheet from "./en/player-sheet.json";
 import enPublic from "./en/public.json";
+import enSeasonStart from "./en/season-start.json";
 import enSeasons from "./en/seasons.json";
 import enSquad from "./en/squad.json";
 import enStandings from "./en/standings.json";
@@ -54,6 +55,7 @@ import frObjectives from "./fr/objectives.json";
 import frOnboarding from "./fr/onboarding.json";
 import frPlayerSheet from "./fr/player-sheet.json";
 import frPublic from "./fr/public.json";
+import frSeasonStart from "./fr/season-start.json";
 import frSeasons from "./fr/seasons.json";
 import frSquad from "./fr/squad.json";
 import frStandings from "./fr/standings.json";
@@ -91,6 +93,7 @@ export const ZONES = {
   seasons: { fr: frSeasons, en: enSeasons },
   club: { fr: frClub, en: enClub },
   objectives: { fr: frObjectives, en: enObjectives },
+  "season-start": { fr: frSeasonStart, en: enSeasonStart },
   "challenge-screen": { fr: frChallengeScreen, en: enChallengeScreen },
   live: { fr: frLive, en: enLive },
   "half-time": { fr: frHalfTime, en: enHalfTime },
@@ -124,6 +127,7 @@ const fr = {
   ...frSeasons,
   ...frClub,
   ...frObjectives,
+  ...frSeasonStart,
   ...frChallengeScreen,
   ...frLive,
   ...frHalfTime,
@@ -162,6 +166,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enSeasons,
     ...enClub,
     ...enObjectives,
+    ...enSeasonStart,
     ...enChallengeScreen,
     ...enLive,
     ...enHalfTime,
