@@ -1,0 +1,76 @@
+{
+  "objectives": {
+    "kind": {
+      "RANKING": "Classement",
+      "CUP": "Coupe",
+      "YOUTH": "Jeunesse",
+      "ENTERTAINMENT": "Spectacle",
+      "SOLIDITY": "Solidité",
+      "FINANCES": "Bonne gestion"
+    },
+    "goal": {
+      "TOP": "Finir dans le top 3",
+      "PROMOTION": "Monter en Division 1",
+      "SURVIVAL": "Se maintenir",
+      "FINISH": "Finir {rank, selectordinal, one {#er} other {#e}} ou mieux",
+      "CUP": "Atteindre {round}",
+      "YOUTH": "Titulariser {starts} fois en championnat un joueur de {age} ans ou moins",
+      "ENTERTAINMENT": "Marquer au moins {goals} buts en championnat",
+      "SOLIDITY": "Encaisser au plus {goals} buts en championnat",
+      "FINANCES": "Vendre au moins autant que tu achètes sur le marché"
+    },
+    "exceed": {
+      "TOP": "Dépassé avec le titre",
+      "PROMOTION": "Dépassé avec le titre de Division 2",
+      "SURVIVAL": "Dépassé en finissant {rank, selectordinal, one {#er} other {#e}} ou mieux",
+      "FINISH": "Dépassé en finissant {rank, selectordinal, one {#er} other {#e}} ou mieux",
+      "CUP": "Dépassé en atteignant {round}"
+    },
+    "round": {
+      "2": "les seizièmes de finale",
+      "3": "les huitièmes de finale",
+      "4": "les quarts de finale",
+      "5": "les demi-finales",
+      "6": "la finale",
+      "7": "la victoire finale"
+    },
+    "reached": {
+      "1": "Tour préliminaire",
+      "2": "Seizièmes de finale",
+      "3": "Huitièmes de finale",
+      "4": "Quarts de finale",
+      "5": "Demi-finales",
+      "6": "Finale",
+      "7": "Vainqueur de la coupe"
+    },
+    "status": {
+      "ON_TRACK": "En bonne voie",
+      "AT_RISK": "En danger",
+      "ACHIEVED": "Atteint",
+      "EXCEEDED": "Dépassé",
+      "MISSED": "Manqué"
+    },
+    "current": {
+      "RANKING": "{rank, selectordinal, one {#er} other {#e}} actuellement",
+      "RANKING_FINAL": "{rank, selectordinal, one {#er} other {#e}} à la fin",
+      "CUP": "{round}",
+      "CUP_OUT": "Éliminé : {round}",
+      "YOUTH": "{starts, plural, one {# titularisation} other {# titularisations}} au mieux",
+      "ENTERTAINMENT": "{goals, plural, one {# but marqué} other {# buts marqués}}",
+      "SOLIDITY": "{goals, plural, one {# but encaissé} other {# buts encaissés}}",
+      "FINANCES": "Solde des transferts : {amount}"
+    },
+    "chosenBy": {
+      "player": "Ton choix",
+      "assistant": "Choisi par l'adjoint"
+    },
+    "imposed": "Imposé par la direction",
+    "confidence": "Confiance du président",
+    "confidenceLevel": {
+      "high": "Il te fait confiance",
+      "middle": "Il attend des résultats",
+      "low": "Il s'inquiète"
+    },
+    "met": "Objectifs : {met}/{total}"
+  }
+}

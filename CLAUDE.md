@@ -211,10 +211,31 @@ réputation dans sa nouvelle division, × son coefficient, + la moitié de son b
 (`BUDGET_CARRY_OVER_SHARE`, ventes et primes comprises) ; son plafond salarial est recalculé de même, sans coefficient.
 Coefficient en centièmes, 70 à 140 (`budgetCoefficient`, `src/engine/objectives.ts`) : un club IA a celui de son seul
 objectif de classement (`rankingObjective` sur son rang attendu, `rankingOutcome` sur son rang final : dépassé +20,
-atteint +10, manqué −15), le club dirigé 100 tant que ses saisons n'ont pas d'objectifs (une partie d'avant eux, au
-prochain passage). Le détail de la dotation du club dirigé est gardé par saison dans `SeasonBudget` (migration d'ajout
+atteint +10, manqué −15), le club dirigé celui de ses objectifs (règle « Objectifs de saison »), 100 pour une saison
+sans eux (une partie d'avant eux, au prochain passage). Le détail de la dotation du club dirigé est gardé par saison dans `SeasonBudget` (migration d'ajout
 `…_season_budget`, une ligne par saison de championnat, écrite par `createSave`, son budget de départ, puis à chaque
 passage de saison).
+
+**Objectifs de saison (gameplay v2, V3).** Pour le seul club dirigé, sur chaque saison de championnat, `SeasonObjective`
+(migration d'ajout `…_season_objectives`, avec `PlayerSeasonStats.starts`, les titularisations, comptées depuis),
+ouverts par `openSeasonObjectives` (`src/db/objectives.ts`) à la création de la partie et à chaque passage de saison,
+après la présaison et l'ouverture des coupes : le classement (`rankingObjective`, `src/engine/objectives.ts`, pur, sur
+le rang de réputation : top 3, montée, maintien ou « Xe ou mieux », jamais la dernière place), la coupe quand le pays en
+a une (`cupObjective` : quarts, huitièmes, seizièmes selon le tiers de réputation, au moins un tour après l'entrée ;
+dépassée deux tours plus loin), et trois des quatre objectifs au choix, tirés du flux de la saison
+(`proposedObjectives`, `objectivesRngSeed`) : Jeunesse (un joueur de 21 ans ou moins au 1er juillet, 15 titularisations
+en championnat), Spectacle (buts marqués ≥ attendus × 1,10), Solidité (buts encaissés ≤ attendus × 0,90 ; attendus :
+`expectedSeasonGoals`, l'effectif du départ dans son dispositif face à l'adversaire moyen de sa division), Bonne gestion
+(solde des transferts de la saison ≥ 0). Le joueur en choisit un sur l'écran de début de saison (`chooseObjective`, une
+fois, avant le premier match du club de la saison, la partie verrouillée), sinon l'adjoint, dans la transaction qui
+joue ce premier match (`ensureObjectiveChosen` : Jeunesse, ou le premier proposé). Où en est chacun : `objectiveProgress`
+(pur ; `SeasonProgress` lu par `readSeasonProgress` : rang, matchs, parcours de coupe, titularisations, buts, solde) ; la
+confiance du président (`ClubSave.boardConfidence`, `boardConfidence` : 50 et des points par objectif) est réécrite
+après chaque match du club (`refreshBoardConfidence`), affichée seulement : jamais de renvoi. À `advanceToNextSeason`,
+`closeSeasonObjectives` écrit l'issue des imposés et du choisi (`objectiveOutcome`) et donne le coefficient de la
+dotation suivante (`budgetCoefficient` : classement +20 / +10 / −15, coupe +10 / +5 / −5, choisi +10 / 0, de 70 à 140).
+Une partie d'avant eux n'en a qu'à partir de sa saison suivante. Les écrans les nomment par `objectiveGoal`,
+`objectiveExceed` et `objectiveCurrent` (`app/saves/[id]/_lib/objectives.ts`), zone de messages `objectives`.
 
 **Coupes nationales (parties 2 seulement).** `CUPS_ENABLED` (`src/engine/cup.ts`) vaut **true** : toute nouvelle
 partie 2 a ses coupes dès sa création, une partie 2 d'avant les coupes les reçoit à son prochain passage de saison. À

@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CUP_ROUNDS, PROMOTION_RELEGATION } from "../engine/balance";
 import { cupDates, cupRunOf, type CupRun } from "../engine/cup";
 import { seasonFinances, type ClubFinances } from "../engine/economy";
-import { budgetCoefficient, divisionOf, rankingObjective, rankingOutcome } from "../engine/objectives";
+import { budgetCoefficient, divisionOf, rankingObjective, rankingOutcome, type ObjectiveOutcome } from "../engine/objectives";
 import type { MoveReason } from "../engine/promotion";
 import { reputationAfterSeason, reputationRanks } from "../engine/reputation";
 import { competitionTier } from "../engine/tiers";
@@ -57,6 +57,8 @@ type TransitionCheck = {
   tierOf: Map<string, number>; // competition tier by code
   managedClubId: string; // Club.id
   dotation: Record<string, number> | null; // the managed club's SeasonBudget on its new season
+  closedObjectives: { kind: string; imposed: boolean; chosen: boolean; target: number; exceed: number | null; outcome: string | null }[];
+  nextObjectives: number; // the managed club's objectives of the new season
   financesBefore: Map<string, ClubFinances>; // by Club.id
   financesAfter: Map<string, ClubFinances>;
   saleFees: Map<string, number>; // budget change by Club.id from the preseason's AI sales for wage bills
@@ -225,6 +227,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
       }),
       db.seasonResult.findFirst({ where: { saveId, season: { startYear } }, select: { cupRound: true, trophies: true } }),
     ]);
+    const closedObjectives = await db.seasonObjective.findMany({
+      where: { saveId, season: { startYear } },
+      select: { kind: true, imposed: true, chosen: true, target: true, exceed: true, outcome: true },
+    });
+    const nextObjectives = await db.seasonObjective.count({ where: { saveId, season: { startYear: startYear + 1 } } });
     const dotation = await db.seasonBudget.findFirst({
       where: { saveId, season: { startYear: startYear + 1 } },
       select: {
@@ -261,6 +268,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         tierOf: new Map(competitions.map((competition) => [competition.code, competition.tier])),
         managedClubId: clubs.find((club) => club.isManaged)?.clubId ?? "",
         dotation,
+        closedObjectives,
+        nextObjectives,
         financesBefore,
         financesAfter: await financesOf(saveId),
         saleFees: await saleFeesOn(seasonStartDate(startYear + 1)),
@@ -447,8 +456,28 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     const before = (clubId: string): ClubFinances => check.financesBefore.get(clubId) ?? { budget: NaN, wageBudget: NaN, reputation: NaN };
     const tierOf = (code: string) => competitionTier(check.tierOf.get(code) ?? NaN);
 
+    // The managed club's objectives of the season: the imposed ones and the chosen one have their outcome, which give
+    // its coefficient; the ranking's, against its final rank. The new season has its own.
+    const counted = check.closedObjectives.filter((objective) => objective.imposed || objective.chosen);
+    expect(["RANKING", "CUP"].every((kind) => counted.some((objective) => objective.kind === kind && objective.imposed))).toBe(true);
+    expect(counted.filter((objective) => objective.chosen)).toHaveLength(1);
+    expect(counted.every((objective) => objective.outcome !== null)).toBe(true);
+    expect(check.closedObjectives.filter((objective) => !objective.imposed && !objective.chosen).every((objective) => objective.outcome === null)).toBe(true);
+    const outcomeOf = (kind: string) => counted.find((objective) => objective.kind === kind)?.outcome as ObjectiveOutcome | undefined;
+    const managedRanking = counted.find((objective) => objective.kind === "RANKING");
+    const managedTable = [...check.tables.values()].find((table) => table.includes(check.managedClubId)) ?? [];
+    expect(managedRanking?.outcome).toBe(
+      rankingOutcome({ target: managedRanking?.target ?? NaN, exceed: managedRanking?.exceed ?? NaN }, managedTable.indexOf(check.managedClubId) + 1),
+    );
+    const managedCoefficient = budgetCoefficient({
+      ranking: outcomeOf("RANKING"),
+      cup: outcomeOf("CUP"),
+      chosen: outcomeOf(counted.find((objective) => objective.chosen)?.kind ?? ""),
+    });
+    expect(check.nextObjectives).toBeGreaterThanOrEqual(4);
+
     // Each club's expected rank, its reputation rank in its division as the season was played, against its final one:
-    // its new reputation, and an AI club's coefficient, its ranking objective's (the managed club's 100, no objectives).
+    // its new reputation, and an AI club's coefficient, its ranking objective's (the managed club's, its objectives').
     const reputations = new Map<string, number>();
     const coefficients = new Map<string, number>();
     for (const [code, table] of check.tables) {
@@ -460,14 +489,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         const expectedRank = expectedRanks.get(clubId) ?? NaN;
         reputations.set(clubId, reputationAfterSeason(before(clubId).reputation, expectedRank, place + 1, reasonOf.get(clubId) ?? null));
         const outcome = rankingOutcome(rankingObjective(expectedRank, division), place + 1);
-        coefficients.set(clubId, clubId === check.managedClubId ? 100 : budgetCoefficient({ ranking: outcome }));
+        coefficients.set(clubId, clubId === check.managedClubId ? managedCoefficient : budgetCoefficient({ ranking: outcome }));
       });
     }
     // Reputations do move: some clubs rise, some fall; coefficients too. Each division's expected ranks add up as its
     // final ones (one club a rank), so its total reputation moves only by the caps of five places and by the moves.
     const changes = [...check.financesBefore].map(([clubId, finances]) => (reputations.get(clubId) ?? NaN) - finances.reputation);
     expect(changes.some((change) => change > 0) && changes.some((change) => change < 0)).toBe(true);
-    expect(new Set(coefficients.values())).toEqual(new Set([85, 100, 110, 120]));
+    expect(new Set([...coefficients].filter(([clubId]) => clubId !== check.managedClubId).map(([, value]) => value))).toEqual(new Set([85, 110, 120]));
 
     // Each new division ranked by the new reputations: the dotation, plus half of the unspent budget; the preseason's AI
     // sales for wage bills move budgets too, their fees added back.

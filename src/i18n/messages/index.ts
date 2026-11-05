@@ -20,6 +20,7 @@ import enLineupPlan from "./en/lineup-plan.json";
 import enLive from "./en/live.json";
 import enMarket from "./en/market.json";
 import enMarketSell from "./en/market-sell.json";
+import enObjectives from "./en/objectives.json";
 import enOnboarding from "./en/onboarding.json";
 import enPlayerSheet from "./en/player-sheet.json";
 import enPublic from "./en/public.json";
@@ -49,6 +50,7 @@ import frLineupPlan from "./fr/lineup-plan.json";
 import frLive from "./fr/live.json";
 import frMarket from "./fr/market.json";
 import frMarketSell from "./fr/market-sell.json";
+import frObjectives from "./fr/objectives.json";
 import frOnboarding from "./fr/onboarding.json";
 import frPlayerSheet from "./fr/player-sheet.json";
 import frPublic from "./fr/public.json";
@@ -88,6 +90,7 @@ export const ZONES = {
   cup: { fr: frCup, en: enCup },
   seasons: { fr: frSeasons, en: enSeasons },
   club: { fr: frClub, en: enClub },
+  objectives: { fr: frObjectives, en: enObjectives },
   "challenge-screen": { fr: frChallengeScreen, en: enChallengeScreen },
   live: { fr: frLive, en: enLive },
   "half-time": { fr: frHalfTime, en: enHalfTime },
@@ -120,6 +123,7 @@ const fr = {
   ...frCup,
   ...frSeasons,
   ...frClub,
+  ...frObjectives,
   ...frChallengeScreen,
   ...frLive,
   ...frHalfTime,
@@ -157,6 +161,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enCup,
     ...enSeasons,
     ...enClub,
+    ...enObjectives,
     ...enChallengeScreen,
     ...enLive,
     ...enHalfTime,

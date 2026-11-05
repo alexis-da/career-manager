@@ -1,4 +1,4 @@
-import { CONDITION_NEUTRAL, FULL_FITNESS, NEUTRAL_BUDGET_COEFFICIENT } from "../engine/balance";
+import { CONDITION_NEUTRAL, FULL_FITNESS } from "../engine/balance";
 import { marketValueFor } from "../engine/economy";
 import type { PlayerAttributes } from "../engine/generation";
 import { progressionRngSeed, progressPlayer, willRetire } from "../engine/progression";
@@ -15,6 +15,7 @@ import { cupEntrantsOf, openCups } from "./cup";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
 import { runPreseasonInTransaction, type PreseasonSummary } from "./preseason";
+import { closeSeasonObjectives, openSeasonObjectives } from "./objectives";
 import { applySeasonMoves, readFinalTables, seasonMovesOf } from "./promotion";
 import { applySeasonFinances, applySeasonReputations, recordDotation } from "./season-finances";
 import { recordSeasonResult } from "./season-results";
@@ -56,16 +57,17 @@ type PlayerUpdate = PlayerAttributes & {
  * Closes the season in progress and opens the next one, in one transaction. Refused while the managed club's
  * match waits at half-time (MatchInProgressError) or a fixture of the season is unplayed. Then: in a worldVersion 2
  * save, promotion and relegation are drawn from the final tables (src/db/promotion.ts); the managed club's
- * SeasonResult is written, every player progresses (retired players excepted) and gets his market value
- * from his new rating and age, some retire, expired contracts of the managed club turn its players into free
- * agents, form, morale, fitness, injuries and yellow cards are reset (a suspension still to serve carries over), the
- * seasons are marked completed (with their moves), the moving clubs change competition, every club's reputation
- * follows its final place against its expected rank and every club gets its finances for the new season, its dotation
- * plus half of its unspent budget, in both worlds (src/db/season-finances.ts), the save moves to 1 July, the preseason
- * runs (young players, AI squads), and next season's seasons and fixtures are created, with the managed club's dotation
- * (SeasonBudget) and the cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables: when
- * the save already had cups, or the game gives them (CUPS_ENABLED). Every cup tie must have been played too: the season ends with the cups'
- * finals.
+ * SeasonResult is written and its objectives of the season get their outcome (src/db/objectives.ts); every player
+ * progresses (retired players excepted) and gets his market value from his new rating and age, some retire, expired
+ * contracts of the managed club turn its players into free agents, form, morale, fitness, injuries and yellow cards
+ * are reset (a suspension still to serve carries over), the seasons are marked completed (with their moves), the
+ * moving clubs change competition, every club's reputation follows its final place against its expected rank and every
+ * club gets its finances for the new season, its dotation plus half of its unspent budget, the managed club's
+ * dotation from its objectives (src/db/season-finances.ts), the save moves to 1 July, the preseason runs (young
+ * players, AI squads), and next season's seasons and fixtures are created, with the managed club's dotation
+ * (SeasonBudget), the cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables (when the
+ * save already had cups, or the game gives them: CUPS_ENABLED), then the managed club's objectives of the new season.
+ * Every cup tie must have been played too: the season ends with the cups' finals.
  * PlayerSave.marketValue is read as is everywhere else: this is where it changes.
  */
 export async function advanceToNextSeason(saveId: string): Promise<SeasonTransition> {
@@ -103,6 +105,8 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       const tables = await readFinalTables(tx, saveId, leagueSeasons);
       const moves = worldVersion === 1 ? [] : seasonMovesOf(tables);
       const completedSeasonId = await recordSeasonResult(tx, saveId, leagueSeasons, moves, cupSeasonIds);
+      // The managed club's objectives of the season, closed: their coefficient goes to its next dotation.
+      const managedCoefficient = await closeSeasonObjectives(tx, saveId, completedSeasonId);
 
       const startYear = completedStartYear + 1;
       const transitionDate = seasonStartDate(startYear);
@@ -218,8 +222,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       // finances for the new season, before the preseason, whose AI clubs plan with them.
       await applySeasonMoves(tx, saveId, worldVersion, leagueSeasons, moves);
       const ends = await applySeasonReputations(tx, saveId, tables, moves);
-      // The managed club's coefficient: 100 until its seasons have objectives.
-      const dotation = await applySeasonFinances(tx, saveId, ends, worldVersion, NEUTRAL_BUDGET_COEFFICIENT);
+      const dotation = await applySeasonFinances(tx, saveId, ends, worldVersion, managedCoefficient);
       await tx.save.update({ where: { id: saveId }, data: { currentDate: transitionDate } });
 
       const preseason = await runPreseasonInTransaction(tx, saveId);
@@ -262,6 +265,8 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       const cupTies = withCups
         ? await openCups(tx, { saveId, saveSeed: save.seed, startYear, entrants: cupEntrantsOf(tables) })
         : 0;
+      // The managed club's objectives of the new season, once its fixtures and its cup's first round exist.
+      await openSeasonObjectives(tx, saveId, { id: managedSeason.id, startYear });
 
       return {
         completedStartYear,

@@ -298,7 +298,7 @@ describe("eventsToPersist", () => {
 
 describe("nextForm", () => {
   it("rises for a winning scorer, falls after a defeat, drifts to neutral without playing", () => {
-    const stats = { playerId: "p", side: "home" as const, minutes: 90, goals: 1, assists: 0, yellowCards: 0, redCards: 0 };
+    const stats = { playerId: "p", side: "home" as const, started: true, minutes: 90, goals: 1, assists: 0, yellowCards: 0, redCards: 0 };
 
     expect(nextForm(60, stats, "win")).toBeGreaterThan(60);
     expect(nextForm(60, { ...stats, goals: 0 }, "loss")).toBeLessThan(60);
@@ -308,7 +308,7 @@ describe("nextForm", () => {
   });
 
   it("keeps a whole season of the same result away from the bounds", () => {
-    const starter = { playerId: "p", side: "home" as const, minutes: 90, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
+    const starter = { playerId: "p", side: "home" as const, started: true, minutes: 90, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
     const season = (outcome: Outcome, stats = starter): number =>
       Array.from({ length: 38 }).reduce<number>((form) => nextForm(form, stats, outcome), 50);
 

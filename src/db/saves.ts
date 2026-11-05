@@ -23,6 +23,7 @@ import { prisma } from "./client";
 import { openCups } from "./cup";
 import { seasonFixtures } from "./fixtures";
 import { runPreseasonInTransaction } from "./preseason";
+import { openSeasonObjectives } from "./objectives";
 import { firstSeasonDotation, recordDotation } from "./season-finances";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
@@ -328,9 +329,10 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
         timer.mark(`cups ${ties}`);
       }
 
-      // The managed club's first dotation: its creation finances, on its league season.
+      // The managed club's first dotation, its creation finances, and its objectives, on its league season.
       const first = await firstSeasonDotation(tx, save.id);
       await recordDotation(tx, save.id, first.seasonId, first.dotation);
+      await openSeasonObjectives(tx, save.id, { id: first.seasonId, startYear });
 
       return { id: save.id };
     },

@@ -122,6 +122,7 @@ export type MatchResult = {
 export type PlayerMatchStats = {
   playerId: string;
   side: Side;
+  started: boolean; // in the starting eleven
   minutes: number;
   goals: number;
   assists: number;
@@ -1337,8 +1338,8 @@ export function outcomeFor(result: MatchResult, side: Side): Outcome {
 /** Minutes, goals, assists and cards of every player who took part in the match. */
 export function playerMatchStats(result: MatchResult): PlayerMatchStats[] {
   const byPlayer = new Map<string, PlayerMatchStats>();
-  for (const { playerId, side, minutes } of result.appearances) {
-    byPlayer.set(playerId, { playerId, side, minutes, goals: 0, assists: 0, yellowCards: 0, redCards: 0 });
+  for (const { playerId, side, minutes, from } of result.appearances) {
+    byPlayer.set(playerId, { playerId, side, started: from === 0, minutes, goals: 0, assists: 0, yellowCards: 0, redCards: 0 });
   }
   const statsOf = (playerId: string | undefined): PlayerMatchStats | undefined =>
     playerId === undefined ? undefined : byPlayer.get(playerId);

@@ -1,0 +1,76 @@
+{
+  "objectives": {
+    "kind": {
+      "RANKING": "League",
+      "CUP": "Cup",
+      "YOUTH": "Youth",
+      "ENTERTAINMENT": "Entertainment",
+      "SOLIDITY": "Solidity",
+      "FINANCES": "Good management"
+    },
+    "goal": {
+      "TOP": "Finish in the top three",
+      "PROMOTION": "Win promotion to Division 1",
+      "SURVIVAL": "Stay up",
+      "FINISH": "Finish {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} or higher",
+      "CUP": "Reach {round}",
+      "YOUTH": "Start a player aged {age} or under {starts} times in the league",
+      "ENTERTAINMENT": "Score at least {goals} league goals",
+      "SOLIDITY": "Concede at most {goals} league goals",
+      "FINANCES": "Sell at least as much as you buy in the market"
+    },
+    "exceed": {
+      "TOP": "Exceeded with the title",
+      "PROMOTION": "Exceeded with the Division 2 title",
+      "SURVIVAL": "Exceeded by finishing {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} or higher",
+      "FINISH": "Exceeded by finishing {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} or higher",
+      "CUP": "Exceeded by reaching {round}"
+    },
+    "round": {
+      "2": "the round of 32",
+      "3": "the round of 16",
+      "4": "the quarter-finals",
+      "5": "the semi-finals",
+      "6": "the final",
+      "7": "the trophy"
+    },
+    "reached": {
+      "1": "Preliminary round",
+      "2": "Round of 32",
+      "3": "Round of 16",
+      "4": "Quarter-finals",
+      "5": "Semi-finals",
+      "6": "Final",
+      "7": "Cup winners"
+    },
+    "status": {
+      "ON_TRACK": "On track",
+      "AT_RISK": "At risk",
+      "ACHIEVED": "Achieved",
+      "EXCEEDED": "Exceeded",
+      "MISSED": "Missed"
+    },
+    "current": {
+      "RANKING": "{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} now",
+      "RANKING_FINAL": "Finished {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+      "CUP": "{round}",
+      "CUP_OUT": "Knocked out: {round}",
+      "YOUTH": "{starts, plural, one {# start} other {# starts}} at best",
+      "ENTERTAINMENT": "{goals, plural, one {# goal scored} other {# goals scored}}",
+      "SOLIDITY": "{goals, plural, one {# goal conceded} other {# goals conceded}}",
+      "FINANCES": "Transfer balance: {amount}"
+    },
+    "chosenBy": {
+      "player": "Your choice",
+      "assistant": "Chosen by your assistant"
+    },
+    "imposed": "Set by the board",
+    "confidence": "Chairman's confidence",
+    "confidenceLevel": {
+      "high": "Trusts you",
+      "middle": "Expects results",
+      "low": "Worried"
+    },
+    "met": "Objectives: {met}/{total}"
+  }
+}

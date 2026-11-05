@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { budgetCoefficient, divisionOf, rankingObjective, rankingOutcome } from "./objectives";
+import { makeRng } from "../lib/rng";
+import {
+  assistantObjective,
+  boardConfidence,
+  budgetCoefficient,
+  cupObjective,
+  divisionOf,
+  expectedSeasonGoals,
+  objectiveOutcome,
+  objectiveProgress,
+  objectivesRngSeed,
+  OPTIONAL_OBJECTIVES,
+  optionalTarget,
+  proposedObjectives,
+  rankingObjective,
+  rankingOutcome,
+  reputationThird,
+  type SeasonProgress,
+} from "./objectives";
 
 const ENGLAND_1 = divisionOf("en.1", 1, 20, 2); // three relegated
 const ENGLAND_2 = divisionOf("en.2", 2, 24, 2); // three promoted
@@ -65,5 +83,139 @@ describe("budgetCoefficient", () => {
   it("stays within 70 and 140", () => {
     expect(budgetCoefficient({ ranking: "EXCEEDED", cup: "EXCEEDED", chosen: "ACHIEVED" })).toBe(140);
     expect(budgetCoefficient({ ranking: "MISSED", cup: "MISSED", chosen: "MISSED" })).toBe(80);
+  });
+});
+
+describe("proposedObjectives and assistantObjective", () => {
+  it("proposes three of the four, the same for the same seed, each left out in turn over the seeds", () => {
+    const left = new Set<string>();
+    for (let year = 2026; year < 2046; year++) {
+      const proposed = proposedObjectives(makeRng(objectivesRngSeed("graine", year)));
+      expect(proposed).toHaveLength(3);
+      expect(proposed).toEqual(proposedObjectives(makeRng(objectivesRngSeed("graine", year))));
+      left.add(OPTIONAL_OBJECTIVES.find((kind) => !proposed.includes(kind)) ?? "");
+    }
+    expect(left).toEqual(new Set(OPTIONAL_OBJECTIVES));
+  });
+
+  it("takes Jeunesse when it is proposed, otherwise the first proposed", () => {
+    expect(assistantObjective(["YOUTH", "SOLIDITY", "FINANCES"])).toBe("YOUTH");
+    expect(assistantObjective(["ENTERTAINMENT", "YOUTH", "FINANCES"])).toBe("YOUTH");
+    expect(assistantObjective(["ENTERTAINMENT", "SOLIDITY", "FINANCES"])).toBe("ENTERTAINMENT");
+  });
+});
+
+describe("cupObjective", () => {
+  it("names the quarter-finals and the round of 16 for a first division's best two thirds, two more rounds to exceed", () => {
+    expect(cupObjective(1, 1, 2)).toEqual({ target: 4, exceed: 6 });
+    expect(cupObjective(1, 2, 2)).toEqual({ target: 3, exceed: 5 });
+  });
+
+  it("asks at least one round past the club's entry, so that the draw reaches none", () => {
+    expect(cupObjective(1, 3, 2)).toEqual({ target: 3, exceed: 5 });
+    expect(cupObjective(2, 1, 1)).toEqual({ target: 2, exceed: 4 });
+    expect(cupObjective(2, 1, 2)).toEqual({ target: 3, exceed: 5 });
+    expect(cupObjective(2, 3, 1)).toEqual({ target: 2, exceed: 4 });
+  });
+
+  it("splits a division in thirds by reputation rank", () => {
+    expect([1, 6, 7, 12, 13, 18].map((rank) => reputationThird(rank, 18))).toEqual([1, 1, 2, 2, 3, 3]);
+    expect([1, 6, 7, 14, 20].map((rank) => reputationThird(rank, 20))).toEqual([1, 1, 2, 3, 3]);
+  });
+});
+
+describe("optionalTarget and expectedSeasonGoals", () => {
+  it("expects more goals of a stronger team, and sets Spectacle above and Solidité below its expected goals", () => {
+    const even = expectedSeasonGoals({ attack: 70, defense: 70 }, { attack: 70, defense: 70 }, 38);
+    const strong = expectedSeasonGoals({ attack: 78, defense: 78 }, { attack: 70, defense: 70 }, 38);
+
+    expect(even.scored).toBeCloseTo(even.conceded, 6);
+    expect(strong.scored).toBeGreaterThan(even.scored);
+    expect(strong.conceded).toBeLessThan(even.conceded);
+    expect(optionalTarget("ENTERTAINMENT", { scored: 50, conceded: 40 })).toBe(55);
+    expect(optionalTarget("SOLIDITY", { scored: 50, conceded: 40 })).toBe(36);
+    expect(optionalTarget("YOUTH", even)).toBe(15);
+    expect(optionalTarget("FINANCES", even)).toBe(0);
+  });
+});
+
+describe("objectiveProgress", () => {
+  const start: SeasonProgress = {
+    played: 0,
+    total: 38,
+    rank: 10,
+    cup: { reached: 2, out: false },
+    youthStarts: 0,
+    scored: 0,
+    conceded: 0,
+    balance: 0,
+    over: false,
+  };
+
+  it("puts every objective on track before the first match", () => {
+    for (const objective of [
+      { kind: "RANKING", target: 6, exceed: 3 },
+      { kind: "CUP", target: 4, exceed: 6 },
+      { kind: "YOUTH", target: 15, exceed: null },
+      { kind: "ENTERTAINMENT", target: 55, exceed: null },
+      { kind: "SOLIDITY", target: 36, exceed: null },
+      { kind: "FINANCES", target: 0, exceed: null },
+    ] as const) {
+      expect(objectiveProgress(objective, start)).toBe("ON_TRACK");
+    }
+  });
+
+  it("reads the ranking against its target during the season, and its outcome at the end", () => {
+    const ranking = { kind: "RANKING", target: 6, exceed: 3 } as const;
+    expect(objectiveProgress(ranking, { ...start, played: 10, rank: 6 })).toBe("ON_TRACK");
+    expect(objectiveProgress(ranking, { ...start, played: 10, rank: 7 })).toBe("AT_RISK");
+    expect(objectiveOutcome(ranking, { ...start, played: 38, rank: 3 })).toBe("EXCEEDED");
+    expect(objectiveOutcome(ranking, { ...start, played: 38, rank: 9 })).toBe("MISSED");
+  });
+
+  it("decides the cup as soon as the run ends or goes far enough", () => {
+    const cup = { kind: "CUP", target: 4, exceed: 6 } as const;
+    expect(objectiveProgress(cup, { ...start, cup: { reached: 3, out: false } })).toBe("ON_TRACK");
+    expect(objectiveProgress(cup, { ...start, cup: { reached: 4, out: false } })).toBe("ACHIEVED");
+    expect(objectiveProgress(cup, { ...start, cup: { reached: 3, out: true } })).toBe("MISSED");
+    expect(objectiveProgress(cup, { ...start, cup: { reached: 6, out: false } })).toBe("EXCEEDED");
+    expect(objectiveOutcome(cup, { ...start, cup: { reached: 5, out: true } })).toBe("ACHIEVED");
+  });
+
+  it("follows the pace of Jeunesse, Spectacle and Solidité, and decides them when nothing can change", () => {
+    const youth = { kind: "YOUTH", target: 15, exceed: null } as const;
+    expect(objectiveProgress(youth, { ...start, played: 19, youthStarts: 8 })).toBe("ON_TRACK");
+    expect(objectiveProgress(youth, { ...start, played: 19, youthStarts: 6 })).toBe("AT_RISK");
+    expect(objectiveProgress(youth, { ...start, played: 30, youthStarts: 6 })).toBe("MISSED");
+    expect(objectiveProgress(youth, { ...start, played: 20, youthStarts: 15 })).toBe("ACHIEVED");
+
+    const entertainment = { kind: "ENTERTAINMENT", target: 55, exceed: null } as const;
+    expect(objectiveProgress(entertainment, { ...start, played: 19, scored: 28 })).toBe("ON_TRACK");
+    expect(objectiveProgress(entertainment, { ...start, played: 19, scored: 20 })).toBe("AT_RISK");
+    expect(objectiveProgress(entertainment, { ...start, played: 35, scored: 55 })).toBe("ACHIEVED");
+    expect(objectiveOutcome(entertainment, { ...start, played: 38, scored: 54 })).toBe("MISSED");
+
+    const solidity = { kind: "SOLIDITY", target: 36, exceed: null } as const;
+    expect(objectiveProgress(solidity, { ...start, played: 19, conceded: 18 })).toBe("ON_TRACK");
+    expect(objectiveProgress(solidity, { ...start, played: 19, conceded: 19 })).toBe("AT_RISK");
+    expect(objectiveProgress(solidity, { ...start, played: 30, conceded: 37 })).toBe("MISSED");
+    expect(objectiveOutcome(solidity, { ...start, played: 38, conceded: 36 })).toBe("ACHIEVED");
+  });
+
+  it("asks Bonne gestion for a balance of zero or more", () => {
+    const finances = { kind: "FINANCES", target: 0, exceed: null } as const;
+    expect(objectiveProgress(finances, { ...start, balance: -1 })).toBe("AT_RISK");
+    expect(objectiveOutcome(finances, { ...start, balance: 0 })).toBe("ACHIEVED");
+    expect(objectiveOutcome(finances, { ...start, balance: -2_000_000 })).toBe("MISSED");
+  });
+});
+
+describe("boardConfidence", () => {
+  it("rises and falls with the objectives, within 1–99", () => {
+    expect(boardConfidence({ ranking: "ON_TRACK" })).toBe(55);
+    expect(boardConfidence({ ranking: "ON_TRACK", cup: "ON_TRACK", chosen: "ON_TRACK" })).toBe(59);
+    expect(boardConfidence({ ranking: "AT_RISK", cup: "MISSED", chosen: "AT_RISK" })).toBe(25);
+    expect(boardConfidence({ ranking: "EXCEEDED", cup: "EXCEEDED", chosen: "ACHIEVED" })).toBe(99);
+    expect(boardConfidence({ ranking: "MISSED", cup: "MISSED", chosen: "MISSED" })).toBe(5);
   });
 });

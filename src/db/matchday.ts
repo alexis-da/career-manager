@@ -27,6 +27,7 @@ import { competitionTier } from "../engine/tiers";
 import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import { recordChallengeScore } from "./challenge";
+import { ensureObjectiveChosen, refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
@@ -378,6 +379,7 @@ export async function recordFinishedMatches(
         seasonId,
         playerSaveId,
         appearances: 1,
+        starts: stats.started ? 1 : 0,
         minutes: stats.minutes,
         goals: stats.goals,
         assists: stats.assists,
@@ -390,6 +392,7 @@ export async function recordFinishedMatches(
     await tx.$executeRaw`
       UPDATE "PlayerSeasonStats" AS s
       SET "appearances" = s."appearances" + 1,
+          "starts" = s."starts" + v."starts",
           "minutes" = s."minutes" + v."minutes",
           "goals" = s."goals" + v."goals",
           "assists" = s."assists" + v."assists",
@@ -399,10 +402,10 @@ export async function recordFinishedMatches(
         furtherAppearances.map(
           ({ seasonId, playerSaveId, stats }) =>
             Prisma.sql`(${getOrThrow(statsIdByKey, seasonStatsKey(seasonId, playerSaveId), "season stats")}::text,
-              ${stats.minutes}::int, ${stats.goals}::int, ${stats.assists}::int,
+              ${stats.started ? 1 : 0}::int, ${stats.minutes}::int, ${stats.goals}::int, ${stats.assists}::int,
               ${stats.yellowCards}::int, ${stats.redCards}::int)`,
         ),
-      )}) AS v("id", "minutes", "goals", "assists", "yellowCards", "redCards")
+      )}) AS v("id", "starts", "minutes", "goals", "assists", "yellowCards", "redCards")
       WHERE s."id" = v."id" AND s."saveId" = ${saveId}`;
   }
 
@@ -489,6 +492,10 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
 
       const finished: FinishedMatch[] = [];
       let managed: MatchdaySummary["managed"] = null;
+      // The managed club plays: its season's optional objective is chosen by now, by its assistant when not by the player.
+      if (fixtures.some((fixture) => fixture.homeClubSave.isManaged || fixture.awayClubSave.isManaged)) {
+        await ensureObjectiveChosen(tx, saveId);
+      }
 
       for (const fixture of fixtures) {
         // The players suspended for this match's competition sit it out.
@@ -556,9 +563,10 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         save.seed,
         finished.filter((match) => match.knockout).map((match) => match.fixtureId),
       );
-      // A challenge save's entry, once its club's match is over: not while it waits live.
+      // A challenge save's entry and the president's confidence, once its club's match is over: not while it waits live.
       if (managed !== null && !managed.live) {
         await recordChallengeScore(tx, saveId, save.challengeId);
+        await refreshBoardConfidence(tx, saveId);
       }
       await tx.save.update({ where: { id: saveId }, data: { currentDate: matchDate } });
 

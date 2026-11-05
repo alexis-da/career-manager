@@ -3,7 +3,7 @@ import type { Curve } from "./curves";
 import type { FormationName } from "./formations";
 import type { AttributeName } from "./generation";
 import type { Instruction, MatchEventType, Outcome } from "./match";
-import type { ObjectiveOutcome } from "./objectives";
+import type { ObjectiveOutcome, ObjectiveProgress } from "./objectives";
 import type { Position, PositionGroup } from "./positions";
 import type { CompetitionTier } from "./tiers";
 
@@ -209,6 +209,45 @@ export const FINISH_OBJECTIVE_MARGIN_BY_TIER: Readonly<Record<CompetitionTier, n
 
 /** Places better than its target a club must finish to exceed it (staying up: places above the relegation zone). */
 export const EXCEEDED_OBJECTIVE_PLACES = 3;
+
+// ------------------------------------------------------------------ Objectives of the season (gameplay v2, V3)
+// The managed club's: the ranking and the cup imposed, one more chosen among three of four proposed
+// (src/engine/objectives.ts, src/db/objectives.ts).
+
+/**
+ * The cup round to reach (1 preliminary … 6 final) by division and reputation third: the quarter-finals, the round of
+ * 16 and the round of 32 for a first division's thirds; the round of 32 for a second division's best third, nothing
+ * named for the others (0: one round past their entry). Always at least one round past the club's entry, so that no
+ * objective is reached at the draw.
+ */
+export const CUP_OBJECTIVE_ROUNDS: Readonly<Record<CompetitionTier, readonly [number, number, number]>> = {
+  1: [4, 3, 2],
+  2: [2, 0, 0],
+};
+
+/** Rounds beyond its target a club must reach to exceed its cup objective. */
+export const CUP_OBJECTIVE_EXCEEDED_ROUNDS = 2;
+
+/** Jeunesse: a player this old or younger on the season's first day… */
+export const YOUTH_OBJECTIVE_MAX_AGE = 21;
+/** …with at least this many league starts. */
+export const YOUTH_OBJECTIVE_STARTS = 15;
+
+/** Spectacle: league goals scored at least the season's expected goals times this. */
+export const ENTERTAINMENT_OBJECTIVE_FACTOR = 1.1;
+
+/** Solidité: league goals conceded at most the season's expected goals against times this. */
+export const SOLIDITY_OBJECTIVE_FACTOR = 0.9;
+
+/** The president's confidence (1–99): this, plus each objective's points for where it stands. */
+export const BOARD_CONFIDENCE_BASE = 50;
+
+/** Points of the president's confidence by objective (the ranking, the cup, the chosen one) and where it stands. */
+export const BOARD_CONFIDENCE_POINTS: Readonly<Record<"ranking" | "cup" | "chosen", Readonly<Record<ObjectiveProgress, number>>>> = {
+  ranking: { EXCEEDED: 30, ACHIEVED: 20, ON_TRACK: 5, AT_RISK: -10, MISSED: -25 },
+  cup: { EXCEEDED: 15, ACHIEVED: 10, ON_TRACK: 2, AT_RISK: -5, MISSED: -10 },
+  chosen: { EXCEEDED: 10, ACHIEVED: 10, ON_TRACK: 2, AT_RISK: -5, MISSED: -10 },
+};
 
 // ------------------------------------------------------------------ Promotion and relegation (worldVersion 2)
 

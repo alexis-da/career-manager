@@ -123,6 +123,7 @@ model Save {
   stats          PlayerSeasonStats[]
   seasonResults  SeasonResult[]
   seasonBudgets  SeasonBudget[]
+  objectives     SeasonObjective[]
   challengeEntry ChallengeEntry?
 
   @@index([ownerId])
@@ -142,6 +143,7 @@ model Season {
   stats         PlayerSeasonStats[]
   results       SeasonResult[] // au plus une : @@unique([saveId, seasonId])
   budget        SeasonBudget? // la dotation du club dirigé, sur sa saison de championnat
+  objectives    SeasonObjective[] // les objectifs du club dirigé, sur sa saison de championnat
 
   @@unique([saveId, competitionId, startYear])
   @@index([saveId])
@@ -318,6 +320,7 @@ model PlayerSeasonStats {
   playerSave   PlayerSave @relation(fields: [playerSaveId], references: [id], onDelete: Cascade)
   playerSaveId String
   appearances  Int        @default(0)
+  starts       Int        @default(0) // titularisations, comptées depuis les objectifs de saison (gameplay v2, V3)
   minutes      Int        @default(0)
   goals        Int        @default(0)
   assists      Int        @default(0)
@@ -385,6 +388,29 @@ model SeasonBudget {
   budget         Int // euros : dotation × coefficient + report, le budget de transferts donné
   wageBudget     Int // euros par saison : le plafond salarial, recalculé comme la dotation, sans coefficient
 
+  @@index([saveId])
+}
+
+// Les objectifs de la direction pour une saison du club dirigé (gameplay v2, V3), gardés pour l'historique : le
+// classement et la coupe, imposés, et trois objectifs proposés au choix, dont un retenu, par le joueur sur l'écran de
+// début de saison ou par l'adjoint au premier match (src/db/objectives.ts). Écrits à l'ouverture de la saison (création
+// de la partie, passage de saison) ; leur issue à sa fin. Une partie d'avant eux n'en a qu'à partir de sa saison suivante.
+model SeasonObjective {
+  id          String            @id @default(cuid())
+  save        Save              @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId      String
+  season      Season            @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId    String // la saison de championnat du club dirigé
+  kind        ObjectiveKind
+  imposed     Boolean // le classement et la coupe ; les autres sont proposés au choix
+  chosen      Boolean           @default(false) // l'objectif au choix retenu
+  byAssistant Boolean           @default(false) // retenu par l'adjoint, faute de choix avant le premier match
+  variant     String? // classement : TOP, PROMOTION, SURVIVAL ou FINISH (src/engine/objectives.ts)
+  target      Int // rang au plus, tour de coupe à atteindre, titularisations, buts marqués au moins, buts encaissés au plus, solde des transferts au moins
+  exceed      Int? // le rang ou le tour qui le dépasse (classement, coupe)
+  outcome     ObjectiveOutcome? // à la fin de la saison ; null avant, et pour un objectif proposé non retenu
+
+  @@unique([seasonId, kind])
   @@index([saveId])
 }
 
@@ -526,4 +552,22 @@ enum TransferType {
   LOAN
   FREE
   RETIREMENT
+}
+
+/// Les objectifs de saison du club dirigé (gameplay v2, V3) : le classement et la coupe, imposés ; Jeunesse, Spectacle,
+/// Solidité et Bonne gestion, proposés trois par saison, un retenu.
+enum ObjectiveKind {
+  RANKING
+  CUP
+  YOUTH
+  ENTERTAINMENT
+  SOLIDITY
+  FINANCES
+}
+
+/// L'issue d'un objectif à la fin de la saison.
+enum ObjectiveOutcome {
+  EXCEEDED
+  ACHIEVED
+  MISSED
 }

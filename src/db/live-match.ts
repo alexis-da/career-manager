@@ -31,6 +31,7 @@ import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { DECISIONS_SELECT, EVENTS_SELECT, toDecisionView, toEventView, type DecisionView, type MatchEventView } from "./calendar";
 import { recordChallengeScore } from "./challenge";
+import { refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
 import type { LineupPlayer } from "./lineup";
@@ -539,8 +540,9 @@ export async function advanceLiveMatch(
       );
       // A cup tie: its prize, and the next round once it was the round's last tie.
       await progressCups(tx, saveId, save.seed, [fixture.id]);
-      // A challenge save's entry, now that its club's match is over.
+      // A challenge save's entry and the president's confidence, now that its club's match is over.
       await recordChallengeScore(tx, saveId, save.challengeId);
+      await refreshBoardConfidence(tx, saveId);
       await tx.save.update({ where: { id: saveId }, data: { liveFixtureId: null } });
       return {
         ...moved,
