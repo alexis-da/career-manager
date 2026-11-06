@@ -209,7 +209,12 @@ export function FreeAgentsTable({
         </TableHeader>
         <TableBody className="max-sm:block">
           {list.rows.map((player) => (
-            <TableRow key={player.id} data-player-id={player.id} className={cn(TABLE_ROW, PHONE_PLAYER_ROW)}>
+            <TableRow
+              key={player.id}
+              data-player-id={player.id}
+              data-asked-wage={player.askedWage}
+              className={cn(TABLE_ROW, PHONE_PLAYER_ROW)}
+            >
               <PlayerCell
                 saveId={saveId}
                 values={values}

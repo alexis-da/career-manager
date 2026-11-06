@@ -167,21 +167,31 @@ test("signs a proposal after a short confirmation, and nobody signed in this win
   await page.getByTestId("market-signed-continue").click();
   await expect(signed).toHaveCount(0);
 
-  // The budget has lost the price shown, compared as shown: the card rounds it. He is no longer proposed.
+  // The budget has lost the price shown, compared as shown: the card rounds it. He is no longer proposed: another player
+  // is, or nobody, the wage room he leaves being a real limit.
   await expect(page.locator('[data-summary="budget"]')).not.toHaveAttribute("data-value", String(budgetBefore));
   const budgetAfter = await budgetOf(page);
   expect(formatMoney(budgetBefore - budgetAfter)).toBe(price);
   expect(formatMoney(budgetAfter)).toBe(budgetLeft);
-  await expect(proposal).not.toHaveAttribute("data-player-id", playerId);
+  await expect(page.locator(`[data-testid="market-proposal"][data-player-id="${playerId}"]`)).toHaveCount(0);
 
   await openScreen(page, "squad");
   await expect(rows).toHaveCount(squadSize + 1);
   await expect(page.locator('[data-summary="players"]')).toHaveText(String(squadSize + 1));
   await expectNoResale(page, playerName);
 
-  // The same rule for a free agent, signed on the advanced market.
+  // The same rule for a free agent, signed on the advanced market: the best rated one the wage room left still pays.
   await openScreen(page, "advanced");
-  const freeAgent = page.locator("tbody tr[data-player-id]").first();
+  const freeAgents = page.getByTestId("free-agents-table").locator("tbody tr[data-player-id]");
+  await expect(freeAgents.first()).toBeVisible();
+  const wageRoom = Number(await page.locator('[data-summary="wage-room"]').getAttribute("data-value"));
+  const affordable = (
+    await freeAgents.evaluateAll((elements) =>
+      elements.map((element) => ({ id: element.getAttribute("data-player-id"), wage: Number(element.getAttribute("data-asked-wage")) })),
+    )
+  ).find(({ wage }) => wage <= wageRoom);
+  expect(affordable, `a free agent asking at most the wage room left, ${wageRoom} €`).toBeDefined();
+  const freeAgent = freeAgents.and(page.locator(`[data-player-id="${affordable?.id}"]`));
   const freeAgentName = await textOf(freeAgent.getByTestId("market-player"));
   await freeAgent.getByTestId("sign-free-agent").click();
   await page.getByTestId("sign-free-agent-dialog").getByTestId("confirm-signing").click();
