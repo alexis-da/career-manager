@@ -419,7 +419,9 @@ Les appariements ne changent pas d'un monde à l'autre : seules les dates. La gr
 `playMatchdayAction` (mi-temps, direct). Mêmes transactions qu'en jouant chaque date : aucun effet sur le rejeu.
 
 Alternance domicile/extérieur : `generateSchedule` (monde 1, inchangé, empreinte épinglée) laisse des séries (8 matchs
-de suite à l'extérieur vus pour un club). Le monde 2 utilise `generateBalancedSchedule` : aller = calendrier canonique du
+de suite à l'extérieur vus pour un club), sans correction : aucune partie ne naît plus en monde 1 (le formulaire de
+création ne passe pas de monde, `createSave` prend `DEFAULT_WORLD_VERSION`, le défi passe 2), et une partie 1 existante
+garde son calendrier. Le monde 2 utilise `generateBalancedSchedule` : aller = calendrier canonique du
 cercle (de Werra : le club fixe reçoit aux journées paires, la paire (r + k, r − k) a son premier club à domicile quand k
 est impair), retour = mêmes journées inversées, en commençant par la deuxième et en finissant par la première ; jamais
 plus de deux matchs de suite au même endroit, jonction des phases comprise, ni deux fois le même adversaire de suite. La
