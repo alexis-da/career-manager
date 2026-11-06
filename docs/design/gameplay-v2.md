@@ -116,25 +116,30 @@ Défenses : 4 défenseurs = DD, DC, DC, DG ; 3 = DC, DC, DC ; 5 = DD, DC, DC, DC
 
 - **Réputation** (`reputationAfterSeason`, `src/engine/reputation.ts`) : clubs IA et club dirigé, dans les deux mondes. **Corrigée le 06/11.** La règle de départ (±1 par place d'écart au rang attendu, ±5 au plus, montée +4, descente −4) resserrait chaque division, le premier attendu ne pouvant que perdre et le dernier que gagner : écart-type des réputations −20 % en D1 et −13,5 % en D2 en cinq saisons, les dix divisions hors de ±10 %. Désormais une **cible**, la réputation que la création donne au club classé à son rang final dans sa division (`reputationTarget`) : la réputation d'un club qui reste dans sa division en fait **25 %** du chemin (`REPUTATION_TARGET_SHARE`, arrondi pareil vers le haut et vers le bas). **Écart au cahier** : un promu ou un relégué prend **d'un coup** la cible de son rang équivalent dans sa nouvelle division (`rankInNextDivision` : les promus aux dernières places de celle du dessus, dans l'ordre de leur classement, le champion de D2 anglaise 18e ; les relégués aux premières de celle du dessous). À 25 % pour eux aussi, les gros clubs relégués arrivaient en D2 avec 65 à 78 de réputation (plage 40–60) et y restaient plusieurs saisons : 14 divisions sur 30 (trois graines) sortaient de ±10 %, jusqu'à +25 %. Les cibles d'une division sont ses réputations de création, une par rang (test lent). Le rang attendu reste le rang de réputation dans la division, **un club par rang** (à réputation égale, le plus haut plafond salarial, puis le slug) ; le plafond ne suivant plus le rang, l'objectif de classement du club dirigé prend le rang de sa dotation (`SeasonBudget`), que le passage calcule avec les plafonds de la saison close.
 - **Dotation** (`seasonFinances`, `applySeasonFinances`) : comme le cahier, sauf le report. Elle remplace le plancher des promus et le plafond des relégués (`financesAfterMove`) : le rang de réputation dans la nouvelle division les donne. Coefficient d'un club IA : son seul objectif de classement ; du club dirigé : ses objectifs (V3), 1 sans eux. **Report réservé au club dirigé (06/11)** : les clubs IA, qui ne dépensent qu'en présaison, voyaient leur budget doubler en cinq saisons (×2,3 en D1, ×2,9 en D2) ; ils repartent chaque saison de leur dotation × leur coefficient, plus les primes de coupe et les ventes de la présaison. Le détail de la dotation du club dirigé est gardé dans `SeasonBudget` (migration d'ajout `…_season_budget`), sur sa saison de championnat, écrit à la création (son budget de départ) et à chaque passage.
-- **Plafond salarial, une vraie limite (06/11)** : masse salariale × **1,20** (`WAGE_BUDGET_MARGIN`), au plus la table de création à son rang (`clubFinances`, `wageBudgetFor`) ; à la création sur l'effectif complet, après la présaison (`applyCreationWageBudgets`), à chaque passage sur la masse de fin de saison, avant les départs (`payrollsOf`). Pour le club dirigé, la marge suit le coefficient de ses objectifs : × 1,10 à 0,70, × 1,20 à 1,00, × 1,30 à 1,40, en ligne droite entre (`managedWageMargin`). Avant, la masse ne faisait que 44 % du plafond en D1 (61 % en D2) et la marge permettait vingt recrues types. Une partie existante reçoit la règle à son prochain passage de saison.
+- **Plafond salarial, une vraie limite (06/11)** : masse salariale × **1,20** (`WAGE_BUDGET_MARGIN`), entre **50 %** (`WAGE_BUDGET_FLOOR_SHARE`, `wageBudgetFloor`, retouche du 06/11) et 100 % de la table de création à son rang (`clubFinances`, `wageBudgetFor`) ; à la création sur l'effectif complet, après la présaison (`applyCreationWageBudgets`), à chaque passage sur la masse de fin de saison, avant les départs (`payrollsOf`). Pour le club dirigé, la marge suit le coefficient de ses objectifs : × 1,10 à 0,70, × 1,20 à 1,00, × 1,30 à 1,40, en ligne droite entre (`managedWageMargin`). Avant, la masse ne faisait que 44 % du plafond en D1 (61 % en D2) et la marge permettait vingt recrues types. **Plancher** : un club qui a beaucoup vendu ou perdu ses fins de contrat garde de quoi reconstruire ; il joue dès la création pour un tiers des clubs de D1 (la moitié du haut de D1, dont la table est large : leur marge passe de 3,2 à 3,4 recrues types), presque jamais en D2 (0 à 13 % des clubs selon la saison). Une partie existante reçoit la règle à son prochain passage de saison.
+- **Marché quand la marge salariale ne paie plus personne (06/11)** : une entrée que la seule marge vide le sait (`wageBound` : avec assez de marge, elle proposerait quelqu'un). « Mes besoins » propose alors les joueurs que la marge paie encore au poste du point faible, même moins bien notés, le meilleur à ce poste d'abord, marqués « Dans tes moyens » (`affordableAt`), son introduction donnant la marge ; sans personne dans ses moyens, une entrée montre à la place d'une liste vide la marge restante (ou le dépassement du plafond) et trois façons d'en retrouver : vendre un joueur (vers l'onglet Vendre), libérer un contrat depuis sa fiche (vers l'effectif ; la moitié de ce qui lui reste dû), attendre la saison prochaine et son plafond recalculé (`WageLimit`). En français et en anglais ; `e2e/market.spec.ts` couvre les deux cas, sur ordinateur et sur téléphone. Au Lyon des E2E, la première recrue de « Mes besoins » (7,7 M€ de salaire) laisse 930 k€ de marge : dix joueurs dans ses moyens, le premier noté 68 au poste d'arrière droit (le titulaire, 71).
 - **Carte Finances** (onglet Club) : budget, masse salariale et marge, puis la dernière dotation : dotation et rang de réputation, bonus ou malus des objectifs avec leur coefficient (« Ni bonus ni malus » à 1,00 : des objectifs peuvent s'annuler), report, budget de la saison, plafond salarial ; « Budget de départ » la première saison.
-- **Mesure** (`npm run measure:seasons`, six saisons d'un jumeau 2 de la démo, l'adjoint aux commandes, base locale ; 4 minutes ; `-- --seed=S` pour une autre partie). Début de chaque saison, clubs IA, graine de la démo ; recrue type : 25 ans, la note médiane des onze meilleurs du club ; les tiers de réputation en annexe du rapport du script :
+- **Mesure** (`npm run measure:seasons`, six saisons d'un jumeau 2 de la démo, l'adjoint aux commandes, base locale ; 4 minutes ; `-- --seed=S` pour une autre partie), avec le plancher. Début de chaque saison, clubs IA, graine de la démo ; recrue type : 25 ans, la note médiane des onze meilleurs du club ; les tiers de réputation en annexe du rapport du script :
 
 | Mesure | S1 | S2 | S3 | S4 | S5 | S6 | S7 |
 |---|---|---|---|---|---|---|---|
 | Masse des dotations / création, D1 et D2 | 1,000 | 1,000 | 1,000 | 1,000 | 1,000 | 1,000 | 1,000 |
-| Dotation / création moyenne, D1 | 1,00 | 0,96 | 1,00 | 0,95 | 1,00 | 1,01 | 1,01 |
-| Dotation / création moyenne, D2 | 1,00 | 1,21 | 1,19 | 1,30 | 1,21 | 1,23 | 1,26 |
-| Budget / création moyen, D1 | 1,00 | 1,02 | 1,06 | 1,01 | 1,06 | 1,06 | 1,06 |
-| Budget / création moyen, D2 | 1,00 | 1,15 | 1,16 | 1,25 | 1,18 | 1,20 | 1,29 |
-| Masse salariale / plafond (médiane), D1 | 0,83 | 0,81 | 0,82 | 0,85 | 0,85 | 0,84 | 0,80 |
-| Masse salariale / plafond (médiane), D2 | 0,83 | 0,81 | 0,82 | 0,87 | 0,86 | 0,85 | 0,88 |
-| Recrues types, par le budget / par la marge salariale (médianes), D1 | 3,0 / 3,2 | 2,8 / 3,6 | 2,9 / 3,1 | 2,8 / 2,5 | 2,9 / 2,7 | 3,0 / 3,3 | 3,3 / 3,8 |
-| Recrues types, par le budget / par la marge salariale (médianes), D2 | 2,8 / 3,3 | 2,4 / 3,6 | 2,3 / 3,2 | 2,2 / 2,2 | 2,2 / 2,4 | 2,0 / 2,5 | 2,0 / 2,2 |
-| Clubs dont les salaires limitent les achats, D1 | 40 % | 23 % | 45 % | 61 % | 53 % | 53 % | 31 % |
-| Clubs dont les salaires limitent les achats, D2 | 37 % | 24 % | 30 % | 56 % | 40 % | 43 % | 52 % |
-| Réputation moyenne, D1 / D2 | 72,4 / 50,0 | 72,3 / 50,2 | 72,0 / 50,4 | 72,0 / 50,4 | 71,7 / 50,5 | 71,5 / 50,6 | 71,3 / 50,6 |
-| Écart-type des réputations, D1 / D2 (moyenne des divisions, tous les clubs) | 10,65 / 6,07 | 10,55 / 6,09 | 10,57 / 6,01 | 10,31 / 6,01 | 10,52 / 6,00 | 10,65 / 5,99 | 10,66 / 6,01 |
+| Dotation / création moyenne, D1 | 1,00 | 0,96 | 1,00 | 0,95 | 1,00 | 1,01 | 1,04 |
+| Dotation / création moyenne, D2 | 1,00 | 1,21 | 1,19 | 1,30 | 1,21 | 1,23 | 1,25 |
+| Budget / création moyen, D1 | 1,00 | 1,02 | 1,06 | 1,01 | 1,07 | 1,06 | 1,08 |
+| Budget / création moyen, D2 | 1,00 | 1,15 | 1,16 | 1,25 | 1,17 | 1,19 | 1,29 |
+| Masse salariale / plafond (médiane), D1 | 0,83 | 0,80 | 0,80 | 0,84 | 0,84 | 0,82 | 0,78 |
+| Masse salariale / plafond (médiane), D2 | 0,83 | 0,81 | 0,82 | 0,86 | 0,85 | 0,85 | 0,86 |
+| Plafond au plancher / à la table, D1 | 27 % / 0 % | 32 % / 2 % | 42 % / 1 % | 37 % / 2 % | 36 % / 0 % | 32 % / 1 % | 34 % / 2 % |
+| Plafond au plancher / à la table, D2 | 0 % / 4 % | 9 % / 5 % | 9 % / 10 % | 13 % / 6 % | 6 % / 8 % | 10 % / 11 % | 12 % / 22 % |
+| Recrues types, par le budget / par la marge salariale (médianes), D1 | 3,0 / 3,4 | 2,8 / 3,8 | 2,9 / 3,8 | 2,8 / 3,2 | 2,9 / 3,1 | 3,0 / 3,7 | 3,3 / 5,0 |
+| Recrues types, par le budget / par la marge salariale (médianes), D2 | 2,8 / 3,3 | 2,4 / 3,7 | 2,3 / 3,3 | 2,2 / 2,5 | 2,2 / 2,6 | 1,9 / 2,6 | 2,1 / 2,2 |
+| Clubs dont les salaires limitent les achats, D1 | 21 % | 12 % | 20 % | 37 % | 38 % | 32 % | 14 % |
+| Clubs dont les salaires limitent les achats, D2 | 37 % | 15 % | 24 % | 46 % | 37 % | 35 % | 49 % |
+| Réputation moyenne, D1 / D2 | 72,4 / 50,0 | 72,3 / 50,2 | 72,0 / 50,4 | 72,0 / 50,4 | 71,7 / 50,5 | 71,5 / 50,6 | 71,2 / 50,7 |
+| Écart-type des réputations, D1 / D2 (moyenne des divisions, tous les clubs) | 10,65 / 6,07 | 10,55 / 6,09 | 10,57 / 6,01 | 10,31 / 6,01 | 10,54 / 6,00 | 10,64 / 5,93 | 10,73 / 5,96 |
+
+Avant le plancher (même graine) : masse à 80 à 88 % du plafond, salaires limitant 23 à 61 % des clubs de D1, marge de 2,5 à 3,8 recrues types en D1.
 
 Étalement des réputations sur trois parties (graines `demo-2026-27`, `mesure-2`, `mesure-3`) : écart le plus grand de l'écart-type d'une division à celui de S1, de S1 à S7 :
 
@@ -143,28 +148,29 @@ Défenses : 4 défenseurs = DD, DC, DC, DG ; 3 = DC, DC, DC ; 5 = DD, DC, DC, DC
 | Départ (±1 par place), cinq saisons, démo | D1 −20 %, D2 −13,5 % (moyennes) | — | — | 10 / 10 |
 | 25 % pour tous | 24,9 % (it.2) | 20,6 % (en.2) | 24,5 % (fr.2) | 14 / 30 |
 | **Retenue** : 25 %, promu ou relégué à sa cible | 11,7 % (fr.2) | 10,6 % (fr.2) | 6,8 % (en.2) | **2 / 30** |
-| Retenue, pire division de D1 | 6,1 % (en.1) | 8,8 % (de.1) | 5,0 % (de.1) | 0 / 15 |
-| Retenue, moyennes D1 / D2, S7 / S1 | +0,1 % / −1,0 % | −0,6 % / −5,9 % | −1,5 % / −3,3 % | |
+| Retenue, avec le plancher | 13,0 % (fr.2) | 11,8 % (de.1) | 6,1 % (en.2) | **2 / 30** |
+| Avec le plancher, pire division de D1 | 6,1 % (en.1) | 11,8 % (de.1) | 5,0 % (de.1) | 1 / 15 |
+| Avec le plancher, moyennes D1 / D2, S7 / S1 | +0,7 % / −1,8 % | −2,0 % / −4,2 % | −0,2 % / −2,6 % | |
 
-Les deux exceptions sont la D2 française (18 clubs, les résultats les plus serrés), qui se resserre lentement : 6,11 → 5,40 et 5,47 en S7. Un pas partiel vers des cibles tirées de résultats bruités resserre un peu, d'autant plus que les résultats suivent mal la réputation ; ailleurs, la D1 comme la D2 tiennent.
+Les exceptions se resserrent lentement : la D2 française (18 clubs, les résultats les plus serrés), 6,11 → 5,38 en S7 sur la démo, et la D1 allemande sur `mesure-2`, 10,81 → 9,66. Un pas partiel vers des cibles tirées de résultats bruités resserre un peu, d'autant plus que les résultats suivent mal la réputation ; ailleurs, la D1 comme la D2 tiennent.
 
 Club dirigé (Lyon), son budget réel et recalculé avec le coefficient maximal puis minimal (le budget du club dirigé ne rejaillit sur rien dans une partie jouée par l'adjoint), en M€ et en multiple du budget de création :
 
-| Saison | Division | Dotation | Coef. du jeu | Plafond | Budget réel | Coefficient 1,40 | Coefficient 0,70 |
-|---|---|---|---|---|---|---|---|
-| S1 | D1 | 77,2 | 1,00 | 56,1 | 77,2 (1,00) | 77,2 (1,00) | 77,2 (1,00) |
-| S2 | D1 | 89,8 | 1,25 | 59,0 | 151,0 (1,96) | 164,4 (2,13) | 101,6 (1,32) |
-| S3 | D1 | 89,8 | 1,00 | 51,4 | 165,7 (2,15) | 208,3 (2,70) | 114,1 (1,48) |
-| S4 | D1 | 77,2 | 0,90 | 32,4 | 152,5 (1,97) | 212,4 (2,75) | 111,2 (1,44) |
-| S5 | D2 | 17,8 | 0,90 | 11,6 | 92,2 (1,19) | 131,1 (1,70) | 68,1 (0,88) |
-| S6 | D2 | 12,1 | 0,90 | 2,5 | 57,0 (0,74) | 82,4 (1,07) | 42,5 (0,55) |
-| S7 | D2 | 5,2 | 0,90 | 0,6 | 33,2 (0,43) | 48,5 (0,63) | 24,9 (0,32) |
+| Saison | Division | Dotation | Coef. du jeu | Plafond | Masse salariale | Budget réel | Coefficient 1,40 | Coefficient 0,70 |
+|---|---|---|---|---|---|---|---|---|
+| S1 | D1 | 77,2 | 1,00 | 56,1 | 46,7 | 77,2 (1,00) | 77,2 (1,00) | 77,2 (1,00) |
+| S2 | D1 | 89,8 | 1,25 | 62,7 | 42,8 | 151,0 (1,96) | 164,4 (2,13) | 101,6 (1,32) |
+| S3 | D1 | 89,8 | 1,00 | 62,7 | 27,8 | 165,7 (2,15) | 208,3 (2,70) | 114,1 (1,48) |
+| S4 | D1 | 77,2 | 0,90 | 54,9 | 10,0 | 152,5 (1,97) | 212,4 (2,75) | 111,2 (1,44) |
+| S5 | D2 | 17,8 | 0,90 | 13,6 | 2,1 | 92,2 (1,19) | 131,1 (1,70) | 68,1 (0,88) |
+| S6 | D2 | 15,8 | 0,90 | 12,3 | 0,5 | 60,3 (0,78) | 87,6 (1,14) | 45,1 (0,58) |
+| S7 | D2 | 5,2 | 0,90 | 5,3 | 0,4 | 34,9 (0,45) | 51,1 (0,66) | 26,2 (0,34) |
 
-0,70 est la borne du cahier ; avec ses valeurs, le plus bas atteignable est 0,80. Le plafond du club dirigé fond avec son effectif : l'adjoint ne renouvelle aucun contrat (dette ci-dessous), sa masse salariale tombe, et son plafond la suit.
+0,70 est la borne du cahier ; avec ses valeurs, le plus bas atteignable est 0,80. L'adjoint ne renouvelant aucun contrat (dette ci-dessous), la masse salariale du club dirigé fond (46,7 → 0,4 M€) ; le plancher lui garde un plafond de quoi reconstruire, au plancher dès S2 (62,7 M€ en D1, 13,6 à 5,3 M€ en D2 selon son rang), quand sans lui il tombait à 0,6 M€.
 
-- **Cibles du cahier.** « La dotation reste du même ordre que le budget de création » : **tenue** (masses identiques ; par tiers, de 0,75 à 1,83 fois en moyenne de S2 à S7 ; un club de 0,12 à 5,00 fois, selon son rang de réputation, la pente du haut de D2 étant forte). « Le plafond salarial reste la vraie limite des achats » : **tenue depuis le 06/11** : la masse fait 80 à 88 % du plafond (médianes), la marge permet 2,2 à 3,8 recrues types (médianes), du même ordre que le budget (2,0 à 3,3), et les salaires limitent les achats de 23 à 61 % des clubs selon la saison (0 à 5 % en D1 avant).
-- **Dérives.** (1) Budgets des clubs IA : bornés, 1,01 à 1,06 fois la création en moyenne en D1, 1,15 à 1,29 en D2 (×2,3 et ×2,9 avant le 06/11) ; le plus grand, 4,26 fois (Ajaccio, fr.2, S7 : une dotation de haut de D2 pour un club du bas à la création). (2) Réputation : moyenne de D1 72,4 → 71,3, de D2 50,0 → 50,6 ; le premier attendu, sans montée ni descente, perd 1,1 point par saison en moyenne (sa cible est au mieux la sienne) ; l'étalement tient (ci-dessus). (3) Le club dirigé joué par l'adjoint : voir les dettes.
-- **Six cibles d'équilibrage (06/11)** (`measure:balance -- --world-only`, une saison complète du monde 2 sur trois graines) : 2,64 buts par match, 25,1 % de nuls, 43,6 % de victoires à domicile, 55,2 points d'écart entre le 1er et le dernier, forme des onze de 35,3 à 75,3, le plus faible gagne 23,2 % : les six tiennent. Les corrections n'agissant qu'aux passages de saison, trois d'entre elles relues sur les saisons 2 à 6 des trois parties de `measure:seasons` (les nuls tirés des points : 3 × matchs − points) : 2,65 buts par match, 25,1 % de nuls (23,6 à 26,2 % selon la saison), 53,1 points d'écart (50,2 à 55,0) ; avant les corrections, 2,65, 25,2 % et 53,7.
+- **Cibles du cahier.** « La dotation reste du même ordre que le budget de création » : **tenue** (masses identiques ; par tiers, de 0,75 à 1,83 fois en moyenne de S2 à S7 ; un club de 0,12 à 5,00 fois, selon son rang de réputation, la pente du haut de D2 étant forte). « Le plafond salarial reste la vraie limite des achats » : **tenue depuis le 06/11** : avec le plancher, la masse fait 78 à 86 % du plafond (médianes), la marge permet 2,2 à 5,0 recrues types (médianes ; 3,4 en D1 et 3,3 en D2 à la création), du même ordre que le budget (1,9 à 3,3), et les salaires limitent les achats de 12 à 49 % des clubs selon la saison et la division (0 à 5 % en D1 avant le 06/11).
+- **Dérives.** (1) Budgets des clubs IA : bornés, 1,01 à 1,08 fois la création en moyenne en D1, 1,15 à 1,29 en D2 (×2,3 et ×2,9 avant le 06/11) ; le plus grand, 4,26 fois (Ajaccio, fr.2, S7 : une dotation de haut de D2 pour un club du bas à la création). (2) Réputation : moyenne de D1 72,4 → 71,2, de D2 50,0 → 50,7 ; le premier attendu, sans montée ni descente, perd 1,1 point par saison en moyenne (sa cible est au mieux la sienne) ; l'étalement tient (ci-dessus). (3) Le club dirigé joué par l'adjoint : voir les dettes.
+- **Six cibles d'équilibrage (06/11)** (`measure:balance -- --world-only`, une saison complète du monde 2 sur trois graines) : 2,64 buts par match, 25,1 % de nuls, 43,6 % de victoires à domicile, 55,2 points d'écart entre le 1er et le dernier, forme des onze de 35,3 à 75,3 (34,7 à 72,5 avec le plancher), le plus faible gagne 23,2 % : les six tiennent, plancher compris. Les corrections n'agissant qu'aux passages de saison, trois d'entre elles relues sur les saisons 2 à 6 des trois parties de `measure:seasons` (les nuls tirés des points : 3 × matchs − points) : 2,65 buts par match, 25,1 % de nuls (23,6 à 26,2 % selon la saison), 53,1 points d'écart (50,2 à 55,0) ; avec le plancher, 2,66, 25,0 % (23,5 à 26,2 %) et 53,1 ; avant les corrections, 2,65, 25,2 % et 53,7.
 
 ## V3 — Objectifs de saison (migration d'ajout)
 
@@ -221,7 +227,7 @@ Par tiers de réputation, le classement va de 40 % (haut de D2 : la montée) à 
 
 ## Dettes
 
-- **L'adjoint ne renouvelle aucun contrat.** Seul le joueur prolonge les contrats du club dirigé (« Prolonger ») : joué par l'adjoint, comme dans les mesures (`measure:seasons`), le club laisse partir chaque joueur en fin de contrat ; son effectif fond (25 → 6 joueurs en cinq saisons, descente en S4), et depuis que le plafond suit la masse salariale (06/11), son plafond avec elle (56,1 → 0,6 M€ en six saisons). Artefact du mode adjoint, d'avant V2 : les mesures du club dirigé en sont faussées ; à reprendre si l'adjoint doit pouvoir tenir une saison entière à la place du joueur.
+- **L'adjoint ne renouvelle aucun contrat.** Seul le joueur prolonge les contrats du club dirigé (« Prolonger ») : joué par l'adjoint, comme dans les mesures (`measure:seasons`), le club laisse partir chaque joueur en fin de contrat ; son effectif fond (25 → 6 joueurs en cinq saisons, descente en S4), et depuis que le plafond suit la masse salariale (06/11), son plafond avec elle, jusqu'au plancher, la moitié de la table (5,3 M€ en D2 en S7 ; 0,6 M€ sans plancher). Artefact du mode adjoint, d'avant V2 : les mesures du club dirigé en sont faussées ; à reprendre si l'adjoint doit pouvoir tenir une saison entière à la place du joueur.
 
 ## Ordre et méthode
 
