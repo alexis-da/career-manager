@@ -6,13 +6,15 @@
  * Plays a worldVersion 2 twin of the demo save (demo seed unless --seed, demo club, the cups as the game gives them,
  * an owner of its own for each seed: several seeds may run at once) for N complete
  * seasons (default 6), the assistant deciding everything and the player nothing, each season followed by
- * advanceToNextSeason. Every club is recorded at each season's start (the first right after the creation, the others
- * right after the transition, its preseason included: N + 1 starts) and end (every fixture played, the transition still
- * to come). Then prints, in markdown: six representative French AI clubs season by season; means by division and
- * reputation third; whether the wage budget rather than the transfer budget limits a typical signing; the managed
- * club's budget path at the game's coefficient and at the clamp's ends, recomputed afterwards; the drifts; each
- * division's spread of reputations, its standard deviation season by season against the first; and how often each
- * season objective is exceeded, achieved or missed, by division and reputation third, with the managed club's own.
+ * advanceToNextSeason, the assistant managing the managed club's contracts as an AI club's (assistantContracts:
+ * renewals, releases and free signings in the preseason). Every club is recorded at each season's start (the first
+ * right after the creation, the others right after the transition, its preseason included: N + 1 starts) and end (every
+ * fixture played, the transition still to come). Then prints, in markdown: six representative French AI clubs season
+ * by season; means by division and reputation third; whether the wage budget rather than the transfer budget limits a
+ * typical signing; the managed club's squad and budget path at the game's coefficient and at the clamp's ends,
+ * recomputed afterwards; the drifts; each division's spread of reputations, its standard deviation season by season
+ * against the first; and how often each season objective is exceeded, achieved or missed, by division and reputation
+ * third, with the managed club's own.
  *
  * --out writes the markdown there and the raw records beside it (the same name, .json), for later analyses;
  * --from reads such a JSON instead of playing, to print the report again without the database. The twin and its
@@ -217,6 +219,7 @@ type ClubSeason = {
   wageBudget: number;
   tableWageBudget: number; // the creation's wage budget at its rank: its wage budget's ceiling, and twice its floor
   payroll: number;
+  squadSize: number; // its players at the start, after the preseason
   wageRoom: number;
   signing: Signing;
   end: ClubSeasonEnd | null; // null for the season the last transition opened
@@ -509,7 +512,8 @@ async function playSeasons(saveId: string, seasons: number): Promise<SeasonSnaps
     const began = performance.now();
     await playRemainingMatchdays(saveId);
     const end = await recordEnd(saveId, start.startYear);
-    const transition = await advanceToNextSeason(saveId);
+    // Nobody would renew the managed club's contracts otherwise: its squad would melt season after season.
+    const transition = await advanceToNextSeason(saveId, { assistantContracts: true });
     const playSeconds = Math.round((performance.now() - began) / 1000);
     const managedObjectives = await prisma.seasonObjective.findMany({
       where: { saveId, season: { startYear: start.startYear } },
@@ -689,6 +693,7 @@ function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
         // At S1, the creation's table at its initial rank; then the transition's, at its dotation's rank.
         tableWageBudget: clubFinances(previous === undefined ? club.initialRank : dotationRank, club.clubCount, club.tier).wageBudget,
         payroll: club.payroll,
+        squadSize: club.squadSize,
         wageRoom,
         signing: typicalSigning(club.topElevenMedian, club.budget, wageRoom),
         end: end === undefined ? null : seasonEnd(club, end, nextStart.get(club.clubSaveId)),
@@ -807,11 +812,14 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
 
   // ---------------------------------------------------------------- Header and checks
   const outcomeCoefficient = (outcome: ObjectiveOutcome): string => coefficientText(budgetCoefficient({ ranking: outcome }));
+  // Records from before the assistant managed the managed club's contracts have no count of its decisions.
+  const assistantContracts = snapshots.some((snapshot) => snapshot.transition?.preseason.managed !== undefined);
   sections.push(
     `# Budgets de saison et réputation : ${played} saisons simulées (gameplay v2, V2)`,
     [
       `Jumeau worldVersion 2 de la démo (graine ${seed}, club dirigé ${DEMO_CLUB_SLUG}, coupes comprises), joué par`,
-      `l'adjoint sans action du joueur, chaque saison suivie du passage de saison : ${snapshots.length} débuts de saison`,
+      `l'adjoint sans action du joueur${assistantContracts ? ", ses contrats compris (comme ceux d'un club IA)" : ""},`,
+      `chaque saison suivie du passage de saison : ${snapshots.length} débuts de saison`,
       "relevés (S1 à la création, les suivants juste après le passage, présaison comprise) et",
       `${played} fins (tous les matchs joués, avant le passage).${minutes === null ? "" : ` Durée : ${fixed(minutes, 1)} min.`}`,
       "Montants en M€.",
@@ -1038,9 +1046,24 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
   const lowest = reachable((values) => Math.min(...values));
   const highest = reachable((values) => Math.max(...values));
   const pathHeaders = paths.flatMap(({ coefficient }) => [`Budget ${coefficientText(coefficient)}`, "/ création"]);
+  // What the transition opening a season did to the managed club's contracts: the assistant's renewals, releases and free
+  // signings in its preseason, or, in records from before the assistant managed them, the contracts run out.
+  const contractsText = (index: number): string => {
+    const transition = index === 0 ? null : snapshots[index - 1].transition;
+    if (transition === null) {
+      return "—";
+    }
+    const own = transition.preseason.managed;
+    return own === undefined ? `${transition.freeAgents} fins` : `${own.renewals} · ${own.releases} · ${own.signings}`;
+  };
+  const contractsRule = assistantContracts
+    ? "l'adjoint les gérant comme ceux d'un club IA (planSquad) : prolongations · libérations · recrues libres"
+    : "« N fins » : ses contrats arrivés à terme, que personne ne prolongeait (relevés d'avant leur gestion par l'adjoint)";
   sections.push(
     `## d. Le club dirigé (${DEMO_CLUB_SLUG}) : coefficient du jeu, puis ${paths.map(({ coefficient }) => coefficientText(coefficient)).join(" et ")}`,
     [
+      "Effectif et masse salariale : au début de la saison, après la présaison. Contrats : ce qu'en a fait le passage qui",
+      `ouvre la saison, ${contractsRule}.`,
       "Recalcul a posteriori (dans une partie jouée par l'adjoint, le budget du club dirigé ne rejaillit sur rien : aucun",
       "achat, et les clubs IA ne le lisent pas) : B1 = son budget réel au début de S1 ; Δn = budget réel à la fin de la",
       "saison n − au début (primes de coupe, ventes) ; Bn+1 = arrondi(Dn+1 × c, au pas de 100 000 €, au moins 100 000 €) +",
@@ -1058,7 +1081,9 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
         "Fin : rang · coupe",
         "Dotation",
         "Plafond",
+        "Effectif",
         "Masse sal.",
+        "Contrats",
         "Coef. du jeu",
         "Δ saison",
         "Budget réel",
@@ -1074,7 +1099,9 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
         row.end === null ? "—" : `${row.end.finalRank} · ${cupRunText(row.end.cupRound, row.end.cupWinner)}`,
         millions(dotationOf(index)),
         millions(wageBudgetOf(index)),
+        String(row.squadSize),
         millions(row.payroll),
+        contractsText(index),
         coefficientText(snapshots[index].managedBudget?.coefficient ?? NEUTRAL_BUDGET_COEFFICIENT),
         row.end === null ? "—" : signedMillions(deltaOf(row)),
         millions(row.budget),

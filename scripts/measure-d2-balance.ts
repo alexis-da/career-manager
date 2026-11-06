@@ -1,6 +1,7 @@
 /**
  * Balance of the world with the second divisions (npm run measure:divisions -- [seasons] [out.json]): plays a
- * worldVersion 2 twin of the demo save (demo seed, demo club) for several seasons, then prints, by division, goals per
+ * worldVersion 2 twin of the demo save (demo seed, demo club, the assistant managing its contracts as an AI club's:
+ * assistantContracts) for several seasons, then prints, by division, goals per
  * match, home wins and draws, and by country the strength of the promoted clubs against the first division's last club
  * to stay up, their rank the next season, and the clubs going up and down more than once. The twin and its throwaway
  * owner are deleted at the end. Writes to the database: the local one only (src/db/client.ts refuses any other).
@@ -95,7 +96,8 @@ async function playSeason(saveId: string): Promise<SeasonRecord> {
     tallies[season.competition.code] = tally;
   }
 
-  const transition = await advanceToNextSeason(saveId);
+  // Nobody would renew the managed club's contracts otherwise: its squad would melt season after season.
+  const transition = await advanceToNextSeason(saveId, { assistantContracts: true });
   const closed = await prisma.season.findMany({ where: { saveId, startYear: transition.completedStartYear }, select: { movements: true } });
   const clubIds = await prisma.club.findMany({ select: { id: true, slug: true } });
   const slugOf = new Map(clubIds.map((club) => [club.id, club.slug]));

@@ -14,7 +14,7 @@ import { CUPS_ENABLED } from "../engine/cup";
 import { cupEntrantsOf, openCups } from "./cup";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
-import { runPreseasonInTransaction, type PreseasonSummary } from "./preseason";
+import { runPreseasonInTransaction, type PreseasonOptions, type PreseasonSummary } from "./preseason";
 import { closeSeasonObjectives, openSeasonObjectives } from "./objectives";
 import { applySeasonMoves, readFinalTables, seasonMovesOf } from "./promotion";
 import { applySeasonFinances, applySeasonReputations, payrollsOf, recordDotation } from "./season-finances";
@@ -33,7 +33,9 @@ export type SeasonTransition = {
   startYear: number;
   moves: number; // clubs promoted or relegated (worldVersion 2 saves)
   retired: number;
-  freeAgents: number; // players of the managed club whose contract ended; AI clubs decide in the preseason
+  // Players of the managed club whose contract ended; AI clubs decide in the preseason, and the managed club too when
+  // the assistant manages its contracts (none then).
+  freeAgents: number;
   fixtures: number; // of the leagues
   cupTies: number; // the cups' preliminary rounds (worldVersion 2 saves)
   preseason: PreseasonSummary;
@@ -69,8 +71,10 @@ type PlayerUpdate = PlayerAttributes & {
  * save already had cups, or the game gives them: CUPS_ENABLED), then the managed club's objectives of the new season.
  * Every cup tie must have been played too: the season ends with the cups' finals.
  * PlayerSave.marketValue is read as is everywhere else: this is where it changes.
+ * options.assistantContracts (the measurement scripts' and tests' mode, never the game's): the assistant manages the
+ * managed club's contracts, whose expired ones stay for its preseason to renew or release as an AI club's.
  */
-export async function advanceToNextSeason(saveId: string): Promise<SeasonTransition> {
+export async function advanceToNextSeason(saveId: string, options: PreseasonOptions = {}): Promise<SeasonTransition> {
   return prisma.$transaction(
     async (tx) => {
       await assertNoMatchInProgress(tx, saveId);
@@ -170,7 +174,12 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
           retired++;
           transfers.push({ saveId, playerSaveId, fromClubId, toClubId: null, type: "RETIREMENT", date: transitionDate });
           updates.push({ ...progressed, playerSaveId, clubSaveId: null, contractUntil: null, marketValue });
-        } else if (clubSave?.isManaged === true && contractUntil !== null && contractUntil <= lastContractDay) {
+        } else if (
+          clubSave?.isManaged === true &&
+          options.assistantContracts !== true &&
+          contractUntil !== null &&
+          contractUntil <= lastContractDay
+        ) {
           freeAgents++;
           transfers.push({ saveId, playerSaveId, fromClubId, toClubId: null, type: "FREE", date: transitionDate });
           updates.push({ ...progressed, playerSaveId, clubSaveId: null, contractUntil: null, marketValue });
@@ -227,7 +236,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       const dotation = await applySeasonFinances(tx, saveId, ends, worldVersion, managedCoefficient, payrolls);
       await tx.save.update({ where: { id: saveId }, data: { currentDate: transitionDate } });
 
-      const preseason = await runPreseasonInTransaction(tx, saveId);
+      const preseason = await runPreseasonInTransaction(tx, saveId, options);
 
       const nextSeasons = await tx.season.createManyAndReturn({
         data: leagueSeasons.map((season) => ({ saveId, competitionId: season.competitionId, startYear })),

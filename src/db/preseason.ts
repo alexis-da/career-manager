@@ -2,7 +2,7 @@ import { FREE_AGENT_STAY_MIN_OVERALL } from "../engine/balance";
 import { contractEndDate } from "../engine/economy";
 import type { Position } from "../engine/positions";
 import { NAME_BANK } from "../engine/names";
-import { planSquad, squadPlanRngSeed, type RosterPlayer } from "../engine/squad-ai";
+import { planSquad, squadPlanRngSeed, type RosterPlayer, type SquadDecision } from "../engine/squad-ai";
 import { competitionTier } from "../engine/tiers";
 import { planWageSales, wageSaleRngSeed } from "../engine/transfer-ai";
 import { seasonEndDate, seasonStartYear, WORLD_START_DATE } from "../engine/world";
@@ -26,10 +26,23 @@ export type PreseasonSummary = {
   skipped: boolean; // this season's preseason had already run
   departures: number; // free agents leaving the world
   youthPlayers: number;
-  renewals: number;
+  renewals: number; // of the clubs planning their squads: the AI clubs, and the managed club for the assistant
   releases: number;
   signings: number;
   wageSales: number; // players sold by AI clubs above their wage budget
+  // The managed club's own renewals, releases and signings, when the assistant manages its contracts; absent otherwise.
+  managed?: { renewals: number; releases: number; signings: number };
+};
+
+/** How a preseason treats the managed club. */
+export type PreseasonOptions = {
+  /**
+   * The assistant manages the managed club's contracts (the measurement scripts and tests only, never the game): the
+   * club plans its squad as an AI club does (planSquad), renewing or releasing its expiring contracts and signing free
+   * agents, in its place among them by reputation, with its own stream and its own wage budget. Otherwise its player
+   * manages them: the preseason never touches its squad but for its young players.
+   */
+  assistantContracts?: boolean;
 };
 
 type PlayerState = {
@@ -63,6 +76,11 @@ const PLAYER_STATE_SELECT = {
 const bySlug = (a: { club: { slug: string } }, b: { club: { slug: string } }): number =>
   a.club.slug < b.club.slug ? -1 : a.club.slug > b.club.slug ? 1 : 0;
 
+type RankedClub = { reputation: number; club: { slug: string } };
+
+/** Most reputed first, then by slug: the order in which the clubs plan their squads. */
+const byReputation = (a: RankedClub, b: RankedClub): number => b.reputation - a.reputation || bySlug(a, b);
+
 /** Runs the preseason of the save's current season in its own transaction. */
 export async function runPreseason(saveId: string): Promise<PreseasonSummary> {
   return prisma.$transaction((tx) => runPreseasonInTransaction(tx, saveId), {
@@ -79,12 +97,14 @@ export async function runPreseason(saveId: string): Promise<PreseasonSummary> {
  * 3. AI clubs above their wage budget sell their best-paid players to the other AI clubs (TRANSFER, with a fee,
  *    budgets updated) until within it; then AI clubs, most reputed first, renew or release their expiring contracts
  *    and sign free agents, sharing one market; signings and releases write FREE transfers, renewals update contract
- *    and wage.
+ *    and wage. The managed club plans its squad with them when the assistant manages its contracts
+ *    (options.assistantContracts), never otherwise.
  * A season whose young players already exist has had its preseason: nothing is done.
  */
 export async function runPreseasonInTransaction(
   tx: Prisma.TransactionClient,
   saveId: string,
+  options: PreseasonOptions = {},
 ): Promise<PreseasonSummary> {
   const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, currentDate: true } });
   const date = save.currentDate;
@@ -202,7 +222,7 @@ export async function runPreseasonInTransaction(
     wage: player.wage,
     contractExpiring: player.contractUntil !== null && player.contractUntil <= lastContractDay,
   });
-  const aiClubs = clubs.filter((club) => !club.isManaged).sort((a, b) => b.reputation - a.reputation || bySlug(a, b));
+  const aiClubs = clubs.filter((club) => !club.isManaged).sort(byReputation);
 
   // 3a. An AI club above its wage budget (a relegated one, typically) sells its best-paid players to the other AI
   // clubs until it is back within it, never under WAGE_SALE_MIN_FEE_SHARE of their value (planWageSales).
@@ -265,7 +285,11 @@ export async function runPreseasonInTransaction(
     await tx.clubSave.update({ where: { id: clubId, saveId }, data: { budget: { increment: change } } });
   }
 
-  for (const club of aiClubs) {
+  // 3b. The clubs planning their squads, most reputed first: the AI clubs, and the managed club in its place among them
+  // when the assistant manages its contracts, with its own wage budget (its payroll's margin, src/db/season-finances.ts)
+  // and its own stream, the one its slug gives, which no AI club draws from.
+  const planners = options.assistantContracts === true ? [...clubs].sort(byReputation) : aiClubs;
+  for (const club of planners) {
     const squad = getOrThrow(squads, club.id, "squad");
     const squadByKey = new Map(squad.map((player) => [player.key, player]));
     const decisions = planSquad(
@@ -300,6 +324,10 @@ export async function runPreseasonInTransaction(
         transfers.push({ saveId, playerSaveId: player.id, fromClubId: null, toClubId: club.club.id, type: "FREE", date });
         summary.signings++;
       }
+    }
+    if (club.isManaged) {
+      const count = (type: SquadDecision["type"]): number => decisions.filter((decision) => decision.type === type).length;
+      summary.managed = { renewals: count("renew"), releases: count("release"), signings: count("sign") };
     }
   }
 
