@@ -215,17 +215,19 @@ dotations son budget de création). Puis, avant la présaison, chaque club reço
 (`applySeasonFinances`, `seasonFinances`, `economy.ts`) : le budget de création (`clubFinances`) à son nouveau rang de
 réputation dans sa nouvelle division, × son coefficient, + pour le seul club dirigé la moitié de son budget non dépensé
 (`BUDGET_CARRY_OVER_SHARE`, ventes et primes comprises) : un club IA repart chaque saison de sa dotation, que son budget
-jamais dépensé doublerait sinon. Son plafond salarial est une vraie limite : sa masse salariale
-de fin de saison, lue avant tout départ (`payrollsOf`), × 1,20 (`WAGE_BUDGET_MARGIN`), au plus celui de la table à son
-nouveau rang (`clubFinances`, `wageBudgetFor`) ; pour le club dirigé, la marge suit son coefficient, de × 1,10 à 70 à
-× 1,30 à 140 (`managedWageMargin`, `MANAGED_WAGE_MARGIN_RANGE`). À la création de même, sur la masse de l'effectif
-complet, après la présaison (`applyCreationWageBudgets`) : la marge permet environ trois recrues types, autant que le
-budget ; une partie d'avant la règle la reçoit à son prochain passage de saison. Coefficient en centièmes, 70 à 140 (`budgetCoefficient`, `src/engine/objectives.ts`) : un club IA a celui de son seul
+jamais dépensé doublerait sinon. Son plafond salarial est une vraie limite : sa masse salariale de fin de saison, lue
+avant tout départ (`payrollsOf`), × 1,20 (`WAGE_BUDGET_MARGIN`), entre la moitié (`WAGE_BUDGET_FLOOR_SHARE`,
+`wageBudgetFloor`) et la totalité de celui de la table à son nouveau rang (`clubFinances`, `wageBudgetFor`) : un club
+qui a beaucoup vendu ou perdu ses fins de contrat peut reconstruire ; pour le club dirigé, la marge suit son
+coefficient, de × 1,10 à 70 à × 1,30 à 140 (`managedWageMargin`, `MANAGED_WAGE_MARGIN_RANGE`). À la création de même,
+sur la masse de l'effectif complet, après la présaison (`applyCreationWageBudgets`) : la marge permet environ trois
+recrues types, autant que le budget ; une partie d'avant la règle la reçoit à son prochain passage de saison.
+Coefficient en centièmes, 70 à 140 (`budgetCoefficient`, `src/engine/objectives.ts`) : un club IA a celui de son seul
 objectif de classement (`rankingObjective` sur son rang attendu, `rankingOutcome` sur son rang final : dépassé +20,
 atteint +10, manqué −15), le club dirigé celui de ses objectifs (règle « Objectifs de saison »), 100 pour une saison
-sans eux (une partie d'avant eux, au prochain passage). Le détail de la dotation du club dirigé est gardé par saison dans `SeasonBudget` (migration d'ajout
-`…_season_budget`, une ligne par saison de championnat, écrite par `createSave`, son budget de départ, puis à chaque
-passage de saison).
+sans eux (une partie d'avant eux, au prochain passage). Le détail de la dotation du club dirigé est gardé par saison
+dans `SeasonBudget` (migration d'ajout `…_season_budget`, une ligne par saison de championnat, écrite par
+`createSave`, son budget de départ, puis à chaque passage de saison).
 
 **Objectifs de saison (gameplay v2, V3).** Pour le seul club dirigé, sur chaque saison de championnat, `SeasonObjective`
 (migration d'ajout `…_season_objectives`, avec `PlayerSeasonStats.starts`, les titularisations, comptées depuis),

@@ -16,6 +16,7 @@ import {
   MARKET_VALUE_STEP,
   NEUTRAL_BUDGET_COEFFICIENT,
   WAGE_AGE_FACTOR,
+  WAGE_BUDGET_FLOOR_SHARE,
   WAGE_BUDGET_MARGIN,
   WAGE_BY_OVERALL,
   WAGE_STEP,
@@ -68,14 +69,14 @@ export type SeasonFinances = {
   coefficient: number; // hundredths: its objectives' (budgetCoefficient)
   carryOver: number; // euros: BUDGET_CARRY_OVER_SHARE of the transfer budget it left unspent (the managed club's alone)
   budget: number; // euros: the dotation times the coefficient, rounded to BUDGET_STEP, plus the carry-over
-  wageBudget: number; // euros per season: its payroll times its margin, at most the creation's wage budget at that rank
+  wageBudget: number; // euros per season: its payroll times its margin, within half and all of the table's (wageBudgetFor)
 };
 
 /**
  * A club's finances for a new season: its dotation, the transfer budget clubFinances gives its reputation rank in its
  * (new) division, times its objectives' coefficient, plus half of what it left unspent (sales and cup prizes
- * included; the managed club's alone, an AI club's unspent being 0); its wage budget, its payroll at the end of the season closed times its margin, at most the creation's
- * wage budget at that rank (wageBudgetFor). Its reputation is its own (src/engine/reputation.ts).
+ * included; the managed club's alone, an AI club's unspent being 0); its wage budget, its payroll at the end of the
+ * season closed times its margin, between half of the creation's wage budget at that rank and all of it (wageBudgetFor). Its reputation is its own (src/engine/reputation.ts).
  */
 export function seasonFinances({
   reputationRank,
@@ -109,11 +110,17 @@ export type SeasonFinancesInput = {
 };
 
 /**
- * A club's wage budget: its payroll times its margin, rounded to BUDGET_STEP, never above the table's, the creation's
- * wage budget at its rank (clubFinances): what it may add in wages is a few signings, as its transfer budget is.
+ * A club's wage budget: its payroll times its margin, rounded to BUDGET_STEP, within the table's, the creation's wage
+ * budget at its rank (clubFinances): never above it, never under its floor (wageBudgetFloor). What it may add in wages is
+ * a few signings, as its transfer budget is; a club whose payroll fell keeps enough to rebuild.
  */
 export function wageBudgetFor(payroll: number, margin: number, tableWageBudget: number): number {
-  return Math.min(roundToStep(payroll * margin, BUDGET_STEP), tableWageBudget);
+  return Math.min(tableWageBudget, Math.max(wageBudgetFloor(tableWageBudget), roundToStep(payroll * margin, BUDGET_STEP)));
+}
+
+/** The least a club's wage budget is: WAGE_BUDGET_FLOOR_SHARE of the table's at its rank, rounded to BUDGET_STEP. */
+export function wageBudgetFloor(tableWageBudget: number): number {
+  return roundToStep(tableWageBudget * WAGE_BUDGET_FLOOR_SHARE, BUDGET_STEP);
 }
 
 /**

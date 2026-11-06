@@ -38,10 +38,19 @@ import {
   NEUTRAL_BUDGET_COEFFICIENT,
   RANKING_COEFFICIENT,
   REPUTATION_TARGET_SHARE,
+  WAGE_BUDGET_FLOOR_SHARE,
   WAGE_BUDGET_MARGIN,
 } from "../src/engine/balance";
 import { cupRunOf, type PlayedTie } from "../src/engine/cup";
-import { clubFinances, managedWageMargin, marketValueFor, seasonFinances, wageFor, type SeasonFinances } from "../src/engine/economy";
+import {
+  clubFinances,
+  managedWageMargin,
+  marketValueFor,
+  seasonFinances,
+  wageBudgetFloor,
+  wageFor,
+  type SeasonFinances,
+} from "../src/engine/economy";
 import { averageOpponent, chooseFormation } from "../src/engine/formation-choice";
 import { formationPositions } from "../src/engine/formations";
 import { selectLineup, type SquadPlayer } from "../src/engine/lineup";
@@ -206,6 +215,7 @@ type ClubSeason = {
   budget: number; // recorded at the start, after the preseason
   preseasonBalance: number;
   wageBudget: number;
+  tableWageBudget: number; // the creation's wage budget at its rank: its wage budget's ceiling, and twice its floor
   payroll: number;
   wageRoom: number;
   signing: Signing;
@@ -676,6 +686,8 @@ function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
         budget: club.budget,
         preseasonBalance: club.preseasonBalance,
         wageBudget: club.wageBudget,
+        // At S1, the creation's table at its initial rank; then the transition's, at its dotation's rank.
+        tableWageBudget: clubFinances(previous === undefined ? club.initialRank : dotationRank, club.clubCount, club.tier).wageBudget,
         payroll: club.payroll,
         wageRoom,
         signing: typicalSigning(club.topElevenMedian, club.budget, wageRoom),
@@ -809,7 +821,7 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
       `coefficient (au pas de ${millions(BUDGET_STEP)} M€), + ${fixed(100 * BUDGET_CARRY_OVER_SHARE, 0)} % du budget non`,
       "dépensé pour le seul club dirigé (un club IA repart de sa dotation) ; plafond salarial = masse salariale de la fin",
       `de saison × ${fixed(WAGE_BUDGET_MARGIN, 2)} (club dirigé : de × ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.worst), 2)}`,
-      `à × ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.best), 2)} selon son coefficient), au plus clubFinances(…), à la`,
+      `à × ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.best), 2)} selon son coefficient), entre ${fixed(100 * WAGE_BUDGET_FLOOR_SHARE, 0)} % et 100 % de clubFinances(…), à la`,
       "création comme à chaque passage. Réputation : elle fait",
       `${fixed(100 * REPUTATION_TARGET_SHARE, 0)} % du chemin vers sa cible, la réputation de création au rang final ; un promu`,
       "ou un relégué prend d'un coup celle du rang équivalent de sa nouvelle division. Coefficient d'un club IA, selon son classement",
@@ -969,6 +981,15 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
         return `${fixed(median(shares), 2)} (${fixed(Math.min(...shares), 2)}–${fixed(Math.max(...shares), 2)})`;
       }),
     ),
+    "### Plafond salarial au plancher (la moitié de la table) / à la table : part des clubs IA",
+    table(
+      seasonHeaders,
+      pivot(rows, snapshots, (members) => {
+        const atFloor = members.filter((row) => row.wageBudget === wageBudgetFloor(row.tableWageBudget)).length / members.length;
+        const atTable = members.filter((row) => row.wageBudget === row.tableWageBudget).length / members.length;
+        return `${fixed(100 * atFloor, 0)} % / ${fixed(100 * atTable, 0)} %`;
+      }),
+    ),
     "### Les six clubs de a : achats permis par le budget / par les salaires (note de la recrue type)",
     table(
       ["Club", ...snapshots.map(seasonHeader)],
@@ -1037,6 +1058,7 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
         "Fin : rang · coupe",
         "Dotation",
         "Plafond",
+        "Masse sal.",
         "Coef. du jeu",
         "Δ saison",
         "Budget réel",
@@ -1052,6 +1074,7 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
         row.end === null ? "—" : `${row.end.finalRank} · ${cupRunText(row.end.cupRound, row.end.cupWinner)}`,
         millions(dotationOf(index)),
         millions(wageBudgetOf(index)),
+        millions(row.payroll),
         coefficientText(snapshots[index].managedBudget?.coefficient ?? NEUTRAL_BUDGET_COEFFICIENT),
         row.end === null ? "—" : signedMillions(deltaOf(row)),
         millions(row.budget),

@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
 import { CONTRACT_YEARS_WEIGHTS, WAGE_BUDGET_MARGIN } from "./balance";
-import { clubFinances, contractYears, generateContract, managedWageMargin, seasonFinances, wageBudgetFor } from "./economy";
+import {
+  clubFinances,
+  contractYears,
+  generateContract,
+  managedWageMargin,
+  seasonFinances,
+  wageBudgetFloor,
+  wageBudgetFor,
+} from "./economy";
 import { WORLD_START_DATE } from "./world";
 
 const MAX_DATABASE_INT = 2_147_483_647;
@@ -46,7 +54,7 @@ describe("seasonFinances", () => {
     tier: 1,
     coefficient: 110,
     unspent: 7_300_000,
-    payroll: 50_000_000,
+    payroll: 100_000_000,
     wageMargin: 1.2,
   } as const;
 
@@ -58,7 +66,7 @@ describe("seasonFinances", () => {
       coefficient: 110,
       carryOver: 3_650_000,
       budget: Math.round((creation.budget * 1.1) / 100_000) * 100_000 + 3_650_000,
-      wageBudget: 60_000_000,
+      wageBudget: 120_000_000,
     });
   });
 
@@ -79,18 +87,25 @@ describe("seasonFinances", () => {
     );
   });
 
-  it("measures the wage budget against the payroll, never above the table's at the reputation rank", () => {
+  it("measures the wage budget against the payroll, within half and all of the table's at the reputation rank", () => {
     const table = clubFinances(4, 20, 1).wageBudget;
 
-    expect(seasonFinances({ ...input, payroll: 40_000_000, wageMargin: 1.3 }).wageBudget).toBe(52_000_000);
+    expect(seasonFinances({ ...input, payroll: 80_000_000, wageMargin: 1.3 }).wageBudget).toBe(104_000_000);
     expect(seasonFinances({ ...input, payroll: table, wageMargin: 1.1 }).wageBudget).toBe(table);
+    expect(seasonFinances({ ...input, payroll: 10_000_000 }).wageBudget).toBe(wageBudgetFloor(table));
   });
 });
 
 describe("wageBudgetFor", () => {
   it("adds the margin to the payroll, rounded to the budget step", () => {
-    expect(wageBudgetFor(31_234_000, 1.2, 200_000_000)).toBe(37_500_000);
-    expect(wageBudgetFor(5_000_000, 1.1, 200_000_000)).toBe(5_500_000);
+    expect(wageBudgetFor(31_234_000, 1.2, 60_000_000)).toBe(37_500_000);
+    expect(wageBudgetFor(5_000_000, 1.1, 10_000_000)).toBe(5_500_000);
+  });
+
+  it("never goes under half of the table's: a club that sold a lot, or saw its contracts run out, can rebuild", () => {
+    expect(wageBudgetFor(10_000_000, 1.2, 60_000_000)).toBe(30_000_000);
+    expect(wageBudgetFor(1_000_000, 1.3, 25_100_000)).toBe(12_600_000);
+    expect(wageBudgetFloor(25_100_000)).toBe(12_600_000);
   });
 
   it("never goes above the table's wage budget: an overpaid squad stays above its budget", () => {

@@ -174,8 +174,8 @@ export const REPUTATION_TARGET_SHARE = 0.25;
 // ------------------------------------------------------------------ Season budgets (gameplay v2, V2)
 // Each new season, every club gets a dotation from its board: the creation's finances (clubFinances) at its reputation
 // rank in its new division, times a coefficient of its objectives, plus, for the managed club alone, half of its unspent
-// transfer budget; its wage budget is its payroll times a margin, never above the creation's at that rank
-// (src/engine/economy.ts, seasonFinances).
+// transfer budget; its wage budget is its payroll times a margin, between half of the creation's at that rank and all
+// of it (src/engine/economy.ts, seasonFinances).
 
 /**
  * Share of the managed club's unspent transfer budget it keeps into the next season, on top of its dotation. AI clubs
@@ -198,6 +198,12 @@ export const WAGE_BUDGET_MARGIN = 1.2;
 
 /** The managed club's margin at the ends of its objectives' coefficient (70 and 140): WAGE_BUDGET_MARGIN at 100. */
 export const MANAGED_WAGE_MARGIN_RANGE: RankRange = { worst: 1.1, best: 1.3 };
+
+/**
+ * The least a club's wage budget is, as a share of the creation's at its rank (CLUB_WAGE_BUDGET_BY_TIER): a club whose
+ * payroll fell, having sold a lot or seen its contracts run out, keeps enough to rebuild.
+ */
+export const WAGE_BUDGET_FLOOR_SHARE = 0.5;
 
 /** What each objective's outcome adds to the coefficient, in hundredths: the ranking's (every club's), the cup's and
  * the chosen objective's (the managed club's). */
