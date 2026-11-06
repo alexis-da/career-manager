@@ -23,8 +23,8 @@ npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
-npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2 (base locale seulement)
-npm run measure:seasons # budgets, plafonds, réputation (son étalement) et objectifs : six saisons d'une partie 2 (-- --seed=S pour une autre graine ; base locale seulement)
+npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
+npm run measure:seasons # budgets, plafonds, réputation (son étalement) et objectifs : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
 ```
 
 ## Règles non négociables
@@ -844,6 +844,16 @@ prisma/
 scripts/              # measure-save-size.ts (npm run measure:size), measure-balance.ts (npm run measure:balance), measure-d2-balance.ts (npm run measure:divisions),
                       # measure-seasons.ts (npm run measure:seasons), generate-reference-migration.ts
 ```
+
+## Dettes ouvertes
+
+Le détail et les mesures sont dans la section « Dettes » de `docs/design/gameplay-v2.md` (chantier du 06/11).
+
+- Les joueurs retraités restent dans `PlayerSave`, sans club, comme les joueurs libres : la liste des joueurs libres,
+  son décompte et les propositions les relisent, environ 270 de plus par saison. Il faudrait les marquer (une colonne).
+- Le décompte de l'onglet clubs du marché avancé lit l'index de tous les joueurs de la partie (environ 4 900 entrées).
+- La table `Club` (198 lignes de données du monde) est lue en entier à chaque chargement de relation qui la touche.
+- Un club peu réputé lit davantage pour ses propositions (Caen : environ 1 500 lignes de `PlayerSave`, 840 pour Lyon).
 
 ## Ordre de construction
 
