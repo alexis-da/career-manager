@@ -2,8 +2,7 @@ import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { displayClubName } from "../engine/club-name";
 import { marketValueFor } from "../engine/economy";
-import { MARKET_ENTRIES, MAX_PROPOSALS_PER_ENTRY } from "../engine/market-proposals";
-import { ratingAt } from "../engine/positions";
+import { elevenOf, MARKET_ENTRIES, MAX_PROPOSALS_PER_ENTRY } from "../engine/market-proposals";
 import { clubColorsOf } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
@@ -64,16 +63,20 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals on t
     expect(await proposals(saveId)).toEqual(first);
   });
 
-  it("finds the weak spot in the eleven", async () => {
+  it("finds the weak spot in the eleven: a slot held out of line first, else the starter rated lowest", async () => {
     const { lineups, saveId, first } = loaded();
-    const { lineup } = await lineups.getManagedLineup(saveId);
-    const ratings = lineup.starters.map(({ player, slot }) => ({ slot, rating: ratingAt(player, slot) }));
-    const lowest = Math.min(...ratings.map(({ rating }) => rating));
+    const { formation, lineup } = await lineups.getManagedLineup(saveId);
+    const eleven = elevenOf(formation, lineup.starters);
+    const outOfLine = eleven.filter((slot) => slot.outOfLine === true);
+    const pool = outOfLine.length > 0 ? outOfLine : eleven;
+    const lowest = Math.min(...pool.map(({ rating }) => rating ?? 0));
 
     expect(lineup.starters).toHaveLength(11);
+    expect(eleven.map(({ rating }) => rating)).not.toContain(null);
     expect(first.weakSpot).toEqual({
-      position: ratings.find(({ rating }) => rating === lowest)?.slot,
+      position: pool.find(({ rating }) => rating === lowest)?.slot,
       rating: Math.round(lowest),
+      reason: outOfLine.length > 0 ? "outOfLine" : "lowest",
     });
   });
 

@@ -1,7 +1,8 @@
 import { ASKING_PRICE_BY_SEASONS_LEFT, MARKET_VALUE_AGE_FACTOR, MARKET_VALUE_STEP } from "./balance";
 import { marketValueFor } from "./economy";
+import { formationPositions, type FormationName } from "./formations";
 import { RATING_MAX, RATING_MIN } from "./generation";
-import { ratingAt, type Position } from "./positions";
+import { positionGroup, ratingAt, secondaryPositions, type Position, type PositionedPlayer } from "./positions";
 import { minimumWage } from "./transfer-ai";
 
 /** Proposals an entry of the market keeps at most. */
@@ -28,15 +29,23 @@ export type RankedEntry = MarketEntry | "affordable";
 
 export type ProposalTag = "best" | "gem" | "bargain" | "star" | "fit" | "affordable";
 
+/**
+ * Why a slot is the weak spot: nobody can fill it (« empty »), its starter plays out of his line (« outOfLine », « Hors
+ * poste »), or he is the starter rated lowest in his slot (« lowest »).
+ */
+export type WeakSpotReason = "empty" | "outOfLine" | "lowest";
+
 export type WeakSpot = {
   position: Position;
-  rating: number; // rounded
+  rating: number; // rounded; 0 for an empty slot, which anyone who can play there improves
+  reason: WeakSpotReason;
 };
 
-/** A starter of the eleven; a slot without a starter has no entry. */
+/** A slot of the eleven a club fields, in the formation's order. */
 export type ElevenSlot = {
   slot: Position;
-  rating: number; // his rating in that slot
+  rating: number | null; // its starter's rating there; null when no available player is left to fill it
+  outOfLine?: boolean; // its starter plays out of his line (« Hors poste »)
 };
 
 export type MarketCandidate = {
@@ -146,25 +155,74 @@ export function firstOf<C extends MarketCandidate>(pool: readonly C[], rule: Ent
     .map(({ candidate }) => candidate);
 }
 
-/** The starter rated lowest in his slot, the first of the eleven on a tie; null for an empty eleven. */
-export function weakSpotOf(eleven: readonly ElevenSlot[]): WeakSpot | null {
-  let weakest: ElevenSlot | undefined;
-  for (const starter of eleven) {
-    if (weakest === undefined || starter.rating < weakest.rating) {
-      weakest = starter;
-    }
-  }
-  return weakest === undefined ? null : { position: weakest.slot, rating: Math.round(weakest.rating) };
+/** Whether a player plays a slot out of his line (« Hors poste »): not at his position nor a secondary one, nor in his line. */
+function isOutOfLine(player: PositionedPlayer, slot: Position): boolean {
+  return (
+    player.position !== slot &&
+    !secondaryPositions(player.id, player.position).includes(slot) &&
+    positionGroup(player.position) !== positionGroup(slot)
+  );
 }
 
 /**
- * The slot of the eleven where a candidate brings the most, the first of the eleven on a tie. An empty eleven has no
- * starter to measure him against: his own position, no impact.
+ * The eleven a club fields in a formation, slot by slot, in its order: each starter's rating in his slot and whether he
+ * plays out of his line, and an empty slot where no available player was left to fill it (resolveLineup leaves such a
+ * slot out of the starters: the injured and the suspended are not available). No slot at all without any starter: an
+ * eleven yet to be picked has nothing to compare.
+ */
+export function elevenOf(
+  formation: FormationName,
+  starters: readonly { player: PositionedPlayer & { overall: number }; slot: Position; index: number }[],
+): ElevenSlot[] {
+  if (starters.length === 0) {
+    return [];
+  }
+  const byIndex = new Map(starters.map((starter) => [starter.index, starter]));
+  return formationPositions(formation).map((position, index): ElevenSlot => {
+    const starter = byIndex.get(index);
+    if (starter === undefined) {
+      return { slot: position, rating: null };
+    }
+    const { player, slot } = starter;
+    return { slot, rating: ratingAt(player, slot), outOfLine: isOutOfLine(player, slot) };
+  });
+}
+
+/** How pressing a slot of the eleven is, the smallest first: empty, then held out of line, then by its starter's rating. */
+const urgencyOf = ({ rating, outOfLine }: ElevenSlot): number[] =>
+  rating === null ? [0, 0] : [outOfLine === true ? 1 : 2, rating];
+
+/**
+ * The weak spot of the eleven: an empty slot first, which no available player is left to fill; then a slot its starter
+ * holds out of his line (« Hors poste »), the one rated lowest there; then the starter rated lowest in his slot. The
+ * first of the eleven on a tie. An empty slot is rated 0: anyone who can play there improves it. Null without any
+ * starter.
+ */
+export function weakSpotOf(eleven: readonly ElevenSlot[]): WeakSpot | null {
+  let weakest: ElevenSlot | undefined;
+  for (const slot of eleven) {
+    if (weakest === undefined || compareKeys(urgencyOf(slot), urgencyOf(weakest)) < 0) {
+      weakest = slot;
+    }
+  }
+  if (weakest === undefined || eleven.every(({ rating }) => rating === null)) {
+    return null;
+  }
+  const { slot, rating, outOfLine } = weakest;
+  return rating === null
+    ? { position: slot, rating: 0, reason: "empty" }
+    : { position: slot, rating: Math.round(rating), reason: outOfLine === true ? "outOfLine" : "lowest" };
+}
+
+/**
+ * The slot of the eleven where a candidate brings the most, the first of the eleven on a tie: his rounded rating there,
+ * less its starter's, all of it in an empty slot. An eleven without any slot has no starter to measure him against: his
+ * own position, no impact.
  */
 function bestSlot(candidate: MarketCandidate, eleven: readonly ElevenSlot[]): SlotImpact {
   let best: SlotImpact | undefined;
   for (const { slot, rating } of eleven) {
-    const impact = roundedRatingAt(candidate, slot) - Math.round(rating);
+    const impact = roundedRatingAt(candidate, slot) - Math.round(rating ?? 0);
     if (best === undefined || impact > best.impact) {
       best = { slot, impact };
     }

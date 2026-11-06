@@ -4,6 +4,7 @@ import type { Dashboard } from "@/src/db/dashboard";
 import type { ClubLineupPlayer, ManagedLineup } from "@/src/db/lineup";
 import type { MarketSales, SaleRow } from "@/src/db/market-sales";
 import type { SaleQuote } from "@/src/db/transfers";
+import { formationPositions } from "@/src/engine/formations";
 import type { Position } from "@/src/engine/positions";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage } from "@/src/i18n/test-intl";
@@ -41,12 +42,25 @@ const suspendedStarter = (lastName: string): ClubLineupPlayer => {
   return { ...player, suspended: true, discipline: { ...player.discipline, suspended: true } };
 };
 
-/** An eleven, each starter at his position, and the saved starters out of the next match. */
-const lineupOf = (starters: ClubLineupPlayer[], missingStarters: ClubLineupPlayer[] = []): ManagedLineup => ({
-  formation: "4-3-3",
-  lineup: { starters: starters.map((player, index) => ({ player, slot: player.position, index })), bench: [] },
-  missingStarters,
-});
+/**
+ * An eleven in a 4-3-3: the starters given at their positions, the other slots held by starters rated 80 at theirs (none
+ * at all without any starter given), and the saved starters out of the next match.
+ */
+const lineupOf = (starters: ClubLineupPlayer[], missingStarters: ClubLineupPlayer[] = []): ManagedLineup => {
+  const left = [...starters];
+  const placed = formationPositions("4-3-3").map((slot, index) => {
+    const given = left.findIndex(({ position }) => position === slot);
+    const player = given === -1 ? starter(`Titulaire${index}`, slot, 80) : left.splice(given, 1)[0];
+    return { player, slot, index };
+  });
+  return { formation: "4-3-3", lineup: { starters: starters.length === 0 ? [] : placed, bench: [] }, missingStarters };
+};
+
+/** An eleven of a 4-3-3 with some of its slots left empty: no available player was left to fill them. */
+const lineupWithout = (empty: readonly Position[]): ManagedLineup => {
+  const { lineup, ...rest } = lineupOf([starter("Blanc", "GK", 72)]);
+  return { ...rest, lineup: { ...lineup, starters: lineup.starters.filter(({ slot }) => !empty.includes(slot)) } };
+};
 
 const NO_ELEVEN = lineupOf([]);
 
@@ -300,5 +314,30 @@ describe("the dashboard's to-do list", () => {
     expect(lines(render({ dashboard: dashboardWith({}), lineup: NO_ELEVEN }, "en"))[0].text).toBe(
       "Full squad 22 players, 3 goalkeepers — nothing to report",
     );
+  });
+
+  it("puts the market's weak spot first where nobody can play, then where a starter plays out of his line", () => {
+    const weakSpotOf = (lineup: ManagedLineup, locale: Locale = "fr") =>
+      lines(render({ dashboard: dashboardWith({}), lineup }, locale)).find(({ id }) => id === "weak-spot");
+    // A centre-back up front, at 54, and a left back at 58 in his own slot.
+    const { lineup, ...rest } = lineupOf([starter("Noir", "LB", 58)]);
+    const heldUpFront: ManagedLineup = {
+      ...rest,
+      lineup: {
+        ...lineup,
+        starters: lineup.starters.map((placed) => (placed.slot === "ST" ? { ...placed, player: starter("Roc", "CB", 90) } : placed)),
+      },
+    };
+
+    expect(weakSpotOf(lineupWithout(["ST", "LW"]))).toEqual({
+      id: "weak-spot",
+      href: `${SAVE}/transfers`,
+      text: "Ton point faible : buteur Poste vide, personne de disponible pour le tenir · voir le marché",
+    });
+    expect(weakSpotOf(heldUpFront)?.text).toBe("Ton point faible : buteur Tenu hors poste, note 54 · voir le marché");
+    expect(weakSpotOf(lineupWithout(["LW"]), "en")?.text).toBe(
+      "Your weak spot: left winger Empty, nobody available to play there · see the market",
+    );
+    expect(weakSpotOf(heldUpFront, "en")?.text).toBe("Your weak spot: striker Played out of position, rated 54 · see the market");
   });
 });

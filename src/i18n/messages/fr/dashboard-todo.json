@@ -18,6 +18,8 @@
     "offersDetail": "{count, plural, one {# offre} other {# offres}} pour tes remplaçants",
     "weakSpot": "Ton point faible : {position}",
     "weakSpotDetail": "Note {rating} · voir le marché",
+    "weakSpotEmptyDetail": "Poste vide, personne de disponible pour le tenir · voir le marché",
+    "weakSpotOutOfLineDetail": "Tenu hors poste, note {rating} · voir le marché",
     "expiringContracts": "{count, plural, one {# contrat expire} other {# contrats expirent}} le 30 juin",
     "andOthers": "{players} et {count, plural, one {# autre} other {# autres}}",
     "noGoalkeeper": "Aucun gardien sous contrat",

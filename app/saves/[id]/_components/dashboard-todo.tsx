@@ -15,8 +15,7 @@ import type { Dashboard } from "@/src/db/dashboard";
 import type { ManagedLineup } from "@/src/db/lineup";
 import type { MarketSales } from "@/src/db/market-sales";
 import { YELLOWS_PER_SUSPENSION } from "@/src/engine/balance";
-import { weakSpotOf } from "@/src/engine/market-proposals";
-import { ratingAt } from "@/src/engine/positions";
+import { elevenOf, weakSpotOf, type WeakSpot } from "@/src/engine/market-proposals";
 import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
 import { formatDayMonth, formatMoney } from "@/src/lib/format";
@@ -110,6 +109,18 @@ function bestOffer({ rows, offers }: MarketSales) {
   return null;
 }
 
+/** Why the weak spot is one: nobody to fill it, a starter out of his line there, or the lowest rating. */
+function weakSpotDetail({ reason, rating }: WeakSpot, t: Translator<"dashboardTodo">): string {
+  switch (reason) {
+    case "empty":
+      return t("weakSpotEmptyDetail");
+    case "outOfLine":
+      return t("weakSpotOutOfLineDetail", { rating });
+    case "lowest":
+      return t("weakSpotDetail", { rating });
+  }
+}
+
 function todosOf(
   { saveId, dashboard, lineup, sales }: DashboardTodoProps,
   t: Translator<"dashboardTodo">,
@@ -193,15 +204,16 @@ function todosOf(
     });
   }
 
-  // Every eleven has a weakest starter: never an alert, only where to look next.
-  const weakSpot = weakSpotOf(lineup.lineup.starters.map(({ player, slot }) => ({ slot, rating: ratingAt(player, slot) })));
+  // Every eleven has a weak spot, an empty slot or one held out of line first, the market's: never an alert, only where
+  // to look next.
+  const weakSpot = weakSpotOf(elevenOf(lineup.formation, lineup.lineup.starters));
   if (weakSpot !== null) {
     todos.push({
       id: "weak-spot",
       severity: "neutral",
       icon: TargetIcon,
       title: t("weakSpot", { position: tPositions(`label.${weakSpot.position}`).toLocaleLowerCase(locale) }),
-      detail: t("weakSpotDetail", { rating: weakSpot.rating }),
+      detail: weakSpotDetail(weakSpot, t),
       href: `${base}/transfers`,
     });
   }

@@ -3,6 +3,7 @@ import { displayClubName } from "../engine/club-name";
 import { marketValueFor } from "../engine/economy";
 import { RATING_MAX, RATING_MIN, type AttributeName } from "../engine/generation";
 import {
+  elevenOf,
   entryBound,
   entryRules,
   firstOf,
@@ -24,7 +25,7 @@ import {
   type RankedEntry,
   type WeakSpot,
 } from "../engine/market-proposals";
-import { ratingAt, type Position } from "../engine/positions";
+import type { Position } from "../engine/positions";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
@@ -399,9 +400,9 @@ async function chooseRows(saveId: string, buyer: Buyer, weakSpot: WeakSpot | nul
  * few players chooseRows reads, each with his exact terms, from his club. Read only.
  */
 export async function getMarketProposals(saveId: string): Promise<MarketProposals> {
-  const [buyer, { lineup }] = await Promise.all([buyerOf(saveId), getManagedLineup(saveId)]);
-  // A slot nobody could fill is not in starters: it is never the weak spot, nor a slot to play in.
-  const eleven = lineup.starters.map(({ player, slot }) => ({ slot, rating: ratingAt(player, slot) }));
+  const [buyer, { formation, lineup }] = await Promise.all([buyerOf(saveId), getManagedLineup(saveId)]);
+  // Its slots, an empty one where no available player is left: the weak spot first, and a slot to play in.
+  const eleven = elevenOf(formation, lineup.starters);
   const rows = await chooseRows(saveId, buyer, weakSpotOf(eleven));
   const views = await prisma.playerSave.findMany({
     where: { saveId, id: { in: rows.map(({ id }) => id) } },

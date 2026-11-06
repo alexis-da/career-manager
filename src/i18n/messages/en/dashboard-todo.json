@@ -18,6 +18,8 @@
     "offersDetail": "{count, plural, one {# offer} other {# offers}} for your substitutes",
     "weakSpot": "Your weak spot: {position}",
     "weakSpotDetail": "Rated {rating} · see the market",
+    "weakSpotEmptyDetail": "Empty, nobody available to play there · see the market",
+    "weakSpotOutOfLineDetail": "Played out of position, rated {rating} · see the market",
     "expiringContracts": "{count, plural, one {# contract expires} other {# contracts expire}} on 30 June",
     "andOthers": "{players} and {count, plural, one {# other} other {# others}}",
     "noGoalkeeper": "No goalkeeper under contract",

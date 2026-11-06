@@ -3,16 +3,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { displayClubName } from "../engine/club-name";
 import { marketValueFor } from "../engine/economy";
 import {
+  elevenOf,
+  isReachable,
   MARKET_ENTRIES,
-  type ElevenSlot,
-  type MarketBuyer,
+  proposeSignings,
+  weakSpotOf,
   type MarketCandidate,
-  type MarketEntry,
   type Proposal,
-  type ProposalTag,
-  type WeakSpot,
 } from "../engine/market-proposals";
-import { ratingAt, type Position } from "../engine/positions";
+import { positionGroup, ratingAt, secondaryPositions, type Position } from "../engine/positions";
 import type { WorldVersion } from "../engine/world-version";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf } from "../lib/color";
@@ -25,149 +24,12 @@ import type { getMarketProposals as GetMarketProposals, MarketProposal, MarketPr
 import type * as TransfersModule from "./transfers";
 
 // getMarketProposals reads a few hundred players, by rating and potential, until no one left can change what it
-// proposes. Proof that it proposes exactly what the implementation it replaced did, which read every player of the
-// save: that implementation, as it stood at commit 829e62a, copied here (its database part, and proposeSignings with
-// its helpers), against the new one on several saves, clubs, seeds and worlds, at creation and after matchdays, with the
-// wage room and the budget of the managed club cut, and its reputation at both ends. Runs against DATABASE_URL, on
-// throwaway saves; skipped without it. Modules are imported lazily because the client throws without DATABASE_URL.
-
-// ------------------------------------------------------------------ the reference: proposeSignings at 829e62a
-
-const MAX_PROPOSALS_PER_ENTRY = 10;
-const GEM_MAX_AGE = 21;
-const GEM_MIN_GROWTH = 6;
-const BARGAIN_MAX_PRICE_SHARE = 0.75;
-const BARGAIN_MAX_GAP_TO_WEAK_SPOT = 3;
-
-type SlotImpact = Pick<Proposal, "slot" | "impact">;
-
-const byKey = (a: MarketCandidate, b: MarketCandidate): number =>
-  a.playerKey < b.playerKey ? -1 : a.playerKey > b.playerKey ? 1 : 0;
-
-const byGem = (a: MarketCandidate, b: MarketCandidate): number =>
-  b.potential - a.potential || a.askingPrice - b.askingPrice || byKey(a, b);
-
-const byBargain = (a: MarketCandidate, b: MarketCandidate): number =>
-  b.marketValue - b.askingPrice - (a.marketValue - a.askingPrice) || b.overall - a.overall || byKey(a, b);
-
-const byStar = (a: MarketCandidate, b: MarketCandidate): number =>
-  b.overall - a.overall || a.askingPrice - b.askingPrice || byKey(a, b);
-
-const isReachable = (candidate: MarketCandidate, buyer: MarketBuyer): boolean =>
-  buyer.reputation >= candidate.minimumReputation && candidate.askingPrice <= buyer.budget;
-
-const isGem = (candidate: MarketCandidate): boolean =>
-  candidate.age <= GEM_MAX_AGE && candidate.potential >= candidate.overall + GEM_MIN_GROWTH;
-
-const hasBargainPrice = (candidate: MarketCandidate): boolean =>
-  candidate.marketValue > 0 && candidate.askingPrice <= BARGAIN_MAX_PRICE_SHARE * candidate.marketValue;
-
-const roundedRatingAt = (candidate: MarketCandidate, slot: Position): number =>
-  Math.round(ratingAt({ id: candidate.playerKey, position: candidate.position, overall: candidate.overall }, slot));
-
-function weakSpotOf(eleven: readonly ElevenSlot[]): WeakSpot | null {
-  let weakest: ElevenSlot | undefined;
-  for (const starter of eleven) {
-    if (weakest === undefined || starter.rating < weakest.rating) {
-      weakest = starter;
-    }
-  }
-  return weakest === undefined ? null : { position: weakest.slot, rating: Math.round(weakest.rating) };
-}
-
-function bestSlot(candidate: MarketCandidate, eleven: readonly ElevenSlot[]): SlotImpact {
-  let best: SlotImpact | undefined;
-  for (const { slot, rating } of eleven) {
-    const impact = roundedRatingAt(candidate, slot) - Math.round(rating);
-    if (best === undefined || impact > best.impact) {
-      best = { slot, impact };
-    }
-  }
-  return best ?? { slot: candidate.position, impact: 0 };
-}
-
-function needTag(candidate: MarketCandidate): ProposalTag {
-  if (isGem(candidate)) {
-    return "gem";
-  }
-  return hasBargainPrice(candidate) ? "bargain" : "fit";
-}
-
-function needsOf<C extends MarketCandidate>(eligible: readonly C[], weakSpot: WeakSpot | null): Proposal<C>[] {
-  if (weakSpot === null) {
-    return [];
-  }
-  return eligible
-    .map((candidate) => ({ candidate, impact: roundedRatingAt(candidate, weakSpot.position) - weakSpot.rating }))
-    .filter(({ impact }) => impact > 0)
-    .sort(
-      (a, b) =>
-        b.impact - a.impact ||
-        a.candidate.askingPrice - b.candidate.askingPrice ||
-        b.candidate.overall - a.candidate.overall ||
-        byKey(a.candidate, b.candidate),
-    )
-    .slice(0, MAX_PROPOSALS_PER_ENTRY)
-    .map(({ candidate, impact }, rank): Proposal<C> => ({
-      candidate,
-      slot: weakSpot.position,
-      impact,
-      tag: rank === 0 ? "best" : needTag(candidate),
-    }));
-}
-
-function affordableAt<C extends MarketCandidate>(eligible: readonly C[], weakSpot: WeakSpot | null): Proposal<C>[] {
-  if (weakSpot === null) {
-    return [];
-  }
-  return eligible
-    .map((candidate) => ({ candidate, impact: roundedRatingAt(candidate, weakSpot.position) - weakSpot.rating }))
-    .sort(
-      (a, b) =>
-        b.impact - a.impact ||
-        a.candidate.askingPrice - b.candidate.askingPrice ||
-        b.candidate.overall - a.candidate.overall ||
-        byKey(a.candidate, b.candidate),
-    )
-    .slice(0, MAX_PROPOSALS_PER_ENTRY)
-    .map(({ candidate, impact }): Proposal<C> => ({ candidate, slot: weakSpot.position, impact, tag: "affordable" }));
-}
-
-function topOf<C extends MarketCandidate>(
-  candidates: readonly C[],
-  order: (a: MarketCandidate, b: MarketCandidate) => number,
-  tag: ProposalTag,
-  eleven: readonly ElevenSlot[],
-): Proposal<C>[] {
-  return [...candidates]
-    .sort(order)
-    .slice(0, MAX_PROPOSALS_PER_ENTRY)
-    .map((candidate): Proposal<C> => ({ candidate, ...bestSlot(candidate, eleven), tag }));
-}
-
-function proposeSignings<C extends MarketCandidate>(eleven: readonly ElevenSlot[], candidates: readonly C[], buyer: MarketBuyer) {
-  const weakSpot = weakSpotOf(eleven);
-  const reachable = candidates.filter((candidate) => isReachable(candidate, buyer));
-  const eligible = reachable.filter((candidate) => candidate.askedWage <= buyer.wageRoom);
-  const isBargain = (candidate: MarketCandidate): boolean =>
-    hasBargainPrice(candidate) && (weakSpot === null || candidate.overall >= weakSpot.rating - BARGAIN_MAX_GAP_TO_WEAK_SPOT);
-  const entriesOf = (pool: readonly C[]): Record<MarketEntry, Proposal<C>[]> => ({
-    needs: needsOf(pool, weakSpot),
-    gems: topOf(pool.filter(isGem), byGem, "gem", eleven),
-    bargains: topOf(pool.filter(isBargain), byBargain, "bargain", eleven),
-    stars: topOf(pool, byStar, "star", eleven),
-  });
-  const entries = entriesOf(eligible);
-  const unbounded = entriesOf(reachable);
-  const wageBound = Object.fromEntries(
-    MARKET_ENTRIES.map((entry) => [entry, entries[entry].length === 0 && unbounded[entry].length > 0]),
-  ) as Record<MarketEntry, boolean>;
-  return {
-    weakSpot,
-    entries: { ...entries, needs: wageBound.needs ? affordableAt(eligible, weakSpot) : entries.needs },
-    wageBound,
-  };
-}
+// proposes. Proof that it proposes exactly what reading every player of the save gives: the implementation it replaced,
+// as it stood at commit 829e62a, copied here (its database part: every player of the AI clubs and every free agent,
+// quoted one by one), gives them all to proposeSignings, against the new one on several saves, clubs, seeds and worlds,
+// at creation and after matchdays, with the wage room and the budget of the managed club cut, its reputation at both
+// ends, a slot left empty and a slot held out of line. Runs against DATABASE_URL, on throwaway saves; skipped without it.
+// Modules are imported lazily because the client throws without DATABASE_URL.
 
 // ------------------------------------------------------------------ the reference: getMarketProposals at 829e62a
 
@@ -269,7 +131,7 @@ function toMarketProposal({ candidate, slot, impact, tag }: Proposal<Candidate>,
 /** What the reference weighed: the managed club as a buyer, its eleven, and every player of the market. */
 async function referenceInputs(saveId: string) {
   const { db, lineups, market, transfers } = modules();
-  const [overview, { lineup }, clubPlayers, freeAgents] = await Promise.all([
+  const [overview, { formation, lineup }, clubPlayers, freeAgents] = await Promise.all([
     market.getMarketOverview(saveId),
     lineups.getManagedLineup(saveId),
     db.playerSave.findMany({ where: { saveId, clubSave: { saveId, isManaged: false } }, select: CANDIDATE_SELECT }),
@@ -277,7 +139,7 @@ async function referenceInputs(saveId: string) {
   ]);
   return {
     buyer: overview,
-    eleven: lineup.starters.map(({ player, slot }): ElevenSlot => ({ slot, rating: ratingAt(player, slot) })),
+    eleven: elevenOf(formation, lineup.starters),
     candidates: [...clubPlayers, ...freeAgents].map((row) => toCandidate(row, overview.currentDate)),
   };
 }
@@ -348,6 +210,34 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals agai
     }
   };
 
+  type SquadPlayer = { id: string; playerKey: string; position: Position; injuredUntil: Date | null };
+
+  /** Runs `check` with some players of the managed club injured until long after the save's date, then heals them. */
+  const withInjured = async (
+    saveId: string,
+    injured: (squad: SquadPlayer[]) => SquadPlayer[],
+    check: () => Promise<void>,
+  ): Promise<void> => {
+    const { db } = modules();
+    const club = await managedClub(saveId);
+    const squad = await db.playerSave.findMany({
+      where: { saveId, clubSaveId: club.id },
+      orderBy: { playerKey: "asc" },
+      select: { id: true, playerKey: true, position: true, injuredUntil: true },
+    });
+    const hurt = injured(squad);
+    // Not simulation code: a date long after any save's.
+    const healedOn = new Date(Date.UTC(2099, 0, 1));
+    await db.playerSave.updateMany({ where: { saveId, id: { in: hurt.map(({ id }) => id) } }, data: { injuredUntil: healedOn } });
+    try {
+      await check();
+    } finally {
+      for (const { id, injuredUntil } of hurt) {
+        await db.playerSave.update({ where: { id, saveId }, data: { injuredUntil } });
+      }
+    }
+  };
+
   /**
    * A wage room that pays nobody who would improve the weak spot, but someone else: just under the lowest wage asked by
    * those who would improve it, reachable on price and reputation.
@@ -359,7 +249,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals agai
       throw new Error("No weak spot");
     }
     const reachable = candidates.filter((candidate) => isReachable(candidate, buyer));
-    const improving = reachable.filter((candidate) => roundedRatingAt(candidate, weakSpot.position) > weakSpot.rating);
+    const improving = reachable.filter(
+      ({ playerKey, position, overall }) => Math.round(ratingAt({ id: playerKey, position, overall }, weakSpot.position)) > weakSpot.rating,
+    );
     expect(improving.length).toBeGreaterThan(0);
     const room = Math.min(...improving.map((candidate) => candidate.askedWage)) - 1;
     expect(reachable.some((candidate) => candidate.askedWage <= room)).toBe(true);
@@ -451,6 +343,31 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals agai
     const saveId = saveOf(key);
     await withManagedClub(saveId, () => ({ reputation }), async () => {
       await expectSame(saveId);
+    });
+  }, 60_000);
+
+  it("proposes the same when injuries leave slots empty: the weak spot is the first of them", async () => {
+    const saveId = saveOf("second");
+    // Nine players left: two slots of the eleven nobody can fill.
+    await withInjured(saveId, (squad) => squad.slice(9), async () => {
+      const { weakSpot, entries } = await expectSame(saveId);
+
+      expect(weakSpot).toMatchObject({ rating: 0, reason: "empty" });
+      expect(entries.needs.length).toBeGreaterThan(0);
+    });
+  }, 60_000);
+
+  it("proposes the same when the forwards are out: their slots are held out of line", async () => {
+    const saveId = saveOf("top");
+    const forward = (position: Position): boolean => positionGroup(position) === "FW";
+    // The forwards, and whoever could play up front at a secondary position.
+    const up = (player: SquadPlayer): boolean =>
+      forward(player.position) || secondaryPositions(player.playerKey, player.position).some(forward);
+    await withInjured(saveId, (squad) => squad.filter(up), async () => {
+      const { weakSpot } = await expectSame(saveId);
+
+      expect(weakSpot?.reason).toBe("outOfLine");
+      expect(forward(weakSpot?.position ?? "GK")).toBe(true);
     });
   }, 60_000);
 

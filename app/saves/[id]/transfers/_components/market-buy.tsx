@@ -394,11 +394,16 @@ export function MarketBuy({ saveId, proposals, overview, sideOffer }: MarketBuyP
           <>
             {t("intro.weakSpotLead")}{" "}
             <strong className="text-foreground">{tPositions(`label.${weakSpot.position}`).toLocaleLowerCase(locale)}</strong>{" "}
+            {weakSpot.reason === "empty"
+              ? t("intro.weakSpotEmpty")
+              : weakSpot.reason === "outOfLine"
+                ? t("intro.weakSpotOutOfLine", { rating: weakSpot.rating })
+                : t("intro.weakSpotRating", { rating: weakSpot.rating })}{" "}
             {!proposals.wageBound.needs
-              ? t("intro.weakSpotRest", { rating: weakSpot.rating })
+              ? t("intro.weakSpotRest")
               : list.length > 0
-                ? t("intro.weakSpotAffordable", { rating: weakSpot.rating, room: unbroken(formatMoney(overview.wageRoom, locale)) })
-                : t("intro.weakSpotNoRoom", { rating: weakSpot.rating })}
+                ? t("intro.weakSpotAffordable", { room: unbroken(formatMoney(overview.wageRoom, locale)) })
+                : t("intro.weakSpotNoRoom")}
           </>
         )}
       </p>

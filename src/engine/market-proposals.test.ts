@@ -3,6 +3,7 @@ import { ageInYears } from "../lib/dates";
 import { marketValueFor } from "./economy";
 import {
   CLUB_ASKING_PRICE_FLOOR,
+  elevenOf,
   entryBound,
   entryRules,
   gemBirthDateFloor,
@@ -23,6 +24,8 @@ import {
   type RankedEntry,
   type WeakSpot,
 } from "./market-proposals";
+import { formationPositions } from "./formations";
+import { resolveLineup, type LineupCandidate } from "./lineup";
 import { POSITIONS, secondaryPositions, type Position } from "./positions";
 import { askingPrice, minimumWage, type OfferPlayer } from "./transfer-ai";
 
@@ -70,7 +73,7 @@ describe("weakSpotOf", () => {
         { slot: "CB", rating: 61.6 },
         { slot: "ST", rating: 70 },
       ]),
-    ).toEqual({ position: "CB", rating: 62 });
+    ).toEqual({ position: "CB", rating: 62, reason: "lowest" });
   });
 
   it("takes the first of the eleven on a tie", () => {
@@ -89,11 +92,161 @@ describe("weakSpotOf", () => {
         { slot: "CB", rating: 62.4 },
         { slot: "ST", rating: 61.6 },
       ]),
-    ).toEqual({ position: "ST", rating: 62 });
+    ).toEqual({ position: "ST", rating: 62, reason: "lowest" });
   });
 
   it("is null for an empty eleven", () => {
     expect(weakSpotOf([])).toBeNull();
+  });
+
+  it("is an empty slot first, rated 0, the first of the eleven among them", () => {
+    expect(
+      weakSpotOf([
+        { slot: "GK", rating: 45 },
+        { slot: "CB", rating: 40, outOfLine: true },
+        { slot: "ST", rating: null },
+        { slot: "LW", rating: null },
+      ]),
+    ).toEqual({ position: "ST", rating: 0, reason: "empty" });
+  });
+
+  it("is then a slot held out of line, the lowest rated of them, before a starter rated lower in his line", () => {
+    const eleven: ElevenSlot[] = [
+      { slot: "CB", rating: 40, outOfLine: false },
+      { slot: "ST", rating: 60.2, outOfLine: true },
+      { slot: "LW", rating: 54.6, outOfLine: true },
+    ];
+
+    expect(weakSpotOf(eleven)).toEqual({ position: "LW", rating: 55, reason: "outOfLine" });
+  });
+
+  it("takes the first of the eleven on a tie between slots held out of line", () => {
+    const eleven: ElevenSlot[] = [
+      { slot: "RW", rating: 56, outOfLine: true },
+      { slot: "LW", rating: 56, outOfLine: true },
+    ];
+
+    expect(weakSpotOf(eleven)?.position).toBe("RW");
+    expect(weakSpotOf([...eleven].reverse())?.position).toBe("LW");
+  });
+
+  it("is null without any starter", () => {
+    expect(weakSpotOf([{ slot: "GK", rating: null }])).toBeNull();
+  });
+});
+
+describe("the eleven of a formation", () => {
+  /** The `rank`-th player key at a position with no secondary position: where he plays out of his line is plain. */
+  const plainKeyAt = (position: Position, rank: number): string => {
+    for (let index = 0, found = -1; ; index++) {
+      const key = `${position}-${index}`;
+      if (secondaryPositions(key, position).length === 0 && ++found === rank) {
+        return key;
+      }
+    }
+  };
+  const player = (position: Position, rank = 0, overrides: Partial<LineupCandidate> = {}): LineupCandidate => ({
+    id: plainKeyAt(position, rank),
+    position,
+    overall: 70,
+    injured: false,
+    ...overrides,
+  });
+  /** A player rated 70 for each slot of a 4-3-3, at its position. */
+  const squad = (): LineupCandidate[] => formationPositions("4-3-3").map((position, index) => player(position, index));
+  const elevenFrom = (players: readonly LineupCandidate[]): ElevenSlot[] =>
+    elevenOf("4-3-3", resolveLineup("4-3-3", null, players).starters);
+
+  it("has the formation's slots, in its order, each with its starter's rating there", () => {
+    expect(elevenFrom(squad())).toEqual(formationPositions("4-3-3").map((slot) => ({ slot, rating: 70, outOfLine: false })));
+  });
+
+  it("has no slot without any starter: nothing to compare", () => {
+    expect(elevenOf("4-3-3", [])).toEqual([]);
+  });
+
+  it("leaves a slot empty when an injury leaves nobody to fill it, the weak spot whatever the others", () => {
+    const players = squad();
+    players[0] = { ...players[0], injured: true }; // the goalkeeper: an outfield player goes in goal
+    const eleven = elevenFrom(players);
+
+    expect(eleven.find(({ slot }) => slot === "GK")).toMatchObject({ outOfLine: true });
+    expect(eleven.at(-1)).toEqual({ slot: "LW", rating: null });
+    expect(weakSpotOf(eleven)).toEqual({ position: "LW", rating: 0, reason: "empty" });
+  });
+
+  it("leaves a slot empty when a suspension leaves nobody to fill it", () => {
+    const players = squad().map((candidate) => (candidate.position === "ST" ? { ...candidate, suspended: true } : candidate));
+
+    expect(weakSpotOf(elevenFrom(players))).toEqual({ position: "LW", rating: 0, reason: "empty" });
+  });
+
+  it("holds a slot out of line with a player of another line, before a starter rated lower in his line", () => {
+    // No forward: midfielders play up front, at 56; the goalkeeper is rated 50, in goal.
+    const players = squad().map((candidate, index) =>
+      candidate.position === "RW" || candidate.position === "ST" || candidate.position === "LW"
+        ? player("CM", index)
+        : candidate.position === "GK"
+          ? { ...candidate, overall: 50 }
+          : candidate,
+    );
+    const eleven = elevenFrom(players);
+
+    expect(eleven.slice(-3)).toEqual(["RW", "ST", "LW"].map((slot) => ({ slot, rating: 56, outOfLine: true })));
+    expect(weakSpotOf(eleven)).toEqual({ position: "RW", rating: 56, reason: "outOfLine" });
+  });
+
+  it("does not hold a slot out of line with a player filling in on his line, nor at a secondary position", () => {
+    // A centre-back at right back fills in (« Dépanne »); a midfielder at a secondary position up front plays there.
+    const forward = keyWhere("CAM", (secondary) => secondary.includes("ST"));
+    const players = squad().map((candidate) =>
+      candidate.position === "RB"
+        ? player("CB", 5)
+        : candidate.position === "ST"
+          ? { id: forward, position: "CAM" as const, overall: 70, injured: false }
+          : candidate,
+    );
+    const eleven = elevenFrom(players);
+
+    expect(eleven.find(({ slot }) => slot === "RB")).toMatchObject({ outOfLine: false });
+    expect(eleven.find(({ slot }) => slot === "ST")).toMatchObject({ outOfLine: false });
+    expect(weakSpotOf(eleven)?.reason).toBe("lowest");
+  });
+});
+
+describe("an empty weak spot", () => {
+  const eleven: ElevenSlot[] = [
+    { slot: "GK", rating: 70 },
+    { slot: "ST", rating: null },
+  ];
+
+  it("takes anyone who can play there in Needs, the best there first", () => {
+    const candidates = [
+      candidate(plainKey("ST"), { overall: 45 }),
+      candidate(plainKey("CM"), { position: "CM", overall: 80 }), // 64 up front
+      candidate(plainKey("GK"), { position: "GK", overall: 60 }), // 24 up front
+    ];
+    const { weakSpot, entries } = proposeSignings(eleven, candidates, BUYER);
+
+    expect(weakSpot).toEqual({ position: "ST", rating: 0, reason: "empty" });
+    expect(entries.needs.map(({ candidate: { position }, slot, impact }) => ({ position, slot, impact }))).toEqual([
+      { position: "CM", slot: "ST", impact: 64 },
+      { position: "ST", slot: "ST", impact: 45 },
+      { position: "GK", slot: "ST", impact: 24 },
+    ]);
+  });
+
+  it("places a candidate where he brings the most, an empty slot taking all of his rating there", () => {
+    const { entries } = proposeSignings(eleven, [candidate(plainKey("GK"), { position: "GK", overall: 80 })], BUYER);
+
+    // 80 − 70 in goal; 32 up front, where nobody plays.
+    expect(entries.stars[0]).toMatchObject({ slot: "ST", impact: 32 });
+  });
+
+  it("leaves Bargains no rating to reach", () => {
+    const cheap = candidate("cheap", { overall: 40, marketValue: MILLION, askingPrice: MILLION / 2 });
+
+    expect(entryKeys(eleven, [cheap], "bargains")).toEqual(["cheap"]);
   });
 });
 
@@ -437,7 +590,7 @@ describe("proposeSignings", () => {
   it("proposes nothing without candidates", () => {
     const { weakSpot, entries } = proposeSignings(eleven, [], BUYER);
 
-    expect(weakSpot).toEqual({ position: "ST", rating: 60 });
+    expect(weakSpot).toEqual({ position: "ST", rating: 60, reason: "lowest" });
     expect(entries).toEqual({ needs: [], gems: [], bargains: [], stars: [] });
   });
 });
@@ -503,7 +656,7 @@ describe("the wage room", () => {
 });
 
 describe("the bounds of a search in the database", () => {
-  const weakSpot: WeakSpot = { position: "CB", rating: 60 };
+  const weakSpot: WeakSpot = { position: "CB", rating: 60, reason: "lowest" };
   const rules = entryRules(weakSpot);
   const RANKED: readonly RankedEntry[] = ["needs", "affordable", "gems", "bargains", "stars"];
 

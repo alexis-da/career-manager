@@ -520,13 +520,17 @@ pied, `sell-player` désactivé (`player-sale-refusal`). Sur toute l'entrée, l'
 **Marché.** Deux écrans sous l'entrée Marché. `/transfers` : budget (et marge salariale à partir de 1024 px), bascule
 Acheter / Vendre · N offres (`?tab=sell`). Acheter : quatre entrées (Mes besoins, Pépites, Bonnes affaires, Stars),
 `proposeSignings` (`src/engine/market-proposals.ts`, pur, sans hasard) et `getMarketProposals`
-(`src/db/market-proposals.ts`). Le point faible est le titulaire à la note la plus basse à son poste. Une proposition
-n'est que d'un joueur qui accepterait (`quoteFor` donne `minimumReputation`, comparée à `MarketOverview.reputation`) et
-que le club peut payer (prix sous le budget, salaire sous la marge) : 10 par entrée, une à la fois, « Passer » sans
-mémoire ; à partir de `xl`, les trois suivantes (« Repérés pour toi ») et la meilleure offre (`SaleOfferCard`). Une
-entrée que la seule marge salariale vide (`wageBound` : avec assez de marge, elle proposerait quelqu'un) le dit : Mes
-besoins propose alors les joueurs que la marge paie encore au poste du point faible, même moins bien notés, le meilleur
-à ce poste d'abord, marqués « Dans tes moyens » (`affordableAt`, étiquette `affordable`), son introduction donnant la
+(`src/db/market-proposals.ts`). Le point faible (`weakSpotOf` sur `elevenOf`, le onze du dispositif) est d'abord un
+poste vide, que plus aucun joueur disponible ne peut tenir (blessés et suspendus compris), noté 0 : quiconque peut y jouer
+l'améliore ; puis un poste tenu hors poste (ni à son poste, ni à un poste secondaire, ni dans sa ligne : « Hors poste »),
+le moins bien noté d'entre eux ; puis le titulaire à la note la plus basse à son poste ; le premier du dispositif à
+égalité. « À faire » et l'introduction de Mes besoins disent lequel (`WeakSpot.reason` : `empty`, `outOfLine`,
+`lowest`). Une proposition n'est que d'un joueur qui accepterait (`quoteFor` donne `minimumReputation`, comparée à la
+réputation du club dirigé) et que le club peut payer (prix sous le budget, salaire sous la marge) : 10 par entrée, une
+à la fois, « Passer » sans mémoire ; à partir de `xl`, les trois suivantes (« Repérés pour toi ») et la meilleure offre
+(`SaleOfferCard`). Une entrée que la seule marge salariale vide (`wageBound` : avec assez de marge, elle proposerait
+quelqu'un) le dit : Mes besoins propose alors les joueurs que la marge paie encore au poste du point faible, même moins
+bien notés, le meilleur à ce poste d'abord, marqués « Dans tes moyens » (`affordableAt`, étiquette `affordable`), son introduction donnant la
 marge ; sans personne dans ses moyens, une entrée montre à la place d'une liste vide la marge restante (ou le dépassement
 du plafond) et les trois façons d'en retrouver : vendre (vers l'onglet Vendre), libérer un contrat depuis la fiche
 (vers l'effectif), attendre la saison prochaine et son plafond recalculé (`WageLimit`, `market-wage-limit`).
