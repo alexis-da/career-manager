@@ -9,17 +9,20 @@ import {
   evaluateRenewal,
   minimumReputation,
   minimumWage,
+  resaleCap,
   saleRngSeed,
   walkSaleBids,
   type BidderClub,
+  type ClubArrival,
   type OfferClub,
   type OfferPlayer,
   type OfferRefusal,
+  type ResaleCap,
   type SaleBid,
 } from "../engine/transfer-ai";
 import { seasonStartYear, transferWindowAt, transferWindowOpenDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
-import { ageInYears } from "../lib/dates";
+import { addYears, ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
@@ -72,9 +75,12 @@ export type TransferQuote = {
   minimumReputation: number; // the lowest reputation of a club he joins; 0 for a player of the managed club
 };
 
-/** Best AI bid for a player of the managed club today, or why there is none. */
+/**
+ * Best AI bid for a player of the managed club today, or why there is none. resaleCap: he joined the club less than a
+ * year ago, bought or signed free, and no club offers more than its cap (resaleCap); absent otherwise.
+ */
 export type SaleQuote =
-  | { ok: true; fee: number; wage: number; years: number; buyerName: string }
+  | { ok: true; fee: number; wage: number; years: number; buyerName: string; resaleCap?: ResaleCap["kind"] }
   | { ok: false; reason: Extract<TransferRefusal, "window_closed" | "bought_this_window" | "no_offer"> };
 
 /** What each action would take today for a player of the managed club. */
@@ -159,19 +165,20 @@ async function payrollOf(tx: Tx, saveId: string, clubSaveId: string): Promise<nu
 }
 
 /**
- * The players among those given who joined a club, bought or signed free, since the first day of the transfer window
- * open on a date: they cannot be sold before the next window. Empty when no window is open.
+ * The arrivals at a club, bought or signed free, of each of the players given (PlayerSave.id) in the year up to a date:
+ * what decides whether he may be sold (arrivedThisWindow) and for how much (resaleCap). Empty when no window is open:
+ * nothing is sold then.
  */
-async function boughtThisWindow(
+async function recentArrivals(
   tx: Tx,
   saveId: string,
   clubId: string,
   date: Date,
   playerSaveIds: readonly string[],
-): Promise<Set<string>> {
-  const opensOn = transferWindowOpenDate(date);
-  if (opensOn === null || playerSaveIds.length === 0) {
-    return new Set();
+): Promise<Map<string, ClubArrival[]>> {
+  const byPlayer = new Map<string, ClubArrival[]>();
+  if (transferWindowAt(date) === null || playerSaveIds.length === 0) {
+    return byPlayer;
   }
   const arrivals = await tx.transfer.findMany({
     where: {
@@ -179,11 +186,26 @@ async function boughtThisWindow(
       playerSaveId: { in: [...playerSaveIds] },
       toClubId: clubId,
       type: { in: ["TRANSFER", "FREE"] },
-      date: { gte: opensOn },
+      date: { gte: addYears(date, -1) },
     },
-    select: { playerSaveId: true },
+    select: { playerSaveId: true, date: true, type: true, fee: true },
   });
-  return new Set(arrivals.map((arrival) => arrival.playerSaveId));
+  for (const { playerSaveId, date: arrivedOn, type, fee } of arrivals) {
+    // The query asks for these two types only; the check tells TypeScript.
+    if (type === "TRANSFER" || type === "FREE") {
+      byPlayer.set(playerSaveId, [...(byPlayer.get(playerSaveId) ?? []), { date: arrivedOn, type, fee }]);
+    }
+  }
+  return byPlayer;
+}
+
+/**
+ * Whether a player joined the club, bought or signed free, since the first day of the transfer window open on a date:
+ * he cannot be sold before the next window. The first rule of a sale, before resaleCap.
+ */
+function arrivedThisWindow(arrivals: readonly ClubArrival[], date: Date): boolean {
+  const opensOn = transferWindowOpenDate(date);
+  return opensOn !== null && arrivals.some((arrival) => arrival.date >= opensOn);
 }
 
 /** Above every club's reputation (1–99): the bound of the first clubs read. */
@@ -221,29 +243,30 @@ async function readBidders(tx: Tx, saveId: string, below: number, count: number,
 }
 
 /**
- * The best AI bid for each player (null: no club bids), keyed by PlayerSave.id: drawn from the stream of the save, the
- * date and the player, the same all day. The AI clubs are read in bidding order, a batch at a time, only as far as the
- * walks of the bids go (walkSaleBids): a batch serves every player, and a walk that runs past it starts again, with the
- * same stream, once the next one is read. The bids are those of saleBids over every AI club.
+ * The best AI bid for each player on sale (null: no club bids), keyed by PlayerSave.id: drawn from the stream of the
+ * save, the date and the player, the same all day, at most his resale cap when he has one. The AI clubs are read in
+ * bidding order, a batch at a time, only as far as the walks of the bids go (walkSaleBids): a batch serves every player,
+ * and a walk that runs past it starts again, with the same stream, once the next one is read. The bids are those of
+ * saleBids over every AI club, capped.
  */
 async function bestSaleBids(
   tx: Tx,
   saveId: string,
   save: { seed: string; currentDate: Date },
   seller: OfferClub,
-  players: readonly SquadPlayer[],
+  onSale: readonly { player: SquadPlayer; cap: ResaleCap | null }[],
 ): Promise<Map<string, BestBid | null>> {
   const market: Bidder[] = [];
   let more = true;
   const best = new Map<string, BestBid | null>();
-  let pending = players.map((player) => ({ player, terms: offerPlayer(player, save.currentDate) }));
+  let pending = onSale.map(({ player, cap }) => ({ player, cap, terms: offerPlayer(player, save.currentDate) }));
   while (pending.length > 0) {
-    const waiting: { player: SquadPlayer; terms: OfferPlayer; missing: number }[] = [];
-    for (const { player, terms } of pending) {
+    const waiting: ((typeof pending)[number] & { missing: number })[] = [];
+    for (const { player, cap, terms } of pending) {
       const rng = makeRng(saleRngSeed(save.seed, save.currentDate, player.playerKey));
-      const walk = walkSaleBids(terms, seller, market, more, rng);
+      const walk = walkSaleBids(terms, seller, market, more, rng, cap?.fee);
       if (!walk.done) {
-        waiting.push({ player, terms, missing: SALE_MAX_BIDDERS - walk.bids.length });
+        waiting.push({ player, cap, terms, missing: SALE_MAX_BIDDERS - walk.bids.length });
         continue;
       }
       const [bid] = walk.bids;
@@ -311,16 +334,20 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
     where: { saveId, clubSaveId: club.id },
     select: { id: true, playerKey: true, birthDate: true, overall: true, potential: true, wage: true, contractUntil: true },
   });
-  const bought = await boughtThisWindow(
+  const arrivals = await recentArrivals(
     prisma,
     saveId,
     club.clubId,
     save.currentDate,
     players.map((player) => player.id),
   );
-  const bids = windowOpen
-    ? await bestSaleBids(prisma, saveId, save, club, players.filter((player) => !bought.has(player.id)))
-    : new Map<string, BestBid | null>();
+  const arrivalsOf = (player: SquadPlayer): ClubArrival[] => arrivals.get(player.id) ?? [];
+  const bought = new Set(players.filter((player) => arrivedThisWindow(arrivalsOf(player), save.currentDate)).map(({ id }) => id));
+  const onSale = players
+    .filter((player) => !bought.has(player.id))
+    .map((player) => ({ player, cap: resaleCap(arrivalsOf(player), offerPlayer(player, save.currentDate), save.currentDate) }));
+  const caps = new Map(onSale.map(({ player, cap }) => [player.id, cap]));
+  const bids = windowOpen ? await bestSaleBids(prisma, saveId, save, club, onSale) : new Map<string, BestBid | null>();
 
   return new Map(
     players.map((player) => {
@@ -329,6 +356,7 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
         sale = { ok: false, reason: "bought_this_window" };
       } else if (windowOpen) {
         const best = getOrThrow(bids, player.id, "best sale bid");
+        const cap = getOrThrow(caps, player.id, "resale cap");
         sale =
           best === null
             ? { ok: false, reason: "no_offer" }
@@ -338,6 +366,7 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
                 wage: best.bid.wage,
                 years: best.bid.years,
                 buyerName: displayClubName(best.buyer),
+                ...(cap === null ? {} : { resaleCap: cap.kind }),
               };
       }
       return [
@@ -499,7 +528,10 @@ export async function releasePlayer(input: PlayerActionInput): Promise<TransferO
   }, TRANSACTION_OPTIONS);
 }
 
-/** Puts a player of the managed club on sale and accepts the best AI bid at once, unless he arrived in this window. */
+/**
+ * Puts a player of the managed club on sale and accepts the best AI bid at once, unless he arrived in this window; in
+ * the year after he arrived, that bid is at most his resale cap (resaleCap). The fee quoteSquad shows.
+ */
 export async function sellPlayer(input: PlayerActionInput): Promise<TransferOutcome> {
   const { saveId, playerSaveId } = sellPlayerSchema.parse(input);
   return prisma.$transaction(async (tx) => {
@@ -511,11 +543,13 @@ export async function sellPlayer(input: PlayerActionInput): Promise<TransferOutc
     if (player === null) {
       return refused("not_available");
     }
-    if ((await boughtThisWindow(tx, saveId, club.clubId, save.currentDate, [player.id])).has(player.id)) {
+    const arrivals = (await recentArrivals(tx, saveId, club.clubId, save.currentDate, [player.id])).get(player.id) ?? [];
+    if (arrivedThisWindow(arrivals, save.currentDate)) {
       return refused("bought_this_window");
     }
 
-    const best = getOrThrow(await bestSaleBids(tx, saveId, save, club, [player]), player.id, "best sale bid");
+    const cap = resaleCap(arrivals, offerPlayer(player, save.currentDate), save.currentDate);
+    const best = getOrThrow(await bestSaleBids(tx, saveId, save, club, [{ player, cap }]), player.id, "best sale bid");
     if (best === null) {
       return refused("no_offer");
     }

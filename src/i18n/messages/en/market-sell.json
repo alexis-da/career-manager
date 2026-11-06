@@ -15,6 +15,10 @@
       "otherTitle": "Your other substitutes",
       "details": "{position} · worth {value}",
       "offer": "{club} offers {fee}"
+    },
+    "resaleCap": {
+      "purchase": "Joined less than a year ago: clubs won't pay much more than you paid for him.",
+      "free": "Joined on a free less than a year ago: clubs won't pay more than half his value."
     }
   }
 }

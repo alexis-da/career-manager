@@ -898,6 +898,15 @@ export const SALE_BID_SHARE_MIN = 0.8;
 export const SALE_BID_SHARE_MAX = 1.2;
 
 /**
+ * In the year after a player joined the managed club, the AI clubs offer it at most this share, in percent, of the fee
+ * it paid for him: buying a player cheap to sell him on at once is no business…
+ */
+export const RESALE_CAP_FEE_PERCENT = 110;
+
+/** …and at most this share of his market value, in percent, for a player it signed free. */
+export const RESALE_CAP_VALUE_PERCENT = 50;
+
+/**
  * An AI club whose payroll is above its wage budget (a relegated club, typically) sells its best-paid players to other
  * AI clubs in the preseason until it is back within it, never for less than this share of a player's market value.
  */

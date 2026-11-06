@@ -94,6 +94,10 @@
     "sell": "Vendre",
     "sellTitle": "Vendre {name}",
     "bestOffer": "Meilleure offre : {buyer} propose {fee}. Le joueur y gagnera {wage} par saison, pour {years, plural, one {# saison} other {# saisons}}.",
+    "resaleCap": {
+      "purchase": "Arrivé il y a moins d'un an : les clubs ne paieront pas beaucoup plus que ton prix d'achat.",
+      "free": "Arrivé libre il y a moins d'un an : les clubs ne paieront pas plus de la moitié de sa valeur."
+    },
     "selling": "Transfert…",
     "acceptOffer": "Accepter l'offre",
     "closedActions": "prolongations, ventes et libérations",

@@ -1,3 +1,4 @@
+import { addYears } from "../lib/dates";
 import type { Rng } from "../lib/rng";
 import {
   ASKING_PRICE_BY_SEASONS_LEFT,
@@ -6,6 +7,8 @@ import {
   MIN_GOALKEEPERS,
   PLAYER_REPUTATION_MARGIN,
   REPUTATION_STEP_DOWN,
+  RESALE_CAP_FEE_PERCENT,
+  RESALE_CAP_VALUE_PERCENT,
   SALE_BID_SHARE_MAX,
   SALE_BID_SHARE_MIN,
   SALE_MAX_BIDDERS,
@@ -138,6 +141,37 @@ export function saleRngSeed(saveSeed: string, date: Date, playerKey: string): st
   return `${saveSeed}:sale:${date.toISOString().slice(0, 10)}:${playerKey}`;
 }
 
+/** A player's arrival at the managed club: bought for a fee, or signed free. */
+export type ClubArrival = { date: Date; type: "TRANSFER" | "FREE"; fee: number };
+
+/** The highest fee the AI clubs offer for a player in the year after he joined the managed club, and how he joined. */
+export type ResaleCap = { kind: "purchase" | "free"; fee: number };
+
+/**
+ * The cap on the AI offers for a player of the managed club on a date, from his arrivals at the club: for a year after
+ * the last one, up to the day before the same day a year later (addYears), RESALE_CAP_FEE_PERCENT of the fee paid for a
+ * player bought, RESALE_CAP_VALUE_PERCENT of his market value on that date for a player signed free, rounded down to
+ * the euro; of two arrivals on that last day, the lower. Null without an arrival in that year.
+ */
+export function resaleCap(arrivals: readonly ClubArrival[], player: OfferPlayer, date: Date): ResaleCap | null {
+  if (arrivals.length === 0) {
+    return null;
+  }
+  const last = arrivals.reduce((latest, arrival) => (arrival.date > latest.date ? arrival : latest));
+  if (date >= addYears(last.date, 1)) {
+    return null;
+  }
+  return arrivals
+    .filter((arrival) => arrival.date.getTime() === last.date.getTime())
+    .map(
+      (arrival): ResaleCap =>
+        arrival.type === "TRANSFER"
+          ? { kind: "purchase", fee: Math.floor((arrival.fee * RESALE_CAP_FEE_PERCENT) / 100) }
+          : { kind: "free", fee: Math.floor((marketValueFor(player) * RESALE_CAP_VALUE_PERCENT) / 100) },
+    )
+    .reduce((lowest, cap) => (cap.fee < lowest.fee ? cap : lowest));
+}
+
 /** The order in which AI clubs bid for a player on sale: most reputed first, then by slug. */
 export function biddingOrder(a: BidderClub, b: BidderClub): number {
   return b.reputation - a.reputation || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0);
@@ -156,6 +190,10 @@ export type SaleWalk = {
  * still to be read (`more`): a walk that needs one past them is not done, and is to be started again, with a new stream
  * from the same seed, once more are read. Every club reached draws as it would in a walk given all of them, so the bids
  * of a walk that is done are those of saleBids. Returned best first: highest fee, then highest reputation.
+ *
+ * feeCap (resaleCap): a club that draws a higher fee, and can pay it, offers the cap instead. It draws nothing: the clubs
+ * that bid, their wages and contracts, are those of the walk without it, only their fees are lowered, and the most
+ * reputed of the clubs offering the cap makes the best bid.
  */
 export function walkSaleBids(
   player: OfferPlayer,
@@ -163,6 +201,7 @@ export function walkSaleBids(
   ordered: readonly BidderClub[],
   more: boolean,
   rng: Rng,
+  feeCap: number = Number.POSITIVE_INFINITY,
 ): SaleWalk {
   const value = marketValueFor(player);
   const wage = minimumWage(player, sellingClub);
@@ -189,7 +228,7 @@ export function walkSaleBids(
       continue;
     }
     reputationBySlug.set(club.slug, club.reputation);
-    bids.push({ clubSlug: club.slug, fee, wage, years: contractYears(player.age, rng) });
+    bids.push({ clubSlug: club.slug, fee: Math.min(fee, feeCap), wage, years: contractYears(player.age, rng) });
   }
 
   const reputationOf = (bid: SaleBid): number => reputationBySlug.get(bid.clubSlug) ?? 0;

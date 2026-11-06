@@ -15,6 +15,10 @@
       "otherTitle": "Tes autres remplaçants",
       "details": "{position} · vaut {value}",
       "offer": "{club} propose {fee}"
+    },
+    "resaleCap": {
+      "purchase": "Arrivé il y a moins d'un an : les clubs ne paieront pas beaucoup plus que ton prix d'achat.",
+      "free": "Arrivé libre il y a moins d'un an : les clubs ne paieront pas plus de la moitié de sa valeur."
     }
   }
 }

@@ -250,7 +250,7 @@ type SquadPlayerActionsProps = {
 /**
  * Actions of the player sheet for a player of the managed club; disabled, with the reason, while the window is closed.
  * With the window open, the sale alone can be out of reach: just signed, or no club able to buy him. It says why here,
- * before any click.
+ * before any click, as it says why no club pays much more for a player who joined less than a year ago.
  */
 export function SquadPlayerActions({
   saveId,
@@ -272,6 +272,11 @@ export function SquadPlayerActions({
       {windowOpen && !sale.ok && (
         <p className="text-xs text-muted-foreground" data-testid="player-sale-refusal">
           {refusalMessage(sale.reason, tRefusals, locale)}
+        </p>
+      )}
+      {windowOpen && sale.ok && sale.resaleCap !== undefined && (
+        <p className="text-xs text-muted-foreground" data-testid="player-resale-cap">
+          {t(`resaleCap.${sale.resaleCap}`)}
         </p>
       )}
       <RenewContractDialog

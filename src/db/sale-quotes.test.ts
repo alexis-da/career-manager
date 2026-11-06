@@ -262,8 +262,9 @@ type SaveName = keyof typeof SAVES;
 
 // Against DATABASE_URL, on four throwaway saves: the AI offers for the managed club's players (quoteSquad, the Sell tab
 // of getMarketSales, the sale itself) are those of commit 829e62a, though the AI clubs are now read as far as the bids
-// go. The tests run in order, and each moves its own save on. Skipped without DATABASE_URL; modules are imported lazily
-// because the client throws without it.
+// go. No player bought or signed free here is quoted in a later window: the resale cap, newer (resaleCap,
+// resale-cap.test.ts), leaves these offers as they were. The tests run in order, and each moves its own save on. Skipped
+// without DATABASE_URL; modules are imported lazily because the client throws without it.
 describe.skipIf(process.env.DATABASE_URL === undefined)("AI offers for the managed club's players", () => {
   let modules:
     | {

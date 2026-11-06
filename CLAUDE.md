@@ -538,9 +538,17 @@ IA de `quoteSquad` ; le compteur compte ces offres. Écran avancé (`/transfers/
 « Détails du contrat · ajuster l'offre ») : filtres, joueurs libres, mouvements, fiche et dialogues de toujours ; un
 joueur qui refuserait le club pour sa réputation le dit dans la fiche et le dialogue, l'envoi désactivé. Un joueur arrivé
 au club dirigé pendant le mercato ouvert (ligne `Transfer` vers le club, `TRANSFER` ou `FREE`) ne se vend pas avant le
-suivant (`bought_this_window`, `transferWindowOpenDate`, `src/engine/world.ts`) : seule règle économique ajoutée par la
-refonte, elle borne la fréquence d'une revente, pas sa marge. Sur les écrans du Marché, l'action de jeu de la colonne est
-secondaire (`GameActions`) : l'orange plein y reste à « Recruter » ou « Vendre ».
+suivant (`bought_this_window`, `transferWindowOpenDate`, `src/engine/world.ts`), première règle d'une vente ; puis,
+jusqu'à la veille du même jour un an après sa dernière arrivée, la meilleure offre IA est plafonnée (`resaleCap`,
+`src/engine/transfer-ai.ts`) : 110 % du prix payé pour un joueur acheté (`RESALE_CAP_FEE_PERCENT`), 50 % de sa valeur
+du jour pour un joueur libre (`RESALE_CAP_VALUE_PERCENT`, `balance.ts`), à l'euro inférieur. Le plafond ne tire rien : les clubs qui
+enchérissent, leurs salaires et leurs contrats sont ceux d'avant, seules les offres au-dessus y descendent, et le plus
+réputé de ceux qui l'offrent fait la meilleure ; ce qu'affichent Vendre et la fiche est ce que `sellPlayer` paie. Vendre
+(carte, liste, offre de l'onglet Acheter) et le pied de la fiche le disent en une phrase (`SaleQuote.resaleCap`,
+`market-sale-resale-cap`, `player-resale-cap` : « Arrivé il y a moins d'un an : les clubs ne paieront pas beaucoup plus
+que ton prix d'achat », « … pas plus de la moitié de sa valeur » pour un joueur libre). Les ventes des clubs IA n'en ont
+pas. Sur les écrans du Marché, l'action de jeu de la colonne est secondaire (`GameActions`) : l'orange plein y reste à
+« Recruter » ou « Vendre ».
 
 **Lectures du marché.** Le marché lit ce qu'il montre, plus toute la partie (chantier « dettes », 06/11) : par l'id
 du club dirigé et des index d'ajout (migration `…_market_indexes` : `ClubSave(saveId, isManaged)`,

@@ -28,6 +28,19 @@ function OfferSentence({ text, amount }: { text: string; amount: string }) {
   );
 }
 
+/** Why no club pays much more for a player who joined less than a year ago (resaleCap); nothing for another. */
+function ResaleCapNote({ sale, className }: { sale: SaleQuote; className: string }) {
+  const t = useTranslations("marketSell.resaleCap");
+  if (!sale.ok || sale.resaleCap === undefined) {
+    return null;
+  }
+  return (
+    <p data-testid="market-sale-resale-cap" className={className}>
+      {t(sale.resaleCap)}
+    </p>
+  );
+}
+
 /** The sale's confirmation, handed only what it needs of the row. */
 function SellButton({ saveId, row, primary = false, className }: { saveId: string; row: SaleRow; primary?: boolean; className: string }) {
   const { id, firstName, lastName, terms } = row;
@@ -61,6 +74,7 @@ export function SaleOfferCard({ saveId, row, variant }: { saveId: string; row: S
             amount={fee}
           />
         </p>
+        <ResaleCapNote sale={sale} className="text-[0.8125rem] leading-snug text-muted-foreground" />
         <SellButton saveId={saveId} row={row} className={cn("h-11 w-full text-[0.9375rem]", OUTLINED_SALE)} />
       </Panel>
     );
@@ -91,12 +105,13 @@ export function SaleOfferCard({ saveId, row, variant }: { saveId: string; row: S
       <p className="text-[0.9375rem] leading-snug">
         <OfferSentence text={t("lead.offer", { club: sale.buyerName, fee, value })} amount={fee} />
       </p>
+      <ResaleCapNote sale={sale} className="text-sm leading-snug text-on-blue" />
       <SellButton saveId={saveId} row={row} primary className="h-13 w-full font-heading text-[1.375rem] lg:w-auto lg:self-end lg:px-10" />
     </Panel>
   );
 }
 
-/** A row's last line: its offer or, while the window is open, why there is none. */
+/** A row's last lines: its offer, capped or not, or, while the window is open, why there is none. */
 function SaleNote({ sale, windowOpen }: { sale: SaleQuote; windowOpen: boolean }) {
   const t = useTranslations("marketSell.list");
   const tRefusals = useTranslations("refusals");
@@ -104,9 +119,12 @@ function SaleNote({ sale, windowOpen }: { sale: SaleQuote; windowOpen: boolean }
   if (sale.ok) {
     const fee = formatMoney(sale.fee, locale);
     return (
-      <p>
-        <OfferSentence text={t("offer", { club: sale.buyerName, fee })} amount={fee} />
-      </p>
+      <>
+        <p>
+          <OfferSentence text={t("offer", { club: sale.buyerName, fee })} amount={fee} />
+        </p>
+        <ResaleCapNote sale={sale} className="text-muted-foreground" />
+      </>
     );
   }
   return windowOpen ? <p className="text-muted-foreground">{refusalMessage(sale.reason, tRefusals, locale)}</p> : null;

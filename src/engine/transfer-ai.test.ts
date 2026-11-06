@@ -9,9 +9,11 @@ import {
   evaluateRenewal,
   minimumWage,
   planWageSales,
+  resaleCap,
   saleBids,
   walkSaleBids,
   type BidderClub,
+  type ClubArrival,
   type OfferPlayer,
   type WageSalePlayer,
 } from "./transfer-ai";
@@ -158,6 +160,53 @@ describe("walkSaleBids", () => {
 
     expect(walk(rich, 4)).toMatchObject({ done: false, bids: { length: 4 } });
     expect(walk(rich, 5)).toEqual({ bids: saleBids(player(), SELLER, rich, makeRng("sale")), done: true });
+  });
+
+  it("lowers the fees above a cap to it, with the same clubs, wages and contracts, the most reputed first", () => {
+    const free = walkSaleBids(player(), SELLER, ordered, false, makeRng("sale"));
+    const cap = Math.min(...free.bids.map((bid) => bid.fee)) - 10_000;
+    const capped = walkSaleBids(player(), SELLER, ordered, false, makeRng("sale"), cap);
+
+    // Every bid was above the cap: all offer it, best first by reputation (rich, second, third).
+    expect(capped).toEqual({
+      done: true,
+      bids: ["rich", "second", "third"].map((slug) => ({ ...free.bids.find((bid) => bid.clubSlug === slug), fee: cap })),
+    });
+    expect(walkSaleBids(player(), SELLER, ordered, false, makeRng("sale"), Number.MAX_SAFE_INTEGER)).toEqual(free);
+  });
+});
+
+describe("resaleCap", () => {
+  const utc = (day: string) => new Date(`${day}T00:00:00Z`);
+  const bought = (day: string, fee: number): ClubArrival => ({ date: utc(day), type: "TRANSFER", fee });
+  const signedFree = (day: string): ClubArrival => ({ date: utc(day), type: "FREE", fee: 0 });
+  const value = marketValueFor(player());
+
+  it("caps the offers for a player bought at 110 % of his fee, rounded down to the euro, for a year", () => {
+    expect(resaleCap([bought("2026-07-01", 3_000_000)], player(), utc("2027-01-12"))).toEqual({ kind: "purchase", fee: 3_300_000 });
+    expect(resaleCap([bought("2026-07-01", 1_234_567)], player(), utc("2027-01-12"))?.fee).toBe(1_358_023);
+  });
+
+  it("caps the offers for a player signed free at half his market value on the day", () => {
+    expect(resaleCap([signedFree("2026-08-31")], player(), utc("2027-01-12"))).toEqual({ kind: "free", fee: Math.floor(value / 2) });
+  });
+
+  it("holds up to the day before the same day a year later", () => {
+    const arrival = [bought("2026-08-31", 3_000_000)];
+
+    expect(resaleCap(arrival, player(), utc("2027-08-30"))).not.toBeNull();
+    expect(resaleCap(arrival, player(), utc("2027-08-31"))).toBeNull();
+    expect(resaleCap([], player(), utc("2027-01-12"))).toBeNull();
+  });
+
+  it("reads the last arrival only, and the lower cap of two on that day", () => {
+    const releasedThenSignedFree = [bought("2026-07-01", 30_000_000), signedFree("2027-01-05")];
+    const boughtBack = [signedFree("2026-07-01"), bought("2027-01-05", 100_000)];
+    const sameDay = [bought("2027-01-05", 30_000_000), signedFree("2027-01-05")];
+
+    expect(resaleCap(releasedThenSignedFree, player(), utc("2027-01-12"))).toEqual({ kind: "free", fee: Math.floor(value / 2) });
+    expect(resaleCap(boughtBack, player(), utc("2027-01-12"))).toEqual({ kind: "purchase", fee: 110_000 });
+    expect(resaleCap(sameDay, player(), utc("2027-01-12"))).toEqual({ kind: "free", fee: Math.floor(value / 2) });
   });
 });
 
