@@ -542,6 +542,27 @@ suivant (`bought_this_window`, `transferWindowOpenDate`, `src/engine/world.ts`) 
 refonte, elle borne la fréquence d'une revente, pas sa marge. Sur les écrans du Marché, l'action de jeu de la colonne est
 secondaire (`GameActions`) : l'orange plein y reste à « Recruter » ou « Vendre ».
 
+**Lectures du marché.** Le marché lit ce qu'il montre, plus toute la partie (chantier « dettes », 06/11) : par l'id
+du club dirigé et des index d'ajout (migration `…_market_indexes` : `ClubSave(saveId, isManaged)`,
+`ClubSave(saveId, reputation)`, `PlayerSave(saveId, overall, wage)`, `PlayerSave(saveId, potential, overall, wage)`),
+**jamais par un filtre de relation sur `ClubSave` depuis `PlayerSave`** : Prisma en fait une jointure dont Postgres
+sous-estime d'un facteur 25 les joueurs d'un club, et il les relit tous pour une page. `getManagedLineup` et
+`getMarketOverview` sont lus une fois par requête (`cache` de React, sans effet hors d'un rendu serveur) ; `managedMatchesAhead` lit les matchs du club par son id ; l'en-tête de la partie cherche
+son prochain match et les matchs restants à partir de sa date (une date se joue entière). Offres de Vendre (`quoteSquad`,
+`bestSaleBids`) : les clubs IA dans l'ordre des enchères, par lots de réputations entières (`readBidders`, `FETCH FIRST …
+WITH TIES`), et la masse salariale des seuls clubs atteints ; `walkSaleBids` tire comme `saleBids`
+(`sale-quotes.test.ts` compare à l'implémentation d'avant, sur quatre parties). Propositions (`getMarketProposals`,
+`chooseRows`) : les joueurs libres en entier ; ceux des clubs IA qui accepteraient le club et dont la marge paie le
+salaire (filtres exacts en base, le prix vérifié ici), par note pour Stars, Mes besoins et Bonnes affaires, par potentiel
+pour Pépites, un lot puis des valeurs entières, jusqu'à ce qu'aucun joueur restant ne puisse entrer dans les dix premiers
+d'une entrée (bornes pures du moteur : `entryBound`, `settlingFloor`, règles `entryRules` et `firstOf`, celles de
+`proposeSignings`) ; une entrée vide cherche un joueur qu'elle prendrait avec assez de marge (`wageBound`)
+(`market-proposals-equivalence.test.ts` compare à l'implémentation d'avant). Joueurs des clubs IA (`listClubPlayers`) :
+la base filtre (l'âge exactement, `earliestBirthForMaxAge`), compte et pagine par note ; le prix, calculé ici, ne
+départage que les joueurs de même note ; un poste secondaire, un prix maximal ou le tri par prix lisent tous les
+candidats (`market-lists.test.ts` compare chaque page à l'ancienne liste). Les tableaux de l'écran avancé
+(`market-tables.tsx`) sont des composants clients : une page n'envoie que les données de ses cinquante lignes.
+
 **Club.** Trois onglets, Club, Défi et Palmarès ; l'action de jeu de la colonne y est secondaire (`OWN_ORANGE_ACTION`). Club
 (`/club`) : pastille du manager (`club-manager`, saisons terminées + 1) ; finances en lecture seule (`getClubFinances`,
 `src/db/club.ts` : budget en grand, masse salariale en barre, marge ou dépassement, puis le détail de la dernière dotation,

@@ -13,14 +13,15 @@ import { fitnessAtKickOff } from "./fitness-view";
 /**
  * What the managed club still has to play: its next match, its day and competition, null once it has none left, and the
  * competitions it still has a match in. What its players are picked for, and judged on: fitness, injuries, suspensions.
+ * Its fixtures are read by its id, on the home and away indexes (a filter on its ClubSave row would read every fixture
+ * of the save); the caller who already has its id passes it.
  */
-export async function managedMatchesAhead(saveId: string): Promise<MatchesAhead> {
+export async function managedMatchesAhead(saveId: string, managedClubSaveId?: string): Promise<MatchesAhead> {
+  const clubSaveId =
+    managedClubSaveId ??
+    (await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } })).id;
   const fixtures = await prisma.fixture.findMany({
-    where: {
-      saveId,
-      played: false,
-      OR: [{ homeClubSave: { saveId, isManaged: true } }, { awayClubSave: { saveId, isManaged: true } }],
-    },
+    where: { saveId, played: false, OR: [{ homeClubSaveId: clubSaveId }, { awayClubSaveId: clubSaveId }] },
     orderBy: { scheduledAt: "asc" },
     select: { scheduledAt: true, season: { select: { competition: { select: { kind: true } } } } },
   });

@@ -1,10 +1,11 @@
+import { cache } from "react";
 import * as z from "zod";
 import { displayClubName } from "../engine/club-name";
 import { POSITIONS, primariesWithSecondary, secondaryPositions, type Position } from "../engine/positions";
 import { nextTransferWindowOpening, transferWindowAt, transferWindowCloseDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
-import { ageInYears } from "../lib/dates";
+import { ageInYears, earliestBirthForMaxAge } from "../lib/dates";
 import { prisma } from "./client";
 import { getPlayerProfiles, type PlayerProfile, type TransferKind } from "./players";
 import { freeAgentWhere, quoteFor, quoteSquad, type ContractTerms, type TransferQuote } from "./transfers";
@@ -32,6 +33,11 @@ const managedClub = (saveId: string) =>
 
 const currentDateOf = async (saveId: string): Promise<Date> =>
   (await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } })).currentDate;
+
+/** How many free agents the save has: once per request, for the market's banner and its list (React's cache). */
+const countFreeAgents = cache(
+  async (saveId: string): Promise<number> => prisma.playerSave.count({ where: freeAgentWhere(saveId) }),
+);
 
 /** Names of reference clubs by id; Club is world data, shared by every save. */
 async function clubNames(ids: readonly (string | null)[]): Promise<Map<string, string>> {
@@ -63,12 +69,15 @@ export type MarketOverview = {
   competitions: { code: string }[]; // named by the screens
 };
 
-/** The transfer window and the managed club's money, as the top of the transfer page shows them. */
-export async function getMarketOverview(saveId: string): Promise<MarketOverview> {
+/**
+ * The transfer window and the managed club's money, as the top of the transfer page shows them. Read once per request
+ * (React's cache: the page and its proposals both ask); outside a server render, every call reads.
+ */
+export const getMarketOverview = cache(async (saveId: string): Promise<MarketOverview> => {
   const [currentDate, club] = await Promise.all([currentDateOf(saveId), managedClub(saveId)]);
   const [payroll, freeAgents, competitions] = await Promise.all([
     prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } }),
-    prisma.playerSave.count({ where: freeAgentWhere(saveId) }),
+    countFreeAgents(saveId),
     prisma.competition.findMany({
       where: { kind: "LEAGUE", seasons: { some: { saveId } } },
       orderBy: { code: "asc" },
@@ -90,7 +99,7 @@ export async function getMarketOverview(saveId: string): Promise<MarketOverview>
     freeAgents,
     competitions,
   };
-}
+});
 
 // ------------------------------------------------------------- free agents
 
@@ -112,7 +121,7 @@ export type FreeAgentRow = {
 /** Free agents of the save, best rated first, one page at a time. */
 export async function listFreeAgents(saveId: string, page: number): Promise<Paginated<FreeAgentRow>> {
   const where = freeAgentWhere(saveId);
-  const [currentDate, total] = await Promise.all([currentDateOf(saveId), prisma.playerSave.count({ where })]);
+  const [currentDate, total] = await Promise.all([currentDateOf(saveId), countFreeAgents(saveId)]);
   const current = clampPage(page, total);
   const players = await prisma.playerSave.findMany({
     where,
@@ -206,22 +215,57 @@ export type ClubPlayerRow = {
 
 const byKey = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/**
- * Players of the AI clubs matching the filters, sorted by rating or asking price, one page at a time. Age and
- * price depend on the current date, so they are filtered and sorted here rather than in SQL: the league has
- * a few thousand players, read with a narrow select.
- */
-export async function listClubPlayers(saveId: string, filters: MarketFilters): Promise<Paginated<ClubPlayerRow>> {
-  const currentDate = await currentDateOf(saveId);
-  const words = (filters.q ?? "").split(/\s+/).filter((word) => word !== "");
-  const where: Prisma.PlayerSaveWhereInput = {
-    saveId,
-    clubSave: {
-      saveId,
-      isManaged: false,
-      // The club's current competition in the save, never the world's.
-      ...(filters.competition === undefined ? {} : { competition: { code: filters.competition } }),
+/** What a row of the AI clubs' players needs: no column more. */
+const CLUB_PLAYER_SELECT = {
+  id: true,
+  playerKey: true,
+  firstName: true,
+  lastName: true,
+  nationality: true,
+  position: true,
+  birthDate: true,
+  overall: true,
+  potential: true,
+  wage: true,
+  contractUntil: true,
+  clubSave: {
+    select: {
+      isManaged: true,
+      reputation: true,
+      club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } },
     },
+  },
+} as const satisfies Prisma.PlayerSaveSelect;
+
+type ClubPlayer = Prisma.PlayerSaveGetPayload<{ select: typeof CLUB_PLAYER_SELECT }>;
+
+/**
+ * Which clubs' players the list reads, by their ids rather than a join on ClubSave, which hides from Postgres how many
+ * players a club has (it would read them all to sort one page): every club's but the managed one's, or the AI clubs of a
+ * competition, the club's current one in the save, never the world's.
+ */
+async function listedClubs(saveId: string, competition: string | undefined): Promise<Prisma.PlayerSaveWhereInput[]> {
+  if (competition === undefined) {
+    const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
+    return [{ clubSaveId: { not: null } }, { clubSaveId: { not: managed.id } }];
+  }
+  const clubs = await prisma.clubSave.findMany({
+    where: { saveId, isManaged: false, competition: { code: competition } },
+    select: { id: true },
+  });
+  return [{ clubSaveId: { in: clubs.map((club) => club.id) } }];
+}
+
+/** The filters the database applies: all of them but a secondary position and the price, which only this code knows. */
+function clubPlayersWhere(
+  saveId: string,
+  clubs: Prisma.PlayerSaveWhereInput[],
+  filters: MarketFilters,
+  currentDate: Date,
+): Prisma.PlayerSaveWhereInput {
+  const words = (filters.q ?? "").split(/\s+/).filter((word) => word !== "");
+  return {
+    saveId,
     ...(filters.position === undefined
       ? {}
       : {
@@ -233,38 +277,23 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
               : { in: [filters.position, ...primariesWithSecondary(filters.position)] },
         }),
     ...(filters.minOverall === undefined ? {} : { overall: { gte: filters.minOverall } }),
-    // Every word of the search must appear in the first or the last name: « kevin mor » finds Kevin Morel.
-    AND: words.map((word) => ({
-      OR: [
-        { firstName: { contains: word, mode: "insensitive" as const } },
-        { lastName: { contains: word, mode: "insensitive" as const } },
-      ],
-    })),
+    // The age on the current date, as ageInYears counts it.
+    ...(filters.maxAge === undefined ? {} : { birthDate: { gte: earliestBirthForMaxAge(filters.maxAge, currentDate) } }),
+    AND: [
+      ...clubs,
+      // Every word of the search must appear in the first or the last name: « kevin mor » finds Kevin Morel.
+      ...words.map((word) => ({
+        OR: [
+          { firstName: { contains: word, mode: "insensitive" as const } },
+          { lastName: { contains: word, mode: "insensitive" as const } },
+        ],
+      })),
+    ],
   };
-  const players = await prisma.playerSave.findMany({
-    where,
-    select: {
-      id: true,
-      playerKey: true,
-      firstName: true,
-      lastName: true,
-      nationality: true,
-      position: true,
-      birthDate: true,
-      overall: true,
-      potential: true,
-      wage: true,
-      contractUntil: true,
-      clubSave: {
-        select: {
-          isManaged: true,
-          reputation: true,
-          club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } },
-        },
-      },
-    },
-  });
+}
 
+/** The rows of the players kept by the filters only this code applies, in the list's order. */
+function sortedClubPlayers(players: readonly ClubPlayer[], filters: MarketFilters, currentDate: Date): ClubPlayerRow[] {
   const maxPrice = filters.maxPrice === undefined ? undefined : Math.round(filters.maxPrice * EUROS_PER_MILLION);
   const entries = players.flatMap((player) => {
     // Always set: the filter requires a club. The check narrows the type.
@@ -278,9 +307,8 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
     ) {
       return [];
     }
-    const age = ageInYears(player.birthDate, currentDate);
     const quote = quoteFor(player, player.clubSave, currentDate);
-    if ((filters.maxAge !== undefined && age > filters.maxAge) || (maxPrice !== undefined && quote.askingPrice > maxPrice)) {
+    if (maxPrice !== undefined && quote.askingPrice > maxPrice) {
       return [];
     }
     const row: ClubPlayerRow = {
@@ -292,7 +320,7 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
       clubName: displayClubName(player.clubSave.club),
       clubColors: clubColorsOf(player.clubSave.club),
       position: player.position,
-      age,
+      age: ageInYears(player.birthDate, currentDate),
       overall: player.overall,
       potential: player.potential,
       askingPrice: quote.askingPrice,
@@ -300,24 +328,69 @@ export async function listClubPlayers(saveId: string, filters: MarketFilters): P
       minimumReputation: quote.minimumReputation,
       contractUntil: player.contractUntil,
     };
-    return [{ key: player.playerKey, row }];
+    return [row];
   });
 
   const sign = filters.dir === "asc" ? 1 : -1;
-  entries.sort((a, b) => {
-    const byPrice = a.row.askingPrice - b.row.askingPrice;
-    const byOverall = a.row.overall - b.row.overall;
+  return entries.sort((a, b) => {
+    const byPrice = a.askingPrice - b.askingPrice;
+    const byOverall = a.overall - b.overall;
     // The player key breaks ties, in the same order whatever the direction.
-    return sign * (filters.sort === "price" ? byPrice || byOverall : byOverall || byPrice) || byKey(a.key, b.key);
+    return sign * (filters.sort === "price" ? byPrice || byOverall : byOverall || byPrice) || byKey(a.playerKey, b.playerKey);
+  });
+}
+
+/**
+ * Players of the AI clubs matching the filters, sorted by rating or asking price, one page at a time. The database
+ * filters them, counts them and finds the page's ratings; it reads only the players of those ratings, which the asking
+ * price then orders (it depends on the date, and is computed here). A secondary position, a price bound or the sort by
+ * price are this code's alone: with one of them, every candidate is read, with a narrow select.
+ */
+export async function listClubPlayers(saveId: string, filters: MarketFilters): Promise<Paginated<ClubPlayerRow>> {
+  const [currentDate, clubs] = await Promise.all([currentDateOf(saveId), listedClubs(saveId, filters.competition)]);
+  const where = clubPlayersWhere(saveId, clubs, filters, currentDate);
+  const paged = (rows: ClubPlayerRow[], total: number, page: number, offset: number): Paginated<ClubPlayerRow> => ({
+    total,
+    page,
+    pageCount: pageCountOf(total),
+    rows: rows.slice((page - 1) * MARKET_PAGE_SIZE - offset, page * MARKET_PAGE_SIZE - offset),
   });
 
-  const page = clampPage(filters.page, entries.length);
-  return {
-    total: entries.length,
-    page,
-    pageCount: pageCountOf(entries.length),
-    rows: entries.slice((page - 1) * MARKET_PAGE_SIZE, page * MARKET_PAGE_SIZE).map((entry) => entry.row),
-  };
+  const secondary = filters.position !== undefined && filters.withSecondary !== undefined;
+  if (filters.sort === "price" || filters.maxPrice !== undefined || secondary) {
+    const players = await prisma.playerSave.findMany({ where, select: CLUB_PLAYER_SELECT });
+    const rows = sortedClubPlayers(players, filters, currentDate);
+    return paged(rows, rows.length, clampPage(filters.page, rows.length), 0);
+  }
+
+  const total = await prisma.playerSave.count({ where });
+  const page = clampPage(filters.page, total);
+  const start = (page - 1) * MARKET_PAGE_SIZE;
+  // The ratings of the page's places, in the list's order: the rating orders it, the price and the key only within one.
+  const ratings = await prisma.playerSave.findMany({
+    where,
+    orderBy: { overall: filters.dir },
+    skip: start,
+    take: MARKET_PAGE_SIZE,
+    select: { overall: true },
+  });
+  const first = ratings.at(0)?.overall;
+  const last = ratings.at(-1)?.overall;
+  if (first === undefined || last === undefined) {
+    return { total, page, pageCount: pageCountOf(total), rows: [] };
+  }
+  const [low, high] = filters.dir === "desc" ? [last, first] : [first, last];
+  const [before, players] = await Promise.all([
+    // The players placed before the first rating's.
+    prisma.playerSave.count({
+      where: { AND: [where, { overall: filters.dir === "desc" ? { gt: first } : { lt: first } }] },
+    }),
+    prisma.playerSave.findMany({
+      where: { AND: [where, { overall: { gte: low, lte: high } }] },
+      select: CLUB_PLAYER_SELECT,
+    }),
+  ]);
+  return paged(sortedClubPlayers(players, filters, currentDate), total, page, before);
 }
 
 // -------------------------------------------------------------- movements

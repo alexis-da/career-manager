@@ -172,6 +172,8 @@ model ClubSave {
   @@unique([saveId, clubId])
   @@index([saveId])
   @@index([saveId, competitionId])
+  @@index([saveId, isManaged]) // le club dirigé, lu par presque chaque écran : une ligne, pas les 198 de la partie
+  @@index([saveId, reputation]) // le marché : les clubs par réputation (acheteurs, propositions)
 }
 
 model PlayerSave {
@@ -221,6 +223,10 @@ model PlayerSave {
   @@unique([saveId, playerKey])
   @@index([saveId, clubSaveId])
   @@index([clubSaveId]) // vérification NoAction de chaque ClubSave supprimé
+  // Le marché : les joueurs par note, triés et paginés par la base, leur salaire lu dans l'index (propositions), et par
+  // potentiel (Pépites).
+  @@index([saveId, overall, wage])
+  @@index([saveId, potential, overall, wage])
 }
 
 model Fixture {

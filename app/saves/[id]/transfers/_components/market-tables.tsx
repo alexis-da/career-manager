@@ -1,3 +1,8 @@
+"use client";
+
+// The advanced market's lists, drawn in the browser: a page of fifty players sends their data, not the cells, faces and
+// class names of fifty rows, ten times heavier.
+
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";

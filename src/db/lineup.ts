@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { cache } from "react";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, type FormationName } from "../engine/formations";
 import type { AttributeName } from "../engine/generation";
 import { DEFAULT_INSTRUCTION, INSTRUCTIONS, type Instruction } from "../engine/instructions";
@@ -126,36 +127,38 @@ const managedClub = (saveId: string) =>
  * suspensions for its competition.
  */
 export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
-  const [save, club, ahead] = await Promise.all([
+  const [save, club] = await Promise.all([
     prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
     managedClub(saveId),
-    managedMatchesAhead(saveId),
+  ]);
+  const [ahead, rows] = await Promise.all([
+    managedMatchesAhead(saveId, club.id),
+    prisma.playerSave.findMany({
+      where: { saveId, clubSaveId: club.id },
+      orderBy: { playerKey: "asc" },
+      select: {
+        playerKey: true,
+        firstName: true,
+        lastName: true,
+        birthDate: true,
+        position: true,
+        overall: true,
+        pace: true,
+        shooting: true,
+        passing: true,
+        dribbling: true,
+        defending: true,
+        physical: true,
+        goalkeeping: true,
+        form: true,
+        morale: true,
+        injuredUntil: true,
+        fitness: true,
+        ...DISCIPLINE_SELECT,
+      },
+    }),
   ]);
   const matchDate = ahead.next?.date ?? save.currentDate;
-  const rows = await prisma.playerSave.findMany({
-    where: { saveId, clubSaveId: club.id },
-    orderBy: { playerKey: "asc" },
-    select: {
-      playerKey: true,
-      firstName: true,
-      lastName: true,
-      birthDate: true,
-      position: true,
-      overall: true,
-      pace: true,
-      shooting: true,
-      passing: true,
-      dribbling: true,
-      defending: true,
-      physical: true,
-      goalkeeping: true,
-      form: true,
-      morale: true,
-      injuredUntil: true,
-      fitness: true,
-      ...DISCIPLINE_SELECT,
-    },
-  });
   const saved = parseSavedLineup(club.lineup);
 
   return {
@@ -196,8 +199,12 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
   };
 }
 
-/** The lineup the managed club will field in its next match, and the saved starters it has to do without. */
-export async function getManagedLineup(saveId: string): Promise<ManagedLineup> {
+/**
+ * The lineup the managed club will field in its next match, and the saved starters it has to do without. Read once per
+ * request (React's cache: the market's buy tab asks for it twice, its sales and its proposals); outside a server render,
+ * in tests and scripts, every call reads.
+ */
+export const getManagedLineup = cache(async (saveId: string): Promise<ManagedLineup> => {
   const editor = await getLineupEditor(saveId);
   const byKey = new Map(editor.players.map((player) => [player.id, player]));
   return {
@@ -208,7 +215,7 @@ export async function getManagedLineup(saveId: string): Promise<ManagedLineup> {
       return player !== undefined && !isAvailable(player) ? [player] : [];
     }),
   };
-}
+});
 
 export class LineupPlayerNotInSquadError extends Error {
   constructor(playerKey: string) {

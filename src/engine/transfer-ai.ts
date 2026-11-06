@@ -138,41 +138,73 @@ export function saleRngSeed(saveSeed: string, date: Date, playerKey: string): st
   return `${saveSeed}:sale:${date.toISOString().slice(0, 10)}:${playerKey}`;
 }
 
+/** The order in which AI clubs bid for a player on sale: most reputed first, then by slug. */
+export function biddingOrder(a: BidderClub, b: BidderClub): number {
+  return b.reputation - a.reputation || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0);
+}
+
+/** The bids of a walk down the bidding order, and whether it got to its end. */
+export type SaleWalk = {
+  bids: SaleBid[]; // best first: highest fee, then highest reputation
+  done: boolean; // false: the walk ran past the last club it was given while others follow, and needs them
+};
+
 /**
- * Bids of AI clubs for a player the managed club puts on sale. Only clubs the player would join, with wage
- * room for his minimum wage, bid: most reputed first, at most SALE_MAX_BIDDERS, each offering a drawn share
- * of his market value when its budget allows. Returned best first: highest fee, then highest reputation.
+ * Bids of AI clubs for a player the managed club puts on sale, walking down the clubs in bidding order (biddingOrder):
+ * only clubs the player would join, with wage room for his minimum wage, bid, at most SALE_MAX_BIDDERS, each offering a
+ * drawn share of his market value when its budget allows. The clubs may be the first of that order only, the others
+ * still to be read (`more`): a walk that needs one past them is not done, and is to be started again, with a new stream
+ * from the same seed, once more are read. Every club reached draws as it would in a walk given all of them, so the bids
+ * of a walk that is done are those of saleBids. Returned best first: highest fee, then highest reputation.
  */
+export function walkSaleBids(
+  player: OfferPlayer,
+  sellingClub: OfferClub,
+  ordered: readonly BidderClub[],
+  more: boolean,
+  rng: Rng,
+): SaleWalk {
+  const value = marketValueFor(player);
+  const wage = minimumWage(player, sellingClub);
+  const reputationFloor = minimumReputation(player, sellingClub);
+  const reputationBySlug = new Map<string, number>();
+
+  const bids: SaleBid[] = [];
+  let done = true;
+  for (let index = 0; bids.length < SALE_MAX_BIDDERS; index++) {
+    const club = ordered.at(index);
+    if (club === undefined) {
+      done = !more;
+      break;
+    }
+    // In bidding order, every club after one the player would not join is reputed less still.
+    if (club.reputation < reputationFloor) {
+      break;
+    }
+    if (club.wageRoom < wage) {
+      continue;
+    }
+    const fee = roundToStep(value * lerp(SALE_BID_SHARE_MIN, SALE_BID_SHARE_MAX, rng()), MARKET_VALUE_STEP);
+    if (fee > club.budget) {
+      continue;
+    }
+    reputationBySlug.set(club.slug, club.reputation);
+    bids.push({ clubSlug: club.slug, fee, wage, years: contractYears(player.age, rng) });
+  }
+
+  const reputationOf = (bid: SaleBid): number => reputationBySlug.get(bid.clubSlug) ?? 0;
+  bids.sort((a, b) => b.fee - a.fee || reputationOf(b) - reputationOf(a) || (a.clubSlug < b.clubSlug ? -1 : 1));
+  return { bids, done };
+}
+
+/** Bids of AI clubs for a player the managed club puts on sale (walkSaleBids), all the clubs given in any order. */
 export function saleBids(
   player: OfferPlayer,
   sellingClub: OfferClub,
   bidders: readonly BidderClub[],
   rng: Rng,
 ): SaleBid[] {
-  const value = marketValueFor(player);
-  const wage = minimumWage(player, sellingClub);
-  const reputationFloor = minimumReputation(player, sellingClub);
-  const eligible = bidders
-    .filter((club) => club.reputation >= reputationFloor && club.wageRoom >= wage)
-    .sort((a, b) => b.reputation - a.reputation || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
-  const reputationBySlug = new Map(eligible.map((club) => [club.slug, club.reputation]));
-
-  const bids: SaleBid[] = [];
-  for (const club of eligible) {
-    if (bids.length >= SALE_MAX_BIDDERS) {
-      break;
-    }
-    const fee = roundToStep(value * lerp(SALE_BID_SHARE_MIN, SALE_BID_SHARE_MAX, rng()), MARKET_VALUE_STEP);
-    if (fee > club.budget) {
-      continue;
-    }
-    bids.push({ clubSlug: club.slug, fee, wage, years: contractYears(player.age, rng) });
-  }
-
-  const reputationOf = (bid: SaleBid): number => reputationBySlug.get(bid.clubSlug) ?? 0;
-  return bids.sort(
-    (a, b) => b.fee - a.fee || reputationOf(b) - reputationOf(a) || (a.clubSlug < b.clubSlug ? -1 : 1),
-  );
+  return walkSaleBids(player, sellingClub, [...bidders].sort(biddingOrder), false, rng).bids;
 }
 
 /** A player of an AI club over its wage budget, as planWageSales reads him. */

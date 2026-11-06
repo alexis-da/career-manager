@@ -1,16 +1,18 @@
 import * as z from "zod";
-import { RELEASE_COMPENSATION_SHARE } from "../engine/balance";
+import { RELEASE_COMPENSATION_SHARE, SALE_MAX_BIDDERS } from "../engine/balance";
 import { displayClubName } from "../engine/club-name";
 import { contractEndDate } from "../engine/economy";
 import {
   askingPrice,
+  biddingOrder,
   evaluateOffer,
   evaluateRenewal,
   minimumReputation,
   minimumWage,
-  saleBids,
   saleRngSeed,
+  walkSaleBids,
   type BidderClub,
+  type OfferClub,
   type OfferPlayer,
   type OfferRefusal,
   type SaleBid,
@@ -107,10 +109,14 @@ type PlayerRow = {
 /** What the terms of a move depend on: the player's rating, age, wage and contract. */
 type QuotedPlayer = Omit<PlayerRow, "playerKey">;
 
-type SaleMarket = {
-  bidders: BidderClub[];
-  clubBySlug: Map<string, { id: string; clubId: string; club: { slug: string; name: string } }>;
-};
+/** A player of the managed club, as his sale is quoted. */
+type SquadPlayer = PlayerRow & { id: string };
+
+/** An AI club that may bid for a player of the managed club, with what a sale to it takes. */
+type Bidder = BidderClub & { id: string; clubId: string; name: string };
+
+/** The best AI bid for a player of the managed club, and the club that makes it. */
+type BestBid = { bid: SaleBid; buyer: Bidder };
 
 const refused = (reason: TransferRefusal, refusals: OfferRefusal[] = []): TransferOutcome => ({
   ok: false,
@@ -143,62 +149,117 @@ async function managedContext(tx: Tx, saveId: string) {
     where: { saveId, isManaged: true },
     select: { id: true, clubId: true, budget: true, wageBudget: true, reputation: true },
   });
-  const { _sum } = await tx.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } });
-  return { save, club, payroll: _sum.wage ?? 0, windowOpen: transferWindowAt(save.currentDate) !== null };
+  return { save, club, windowOpen: transferWindowAt(save.currentDate) !== null };
+}
+
+/** The wages of a club's players, euros per season. */
+async function payrollOf(tx: Tx, saveId: string, clubSaveId: string): Promise<number> {
+  const { _sum } = await tx.playerSave.aggregate({ where: { saveId, clubSaveId }, _sum: { wage: true } });
+  return _sum.wage ?? 0;
 }
 
 /**
- * Players who joined a club, bought or signed free, since the first day of the transfer window open on a date: they
- * cannot be sold before the next window. Empty when no window is open.
+ * The players among those given who joined a club, bought or signed free, since the first day of the transfer window
+ * open on a date: they cannot be sold before the next window. Empty when no window is open.
  */
-async function boughtThisWindow(tx: Tx, saveId: string, clubId: string, date: Date): Promise<Set<string>> {
+async function boughtThisWindow(
+  tx: Tx,
+  saveId: string,
+  clubId: string,
+  date: Date,
+  playerSaveIds: readonly string[],
+): Promise<Set<string>> {
   const opensOn = transferWindowOpenDate(date);
-  if (opensOn === null) {
+  if (opensOn === null || playerSaveIds.length === 0) {
     return new Set();
   }
   const arrivals = await tx.transfer.findMany({
-    where: { saveId, toClubId: clubId, type: { in: ["TRANSFER", "FREE"] }, date: { gte: opensOn } },
+    where: {
+      saveId,
+      playerSaveId: { in: [...playerSaveIds] },
+      toClubId: clubId,
+      type: { in: ["TRANSFER", "FREE"] },
+      date: { gte: opensOn },
+    },
     select: { playerSaveId: true },
   });
   return new Set(arrivals.map((arrival) => arrival.playerSaveId));
 }
 
-/** AI clubs able to bid, with the wage room left under their wage budget. */
-async function loadSaleMarket(tx: Tx, saveId: string): Promise<SaleMarket> {
-  const clubs = await tx.clubSave.findMany({
-    where: { saveId, isManaged: false },
-    select: { id: true, clubId: true, budget: true, wageBudget: true, reputation: true, club: { select: { slug: true, name: true } } },
-  });
+/** Above every club's reputation (1–99): the bound of the first clubs read. */
+const ABOVE_ANY_REPUTATION = 100;
+
+/**
+ * The AI clubs that follow, in bidding order, those already read (every club reputed `below` or more): the first
+ * `count` of those reputed `floor` or more, and the others of the reputation of the last one, so that biddingOrder,
+ * never the database's collation, orders the clubs of a reputation. Fewer than `count`: none is left. Each comes with
+ * its wage room, its wage budget less its payroll, read for these clubs only.
+ *
+ * Raw SQL for what Prisma cannot say: the join to Club by primary key, one Club row per club read (a findMany selecting
+ * the club reads the whole Club table for them), and WITH TIES, the rest of the last reputation in the same query.
+ */
+async function readBidders(tx: Tx, saveId: string, below: number, count: number, floor: number): Promise<Bidder[]> {
+  const clubs = await tx.$queryRaw<(Omit<Bidder, "wageRoom"> & { wageBudget: number })[]>`
+    SELECT cs."id", cs."clubId", cs."budget", cs."wageBudget", cs."reputation", c."slug", c."name"
+    FROM "ClubSave" cs
+    JOIN "Club" c ON c."id" = cs."clubId"
+    WHERE cs."saveId" = ${saveId} AND NOT cs."isManaged" AND cs."reputation" >= ${floor} AND cs."reputation" < ${below}
+    ORDER BY cs."reputation" DESC
+    FETCH FIRST ${count} ROWS WITH TIES`;
+  if (clubs.length === 0) {
+    return [];
+  }
   const payrolls = await tx.playerSave.groupBy({
     by: ["clubSaveId"],
-    where: { saveId, clubSaveId: { not: null } },
+    where: { saveId, clubSaveId: { in: clubs.map((club) => club.id) } },
     _sum: { wage: true },
   });
   const payrollByClub = new Map(payrolls.map((row) => [row.clubSaveId, row._sum.wage ?? 0]));
-  return {
-    bidders: clubs.map((candidate) => ({
-      slug: candidate.club.slug,
-      reputation: candidate.reputation,
-      budget: candidate.budget,
-      wageRoom: candidate.wageBudget - (payrollByClub.get(candidate.id) ?? 0),
-    })),
-    clubBySlug: new Map(clubs.map((candidate) => [candidate.club.slug, candidate])),
-  };
+  return clubs
+    .map(({ wageBudget, ...club }) => ({ ...club, wageRoom: wageBudget - (payrollByClub.get(club.id) ?? 0) }))
+    .sort(biddingOrder);
 }
 
-/** The best AI bid for a player, drawn from the stream of the save, the date and the player: the same all day. */
-function bestSaleBid(
+/**
+ * The best AI bid for each player (null: no club bids), keyed by PlayerSave.id: drawn from the stream of the save, the
+ * date and the player, the same all day. The AI clubs are read in bidding order, a batch at a time, only as far as the
+ * walks of the bids go (walkSaleBids): a batch serves every player, and a walk that runs past it starts again, with the
+ * same stream, once the next one is read. The bids are those of saleBids over every AI club.
+ */
+async function bestSaleBids(
+  tx: Tx,
+  saveId: string,
   save: { seed: string; currentDate: Date },
-  managedReputation: number,
-  player: PlayerRow,
-  market: SaleMarket,
-): SaleBid | undefined {
-  const [best] = saleBids(
-    offerPlayer(player, save.currentDate),
-    { reputation: managedReputation },
-    market.bidders,
-    makeRng(saleRngSeed(save.seed, save.currentDate, player.playerKey)),
-  );
+  seller: OfferClub,
+  players: readonly SquadPlayer[],
+): Promise<Map<string, BestBid | null>> {
+  const market: Bidder[] = [];
+  let more = true;
+  const best = new Map<string, BestBid | null>();
+  let pending = players.map((player) => ({ player, terms: offerPlayer(player, save.currentDate) }));
+  while (pending.length > 0) {
+    const waiting: { player: SquadPlayer; terms: OfferPlayer; missing: number }[] = [];
+    for (const { player, terms } of pending) {
+      const rng = makeRng(saleRngSeed(save.seed, save.currentDate, player.playerKey));
+      const walk = walkSaleBids(terms, seller, market, more, rng);
+      if (!walk.done) {
+        waiting.push({ player, terms, missing: SALE_MAX_BIDDERS - walk.bids.length });
+        continue;
+      }
+      const [bid] = walk.bids;
+      const buyer = bid === undefined ? undefined : market.find((club) => club.slug === bid.clubSlug);
+      best.set(player.id, bid === undefined || buyer === undefined ? null : { bid, buyer });
+    }
+    if (waiting.length > 0) {
+      // Every club read so far is reputed enough for each walk still waiting: they read the same clubs next.
+      const count = Math.max(...waiting.map((entry) => entry.missing));
+      const floor = Math.min(...waiting.map((entry) => minimumReputation(entry.terms, seller)));
+      const clubs = await readBidders(tx, saveId, market.at(-1)?.reputation ?? ABOVE_ANY_REPUTATION, count, floor);
+      market.push(...clubs);
+      more = clubs.length >= count;
+    }
+    pending = waiting;
+  }
   return best;
 }
 
@@ -246,26 +307,37 @@ export async function quoteTransfer(input: PlayerActionInput): Promise<TransferQ
  */
 export async function quoteSquad(saveId: string): Promise<Map<string, ContractTerms>> {
   const { save, club, windowOpen } = await managedContext(prisma, saveId);
-  const players = await prisma.playerSave.findMany({ where: { saveId, clubSaveId: club.id }, select: PLAYER_SELECT });
-  const market = windowOpen ? await loadSaleMarket(prisma, saveId) : null;
-  const bought = await boughtThisWindow(prisma, saveId, club.clubId, save.currentDate);
+  const players = await prisma.playerSave.findMany({
+    where: { saveId, clubSaveId: club.id },
+    select: { id: true, playerKey: true, birthDate: true, overall: true, potential: true, wage: true, contractUntil: true },
+  });
+  const bought = await boughtThisWindow(
+    prisma,
+    saveId,
+    club.clubId,
+    save.currentDate,
+    players.map((player) => player.id),
+  );
+  const bids = windowOpen
+    ? await bestSaleBids(prisma, saveId, save, club, players.filter((player) => !bought.has(player.id)))
+    : new Map<string, BestBid | null>();
 
   return new Map(
     players.map((player) => {
       let sale: SaleQuote = { ok: false, reason: "window_closed" };
-      if (market !== null && bought.has(player.id)) {
+      if (windowOpen && bought.has(player.id)) {
         sale = { ok: false, reason: "bought_this_window" };
-      } else if (market !== null) {
-        const best = bestSaleBid(save, club.reputation, player, market);
+      } else if (windowOpen) {
+        const best = getOrThrow(bids, player.id, "best sale bid");
         sale =
-          best === undefined
+          best === null
             ? { ok: false, reason: "no_offer" }
             : {
                 ok: true,
-                fee: best.fee,
-                wage: best.wage,
-                years: best.years,
-                buyerName: displayClubName(getOrThrow(market.clubBySlug, best.clubSlug, "bidding club").club),
+                fee: best.bid.fee,
+                wage: best.bid.wage,
+                years: best.bid.years,
+                buyerName: displayClubName(best.buyer),
               };
       }
       return [
@@ -284,7 +356,7 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
 export async function makeTransferOffer(input: MakeTransferOfferInput): Promise<TransferOutcome> {
   const { saveId, playerSaveId, fee, wage, years } = makeTransferOfferSchema.parse(input);
   return prisma.$transaction(async (tx) => {
-    const { save, club, payroll, windowOpen } = await managedContext(tx, saveId);
+    const { save, club, windowOpen } = await managedContext(tx, saveId);
     if (!windowOpen) {
       return refused("window_closed");
     }
@@ -298,7 +370,7 @@ export async function makeTransferOffer(input: MakeTransferOfferInput): Promise<
     if (fee > club.budget) {
       return refused("insufficient_budget");
     }
-    if (payroll + wage > club.wageBudget) {
+    if ((await payrollOf(tx, saveId, club.id)) + wage > club.wageBudget) {
       return refused("wage_budget_exceeded");
     }
     const evaluation = evaluateOffer(
@@ -338,7 +410,7 @@ export async function makeTransferOffer(input: MakeTransferOfferInput): Promise<
 export async function signFreeAgent(input: SignFreeAgentInput): Promise<TransferOutcome> {
   const { saveId, playerSaveId, wage, years } = signFreeAgentSchema.parse(input);
   return prisma.$transaction(async (tx) => {
-    const { save, club, payroll, windowOpen } = await managedContext(tx, saveId);
+    const { save, club, windowOpen } = await managedContext(tx, saveId);
     if (!windowOpen) {
       return refused("window_closed");
     }
@@ -349,7 +421,7 @@ export async function signFreeAgent(input: SignFreeAgentInput): Promise<Transfer
     if (player === null) {
       return refused("not_available");
     }
-    if (payroll + wage > club.wageBudget) {
+    if ((await payrollOf(tx, saveId, club.id)) + wage > club.wageBudget) {
       return refused("wage_budget_exceeded");
     }
     const evaluation = evaluateOffer(offerPlayer(player, save.currentDate), null, { reputation: club.reputation }, 0, wage);
@@ -370,7 +442,7 @@ export async function signFreeAgent(input: SignFreeAgentInput): Promise<Transfer
 export async function renewContract(input: RenewContractInput): Promise<TransferOutcome> {
   const { saveId, playerSaveId, wage, years } = renewContractSchema.parse(input);
   return prisma.$transaction(async (tx) => {
-    const { save, club, payroll, windowOpen } = await managedContext(tx, saveId);
+    const { save, club, windowOpen } = await managedContext(tx, saveId);
     if (!windowOpen) {
       return refused("window_closed");
     }
@@ -378,7 +450,7 @@ export async function renewContract(input: RenewContractInput): Promise<Transfer
     if (player === null) {
       return refused("not_available");
     }
-    if (payroll - player.wage + wage > club.wageBudget) {
+    if ((await payrollOf(tx, saveId, club.id)) - player.wage + wage > club.wageBudget) {
       return refused("wage_budget_exceeded");
     }
     if (!evaluateRenewal(offerPlayer(player, save.currentDate), wage).accepted) {
@@ -439,39 +511,38 @@ export async function sellPlayer(input: PlayerActionInput): Promise<TransferOutc
     if (player === null) {
       return refused("not_available");
     }
-    if ((await boughtThisWindow(tx, saveId, club.clubId, save.currentDate)).has(player.id)) {
+    if ((await boughtThisWindow(tx, saveId, club.clubId, save.currentDate, [player.id])).has(player.id)) {
       return refused("bought_this_window");
     }
 
-    const market = await loadSaleMarket(tx, saveId);
-    const best = bestSaleBid(save, club.reputation, player, market);
-    if (best === undefined) {
+    const best = getOrThrow(await bestSaleBids(tx, saveId, save, club, [player]), player.id, "best sale bid");
+    if (best === null) {
       return refused("no_offer");
     }
 
-    const buyer = getOrThrow(market.clubBySlug, best.clubSlug, "bidding club");
-    const contractUntil = contractEndDate(save.currentDate, best.years);
+    const { bid, buyer } = best;
+    const contractUntil = contractEndDate(save.currentDate, bid.years);
     await tx.playerSave.update({
       where: { id: player.id, saveId },
-      data: { clubSaveId: buyer.id, contractUntil, wage: best.wage },
+      data: { clubSaveId: buyer.id, contractUntil, wage: bid.wage },
     });
-    await tx.clubSave.update({ where: { id: club.id, saveId }, data: { budget: { increment: best.fee } } });
-    await tx.clubSave.update({ where: { id: buyer.id, saveId }, data: { budget: { decrement: best.fee } } });
+    await tx.clubSave.update({ where: { id: club.id, saveId }, data: { budget: { increment: bid.fee } } });
+    await tx.clubSave.update({ where: { id: buyer.id, saveId }, data: { budget: { decrement: bid.fee } } });
     await tx.transfer.create({
       data: {
         saveId,
         playerSaveId: player.id,
         fromClubId: club.clubId,
         toClubId: buyer.clubId,
-        fee: best.fee,
+        fee: bid.fee,
         type: "TRANSFER",
         date: save.currentDate,
       },
     });
     return {
       ok: true,
-      fee: best.fee,
-      budgetChange: best.fee,
+      fee: bid.fee,
+      budgetChange: bid.fee,
       payrollChange: -player.wage,
       clubSaveId: buyer.id,
       contractUntil,

@@ -4,11 +4,13 @@ import { WAGE_SALE_MIN_FEE_SHARE } from "./balance";
 import { marketValueFor, wageFor } from "./economy";
 import {
   askingPrice,
+  biddingOrder,
   evaluateOffer,
   evaluateRenewal,
   minimumWage,
   planWageSales,
   saleBids,
+  walkSaleBids,
   type BidderClub,
   type OfferPlayer,
   type WageSalePlayer,
@@ -127,6 +129,35 @@ describe("saleBids", () => {
     const poorClubs = bidders.map((club) => ({ ...club, budget: 1 }));
 
     expect(saleBids(player(), SELLER, poorClubs, makeRng("sale"))).toEqual([]);
+  });
+});
+
+describe("walkSaleBids", () => {
+  const ordered: BidderClub[] = [
+    { slug: "rich", reputation: 88, budget: 500_000_000, wageRoom: 100_000_000 },
+    { slug: "no-wage-room", reputation: 87, budget: 500_000_000, wageRoom: 0 },
+    { slug: "broke", reputation: 86, budget: 1_000_000, wageRoom: 100_000_000 },
+    { slug: "second", reputation: 84, budget: 500_000_000, wageRoom: 100_000_000 },
+    { slug: "third", reputation: 82, budget: 500_000_000, wageRoom: 100_000_000 },
+    { slug: "too-small", reputation: 60, budget: 500_000_000, wageRoom: 100_000_000 },
+  ];
+  /** A walk over the first `read` clubs, others left to read. */
+  const walk = (clubs: BidderClub[], read: number) => walkSaleBids(player(), SELLER, clubs.slice(0, read), true, makeRng("sale"));
+
+  it("needs every club down to the first the player would not join, then bids as saleBids", () => {
+    // Three bids: the walk reads on to "too-small", under the 70 the player asks, and stops there with clubs left.
+    expect([...ordered].reverse().sort(biddingOrder)).toEqual(ordered);
+    for (let read = 0; read < ordered.length; read++) {
+      expect(walk(ordered, read).done).toBe(false);
+    }
+    expect(walk(ordered, ordered.length)).toEqual({ bids: saleBids(player(), SELLER, ordered, makeRng("sale")), done: true });
+  });
+
+  it("is done at its fifth bid, without the clubs after", () => {
+    const rich = Array.from({ length: 7 }, (_, index) => ({ ...ordered[0], slug: `rich-${index}`, reputation: 90 - index }));
+
+    expect(walk(rich, 4)).toMatchObject({ done: false, bids: { length: 4 } });
+    expect(walk(rich, 5)).toEqual({ bids: saleBids(player(), SELLER, rich, makeRng("sale")), done: true });
   });
 });
 

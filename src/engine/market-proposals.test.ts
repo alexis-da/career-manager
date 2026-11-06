@@ -1,16 +1,30 @@
 import { describe, expect, it } from "vitest";
+import { ageInYears } from "../lib/dates";
+import { marketValueFor } from "./economy";
 import {
+  CLUB_ASKING_PRICE_FLOOR,
+  entryBound,
+  entryRules,
+  gemBirthDateFloor,
+  highestWagePaid,
+  isSettled,
+  lowestOverallIn,
   MARKET_ENTRIES,
   MAX_PROPOSALS_PER_ENTRY,
+  maxClubSaving,
   proposeSignings,
+  settlingFloor,
   weakSpotOf,
   type ElevenSlot,
   type MarketBuyer,
   type MarketCandidate,
   type MarketEntry,
   type Proposal,
+  type RankedEntry,
+  type WeakSpot,
 } from "./market-proposals";
-import { secondaryPositions, type Position } from "./positions";
+import { POSITIONS, secondaryPositions, type Position } from "./positions";
+import { askingPrice, minimumWage, type OfferPlayer } from "./transfer-ai";
 
 const MILLION = 1_000_000;
 
@@ -485,5 +499,133 @@ describe("the wage room", () => {
 
     expect(wageBound.needs).toBe(false);
     expect(entries.needs.map(({ candidate: { playerKey }, tag }) => [playerKey, tag])).toEqual([["dear", "best"]]);
+  });
+});
+
+describe("the bounds of a search in the database", () => {
+  const weakSpot: WeakSpot = { position: "CB", rating: 60 };
+  const rules = entryRules(weakSpot);
+  const RANKED: readonly RankedEntry[] = ["needs", "affordable", "gems", "bargains", "stars"];
+
+  /** Players of the AI clubs of every kind: rating, age, room to grow, seasons left, position. */
+  const clubPlayers: MarketCandidate[] = [];
+  for (const overall of [1, 15, 30, 40, 45, 50, 55, 57, 60, 61, 63, 66, 70, 74, 78, 82, 86, 90, 95, 99]) {
+    for (const age of [16, 18, 20, 21, 22, 24, 27, 30, 33, 36, 40]) {
+      for (const potential of new Set([overall, Math.min(99, overall + 4), Math.min(99, overall + 12), 99])) {
+        for (const seasonsLeft of [0, 1, 2, 3, 5]) {
+          const terms: OfferPlayer = { age, overall, potential, wage: 0, seasonsLeft };
+          clubPlayers.push(
+            candidate(`club-${clubPlayers.length}`, {
+              position: POSITIONS[clubPlayers.length % POSITIONS.length],
+              age,
+              overall,
+              potential,
+              askingPrice: askingPrice(terms),
+              marketValue: marketValueFor(terms),
+            }),
+          );
+        }
+      }
+    }
+  }
+
+  /** Ten times the same candidate: the tenth of an entry's first ones. */
+  const tenOf = (overrides: Partial<MarketCandidate>): MarketCandidate[] =>
+    Array.from({ length: MAX_PROPOSALS_PER_ENTRY }, (_, index) => candidate(`tenth-${index}`, overrides));
+
+  it("puts every club's asking price at or above a floor, itself above a free agent's", () => {
+    expect(CLUB_ASKING_PRICE_FLOOR).toBeGreaterThan(0);
+    for (const player of clubPlayers) {
+      expect(player.askingPrice, player.playerKey).toBeGreaterThanOrEqual(CLUB_ASKING_PRICE_FLOOR);
+    }
+  });
+
+  it("never lets a club's player save his buyer more than maxClubSaving at his rating, which only grows", () => {
+    for (const player of clubPlayers) {
+      expect(player.marketValue - player.askingPrice, player.playerKey).toBeLessThanOrEqual(maxClubSaving(player.overall));
+      expect(maxClubSaving(player.overall)).toBeLessThanOrEqual(maxClubSaving(player.overall + 1));
+    }
+  });
+
+  it("bounds the keys of every club's player an entry takes, from the highest rating (potential for Gems) left", () => {
+    // A player whose keys came before the bound would settle an entry whose tenth he is.
+    for (const entry of RANKED) {
+      for (const player of clubPlayers.filter(rules[entry].takes)) {
+        const highest = entry === "gems" ? player.potential : player.overall;
+        const tenth = Array.from({ length: MAX_PROPOSALS_PER_ENTRY }, () => player);
+
+        expect(isSettled(rules[entry], tenth, entryBound(entry, weakSpot, highest)), `${entry} ${player.playerKey}`).toBe(false);
+      }
+    }
+  });
+
+  it("has no one left enter Needs at the weak spot's rating or below, nor Bargains more than 3 below it", () => {
+    expect([lowestOverallIn("needs", weakSpot), lowestOverallIn("bargains", weakSpot)]).toEqual([61, 57]);
+    expect(entryBound("needs", weakSpot, 60)).toBeNull();
+    expect(entryBound("needs", weakSpot, 61)).not.toBeNull();
+    expect(entryBound("bargains", weakSpot, 56)).toBeNull();
+    expect(entryBound("bargains", weakSpot, 57)).not.toBeNull();
+    expect(entryBound("stars", weakSpot, 1)).not.toBeNull();
+  });
+
+  it("has no one enter Needs nor « affordable » without a weak spot, and anyone rated enter the others", () => {
+    expect(lowestOverallIn("needs", null)).toBe(Infinity);
+    expect(lowestOverallIn("affordable", null)).toBe(Infinity);
+    expect(entryBound("affordable", null, 99)).toBeNull();
+    expect([lowestOverallIn("gems", null), lowestOverallIn("bargains", null), lowestOverallIn("stars", null)]).toEqual([
+      -Infinity,
+      -Infinity,
+      -Infinity,
+    ]);
+  });
+
+  it("settles an entry once its tenth comes before every player left, ties included", () => {
+    const pricey = tenOf({ overall: 70, askingPrice: MILLION });
+
+    expect(isSettled(rules.stars, pricey, entryBound("stars", weakSpot, 69))).toBe(true);
+    // A club's player rated 70 may cost less; a free agent costs nothing, and none is left.
+    expect(isSettled(rules.stars, pricey, entryBound("stars", weakSpot, 70))).toBe(false);
+    expect(isSettled(rules.stars, tenOf({ overall: 70, askingPrice: 0 }), entryBound("stars", weakSpot, 70))).toBe(true);
+    // Nine are not ten.
+    expect(isSettled(rules.stars, pricey.slice(1), entryBound("stars", weakSpot, 1))).toBe(false);
+    // No one left can enter at all.
+    expect(isSettled(rules.needs, [], null)).toBe(true);
+  });
+
+  it("finds how far a search must read for an entry's first ones to be certain", () => {
+    expect(settlingFloor("stars", weakSpot, tenOf({ overall: 70 }).slice(1), 90)).toBeNull();
+    expect(settlingFloor("stars", weakSpot, tenOf({ overall: 70, askingPrice: MILLION }), 90)).toBe(70);
+    expect(settlingFloor("stars", weakSpot, tenOf({ overall: 70, askingPrice: 0 }), 90)).toBe(71);
+    // Ten centre-backs rated 65 at the weak spot, a gain of 5: every player rated 65 or more is read.
+    expect(settlingFloor("needs", weakSpot, tenOf({ position: "CB", overall: 65 }), 90)).toBe(65);
+    expect(settlingFloor("gems", weakSpot, tenOf({ age: 19, overall: 60, potential: 80 }), Infinity)).toBe(80);
+  });
+
+  it("pays exactly the highest wage the wage room pays", () => {
+    const asked = (wage: number): number =>
+      minimumWage({ age: 25, overall: 70, potential: 70, wage, seasonsLeft: 2 }, { reputation: 50 });
+    for (const room of [0, 999, 1_000, 1_100, 54_321, 3_300_000, 10 * MILLION]) {
+      const wage = highestWagePaid(room);
+
+      expect(asked(wage), `${room}`).toBeLessThanOrEqual(room);
+      expect(asked(wage + 1), `${room}`).toBeGreaterThan(room);
+    }
+    expect(highestWagePaid(-1)).toBe(-1);
+  });
+
+  it("has every gem born after gemBirthDateFloor, and whoever was born that day too old to be one", () => {
+    const dates = [Date.UTC(2026, 6, 1), Date.UTC(2028, 1, 29), Date.UTC(2027, 2, 1), Date.UTC(2026, 11, 31)].map(
+      (time) => new Date(time),
+    );
+    for (const date of dates) {
+      const floor = gemBirthDateFloor(date);
+      for (let day = -3; day <= 3; day++) {
+        const birth = new Date(Date.UTC(date.getUTCFullYear() - 22, date.getUTCMonth(), date.getUTCDate() + day));
+        if (ageInYears(birth, date) <= 21) {
+          expect(birth.getTime(), `${date.toISOString()} ${birth.toISOString()}`).toBeGreaterThan(floor.getTime());
+        }
+      }
+      expect(ageInYears(floor, date)).toBeGreaterThan(21);
+    }
   });
 });

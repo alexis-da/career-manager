@@ -27,33 +27,47 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
   if (summary === null) {
     return null;
   }
-  const managed = await prisma.clubSave.findFirstOrThrow({
-    where: { saveId, isManaged: true },
-    select: { id: true, competition: { select: { code: true } } },
-  });
-  const [nextFixture, unplayed, seasonsInProgress, save, withCup] = await Promise.all([
-    prisma.fixture.findFirst({
-      where: {
-        saveId,
-        played: false,
-        season: { completed: false },
-        OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }],
-      },
-      orderBy: { scheduledAt: "asc" },
-      select: {
-        round: true,
-        scheduledAt: true,
-        homeClubSaveId: true,
-        homeClubSave: NAMED_CLUB,
-        awayClubSave: NAMED_CLUB,
-        season: { select: { competition: { select: { kind: true } } } },
-      },
+  const [managed, seasonsInProgress, save, withCup] = await Promise.all([
+    prisma.clubSave.findFirstOrThrow({
+      where: { saveId, isManaged: true },
+      select: { id: true, competition: { select: { code: true } } },
     }),
-    prisma.fixture.count({ where: { saveId, played: false, season: { completed: false } } }),
-    prisma.season.count({ where: { saveId, completed: false } }),
+    // By their ids, not by a filter on Season: Postgres would read the seasons in progress of every save.
+    prisma.season.findMany({ where: { saveId, completed: false }, select: { id: true } }),
     prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, worldVersion: true } }),
     hasCup(saveId),
   ]);
+  const inProgress = { in: seasonsInProgress.map((season) => season.id) };
+  // A date is played whole (playNextMatchday): no fixture waits before the save's date. Whatever index Postgres takes,
+  // its search starts there.
+  const ahead = { gte: summary.currentDate };
+  const nextFixture = await prisma.fixture.findFirst({
+    where: {
+      saveId,
+      played: false,
+      seasonId: inProgress,
+      scheduledAt: ahead,
+      OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }],
+    },
+    orderBy: { scheduledAt: "asc" },
+    select: {
+      round: true,
+      scheduledAt: true,
+      homeClubSaveId: true,
+      homeClubSave: NAMED_CLUB,
+      awayClubSave: NAMED_CLUB,
+      season: { select: { competition: { select: { kind: true } } } },
+    },
+  });
+  // A fixture left to play in the seasons in progress: the managed club's next one, or any other, the soonest first on
+  // the index (saveId, scheduledAt), from the save's date: the search stops at the first.
+  const unplayedLeft =
+    nextFixture !== null ||
+    (await prisma.fixture.findFirst({
+      where: { saveId, played: false, seasonId: inProgress, scheduledAt: ahead },
+      orderBy: { scheduledAt: "asc" },
+      select: { id: true },
+    })) !== null;
 
   const atHome = nextFixture?.homeClubSaveId === managed.id;
   return {
@@ -68,7 +82,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
             atHome,
             opponent: displayClubName((atHome ? nextFixture.awayClubSave : nextFixture.homeClubSave).club),
           },
-    seasonFinished: seasonsInProgress > 0 && unplayed === 0,
+    seasonFinished: seasonsInProgress.length > 0 && !unplayedLeft,
     windowOpen: transferWindowAt(summary.currentDate) !== null,
     liveMatch: save.liveFixtureId !== null,
     competitionCode: managed.competition.code,
