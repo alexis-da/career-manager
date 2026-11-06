@@ -94,7 +94,7 @@ async function cupSeasonOf(db: Db, saveId: string, leagueCode: string, startYear
 /**
  * Opens the managed club's objectives for a league season, at the creation of a save and at each transition, once the
  * season's fixtures and cups exist and the preseason has run: the ranking (rankingObjective on its reputation rank in
- * its division), the cup when its country has one this season (cupObjective on its reputation third and the round it
+ * its division, the one its dotation was given at), the cup when its country has one this season (cupObjective on its reputation third and the round it
  * enters at), and three of the four optional objectives (proposedObjectives, the season's own stream), their targets
  * from its squad's expected goals against its division's average opponent. Sets the president's confidence of a season
  * that begins.
@@ -113,10 +113,15 @@ export async function openSeasonObjectives(
   });
   const tier = competitionTier(competition.tier);
   const clubCount = rivals.length;
+  // The rank its dotation was given at (SeasonBudget, written just before): the transition orders equal reputations by
+  // the wage budgets of the season closed, which the new ones, measured on the payrolls, may not follow.
+  const dotation = await tx.seasonBudget.findFirst({ where: { saveId, seasonId: season.id }, select: { reputationRank: true } });
   const reputationRank =
+    dotation?.reputationRank ??
     reputationRanks(
       rivals.map((club) => ({ key: club.id, reputation: club.reputation, wageBudget: club.wageBudget, slug: club.club.slug })),
-    ).get(managed.id) ?? clubCount;
+    ).get(managed.id) ??
+    clubCount;
   const division = divisionOf(competition.code, tier, clubCount, worldVersionOf(save.worldVersion));
   const ranking = rankingObjective(reputationRank, division);
 

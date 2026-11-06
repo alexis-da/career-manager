@@ -622,7 +622,24 @@ function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
     const previousEnd = new Map((previous?.end ?? []).map((club) => [club.clubSaveId, club]));
     const ends = new Map((snapshot.end ?? []).map((club) => [club.clubSaveId, club]));
     const nextStart = new Map((snapshots[index + 1]?.start ?? []).map((club) => [club.clubSaveId, club]));
+    // The rank the transition gave each club's dotation: its new reputation, equal ones ordered by the wage budget of the
+    // season closed (the previous end's), which the new one, measured on the payroll, may not follow; at S1, the season's.
+    const dotationRanks = new Map<string, number>();
+    for (const division of Map.groupBy(snapshot.start, (club) => club.code).values()) {
+      const ranks = reputationRanks(
+        division.map((club) => ({
+          key: club.clubSaveId,
+          reputation: club.reputation,
+          wageBudget: previous === undefined ? club.wageBudget : getOrThrow(previousEnd, club.clubSaveId, "previous season's end").wageBudget,
+          slug: club.slug,
+        })),
+      );
+      for (const [clubSaveId, rank] of ranks) {
+        dotationRanks.set(clubSaveId, rank);
+      }
+    }
     return snapshot.start.map((club): ClubSeason => {
+      const dotationRank = getOrThrow(dotationRanks, club.clubSaveId, "dotation rank");
       let board: SeasonFinances | null = null;
       if (previous !== undefined) {
         const closed = getOrThrow(previousEnd, club.clubSaveId, "previous season's end");
@@ -630,7 +647,7 @@ function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
           ? (snapshot.managedBudget?.coefficient ?? NEUTRAL_BUDGET_COEFFICIENT)
           : rankingCoefficientOf(getOrThrow(previousStart, club.clubSaveId, "previous season's start"), closed.finalRank);
         board = seasonFinances({
-          reputationRank: club.reputationRank,
+          reputationRank: dotationRank,
           clubCount: club.clubCount,
           tier: club.tier,
           coefficient,
@@ -654,7 +671,7 @@ function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
         reputationRank: club.reputationRank,
         third: Math.ceil((3 * club.reputationRank) / club.clubCount),
         creationBudget: getOrThrow(creation, club.clubSaveId, "creation budget"),
-        dotation: clubFinances(club.reputationRank, club.clubCount, club.tier).budget,
+        dotation: clubFinances(dotationRank, club.clubCount, club.tier).budget,
         board,
         budget: club.budget,
         preseasonBalance: club.preseasonBalance,

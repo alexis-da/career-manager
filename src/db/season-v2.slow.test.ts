@@ -59,6 +59,7 @@ type TransitionCheck = {
   dotation: Record<string, number> | null; // the managed club's SeasonBudget on its new season
   closedObjectives: { kind: string; imposed: boolean; chosen: boolean; target: number; exceed: number | null; outcome: string | null }[];
   nextObjectives: number; // the managed club's objectives of the new season
+  nextRanking: { variant: string | null; target: number; exceed: number | null } | null; // its ranking objective of the new season
   financesBefore: Map<string, ClubFinances>; // by Club.id
   payrollsBefore: Map<string, number>; // by Club.id, at the end of the season closed
   financesAfter: Map<string, ClubFinances>;
@@ -244,6 +245,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
       select: { kind: true, imposed: true, chosen: true, target: true, exceed: true, outcome: true },
     });
     const nextObjectives = await db.seasonObjective.count({ where: { saveId, season: { startYear: startYear + 1 } } });
+    const nextRanking = await db.seasonObjective.findFirst({
+      where: { saveId, kind: "RANKING", season: { startYear: startYear + 1 } },
+      select: { variant: true, target: true, exceed: true },
+    });
     const dotation = await db.seasonBudget.findFirst({
       where: { saveId, season: { startYear: startYear + 1 } },
       select: {
@@ -282,6 +287,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         dotation,
         closedObjectives,
         nextObjectives,
+        nextRanking,
         financesBefore,
         payrollsBefore,
         financesAfter: await financesOf(saveId),
@@ -568,6 +574,17 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         }
       }
     }
+  });
+
+  it.each([0, 1])("opens the managed club's ranking objective at the reputation rank of its dotation (transition %i)", (index) => {
+    const check = checks[index];
+    const code = check.codeOf.get(check.competitionOf.get(check.managedClubId) ?? "") ?? "";
+    const tier = competitionTier(check.tierOf.get(code) ?? NaN);
+    const division = divisionOf(code, tier, DIVISION_SIZES[code], 2);
+
+    // The same rank as its dotation's, even between equal reputations: the transition orders them by the wage budgets of
+    // the season closed, which the new ones, measured on the payrolls, may not follow.
+    expect(check.nextRanking).toEqual(rankingObjective(check.dotation?.reputationRank ?? NaN, division));
   });
 
   it("keeps the worldVersion 2 demo save at the kickoff of its second season, its first season's moves written", async () => {
