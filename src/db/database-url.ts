@@ -30,11 +30,23 @@ export function assertLocalDatabase(url: string | undefined, name: string): void
 }
 
 /**
+ * The sslmodes pg treats as verify-full, warning at every start that its next major version will give them libpq's
+ * weaker meaning (pg-connection-string, « SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' … »).
+ */
+const VERIFY_FULL_ALIASES = /([?&]sslmode=)(prefer|require|verify-ca)(?=&|$)/;
+
+/**
  * pg options for a URL: a local URL without sslmode connects without SSL (the local server has none); any other URL is
- * passed as is, its sslmode deciding, as with Neon.
+ * passed with its own sslmode, as with Neon, except that prefer, require and verify-ca are written verify-full, what pg
+ * makes of them today: the same connection, checked as now, without the warning, and kept so by pg 9. A URL asking for
+ * libpq's meaning (uselibpqcompat=true) is left as it is. Nothing else in the URL changes.
  */
 export function pgConnection(url: string): { connectionString: string; ssl?: false } {
-  return isLocalDatabase(url) && !new URL(url).searchParams.has("sslmode") ? { connectionString: url, ssl: false } : { connectionString: url };
+  const params = new URL(url).searchParams;
+  if (isLocalDatabase(url) && !params.has("sslmode")) {
+    return { connectionString: url, ssl: false };
+  }
+  return { connectionString: params.get("uselibpqcompat") === "true" ? url : url.replace(VERIFY_FULL_ALIASES, "$1verify-full") };
 }
 
 /** A URL for the Prisma CLI: a local one without sslmode gets sslmode=disable; any other URL is left as is. */

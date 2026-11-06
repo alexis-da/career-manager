@@ -53,7 +53,9 @@ PostgreSQL 17 local (port 5432, utilisateur postgres) : `latewinner_dev` (`.env`
 et `latewinner_test` (`.env.test`, `DATABASE_URL_TEST`, pour les E2E **et** les tests Vitest en base,
 `src/db/test-database.ts`), créées par `npm run db:local:init`, puis `npx prisma migrate deploy` et
 `npm run db:seed` sur chacune. Une URL locale sans `sslmode` se connecte sans SSL (`pgConnection`, `cliDatabaseUrl`,
-`src/db/database-url.ts`) ; une URL Neon garde son `sslmode`. **Garde-fou : l'hôte doit être localhost pour toute
+`src/db/database-url.ts`) ; une URL Neon garde son `sslmode`, `prefer`, `require` et `verify-ca` écrits `verify-full`
+pour pg (`pgConnection`) : ce qu'il en fait déjà, sans son avertissement de sécurité, aucune variable à changer.
+**Garde-fou : l'hôte doit être localhost pour toute
 commande locale** (`assertLocalDatabase` : client Prisma, `prisma.config.ts`, seed, mesures, tests en base,
 Playwright) ; une base distante n'est acceptée que sur Vercel (`VERCEL=1`) ou avec `ALLOW_REMOTE_DB=1` posée à la main,
 sciemment. Neon (`damp-rain`, production) n'est atteint que par Vercel ; la branche Neon de test (`sparkling-darkness`)
