@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
-import { CONTRACT_YEARS_WEIGHTS } from "./balance";
-import { clubFinances, contractYears, generateContract, seasonFinances } from "./economy";
+import { CONTRACT_YEARS_WEIGHTS, WAGE_BUDGET_MARGIN } from "./balance";
+import { clubFinances, contractYears, generateContract, managedWageMargin, seasonFinances, wageBudgetFor } from "./economy";
 import { WORLD_START_DATE } from "./world";
 
 const MAX_DATABASE_INT = 2_147_483_647;
@@ -40,22 +40,31 @@ describe("clubFinances", () => {
 });
 
 describe("seasonFinances", () => {
-  it("gives the creation's finances at the reputation rank, times the coefficient, plus half of the unspent budget", () => {
-    const creation = clubFinances(4, 20, 1);
-    const finances = seasonFinances(4, 20, 1, 110, 7_300_000);
+  const input = {
+    reputationRank: 4,
+    clubCount: 20,
+    tier: 1,
+    coefficient: 110,
+    unspent: 7_300_000,
+    payroll: 50_000_000,
+    wageMargin: 1.2,
+  } as const;
 
-    expect(finances).toEqual({
+  it("gives the creation's budget at the reputation rank, times the coefficient, plus half of the unspent budget", () => {
+    const creation = clubFinances(4, 20, 1);
+
+    expect(seasonFinances(input)).toEqual({
       dotation: creation.budget,
       coefficient: 110,
       carryOver: 3_650_000,
       budget: Math.round((creation.budget * 1.1) / 100_000) * 100_000 + 3_650_000,
-      wageBudget: creation.wageBudget,
+      wageBudget: 60_000_000,
     });
   });
 
   it("keeps the wage budget out of the coefficient, and carries nothing over from an overspent budget", () => {
-    const low = seasonFinances(12, 18, 2, 70, -2_000_000);
-    const high = seasonFinances(12, 18, 2, 140, 0);
+    const low = seasonFinances({ ...input, reputationRank: 12, clubCount: 18, tier: 2, coefficient: 70, unspent: -2_000_000 });
+    const high = seasonFinances({ ...input, reputationRank: 12, clubCount: 18, tier: 2, coefficient: 140, unspent: 0 });
 
     expect(low.wageBudget).toBe(high.wageBudget);
     expect(low.carryOver).toBe(0);
@@ -64,8 +73,46 @@ describe("seasonFinances", () => {
   });
 
   it("gives the same dotation to clubs sharing a reputation rank, and more to a better rank", () => {
-    expect(seasonFinances(3, 20, 1, 100, 0)).toEqual(seasonFinances(3, 20, 1, 100, 0));
-    expect(seasonFinances(2, 20, 1, 100, 0).dotation).toBeGreaterThan(seasonFinances(3, 20, 1, 100, 0).dotation);
+    expect(seasonFinances({ ...input, reputationRank: 3 })).toEqual(seasonFinances({ ...input, reputationRank: 3 }));
+    expect(seasonFinances({ ...input, reputationRank: 2 }).dotation).toBeGreaterThan(
+      seasonFinances({ ...input, reputationRank: 3 }).dotation,
+    );
+  });
+
+  it("measures the wage budget against the payroll, never above the table's at the reputation rank", () => {
+    const table = clubFinances(4, 20, 1).wageBudget;
+
+    expect(seasonFinances({ ...input, payroll: 40_000_000, wageMargin: 1.3 }).wageBudget).toBe(52_000_000);
+    expect(seasonFinances({ ...input, payroll: table, wageMargin: 1.1 }).wageBudget).toBe(table);
+  });
+});
+
+describe("wageBudgetFor", () => {
+  it("adds the margin to the payroll, rounded to the budget step", () => {
+    expect(wageBudgetFor(31_234_000, 1.2, 200_000_000)).toBe(37_500_000);
+    expect(wageBudgetFor(5_000_000, 1.1, 200_000_000)).toBe(5_500_000);
+  });
+
+  it("never goes above the table's wage budget: an overpaid squad stays above its budget", () => {
+    expect(wageBudgetFor(30_000_000, 1.2, 25_000_000)).toBe(25_000_000);
+  });
+});
+
+describe("managedWageMargin", () => {
+  it("goes from 1.10 at the lowest coefficient to 1.30 at the highest, 1.20 at 100", () => {
+    expect(managedWageMargin(70)).toBeCloseTo(1.1, 10);
+    expect(managedWageMargin(100)).toBe(WAGE_BUDGET_MARGIN);
+    expect(managedWageMargin(140)).toBeCloseTo(1.3, 10);
+    expect(managedWageMargin(85)).toBeCloseTo(1.15, 10);
+    expect(managedWageMargin(120)).toBeCloseTo(1.25, 10);
+  });
+
+  it("stays within its range outside the coefficients' bounds, and rises with the coefficient", () => {
+    expect(managedWageMargin(50)).toBeCloseTo(1.1, 10);
+    expect(managedWageMargin(200)).toBeCloseTo(1.3, 10);
+    for (let coefficient = 70; coefficient < 140; coefficient += 5) {
+      expect(managedWageMargin(coefficient + 5)).toBeGreaterThan(managedWageMargin(coefficient));
+    }
   });
 });
 

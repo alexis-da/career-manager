@@ -24,7 +24,7 @@ import { openCups } from "./cup";
 import { seasonFixtures } from "./fixtures";
 import { runPreseasonInTransaction } from "./preseason";
 import { openSeasonObjectives } from "./objectives";
-import { firstSeasonDotation, recordDotation } from "./season-finances";
+import { applyCreationWageBudgets, firstSeasonDotation, recordDotation } from "./season-finances";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
 export const createSaveInputSchema = z.object({
@@ -285,6 +285,8 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
       // AI squads are full (SQUAD_SIZE_MAX) once the young players arrive: the pool stays on the market.
       await runPreseasonInTransaction(tx, save.id);
       timer.mark("preseason");
+      // Every club's wage budget: its payroll, once its squad is complete, plus a margin, a real limit.
+      await applyCreationWageBudgets(tx, save.id);
 
       const startYear = seasonStartYear(save.currentDate);
       const seasons = await tx.season.createManyAndReturn({

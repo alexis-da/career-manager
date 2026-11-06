@@ -1,6 +1,7 @@
 import { weightedIndex, type Rng } from "../lib/rng";
 import {
   BUDGET_CARRY_OVER_SHARE,
+  BUDGET_COEFFICIENT_RANGE,
   BUDGET_STEP,
   CLUB_BUDGET_BY_TIER,
   CLUB_REPUTATION_BY_TIER,
@@ -8,11 +9,14 @@ import {
   CONTRACT_YEARS_WEIGHTS,
   LATE_CAREER_MAX_CONTRACT_YEARS,
   LONG_CONTRACT_MAX_AGE,
+  MANAGED_WAGE_MARGIN_RANGE,
   MARKET_VALUE_AGE_FACTOR,
   MARKET_VALUE_BY_OVERALL,
   MARKET_VALUE_PER_GROWTH_POINT,
   MARKET_VALUE_STEP,
+  NEUTRAL_BUDGET_COEFFICIENT,
   WAGE_AGE_FACTOR,
+  WAGE_BUDGET_MARGIN,
   WAGE_BY_OVERALL,
   WAGE_STEP,
 } from "./balance";
@@ -64,31 +68,68 @@ export type SeasonFinances = {
   coefficient: number; // hundredths: its objectives' (budgetCoefficient)
   carryOver: number; // euros: BUDGET_CARRY_OVER_SHARE of the transfer budget it left unspent
   budget: number; // euros: the dotation times the coefficient, rounded to BUDGET_STEP, plus the carry-over
-  wageBudget: number; // euros per season: the creation's wage budget at that rank, without the coefficient
+  wageBudget: number; // euros per season: its payroll times its margin, at most the creation's wage budget at that rank
 };
 
 /**
  * A club's finances for a new season: its dotation, the transfer budget clubFinances gives its reputation rank in its
  * (new) division, times its objectives' coefficient, plus half of what it left unspent (sales and cup prizes
- * included); its wage budget recalculated the same way, without the coefficient. Its reputation is its own
- * (src/engine/reputation.ts).
+ * included); its wage budget, its payroll at the end of the season closed times its margin, at most the creation's
+ * wage budget at that rank (wageBudgetFor). Its reputation is its own (src/engine/reputation.ts).
  */
-export function seasonFinances(
-  reputationRank: number,
-  clubCount: number,
-  tier: CompetitionTier,
-  coefficient: number,
-  unspent: number,
-): SeasonFinances {
-  const { budget: dotation, wageBudget } = clubFinances(reputationRank, clubCount, tier);
+export function seasonFinances({
+  reputationRank,
+  clubCount,
+  tier,
+  coefficient,
+  unspent,
+  payroll,
+  wageMargin,
+}: SeasonFinancesInput): SeasonFinances {
+  const { budget: dotation, wageBudget: tableWageBudget } = clubFinances(reputationRank, clubCount, tier);
   const carryOver = Math.round(Math.max(0, unspent) * BUDGET_CARRY_OVER_SHARE);
   return {
     dotation,
     coefficient,
     carryOver,
     budget: roundToStep((dotation * coefficient) / 100, BUDGET_STEP) + carryOver,
-    wageBudget,
+    wageBudget: wageBudgetFor(payroll, wageMargin, tableWageBudget),
   };
+}
+
+/** What a season's finances are given from. */
+export type SeasonFinancesInput = {
+  reputationRank: number; // in its (new) division
+  clubCount: number; // of that division
+  tier: CompetitionTier;
+  coefficient: number; // hundredths: its objectives' (budgetCoefficient)
+  unspent: number; // euros: the transfer budget it left unspent; 0 carries nothing over
+  payroll: number; // euros per season: its payroll at the end of the season closed
+  wageMargin: number; // WAGE_BUDGET_MARGIN, or the managed club's (managedWageMargin)
+};
+
+/**
+ * A club's wage budget: its payroll times its margin, rounded to BUDGET_STEP, never above the table's, the creation's
+ * wage budget at its rank (clubFinances): what it may add in wages is a few signings, as its transfer budget is.
+ */
+export function wageBudgetFor(payroll: number, margin: number, tableWageBudget: number): number {
+  return Math.min(roundToStep(payroll * margin, BUDGET_STEP), tableWageBudget);
+}
+
+/**
+ * The managed club's wage margin for a season, from its objectives' coefficient: MANAGED_WAGE_MARGIN_RANGE's worst at the
+ * lowest coefficient (70), WAGE_BUDGET_MARGIN at 100, its best at the highest (140), straight in between. AI clubs have
+ * WAGE_BUDGET_MARGIN.
+ */
+export function managedWageMargin(coefficient: number): number {
+  const { worst: low, best: high } = BUDGET_COEFFICIENT_RANGE;
+  const bounded = Math.min(high, Math.max(low, coefficient));
+  if (bounded <= NEUTRAL_BUDGET_COEFFICIENT) {
+    const share = (bounded - low) / (NEUTRAL_BUDGET_COEFFICIENT - low);
+    return MANAGED_WAGE_MARGIN_RANGE.worst + share * (WAGE_BUDGET_MARGIN - MANAGED_WAGE_MARGIN_RANGE.worst);
+  }
+  const share = (bounded - NEUTRAL_BUDGET_COEFFICIENT) / (high - NEUTRAL_BUDGET_COEFFICIENT);
+  return WAGE_BUDGET_MARGIN + share * (MANAGED_WAGE_MARGIN_RANGE.best - WAGE_BUDGET_MARGIN);
 }
 
 /** Market value in euros: a pure function of rating, age and growth room. */

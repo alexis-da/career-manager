@@ -1,5 +1,5 @@
-import { NEUTRAL_BUDGET_COEFFICIENT } from "../engine/balance";
-import { seasonFinances, type SeasonFinances } from "../engine/economy";
+import { NEUTRAL_BUDGET_COEFFICIENT, WAGE_BUDGET_MARGIN } from "../engine/balance";
+import { managedWageMargin, seasonFinances, wageBudgetFor, type SeasonFinances } from "../engine/economy";
 import { budgetCoefficient, divisionOf, rankingObjective, rankingOutcome } from "../engine/objectives";
 import type { MoveReason } from "../engine/promotion";
 import { reputationAfterSeason, reputationRanks } from "../engine/reputation";
@@ -100,9 +100,11 @@ export function aiCoefficient(end: ClubSeasonEnd, worldVersion: WorldVersion): n
 /**
  * Every club's finances for the new season (gameplay v2, V2), inside advanceToNextSeason's transaction, once the moving
  * clubs have changed division and every reputation has followed its season, before the preseason: its dotation at its
- * reputation rank in its new division, times its coefficient, plus half of its unspent transfer budget; its wage budget
- * recalculated (seasonFinances). An AI club's coefficient is its ranking objective's (aiCoefficient); the managed club's
- * is the one given, its season's objectives' (100 without any). Returns the managed club's dotation, for its SeasonBudget.
+ * reputation rank in its new division, times its coefficient, plus half of its unspent transfer budget; its wage budget,
+ * its payroll at the end of the season closed (payrolls, read before any player left) times its margin, at most the
+ * table's at that rank (seasonFinances). An AI club's coefficient is its ranking objective's (aiCoefficient), its margin
+ * WAGE_BUDGET_MARGIN; the managed club's coefficient is the one given, its season's objectives' (100 without any), and
+ * its margin follows it (managedWageMargin). Returns the managed club's dotation, for its SeasonBudget.
  */
 export async function applySeasonFinances(
   tx: Db,
@@ -110,6 +112,7 @@ export async function applySeasonFinances(
   ends: readonly ClubSeasonEnd[],
   worldVersion: WorldVersion,
   managedCoefficient: number,
+  payrolls: ReadonlyMap<string, number>,
 ): Promise<ManagedDotation> {
   const clubs = await tx.clubSave.findMany({
     where: { saveId },
@@ -139,7 +142,15 @@ export async function applySeasonFinances(
       const coefficient = club.isManaged
         ? managedCoefficient
         : aiCoefficient(getOrThrow(endOf, club.id, "club's season end"), worldVersion);
-      const finances = seasonFinances(reputationRank, division.length, competitionTier(club.competition.tier), coefficient, club.budget);
+      const finances = seasonFinances({
+        reputationRank,
+        clubCount: division.length,
+        tier: competitionTier(club.competition.tier),
+        coefficient,
+        unspent: club.budget,
+        payroll: payrolls.get(club.id) ?? 0,
+        wageMargin: club.isManaged ? managedWageMargin(coefficient) : WAGE_BUDGET_MARGIN,
+      });
       updates.push({ clubSaveId: club.id, finances });
       if (club.isManaged) {
         managed = { ...finances, reputation: club.reputation, reputationRank };
@@ -160,9 +171,45 @@ export async function applySeasonFinances(
   return managed;
 }
 
+/** Each club's payroll, the wages of its players, by ClubSave id: what its wage budget is measured against. */
+export async function payrollsOf(tx: Db, saveId: string): Promise<Map<string, number>> {
+  const rows = await tx.playerSave.groupBy({
+    by: ["clubSaveId"],
+    where: { saveId, clubSaveId: { not: null } },
+    _sum: { wage: true },
+  });
+  return new Map(rows.flatMap((row) => (row.clubSaveId === null ? [] : [[row.clubSaveId, row._sum.wage ?? 0] as const])));
+}
+
+/**
+ * Every club's wage budget at the creation of a save, once its squads are complete (after the preseason): its payroll
+ * times WAGE_BUDGET_MARGIN, at most the table's, the wage budget its creation finances gave it (wageBudgetFor). The
+ * managed club's coefficient being 100 then, its margin is the AI clubs'.
+ */
+export async function applyCreationWageBudgets(tx: Db, saveId: string): Promise<void> {
+  const clubs = await tx.clubSave.findMany({ where: { saveId }, select: { id: true, wageBudget: true } });
+  const payrolls = await payrollsOf(tx, saveId);
+  const updates = clubs
+    .map((club) => ({
+      id: club.id,
+      before: club.wageBudget,
+      wageBudget: wageBudgetFor(payrolls.get(club.id) ?? 0, WAGE_BUDGET_MARGIN, club.wageBudget),
+    }))
+    .filter((club) => club.wageBudget !== club.before);
+  if (updates.length > 0) {
+    await tx.$executeRaw`
+      UPDATE "ClubSave" AS c
+      SET "wageBudget" = v."wageBudget"
+      FROM (VALUES ${Prisma.join(updates.map((club) => Prisma.sql`(${club.id}::text, ${club.wageBudget}::int)`))})
+        AS v("id", "wageBudget")
+      WHERE c."id" = v."id" AND c."saveId" = ${saveId}`;
+  }
+}
+
 /**
  * The managed club's dotation for its first season, at the creation of a save: its creation finances as they are (its
- * budget and wage budget), its reputation rank in its division, a coefficient of 100 and nothing carried over.
+ * budget, and its wage budget once measured against its payroll, applyCreationWageBudgets), its reputation rank in its
+ * division, a coefficient of 100 and nothing carried over.
  */
 export async function firstSeasonDotation(tx: Db, saveId: string): Promise<{ seasonId: string; dotation: ManagedDotation }> {
   const managed = await tx.clubSave.findFirstOrThrow({

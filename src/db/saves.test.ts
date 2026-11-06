@@ -4,9 +4,12 @@ import {
   FREE_AGENT_POOL_OVERALL_MIN,
   FREE_AGENT_POOL_TOP_OVERALL_MAX,
   SQUAD_SIZE_MAX,
+  WAGE_BUDGET_MARGIN,
   YOUTH_PLAYERS_PER_CLUB,
 } from "../engine/balance";
 import { CUPS_ENABLED } from "../engine/cup";
+import { clubFinances, wageBudgetFor } from "../engine/economy";
+import { competitionTier } from "../engine/tiers";
 import { WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 
@@ -249,6 +252,37 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
     expect(fixtures.reduce((sum, season) => sum + season._count._all, 0)).toBe(3758);
     expect(new Set(fixtures.map((season) => season._max.scheduledAt?.toISOString())).size).toBe(1);
     expect(misplaced[0].count).toBe(0);
+  });
+
+  it("gives every club the wage budget of its payroll plus 20 %, never above its creation table's, the managed club's dotation too", async () => {
+    const [, , , saveId] = saveIds;
+    const db = database();
+    const [clubs, payrolls, dotation] = await Promise.all([
+      db.clubSave.findMany({
+        where: { saveId },
+        select: {
+          id: true,
+          isManaged: true,
+          wageBudget: true,
+          competitionId: true,
+          competition: { select: { tier: true } },
+          club: { select: { initialRank: true } },
+        },
+      }),
+      db.playerSave.groupBy({ by: ["clubSaveId"], where: { saveId, clubSaveId: { not: null } }, _sum: { wage: true } }),
+      db.seasonBudget.findFirstOrThrow({ where: { saveId }, select: { wageBudget: true } }),
+    ]);
+    const payrollOf = new Map(payrolls.map((row) => [row.clubSaveId, row._sum.wage ?? 0]));
+    const countOf = new Map([...Map.groupBy(clubs, (club) => club.competitionId)].map(([id, members]) => [id, members.length]));
+    const tableOf = (club: (typeof clubs)[number]): number =>
+      clubFinances(club.club.initialRank, countOf.get(club.competitionId) ?? NaN, competitionTier(club.competition.tier)).wageBudget;
+
+    for (const club of clubs) {
+      expect(club.wageBudget).toBe(wageBudgetFor(payrollOf.get(club.id) ?? NaN, WAGE_BUDGET_MARGIN, tableOf(club)));
+    }
+    // A real limit: the payroll, not the table, gives almost every club its wage budget.
+    expect(clubs.filter((club) => club.wageBudget < tableOf(club)).length).toBeGreaterThan(clubs.length * 0.9);
+    expect(dotation.wageBudget).toBe(clubs.find((club) => club.isManaged)?.wageBudget);
   });
 
   it("opens the national cups of a worldVersion 2 save as the game creates one, with their preliminary rounds, none in a worldVersion 1 save", async () => {

@@ -35,9 +35,10 @@ import {
   CUP_COEFFICIENT,
   NEUTRAL_BUDGET_COEFFICIENT,
   RANKING_COEFFICIENT,
+  WAGE_BUDGET_MARGIN,
 } from "../src/engine/balance";
 import { cupRunOf, type PlayedTie } from "../src/engine/cup";
-import { clubFinances, marketValueFor, seasonFinances, wageFor, type SeasonFinances } from "../src/engine/economy";
+import { clubFinances, managedWageMargin, marketValueFor, seasonFinances, wageFor, type SeasonFinances } from "../src/engine/economy";
 import { averageOpponent, chooseFormation } from "../src/engine/formation-choice";
 import { formationPositions } from "../src/engine/formations";
 import { selectLineup, type SquadPlayer } from "../src/engine/lineup";
@@ -604,7 +605,8 @@ function seasonEnd(start: ClubStart, end: ClubEnd, next: ClubStart | undefined):
 /**
  * Each club's seasons. The finances given at a season's start are recomputed as the transition computes them
  * (seasonFinances): an AI club's coefficient from its reputation rank at the previous season's start (its expected
- * rank) and its final rank, the managed club's read from its SeasonBudget; the unspent budget is the previous end's.
+ * rank) and its final rank, the managed club's read from its SeasonBudget; the unspent budget and the payroll are the
+ * previous end's, the wage margin WAGE_BUDGET_MARGIN, the managed club's from its coefficient (managedWageMargin).
  */
 function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
   const creation = new Map(snapshots[0].start.map((club) => [club.clubSaveId, club.budget]));
@@ -621,7 +623,15 @@ function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
         const coefficient = club.managed
           ? (snapshot.managedBudget?.coefficient ?? NEUTRAL_BUDGET_COEFFICIENT)
           : rankingCoefficientOf(getOrThrow(previousStart, club.clubSaveId, "previous season's start"), closed.finalRank);
-        board = seasonFinances(club.reputationRank, club.clubCount, club.tier, coefficient, closed.budget);
+        board = seasonFinances({
+          reputationRank: club.reputationRank,
+          clubCount: club.clubCount,
+          tier: club.tier,
+          coefficient,
+          unspent: closed.budget,
+          payroll: closed.payroll,
+          wageMargin: club.managed ? managedWageMargin(coefficient) : WAGE_BUDGET_MARGIN,
+        });
       }
       const end = ends.get(club.clubSaveId);
       const wageRoom = club.wageBudget - club.payroll;
@@ -774,7 +784,9 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
     [
       "Règle : dotation = clubFinances(rang de réputation, clubs, division de la nouvelle saison) ; budget = dotation ×",
       `coefficient (au pas de ${millions(BUDGET_STEP)} M€) + ${fixed(100 * BUDGET_CARRY_OVER_SHARE, 0)} % du budget non`,
-      "dépensé ; plafond salarial = clubFinances(…) sans coefficient. Coefficient d'un club IA, selon son classement",
+      `dépensé ; plafond salarial = masse salariale de la fin de saison × ${fixed(WAGE_BUDGET_MARGIN, 2)} (club dirigé : de`,
+      `× ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.worst), 2)} à × ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.best), 2)}`,
+      "selon son coefficient), au plus clubFinances(…), à la création comme à chaque passage. Coefficient d'un club IA, selon son classement",
       `seul : dépassé ${outcomeCoefficient("EXCEEDED")}, atteint ${outcomeCoefficient("ACHIEVED")}, manqué`,
       `${outcomeCoefficient("MISSED")}. « Création » : budget du club au début de S1.`,
     ].join(" "),
@@ -986,8 +998,8 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
       "saison n − au début (primes de coupe, ventes) ; Bn+1 = arrondi(Dn+1 × c, au pas de 100 000 €, au moins 100 000 €) +",
       "arrondi(50 % × max(0, Bn + Δn)), Dn+1 sa dotation réelle (SeasonBudget). Coef. du jeu : celui que le passage a",
       "appliqué (SeasonBudget), d'après la saison précédente. Achats : permis par le budget de chaque chemin (réel /",
-      `${paths.map(({ coefficient }) => coefficientText(coefficient)).join(" / ")}), puis par les salaires (les mêmes : le`,
-      "plafond n'a pas de coefficient). La formule, appliquée aux budgets réels avec le coefficient du jeu, redonne le",
+      `${paths.map(({ coefficient }) => coefficientText(coefficient)).join(" / ")}), puis par la marge salariale du jeu (sa`,
+      "marge suit le coefficient du jeu). La formule, appliquée aux budgets réels avec le coefficient du jeu, redonne le",
       `budget réel pour ${managed.length - 1 - pathMismatches.length} / ${managed.length - 1} saisons.`,
     ].join(" "),
     table(

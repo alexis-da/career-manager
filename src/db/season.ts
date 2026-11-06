@@ -17,7 +17,7 @@ import { assertNoMatchInProgress } from "./matchday";
 import { runPreseasonInTransaction, type PreseasonSummary } from "./preseason";
 import { closeSeasonObjectives, openSeasonObjectives } from "./objectives";
 import { applySeasonMoves, readFinalTables, seasonMovesOf } from "./promotion";
-import { applySeasonFinances, applySeasonReputations, recordDotation } from "./season-finances";
+import { applySeasonFinances, applySeasonReputations, payrollsOf, recordDotation } from "./season-finances";
 import { recordSeasonResult } from "./season-results";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
@@ -63,7 +63,7 @@ type PlayerUpdate = PlayerAttributes & {
  * are reset (a suspension still to serve carries over), the seasons are marked completed (with their moves), the
  * moving clubs change competition, every club's reputation follows its final place against its expected rank and every
  * club gets its finances for the new season, its dotation plus half of its unspent budget, the managed club's
- * dotation from its objectives (src/db/season-finances.ts), the save moves to 1 July, the preseason runs (young
+ * dotation from its objectives, and its wage budget from its payroll at the end of the season (src/db/season-finances.ts), the save moves to 1 July, the preseason runs (young
  * players, AI squads), and next season's seasons and fixtures are created, with the managed club's dotation
  * (SeasonBudget), the cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables (when the
  * save already had cups, or the game gives them: CUPS_ENABLED), then the managed club's objectives of the new season.
@@ -117,6 +117,8 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
         select: { playerSaveId: true },
       });
       const alreadyRetired = new Set(retirements.map((transfer) => transfer.playerSaveId));
+      // Every club's payroll at the end of the season, before any player retires or leaves: its next wage budget's base.
+      const payrolls = await payrollsOf(tx, saveId);
 
       const players = await tx.playerSave.findMany({
         where: { saveId },
@@ -222,7 +224,7 @@ export async function advanceToNextSeason(saveId: string): Promise<SeasonTransit
       // finances for the new season, before the preseason, whose AI clubs plan with them.
       await applySeasonMoves(tx, saveId, worldVersion, leagueSeasons, moves);
       const ends = await applySeasonReputations(tx, saveId, tables, moves);
-      const dotation = await applySeasonFinances(tx, saveId, ends, worldVersion, managedCoefficient);
+      const dotation = await applySeasonFinances(tx, saveId, ends, worldVersion, managedCoefficient, payrolls);
       await tx.save.update({ where: { id: saveId }, data: { currentDate: transitionDate } });
 
       const preseason = await runPreseasonInTransaction(tx, saveId);
