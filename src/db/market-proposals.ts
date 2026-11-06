@@ -43,6 +43,8 @@ export type MarketProposal = {
 export type MarketProposals = {
   weakSpot: WeakSpot | null;
   entries: Record<MarketEntry, MarketProposal[]>;
+  // The wage room alone keeps the entry's players out (proposeSignings); Needs then proposes those it still pays.
+  wageBound: Record<MarketEntry, boolean>;
 };
 
 /** What choosing takes, for every player of the world: the rest is read for those proposed, a few dozen. */
@@ -137,7 +139,7 @@ export async function getMarketProposals(saveId: string): Promise<MarketProposal
     prisma.playerSave.findMany({ where: freeAgentWhere(saveId), select: CANDIDATE_SELECT }),
   ]);
 
-  const { weakSpot, entries } = proposeSignings(
+  const { weakSpot, entries, wageBound } = proposeSignings(
     // A slot nobody could fill is not in starters: it is never the weak spot, nor a slot to play in.
     lineup.starters.map(({ player, slot }) => ({ slot, rating: ratingAt(player, slot) })),
     [...clubPlayers, ...freeAgents].map((row) => toCandidate(row, overview.currentDate)),
@@ -156,5 +158,6 @@ export async function getMarketProposals(saveId: string): Promise<MarketProposal
       bargains: views(entries.bargains),
       stars: views(entries.stars),
     },
+    wageBound,
   };
 }

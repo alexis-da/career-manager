@@ -19,7 +19,7 @@ export const MARKET_ENTRIES = ["needs", "gems", "bargains", "stars"] as const;
 
 export type MarketEntry = (typeof MARKET_ENTRIES)[number];
 
-export type ProposalTag = "best" | "gem" | "bargain" | "star" | "fit";
+export type ProposalTag = "best" | "gem" | "bargain" | "star" | "fit" | "affordable";
 
 export type WeakSpot = {
   position: Position;
@@ -71,9 +71,9 @@ const byBargain = (a: MarketCandidate, b: MarketCandidate): number =>
 const byStar = (a: MarketCandidate, b: MarketCandidate): number =>
   b.overall - a.overall || a.askingPrice - b.askingPrice || byKey(a, b);
 
-/** Who would accept the club and whom it can pay: nobody else is ever proposed. */
-const isEligible = (candidate: MarketCandidate, buyer: MarketBuyer): boolean =>
-  buyer.reputation >= candidate.minimumReputation && candidate.askingPrice <= buyer.budget && candidate.askedWage <= buyer.wageRoom;
+/** Who would accept the club and whose price it can pay, the wage room aside. */
+const isReachable = (candidate: MarketCandidate, buyer: MarketBuyer): boolean =>
+  buyer.reputation >= candidate.minimumReputation && candidate.askingPrice <= buyer.budget;
 
 const isGem = (candidate: MarketCandidate): boolean =>
   candidate.age <= GEM_MAX_AGE && candidate.potential >= candidate.overall + GEM_MIN_GROWTH;
@@ -142,6 +142,27 @@ function needsOf<C extends MarketCandidate>(eligible: readonly C[], weakSpot: We
     }));
 }
 
+/**
+ * The players the wage room still pays, at the weak spot, when it pays nobody who would improve it: the best there first,
+ * then the cheapest, each « within your means » even rated below the starter.
+ */
+function affordableAt<C extends MarketCandidate>(eligible: readonly C[], weakSpot: WeakSpot | null): Proposal<C>[] {
+  if (weakSpot === null) {
+    return [];
+  }
+  return eligible
+    .map((candidate) => ({ candidate, impact: roundedRatingAt(candidate, weakSpot.position) - weakSpot.rating }))
+    .sort(
+      (a, b) =>
+        b.impact - a.impact ||
+        a.candidate.askingPrice - b.candidate.askingPrice ||
+        b.candidate.overall - a.candidate.overall ||
+        byKey(a.candidate, b.candidate),
+    )
+    .slice(0, MAX_PROPOSALS_PER_ENTRY)
+    .map(({ candidate, impact }): Proposal<C> => ({ candidate, slot: weakSpot.position, impact, tag: "affordable" }));
+}
+
 /** The first candidates by `order`, each placed in the slot where he brings the most. */
 function topOf<C extends MarketCandidate>(
   candidates: readonly C[],
@@ -155,27 +176,47 @@ function topOf<C extends MarketCandidate>(
     .map((candidate): Proposal<C> => ({ candidate, ...bestSlot(candidate, eleven), tag }));
 }
 
+/** What the buying screen proposes, entry by entry, and which entries the wage room alone empties. */
+export type SigningProposals<C extends MarketCandidate> = {
+  weakSpot: WeakSpot | null;
+  entries: Record<MarketEntry, Proposal<C>[]>;
+  // The wage room alone keeps the entry's players out: with room enough, it would propose some. Needs then proposes
+  // those the room still pays at the weak spot (affordableAt), when there are any.
+  wageBound: Record<MarketEntry, boolean>;
+};
+
 /**
- * What the buying screen proposes: the eligible candidates in each entry, MAX_PROPOSALS_PER_ENTRY at most, in a total
- * order (the player key breaks every tie, so the order of `candidates` never shows). An empty eleven has no weak spot,
- * hence no needs and no rating for a bargain to reach.
+ * What the buying screen proposes: the eligible candidates in each entry (who would accept the club and whom it can pay,
+ * price and wage: nobody else is ever proposed), MAX_PROPOSALS_PER_ENTRY at most, in a total order (the player key breaks
+ * every tie, so the order of `candidates` never shows). An empty eleven has no weak spot, hence no needs and no rating
+ * for a bargain to reach. An entry the wage room alone empties is wage-bound; Needs then proposes the players the room
+ * still pays at the weak spot, even rated below the starter, tagged « affordable ».
  */
 export function proposeSignings<C extends MarketCandidate>(
   eleven: readonly ElevenSlot[],
   candidates: readonly C[],
   buyer: MarketBuyer,
-): { weakSpot: WeakSpot | null; entries: Record<MarketEntry, Proposal<C>[]> } {
+): SigningProposals<C> {
   const weakSpot = weakSpotOf(eleven);
-  const eligible = candidates.filter((candidate) => isEligible(candidate, buyer));
+  const reachable = candidates.filter((candidate) => isReachable(candidate, buyer));
+  const eligible = reachable.filter((candidate) => candidate.askedWage <= buyer.wageRoom);
   const isBargain = (candidate: MarketCandidate): boolean =>
     hasBargainPrice(candidate) && (weakSpot === null || candidate.overall >= weakSpot.rating - BARGAIN_MAX_GAP_TO_WEAK_SPOT);
+  const entriesOf = (pool: readonly C[]): Record<MarketEntry, Proposal<C>[]> => ({
+    needs: needsOf(pool, weakSpot),
+    gems: topOf(pool.filter(isGem), byGem, "gem", eleven),
+    bargains: topOf(pool.filter(isBargain), byBargain, "bargain", eleven),
+    stars: topOf(pool, byStar, "star", eleven),
+  });
+  const entries = entriesOf(eligible);
+  // What each entry would propose with room enough for any wage.
+  const unbounded = entriesOf(reachable);
+  const wageBound = Object.fromEntries(
+    MARKET_ENTRIES.map((entry) => [entry, entries[entry].length === 0 && unbounded[entry].length > 0]),
+  ) as Record<MarketEntry, boolean>;
   return {
     weakSpot,
-    entries: {
-      needs: needsOf(eligible, weakSpot),
-      gems: topOf(eligible.filter(isGem), byGem, "gem", eleven),
-      bargains: topOf(eligible.filter(isBargain), byBargain, "bargain", eleven),
-      stars: topOf(eligible, byStar, "star", eleven),
-    },
+    entries: { ...entries, needs: wageBound.needs ? affordableAt(eligible, weakSpot) : entries.needs },
+    wageBound,
   };
 }

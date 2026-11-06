@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { formatMoney } from "../src/lib/format";
-import { setSaveDate } from "./db";
+import { setManagedWageRoom, setSaveDate } from "./db";
 import { createSave, deleteSave, expectNoSidewaysScroll, expectUncovered, openScreen, saveIdOf, textOf } from "./helpers";
 
 // The market's main screen, on a Lyon just created: what to buy, one proposal at a time, the signing in two steps, then
@@ -206,6 +206,77 @@ test("signs a proposal after a short confirmation, and nobody signed in this win
   await expect(withOffer.first()).toBeVisible();
   await expect(withOffer.filter({ has: page.getByText(playerName, { exact: true }) })).toHaveCount(0);
   await expect(withOffer.filter({ has: page.getByText(freeAgentName, { exact: true }) })).toHaveCount(0);
+});
+
+test("proposes what the wage room still pays, then how to make room when it pays nobody, in French and in English", async ({
+  page,
+}) => {
+  await createLyonSave(page);
+  const saveId = saveIdOf(page);
+
+  // 930 k€ of wage room, what the first need leaves (the test above): nobody it pays would fill the weak spot, a few
+  // below it are within its means, the best there first.
+  await setManagedWageRoom(saveId, 930_000);
+  await openScreen(page, "transfers");
+  const intro = page.getByTestId("market-intro");
+  await expect(intro).toHaveText(
+    /^Ton point faible : .+ \(note \d+\)\. Ta marge salariale, 930\sk€, ne paie personne qui le comble : voici qui reste dans tes moyens\.$/,
+  );
+  const proposal = page.getByTestId("market-proposal");
+  await expect(page.getByTestId("market-tag")).toHaveText("Dans tes moyens");
+  await expect(page.getByTestId("market-impact")).toHaveCount(0);
+  await expect(page.getByTestId("market-recruit")).toBeEnabled();
+  const first = await playerIdOf(proposal);
+  await page.getByTestId("market-pass").click();
+  await expect(proposal).not.toHaveAttribute("data-player-id", first);
+  await expect(page.getByTestId("market-tag")).toHaveText("Dans tes moyens");
+
+  // Over the wage budget: nobody is within its means, in any way in. What is left, and the three ways to make room.
+  await setManagedWageRoom(saveId, -1_000_000);
+  await page.reload();
+  await expect(intro).toHaveText(/^Ton point faible : .+ \(note \d+\)\. Ta marge salariale ne paie plus personne qui le comble\.$/);
+  await expect(proposal).toHaveCount(0);
+  await expect(page.getByTestId("market-proposals-empty")).toHaveCount(0);
+  const limit = page.getByTestId("market-wage-limit");
+  await expect(limit.getByTestId("market-wage-limit-room")).toHaveText(
+    `Ta masse salariale dépasse ton plafond de ${formatMoney(1_000_000)} : personne ici n'est dans tes moyens.`,
+  );
+  await expect(limit.getByTestId("market-wage-limit-sell")).toContainText("vendre un joueur : son salaire te revient en marge");
+  await expect(limit.getByTestId("market-wage-limit-sell").getByRole("link")).toHaveAttribute("href", `/saves/${saveId}/transfers?tab=sell`);
+  await expect(limit.getByTestId("market-wage-limit-release")).toContainText("libérer un contrat, depuis la fiche du joueur");
+  await expect(limit.getByTestId("market-wage-limit-release").getByRole("link")).toHaveAttribute("href", `/saves/${saveId}/squad`);
+  await expect(limit.getByTestId("market-wage-limit-wait")).toHaveText(
+    "ou attendre la saison prochaine : ton plafond salarial sera recalculé sur ta masse salariale.",
+  );
+  for (const entry of ["market-entry-gems", "market-entry-bargains", "market-entry-stars"]) {
+    await page.getByTestId(entry).click();
+    await expect(limit).toBeVisible();
+  }
+
+  // The way to sell leads to the offers.
+  await limit.getByTestId("market-wage-limit-sell").getByRole("link").click();
+  await expect(page).toHaveURL(/\/transfers\?tab=sell$/);
+
+  // In English, the language chosen.
+  await page.context().addCookies([{ name: "lw_lang", value: "en", domain: "localhost", path: "/" }]);
+  await page.goto(`/saves/${saveId}/transfers`);
+  await expect(intro).toHaveText(/^Your weak spot: .+ \(rated \d+\)\. Your wage room no longer pays anyone who would fix it\.$/);
+  await expect(limit.getByTestId("market-wage-limit-room")).toHaveText(
+    `Your wage bill is ${formatMoney(1_000_000, "en")} over your wage cap: nobody here is within your means.`,
+  );
+  await expect(limit.getByTestId("market-wage-limit-wait")).toHaveText(
+    "or wait for next season: your wage cap will be worked out again from your wage bill.",
+  );
+
+  // On a phone: within the screen, each way a thumb high.
+  await page.setViewportSize(PHONE);
+  await page.reload();
+  await expect(limit).toBeVisible();
+  await expectNoSidewaysScroll(page, "wage limit");
+  for (const way of ["market-wage-limit-sell", "market-wage-limit-release"]) {
+    const box = await limit.getByTestId(way).getByRole("link").boundingBox();
+    expect(box?.height ?? 0, way).toBeGreaterThanOrEqual(44);
+  }
 });
 
 test("sells a player out of the eleven: the tab counts the offers, the budget rises and his line goes", async ({ page }) => {

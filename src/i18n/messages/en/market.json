@@ -19,6 +19,8 @@
     "intro": {
       "weakSpotLead": "Your weak spot:",
       "weakSpotRest": "(rated {rating}). Here's who would fix it.",
+      "weakSpotAffordable": "(rated {rating}). Your wage room, {room}, pays nobody who would fix it: here's who is within your means.",
+      "weakSpotNoRoom": "(rated {rating}). Your wage room no longer pays anyone who would fix it.",
       "noWeakSpot": "Your eleven has no starters to compare yet.",
       "gems": "Young players with high potential, within your reach.",
       "bargains": "Cheaper than they're worth, often at the end of their contract.",
@@ -30,12 +32,24 @@
       "bargains": "No bargains within your reach for now.",
       "stars": "No stars within your reach for now."
     },
+    "wageLimit": {
+      "left": "You have {room} of wage room a season left: nobody here is within your means.",
+      "none": "Your wage bill has reached your wage cap: nobody here is within your means.",
+      "over": "Your wage bill is {amount} over your wage cap: nobody here is within your means.",
+      "how": "To make room:",
+      "sell": "sell a player: his wage comes back as room, his fee as budget;",
+      "sellLink": "see the offers",
+      "release": "release a contract, from the player's sheet: his wage comes back as room, for half of what he is still owed;",
+      "releaseLink": "open the squad",
+      "wait": "or wait for next season: your wage cap will be worked out again from your wage bill."
+    },
     "tags": {
       "best": "Best choice",
       "gem": "Gem · pot. {potential}",
       "bargain": "Bargain",
       "star": "Star",
-      "fit": "Good fit"
+      "fit": "Good fit",
+      "affordable": "Within your means"
     },
     "playerLine": "Age {age} · {club}",
     "freeAgent": "Free agent",

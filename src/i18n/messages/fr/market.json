@@ -19,6 +19,8 @@
     "intro": {
       "weakSpotLead": "Ton point faible :",
       "weakSpotRest": "(note {rating}). Voici qui le comblerait.",
+      "weakSpotAffordable": "(note {rating}). Ta marge salariale, {room}, ne paie personne qui le comble : voici qui reste dans tes moyens.",
+      "weakSpotNoRoom": "(note {rating}). Ta marge salariale ne paie plus personne qui le comble.",
       "noWeakSpot": "Ton onze n'a pas encore de titulaires à comparer.",
       "gems": "Des jeunes à fort potentiel, à ta portée.",
       "bargains": "Moins chers que leur valeur, souvent en fin de contrat.",
@@ -30,12 +32,24 @@
       "bargains": "Aucune bonne affaire à ta portée pour l'instant.",
       "stars": "Aucune star à ta portée pour l'instant."
     },
+    "wageLimit": {
+      "left": "Il te reste {room} de marge salariale par saison : personne ici n'est dans tes moyens.",
+      "none": "Ta masse salariale atteint ton plafond : personne ici n'est dans tes moyens.",
+      "over": "Ta masse salariale dépasse ton plafond de {amount} : personne ici n'est dans tes moyens.",
+      "how": "Pour retrouver de la marge :",
+      "sell": "vendre un joueur : son salaire te revient en marge, son prix en budget ;",
+      "sellLink": "voir les offres",
+      "release": "libérer un contrat, depuis la fiche du joueur : son salaire te revient en marge, contre la moitié de ce qui lui reste dû ;",
+      "releaseLink": "ouvrir l'effectif",
+      "wait": "ou attendre la saison prochaine : ton plafond salarial sera recalculé sur ta masse salariale."
+    },
     "tags": {
       "best": "Meilleur choix",
       "gem": "Pépite · pot. {potential}",
       "bargain": "Bonne affaire",
       "star": "Star",
-      "fit": "Bon profil"
+      "fit": "Bon profil",
+      "affordable": "Dans tes moyens"
     },
     "playerLine": "{age} ans · {club}",
     "freeAgent": "Joueur libre",

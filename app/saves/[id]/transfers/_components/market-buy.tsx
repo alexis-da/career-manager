@@ -38,6 +38,9 @@ const PHONE_STATS = 3;
 
 const fullName = (player: MarketProposal): string => `${player.firstName} ${player.lastName}`;
 
+/** An amount inside a sentence, kept on one line: « 1 M€ » never breaks before its unit on a phone. */
+const unbroken = (amount: string): string => amount.replaceAll(" ", "\u00a0");
+
 function Tag({ proposal }: { proposal: MarketProposal }) {
   const t = useTranslations("market.tags");
   return (
@@ -195,6 +198,45 @@ function Spotted({ players, current, onPick }: { players: MarketProposal[]; curr
   );
 }
 
+/** The link of a way to make room: orange text, a thumb high on a phone. */
+const WAY_LINK = "font-semibold text-(--club) hover:text-(--club-hover) max-sm:inline-flex max-sm:min-h-11 max-sm:items-center";
+
+/**
+ * When the wage room alone keeps an entry's players out, and Needs finds nobody it still pays: what is left, then the
+ * three ways to make room, selling, releasing a contract, or the next season's wage cap.
+ */
+function WageLimit({ saveId, wageRoom }: { saveId: string; wageRoom: number }) {
+  const t = useTranslations("market.wageLimit");
+  const locale = useLocale();
+  return (
+    <Panel data-testid="market-wage-limit" className="space-y-3">
+      <p className="font-bold" data-testid="market-wage-limit-room" data-value={wageRoom}>
+        {wageRoom > 0
+          ? t("left", { room: unbroken(formatMoney(wageRoom, locale)) })
+          : wageRoom === 0
+            ? t("none")
+            : t("over", { amount: unbroken(formatMoney(-wageRoom, locale)) })}
+      </p>
+      <p className="text-muted-foreground">{t("how")}</p>
+      <ul className="list-disc space-y-1.5 pl-5 text-muted-foreground">
+        <li data-testid="market-wage-limit-sell">
+          {t("sell")}{" "}
+          <Link href={`/saves/${saveId}/transfers?tab=sell`} className={WAY_LINK}>
+            {t("sellLink")}
+          </Link>
+        </li>
+        <li data-testid="market-wage-limit-release">
+          {t("release")}{" "}
+          <Link href={`/saves/${saveId}/squad`} className={WAY_LINK}>
+            {t("releaseLink")}
+          </Link>
+        </li>
+        <li data-testid="market-wage-limit-wait">{t("wait")}</li>
+      </ul>
+    </Panel>
+  );
+}
+
 type RecruitDialogProps = {
   saveId: string;
   proposal: MarketProposal;
@@ -298,7 +340,9 @@ type MarketBuyProps = {
 
 /**
  * Buying without a form: four ways in, one proposal at a time, « Passer » or « Recruter ». Everything shown is a player
- * who would accept and whom the club can pay; the advanced market keeps the rest.
+ * who would accept and whom the club can pay; the advanced market keeps the rest. When the wage room alone keeps an
+ * entry's players out, Needs proposes those it still pays, « within your means », and an entry left empty says what room
+ * is left and how to make more.
  */
 export function MarketBuy({ saveId, proposals, overview, sideOffer }: MarketBuyProps) {
   const t = useTranslations("market");
@@ -350,15 +394,23 @@ export function MarketBuy({ saveId, proposals, overview, sideOffer }: MarketBuyP
           <>
             {t("intro.weakSpotLead")}{" "}
             <strong className="text-foreground">{tPositions(`label.${weakSpot.position}`).toLocaleLowerCase(locale)}</strong>{" "}
-            {t("intro.weakSpotRest", { rating: weakSpot.rating })}
+            {!proposals.wageBound.needs
+              ? t("intro.weakSpotRest", { rating: weakSpot.rating })
+              : list.length > 0
+                ? t("intro.weakSpotAffordable", { rating: weakSpot.rating, room: unbroken(formatMoney(overview.wageRoom, locale)) })
+                : t("intro.weakSpotNoRoom", { rating: weakSpot.rating })}
           </>
         )}
       </p>
 
       {current === undefined ? (
-        <Panel data-testid="market-proposals-empty">
-          <p className="text-muted-foreground">{t(`empty.${entry}`)}</p>
-        </Panel>
+        proposals.wageBound[entry] ? (
+          <WageLimit saveId={saveId} wageRoom={overview.wageRoom} />
+        ) : (
+          <Panel data-testid="market-proposals-empty">
+            <p className="text-muted-foreground">{t(`empty.${entry}`)}</p>
+          </Panel>
+        )
       ) : (
         // One column under xl, where the sidebar leaves no room for two: the lead card alone, as on a phone.
         <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">

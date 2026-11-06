@@ -521,7 +521,13 @@ Acheter / Vendre · N offres (`?tab=sell`). Acheter : quatre entrées (Mes besoi
 (`src/db/market-proposals.ts`). Le point faible est le titulaire à la note la plus basse à son poste. Une proposition
 n'est que d'un joueur qui accepterait (`quoteFor` donne `minimumReputation`, comparée à `MarketOverview.reputation`) et
 que le club peut payer (prix sous le budget, salaire sous la marge) : 10 par entrée, une à la fois, « Passer » sans
-mémoire ; à partir de `xl`, les trois suivantes (« Repérés pour toi ») et la meilleure offre (`SaleOfferCard`).
+mémoire ; à partir de `xl`, les trois suivantes (« Repérés pour toi ») et la meilleure offre (`SaleOfferCard`). Une
+entrée que la seule marge salariale vide (`wageBound` : avec assez de marge, elle proposerait quelqu'un) le dit : Mes
+besoins propose alors les joueurs que la marge paie encore au poste du point faible, même moins bien notés, le meilleur
+à ce poste d'abord, marqués « Dans tes moyens » (`affordableAt`, étiquette `affordable`), son introduction donnant la
+marge ; sans personne dans ses moyens, une entrée montre à la place d'une liste vide la marge restante (ou le dépassement
+du plafond) et les trois façons d'en retrouver : vendre (vers l'onglet Vendre), libérer un contrat depuis la fiche
+(vers l'effectif), attendre la saison prochaine et son plafond recalculé (`WageLimit`, `market-wage-limit`).
 « Recruter » ouvre une confirmation (prix, salaire, durée, budget restant) et passe par `makeTransferOfferAction` ou
 `signFreeAgentAction` au prix et au salaire minimaux, `DEFAULT_CONTRACT_LENGTH` saisons, `evaluateOffer` inchangé, puis
 « Signé ! ». Vendre : il n'y a pas d'offres reçues ni de bouton Refuser, rien à enregistrer : `getMarketSales`

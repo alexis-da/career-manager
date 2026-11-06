@@ -427,3 +427,63 @@ describe("proposeSignings", () => {
     expect(entries).toEqual({ needs: [], gems: [], bargains: [], stars: [] });
   });
 });
+
+describe("the wage room", () => {
+  const eleven: ElevenSlot[] = [
+    { slot: "GK", rating: 80 },
+    { slot: "ST", rating: 60 },
+  ];
+  // Who would improve the weak spot, but asks a lot; two who would not, asking little.
+  const dear = candidate("dear", { overall: 70, askedWage: 3 * MILLION });
+  const cheap = candidate("cheap", { overall: 58, askedWage: MILLION / 2 });
+  const cheaper = candidate("cheaper", { overall: 55, askedWage: MILLION / 4 });
+  const buyer = (wageRoom: number): MarketBuyer => ({ ...BUYER, wageRoom });
+
+  it("proposes in Needs what it still pays at the weak spot, best there first, within your means", () => {
+    const { entries, wageBound } = proposeSignings(eleven, [dear, cheap, cheaper], buyer(MILLION));
+
+    expect(wageBound.needs).toBe(true);
+    expect(keys(entries.needs)).toEqual(["cheap", "cheaper"]);
+    expect(entries.needs.map(({ slot, impact, tag }) => ({ slot, impact, tag }))).toEqual([
+      { slot: "ST", impact: -2, tag: "affordable" },
+      { slot: "ST", impact: -5, tag: "affordable" },
+    ]);
+    // Stars still has the two it pays: not wage-bound.
+    expect(keys(entries.stars)).toEqual(["cheap", "cheaper"]);
+    expect(wageBound.stars).toBe(false);
+  });
+
+  it("leaves an entry empty and wage-bound when the room pays nobody", () => {
+    const { entries, wageBound } = proposeSignings(eleven, [dear, cheap, cheaper], buyer(MILLION / 10));
+
+    expect(entries.needs).toEqual([]);
+    expect(entries.stars).toEqual([]);
+    expect(wageBound).toEqual({ needs: true, gems: false, bargains: false, stars: true });
+  });
+
+  it("counts a club over its wage budget as paying nobody", () => {
+    expect(proposeSignings(eleven, [dear, cheap], buyer(-MILLION)).wageBound).toMatchObject({ needs: true, stars: true });
+  });
+
+  it("is not wage-bound when nobody would improve the weak spot, whatever his wage", () => {
+    const { entries, wageBound } = proposeSignings(eleven, [cheap, cheaper], buyer(MILLION / 10));
+
+    expect(entries.needs).toEqual([]);
+    expect(wageBound.needs).toBe(false);
+    expect(wageBound.stars).toBe(true);
+  });
+
+  it("is not wage-bound when the budget or the reputation keeps the players out", () => {
+    const pricey = candidate("pricey", { overall: 70, askingPrice: 200 * MILLION, askedWage: 3 * MILLION });
+    const proud = candidate("proud", { overall: 70, minimumReputation: 90, askedWage: 3 * MILLION });
+
+    expect(proposeSignings(eleven, [pricey, proud, cheap], buyer(MILLION / 10)).wageBound.needs).toBe(false);
+  });
+
+  it("keeps Needs as it is when the room pays someone who improves the weak spot", () => {
+    const { entries, wageBound } = proposeSignings(eleven, [dear, cheap], buyer(3 * MILLION));
+
+    expect(wageBound.needs).toBe(false);
+    expect(entries.needs.map(({ candidate: { playerKey }, tag }) => [playerKey, tag])).toEqual([["dear", "best"]]);
+  });
+});
