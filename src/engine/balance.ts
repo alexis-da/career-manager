@@ -160,17 +160,16 @@ export const CLUB_REPUTATION_BY_TIER: Readonly<Record<CompetitionTier, RankRange
 export const BUDGET_STEP = 100_000;
 
 // ------------------------------------------------------------------ Reputation over the seasons (gameplay v2, V2)
-// At the end of each season, a club's reputation follows its place against its expected rank, its reputation rank in
-// its division (src/engine/reputation.ts): AI clubs and the managed club alike.
+// At the end of each season, a club's reputation goes part of the way to its target, the reputation the creation gives
+// the club ranked where it finished in its division; a promoted or relegated club takes outright the reputation of its
+// equivalent rank in its new division (src/engine/reputation.ts). AI clubs and the managed club alike.
 
-/** Reputation points per place a club finishes above its expected rank, or lost per place below it. */
-export const REPUTATION_PER_PLACE = 1;
-
-/** The most a season's places move a club's reputation, up or down, before a promotion or a relegation. */
-export const REPUTATION_PLACES_CAP = 5;
-
-/** Reputation a promoted club gains, and a relegated one loses, on top of its places. */
-export const REPUTATION_MOVE = 4;
+/**
+ * Share of the way to its target the reputation of a club staying in its division goes each season. A division's targets
+ * being its creation's reputations, one a rank, its reputations keep their spread (npm run measure:seasons, « Étalement
+ * des réputations »).
+ */
+export const REPUTATION_TARGET_SHARE = 0.25;
 
 // ------------------------------------------------------------------ Season budgets (gameplay v2, V2)
 // Each new season, every club gets a dotation from its board: the creation's finances (clubFinances) at its reputation

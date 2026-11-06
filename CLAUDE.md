@@ -24,7 +24,7 @@ npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2 (base locale seulement)
-npm run measure:seasons # budgets, plafonds, réputation et objectifs : cinq saisons d'une partie 2 (base locale seulement)
+npm run measure:seasons # budgets, plafonds, réputation (son étalement) et objectifs : six saisons d'une partie 2 (-- --seed=S pour une autre graine ; base locale seulement)
 ```
 
 ## Règles non négociables
@@ -201,12 +201,17 @@ Une partie 1 n'a qu'une division par pays : aucun mouvement, `movements` reste n
 
 **Réputation et budget de saison (gameplay v2, V2).** `ClubSave.reputation` (1–99) suit les saisons, clubs IA et club
 dirigé, dans les deux mondes : à chaque `advanceToNextSeason`, `applySeasonReputations` (`src/db/season-finances.ts`)
-lit les classements finaux ; le rang attendu d'un club est son rang de réputation dans sa division pendant la saison
-(`reputationRanks`, `src/engine/reputation.ts`, pure : un club par rang, à réputation égale le plus haut plafond
+lit les classements finaux, et la réputation d'un club qui reste dans sa division fait le quart du chemin
+(`REPUTATION_TARGET_SHARE`, arrondi pareil vers le haut et vers le bas) vers sa cible, la réputation que la création
+donne au club classé à son rang final dans sa division (`reputationTarget`, `clubFinances`) ; un promu ou un relégué
+prend d'un coup celle du rang équivalent de sa nouvelle division : les derniers rangs de celle du dessus pour les promus,
+dans l'ordre de leur classement (le champion de D2 anglaise y est 18e), les premiers de celle du dessous pour les relégués
+(`rankInNextDivision`, `reputationAfterSeason`, `src/engine/reputation.ts`, pure). Les cibles d'une division étant ses
+réputations de création, une par rang, ses réputations gardent leur étalement (écart-type par division et par saison,
+section « Étalement des réputations » de `npm run measure:seasons`). Le rang attendu d'un club est son rang de réputation
+dans sa division pendant la saison (`reputationRanks` : un club par rang, à réputation égale le plus haut plafond
 salarial d'abord, puis le slug, pour qu'une division garde ses sommes : ses rangs attendus valent ses rangs finaux, ses
-dotations son budget de création), et sa réputation gagne un point par place au-dessus de ce rang, en perd un par place
-en dessous, cinq au plus (`REPUTATION_PLACES_CAP`), puis quatre de plus pour une montée, de moins pour une descente
-(`REPUTATION_MOVE`, `reputationAfterSeason`). Puis, avant la présaison, chaque club reçoit sa dotation
+dotations son budget de création). Puis, avant la présaison, chaque club reçoit sa dotation
 (`applySeasonFinances`, `seasonFinances`, `economy.ts`) : le budget de création (`clubFinances`) à son nouveau rang de
 réputation dans sa nouvelle division, × son coefficient, + pour le seul club dirigé la moitié de son budget non dépensé
 (`BUDGET_CARRY_OVER_SHARE`, ventes et primes comprises) : un club IA repart chaque saison de sa dotation, que son budget

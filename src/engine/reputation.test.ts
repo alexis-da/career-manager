@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { reputationAfterSeason, reputationRanks } from "./reputation";
+import { REPUTATION_TARGET_SHARE } from "./balance";
+import { clubFinances } from "./economy";
+import { rankInNextDivision, reputationAfterSeason, reputationRanks, reputationTarget } from "./reputation";
 
 describe("reputationRanks", () => {
   it("ranks a division by reputation, one club a rank: equal reputations by wage budget, then by slug", () => {
@@ -26,23 +28,86 @@ describe("reputationRanks", () => {
   });
 });
 
+describe("rankInNextDivision", () => {
+  // England: 20 clubs in the first division, 24 in the second, three going each way.
+  const stay = { clubCount: 20, move: null, moving: 0, nextClubCount: 20 } as const;
+  const promoted = { clubCount: 24, move: "PROMOTED", moving: 3, nextClubCount: 20 } as const;
+  const relegated = { clubCount: 20, move: "RELEGATED", moving: 3, nextClubCount: 24 } as const;
+
+  it("keeps the final rank of a club staying in its division", () => {
+    expect(rankInNextDivision({ ...stay, finalRank: 1 })).toBe(1);
+    expect(rankInNextDivision({ ...stay, finalRank: 17 })).toBe(17);
+  });
+
+  it("puts the promoted clubs at the bottom of the division above, and the relegated ones at the top of the one below", () => {
+    expect([1, 2, 3].map((finalRank) => rankInNextDivision({ ...promoted, finalRank }))).toEqual([18, 19, 20]);
+    expect([18, 19, 20].map((finalRank) => rankInNextDivision({ ...relegated, finalRank }))).toEqual([1, 2, 3]);
+  });
+});
+
+describe("reputationTarget", () => {
+  it("is the creation's reputation of the club ranked there in the division", () => {
+    expect(reputationTarget(1, 20, 1)).toBe(90);
+    expect(reputationTarget(20, 20, 1)).toBe(55);
+    for (let rank = 1; rank <= 24; rank++) {
+      expect(reputationTarget(rank, 24, 2)).toBe(clubFinances(rank, 24, 2).reputation);
+    }
+  });
+
+  it("gives a division its creation's reputations again, whoever stays, goes up or comes down", () => {
+    // The first division after a season: 17 clubs staying at ranks 1 to 17, the second division's top three promoted.
+    const staying = Array.from({ length: 17 }, (_, index) => reputationTarget(index + 1, 20, 1));
+    const arriving = [1, 2, 3].map((finalRank) =>
+      reputationTarget(rankInNextDivision({ finalRank, clubCount: 24, move: "PROMOTED", moving: 3, nextClubCount: 20 }), 20, 1),
+    );
+    const creation = Array.from({ length: 20 }, (_, index) => clubFinances(index + 1, 20, 1).reputation);
+
+    expect([...staying, ...arriving].sort((a, b) => a - b)).toEqual(creation.sort((a, b) => a - b));
+  });
+});
+
 describe("reputationAfterSeason", () => {
-  it("gains a point a place above the expected rank and loses one a place below, at most five", () => {
-    expect(reputationAfterSeason(70, 8, 5, null)).toBe(73);
-    expect(reputationAfterSeason(70, 8, 11, null)).toBe(67);
-    expect(reputationAfterSeason(70, 8, 8, null)).toBe(70);
-    expect(reputationAfterSeason(70, 18, 1, null)).toBe(75);
-    expect(reputationAfterSeason(70, 1, 20, null)).toBe(65);
+  it(`goes ${100 * REPUTATION_TARGET_SHARE} % of the way to its target in its division, rounded alike up and down`, () => {
+    const after = (reputation: number, target: number): number =>
+      reputation + Math.sign(target - reputation) * Math.round(Math.abs(REPUTATION_TARGET_SHARE * (target - reputation)));
+
+    for (const [reputation, target] of [
+      [70, 90],
+      [70, 50],
+      [70, 72],
+      [70, 68],
+      [55, 56],
+      [40, 60],
+      [89, 55],
+    ]) {
+      expect(reputationAfterSeason(reputation, target, null)).toBe(after(reputation, target));
+    }
+    expect(reputationAfterSeason(70, 70, null)).toBe(70);
   });
 
-  it("adds four for a promotion and takes four for a relegation, on top of the places", () => {
-    expect(reputationAfterSeason(55, 6, 1, "PROMOTED")).toBe(64);
-    expect(reputationAfterSeason(62, 15, 19, "RELEGATED")).toBe(54);
-    expect(reputationAfterSeason(62, 20, 18, "RELEGATED")).toBe(60);
+  it("takes its target outright when promoted or relegated", () => {
+    expect(reputationAfterSeason(78, 60, "RELEGATED")).toBe(60);
+    expect(reputationAfterSeason(56, 57, "PROMOTED")).toBe(57);
+    expect(reputationAfterSeason(60, 59, "PROMOTED")).toBe(59);
   });
 
-  it("stays within 1–99", () => {
-    expect(reputationAfterSeason(97, 10, 1, null)).toBe(99);
-    expect(reputationAfterSeason(3, 1, 20, "RELEGATED")).toBe(1);
+  it("moves up and down by the same amount for the same gap", () => {
+    for (let gap = 1; gap <= 40; gap++) {
+      expect(reputationAfterSeason(60, 60 + gap, null) - 60).toBe(60 - reputationAfterSeason(60, 60 - gap, null));
+    }
+  });
+
+  it("never passes its target, and stays within 1–99", () => {
+    for (const [reputation, target] of [
+      [98, 99],
+      [2, 1],
+      [50, 51],
+      [50, 49],
+    ]) {
+      const after = reputationAfterSeason(reputation, target, null);
+      expect(Math.abs(target - after)).toBeLessThanOrEqual(Math.abs(target - reputation));
+      expect(after).toBeGreaterThanOrEqual(1);
+      expect(after).toBeLessThanOrEqual(99);
+    }
   });
 });

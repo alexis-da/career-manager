@@ -1,16 +1,18 @@
 /**
- * Season budgets, reputation and objectives over several seasons (npm run measure:seasons -- [--seasons=N]
+ * Season budgets, reputation and objectives over several seasons (npm run measure:seasons -- [--seasons=N] [--seed=S]
  * [--out=file.md] [--from=file.json]): the guard of gameplay v2, V2 (docs/design/gameplay-v2.md, « Garde-fou »), and the
  * objectives' outcomes of V3, every club's measured with the game's rules.
  *
- * Plays a worldVersion 2 twin of the demo save (demo seed, demo club, the cups as the game gives them) for N complete
- * seasons (default 5), the assistant deciding everything and the player nothing, each season followed by
+ * Plays a worldVersion 2 twin of the demo save (demo seed unless --seed, demo club, the cups as the game gives them,
+ * an owner of its own for each seed: several seeds may run at once) for N complete
+ * seasons (default 6), the assistant deciding everything and the player nothing, each season followed by
  * advanceToNextSeason. Every club is recorded at each season's start (the first right after the creation, the others
  * right after the transition, its preseason included: N + 1 starts) and end (every fixture played, the transition still
  * to come). Then prints, in markdown: six representative French AI clubs season by season; means by division and
  * reputation third; whether the wage budget rather than the transfer budget limits a typical signing; the managed
- * club's budget path at the game's coefficient and at the clamp's ends, recomputed afterwards; the drifts; and how often
- * each season objective is exceeded, achieved or missed, by division and reputation third, with the managed club's own.
+ * club's budget path at the game's coefficient and at the clamp's ends, recomputed afterwards; the drifts; each
+ * division's spread of reputations, its standard deviation season by season against the first; and how often each
+ * season objective is exceeded, achieved or missed, by division and reputation third, with the managed club's own.
  *
  * --out writes the markdown there and the raw records beside it (the same name, .json), for later analyses;
  * --from reads such a JSON instead of playing, to print the report again without the database. The twin and its
@@ -35,6 +37,7 @@ import {
   CUP_COEFFICIENT,
   NEUTRAL_BUDGET_COEFFICIENT,
   RANKING_COEFFICIENT,
+  REPUTATION_TARGET_SHARE,
   WAGE_BUDGET_MARGIN,
 } from "../src/engine/balance";
 import { cupRunOf, type PlayedTie } from "../src/engine/cup";
@@ -59,7 +62,7 @@ import {
 } from "../src/engine/objectives";
 import { formationStrength } from "../src/engine/strength";
 import { ageInYears } from "../src/lib/dates";
-import { reputationRanks } from "../src/engine/reputation";
+import { rankInNextDivision, reputationAfterSeason, reputationRanks, reputationTarget } from "../src/engine/reputation";
 import { competitionTier, type CompetitionTier } from "../src/engine/tiers";
 import { seasonLabel, seasonStartDate, seasonStartYear } from "../src/engine/world";
 import type { WorldVersion } from "../src/engine/world-version";
@@ -76,6 +79,9 @@ const ELEVEN = 11;
 /** The divisions whose top, middle and bottom clubs (a) follows. */
 const FOLLOWED_DIVISIONS = ["fr.1", "fr.2"] as const;
 
+/** How far a division's standard deviation of reputations may go from the first season's (g): ±10 %. */
+const SPREAD_TOLERANCE = 0.1;
+
 /** Drift thresholds (e): the mean dotation against the creation budget, the mean budget, the clubs the wages bind. */
 const DOTATION_RATIO_RANGE = { low: 0.5, high: 2 } as const;
 const BUDGET_RATIO_MAX = 3;
@@ -84,7 +90,7 @@ const WAGE_BOUND_MIN_SHARE = 0.5;
 /** The managed club's coefficients of (d), in hundredths: the clamp's ends. */
 const EXTREME_COEFFICIENTS = [BUDGET_COEFFICIENT_RANGE.best, BUDGET_COEFFICIENT_RANGE.worst] as const;
 
-type Options = { seasons: number; out: string | undefined; from: string | undefined };
+type Options = { seasons: number; seed: string; out: string | undefined; from: string | undefined };
 
 /** A club as a snapshot reads it, at a season's start or end. */
 type ClubState = {
@@ -764,7 +770,7 @@ function boardBudget(dotation: number, coefficient: number, unspent: number): nu
   );
 }
 
-function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[], minutes: number | null): string {
+function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[], minutes: number | null, seed: string): string {
   const sections: string[] = [];
   const played = snapshots.filter((snapshot) => snapshot.end !== null).length;
   const last = snapshots[snapshots.length - 1];
@@ -775,7 +781,7 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
   sections.push(
     `# Budgets de saison et réputation : ${played} saisons simulées (gameplay v2, V2)`,
     [
-      `Jumeau worldVersion 2 de la démo (graine ${DEMO_SEED}, club dirigé ${DEMO_CLUB_SLUG}, coupes comprises), joué par`,
+      `Jumeau worldVersion 2 de la démo (graine ${seed}, club dirigé ${DEMO_CLUB_SLUG}, coupes comprises), joué par`,
       `l'adjoint sans action du joueur, chaque saison suivie du passage de saison : ${snapshots.length} débuts de saison`,
       "relevés (S1 à la création, les suivants juste après le passage, présaison comprise) et",
       `${played} fins (tous les matchs joués, avant le passage).${minutes === null ? "" : ` Durée : ${fixed(minutes, 1)} min.`}`,
@@ -787,7 +793,9 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
       "dépensé pour le seul club dirigé (un club IA repart de sa dotation) ; plafond salarial = masse salariale de la fin",
       `de saison × ${fixed(WAGE_BUDGET_MARGIN, 2)} (club dirigé : de × ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.worst), 2)}`,
       `à × ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.best), 2)} selon son coefficient), au plus clubFinances(…), à la`,
-      "création comme à chaque passage. Coefficient d'un club IA, selon son classement",
+      "création comme à chaque passage. Réputation : elle fait",
+      `${fixed(100 * REPUTATION_TARGET_SHARE, 0)} % du chemin vers sa cible, la réputation de création au rang final ; un promu`,
+      "ou un relégué prend d'un coup celle du rang équivalent de sa nouvelle division. Coefficient d'un club IA, selon son classement",
       `seul : dépassé ${outcomeCoefficient("EXCEEDED")}, atteint ${outcomeCoefficient("ACHIEVED")}, manqué`,
       `${outcomeCoefficient("MISSED")}. « Création » : budget du club au début de S1.`,
     ].join(" "),
@@ -1134,8 +1142,8 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
   const mechanisms = [
     `Budgets des clubs IA / leurs dotations (sommes) : D1 ${fixed(totalsOf(1, 1).budgets, 2)} → ${fixed(totalsOf(1, last.season).budgets, 2)}, D2 ${fixed(totalsOf(2, 1).budgets, 2)} → ${fixed(totalsOf(2, last.season).budgets, 2)} de S1 à S${last.season} : sans report, un club IA repart chaque saison de sa dotation × son coefficient (coefficient moyen des clubs IA : ${coefficientText(meanCoefficient)}), plus les primes de coupe et les ventes de la présaison.`,
     `Clubs à rang de réputation partagé : ${tiedClubs(rows.filter((row) => row.season === 1))} à S1, ${tiedClubs(rows.filter((row) => row.season === last.season))} à S${last.season} sur ${rows.filter((row) => row.season === 1).length} (un club par rang) ; masse des dotations ×${fixed(totalsOf(1, last.season).pool / totalsOf(1, 1).pool, 3)} en D1, ×${fixed(totalsOf(2, last.season).pool / totalsOf(2, 1).pool, 3)} en D2 à S${last.season}.`,
-    `Réputation totale de tous les clubs à chaque passage : ${changesBySeason.map((change) => signedFixed(change, 0)).join(", ")} points (montées et descentes s'annulent ; un club par rang, les écarts de places d'une division s'annulent, hors du plafond de cinq places).`,
-    `Club attendu 1er de sa division, sans montée ni descente : ${signedFixed(mean(favourites), 2)} point de réputation par saison en moyenne (${favourites.length} cas) : il ne peut pas finir mieux que son rang attendu.`,
+    `Réputation totale de tous les clubs à chaque passage : ${changesBySeason.map((change) => signedFixed(change, 0)).join(", ")} points (les cibles d'une division sont ses réputations de création, un rang chacune : la somme ne bouge que par l'écart des réputations à leurs cibles).`,
+    `Club attendu 1er de sa division, sans montée ni descente : ${signedFixed(mean(favourites), 2)} point de réputation par saison en moyenne (${favourites.length} cas) : sa cible est au mieux la réputation de création du premier.`,
     `Clubs IA relégués (${relegated.length}) : la saison suivante, budget / nouvelle dotation médian ${fixed(median(relegated.map((row) => row.budget / row.dotation)), 2)}, ${relegated.filter((row) => row.signing.wageBound).length} liés par les salaires, ${relegated.filter((row) => row.payroll > row.wageBudget).length} au-dessus de leur plafond.`,
     ...driftRows
       .slice(0, 4)
@@ -1159,8 +1167,97 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
     mechanisms.map((line) => `- ${line}`).join("\n"),
   );
 
+  sections.push(...spreadSections(snapshots, rows));
   sections.push(...objectivesSections(snapshots, rows));
   return sections.join("\n\n");
+}
+
+/** The population standard deviation of some values. */
+function standardDeviation(values: readonly number[]): number {
+  const average = mean(values);
+  return Math.sqrt(mean(values.map((value) => (value - average) ** 2)));
+}
+
+/**
+ * Each club's reputation at the next season's start, recomputed from its season as the transition computes it: a share of
+ * the way to its target, the creation's reputation at its rank in the division it plays next (rankInNextDivision), against
+ * the one recorded.
+ */
+function reputationRecomputed(rows: readonly ClubSeason[]): { row: ClubSeason; expected: number; actual: number }[] {
+  const at = new Map(rows.map((row) => [`${row.season}#${row.clubSaveId}`, row]));
+  const nextCodeOf = (row: ClubSeason): string | undefined => at.get(`${row.season + 1}#${row.clubSaveId}`)?.code;
+  return rows.flatMap((row) => {
+    const next = at.get(`${row.season + 1}#${row.clubSaveId}`);
+    if (row.end === null || next === undefined) {
+      return [];
+    }
+    // Its country's exchange: the clubs of its division going where it goes.
+    const moving =
+      row.end.move === null
+        ? 0
+        : rows.filter((other) => other.season === row.season && other.code === row.code && nextCodeOf(other) === next.code).length;
+    const rank = rankInNextDivision({
+      finalRank: row.end.finalRank,
+      clubCount: row.clubCount,
+      move: row.end.move,
+      moving,
+      nextClubCount: next.clubCount,
+    });
+    const target = reputationTarget(rank, next.clubCount, next.tier);
+    return [{ row, expected: reputationAfterSeason(row.reputation, target, row.end.move), actual: next.reputation }];
+  });
+}
+
+/**
+ * g. Each division's spread of reputations at each season's start (every club of it, the managed one included): its
+ * standard deviation, against the first season's, which must stay within SPREAD_TOLERANCE.
+ */
+function spreadSections(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[]): string[] {
+  const codes = [...new Set(rows.map((row) => row.code))].sort((a, b) => a.localeCompare(b));
+  const tierOf = new Map(rows.map((row) => [row.code, row.tier]));
+  const deviationAt = (season: number, code: string): number =>
+    standardDeviation(rows.filter((row) => row.season === season && row.code === code).map((row) => row.reputation));
+  const lines = codes.map((code) => {
+    const values = snapshots.map(({ season }) => deviationAt(season, code));
+    return { label: code, tier: tierOf.get(code), values, drift: Math.max(...values.map((value) => Math.abs(value / values[0] - 1))) };
+  });
+  const byTier = ([1, 2] as const).map((tier) => {
+    const members = lines.filter((line) => line.tier === tier);
+    const values = snapshots.map((_, index) => mean(members.map((line) => line.values[index])));
+    return { label: `D${tier} (moyenne)`, tier, values, drift: Math.max(...values.map((value) => Math.abs(value / values[0] - 1))) };
+  });
+  const outside = lines.filter((line) => line.drift > SPREAD_TOLERANCE);
+  const tolerance = `±${fixed(100 * SPREAD_TOLERANCE, 0)} %`;
+  const recomputed = reputationRecomputed(rows);
+  const mismatches = recomputed.filter(({ expected, actual }) => expected !== actual);
+  const signedPercent = (value: number): string => `${value > 0 ? "+" : ""}${fixed(100 * value, 1)} %`;
+  const last = snapshots[snapshots.length - 1];
+  return [
+    "## g. Étalement des réputations",
+    [
+      `Écart-type des réputations de chaque division au début de chaque saison (tous ses clubs, le club dirigé compris), puis`,
+      `l'écart le plus grand à celui de S1 et celui de S${last.season}. Stable : à ${tolerance} de S1 à chaque saison. Règle :`,
+      `${fixed(100 * REPUTATION_TARGET_SHARE, 0)} % du chemin vers la réputation de création au rang final ; un promu ou un`,
+      "relégué prend d'un coup celle du rang équivalent de sa nouvelle division. Vérification : réputation recalculée ainsi =",
+      "relevée au début de la saison suivante",
+      `pour ${recomputed.length - mismatches.length} / ${recomputed.length} clubs-saisons.`,
+      ...mismatches
+        .slice(0, 5)
+        .map(({ row, expected, actual }) => `Écart : ${seasonHeader(row)} ${row.slug}, recalcul ${expected}, relevée ${actual}.`),
+    ].join(" "),
+    table(
+      ["Division", ...snapshots.map(seasonHeader), "Écart max / S1", `S${last.season} / S1`],
+      [...lines, ...byTier].map(({ label, values, drift }) => [
+        label,
+        ...values.map((value) => fixed(value, 2)),
+        `${fixed(100 * drift, 1)} %`,
+        signedPercent(values[values.length - 1] / values[0] - 1),
+      ]),
+    ),
+    outside.length === 0
+      ? `Toutes les divisions restent à ${tolerance} de leur écart-type de S1, de S1 à S${last.season}.`
+      : `Hors de ${tolerance} : ${outside.map((line) => `${line.label} (${fixed(100 * line.drift, 1)} %)`).join(", ")}.`,
+  ];
 }
 
 const OBJECTIVE_NAMES: Readonly<Record<ObjectiveKind, string>> = {
@@ -1239,40 +1336,41 @@ function objectivesSections(snapshots: readonly SeasonSnapshot[], rows: readonly
 function parseOptions(argv: readonly string[]): Options {
   const value = (name: string): string | undefined =>
     argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
-  const seasons = Number(value("seasons") ?? 5);
+  const seasons = Number(value("seasons") ?? 6);
   if (!Number.isInteger(seasons) || seasons < 1) {
     throw new Error(`--seasons must be a positive integer, got ${value("seasons")}`);
   }
-  return { seasons, out: value("out"), from: value("from") };
+  return { seasons, seed: value("seed") ?? DEMO_SEED, out: value("out"), from: value("from") };
 }
 
 type Records = { seed: string; managedClub: string; worldVersion: WorldVersion; minutes: number | null; snapshots: SeasonSnapshot[] };
 
-async function simulate(seasons: number): Promise<Records> {
+async function simulate(seasons: number, seed: string): Promise<Records> {
   // The client already refuses any database but a local one (assertLocalDatabase), ALLOW_REMOTE_DB=1 aside: this
   // script writes, so it refuses even that.
   const url = process.env.DATABASE_URL ?? "";
   if (url === "" || !isLocalDatabase(url)) {
     throw new Error("Refusing to write anywhere else than the local database");
   }
-  console.log(`Database: ${new URL(url).pathname.slice(1)} (local)`);
+  console.log(`Database: ${new URL(url).pathname.slice(1)} (local), seed ${seed}`);
   const started = performance.now();
-  // A crashed run's owner and twin first; then a throwaway owner of our own.
-  await prisma.user.deleteMany({ where: { id: OWNER } });
-  await prisma.user.createMany({ data: [{ id: OWNER, kind: "REGISTERED", lastSeenAt: new Date() }], skipDuplicates: true });
+  // A crashed run's owner and twin first; then a throwaway owner of our own, one per seed.
+  const owner = seed === DEMO_SEED ? OWNER : `${OWNER}-${seed}`;
+  await prisma.user.deleteMany({ where: { id: owner } });
+  await prisma.user.createMany({ data: [{ id: owner, kind: "REGISTERED", lastSeenAt: new Date() }], skipDuplicates: true });
   try {
     const club = await prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } });
     const { id: saveId } = await createSave({
       name: "Mesure budgets de saison",
       managerName: "Test",
       clubId: club.id,
-      seed: DEMO_SEED,
-      ownerId: OWNER,
+      seed,
+      ownerId: owner,
       worldVersion: WORLD_VERSION,
     });
     const snapshots = await playSeasons(saveId, seasons);
     return {
-      seed: DEMO_SEED,
+      seed,
       managedClub: DEMO_CLUB_SLUG,
       worldVersion: WORLD_VERSION,
       minutes: (performance.now() - started) / 60_000,
@@ -1280,7 +1378,7 @@ async function simulate(seasons: number): Promise<Records> {
     };
   } finally {
     // The throwaway owner and, by cascade, the twin.
-    await prisma.user.deleteMany({ where: { id: OWNER } });
+    await prisma.user.deleteMany({ where: { id: owner } });
     await prisma.$disconnect();
   }
 }
@@ -1288,14 +1386,16 @@ async function simulate(seasons: number): Promise<Records> {
 async function main(): Promise<void> {
   const options = parseOptions(process.argv.slice(2));
   const records: Records =
-    options.from === undefined ? await simulate(options.seasons) : (JSON.parse(readFileSync(options.from, "utf8")) as Records);
+    options.from === undefined
+      ? await simulate(options.seasons, options.seed)
+      : (JSON.parse(readFileSync(options.from, "utf8")) as Records);
   const json = options.out === undefined ? undefined : `${options.out.replace(/\.md$/, "")}.json`;
   // The raw records first: a report that fails must not cost the seasons played.
   if (json !== undefined && options.from === undefined) {
     writeFileSync(json, JSON.stringify(records));
   }
   const clubSeasons = derive(records.snapshots);
-  const text = report(records.snapshots, clubSeasons, records.minutes);
+  const text = report(records.snapshots, clubSeasons, records.minutes, records.seed);
   console.log(`\n${text}`);
   if (options.out !== undefined && json !== undefined) {
     writeFileSync(options.out, `${text}\n`);

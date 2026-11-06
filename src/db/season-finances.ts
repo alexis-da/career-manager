@@ -2,7 +2,7 @@ import { NEUTRAL_BUDGET_COEFFICIENT, WAGE_BUDGET_MARGIN } from "../engine/balanc
 import { managedWageMargin, seasonFinances, wageBudgetFor, type SeasonFinances } from "../engine/economy";
 import { budgetCoefficient, divisionOf, rankingObjective, rankingOutcome } from "../engine/objectives";
 import type { MoveReason } from "../engine/promotion";
-import { reputationAfterSeason, reputationRanks } from "../engine/reputation";
+import { rankInNextDivision, reputationAfterSeason, reputationRanks, reputationTarget } from "../engine/reputation";
 import { competitionTier, type CompetitionTier } from "../engine/tiers";
 import type { WorldVersion } from "../engine/world-version";
 import { Prisma } from "../generated/prisma/client";
@@ -24,14 +24,17 @@ export type ClubSeasonEnd = {
   finalRank: number;
   move: MoveReason | null;
   reputationBefore: number;
+  target: number; // the reputation it goes towards: the creation's at its rank in the division it plays next
   reputation: number; // after the season
 };
 
 /**
- * Every club's reputation after the season being closed (gameplay v2, V2), inside advanceToNextSeason's transaction:
- * its expected rank is its reputation rank in its division as the season was played (reputationRanks), its final rank
- * the final table's, and a promotion or a relegation counts too (reputationAfterSeason). AI clubs and the managed club
- * alike, in both worlds. Returns each club's season end.
+ * Every club's reputation after the season being closed (gameplay v2, V2), inside advanceToNextSeason's transaction: a
+ * share of the way to its target, the creation's reputation at its final rank in its division; a promoted or a relegated
+ * club takes outright the target of its equivalent rank in its new division (rankInNextDivision, reputationTarget,
+ * reputationAfterSeason). AI clubs and the managed club alike, in both worlds. Returns each club's season end, with its
+ * expected rank, its reputation rank in its division as the season was played (reputationRanks): an AI club's ranking
+ * objective's.
  */
 export async function applySeasonReputations(
   tx: Db,
@@ -45,7 +48,10 @@ export async function applySeasonReputations(
   });
   const clubOf = new Map(clubs.map((club) => [club.id, club]));
   const reputationOf = new Map(clubs.map((club) => [club.id, club.reputation]));
-  const moveOf = new Map(moves.map((move) => [move.clubSaveId, move.reason]));
+  const moveOf = new Map(moves.map((move) => [move.clubSaveId, move]));
+  // Each division's tier and size, and how many clubs go from one division to another: their country's exchange.
+  const divisionByCode = new Map(tables.standings.map(({ code, tier, table }) => [code, { tier, clubCount: table.length }]));
+  const movingBetween = (from: string, to: string): number => moves.filter((move) => move.from === from && move.to === to).length;
 
   const ends = tables.standings.flatMap(({ code, tier, table }): ClubSeasonEnd[] => {
     const members = table.map((row) => ({
@@ -62,6 +68,15 @@ export async function applySeasonReputations(
       const reputationBefore = getOrThrow(reputationOf, clubSaveId, "club");
       const expectedRank = getOrThrow(expected, clubSaveId, "expected rank");
       const move = moveOf.get(clubSaveId) ?? null;
+      const next = move === null ? { tier, clubCount: members.length } : getOrThrow(divisionByCode, move.to, "next division");
+      const rank = rankInNextDivision({
+        finalRank,
+        clubCount: members.length,
+        move: move?.reason ?? null,
+        moving: move === null ? 0 : movingBetween(move.from, move.to),
+        nextClubCount: next.clubCount,
+      });
+      const target = reputationTarget(rank, next.clubCount, next.tier);
       return {
         clubSaveId,
         code,
@@ -69,9 +84,10 @@ export async function applySeasonReputations(
         clubCount: members.length,
         expectedRank,
         finalRank,
-        move,
+        move: move?.reason ?? null,
         reputationBefore,
-        reputation: reputationAfterSeason(reputationBefore, expectedRank, finalRank, move),
+        target,
+        reputation: reputationAfterSeason(reputationBefore, target, move?.reason ?? null),
       };
     });
   });

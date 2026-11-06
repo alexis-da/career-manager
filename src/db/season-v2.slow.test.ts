@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CUP_ROUNDS, PROMOTION_RELEGATION, WAGE_BUDGET_MARGIN } from "../engine/balance";
 import { cupDates, cupRunOf, type CupRun } from "../engine/cup";
-import { managedWageMargin, seasonFinances, type ClubFinances } from "../engine/economy";
+import { clubFinances, managedWageMargin, seasonFinances, type ClubFinances } from "../engine/economy";
 import { budgetCoefficient, divisionOf, rankingObjective, rankingOutcome, type ObjectiveOutcome } from "../engine/objectives";
 import type { MoveReason } from "../engine/promotion";
 import { reputationAfterSeason, reputationRanks } from "../engine/reputation";
@@ -465,7 +465,6 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
 
   it.each([0, 1])("gives every club the reputation of its season and its dotation in its new division (transition %i)", (index) => {
     const check = checks[index];
-    const reasonOf = new Map(check.expected.map((move) => [move.clubId, move.reason as MoveReason]));
     const before = (clubId: string): ClubFinances => check.financesBefore.get(clubId) ?? { budget: NaN, wageBudget: NaN, reputation: NaN };
     const tierOf = (code: string) => competitionTier(check.tierOf.get(code) ?? NaN);
 
@@ -489,8 +488,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     });
     expect(check.nextObjectives).toBeGreaterThanOrEqual(4);
 
-    // Each club's expected rank, its reputation rank in its division as the season was played, against its final one:
-    // its new reputation, and an AI club's coefficient, its ranking objective's (the managed club's, its objectives').
+    // Each club's target, the creation's reputation at its rank in the division it plays next (a promoted club in the
+    // last places of the division above, a relegated one in the first places of the one below): its new reputation, a
+    // share of the way there, or the target itself for a club changing division. Its expected rank, its reputation rank in its division as the season was played, against
+    // its final one: an AI club's coefficient, its ranking objective's (the managed club's, its objectives').
+    const moveOf = new Map(check.expected.map((move) => [move.clubId, move]));
+    const movingFrom = (code: string): number => check.expected.filter((move) => move.from === code).length;
+    const targets: { code: string; target: number }[] = [];
     const reputations = new Map<string, number>();
     const coefficients = new Map<string, number>();
     for (const [code, table] of check.tables) {
@@ -499,22 +503,39 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
       );
       const division = divisionOf(code, tierOf(code), table.length, 2);
       table.forEach((clubId, place) => {
+        const move = moveOf.get(clubId);
+        const next = move?.to ?? code;
+        const nextCount = check.tables.get(next)?.length ?? NaN;
+        const rank =
+          move === undefined
+            ? place + 1
+            : move.reason === "PROMOTED"
+              ? nextCount - movingFrom(move.from) + move.rank
+              : move.rank - (table.length - movingFrom(move.from));
+        const target = clubFinances(rank, nextCount, tierOf(next)).reputation;
+        targets.push({ code: next, target });
+        reputations.set(clubId, reputationAfterSeason(before(clubId).reputation, target, (move?.reason as MoveReason | undefined) ?? null));
         const expectedRank = expectedRanks.get(clubId) ?? NaN;
-        reputations.set(clubId, reputationAfterSeason(before(clubId).reputation, expectedRank, place + 1, reasonOf.get(clubId) ?? null));
         const outcome = rankingOutcome(rankingObjective(expectedRank, division), place + 1);
         coefficients.set(clubId, clubId === check.managedClubId ? managedCoefficient : budgetCoefficient({ ranking: outcome }));
       });
     }
-    // Reputations do move: some clubs rise, some fall; coefficients too. Each division's expected ranks add up as its
-    // final ones (one club a rank), so its total reputation moves only by the caps of five places and by the moves.
+    // Each new division's targets are its creation's reputations, one a rank: its reputations keep their spread. They do
+    // move, some up, some down; coefficients too.
+    for (const [code, table] of check.tables) {
+      const creation = table.map((_, index) => clubFinances(index + 1, table.length, tierOf(code)).reputation);
+      expect(targets.filter((entry) => entry.code === code).map((entry) => entry.target).sort((a, b) => a - b)).toEqual(
+        creation.sort((a, b) => a - b),
+      );
+    }
     const changes = [...check.financesBefore].map(([clubId, finances]) => (reputations.get(clubId) ?? NaN) - finances.reputation);
     expect(changes.some((change) => change > 0) && changes.some((change) => change < 0)).toBe(true);
     expect(new Set([...coefficients].filter(([clubId]) => clubId !== check.managedClubId).map(([, value]) => value))).toEqual(new Set([85, 110, 120]));
 
     // Each new division ranked by the new reputations: the dotation, plus half of the unspent budget for the managed club
-    // alone (an AI club's is the dotation times its coefficient), and the wage budget
-    // of the payroll at the end of the season, plus its margin (the managed club's from its coefficient), at most the
-    // table's; the preseason's AI sales for wage bills move budgets too, their fees added back.
+    // alone (an AI club's is the dotation times its coefficient), and the wage budget of the payroll at the end of the
+    // season, plus its margin (the managed club's from its coefficient), at most the table's; the preseason's AI sales for
+    // wage bills move budgets too, their fees added back.
     const divisions = Map.groupBy([...check.financesBefore.keys()], (clubId) => check.competitionOf.get(clubId) ?? "");
     for (const [competitionId, members] of divisions) {
       const tier = tierOf(check.codeOf.get(competitionId) ?? "");
