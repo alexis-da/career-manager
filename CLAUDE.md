@@ -208,8 +208,9 @@ dotations son budget de création), et sa réputation gagne un point par place a
 en dessous, cinq au plus (`REPUTATION_PLACES_CAP`), puis quatre de plus pour une montée, de moins pour une descente
 (`REPUTATION_MOVE`, `reputationAfterSeason`). Puis, avant la présaison, chaque club reçoit sa dotation
 (`applySeasonFinances`, `seasonFinances`, `economy.ts`) : le budget de création (`clubFinances`) à son nouveau rang de
-réputation dans sa nouvelle division, × son coefficient, + la moitié de son budget non dépensé
-(`BUDGET_CARRY_OVER_SHARE`, ventes et primes comprises). Son plafond salarial est une vraie limite : sa masse salariale
+réputation dans sa nouvelle division, × son coefficient, + pour le seul club dirigé la moitié de son budget non dépensé
+(`BUDGET_CARRY_OVER_SHARE`, ventes et primes comprises) : un club IA repart chaque saison de sa dotation, que son budget
+jamais dépensé doublerait sinon. Son plafond salarial est une vraie limite : sa masse salariale
 de fin de saison, lue avant tout départ (`payrollsOf`), × 1,20 (`WAGE_BUDGET_MARGIN`), au plus celui de la table à son
 nouveau rang (`clubFinances`, `wageBudgetFor`) ; pour le club dirigé, la marge suit son coefficient, de × 1,10 à 70 à
 × 1,30 à 140 (`managedWageMargin`, `MANAGED_WAGE_MARGIN_RANGE`). À la création de même, sur la masse de l'effectif

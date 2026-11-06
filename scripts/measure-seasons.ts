@@ -605,8 +605,8 @@ function seasonEnd(start: ClubStart, end: ClubEnd, next: ClubStart | undefined):
 /**
  * Each club's seasons. The finances given at a season's start are recomputed as the transition computes them
  * (seasonFinances): an AI club's coefficient from its reputation rank at the previous season's start (its expected
- * rank) and its final rank, the managed club's read from its SeasonBudget; the unspent budget and the payroll are the
- * previous end's, the wage margin WAGE_BUDGET_MARGIN, the managed club's from its coefficient (managedWageMargin).
+ * rank) and its final rank, the managed club's read from its SeasonBudget; the unspent budget (the managed club's
+ * alone: an AI club carries nothing over) and the payroll are the previous end's, the wage margin WAGE_BUDGET_MARGIN, the managed club's from its coefficient (managedWageMargin).
  */
 function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
   const creation = new Map(snapshots[0].start.map((club) => [club.clubSaveId, club.budget]));
@@ -628,7 +628,7 @@ function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
           clubCount: club.clubCount,
           tier: club.tier,
           coefficient,
-          unspent: closed.budget,
+          unspent: club.managed ? closed.budget : 0,
           payroll: closed.payroll,
           wageMargin: club.managed ? managedWageMargin(coefficient) : WAGE_BUDGET_MARGIN,
         });
@@ -783,10 +783,11 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
     ].join(" "),
     [
       "Règle : dotation = clubFinances(rang de réputation, clubs, division de la nouvelle saison) ; budget = dotation ×",
-      `coefficient (au pas de ${millions(BUDGET_STEP)} M€) + ${fixed(100 * BUDGET_CARRY_OVER_SHARE, 0)} % du budget non`,
-      `dépensé ; plafond salarial = masse salariale de la fin de saison × ${fixed(WAGE_BUDGET_MARGIN, 2)} (club dirigé : de`,
-      `× ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.worst), 2)} à × ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.best), 2)}`,
-      "selon son coefficient), au plus clubFinances(…), à la création comme à chaque passage. Coefficient d'un club IA, selon son classement",
+      `coefficient (au pas de ${millions(BUDGET_STEP)} M€), + ${fixed(100 * BUDGET_CARRY_OVER_SHARE, 0)} % du budget non`,
+      "dépensé pour le seul club dirigé (un club IA repart de sa dotation) ; plafond salarial = masse salariale de la fin",
+      `de saison × ${fixed(WAGE_BUDGET_MARGIN, 2)} (club dirigé : de × ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.worst), 2)}`,
+      `à × ${fixed(managedWageMargin(BUDGET_COEFFICIENT_RANGE.best), 2)} selon son coefficient), au plus clubFinances(…), à la`,
+      "création comme à chaque passage. Coefficient d'un club IA, selon son classement",
       `seul : dépassé ${outcomeCoefficient("EXCEEDED")}, atteint ${outcomeCoefficient("ACHIEVED")}, manqué`,
       `${outcomeCoefficient("MISSED")}. « Création » : budget du club au début de S1.`,
     ].join(" "),
@@ -889,7 +890,8 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
     [
       "Masse des dotations : celles de tous les clubs de la division (club dirigé compris) sur celles de S1, invariante",
       "par construction : les mêmes montants répartis sur les rangs de réputation, un club par rang (réputation, puis",
-      "plafond salarial, puis slug). Budgets / dotations : sommes des clubs IA, ce que le report et les primes ajoutent à la dotation.",
+      "plafond salarial, puis slug). Budgets / dotations : sommes des clubs IA, ce que le coefficient, les primes de coupe",
+      "et les ventes de la présaison font de la dotation (sans report pour un club IA).",
     ].join(" "),
     table(["Division", "Mesure", ...snapshots.map(seasonHeader)], divisionTotals(rows, snapshots)),
     "### Réputation moyenne",
@@ -1130,7 +1132,7 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
   const highestDotation = dotationExtremes.at(-1);
   const signedFixed = (value: number, digits: number): string => `${value > 0 ? "+" : ""}${fixed(value, digits)}`;
   const mechanisms = [
-    `Budgets des clubs IA / leurs dotations (sommes) : D1 ${fixed(totalsOf(1, 1).budgets, 2)} → ${fixed(totalsOf(1, last.season).budgets, 2)}, D2 ${fixed(totalsOf(2, 1).budgets, 2)} → ${fixed(totalsOf(2, last.season).budgets, 2)} de S1 à S${last.season} : un budget jamais dépensé tend vers dotation × coefficient / (1 − ${BUDGET_CARRY_OVER_SHARE}), soit ${fixed(1 / (1 - BUDGET_CARRY_OVER_SHARE), 0)} × dotation × coefficient (coefficient moyen des clubs IA : ${coefficientText(meanCoefficient)}), plus les primes de coupe.`,
+    `Budgets des clubs IA / leurs dotations (sommes) : D1 ${fixed(totalsOf(1, 1).budgets, 2)} → ${fixed(totalsOf(1, last.season).budgets, 2)}, D2 ${fixed(totalsOf(2, 1).budgets, 2)} → ${fixed(totalsOf(2, last.season).budgets, 2)} de S1 à S${last.season} : sans report, un club IA repart chaque saison de sa dotation × son coefficient (coefficient moyen des clubs IA : ${coefficientText(meanCoefficient)}), plus les primes de coupe et les ventes de la présaison.`,
     `Clubs à rang de réputation partagé : ${tiedClubs(rows.filter((row) => row.season === 1))} à S1, ${tiedClubs(rows.filter((row) => row.season === last.season))} à S${last.season} sur ${rows.filter((row) => row.season === 1).length} (un club par rang) ; masse des dotations ×${fixed(totalsOf(1, last.season).pool / totalsOf(1, 1).pool, 3)} en D1, ×${fixed(totalsOf(2, last.season).pool / totalsOf(2, 1).pool, 3)} en D2 à S${last.season}.`,
     `Réputation totale de tous les clubs à chaque passage : ${changesBySeason.map((change) => signedFixed(change, 0)).join(", ")} points (montées et descentes s'annulent ; un club par rang, les écarts de places d'une division s'annulent, hors du plafond de cinq places).`,
     `Club attendu 1er de sa division, sans montée ni descente : ${signedFixed(mean(favourites), 2)} point de réputation par saison en moyenne (${favourites.length} cas) : il ne peut pas finir mieux que son rang attendu.`,

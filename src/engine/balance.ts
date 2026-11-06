@@ -174,10 +174,14 @@ export const REPUTATION_MOVE = 4;
 
 // ------------------------------------------------------------------ Season budgets (gameplay v2, V2)
 // Each new season, every club gets a dotation from its board: the creation's finances (clubFinances) at its reputation
-// rank in its new division, times a coefficient of its objectives, plus half of its unspent transfer budget; its wage
-// budget is its payroll times a margin, never above the creation's at that rank (src/engine/economy.ts, seasonFinances).
+// rank in its new division, times a coefficient of its objectives, plus, for the managed club alone, half of its unspent
+// transfer budget; its wage budget is its payroll times a margin, never above the creation's at that rank
+// (src/engine/economy.ts, seasonFinances).
 
-/** Share of a club's unspent transfer budget it keeps into the next season, on top of its dotation. */
+/**
+ * Share of the managed club's unspent transfer budget it keeps into the next season, on top of its dotation. AI clubs
+ * keep nothing: each season starts from its dotation, which a budget never spent would otherwise double.
+ */
 export const BUDGET_CARRY_OVER_SHARE = 0.5;
 
 /** A coefficient without objectives, in hundredths: the managed club of a save from before them, the first season. */

@@ -62,9 +62,9 @@ type PlayerUpdate = PlayerAttributes & {
  * contracts of the managed club turn its players into free agents, form, morale, fitness, injuries and yellow cards
  * are reset (a suspension still to serve carries over), the seasons are marked completed (with their moves), the
  * moving clubs change competition, every club's reputation follows its final place against its expected rank and every
- * club gets its finances for the new season, its dotation plus half of its unspent budget, the managed club's
- * dotation from its objectives, and its wage budget from its payroll at the end of the season (src/db/season-finances.ts), the save moves to 1 July, the preseason runs (young
- * players, AI squads), and next season's seasons and fixtures are created, with the managed club's dotation
+ * club gets its finances for the new season, its dotation (from its objectives for the managed club, which alone keeps
+ * half of its unspent budget) and its wage budget from its payroll at the end of the season
+ * (src/db/season-finances.ts), the save moves to 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created, with the managed club's dotation
  * (SeasonBudget), the cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables (when the
  * save already had cups, or the game gives them: CUPS_ENABLED), then the managed club's objectives of the new season.
  * Every cup tie must have been played too: the season ends with the cups' finals.

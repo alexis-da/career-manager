@@ -100,7 +100,8 @@ export function aiCoefficient(end: ClubSeasonEnd, worldVersion: WorldVersion): n
 /**
  * Every club's finances for the new season (gameplay v2, V2), inside advanceToNextSeason's transaction, once the moving
  * clubs have changed division and every reputation has followed its season, before the preseason: its dotation at its
- * reputation rank in its new division, times its coefficient, plus half of its unspent transfer budget; its wage budget,
+ * reputation rank in its new division, times its coefficient, plus, for the managed club alone, half of its unspent
+ * transfer budget (an AI club starts each season from its dotation, whatever it left); its wage budget,
  * its payroll at the end of the season closed (payrolls, read before any player left) times its margin, at most the
  * table's at that rank (seasonFinances). An AI club's coefficient is its ranking objective's (aiCoefficient), its margin
  * WAGE_BUDGET_MARGIN; the managed club's coefficient is the one given, its season's objectives' (100 without any), and
@@ -147,7 +148,9 @@ export async function applySeasonFinances(
         clubCount: division.length,
         tier: competitionTier(club.competition.tier),
         coefficient,
-        unspent: club.budget,
+        // The managed club alone carries half of its unspent budget over: an AI club never spending its own would
+        // otherwise see it double.
+        unspent: club.isManaged ? club.budget : 0,
         payroll: payrolls.get(club.id) ?? 0,
         wageMargin: club.isManaged ? managedWageMargin(coefficient) : WAGE_BUDGET_MARGIN,
       });

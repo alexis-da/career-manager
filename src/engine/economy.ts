@@ -66,7 +66,7 @@ export function clubFinances(initialRank: number, clubCount: number, tier: Compe
 export type SeasonFinances = {
   dotation: number; // euros: the creation's budget (clubFinances) at its reputation rank in its division
   coefficient: number; // hundredths: its objectives' (budgetCoefficient)
-  carryOver: number; // euros: BUDGET_CARRY_OVER_SHARE of the transfer budget it left unspent
+  carryOver: number; // euros: BUDGET_CARRY_OVER_SHARE of the transfer budget it left unspent (the managed club's alone)
   budget: number; // euros: the dotation times the coefficient, rounded to BUDGET_STEP, plus the carry-over
   wageBudget: number; // euros per season: its payroll times its margin, at most the creation's wage budget at that rank
 };
@@ -74,7 +74,7 @@ export type SeasonFinances = {
 /**
  * A club's finances for a new season: its dotation, the transfer budget clubFinances gives its reputation rank in its
  * (new) division, times its objectives' coefficient, plus half of what it left unspent (sales and cup prizes
- * included); its wage budget, its payroll at the end of the season closed times its margin, at most the creation's
+ * included; the managed club's alone, an AI club's unspent being 0); its wage budget, its payroll at the end of the season closed times its margin, at most the creation's
  * wage budget at that rank (wageBudgetFor). Its reputation is its own (src/engine/reputation.ts).
  */
 export function seasonFinances({
@@ -103,7 +103,7 @@ export type SeasonFinancesInput = {
   clubCount: number; // of that division
   tier: CompetitionTier;
   coefficient: number; // hundredths: its objectives' (budgetCoefficient)
-  unspent: number; // euros: the transfer budget it left unspent; 0 carries nothing over
+  unspent: number; // euros: the transfer budget it left unspent; 0 carries nothing over, as for every AI club
   payroll: number; // euros per season: its payroll at the end of the season closed
   wageMargin: number; // WAGE_BUDGET_MARGIN, or the managed club's (managedWageMargin)
 };

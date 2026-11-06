@@ -511,7 +511,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     expect(changes.some((change) => change > 0) && changes.some((change) => change < 0)).toBe(true);
     expect(new Set([...coefficients].filter(([clubId]) => clubId !== check.managedClubId).map(([, value]) => value))).toEqual(new Set([85, 110, 120]));
 
-    // Each new division ranked by the new reputations: the dotation, plus half of the unspent budget, and the wage budget
+    // Each new division ranked by the new reputations: the dotation, plus half of the unspent budget for the managed club
+    // alone (an AI club's is the dotation times its coefficient), and the wage budget
     // of the payroll at the end of the season, plus its margin (the managed club's from its coefficient), at most the
     // table's; the preseason's AI sales for wage bills move budgets too, their fees added back.
     const divisions = Map.groupBy([...check.financesBefore.keys()], (clubId) => check.competitionOf.get(clubId) ?? "");
@@ -532,7 +533,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
           clubCount: members.length,
           tier,
           coefficient: coefficients.get(clubId) ?? NaN,
-          unspent: before(clubId).budget,
+          unspent: clubId === check.managedClubId ? before(clubId).budget : 0,
           payroll: check.payrollsBefore.get(clubId) ?? NaN,
           wageMargin: clubId === check.managedClubId ? managedWageMargin(managedCoefficient) : WAGE_BUDGET_MARGIN,
         });
