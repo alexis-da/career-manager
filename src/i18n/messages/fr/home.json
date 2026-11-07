@@ -3,6 +3,8 @@
     "newSave": "Nouvelle carrière",
     "seasonStart": "La saison {season} commence le {date}.",
     "accountDeleted": "Ton compte et tes parties ont été supprimés.",
+    "signInRefused": "Connexion refusée : ce compte Google n'a pas d'adresse e-mail vérifiée.",
+    "signInFailed": "La connexion avec Google a échoué. Réessaie.",
     "otherDevice": "Déjà une carrière sur un autre appareil ?",
     "intro": "Reprends une carrière ou commences-en une nouvelle.",
     "saves": "Tes carrières",

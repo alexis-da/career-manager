@@ -76,7 +76,6 @@ src/i18n/messages.test.ts` vérifie que les deux langues ont les mêmes clés et
    - `ADMIN_EMAIL` : compte Google de l'administrateur (parties héritées, `/admin/stats`) ;
    - `MAINTENANCE_SECRET` : secret de `POST /api/maintenance/purge` et de `POST /api/maintenance/challenge` (sans lui,
      elles répondent 404) ;
-   - `APP_PASSWORD` (facultatif) : mode « fermé », tout le site demande ce mot de passe ; absente, le jeu est ouvert ;
    - `CLUB_NAMES` (facultatif) : `real` (par défaut) ou `fictional` pour afficher des noms de clubs neutres.
 3. Déployer : `npm run build` génère le client Prisma, applique les migrations puis construit l'application.
 4. Données de référence : la production a reçu les premières divisions par un seed initial, une fois ; tout ce qui

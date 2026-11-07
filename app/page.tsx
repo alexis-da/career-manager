@@ -17,7 +17,7 @@ import { DeleteAccountDialog } from "./_components/delete-account-dialog";
 import { PublicPage } from "./_components/public-page";
 import { SaveCard } from "./_components/save-card";
 import { SaveLimitNotice } from "./_components/save-limit-notice";
-import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
+import { ACCOUNT_DELETED_PARAM, signInErrorOf } from "./_lib/account";
 import { HOME_COLUMNS } from "./_lib/home-columns";
 
 export const dynamic = "force-dynamic";
@@ -74,9 +74,36 @@ function OtherDevice() {
   );
 }
 
+type Notices = {
+  accountDeleted: boolean; // the player has just deleted their account (ACCOUNT_DELETED_PARAM)
+  signInError: "refused" | "failed" | null; // why a Google sign-in came back without an account (signInErrorOf)
+};
+
+/** What the page says on coming back to it: an account deleted, or a Google sign-in that did not go through. */
+function HomeNotices({ accountDeleted, signInError }: Notices) {
+  const t = useTranslations("home");
+  if (!accountDeleted && signInError === null) {
+    return null;
+  }
+  return (
+    <div className="mb-6 space-y-3">
+      {accountDeleted && (
+        <p role="status" className="rounded-lg bg-card px-4 py-3 text-sm">
+          {t("accountDeleted")}
+        </p>
+      )}
+      {signInError !== null && (
+        <p role="alert" className="rounded-lg bg-card px-4 py-3 text-sm text-loss" data-testid="sign-in-error">
+          {t(signInError === "refused" ? "signInRefused" : "signInFailed")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** A first visit, without a cookie or a session: play in one click, the first save creating the anonymous player. */
-async function WelcomePage({ accountDeleted }: { accountDeleted: boolean }) {
-  const [choices, t] = await Promise.all([creationChoices(), getTranslations("home")]);
+async function WelcomePage({ notices }: { notices: Notices }) {
+  const choices = await creationChoices();
   return (
     <PublicPage
       className="max-w-6xl"
@@ -87,20 +114,20 @@ async function WelcomePage({ accountDeleted }: { accountDeleted: boolean }) {
       }
       footer={<GameFacts />}
     >
-      {accountDeleted && (
-        <p role="status" className="mb-6 rounded-lg bg-card px-4 py-3 text-sm">
-          {t("accountDeleted")}
-        </p>
-      )}
+      <HomeNotices {...notices} />
       <CreateSaveForm {...choices} />
     </PublicPage>
   );
 }
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
-  const user = await getCurrentUser();
+  const [user, query] = await Promise.all([getCurrentUser(), searchParams]);
+  const notices: Notices = {
+    accountDeleted: query[ACCOUNT_DELETED_PARAM] === "1",
+    signInError: signInErrorOf(query.error),
+  };
   if (user === null) {
-    return <WelcomePage accountDeleted={(await searchParams)[ACCOUNT_DELETED_PARAM] === "1"} />;
+    return <WelcomePage notices={notices} />;
   }
   const [saves, choices, ownedSaves, t] = await Promise.all([
     listSaves(user),
@@ -126,6 +153,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         </>
       }
     >
+      <HomeNotices {...notices} />
       <div className="space-y-12 lg:space-y-16">
         <section aria-labelledby="saves-title" className={HOME_COLUMNS} data-testid="saves">
           <div className="space-y-2 lg:space-y-4">

@@ -50,13 +50,12 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: `npm run dev -- --port ${PORT}`,
-    // Variables set here win over .env: the server uses the test database, the game is open (no APP_PASSWORD, as
-    // in production), and the maintenance endpoint has a secret of its own.
+    // Variables set here win over .env: the server uses the test database, and the maintenance endpoint has a secret
+    // of its own.
     env: {
       NEXT_DIST_DIR: ".next-e2e",
       DATABASE_URL: DATABASE_URL_TEST,
       DIRECT_URL: DATABASE_URL_TEST,
-      APP_PASSWORD: "",
       AUTH_SECRET: AUTH_SECRET_TEST,
       MAINTENANCE_SECRET: MAINTENANCE_SECRET_TEST,
     },

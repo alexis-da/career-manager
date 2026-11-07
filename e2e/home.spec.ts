@@ -624,13 +624,6 @@ const PUBLIC_PAGES: PublicPage[] = [
     },
   },
   {
-    path: "/login",
-    status: 200,
-    title: { fr: "Connexion", en: "Sign in" },
-    orange: [],
-    expectOwnContent: (page) => expect(page.getByTestId("google-sign-in")).toBeVisible(),
-  },
-  {
     path: "/no-such-page",
     status: 404,
     title: { fr: "Page introuvable", en: "Page not found" },

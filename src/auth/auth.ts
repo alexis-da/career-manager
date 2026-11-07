@@ -33,8 +33,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: AUTH_SECRET,
   providers: [Google],
   session: { strategy: "jwt" },
-  // No Auth.js page is shown: signing in and its errors happen on /login.
-  pages: { signIn: "/login", error: "/login" },
+  // No Auth.js page is shown: the home page has the Google button, and says why a sign-in came back without an account
+  // (?error=<type>, app/page.tsx).
+  pages: { signIn: "/", error: "/" },
   callbacks: {
     // Only a Google account with a verified email becomes one of our users.
     signIn: ({ account, profile }) => account?.provider === "google" && readGoogleProfile(profile) !== null,

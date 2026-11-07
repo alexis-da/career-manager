@@ -22,17 +22,6 @@
   "brand": {
     "languages": "Playable in English and French."
   },
-  "login": {
-    "title": "Sign in",
-    "passwordPrompt": "Private access: enter the password.",
-    "password": "Password",
-    "checking": "Checking…",
-    "enter": "Enter",
-    "wrongPassword": "Wrong password.",
-    "googlePrompt": "Find your careers on all your devices.",
-    "accessDenied": "Sign-in refused: this Google account has no verified email address.",
-    "googleFailed": "Signing in with Google failed. Try again."
-  },
   "challenge": {
     "title": "Weekly challenge",
     "teaser": "The same club for everyone, ten league matchdays, a ranking every week.",

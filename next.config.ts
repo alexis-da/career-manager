@@ -15,6 +15,11 @@ const nextConfig: NextConfig = {
     "/opengraph-image": IMAGE_FILES,
     "/saves/**/card": IMAGE_FILES,
   },
+  // The sign-in page went with the « closed » mode: its old links lead to the home page, for good (308), their query
+  // kept (Auth.js's ?error=, shown there).
+  async redirects() {
+    return [{ source: "/login", destination: "/", permanent: true }];
+  },
 };
 
 // The player's language and its messages, for each request (src/i18n/request.ts).

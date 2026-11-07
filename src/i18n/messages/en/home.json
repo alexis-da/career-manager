@@ -3,6 +3,8 @@
     "newSave": "New career",
     "seasonStart": "The {season} season starts on {date}.",
     "accountDeleted": "Your account and your careers have been deleted.",
+    "signInRefused": "Sign-in refused: this Google account has no verified email address.",
+    "signInFailed": "Signing in with Google failed. Try again.",
     "otherDevice": "Already have a career on another device?",
     "intro": "Pick up a career or start a new one.",
     "saves": "Your careers",

@@ -303,8 +303,8 @@ plus ancienne, id (`rankChallengeEntries`) ; une entrée soumise après `endsAt`
 entrées de l'anonyme suivent ses parties (`moveChallengeEntries`), sauf pour une semaine où le compte a déjà la sienne :
 le compte la garde, celle de l'anonyme est supprimée et sa partie ne compte plus.
 
-**Écrans du défi.** `/challenge` (`app/challenge`, `getChallengePage`, `src/db/challenge-view.ts`), ouverte à tous et
-derrière le mot de passe en mode fermé, le même écran que l'onglet Défi d'une partie (`ChallengeScreen`) : le club de la semaine (`displayClubName`, dans `src/db`), **jamais dans le titre
+**Écrans du défi.** `/challenge` (`app/challenge`, `getChallengePage`, `src/db/challenge-view.ts`), ouverte à tous, le
+même écran que l'onglet Défi d'une partie (`ChallengeScreen`) : le club de la semaine (`displayClubName`, dans `src/db`), **jamais dans le titre
 ni l'image de partage** ; la fin du défi en heure de Paris (`formatParisDateTime`) ; « Jouer le défi »
 (`playChallengeAction`, qui reçoit la semaine de la page et refuse un défi fermé ; `maxDuration = 60`), « Reprendre ma
 partie », ou « Défi complet cette semaine, reviens lundi » au plafond ; les classements de la semaine et de la
@@ -621,7 +621,7 @@ que le choix est ouvert, par la carte Objectifs de l'Accueil et l'onglet Club. `
 (`e2e/season-end-save.mts` : un jumeau 1 de la démo, sa saison jouée), vérifie la nouvelle dotation et choisit un objectif,
 à 1280, 390 et 360 px.
 
-**Pages hors partie.** Accueil, `/challenge`, `/login`, `/privacy`, `/admin/stats` et 404 passent par `PublicPage`
+**Pages hors partie.** Accueil, `/challenge`, `/privacy`, `/admin/stats` et 404 passent par `PublicPage`
 (`app/_components/public-page.tsx`) : la marque du jeu (`public-home`) et la langue sur une ligne, le contenu, le pied
 (`BrandFooter`, ce que la page y ajoute et `privacy-link`) ; `tools`, ce qu'une page offre à côté de la marque à partir de 1024 px,
 passent sous son contenu en dessous, un seul DOM. Accueil : sans utilisateur, le choix du club (règle « Premiers pas »), sur deux
@@ -694,8 +694,10 @@ L'administrateur n'a pas de colonne : `isAdmin(user)` compare son e-mail à `ADM
 (`recordUserDay`, `src/db/user-days.ts`, `INSERT … ON CONFLICT DO NOTHING`) : c'est la seule source de la
 rétention.
 
-**Accès ouvert.** Le jeu est ouvert à tous : `APP_PASSWORD` est facultative et active un mode « fermé » (tout passe
-par `/login`, `proxy.ts`) ; absente, aucune redirection. Un visiteur sans cookie ni session voit l'accueil avec le
+**Accès ouvert.** Le jeu est ouvert à tous, sans mot de passe ni page de connexion : le mode « fermé » et `/login` ne
+sont plus, et les anciens liens de `/login` mènent à l'accueil pour de bon (308, `next.config.ts`, la requête gardée).
+Auth.js y renvoie une connexion Google refusée ou échouée (`pages`, `src/auth/auth.ts` : `?error=`, `signInErrorOf`,
+`sign-in-error`). Un visiteur sans cookie ni session voit l'accueil avec le
 formulaire de création, Google en second. Limites de parties dans `src/lib/limits.ts` (constantes, pas de variable
 d'environnement) : `MAX_SAVES_ANONYMOUS = 1`, `MAX_SAVES_REGISTERED = 3`, appliquées par `createSave`
 (`SaveLimitError`) et par l'accueil, qui remplace alors le formulaire par un message ; à la création seulement ; les

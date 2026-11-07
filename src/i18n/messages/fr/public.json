@@ -22,17 +22,6 @@
   "brand": {
     "languages": "Jouable en français et en anglais."
   },
-  "login": {
-    "title": "Connexion",
-    "passwordPrompt": "Accès privé : entre le mot de passe.",
-    "password": "Mot de passe",
-    "checking": "Vérification…",
-    "enter": "Entrer",
-    "wrongPassword": "Mot de passe incorrect.",
-    "googlePrompt": "Retrouve tes parties sur tous tes appareils.",
-    "accessDenied": "Connexion refusée : ce compte Google n'a pas d'adresse e-mail vérifiée.",
-    "googleFailed": "La connexion avec Google a échoué. Réessaie."
-  },
   "challenge": {
     "title": "Défi de la semaine",
     "teaser": "Le même club pour tout le monde, dix journées de championnat, un classement chaque semaine.",

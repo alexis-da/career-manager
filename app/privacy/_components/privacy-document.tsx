@@ -4,7 +4,7 @@ import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 
 /** The day this page last changed, the same in both versions: to update with their content. */
-const UPDATED_ON = new Date(Date.UTC(2026, 9, 30));
+const UPDATED_ON = new Date(Date.UTC(2026, 10, 7));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -61,9 +61,8 @@ function FrenchPrivacy() {
           </li>
           <li>
             Des cookies de confort : la langue que tu choisis, lw_lang (un an), la fermeture du bandeau qui invite à
-            créer un compte (sept jours), ce que tu as déjà vu des premiers pas d&apos;une partie, lw_seen_… (trente
-            jours, envoyés pour cette partie seulement) et, si l&apos;accès au site est protégé par un mot de passe, la
-            session correspondante.
+            créer un compte (sept jours) et ce que tu as déjà vu des premiers pas d&apos;une partie, lw_seen_… (trente
+            jours, envoyés pour cette partie seulement).
           </li>
         </ul>
         <p>Aucun cookie tiers, aucune publicité, aucun suivi entre sites, aucune revente de données.</p>
@@ -179,8 +178,8 @@ function EnglishPrivacy() {
           </li>
           <li>
             Comfort cookies: the language you choose, lw_lang (one year), the closing of the banner inviting you to create
-            an account (seven days), what you have already seen of a career&apos;s first steps, lw_seen_… (thirty days,
-            sent for that career only) and, if access to the site is protected by a password, the matching session.
+            an account (seven days) and what you have already seen of a career&apos;s first steps, lw_seen_… (thirty
+            days, sent for that career only).
           </li>
         </ul>
         <p>No third-party cookies, no advertising, no cross-site tracking, no sale of data.</p>

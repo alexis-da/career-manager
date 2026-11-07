@@ -59,9 +59,10 @@ test("speaks English to a browser that prefers it, on every public page", async 
   await expect(page.getByTestId("challenge-competition")).toHaveText(/^(England|France|Germany|Italy|Spain) — Division [12]$/);
   await expect(page.getByTestId("challenge-play")).toHaveText("Play the challenge");
 
+  // The sign-in page is gone: its old links lead to the home page.
   await page.goto("/login");
-  await expect(page).toHaveTitle("Sign in · Late Winner");
-  await expect(page.getByText("Find your careers on all your devices.")).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId("google-sign-in")).toHaveText("Continue with Google");
 
   // The privacy page in full in English, not the French one and its summary.
   await page.goto("/privacy");
