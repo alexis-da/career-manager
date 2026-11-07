@@ -444,6 +444,48 @@ for (const { name, locale, viewport, says } of PHONES) {
   });
 }
 
+/** The automatic line-up's button, in each language: longer in French, it has half a phone's row, beside the formation. */
+const AUTOMATIC = { fr: "Composition automatique", en: "Automatic line-up" };
+
+/**
+ * How far a control's content runs out of its border, in pixels, on its furthest side: 0 when its words and its drawing
+ * all lie within it.
+ */
+const contentOverflow = (control: Locator): Promise<number> =>
+  control.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const overflows = [...range.getClientRects()]
+      .filter(({ width, height }) => width > 0 && height > 0)
+      .flatMap((rect) => [box.left - rect.left, rect.right - box.right, box.top - rect.top, rect.bottom - box.bottom]);
+    // To the hundredth of a pixel, as the boxes are measured.
+    return Math.round(Math.max(0, ...overflows) * 100) / 100;
+  });
+
+test("keeps the automatic line-up's label within its button on a phone, at 390 and 360 px, in French and in English", async ({ page }) => {
+  for (const language of ["fr", "en"] as const) {
+    await page.context().addCookies([{ name: "lw_lang", value: language, domain: "localhost", path: "/" }]);
+    for (const viewport of PHONES.map((phone) => phone.viewport)) {
+      const step = `${language}, ${viewport.width} px`;
+      await page.setViewportSize(viewport);
+      await openSave(page, "/lineup");
+      const automatic = page.getByTestId("lineup-automatic");
+      await expect(automatic, step).toHaveText(AUTOMATIC[language]);
+      expect(await contentOverflow(automatic), step).toBe(0);
+      expect(await sidewaysOverflow(automatic), step).toBeLessThanOrEqual(0);
+      await expectThumbTarget(automatic);
+
+      // On the formation's row, as high as its button.
+      const formation = await boxOf(page.getByTestId("lineup-formation"));
+      const box = await boxOf(automatic);
+      expect(Math.abs(box.y - formation.y), step).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(box.height - formation.height), step).toBeLessThanOrEqual(0.5);
+      await expectNoSidewaysScroll(page, step);
+    }
+  }
+});
+
 test.describe("at 768 px", () => {
   test.use({ viewport: TABLET });
 

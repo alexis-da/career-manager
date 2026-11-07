@@ -321,7 +321,13 @@ function LineupEditor({ saveId, editor, squad, opponent, chosen, onChoose }: Lin
             {t("formation")}
           </span>
           <FormationPicker formation={state.formation} players={players} tier={editor.tier} onPick={switchFormation} />
-          <Button variant="outline" onClick={automatic} className="max-sm:flex-1" data-testid="lineup-automatic">
+          {/* Half the row on a phone, beside the formation: its label goes on two lines there rather than out of it. */}
+          <Button
+            variant="outline"
+            onClick={automatic}
+            className="max-sm:h-auto max-sm:flex-1 max-sm:text-center max-sm:leading-tight max-sm:text-balance max-sm:whitespace-normal"
+            data-testid="lineup-automatic"
+          >
             <SparklesIcon data-icon="inline-start" />
             {t("automatic")}
           </Button>
