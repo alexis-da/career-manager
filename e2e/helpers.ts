@@ -156,9 +156,17 @@ export async function fillCreateSaveForm(page: Page, name: string, clubName: str
   await page.getByTestId("seed").fill(seed);
 }
 
-/** Creates a save from the home page, with a fixed seed, and waits for its dashboard. */
+/**
+ * The home page in the browser's language (the context's locale): French under /fr, English at the root. A career
+ * created there is in the same language, the player's.
+ */
+export async function homeOf(page: Page): Promise<string> {
+  return (await page.evaluate(() => navigator.language)).startsWith("fr") ? "/fr" : "/";
+}
+
+/** Creates a save from the home page of the browser's language, with a fixed seed, and waits for its dashboard. */
 export async function createSave(page: Page, name: string, clubName: string, seed: string = E2E_SEED): Promise<void> {
-  await page.goto("/");
+  await page.goto(await homeOf(page));
   await fillCreateSaveForm(page, name, clubName, seed);
   await page.getByTestId("create-save").click();
 
@@ -173,7 +181,7 @@ export function saveRow(page: Page, name: string): Locator {
 
 /** Deletes a save from the home page, through its confirmation dialog; does nothing when there is no such save. */
 export async function deleteSave(page: Page, name: string): Promise<void> {
-  await page.goto("/");
+  await page.goto(await homeOf(page));
   const row = saveRow(page, name);
   // Called on failure too: the test may have stopped before its save was created.
   if ((await row.count()) === 0) {

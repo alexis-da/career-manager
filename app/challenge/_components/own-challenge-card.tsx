@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Panel } from "@/src/components/panel";
 import { buttonVariants } from "@/src/components/ui/button";
@@ -67,9 +66,10 @@ export function OwnChallengeCard({ view }: { view: ChallengePageView }) {
                 <p className="text-[0.8125rem] text-muted-foreground">{t("submitted")}</p>
               </div>
             )}
-            <Link href={`/saves/${save.saveId}`} data-testid="challenge-resume" className={cn(buttonVariants({ variant: "club" }), RESUME)}>
+            {/* A full load: the career is in the player's language, which need not be the challenge page's. */}
+            <a href={`/saves/${save.saveId}`} data-testid="challenge-resume" className={cn(buttonVariants({ variant: "club" }), RESUME)}>
               {t("resume")}
-            </Link>
+            </a>
           </div>
         </>
       )}

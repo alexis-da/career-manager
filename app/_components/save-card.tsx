@@ -1,5 +1,4 @@
 import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
 import { ClubInitials } from "@/src/components/club-initials";
 import { Badge } from "@/src/components/ui/badge";
 import { buttonVariants } from "@/src/components/ui/button";
@@ -38,14 +37,15 @@ export function SaveCard({ save, main }: SaveCardProps) {
         </div>
         <div className="col-span-full flex items-center justify-end gap-1.5 @lg:col-span-1">
           <DeleteSaveDialog saveId={save.id} saveName={name} />
-          <Link
+          {/* A full load: the career is in the player's language, which need not be the home page's. */}
+          <a
             href={`/saves/${save.id}`}
             data-testid="open-save"
             className={buttonVariants({ variant: main ? "club" : "outline", className: "h-11 px-4 text-sm font-bold" })}
           >
             {t("resume")}
             <span className="sr-only"> {name}</span>
-          </Link>
+          </a>
         </div>
       </div>
     </li>

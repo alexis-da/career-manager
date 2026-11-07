@@ -17,12 +17,12 @@ test("starts a save on 1 July 2026, shows a squad player's card on hover and the
   const name = `E2E saison ${Date.now()}`;
   saveName = name;
   try {
-    await page.goto("/");
+    await page.goto("/fr");
     await expect(page.getByText("La saison 2026-27 commence le 1er juillet 2026.")).toBeVisible();
     await createSave(page, name, "Olympique Lyonnais");
     await expect(page.getByText("Saison 2026-27")).toBeVisible();
 
-    await page.goto("/");
+    await page.goto("/fr");
     await expect(saveRow(page, name)).toContainText("1er juillet 2026");
     await saveRow(page, name).getByTestId("open-save").click();
     await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();

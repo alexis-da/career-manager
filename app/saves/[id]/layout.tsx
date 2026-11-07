@@ -6,9 +6,11 @@ import { notFound } from "next/navigation";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { ClubInitials } from "@/src/components/club-initials";
 import { getSaveHeader } from "@/src/db/header";
+import { playerLocale } from "@/src/i18n/player-locale";
 import { seasonLabel } from "@/src/engine/world";
 import { publicPath } from "@/src/i18n/public-pages";
 import { formatDayDate, formatShortDate } from "@/src/lib/format";
+import { LocaleGuard } from "../../_components/locale-guard";
 import { SaveBarActions } from "./_components/game-actions";
 import { SaveNav } from "./_components/save-nav";
 import { SectionTabs } from "./_components/section-tabs";
@@ -32,13 +34,16 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
   const t = await getTranslations("header");
   const tWorld = await getTranslations("world");
   const tStage = await getTranslations("stage");
-  const locale = await getLocale();
+  const [locale, player] = await Promise.all([getLocale(), playerLocale()]);
 
   const season = seasonLabel(header.startYear);
   const stage = header.nextStage === null ? t("seasonFinished") : stageLabel(header.nextStage, tStage);
 
   return (
     <SimulationProvider saveId={header.id}>
+      {/* A save is in the player's language: reached from a public page in the other one (a career created from the English
+          home page by a French player, rendered by the creation's own request), it loads again in full, in theirs. */}
+      <LocaleGuard locale={player} />
       <div data-save-shell className="group/shell flex min-h-full flex-1 flex-col lg:pl-64">
         {/* One header at every width: a column fixed to the left of the screen on a computer; under lg, the club's line at
             the top of the page, its navigation fixed to the foot of the screen. Under lg, the match live has the whole

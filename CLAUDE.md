@@ -743,8 +743,16 @@ d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4. 
   `setLanguageAction`, `app/actions.ts` : en haut des pages publiques, où il mène à l'adresse de la page dans la langue
   choisie, le formulaire envoyant son nom, jamais une adresse ; dans une partie, les Réglages de `/club`, à toutes les
   largeurs, en bascule « Français / English »), sinon le français si `Accept-Language` le préfère à l'anglais, l'anglais
-  sinon (`negotiateLocale`, `src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`). La connexion Google,
-  la déconnexion et la suppression du compte reviennent à l'accueil de la langue de la page.
+  sinon (`negotiateLocale`, `src/i18n/locale.ts`, `playerLocale`, `src/i18n/player-locale.ts`, lue à chaque requête par
+  `src/i18n/request.ts`). La connexion Google, la déconnexion et la suppression du compte reviennent à l'accueil de la
+  langue de la page.
+- **Passer de l'une à l'autre** : le layout racine (`<html lang>`, messages des composants clients) reste celui du premier
+  chargement. Une page atteinte sans chargement complet depuis une page de l'autre langue se recharge donc en entier dans
+  la sienne (`LocaleGuard`, `app/_components/locale-guard.tsx` : dans `PublicPage` contre la langue de la page, dans le
+  layout d'une partie contre celle du joueur, jamais deux fois de suite) : une partie créée depuis l'accueil anglais par
+  un joueur français, que la requête de la création rend d'abord en anglais, puis un retour en arrière. « Reprendre »
+  (accueil, défi) mène à une partie par un chargement complet. Les helpers E2E créent une partie depuis l'accueil de la
+  langue du navigateur (`homeOf`, `e2e/helpers.ts`).
 - **Messages** : `src/i18n/messages/<langue>/<zone>.json`, un fichier par zone et par langue, chacun ses espaces de
   noms, assemblés par `src/i18n/messages/index.ts` (`ZONES`, puis les deux objets) : `public` (connexion, défi, 404,
   sélecteur), `home` (accueil, création, compte, limites), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
