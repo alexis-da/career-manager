@@ -23,6 +23,23 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-07",
     fr: {
+      title: "Une mesure d'audience sans cookie tiers",
+      items: [
+        "Pour savoir d'où viennent les joueurs et ce qui les fait rester, le jeu garde à ta première visite d'où tu arrives (le nom de campagne du lien, sinon le site qui t'envoie, jamais l'adresse de sa page) dans un cookie à lui, lw_src, pendant 30 jours.",
+        "À la création de ton profil de joueur, il garde cette origine, ta langue et ton type d'appareil, téléphone ou ordinateur, puis les dates de tes premiers pas ; les visites ne sont comptées qu'en totaux, sans donnée personnelle. Toujours ni cookie tiers ni publicité : la page Confidentialité dit tout.",
+      ],
+    },
+    en: {
+      title: "Audience measurement without third-party cookies",
+      items: [
+        "To learn where players come from and what makes them stay, the game keeps, on your first visit, where you arrived from (the link's campaign name, else the site that sent you, never the address of its page) in a cookie of its own, lw_src, for 30 days.",
+        "When your player profile is created, it keeps that origin, your language and your device type, phone or computer, then the dates of your first steps; visits are only counted as totals, without personal data. Still no third-party cookie and no advertising: the Privacy page says it all.",
+      ],
+    },
+  },
+  {
+    date: "2026-11-07",
+    fr: {
       title: "Le jeu se présente, en deux langues",
       items: [
         "L'accueil dit ce qu'est le jeu, montre trois écrans et répond aux questions qu'on se pose ; tu choisis ton club et lances ta carrière sans descendre.",
