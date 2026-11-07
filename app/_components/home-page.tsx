@@ -16,6 +16,7 @@ import { AccountPanel, GoogleSignInButton } from "./account-panel";
 import { ChallengeTeaser } from "./challenge-teaser";
 import { CreateSaveForm } from "./create-save-form";
 import { DeleteAccountDialog } from "./delete-account-dialog";
+import { LandingSections } from "./landing-sections";
 import { PublicPage } from "./public-page";
 import { SaveCard } from "./save-card";
 import { SaveLimitNotice } from "./save-limit-notice";
@@ -95,7 +96,14 @@ function HomeNotices({ accountDeleted, signInError }: Notices) {
   );
 }
 
-/** A first visit, without a cookie or a session: play in one click, the first save creating the anonymous player. */
+/** The clubs the creation form offers, all competitions together. */
+const clubCountOf = ({ competitions }: ComponentProps<typeof CreateSaveForm>): number =>
+  competitions.reduce((count, competition) => count + competition.clubs.length, 0);
+
+/**
+ * A first visit, without a cookie or a session: play in one click, the first save creating the anonymous player; then
+ * what the game is (LandingSections).
+ */
 async function WelcomePage({ notices }: { notices: Notices }) {
   const choices = await creationChoices();
   return (
@@ -107,6 +115,7 @@ async function WelcomePage({ notices }: { notices: Notices }) {
           <OtherDevice />
         </HomeTools>
       }
+      after={<LandingSections clubCount={clubCountOf(choices)} />}
       footer={<GameFacts />}
     >
       <HomeNotices {...notices} />
@@ -146,6 +155,7 @@ export async function HomePage({ searchParams }: { searchParams: Promise<Record<
           {user.kind === "REGISTERED" ? <AccountPanel user={user} /> : !atLimit && <OtherDevice />}
         </HomeTools>
       }
+      after={<LandingSections clubCount={clubCountOf(choices)} />}
       footer={
         <>
           <GameFacts />
@@ -174,7 +184,7 @@ export async function HomePage({ searchParams }: { searchParams: Promise<Record<
             {atLimit && <SaveLimitNotice user={user} />}
           </div>
         </section>
-        {!atLimit && <CreateSaveForm {...choices} titleLevel="h2" />}
+        {!atLimit && <CreateSaveForm {...choices} heading="returning" />}
       </div>
     </PublicPage>
   );

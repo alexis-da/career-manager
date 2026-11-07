@@ -1,0 +1,94 @@
+{
+  "landing": {
+    "title": {
+      "first": "Jeu de carrière de football gratuit,",
+      "second": "dans ton navigateur"
+    },
+    "features": {
+      "title": "Ce que tu fais dans Late Winner",
+      "club": {
+        "title": "Prends un club",
+        "text": "Choisis parmi {count} clubs de cinq pays, du favori pour le titre au club de Division 2 qui veut remonter."
+      },
+      "lineup": {
+        "title": "Compose ton équipe",
+        "text": "{formations} dispositifs, la note de chaque joueur à chaque poste et la consigne de départ de ton équipe : attaquer, équilibré ou fermer."
+      },
+      "live": {
+        "title": "Des matchs en direct, avec des choix",
+        "text": "Suis ton match en direct et arrête-le quand tu veux. Un penalty, un coup franc, un joueur averti qui s'énerve : c'est toi qui décides, et tu fais tes changements aux pauses."
+      },
+      "market": {
+        "title": "Le marché des transferts",
+        "text": "Le jeu repère ton point faible et te propose des joueurs dans tes moyens. Recrute, vends, et garde ta masse salariale sous son plafond."
+      },
+      "objectives": {
+        "title": "Les objectifs de la saison",
+        "text": "Le président fixe un objectif de classement et un de coupe, tu en choisis un troisième. Remplis-les et ton budget grandit la saison suivante."
+      },
+      "promotion": {
+        "title": "Montées et descentes",
+        "text": "Chaque pays a deux divisions et une coupe. Finis en haut pour monter, en bas pour descendre, et la saison suivante enchaîne."
+      }
+    },
+    "screenshots": {
+      "title": "Le jeu en images",
+      "label": "Captures d'écran du jeu sur téléphone",
+      "lineup": {
+        "caption": "Compose ton équipe",
+        "alt": "Écran de composition sur téléphone : le onze sur le terrain, chaque joueur avec sa note au poste."
+      },
+      "live": {
+        "caption": "Décide pendant le match",
+        "alt": "Match en direct sur téléphone : à la 60e minute, avec un but d'avance, trois façons de finir le match, celle de l'adjoint signalée."
+      },
+      "market": {
+        "caption": "Comble ton point faible",
+        "alt": "Marché des transferts sur téléphone : le point faible de l'équipe en défense centrale et un joueur proposé, avec ses notes, son prix et son salaire."
+      }
+    },
+    "challenge": {
+      "title": "Le défi de la semaine",
+      "text": "Chaque lundi, un nouveau défi : le même club pour tout le monde et dix journées de championnat pour faire le meilleur score. Connecte-toi avec Google pour apparaître au classement.",
+      "link": "Voir le défi de la semaine"
+    },
+    "access": {
+      "title": "Gratuit, sans téléchargement, sur téléphone",
+      "free": {
+        "title": "Gratuit",
+        "text": "Ni achat, ni abonnement, ni publicité : tout le jeu est gratuit."
+      },
+      "browser": {
+        "title": "Sans téléchargement",
+        "text": "Rien à installer : le jeu tourne dans ton navigateur, sur ordinateur comme sur téléphone."
+      },
+      "phone": {
+        "title": "Pensé pour le téléphone",
+        "text": "Chaque écran tient sur un téléphone, le match en direct compris."
+      }
+    },
+    "faq": {
+      "title": "Questions fréquentes",
+      "free": {
+        "question": "Late Winner est-il gratuit ?",
+        "answer": "Oui. Tout le jeu est gratuit : ni achat, ni abonnement, ni publicité."
+      },
+      "account": {
+        "question": "Faut-il un compte ?",
+        "answer": "Non. Lance une carrière en un clic : elle est liée à ton navigateur. Connecte-toi avec Google pour la retrouver sur un autre appareil, mener jusqu'à trois carrières et apparaître au classement du défi de la semaine."
+      },
+      "phone": {
+        "question": "Peut-on jouer sur téléphone ?",
+        "answer": "Oui. Le jeu tourne dans le navigateur de ton téléphone, sans rien installer, et chaque écran est pensé pour lui."
+      },
+      "languages": {
+        "question": "En quelles langues ?",
+        "answer": "En français et en anglais. Change de langue en haut de la page, ou dans les réglages de ta carrière."
+      },
+      "save": {
+        "question": "Où est gardée ma partie ?",
+        "answer": "Sur le serveur du jeu. Sans compte, elle est liée à ce navigateur et supprimée si tu ne reviens pas pendant 30 jours ; avec un compte Google, elle est gardée tant que ton compte existe. Une partie du défi de la semaine est supprimée le mardi qui suit sa semaine."
+      }
+    }
+  }
+}

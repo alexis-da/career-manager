@@ -371,9 +371,11 @@ complet »), le dernier match
 lu), le point faible n'est jamais une alerte. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
 couvre l'écran à 390 et 1280 px.
 
-**Premiers pas.** Création d'une partie : « Choisis ton défi », trois cartes de club (`SuggestionCard`, `suggestClubs`,
+**Premiers pas.** Création d'une partie : « Choisis ton défi » au-dessus de trois cartes de club, le nom du manager et
+« Lancer ma carrière » juste après elles, puis la recherche, la liste complète et les options (`CreateSaveForm`, dans cet ordre
+dans le DOM). Les trois cartes (`SuggestionCard`, `suggestClubs`,
 `src/engine/club-suggestions.ts`, pure, sans hasard : le 1er de D1, le début de la moitié basse de D1, la fin de la moitié
-haute de D2, dans le pays de la langue du joueur, `app/page.tsx` ; réputation et budget de `clubFinances`, la note d'un club
+haute de D2, dans le pays de la langue de la page, `app/_components/home-page.tsx` ; réputation et budget de `clubFinances`, la note d'un club
 n'existant pas avant la partie, ses joueurs naissant de la graine), celle du milieu, « Équilibré · conseillé », cochée à
 l'ouverture et suivant la langue tant que le joueur n'a rien choisi ; la dernière se nomme « Remontée », « Défi » étant le défi
 de la semaine. Dessous, la recherche (`ClubSearch`, `searchClubs`, `app/_lib/club-search.ts`, pure : deux lettres, sans accents
@@ -627,11 +629,19 @@ que le choix est ouvert, par la carte Objectifs de l'Accueil et l'onglet Club. `
 bandeau de langue ; le 404 mène à l'accueil, sans bandeau)
 (`app/_components/public-page.tsx`) : la marque du jeu (`public-home`) et la langue sur une ligne, le contenu, le pied
 (`BrandFooter`, ce que la page y ajoute et `privacy-link`) ; `tools`, ce qu'une page offre à côté de la marque à partir de 1024 px,
-passent sous son contenu en dessous, un seul DOM. Accueil : sans utilisateur, le choix du club (règle « Premiers pas »), sur deux
-colonnes à partir de `lg` (titre, phrase, manager et bouton à gauche, clubs à droite ; `HOME_COLUMNS`), le lien du défi et Google
-dans `tools`. Un joueur revenu : « Tes carrières », ses parties en cartes (`SaveCard`, `[data-save-name]`, initiales du club,
-« Reprendre » `open-save`), puis le même formulaire avec son titre en h2, ou `SaveLimitNotice` à la limite, dont le bouton Google
-est alors le seul de l'écran. Une seule action orange pleine : `create-save`, sinon « Reprendre » de la partie la plus récente.
+passent sous son contenu en dessous, un seul DOM ; `after` les suit, sous le contenu à toutes les largeurs. Accueil (`HomePage`,
+`app/_components/home-page.tsx`, rendu par `/` et `/fr`) : sans utilisateur, un h1 qui dit ce qu'est le jeu (« Jeu de carrière
+de football gratuit, dans ton navigateur », « Free football career game in your browser », `landing.title`), puis le choix du
+club (règle « Premiers pas ») : **on joue sans descendre**, le bouton entier dans la fenêtre à l'ouverture, à 360 × 780 comme à
+1280 × 800 ; sur deux colonnes à partir de `lg` (titre, phrase, manager et bouton à gauche, clubs, recherche et liste à droite ;
+`HOME_COLUMNS`), le lien du défi et Google dans `tools`. Sous eux (`after`), rendues par le serveur, les sections de l'accueil
+(`LandingSections`, `app/_components/landing-sections.tsx`, zone de messages `landing`, quelques centaines de mots) : ce qu'on
+fait dans le jeu, trois captures de téléphone prises en noms fictifs (`public/screenshots`, une par langue, 720 × 1015, chacune
+avec son texte alternatif ; sous 640 px une rangée que le pouce fait défiler dans la page), le défi de la semaine, gratuit et
+sans téléchargement, puis une FAQ visible. Un joueur revenu : « Tes carrières », ses parties en cartes (`SaveCard`,
+`[data-save-name]`, initiales du club, « Reprendre » `open-save`), puis le même formulaire titré « Choisis ton défi » en h2
+(`heading="returning"`), ou `SaveLimitNotice` à la limite, dont le bouton Google est alors le seul de l'écran, puis les mêmes
+sections. Une seule action orange pleine : `create-save`, sinon « Reprendre » de la partie la plus récente.
 Slogan, accroche, langues et date de la première saison sont au pied de l'accueil. `e2e/home.spec.ts` couvre ces pages à 1280,
 1024, 390 et 360 px.
 

@@ -36,6 +36,13 @@ test.use({ viewport: COMPUTER });
 /** The home page in French, Playwright's language (fr-FR); in English at the site's root. */
 const HOME = "/fr";
 
+/** What a first visit's h1 says the game is, in each language; the choice the form offers comes over its cards. */
+const LANDING_TITLE = {
+  fr: "Jeu de carrière de football gratuit, dans ton navigateur",
+  en: "Free football career game in your browser",
+};
+const CHOICE_TITLE = { fr: "Choisis ton défi", en: "Choose your challenge" };
+
 const LYON = "Olympique Lyonnais";
 const WOLVERHAMPTON = "Wolverhampton Wanderers FC";
 
@@ -166,7 +173,8 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
     }) => {
       await page.goto(HOME);
       await expect(page.locator("html")).toHaveAttribute("lang", "fr");
-      await expect(page.getByRole("heading", { level: 1 })).toHaveText("Choisis ton défi");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(LANDING_TITLE.fr);
+      await expect(page.getByTestId("create-save-choice")).toHaveText(CHOICE_TITLE.fr);
       await expect(page.getByText(/^198 clubs, deux divisions par pays/)).toBeVisible();
       await expect(clubSearch(page)).toHaveAttribute("placeholder", "Chercher parmi les 198 clubs");
 
@@ -183,6 +191,9 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
       await expectChosenClub(page, RECOMMENDED_CLUB);
 
       await expect(page.getByTestId("create-save")).toHaveText("Lancer ma carrière");
+      // Playing takes no scrolling: the button is whole in the window as the page opens, the club already chosen.
+      const submit = await boxOf(page.getByTestId("create-save"));
+      expect(submit.y + submit.height).toBeLessThanOrEqual(viewport.height);
       await expectOrangeActions(page, ["create-save"]);
       await expectNoSidewaysScroll(page, "first visit");
       await expectThumbTargets(page);
@@ -243,7 +254,8 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
       await english.click();
       await expect(page).toHaveURL((url) => url.pathname === "/");
       await expect(page.locator("html")).toHaveAttribute("lang", "en");
-      await expect(title).toHaveText("Choose your challenge");
+      await expect(title).toHaveText(LANDING_TITLE.en);
+      await expect(page.getByTestId("create-save-choice")).toHaveText(CHOICE_TITLE.en);
       await expect(page.getByTestId("create-save")).toHaveText("Start my career");
       const recommended = cardOf(page, "mid-table");
       await expect(recommended).toContainText("Balanced · recommended");
@@ -257,12 +269,63 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
       await french.click();
       await expect(page).toHaveURL((url) => url.pathname === HOME);
       await expect(page.locator("html")).toHaveAttribute("lang", "fr");
-      await expect(title).toHaveText("Choisis ton défi");
+      await expect(title).toHaveText(LANDING_TITLE.fr);
       await expect(recommended).toContainText(RECOMMENDED_CLUB);
       await expectChosenClub(page, RECOMMENDED_CLUB);
 
       // The language is the player's choice, kept; still no user.
       expect(await cookieNames(context)).toEqual(["lw_lang"]);
+    });
+  });
+}
+
+/** The landing sections a first visit reads under the form, in each language. */
+const LANDING = {
+  fr: {
+    home: HOME,
+    challenge: "/fr/defi",
+    sections: ["Ce que tu fais dans Late Winner", "Le jeu en images", "Le défi de la semaine", "Gratuit, sans téléchargement, sur téléphone", "Questions fréquentes"],
+    questions: ["Late Winner est-il gratuit ?", "Faut-il un compte ?", "Peut-on jouer sur téléphone ?", "En quelles langues ?", "Où est gardée ma partie ?"],
+  },
+  en: {
+    home: "/",
+    challenge: "/challenge",
+    sections: ["What you do in Late Winner", "The game in pictures", "The weekly challenge", "Free, no download, on your phone", "Questions"],
+    questions: ["Is Late Winner free?", "Do I need an account?", "Can I play on my phone?", "Which languages is it in?", "Where is my career saved?"],
+  },
+} as const;
+
+for (const { locale, language, viewport } of [
+  { locale: "fr-FR", language: "fr", viewport: PHONE },
+  { locale: "en-GB", language: "en", viewport: COMPUTER },
+] as const) {
+  test.describe(`the landing sections in ${locale} at ${viewport.width} px`, () => {
+    test.use({ locale, viewport });
+
+    test("follow the form: what one does in the game, three screenshots, the challenge, the access, the questions", async ({
+      page,
+    }) => {
+      const { home, challenge, sections, questions } = LANDING[language];
+      await page.goto(home);
+      const landing = page.getByTestId("landing");
+      await expect(landing.getByRole("heading", { level: 2 })).toHaveText(sections);
+      // Under the form and the button, never before them.
+      expect((await boxOf(landing)).y).toBeGreaterThanOrEqual((await boxOf(page.getByTestId("create-save"))).y);
+
+      await expect(landing.getByTestId("landing-features").getByRole("listitem")).toHaveCount(6);
+      const screenshots = landing.getByTestId("landing-screenshot");
+      await expect(screenshots).toHaveCount(3);
+      for (const screenshot of await screenshots.all()) {
+        await expect(screenshot).toHaveAttribute("src", new RegExp(`^/screenshots/[a-z-]+-${language}\\.webp$`));
+        expect((await screenshot.getAttribute("alt"))?.length ?? 0).toBeGreaterThan(40);
+        await screenshot.scrollIntoViewIfNeeded();
+        await expect.poll(() => screenshot.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(720);
+      }
+      await expect(landing.getByTestId("landing-challenge-link")).toHaveAttribute("href", challenge);
+      await expect(landing.getByTestId("landing-faq").getByRole("heading", { level: 3 })).toHaveText(questions);
+
+      await expectNoSidewaysScroll(page, "landing sections");
+      await expectThumbTargets(page);
     });
   });
 }

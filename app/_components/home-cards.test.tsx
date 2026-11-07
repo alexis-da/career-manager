@@ -66,13 +66,36 @@ describe("the creation form", () => {
     expect(markup).toContain("Choisir un club");
   });
 
-  it("gives the title's last word in orange, on two lines, at the level the page asks for", () => {
+  it("says what the game is in a first visit's h1, its last word in orange, and offers the choice over the cards", () => {
     const french = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
-    const english = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} titleLevel="h2" />, "en");
+    const english = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />, "en");
 
-    expect(french).toMatch(/<h1[^>]*>Choisis <br\/>ton <span class="text-\(--club\)">défi<\/span><\/h1>/);
+    expect(french).toMatch(
+      /<h1[^>]*>Jeu de carrière de football gratuit, <span class="lg:block">dans ton <span class="text-\(--club\)">navigateur<\/span><\/span><\/h1>/,
+    );
+    expect(english).toMatch(
+      /<h1[^>]*>Free football career game <span class="lg:block">in your <span class="text-\(--club\)">browser<\/span><\/span><\/h1>/,
+    );
+    expect(french).toMatch(/<h2[^>]*data-testid="create-save-choice"[^>]*>Choisis ton <span class="text-\(--club\)">défi<\/span><\/h2>/);
+  });
+
+  it("is titled by the choice it offers, in h2 on two lines, under a returning player's careers", () => {
+    const english = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} heading="returning" />, "en");
+
     expect(english).toMatch(/<h2[^>]*>Choose your <br\/><span class="text-\(--club\)">challenge<\/span><\/h2>/);
     expect(english).not.toContain("<h1");
+    expect(english).not.toContain('data-testid="create-save-choice"');
+  });
+
+  it("puts the manager's name and the button right after the cards, before the search, the list and the options", () => {
+    const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
+    const at = (testId: string) => markup.indexOf(`data-testid="${testId}"`);
+
+    expect(at("club-suggestion-comeback")).toBeLessThan(at("manager-name"));
+    expect(at("manager-name")).toBeLessThan(at("create-save"));
+    expect(at("create-save")).toBeLessThan(at("club-search"));
+    expect(at("club-search")).toBeLessThan(at("club"));
+    expect(at("club")).toBeLessThan(at("create-save-options"));
   });
 
   it("counts the clubs it offers in its pitch, its search and its list", () => {
@@ -86,7 +109,7 @@ describe("the creation form", () => {
   it("folds the career's name and the seed under the options", () => {
     const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
 
-    expect(markup).toMatch(/<details class="group">.*data-testid="save-name".*data-testid="seed".*<\/details>/);
+    expect(markup).toMatch(/<details class="group[^"]*">.*data-testid="save-name".*data-testid="seed".*<\/details>/);
   });
 
   it("names a card's level, read by screen readers beside its figure, and its budget", () => {

@@ -1,0 +1,94 @@
+{
+  "landing": {
+    "title": {
+      "first": "Free football career game",
+      "second": "in your browser"
+    },
+    "features": {
+      "title": "What you do in Late Winner",
+      "club": {
+        "title": "Take over a club",
+        "text": "Pick one of {count} clubs in five countries, from a title favourite to a second-division side fighting to come back up."
+      },
+      "lineup": {
+        "title": "Pick your line-up",
+        "text": "{formations} formations, every player's rating in every position and the instruction your team starts with: attack, balanced or sit back."
+      },
+      "live": {
+        "title": "Live matches with choices",
+        "text": "Watch your match live and stop it whenever you like. A penalty, a free kick, a booked player losing their temper: you make the call, and your substitutions at the breaks."
+      },
+      "market": {
+        "title": "The transfer market",
+        "text": "The game spots your weak spot and suggests players you can afford. Sign, sell and keep your wage bill under its ceiling."
+      },
+      "objectives": {
+        "title": "Season objectives",
+        "text": "The board sets a league target and a cup target, and you choose a third. Meet them and your budget grows the next season."
+      },
+      "promotion": {
+        "title": "Promotion and relegation",
+        "text": "Each country has two divisions and a cup. Finish near the top to go up, near the bottom to go down, and the next season carries on."
+      }
+    },
+    "screenshots": {
+      "title": "The game in pictures",
+      "label": "Screenshots of the game on a phone",
+      "lineup": {
+        "caption": "Pick your line-up",
+        "alt": "The line-up screen on a phone: the eleven on the pitch, each player with their rating in their position."
+      },
+      "live": {
+        "caption": "Make the call during the match",
+        "alt": "A live match on a phone: in the 60th minute, a goal up, three ways to see the game out, the assistant's pick marked."
+      },
+      "market": {
+        "caption": "Fix your weak spot",
+        "alt": "The transfer market on a phone: the team's weak spot at centre back and a suggested player, with their ratings, price and wage."
+      }
+    },
+    "challenge": {
+      "title": "The weekly challenge",
+      "text": "Every Monday brings a new challenge: the same club for everyone and ten league matchdays to post the best score. Sign in with Google to appear in the ranking.",
+      "link": "See this week's challenge"
+    },
+    "access": {
+      "title": "Free, no download, on your phone",
+      "free": {
+        "title": "Free",
+        "text": "No purchase, no subscription, no advertising: the whole game is free."
+      },
+      "browser": {
+        "title": "No download",
+        "text": "Nothing to install: the game runs in your browser, on a computer as on a phone."
+      },
+      "phone": {
+        "title": "Made for phones",
+        "text": "Every screen fits a phone, live matches included."
+      }
+    },
+    "faq": {
+      "title": "Questions",
+      "free": {
+        "question": "Is Late Winner free?",
+        "answer": "Yes. The whole game is free: no purchase, no subscription and no advertising."
+      },
+      "account": {
+        "question": "Do I need an account?",
+        "answer": "No. Start a career in one click: it is tied to your browser. Sign in with Google to find it on another device, run up to three careers and appear in the weekly challenge's ranking."
+      },
+      "phone": {
+        "question": "Can I play on my phone?",
+        "answer": "Yes. The game runs in your phone's browser with nothing to install, and every screen is laid out for it."
+      },
+      "languages": {
+        "question": "Which languages is it in?",
+        "answer": "English and French. Switch at the top of the page, or in your career's settings."
+      },
+      "save": {
+        "question": "Where is my career saved?",
+        "answer": "On the game's server. Without an account, it is tied to this browser and deleted if you do not come back for 30 days; with a Google account, it is kept as long as your account exists. A weekly challenge career is deleted on the Tuesday after its week."
+      }
+    }
+  }
+}

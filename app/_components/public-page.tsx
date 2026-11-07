@@ -11,6 +11,7 @@ import { LanguageSwitcher } from "./language-switcher";
 type PublicPageProps = {
   children: ReactNode;
   tools?: ReactNode; // what a page offers beside the game's mark on a computer, under its content on a phone
+  after?: ReactNode; // what comes after its content and its tools, as wide as the page
   footer?: ReactNode; // what it adds to its foot
   className?: string; // its width, « max-w-6xl » for instance
   // The public page this is (src/i18n/public-pages.ts): the language switcher goes to its address in the other language,
@@ -21,9 +22,9 @@ type PublicPageProps = {
 
 /**
  * A page outside a save: the game's mark and the language on one line, the page, its foot. One DOM: `tools` come after the
- * content, and go up to the first line from 1024 px.
+ * content, and go up to the first line from 1024 px; `after` follows them, under the content at every width.
  */
-export function PublicPage({ children, tools, footer, className, page, languageBanner = true }: PublicPageProps) {
+export function PublicPage({ children, tools, after, footer, className, page, languageBanner = true }: PublicPageProps) {
   const locale = useLocale();
   return (
     <main className="flex-1 bg-background text-foreground">
@@ -43,6 +44,7 @@ export function PublicPage({ children, tools, footer, className, page, languageB
         {tools !== undefined && (
           <div className="col-span-full min-w-0 lg:col-span-1 lg:col-start-2 lg:row-start-1">{tools}</div>
         )}
+        {after !== undefined && <div className="col-span-full min-w-0">{after}</div>}
         <BrandFooter className="col-span-full">{footer}</BrandFooter>
       </div>
     </main>

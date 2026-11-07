@@ -25,7 +25,7 @@ import { isNewVersionError } from "../_lib/new-version";
 import { ClubSearch } from "./club-search";
 import { SuggestionCard } from "./suggestion-card";
 
-/** A competition of the form, its country named in the player's language (app/page.tsx). */
+/** A competition of the form, its country named in the player's language (app/_components/home-page.tsx). */
 export type CreatableCompetition = CompetitionClubs & { countryName: string };
 
 const INITIAL_STATE: CreateSaveFormState = {
@@ -59,27 +59,53 @@ function Field({ id, label, hint, errors, children }: FieldProps) {
   );
 }
 
-type TitleLevel = "h1" | "h2";
+/**
+ * Whose form this is: a first visit's, whose title says what the game is (the page's h1), or the one under a player's
+ * careers, titled by the choice it offers (h2).
+ */
+export type FormHeading = "landing" | "returning";
 
-const TITLE_SIZE: Record<TitleLevel, string> = {
-  h1: "text-[2.75rem] leading-[0.95] lg:text-[5rem] lg:leading-[0.88] xl:text-[5.75rem]",
-  h2: "text-[2.25rem] leading-[0.95] lg:text-[3.5rem]",
+const TITLE_SIZE: Record<FormHeading, string> = {
+  // Three lines at most on a phone: the button stays above the fold at 360 × 780.
+  landing: "text-[1.75rem] leading-[0.95] sm:text-[2.5rem] lg:text-[3.25rem] lg:leading-[0.9] xl:text-[3.75rem]",
+  returning: "text-[2.25rem] leading-[0.95] lg:text-[3.5rem]",
 };
 
 const OPTION_INPUT = "h-11 px-3.5 dark:bg-card";
 
-/** The form's title on two lines, its last word in orange, and what the game holds. */
-function FormHead({ level: Heading, clubCount }: { level: TitleLevel; clubCount: number }) {
+/** A title's last word in orange. */
+function Stressed({ text }: { text: string }) {
+  const lastWord = text.lastIndexOf(" ") + 1;
+  return (
+    <>
+      {text.slice(0, lastWord)}
+      <span className="text-(--club)">{text.slice(lastWord)}</span>
+    </>
+  );
+}
+
+/**
+ * The form's title and what the game holds. A first visit's says what the game is, its second part on a line of its own
+ * from 1024 px; a returning player's, the choice of a club, on two lines.
+ */
+function FormHead({ heading, clubCount }: { heading: FormHeading; clubCount: number }) {
   const t = useTranslations("createSave");
-  const second = t("title.second");
-  const lastWord = second.lastIndexOf(" ") + 1;
+  const landing = useTranslations("landing");
   return (
     <div className="space-y-2 lg:col-start-1 lg:row-start-1 lg:space-y-5">
-      <Heading className={cn("font-heading", TITLE_SIZE[Heading])}>
-        {t("title.first")} <br />
-        {second.slice(0, lastWord)}
-        <span className="text-(--club)">{second.slice(lastWord)}</span>
-      </Heading>
+      {heading === "landing" ? (
+        <h1 className={cn("font-heading", TITLE_SIZE.landing)}>
+          {landing("title.first")}{" "}
+          <span className="lg:block">
+            <Stressed text={landing("title.second")} />
+          </span>
+        </h1>
+      ) : (
+        <h2 className={cn("font-heading", TITLE_SIZE.returning)}>
+          {t("title.first")} <br />
+          <Stressed text={t("title.second")} />
+        </h2>
+      )}
       <p className="max-w-115 text-[0.9375rem] text-muted-foreground lg:text-[1.1875rem] lg:leading-[1.45]">
         {t("pitch", { count: clubCount })}
       </p>
@@ -113,14 +139,16 @@ function CreateButton() {
 type CreateSaveFormProps = {
   competitions: CreatableCompetition[];
   suggestions: ClubSuggestion[];
-  titleLevel?: TitleLevel; // h2 under the list of a player's careers
+  heading?: FormHeading;
 };
 
 /**
- * The choice of a club: the title, then, in a second column from 1024 px, the three suggestions, the search and the whole
- * list, and the manager's name and the button. The recommended card is chosen from the start.
+ * The choice of a club, in one screen: the title, the three suggestions, the manager's name and the button, then the
+ * search and the whole list, then the options. On a phone in that order, the button above the fold; from 1024 px on two
+ * columns, the title, the manager and the button on the left, the clubs on the right. The recommended card is chosen from
+ * the start.
  */
-export function CreateSaveForm({ competitions, suggestions, titleLevel = "h1" }: CreateSaveFormProps) {
+export function CreateSaveForm({ competitions, suggestions, heading = "landing" }: CreateSaveFormProps) {
   const t = useTranslations("createSave");
   const common = useTranslations("common");
   const world = useTranslations("world");
@@ -161,12 +189,18 @@ export function CreateSaveForm({ competitions, suggestions, titleLevel = "h1" }:
     <form
       action={formAction}
       onReset={(event) => event.preventDefault()}
-      className={cn(HOME_COLUMNS, "lg:grid-rows-[auto_1fr]")}
+      className={cn(HOME_COLUMNS, "lg:items-start")}
       noValidate
     >
-      <FormHead level={titleLevel} clubCount={clubs.length} />
+      <FormHead heading={heading} clubCount={clubs.length} />
 
-      <div className="min-w-0 space-y-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:space-y-3.5">
+      <div className="min-w-0 space-y-3 lg:col-start-2 lg:row-start-1 lg:space-y-3.5">
+        {/* A first visit's title is the game's: the choice it offers comes over the cards. */}
+        {heading === "landing" && (
+          <h2 className="font-heading text-xl leading-none lg:text-2xl" data-testid="create-save-choice">
+            {t("title.first")} <Stressed text={t("title.second")} />
+          </h2>
+        )}
         <fieldset>
           <legend className="sr-only">{t("club")}</legend>
           <div className="space-y-3 lg:space-y-3.5">
@@ -180,52 +214,6 @@ export function CreateSaveForm({ competitions, suggestions, titleLevel = "h1" }:
             ))}
           </div>
         </fieldset>
-
-        {/* The search beside the whole list from 1024 px, its results under both. */}
-        <div className="grid grid-cols-1 items-end gap-3 lg:grid-cols-2">
-          <ClubSearch clubs={clubs} onChoose={setChosenClub} />
-          <Field id="club" label={t("browse", { count: clubs.length })} errors={state.errors.clubId}>
-            <Select
-              items={clubs}
-              value={clubId === "" ? null : clubId}
-              onValueChange={(value) => setChosenClub(typeof value === "string" ? value : null)}
-            >
-              <SelectTrigger
-                id="club"
-                aria-labelledby="club-label"
-                aria-invalid={state.errors.clubId !== undefined}
-                className={cn(
-                  "w-full px-3.5 data-[size=default]:h-12 dark:bg-transparent",
-                  chosenOutsideCards && "border-(--club) ring-1 ring-(--club)",
-                )}
-                data-testid="club"
-              >
-                <SelectValue placeholder={t("clubPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent className="min-w-72">
-                {countries.map(([country, divisions]) => (
-                  <SelectGroup key={country} aria-label={country}>
-                    <SelectLabel className="pt-3 text-sm font-semibold text-foreground">{country}</SelectLabel>
-                    {divisions.map((competition) => (
-                      <SelectGroup
-                        key={competition.code}
-                        aria-label={world("league", { country, tier: competition.tier })}
-                      >
-                        <SelectLabel>{t("division", { tier: competition.tier })}</SelectLabel>
-                        {competition.clubs.map((club) => (
-                          <SelectItem key={club.id} value={club.id}>
-                            {club.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                  </SelectGroup>
-                ))}
-              </SelectContent>
-            </Select>
-            <input type="hidden" name="clubId" value={clubId} />
-          </Field>
-        </div>
       </div>
 
       <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-start-2 lg:max-w-105">
@@ -240,41 +228,6 @@ export function CreateSaveForm({ competitions, suggestions, titleLevel = "h1" }:
           />
         </Field>
 
-        <details className="group" open={optionsOpen}>
-          <summary
-            className="flex cursor-pointer list-none items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:min-h-11 [&::-webkit-details-marker]:hidden"
-            data-testid="create-save-options"
-          >
-            <ChevronRightIcon aria-hidden className="size-4 transition-transform group-open:rotate-90" />
-            {t("options")}
-          </summary>
-          <div className="space-y-4 pt-2">
-            <Field id="save-name" label={t("name")} errors={state.errors.name}>
-              <Input
-                id="save-name"
-                name="name"
-                maxLength={100}
-                value={name}
-                onChange={(event) => setTypedName(event.target.value)}
-                placeholder={t("namePlaceholder")}
-                aria-invalid={state.errors.name !== undefined}
-                className={OPTION_INPUT}
-                data-testid="save-name"
-              />
-            </Field>
-            <Field id="seed" label={t("seed")} hint={t("seedHint")} errors={state.errors.seed}>
-              <Input
-                id="seed"
-                name="seed"
-                maxLength={200}
-                placeholder={t("seedPlaceholder")}
-                className={OPTION_INPUT}
-                data-testid="seed"
-              />
-            </Field>
-          </div>
-        </details>
-
         {state.message !== null && (
           <p className="text-sm text-destructive" data-testid="create-save-message">
             {state.message}
@@ -283,6 +236,84 @@ export function CreateSaveForm({ competitions, suggestions, titleLevel = "h1" }:
 
         <CreateButton />
       </div>
+
+      {/* The search beside the whole list from 1024 px, its results under both. */}
+      <div className="grid min-w-0 grid-cols-1 items-end gap-3 lg:col-start-2 lg:row-start-2 lg:grid-cols-2">
+        <ClubSearch clubs={clubs} onChoose={setChosenClub} />
+        <Field id="club" label={t("browse", { count: clubs.length })} errors={state.errors.clubId}>
+          <Select
+            items={clubs}
+            value={clubId === "" ? null : clubId}
+            onValueChange={(value) => setChosenClub(typeof value === "string" ? value : null)}
+          >
+            <SelectTrigger
+              id="club"
+              aria-labelledby="club-label"
+              aria-invalid={state.errors.clubId !== undefined}
+              className={cn(
+                "w-full px-3.5 data-[size=default]:h-12 dark:bg-transparent",
+                chosenOutsideCards && "border-(--club) ring-1 ring-(--club)",
+              )}
+              data-testid="club"
+            >
+              <SelectValue placeholder={t("clubPlaceholder")} />
+            </SelectTrigger>
+            <SelectContent className="min-w-72">
+              {countries.map(([country, divisions]) => (
+                <SelectGroup key={country} aria-label={country}>
+                  <SelectLabel className="pt-3 text-sm font-semibold text-foreground">{country}</SelectLabel>
+                  {divisions.map((competition) => (
+                    <SelectGroup key={competition.code} aria-label={world("league", { country, tier: competition.tier })}>
+                      <SelectLabel>{t("division", { tier: competition.tier })}</SelectLabel>
+                      {competition.clubs.map((club) => (
+                        <SelectItem key={club.id} value={club.id}>
+                          {club.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+          <input type="hidden" name="clubId" value={clubId} />
+        </Field>
+      </div>
+
+      <details className="group min-w-0 lg:col-start-1 lg:row-start-3 lg:max-w-105" open={optionsOpen}>
+        <summary
+          className="flex cursor-pointer list-none items-center gap-1 text-sm text-muted-foreground hover:text-foreground max-sm:min-h-11 [&::-webkit-details-marker]:hidden"
+          data-testid="create-save-options"
+        >
+          <ChevronRightIcon aria-hidden className="size-4 transition-transform group-open:rotate-90" />
+          {t("options")}
+        </summary>
+        <div className="space-y-4 pt-2">
+          <Field id="save-name" label={t("name")} errors={state.errors.name}>
+            <Input
+              id="save-name"
+              name="name"
+              maxLength={100}
+              value={name}
+              onChange={(event) => setTypedName(event.target.value)}
+              placeholder={t("namePlaceholder")}
+              aria-invalid={state.errors.name !== undefined}
+              className={OPTION_INPUT}
+              data-testid="save-name"
+            />
+          </Field>
+          <Field id="seed" label={t("seed")} hint={t("seedHint")} errors={state.errors.seed}>
+            <Input
+              id="seed"
+              name="seed"
+              maxLength={200}
+              placeholder={t("seedPlaceholder")}
+              className={OPTION_INPUT}
+              data-testid="seed"
+            />
+          </Field>
+        </div>
+      </details>
     </form>
   );
 }
