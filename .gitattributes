@@ -1,0 +1,2 @@
+# Served as they are, whatever the workstation: a Windows checkout (core.autocrlf) would end their lines with CRLF.
+public/llms.txt text eol=lf
