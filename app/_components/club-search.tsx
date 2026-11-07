@@ -7,6 +7,8 @@ import { searchClubs, type ClubChoice } from "../_lib/club-search";
 
 type ClubSearchProps = {
   clubs: readonly ClubChoice[];
+  count: number; // the clubs it searches, said before they come from the server
+  disabled?: boolean; // until they have come
   onChoose: (clubId: string) => void;
 };
 
@@ -14,11 +16,11 @@ type ClubSearchProps = {
  * The search among all the clubs: the field and its results under it, two children of the grid around them. A result chosen,
  * by a click or by Enter for the first one, the field empties; Enter never sends the form.
  */
-export function ClubSearch({ clubs, onChoose }: ClubSearchProps) {
+export function ClubSearch({ clubs, count, disabled = false, onChoose }: ClubSearchProps) {
   const t = useTranslations("createSave");
   const [query, setQuery] = useState("");
   const results = searchClubs(clubs, query);
-  const label = t("search", { count: clubs.length });
+  const label = t("search", { count });
 
   const choose = (clubId: string) => {
     onChoose(clubId);
@@ -49,6 +51,7 @@ export function ClubSearch({ clubs, onChoose }: ClubSearchProps) {
           onKeyDown={onKeyDown}
           placeholder={label}
           autoComplete="off"
+          disabled={disabled}
           className="h-12 px-4 md:text-[0.9375rem] dark:bg-transparent"
           data-testid="club-search"
         />

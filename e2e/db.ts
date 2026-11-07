@@ -32,6 +32,14 @@ async function withTestDatabase<T>(run: (client: Client) => Promise<T>): Promise
  * An anonymous user made directly in the database, without a save, last seen at this time (an old one to purge, a
  * fresh one to sign a cookie for). Not simulation code: a random id.
  */
+/** The real names of the world's clubs, as the reference table keeps them: what no public page's HTML may hold. */
+export async function realClubNames(): Promise<string[]> {
+  return withTestDatabase(async (client) => {
+    const { rows } = await client.query<{ name: string }>('SELECT name FROM "Club" ORDER BY name');
+    return rows.map(({ name }) => name);
+  });
+}
+
 export async function createAnonymousUser(lastSeenAt: Date): Promise<string> {
   const id = `e2e-anon-${randomUUID()}`;
   await withTestDatabase((client) =>

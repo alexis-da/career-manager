@@ -6,6 +6,7 @@ import { getTranslations } from "next-intl/server";
 import * as z from "zod";
 import { requireCurrentUser } from "@/src/auth/current-user";
 import { ensureCurrentChallenge, isChallengeOpen } from "@/src/db/challenge";
+import { challengeClubName } from "@/src/db/challenge-view";
 import { isWakeUpError, retryOnWakeUp } from "@/src/db/retry";
 import { createChallengeSave } from "@/src/db/saves";
 import { rankingName } from "@/src/engine/challenge";
@@ -27,6 +28,15 @@ function revalidatePublicPages(pages: PublicPageName[]): void {
 }
 
 const playChallengeSchema = z.object({ weekKey: z.string().regex(/^\d{4}-W\d{2}$/) });
+
+/**
+ * The club of a week's challenge by its name, which the public challenge page asks for once in the browser: no club's
+ * name is in a public page's HTML. Null for a week that is not one or has no challenge. Public: no user needed.
+ */
+export async function challengeClubNameAction(weekKey: string): Promise<string | null> {
+  const parsed = playChallengeSchema.shape.weekKey.safeParse(weekKey);
+  return parsed.success ? challengeClubName(parsed.data) : null;
+}
 
 /** The manager's name of a challenge save: the Google account's first name, else this one, in every language. */
 const DEFAULT_CHALLENGE_MANAGER = "Manager";

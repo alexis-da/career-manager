@@ -97,6 +97,18 @@ export type ChallengePageView = {
 };
 
 /**
+ * A week's club by its name (displayClubName), or null for a week without a challenge: what the public challenge page asks
+ * for once in the browser, a club's name being in no public page's HTML (CLAUDE.md, « Communication sortante »).
+ */
+export async function challengeClubName(weekKey: string): Promise<string | null> {
+  const challenge = await prisma.challenge.findUnique({
+    where: { weekKey },
+    select: { club: { select: { slug: true, name: true } } },
+  });
+  return challenge === null ? null : displayClubName(challenge.club);
+}
+
+/**
  * The page /challenge of a week: its club (the source season's, where every challenge save starts), whether it is
  * full, the viewer's entry, its ranking and the previous week's.
  */

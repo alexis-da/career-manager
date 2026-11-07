@@ -5,11 +5,12 @@ import type { SaveSummary } from "@/src/db/saves";
 import type { ClubSuggestion } from "@/src/engine/club-suggestions";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage } from "@/src/i18n/test-intl";
-import { CreateSaveForm, type CreatableCompetition } from "./create-save-form";
+import type { CreatableCompetition } from "../_lib/creation-choices";
+import { CreateSaveFormView } from "./create-save-form";
 import { SaveCard } from "./save-card";
 
 // The forms alone are rendered here: a Server Action needs a request.
-vi.mock("@/app/actions", () => ({ createSaveAction: vi.fn(), deleteSaveAction: vi.fn() }));
+vi.mock("@/app/actions", () => ({ createSaveAction: vi.fn(), creationChoicesAction: vi.fn(), deleteSaveAction: vi.fn() }));
 
 const render = (element: ReactNode, locale?: Locale): string => renderToStaticMarkup(inLanguage(element, locale));
 
@@ -49,7 +50,7 @@ const SAVE: SaveSummary = {
 
 describe("the creation form", () => {
   it("starts on the recommended card, the club and the career's name following it", () => {
-    const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
+    const markup = render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} />);
 
     expect(markup).toContain('name="clubId" value="toulouse"');
     expect(markup).toContain('value="Carrière Toulouse FC"');
@@ -59,16 +60,34 @@ describe("the creation form", () => {
     expect(cardOf(markup, "comeback")).not.toContain('checked=""');
   });
 
+  it("keeps the cards' places without any club's name until the clubs come, and cannot be sent before", () => {
+    const markup = render(<CreateSaveFormView clubCount={198} choices={null} />);
+
+    for (const club of ["Paris Saint-Germain FC", "Toulouse FC", "Grenoble Foot 38", "RC Lens"]) {
+      expect(markup).not.toContain(club);
+    }
+    for (const kind of ["favourite", "mid-table", "comeback"] as const) {
+      expect(cardOf(markup, kind)).toContain(`data-testid="club-suggestion-${kind}"`);
+    }
+    expect(cardOf(markup, "favourite")).toContain("Facile · favori");
+    expect(cardOf(markup, "mid-table")).toContain("border-(--club)");
+    expect(markup).toMatch(/<button[^>]*data-testid="create-save"[^>]*>/);
+    expect(/<button[^>]*data-testid="create-save"[^>]*>/.exec(markup)?.[0]).toContain('disabled=""');
+    expect(markup).toContain('placeholder="Chercher parmi les 198 clubs"');
+    expect(markup).toContain("Parcourir les 198 clubs");
+    expect(markup).toContain('name="clubId" value=""');
+  });
+
   it("chooses nothing without a suggestion", () => {
-    const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={[]} />);
+    const markup = render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: [] }} />);
 
     expect(markup).toContain('name="clubId" value=""');
     expect(markup).toContain("Choisir un club");
   });
 
   it("says what the game is in a first visit's h1, its last word in orange, and offers the choice over the cards", () => {
-    const french = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
-    const english = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />, "en");
+    const french = render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} />);
+    const english = render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} />, "en");
 
     expect(french).toMatch(
       /<h1[^>]*>Jeu de carrière de football gratuit, <span class="lg:block">dans ton <span class="text-\(--club\)">navigateur<\/span><\/span><\/h1>/,
@@ -80,7 +99,7 @@ describe("the creation form", () => {
   });
 
   it("is titled by the choice it offers, in h2 on two lines, under a returning player's careers", () => {
-    const english = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} heading="returning" />, "en");
+    const english = render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} heading="returning" />, "en");
 
     expect(english).toMatch(/<h2[^>]*>Choose your <br\/><span class="text-\(--club\)">challenge<\/span><\/h2>/);
     expect(english).not.toContain("<h1");
@@ -88,7 +107,7 @@ describe("the creation form", () => {
   });
 
   it("puts the manager's name and the button right after the cards, before the search, the list and the options", () => {
-    const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
+    const markup = render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} />);
     const at = (testId: string) => markup.indexOf(`data-testid="${testId}"`);
 
     expect(at("club-suggestion-comeback")).toBeLessThan(at("manager-name"));
@@ -99,7 +118,7 @@ describe("the creation form", () => {
   });
 
   it("counts the clubs it offers in its pitch, its search and its list", () => {
-    const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
+    const markup = render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} />);
 
     expect(markup).toContain("4 clubs, deux divisions par pays");
     expect(markup).toContain('placeholder="Chercher parmi les 4 clubs"');
@@ -107,13 +126,13 @@ describe("the creation form", () => {
   });
 
   it("folds the career's name and the seed under the options", () => {
-    const markup = render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />);
+    const markup = render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} />);
 
     expect(markup).toMatch(/<details class="group[^"]*">.*data-testid="save-name".*data-testid="seed".*<\/details>/);
   });
 
   it("names a card's level, read by screen readers beside its figure, and its budget", () => {
-    const card = cardOf(render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />), "favourite");
+    const card = cardOf(render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} />), "favourite");
 
     expect(card).toContain("Facile · favori");
     expect(card).toContain('<span class="sr-only">Réputation 90</span><span aria-hidden="true"');
@@ -121,8 +140,8 @@ describe("the creation form", () => {
   });
 
   it("calls the third card a comeback, the challenge being the week's", () => {
-    const french = cardOf(render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />), "comeback");
-    const english = cardOf(render(<CreateSaveForm competitions={COMPETITIONS} suggestions={SUGGESTIONS} />, "en"), "comeback");
+    const french = cardOf(render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} />), "comeback");
+    const english = cardOf(render(<CreateSaveFormView clubCount={4} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} />, "en"), "comeback");
 
     expect(french).toContain("Remontée · Division 2");
     expect(french).not.toContain("Défi");

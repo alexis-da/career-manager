@@ -1,4 +1,5 @@
 import { useLocale, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { GoogleSignInButton } from "@/app/_components/account-panel";
 import type { ChallengePageView } from "@/src/db/challenge-view";
 import { formatParisDateTime } from "@/src/lib/format";
@@ -15,7 +16,7 @@ const NOTE = "text-sm text-muted-foreground";
  * stands in it, whichever save is open, this week's ranking and last week's. Under xl, one column; from xl, the rankings
  * beside the rest, a save's content being too narrow for two below it.
  */
-export function ChallengeScreen({ view }: { view: ChallengePageView }) {
+export function ChallengeScreen({ view, clubName }: { view: ChallengePageView; clubName?: ReactNode }) {
   const t = useTranslations("challenge");
   const tScreen = useTranslations("challengeScreen");
   const locale = useLocale();
@@ -25,7 +26,7 @@ export function ChallengeScreen({ view }: { view: ChallengePageView }) {
   return (
     <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-5">
       <div className="space-y-5 xl:col-span-2">
-        <ChallengeHead view={view} />
+        <ChallengeHead view={view} clubName={clubName} />
         <OwnChallengeCard view={view} />
       </div>
 

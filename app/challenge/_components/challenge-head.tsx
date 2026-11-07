@@ -1,10 +1,14 @@
 import { useLocale, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { Panel } from "@/src/components/panel";
 import type { ChallengePageView } from "@/src/db/challenge-view";
 import { formatParisWeekdayTime } from "@/src/lib/format";
 
-/** The head of the screen, on the bright blue: the week and its end, then the scenario, its club by name alone. */
-export function ChallengeHead({ view }: { view: ChallengePageView }) {
+/**
+ * The head of the screen, on the bright blue: the week and its end, then the scenario, its club by name alone. On the
+ * public page, `clubName` takes the name's place: it comes in the browser (ChallengeClubName).
+ */
+export function ChallengeHead({ view, clubName }: { view: ChallengePageView; clubName?: ReactNode }) {
   const t = useTranslations("challenge");
   const tScreen = useTranslations("challengeScreen");
   const world = useTranslations("world");
@@ -19,9 +23,11 @@ export function ChallengeHead({ view }: { view: ChallengePageView }) {
         {t("title")}
       </h1>
       <p className="text-[0.9375rem] leading-snug wrap-break-word text-on-blue">
-        <strong data-testid="challenge-club" className="font-bold text-primary-foreground">
-          {club.name}
-        </strong>
+        {clubName ?? (
+          <strong data-testid="challenge-club" className="font-bold text-primary-foreground">
+            {club.name}
+          </strong>
+        )}
         {club.competition !== null && (
           <>
             {" · "}

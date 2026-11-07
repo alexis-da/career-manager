@@ -152,11 +152,14 @@ const inlineStyles = (root: Locator): Promise<(string | null)[]> =>
       .map((node) => node.getAttribute("style")),
   );
 
-/** Every POST to the French home page from now on: a form sent is one, as a Server Action. */
+/**
+ * Every creation form sent to the French home page from now on, as a Server Action: its fields go with it (the clubs the
+ * page asks for once in the browser are another action, with none).
+ */
 function formPosts(page: Page): string[] {
   const posts: string[] = [];
   page.on("request", (request) => {
-    if (request.method() === "POST" && new URL(request.url()).pathname === HOME) {
+    if (request.method() === "POST" && new URL(request.url()).pathname === HOME && (request.postData() ?? "").includes("managerName")) {
       posts.push(request.url());
     }
   });
@@ -646,6 +649,8 @@ for (const { locale, name, mark, cards, home, challenge } of [
     }) => {
       // The page creates the week's challenge when missing.
       await page.goto(challenge);
+      // Its name comes in the browser, after the page: read once there.
+      await expect(page.getByTestId("challenge-club")).not.toBeEmpty();
       const club = await textOf(page.getByTestId("challenge-club"));
       // Not simulation code: a player seen just now.
       const userId = await createAnonymousUser(new Date());

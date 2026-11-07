@@ -44,6 +44,7 @@
       }
     },
     "clubPlaceholder": "Choisir un club",
+    "loadFailed": "Les clubs n'ont pas pu se charger : recharge la page.",
     "division": "Division {tier}",
     "options": "Options",
     "seed": "Graine (facultative)",

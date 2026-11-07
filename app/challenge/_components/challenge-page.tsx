@@ -2,6 +2,7 @@ import { getCurrentUser, type CurrentUser } from "@/src/auth/current-user";
 import { ensureCurrentChallenge } from "@/src/db/challenge";
 import { getChallengePage } from "@/src/db/challenge-view";
 import { PublicPage } from "../../_components/public-page";
+import { ChallengeClubName } from "./challenge-club-name";
 import { ChallengeScreen } from "./challenge-screen";
 
 /**
@@ -17,7 +18,8 @@ export async function ChallengePage() {
 
   return (
     <PublicPage page="challenge" className="max-w-6xl">
-      <ChallengeScreen view={view} />
+      {/* The week's club by name comes in the browser: no club's name in a public page's HTML. */}
+      <ChallengeScreen view={view} clubName={<ChallengeClubName weekKey={view.weekKey} />} />
     </PublicPage>
   );
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { deleteUsers, userIdOf } from "./db";
+import { deleteUsers, realClubNames, userIdOf } from "./db";
 import { fillCreateSaveForm, saveRow } from "./helpers";
 
 // What crawlers and visitors find of the public pages: an address per language, its metadata, robots.txt, the sitemap,
@@ -250,3 +250,52 @@ test.describe("a French player on the English home page", () => {
     }
   });
 });
+
+/** A page's HTML as a crawler reads it: its entities read back. */
+const htmlText = (html: string) =>
+  html.replaceAll("&amp;", "&").replaceAll("&#x27;", "'").replaceAll("&#39;", "'").replaceAll("&quot;", '"');
+
+test("serves no real club's name in the HTML of any public page, in either language", async ({ request }) => {
+  const clubs = await realClubNames();
+  expect(clubs).toHaveLength(198);
+  for (const addresses of PAGES) {
+    for (const language of LANGUAGES) {
+      const path = addresses[language];
+      const html = htmlText(await (await request.get(path)).text());
+      expect(clubs.filter((club) => html.includes(club)), path).toEqual([]);
+    }
+  }
+});
+
+for (const { language, viewport } of [
+  { language: "fr", viewport: { width: 390, height: 844 } },
+  { language: "en", viewport: { width: 1280, height: 800 } },
+] as const) {
+  test.describe(`the home page in ${language} at ${viewport.width} px`, () => {
+    test.use({ locale: language === "fr" ? "fr-FR" : "en-GB", viewport });
+
+    test("keeps the clubs' places until their names come: the button neither moves nor leaves the first screen", async ({
+      browser,
+      page,
+    }) => {
+      const home = language === "fr" ? "/fr" : "/";
+      // As the server sends it: the cards' places, no club yet.
+      const bare = await browser.newContext({ javaScriptEnabled: false, viewport, locale: language === "fr" ? "fr-FR" : "en-GB" });
+      const before = await bare.newPage();
+      await before.goto(home);
+      await expect(before.getByTestId("club-suggestion-mid-table")).toBeVisible();
+      const waiting = await before.getByTestId("create-save").boundingBox();
+      await bare.close();
+
+      // Once the browser has them.
+      await page.goto(home);
+      await expect(page.getByTestId("club-suggestion-favourite")).toContainText(language === "fr" ? "Facile · favori" : "Easy · favourite");
+      await expect(page.getByTestId("club")).not.toHaveText(language === "fr" ? "Choisir un club" : "Choose a club");
+      await expect(page.getByTestId("create-save")).toBeEnabled();
+      const ready = await page.getByTestId("create-save").boundingBox();
+
+      expect(Math.abs((ready?.y ?? 0) - (waiting?.y ?? Infinity))).toBeLessThanOrEqual(1);
+      expect((ready?.y ?? Infinity) + (ready?.height ?? 0)).toBeLessThanOrEqual(viewport.height);
+    });
+  });
+}

@@ -373,7 +373,10 @@ couvre l'écran à 390 et 1280 px.
 
 **Premiers pas.** Création d'une partie : « Choisis ton défi » au-dessus de trois cartes de club, le nom du manager et
 « Lancer ma carrière » juste après elles, puis la recherche, la liste complète et les options (`CreateSaveForm`, dans cet ordre
-dans le DOM). Les trois cartes (`SuggestionCard`, `suggestClubs`,
+dans le DOM). Les clubs arrivent dans le navigateur (`creationChoicesAction`, la page n'en donnant que le nombre) : jusque-là,
+trois cartes de réserve de la même taille (`SuggestionCardPlaceholder`, leur niveau et leur objectif déjà là), la recherche,
+la liste et le bouton inactifs, rien ne bouge à leur arrivée ; une carte choisie avant est celle choisie ensuite. Les trois
+cartes (`SuggestionCard`, `suggestClubs`,
 `src/engine/club-suggestions.ts`, pure, sans hasard : le 1er de D1, le début de la moitié basse de D1, la fin de la moitié
 haute de D2, dans le pays de la langue de la page, `app/_components/home-page.tsx` ; réputation et budget de `clubFinances`, la note d'un club
 n'existant pas avant la partie, ses joueurs naissant de la graine), celle du milieu, « Équilibré · conseillé », cochée à
@@ -818,7 +821,11 @@ courant en Barlow 400 à 700 ; rayons 14 px, cartes 22 px (`rounded-card`), past
 **Communication sortante.** Titres de page, descriptions, images de partage (`app/opengraph-image.tsx`) et
 cartes partageables ne contiennent aucun nom de club, ni « FIFA », ni « EA FC », ni le nom d'un jeu concurrent.
 « football manager » est permis en minuscules, comme nom du genre (« free football manager game in your browser »),
-jamais en majuscules ni en comparaison. Les tests le vérifient sur chaque texte public (`forbiddenNamesIn`,
+jamais en majuscules ni en comparaison. **Aucun vrai nom de club dans le HTML qu'une page publique reçoit du serveur** :
+le choix du club de l'accueil (`creationChoicesAction`, `app/_lib/creation-choices.ts`) et le club de la semaine sur la page
+publique du défi (`challengeClubNameAction`, `ChallengeClubName`) arrivent dans le navigateur, leurs places gardées ;
+`e2e/seo.spec.ts` lit le HTML brut des 12 adresses contre les 198 noms réels (table `Club`). Les parties, elles, rendent
+leurs noms sur le serveur. Les tests le vérifient sur chaque texte public (`forbiddenNamesIn`,
 `src/lib/outward-names.ts`) : marques, compétitions sous licence, jeux concurrents, et les noms réels des 198 clubs
 (`realClubNames`, `prisma/seed/real-club-names.ts`) comme leur cœur (« Real Madrid » de « Real Madrid CF »).
 

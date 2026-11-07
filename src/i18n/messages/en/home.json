@@ -44,6 +44,7 @@
       }
     },
     "clubPlaceholder": "Choose a club",
+    "loadFailed": "The clubs could not load: reload the page.",
     "division": "Division {tier}",
     "options": "Options",
     "seed": "Seed (optional)",

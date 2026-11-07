@@ -17,12 +17,21 @@ import { PUBLIC_PAGE_NAMES, publicPath } from "@/src/i18n/public-pages";
 import { describeError, phaseTimer } from "@/src/lib/diagnostics";
 import { SaveLimitError } from "@/src/lib/limits";
 import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
+import { creationChoices, type CreationChoices } from "./_lib/creation-choices";
 
 /** Both home pages, English and French: a save created or deleted changes the list they show. */
 function revalidateHomePages(): void {
   for (const locale of LOCALES) {
     revalidatePath(publicPath("home", locale));
   }
+}
+
+/**
+ * The creation form's clubs, which the home page asks for once in the browser: no club's name is in a public page's HTML
+ * (CLAUDE.md, « Communication sortante »). In the page's language, the action being posted to it. Public: no user needed.
+ */
+export async function creationChoicesAction(): Promise<CreationChoices> {
+  return creationChoices();
 }
 
 export type CreateSaveField = "name" | "managerName" | "clubId" | "seed";

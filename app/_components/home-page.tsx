@@ -1,16 +1,13 @@
 import { useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
-import type { ComponentProps, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { getCurrentUser } from "@/src/auth/current-user";
-import { listClubsByCompetition } from "@/src/db/clubs";
 import { countOwnedSaves, listSaves } from "@/src/db/saves";
-import { suggestClubs } from "@/src/engine/club-suggestions";
 import { seasonLabel, WORLD_START_DATE, WORLD_START_YEAR } from "@/src/engine/world";
-import type { Country } from "@/src/i18n/countries";
-import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 import { canCreateSave } from "@/src/lib/limits";
 import { ACCOUNT_DELETED_PARAM, signInErrorOf } from "../_lib/account";
+import { creatableClubCount } from "../_lib/creation-choices";
 import { homeStructuredData, jsonLdText } from "../_lib/structured-data";
 import { HOME_COLUMNS } from "../_lib/home-columns";
 import { AccountPanel, GoogleSignInButton } from "./account-panel";
@@ -21,21 +18,6 @@ import { LandingSections, SCREENSHOTS, screenshotPath } from "./landing-sections
 import { PublicPage } from "./public-page";
 import { SaveCard } from "./save-card";
 import { SaveLimitNotice } from "./save-limit-notice";
-
-/** The country whose clubs a player is suggested: the one of their language. */
-const SUGGESTED_COUNTRY: Record<Locale, Country> = { fr: "fr", en: "en" };
-
-/**
- * What the creation form offers: the competitions a save can be created in, their countries named in the player's
- * language and sorted by name, and the three clubs suggested to a player of that language.
- */
-async function creationChoices(): Promise<ComponentProps<typeof CreateSaveForm>> {
-  const [listed, t, locale] = await Promise.all([listClubsByCompetition(), getTranslations("world"), getLocale()]);
-  const competitions = listed
-    .map((competition) => ({ ...competition, countryName: t(`countries.${competition.country}`) }))
-    .sort((a, b) => a.countryName.localeCompare(b.countryName, locale) || a.tier - b.tier);
-  return { competitions, suggestions: suggestClubs(listed.filter(({ country }) => country === SUGGESTED_COUNTRY[locale])) };
-}
 
 /** The foot's lines on the game: the tagline and the catchphrase in English, the brand's language, its languages, its first day. */
 async function GameFacts() {
@@ -111,16 +93,13 @@ function HomeNotices({ accountDeleted, signInError }: Notices) {
   );
 }
 
-/** The clubs the creation form offers, all competitions together. */
-const clubCountOf = ({ competitions }: ComponentProps<typeof CreateSaveForm>): number =>
-  competitions.reduce((count, competition) => count + competition.clubs.length, 0);
-
 /**
  * A first visit, without a cookie or a session: play in one click, the first save creating the anonymous player; then
  * what the game is (LandingSections).
  */
 async function WelcomePage({ notices }: { notices: Notices }) {
-  const choices = await creationChoices();
+  // Their number only: their names come in the browser (CreateSaveForm).
+  const clubCount = await creatableClubCount();
   return (
     <PublicPage
       page="home"
@@ -130,12 +109,12 @@ async function WelcomePage({ notices }: { notices: Notices }) {
           <OtherDevice />
         </HomeTools>
       }
-      after={<LandingSections clubCount={clubCountOf(choices)} />}
+      after={<LandingSections clubCount={clubCount} />}
       footer={<GameFacts />}
     >
       <HomeStructuredData />
       <HomeNotices {...notices} />
-      <CreateSaveForm {...choices} />
+      <CreateSaveForm clubCount={clubCount} />
     </PublicPage>
   );
 }
@@ -153,9 +132,9 @@ export async function HomePage({ searchParams }: { searchParams: Promise<Record<
   if (user === null) {
     return <WelcomePage notices={notices} />;
   }
-  const [saves, choices, ownedSaves, t] = await Promise.all([
+  const [saves, clubCount, ownedSaves, t] = await Promise.all([
     listSaves(user),
-    creationChoices(),
+    creatableClubCount(),
     countOwnedSaves(user.id),
     getTranslations("home"),
   ]);
@@ -171,7 +150,7 @@ export async function HomePage({ searchParams }: { searchParams: Promise<Record<
           {user.kind === "REGISTERED" ? <AccountPanel user={user} /> : !atLimit && <OtherDevice />}
         </HomeTools>
       }
-      after={<LandingSections clubCount={clubCountOf(choices)} />}
+      after={<LandingSections clubCount={clubCount} />}
       footer={
         <>
           <GameFacts />
@@ -201,7 +180,7 @@ export async function HomePage({ searchParams }: { searchParams: Promise<Record<
             {atLimit && <SaveLimitNotice user={user} />}
           </div>
         </section>
-        {!atLimit && <CreateSaveForm {...choices} heading="returning" />}
+        {!atLimit && <CreateSaveForm clubCount={clubCount} heading="returning" />}
       </div>
     </PublicPage>
   );
