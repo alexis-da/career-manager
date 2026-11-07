@@ -12,6 +12,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a player's first steps,
   let support: typeof import("./test-support") | undefined;
   let matchday: typeof import("./matchday") | undefined;
   const saveIds: string[] = [];
+  // Matchdays and a live match played while the other files run: more than the default 5 s.
+  const PLAYING_MS = 60_000;
 
   const loaded = () => {
     if (db === undefined || activation === undefined || support === undefined || matchday === undefined) {
@@ -68,7 +70,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a player's first steps,
 
     expect((await stepsOf(saveId)).firstMatchAt).toEqual(first);
     expect((await stepsOf(saveId)).firstSeasonEndAt).toBeNull();
-  });
+  }, PLAYING_MS);
 
   it("dates a live first match at its end, never at its kick-off", async () => {
     const { matchday, support } = loaded();
@@ -79,7 +81,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a player's first steps,
     await support.playLiveMatch(saveId, "end");
 
     expect((await stepsOf(saveId)).firstMatchAt).toBeInstanceOf(Date);
-  });
+  }, PLAYING_MS);
 
   it("dates the season's end once no fixture of the save is left to play, not before", async () => {
     const { db, activation } = loaded();
@@ -94,5 +96,5 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a player's first steps,
     const { firstMatchAt, firstSeasonEndAt } = await stepsOf(saveId);
     expect(firstSeasonEndAt).toBeInstanceOf(Date);
     expect(firstSeasonEndAt?.getTime()).toBeGreaterThanOrEqual(firstMatchAt?.getTime() ?? Infinity);
-  });
+  }, PLAYING_MS);
 });
