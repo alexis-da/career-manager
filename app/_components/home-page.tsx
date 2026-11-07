@@ -11,12 +11,13 @@ import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 import { canCreateSave } from "@/src/lib/limits";
 import { ACCOUNT_DELETED_PARAM, signInErrorOf } from "../_lib/account";
+import { homeStructuredData, jsonLdText } from "../_lib/structured-data";
 import { HOME_COLUMNS } from "../_lib/home-columns";
 import { AccountPanel, GoogleSignInButton } from "./account-panel";
 import { ChallengeTeaser } from "./challenge-teaser";
 import { CreateSaveForm } from "./create-save-form";
 import { DeleteAccountDialog } from "./delete-account-dialog";
-import { LandingSections } from "./landing-sections";
+import { LandingSections, SCREENSHOTS, screenshotPath } from "./landing-sections";
 import { PublicPage } from "./public-page";
 import { SaveCard } from "./save-card";
 import { SaveLimitNotice } from "./save-limit-notice";
@@ -69,6 +70,20 @@ function OtherDevice() {
   );
 }
 
+/**
+ * What the page tells search engines of the site and the game (JSON-LD, app/_lib/structured-data.ts), in its language:
+ * its description, the screenshots it shows. The same for every visitor.
+ */
+async function HomeStructuredData() {
+  const [locale, t] = await Promise.all([getLocale(), getTranslations("seo")]);
+  const data = homeStructuredData({
+    locale,
+    description: t("home.description"),
+    screenshots: SCREENSHOTS.map(({ file }) => screenshotPath(file, locale)),
+  });
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(data) }} />;
+}
+
 type Notices = {
   accountDeleted: boolean; // the player has just deleted their account (ACCOUNT_DELETED_PARAM)
   signInError: "refused" | "failed" | null; // why a Google sign-in came back without an account (signInErrorOf)
@@ -118,6 +133,7 @@ async function WelcomePage({ notices }: { notices: Notices }) {
       after={<LandingSections clubCount={clubCountOf(choices)} />}
       footer={<GameFacts />}
     >
+      <HomeStructuredData />
       <HomeNotices {...notices} />
       <CreateSaveForm {...choices} />
     </PublicPage>
@@ -163,6 +179,7 @@ export async function HomePage({ searchParams }: { searchParams: Promise<Record<
         </>
       }
     >
+      <HomeStructuredData />
       <HomeNotices {...notices} />
       <div className="space-y-12 lg:space-y-16">
         <section aria-labelledby="saves-title" className={HOME_COLUMNS} data-testid="saves">

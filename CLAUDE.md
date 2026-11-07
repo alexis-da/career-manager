@@ -818,7 +818,10 @@ les robots des moteurs de recherche et de réponse (OAI-SearchBot, PerplexityBot
 qui lisent pour entraîner des modèles (GPTBot, ClaudeBot, Google-Extended) sont nommés et admis, par décision (un robot
 qui a son groupe ne lit que lui : il reprend les règles de tous). `app/sitemap.ts` : chaque page publique dans chaque
 langue, avec ses hreflang. `public/llms.txt` : ce qu'est le jeu et ses pages, en anglais (`app/_lib/crawlers.test.ts`
-vérifie qu'il les cite toutes).
+vérifie qu'il les cite toutes). Données structurées : l'accueil, dans ses deux langues, donne un graphe JSON-LD
+(`homeStructuredData`, `app/_lib/structured-data.ts`, échappé par `jsonLdText`) : `WebSite`, puis le jeu en
+`VideoGame` et `WebApplication` (nom, adresse, description de la page, langues en et fr, genre, plateforme navigateur,
+gratuit : `offers.price` 0, image de partage, captures) ; **aucune note ni aucun avis**.
 
 **Noms de clubs.** Le nom affiché d'un club passe toujours par `displayClubName` (ou `displayClubShortName`),
 point unique de résolution dans `src/engine/club-name.ts`. Il s'appelle dans `src/db`, là où les lignes Prisma

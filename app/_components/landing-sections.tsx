@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { buttonVariants } from "@/src/components/ui/button";
 import { FORMATION_NAMES } from "@/src/engine/formations";
+import type { Locale } from "@/src/i18n/locale";
 import { publicPath } from "@/src/i18n/public-pages";
 import { cn } from "@/src/lib/utils";
 
@@ -22,6 +23,9 @@ export const SCREENSHOTS = [
 
 /** Their size: 720 × 1015, one frame for the three. */
 export const SCREENSHOT_SIZE = { width: 720, height: 1015 };
+
+/** A screenshot's address in a language: each was taken in both. */
+export const screenshotPath = (file: string, locale: Locale): string => `/screenshots/${file}-${locale}.webp`;
 
 const SECTION_TITLE = "font-heading text-[1.75rem] leading-none lg:text-4xl";
 
@@ -79,7 +83,7 @@ export function LandingSections({ clubCount }: { clubCount: number }) {
               <li key={key} className="w-[72%] shrink-0 snap-center sm:w-auto">
                 <figure className="space-y-3">
                   <Image
-                    src={`/screenshots/${file}-${locale}.webp`}
+                    src={screenshotPath(file, locale)}
                     alt={t(`screenshots.${key}.alt`)}
                     {...SCREENSHOT_SIZE}
                     unoptimized
