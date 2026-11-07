@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 import { parse } from "dotenv";
-import { MAINTENANCE_SECRET_TEST } from "./e2e/constants";
+import { ADMIN_EMAIL_TEST, MAINTENANCE_SECRET_TEST } from "./e2e/constants";
 import { assertLocalDatabase } from "./src/db/database-url";
 
 // The tests write to a database of their own, DATABASE_URL_TEST, read from .env.test (never committed). Without it,
@@ -58,6 +58,8 @@ export default defineConfig({
       DIRECT_URL: DATABASE_URL_TEST,
       AUTH_SECRET: AUTH_SECRET_TEST,
       MAINTENANCE_SECRET: MAINTENANCE_SECRET_TEST,
+      // The administrator of /admin, never the development one.
+      ADMIN_EMAIL: ADMIN_EMAIL_TEST,
     },
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,

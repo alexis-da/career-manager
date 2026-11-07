@@ -1,6 +1,7 @@
 {
   "adminStats": {
     "title": "Statistics",
+    "dashboardLink": "Back to the dashboard",
     "figures": {
       "users": "Users",
       "anonymous": "Anonymous",
@@ -34,5 +35,102 @@
     },
     "megabytes": "{size} MB",
     "share": "{part} ({percent}%)"
+  },
+  "admin": {
+    "title": "Administration",
+    "lead": "{period, select, 30 {The last 30 days} other {The last 7 days}} (UTC), from {first} to {last}.",
+    "trackedSince": "Arrivals tracked since {date}.",
+    "notTracked": "No arrival counted yet.",
+    "periodLabel": "Period",
+    "period7": "7 days",
+    "period30": "30 days",
+    "statsLink": "Detailed statistics: tables, careers' first steps",
+    "sections": {
+      "acquisition": "Acquisition",
+      "acquisitionNote": "Visits: first visits of a public page, one per browser every 30 days, crawlers and existing players left out. New players: created over the period, without an account at their first career, or Google accounts.",
+      "journey": "Journey",
+      "journeyNote": "The period's new players, by source: career created, first match played, season finished; as a share of the source's visits.",
+      "retention": "Retention",
+      "retentionNote": "Back the day after they were created (D+1) and a week later (D+7), over the days whose return day is over; “—”: not known yet.",
+      "activity": "Activity",
+      "activityNote": "Players who came each day; matches of their clubs played to the end, live or simulated.",
+      "health": "Health",
+      "healthNote": "Size taken at each purge (every day, 04:17 UTC); average growth over 7 days and projection up to 1 GB, the limit of Neon's free plan."
+    },
+    "figures": {
+      "visits": "Visits",
+      "players": "New players",
+      "registered": "Google accounts",
+      "phones": "On a phone",
+      "medianToFirstMatch": "Median to 1st match",
+      "day1": "Back at D+1",
+      "day7": "Back at D+7",
+      "active": "Active a day",
+      "matches": "Matches played",
+      "databaseSize": "Database size",
+      "growth": "Growth",
+      "fullOn": "1 GB reached",
+      "purged": "Purged"
+    },
+    "details": {
+      "conversion": "{percent}% of visits",
+      "ofPlayers": "{percent}% of new players",
+      "medianNote": "from creating the career to the end of the match",
+      "activeAverage": "on average, {max} at most",
+      "matches": "{live} live · {simulated} simulated",
+      "ofLimit": "{percent, number}% of 1 GB",
+      "perDay": "a day, averaged over 7 days",
+      "noGrowth": "not measured yet",
+      "around": "around {date}",
+      "notBefore": "not at this pace",
+      "purged": "{users, plural, =0 {no player} one {# player} other {# players}}, {saves, plural, =0 {no career} one {# career} other {# careers}} and {challenge, plural, =0 {no challenge career} one {# challenge career} other {# challenge careers}}"
+    },
+    "breakdown": {
+      "languages": "Language: French {fr} · English {en}",
+      "devices": "Device: phone {phone} · computer {computer}",
+      "kinds": "Without an account {anonymous} · Google {registered}"
+    },
+    "columns": {
+      "day": "Day",
+      "source": "Source",
+      "visits": "Visits",
+      "players": "Players",
+      "registered": "Google",
+      "conversion": "Rate",
+      "careers": "Career",
+      "firstMatch": "1st match",
+      "seasonEnd": "Season end",
+      "median": "Median",
+      "newPlayers": "New",
+      "day1": "D+1",
+      "day7": "D+7",
+      "active": "Active",
+      "live": "Live",
+      "simulated": "Simulated",
+      "size": "Size",
+      "growth": "Growth",
+      "purged": "Purged"
+    },
+    "sources": {
+      "all": "Every source",
+      "unknown": "Unknown (before tracking)",
+      "other": "Other sources"
+    },
+    "challenge": {
+      "title": "Weekly challenge, week {week}",
+      "none": "No challenge this week.",
+      "figures": "{saves, plural, =0 {no career} one {# career} other {# careers}} of {max} · {entries, plural, =0 {no player entered} one {# player entered} other {# players entered}} · {submitted, plural, =0 {none ranked} one {# ranked} other {# ranked}} after 10 matchdays"
+    },
+    "values": {
+      "percent": "{percent}%",
+      "countPercent": "{count} · {percent}%",
+      "shareOf": "{part}/{whole}",
+      "purged": "{users} ({saves})",
+      "megabytes": "{size} MB",
+      "growth": "{sign}{size} MB",
+      "minutes": "{count} min",
+      "hours": "{count} h",
+      "days": "{count} d"
+    }
   }
 }

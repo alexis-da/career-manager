@@ -743,6 +743,19 @@ verrouillée pendant la journée de chaque joueur ; un échec coûte un compte, 
 (`recordMaintenance`, route de maintenance, jamais en `dryRun`), ce qu'elle a supprimé (anonymes, leurs parties,
 `PurgeResult.saves`, parties de défi) et la taille de la base (`pg_database_size`), un relevé par jour.
 
+**Administration (`/admin`).** Le tableau de bord de l'administrateur (`app/admin/page.tsx`, `getAdminDashboard`,
+`src/db/admin-dashboard.ts`), 404 pour tout autre comme `/admin/stats`, qui reste, à un lien (« Statistiques
+détaillées », et retour) : sur 7 jours (`/admin`) ou 30 (`?days=30`), UTC, aujourd'hui compris. Acquisition (visites,
+nouveaux joueurs par jour et par source, langue, appareil, sans compte ou Google), Parcours (par source : carrière, 1er
+match, fin de saison, en part des visites ; médiane de la création de la carrière à la fin du premier match), Rétention
+(J+1 et J+7 par jour de création et par source, sur les jours dont le retour est passé), Activité (joueurs actifs par jour
+depuis `UserDay`, matchs du jour, défi de la semaine), Santé (taille, croissance moyenne sur 7 jours des relevés,
+projection du jour où 1 Go serait atteint, `DATABASE_LIMIT_BYTES`, purges). Chaque chiffre est une requête d'agrégat sur
+la période, par un index (`User(createdAt)`, `UserDay(day)`, les jours de `VisitDay` et `DailyStat`), jamais une grande
+table de partie ; le plus cher est `pg_database_size` (environ 0,1 s). Lisible sur téléphone : sous 640 px, quatre
+colonnes au plus par tableau (le Parcours y laisse ses visites, déjà dans l'Acquisition, et sa médiane), aucun ne défile
+de côté à 360 px (`e2e/admin.spec.ts`). FR et EN (zone `admin`, espace `admin`).
+
 **Accès ouvert.** Le jeu est ouvert à tous, sans mot de passe ni page de connexion : le mode « fermé » et `/login` ne
 sont plus, et les anciens liens de `/login` mènent à l'accueil pour de bon (308, `next.config.ts`, la requête gardée).
 Auth.js y renvoie une connexion Google refusée ou échouée (`pages`, `src/auth/auth.ts` : `?error=`, `signInErrorOf`,
@@ -752,8 +765,8 @@ d'environnement) : `MAX_SAVES_ANONYMOUS = 1`, `MAX_SAVES_REGISTERED = 3`, appliq
 (`SaveLimitError`) et par l'accueil, qui remplace alors le formulaire par un message ; à la création seulement ; les
 parties de défi n'y comptent pas (`countOwnedSaves`, `challengeId` NULL). Un
 anonyme dont la partie a un match joué voit sur le tableau de bord un bandeau l'invitant à se connecter, masqué sept
-jours par le cookie `lw_banner_closed`. `/admin/stats` (`src/db/stats.ts`) est réservée à `isAdmin(user)` et
-répond 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (routes de purge et du défi) ;
+jours par le cookie `lw_banner_closed`. `/admin` et `/admin/stats` (`src/db/stats.ts`) sont réservées à `isAdmin(user)` et
+répondent 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (routes de purge et du défi) ;
 secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml`), `CHALLENGE_URL` et le même
 `MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à 05:00 UTC).
 
@@ -907,7 +920,7 @@ E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
 ```
 app/                  # routes App Router, à la racine ; UI en français et en anglais (src/i18n)
   _components/        # cadre des pages hors partie (public-page), composants de l'accueil (parties, choix du club)
-  admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
+  admin/              # tableau de bord de l'administrateur (/admin) et ses statistiques détaillées (stats/), 404 pour tout autre
   _content/           # textes des documents publics en deux langues : le guide (how-to-play.ts) et le journal des
                       # versions (changelog.ts : chaque entrée datée du jour de sa mise en ligne, en mots de joueur, la
                       # plus récente d'abord ; la page les regroupe par jour ; une entrée de plus à chaque mise en ligne)
@@ -924,6 +937,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
+                      # arrivals.spec.ts : le cookie d'arrivée, le compte des visites et la carrière qui en vient ;
+                      # admin.spec.ts : /admin, 404 pour tout autre, ses sections à 1280, 390 et 360 px, FR et EN ;
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
                       # live.spec.ts : le direct et le panneau Coaching ; live-choices.spec.ts : un direct avec une
                       # décision du joueur, un changement et un arrêt demandé ; team.spec.ts : Effectif, Composition et fiche ;

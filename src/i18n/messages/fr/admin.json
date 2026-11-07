@@ -1,6 +1,7 @@
 {
   "adminStats": {
     "title": "Statistiques",
+    "dashboardLink": "Retour au tableau de bord",
     "figures": {
       "users": "Utilisateurs",
       "anonymous": "Anonymes",
@@ -34,5 +35,102 @@
     },
     "megabytes": "{size} Mo",
     "share": "{part} ({percent} %)"
+  },
+  "admin": {
+    "title": "Administration",
+    "lead": "{period, select, 30 {Les 30 derniers jours} other {Les 7 derniers jours}} (UTC), du {first} au {last}.",
+    "trackedSince": "Arrivées suivies depuis le {date}.",
+    "notTracked": "Aucune arrivée comptée pour l'instant.",
+    "periodLabel": "Période",
+    "period7": "7 jours",
+    "period30": "30 jours",
+    "statsLink": "Statistiques détaillées : tables, premiers pas des parties",
+    "sections": {
+      "acquisition": "Acquisition",
+      "acquisitionNote": "Visites : premières visites d'une page publique, une par navigateur tous les 30 jours, sans les robots ni les joueurs déjà là. Nouveaux joueurs : créés sur la période, sans compte à leur première carrière, ou comptes Google.",
+      "journey": "Parcours",
+      "journeyNote": "Les nouveaux joueurs de la période, par source : carrière créée, premier match joué, saison terminée ; en pourcentage des visites de la source.",
+      "retention": "Rétention",
+      "retentionNote": "Revenus le lendemain de leur création (J+1) et une semaine après (J+7), sur les jours dont le retour est passé ; « — » : pas encore connu.",
+      "activity": "Activité",
+      "activityNote": "Joueurs venus chaque jour ; matchs de leurs clubs joués jusqu'au bout, en direct ou simulés.",
+      "health": "Santé",
+      "healthNote": "Taille relevée à chaque purge (chaque jour, 04:17 UTC) ; croissance moyenne sur 7 jours et projection jusqu'à 1 Go, la limite du plan gratuit de Neon."
+    },
+    "figures": {
+      "visits": "Visites",
+      "players": "Nouveaux joueurs",
+      "registered": "Comptes Google",
+      "phones": "Sur téléphone",
+      "medianToFirstMatch": "Médiane jusqu'au 1er match",
+      "day1": "Revenus à J+1",
+      "day7": "Revenus à J+7",
+      "active": "Actifs par jour",
+      "matches": "Matchs joués",
+      "databaseSize": "Taille de la base",
+      "growth": "Croissance",
+      "fullOn": "1 Go atteint",
+      "purged": "Purgés"
+    },
+    "details": {
+      "conversion": "{percent} % des visites",
+      "ofPlayers": "{percent} % des nouveaux",
+      "medianNote": "de la création de la carrière à la fin du match",
+      "activeAverage": "en moyenne, {max} au plus",
+      "matches": "{live} en direct · {simulated} simulés",
+      "ofLimit": "{percent, number} % de 1 Go",
+      "perDay": "par jour, moyenne sur 7 jours",
+      "noGrowth": "pas encore mesurée",
+      "around": "vers le {date}",
+      "notBefore": "pas à ce rythme",
+      "purged": "{users, plural, =0 {aucun joueur} one {# joueur} other {# joueurs}}, {saves, plural, =0 {aucune partie} one {# partie} other {# parties}} et {challenge, plural, =0 {aucune partie de défi} one {# partie de défi} other {# parties de défi}}"
+    },
+    "breakdown": {
+      "languages": "Langue : français {fr} · anglais {en}",
+      "devices": "Appareil : téléphone {phone} · ordinateur {computer}",
+      "kinds": "Sans compte {anonymous} · Google {registered}"
+    },
+    "columns": {
+      "day": "Jour",
+      "source": "Source",
+      "visits": "Visites",
+      "players": "Joueurs",
+      "registered": "Google",
+      "conversion": "Taux",
+      "careers": "Carrière",
+      "firstMatch": "1er match",
+      "seasonEnd": "Fin de saison",
+      "median": "Médiane",
+      "newPlayers": "Nouveaux",
+      "day1": "J+1",
+      "day7": "J+7",
+      "active": "Actifs",
+      "live": "Direct",
+      "simulated": "Simulés",
+      "size": "Taille",
+      "growth": "Croissance",
+      "purged": "Purgés"
+    },
+    "sources": {
+      "all": "Toutes les sources",
+      "unknown": "Inconnue (avant le suivi)",
+      "other": "Autres sources"
+    },
+    "challenge": {
+      "title": "Défi de la semaine {week}",
+      "none": "Pas de défi cette semaine.",
+      "figures": "{saves, plural, =0 {aucune partie} one {# partie} other {# parties}} sur {max} · {entries, plural, =0 {aucun joueur inscrit} one {# joueur inscrit} other {# joueurs inscrits}} · {submitted, plural, =0 {aucun classé} one {# classé} other {# classés}} après 10 journées"
+    },
+    "values": {
+      "percent": "{percent} %",
+      "countPercent": "{count} · {percent} %",
+      "shareOf": "{part}/{whole}",
+      "purged": "{users} ({saves})",
+      "megabytes": "{size} Mo",
+      "growth": "{sign}{size} Mo",
+      "minutes": "{count} min",
+      "hours": "{count} h",
+      "days": "{count} j"
+    }
   }
 }

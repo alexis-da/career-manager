@@ -1,0 +1,167 @@
+import type { ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+import type { AdminDashboard, AdminDay } from "@/src/db/admin-dashboard";
+import type { Locale } from "@/src/i18n/locale";
+
+// The page outside a request: its viewer is the administrator, its figures fixed, its language set by each test, without
+// the frame of the pages outside a save, which needs the Server Actions of its language switcher.
+const language = vi.hoisted(() => ({ current: "fr" as Locale }));
+const asked = vi.hoisted(() => ({ period: 0 }));
+
+const MB = 1024 * 1024;
+const day = (date: string, figures: Partial<AdminDay> = {}): AdminDay => ({
+  day: date,
+  visits: 0,
+  players: 0,
+  registered: 0,
+  day1: null,
+  day7: null,
+  active: 0,
+  liveMatches: 0,
+  simulatedMatches: 0,
+  databaseBytes: null,
+  growth: null,
+  purgedUsers: 0,
+  purgedSaves: 0,
+  purgedChallengeSaves: 0,
+  ...figures,
+});
+const journey = (source: string, figures: Partial<AdminDashboard["total"]> = {}): AdminDashboard["total"] => ({
+  source,
+  visits: 0,
+  players: 0,
+  careers: 0,
+  firstMatches: 0,
+  seasonEnds: 0,
+  medianMinutesToFirstMatch: null,
+  day1: { part: 0, whole: 0 },
+  day7: { part: 0, whole: 0 },
+  ...figures,
+});
+
+vi.mock("@/app/_components/public-page", () => ({ PublicPage: ({ children }: { children: ReactNode }) => children }));
+vi.mock("@/src/auth/current-user", () => ({ getCurrentUser: async () => ({ id: "admin" }), isAdmin: () => true }));
+vi.mock("@/src/db/client", () => ({ prisma: {} }));
+vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/src/db/admin-dashboard")>();
+  return {
+    ...original,
+    getAdminDashboard: async (_db: unknown, _now: Date, period: 7 | 30): Promise<AdminDashboard> => {
+      asked.period = period;
+      return {
+        period,
+        first: "2026-11-01",
+        last: "2026-11-07",
+        trackedSince: "2026-11-07",
+        days: [
+          day("2026-11-06", { visits: null, players: 2, registered: 1, day1: 1, active: 5, databaseBytes: 180 * MB }),
+          day("2026-11-07", {
+            visits: 40,
+            players: 10,
+            active: 12,
+            liveMatches: 4,
+            simulatedMatches: 9,
+            databaseBytes: 181.4 * MB,
+            growth: 1.4 * MB,
+            purgedUsers: 3,
+            purgedSaves: 2,
+          }),
+        ],
+        sources: [
+          journey("reddit-playmygame", {
+            visits: 32,
+            players: 8,
+            careers: 8,
+            firstMatches: 6,
+            seasonEnds: 1,
+            medianMinutesToFirstMatch: 7.5,
+            day1: { part: 1, whole: 4 },
+          }),
+          journey("(other)", { visits: 8, players: 2, careers: 2, firstMatches: 1 }),
+          journey("(unknown)", { players: 2, careers: 1, medianMinutesToFirstMatch: 180 }),
+        ],
+        total: journey("", { visits: 40, players: 12, careers: 11, firstMatches: 7, seasonEnds: 1, medianMinutesToFirstMatch: 9, day1: { part: 1, whole: 4 } }),
+        players: { anonymous: 11, registered: 1, fr: 5, en: 5, phone: 6, computer: 4 },
+        challenge: { weekKey: "2026-W45", saves: 12, entries: 14, submitted: 0, maxSaves: 20 },
+        health: { databaseBytes: 181.4 * MB, limitBytes: 1024 ** 3, dailyGrowth: 1.4 * MB, fullOn: "2028-06-12" },
+      };
+    },
+  };
+});
+vi.mock("next-intl/server", async () => {
+  const { testTranslator } = await import("@/src/i18n/test-intl");
+  return {
+    getTranslations: async (namespace: "admin") => testTranslator(language.current, namespace),
+    getLocale: async () => language.current,
+  };
+});
+
+const render = async (locale: Locale, days?: string): Promise<string> => {
+  language.current = locale;
+  const { default: AdminPage } = await import("./page");
+  return renderToStaticMarkup(await AdminPage({ params: Promise.resolve({}), searchParams: Promise.resolve(days === undefined ? {} : { days }) }));
+};
+
+describe("the administrator's dashboard", () => {
+  it("is in French: its period, every section, sources by name, sizes in Mo and shares with a spaced percent sign", async () => {
+    const markup = await render("fr");
+
+    expect(asked.period).toBe(7);
+    for (const text of [
+      "Administration",
+      "Les 7 derniers jours (UTC), du 01/11 au 07/11.",
+      "Arrivées suivies depuis le 7 novembre 2026.",
+      ">Acquisition</h2>",
+      ">Parcours</h2>",
+      ">Rétention</h2>",
+      ">Activité</h2>",
+      ">Santé</h2>",
+      "30 % des visites",
+      "Langue : français 5 · anglais 5",
+      "Appareil : téléphone 6 · ordinateur 4",
+      "reddit-playmygame",
+      "Autres sources",
+      "Inconnue (avant le suivi)",
+      "Toutes les sources",
+      "9 min",
+      "3 h",
+      "181,4 Mo",
+      "+1,4 Mo",
+      "par jour, moyenne sur 7 jours",
+      "12 juin 2028",
+      "Défi de la semaine 45",
+      "12 parties sur 20 · 14 joueurs inscrits · aucun classé après 10 journées",
+      "3 joueurs, 2 parties et aucune partie de défi",
+      'href="/admin/stats"',
+    ]) {
+      expect(markup).toContain(text);
+    }
+    // A step's share of its source's visits, under it: 6 first matches of 32 visits.
+    expect(markup).toMatch(/>6<\/span><span[^>]*>19 %<\/span>/);
+    // Before the tracking, a day's visits are not known.
+    expect(markup).toMatch(/data-day="2026-11-06"[^>]*><td[^>]*>06\/11<\/td><td[^>]*>—<\/td>/);
+  });
+
+  it("is in English, over 30 days when asked, the period's link marked", async () => {
+    const markup = await render("en", "30");
+
+    expect(asked.period).toBe(30);
+    for (const text of [
+      "The last 30 days (UTC), from 01/11 to 07/11.",
+      "Arrivals tracked since 7 November 2026.",
+      ">Journey</h2>",
+      "30% of visits",
+      "Unknown (before tracking)",
+      "181.4 MB",
+      "Weekly challenge, week 45",
+      "12 careers of 20 · 14 players entered · none ranked after 10 matchdays",
+    ]) {
+      expect(markup).toContain(text);
+    }
+    const thirtyDays = /<a[^>]*href="\/admin\?days=30"[^>]*>/.exec(markup)?.[0] ?? "";
+    expect(thirtyDays).toContain('aria-current="page"');
+    expect(/<a[^>]*href="\/admin"[^>]*>/.exec(markup)?.[0]).not.toContain("aria-current");
+    expect(markup).not.toMatch(/Rétention|Visites/);
+  });
+});

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import { PublicPage } from "@/app/_components/public-page";
@@ -52,9 +53,14 @@ export default async function AdminStatsPage() {
   return (
     <PublicPage className="max-w-6xl">
       <div className="space-y-6">
-        <h1 className="font-heading text-3xl" data-testid="admin-stats-title">
-          {t("title")}
-        </h1>
+        <div className="space-y-1">
+          <h1 className="font-heading text-3xl" data-testid="admin-stats-title">
+            {t("title")}
+          </h1>
+          <Link href="/admin" className="inline-flex min-h-11 items-center text-sm font-semibold underline" data-testid="admin-dashboard-link">
+            {t("dashboardLink")}
+          </Link>
+        </div>
 
         <div className="grid gap-3 sm:grid-cols-4">
           <Figure label={t("figures.users")} value={users} />

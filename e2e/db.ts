@@ -5,6 +5,7 @@ import { parse } from "dotenv";
 import { Client } from "pg";
 import { assertLocalDatabase, pgConnection } from "../src/db/database-url";
 import { isoWeekKey } from "../src/lib/iso-week";
+import { ADMIN_EMAIL_TEST } from "./constants";
 
 // Direct access to the end-to-end tests' database (DATABASE_URL_TEST, .env.test), only for the users the tests
 // create or delete, and the bare saves that fill the week's challenge: deleting a user deletes their saves (and their
@@ -95,6 +96,24 @@ export async function createRegisteredUser(name: string): Promise<{ id: string; 
     ),
   );
   return { id, email };
+}
+
+/**
+ * The administrator of the test server (ADMIN_EMAIL_TEST, playwright.config.ts): a Google account made in the database
+ * once, then kept from run to run.
+ */
+export async function ensureAdminUser(): Promise<string> {
+  const id = "e2e-admin";
+  await withTestDatabase((client) =>
+    client.query(
+      `INSERT INTO "User" ("id", "kind", "name", "email", "createdAt", "lastSeenAt")
+       VALUES ($1, 'REGISTERED', 'Admin E2E', $2, $3::timestamp(3), $3::timestamp(3))
+       ON CONFLICT ("id") DO NOTHING`,
+      // An ISO string: a Date parameter would be sent in the local time zone, and the columns hold UTC.
+      [id, ADMIN_EMAIL_TEST, new Date().toISOString()],
+    ),
+  );
+  return id;
 }
 
 /** Whether a user is still in the database. */
