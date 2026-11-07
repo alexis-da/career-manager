@@ -694,6 +694,9 @@ type PublicPage = {
 
 const CHALLENGE_PATHS = { fr: "/fr/defi", en: "/challenge" };
 const PRIVACY_PATHS = { fr: "/fr/confidentialite", en: "/privacy" };
+const GUIDE_PATHS = { fr: "/fr/comment-jouer", en: "/how-to-play" };
+const CHANGELOG_PATHS = { fr: "/fr/nouveautes", en: "/changelog" };
+const ABOUT_PATHS = { fr: "/fr/a-propos", en: "/about" };
 
 const PUBLIC_PAGES: PublicPage[] = [
   {
@@ -713,6 +716,32 @@ const PUBLIC_PAGES: PublicPage[] = [
     status: 404,
     title: { fr: "Page introuvable", en: "Page not found" },
     orange: ["not-found-home"],
+  },
+  {
+    paths: GUIDE_PATHS,
+    switchesTo: GUIDE_PATHS,
+    status: 200,
+    title: { fr: "Comment jouer", en: "How to play" },
+    orange: ["how-to-play-start"],
+    expectOwnContent: (page) => expect(page.locator("article section")).toHaveCount(7),
+  },
+  {
+    paths: CHANGELOG_PATHS,
+    switchesTo: CHANGELOG_PATHS,
+    status: 200,
+    title: { fr: "Nouveautés", en: "What's new" },
+    orange: [],
+    expectOwnContent: async (page) => {
+      await expect(page.locator("article time").first()).toBeVisible();
+    },
+  },
+  {
+    paths: ABOUT_PATHS,
+    switchesTo: ABOUT_PATHS,
+    status: 200,
+    title: { fr: "À propos de Late Winner", en: "About Late Winner" },
+    orange: [],
+    expectOwnContent: (page) => expect(page.locator('article a[href^="mailto:"]')).toBeVisible(),
   },
   {
     paths: PRIVACY_PATHS,

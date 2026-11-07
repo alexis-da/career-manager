@@ -733,7 +733,8 @@ d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4. 
   va à `/fr` (302, jamais une Server Action). Un bandeau discret (`LanguageBanner`, `language-banner`, dans la langue
   du visiteur) propose l'autre adresse quand la langue du visiteur (`preferredLocale` : son cookie, sinon
   `Accept-Language` ; rien pour un robot, qui n'envoie ni l'un ni l'autre) n'est pas celle de la page ; ses deux
-  boutons retiennent le choix. Métadonnées de chaque page (`publicPageMetadata`, `app/_lib/public-metadata.ts`,
+  boutons retiennent le choix ; sous 640 px, eux seuls sur une ligne, la phrase lue par les lecteurs d'écran,
+  pour que le bouton de l'accueil reste au-dessus du pli à 360 × 780. Métadonnées de chaque page (`publicPageMetadata`, `app/_lib/public-metadata.ts`,
   messages `seo`) : titre et description propres dans sa langue, canonical absolue en `https://www.latewinner.app`
   (`absoluteUrl`), hreflang `en`, `fr` et `x-default` (l'anglais) réciproques, image de partage nommée
   (`SHARE_IMAGE_PATH`, une page qui a son `openGraph` perdrait sinon celle de `app/opengraph-image.tsx`). Tout lien
@@ -829,7 +830,8 @@ langue, avec ses hreflang. `public/llms.txt` : ce qu'est le jeu et ses pages, en
 vérifie qu'il les cite toutes). Données structurées : l'accueil, dans ses deux langues, donne un graphe JSON-LD
 (`homeStructuredData`, `app/_lib/structured-data.ts`, échappé par `jsonLdText`) : `WebSite`, puis le jeu en
 `VideoGame` et `WebApplication` (nom, adresse, description de la page, langues en et fr, genre, plateforme navigateur,
-gratuit : `offers.price` 0, image de partage, captures) ; **aucune note ni aucun avis**.
+gratuit : `offers.price` 0, image de partage, captures) ; **aucune note ni aucun avis**. Toute page publique se lit sans
+JavaScript, rendue par le serveur (`e2e/seo.spec.ts`).
 
 **Noms de clubs.** Le nom affiché d'un club passe toujours par `displayClubName` (ou `displayClubShortName`),
 point unique de résolution dans `src/engine/club-name.ts`. Il s'appelle dans `src/db`, là où les lignes Prisma
@@ -893,7 +895,10 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # home.spec.ts : l'accueil, le choix du club et les pages hors partie ;
                       # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone ;
                       # objectives.spec.ts : une fin de saison, la nouvelle dotation et le choix d'un objectif ;
-                      # season-card-share.spec.ts : la carte d'une saison partagée en image, ou enregistrée
+                      # season-card-share.spec.ts : la carte d'une saison partagée en image, ou enregistrée ;
+                      # seo.spec.ts : les pages publiques à leurs adresses dans les deux langues (titre, description,
+                      # canonical, hreflang, image de partage), robots.txt, sitemap, llms.txt, JSON-LD de l'accueil,
+                      # bandeau de langue et choix retenu, lecture de chaque page sans JavaScript
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC ; challenge.yml : défi du lundi, 05:00 UTC
 src/
   components/         # composants partagés : panneau, visage du joueur, initiales du club, bascule, styles de tableau

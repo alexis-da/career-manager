@@ -23,10 +23,11 @@ export async function LanguageBanner({ page, className }: { page: PublicPageName
     <aside lang={preferred} aria-label={t("label")} className="border-b bg-card/60" data-testid="language-banner">
       <form
         action={setLanguageAction}
-        className={cn("mx-auto flex w-full flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2 text-sm lg:px-8", className)}
+        className={cn("mx-auto flex w-full flex-wrap items-center gap-x-5 gap-y-1 px-4 text-sm sm:py-2 lg:px-8", className)}
       >
         <input type="hidden" name="page" value={page} />
-        <p className="text-muted-foreground">{t("text")}</p>
+        {/* Under 640 px, its two buttons say it alone, on one line: the home page's button stays above the fold. */}
+        <p className="text-muted-foreground max-sm:sr-only">{t("text")}</p>
         <div className="flex flex-wrap items-center gap-x-5">
           <button type="submit" name="locale" value={preferred} className={OPTION} data-testid="language-banner-switch">
             {t("switch")}
