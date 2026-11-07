@@ -7,6 +7,7 @@ import { requireOwnedSave } from "@/src/auth/current-user";
 import { ClubInitials } from "@/src/components/club-initials";
 import { getSaveHeader } from "@/src/db/header";
 import { seasonLabel } from "@/src/engine/world";
+import { publicPath } from "@/src/i18n/public-pages";
 import { formatDayDate, formatShortDate } from "@/src/lib/format";
 import { SaveBarActions } from "./_components/game-actions";
 import { SaveNav } from "./_components/save-nav";
@@ -44,12 +45,12 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
             screen, with its own way out and its own bar. */}
         <header className="flex items-center gap-3 px-4 pt-3 max-lg:flex-wrap max-lg:group-has-[[data-live-page]]/shell:hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:w-64 lg:flex-col lg:items-stretch lg:gap-4 lg:overflow-y-auto lg:border-r lg:border-sidebar-border lg:bg-sidebar lg:p-4">
           {/* The game's mark, the only one in a save. */}
-          <Link href="/" title={t("home")} data-testid="header-home" className="flex items-center gap-2.5 px-2 max-lg:hidden">
+          <Link href={publicPath("home", locale)} title={t("home")} data-testid="header-home" className="flex items-center gap-2.5 px-2 max-lg:hidden">
             <Image src="/brand/late-winner-icone.svg" alt="" width={34} height={34} unoptimized />
             <span className="font-heading text-[1.375rem] leading-none">Late Winner</span>
           </Link>
           <Link
-            href="/"
+            href={publicPath("home", locale)}
             title={t("saves", { manager: header.managerName })}
             data-testid="header-club"
             className="flex min-w-0 flex-1 items-center gap-3 lg:flex-none lg:rounded-card lg:bg-card lg:p-3"

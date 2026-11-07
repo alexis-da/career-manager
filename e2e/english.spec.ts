@@ -83,7 +83,9 @@ test("keeps the language the player chooses, whatever the browser prefers, until
   await page.goto("/challenge");
   await expect(page.getByTestId("language-en")).toHaveAttribute("aria-pressed", "true");
 
+  // The page in French is at its French address.
   await page.getByTestId("language-fr").click();
+  await expect(page).toHaveURL(/\/fr\/defi$/);
   await expect(pageLanguage(page)).toHaveAttribute("lang", "fr");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Défi de la semaine");
   await expect(page.getByTestId("language-fr")).toHaveAttribute("aria-pressed", "true");
@@ -92,12 +94,14 @@ test("keeps the language the player chooses, whatever the browser prefers, until
   // About a year (not simulation code: the clock is fine here).
   expect(chosen?.expires ?? 0).toBeGreaterThan(Date.now() / 1000 + 360 * 86_400);
 
-  // The browser still prefers English: the cookie wins, on every page.
+  // The browser still prefers English: the cookie wins, the English home page leading to the French one.
   await page.goto("/");
+  await expect(page).toHaveURL(/\/fr$/);
   await expect(pageLanguage(page)).toHaveAttribute("lang", "fr");
   await expect(page.getByTestId("create-save")).toHaveText("Lancer ma carrière");
 
   await page.getByTestId("language-en").click();
+  await expect(page).toHaveURL((url) => url.pathname === "/");
   await expect(pageLanguage(page)).toHaveAttribute("lang", "en");
   await expect(page.getByTestId("create-save")).toHaveText("Start my career");
   expect((await context.cookies()).find((cookie) => cookie.name === "lw_lang")?.value).toBe("en");

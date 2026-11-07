@@ -1,0 +1,16 @@
+{
+  "seo": {
+    "home": {
+      "title": "Late Winner — Jeu de carrière de football gratuit en ligne",
+      "description": "Un jeu de gestion de football gratuit, dans ton navigateur : choisis ton club, compose ton équipe, décide pendant les matchs en direct et vise la montée. Sans téléchargement."
+    },
+    "challenge": {
+      "title": "Défi de la semaine · Late Winner",
+      "description": "Le même club pour tout le monde, dix journées de championnat et un nouveau classement chaque semaine : joue le défi de Late Winner, gratuitement, dans ton navigateur."
+    },
+    "privacy": {
+      "title": "Confidentialité · Late Winner",
+      "description": "Ce que Late Winner garde de toi, pourquoi et combien de temps, et comment tout supprimer : aucun cookie tiers, aucune publicité."
+    }
+  }
+}

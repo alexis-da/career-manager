@@ -1,9 +1,10 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { GoogleSignInButton } from "@/app/_components/account-panel";
 import { LanguageSwitcher } from "@/app/_components/language-switcher";
 import { signOutAction } from "@/app/actions";
 import type { CurrentUser } from "@/src/auth/current-user";
+import { publicPath } from "@/src/i18n/public-pages";
 import { maxSavesFor } from "@/src/lib/limits";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
@@ -59,6 +60,8 @@ export function ClubSettings({ user, ownedSaves, className }: ClubSettingsProps)
   const t = useTranslations("settings");
   const tLanguage = useTranslations("language");
   const tFooter = useTranslations("footer");
+  // The public pages it leads to, in the save's language.
+  const locale = useLocale();
   return (
     <Panel aria-labelledby="club-settings-title" data-testid="club-settings" className={cn("flex flex-col gap-4", className)}>
       <ClubCardTitle id="club-settings-title">{t("title")}</ClubCardTitle>
@@ -72,12 +75,12 @@ export function ClubSettings({ user, ownedSaves, className }: ClubSettingsProps)
           <p className={NAME}>{t("saves")}</p>
           <p className={cn(DETAIL, "tabular-nums")}>{t("savesUsed", { used: ownedSaves, max: maxSavesFor(user.kind) })}</p>
         </div>
-        <Link href="/" data-testid="settings-change-save" className={CLUB_CARD_LINK}>
+        <Link href={publicPath("home", locale)} data-testid="settings-change-save" className={CLUB_CARD_LINK}>
           {t("changeSave")}
         </Link>
       </div>
       <Link
-        href="/privacy"
+        href={publicPath("privacy", locale)}
         data-testid="settings-privacy"
         className="mt-auto self-start text-[0.8125rem] text-muted-foreground hover:text-foreground max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
       >

@@ -9,11 +9,22 @@ import { ensureCurrentChallenge, isChallengeOpen } from "@/src/db/challenge";
 import { isWakeUpError, retryOnWakeUp } from "@/src/db/retry";
 import { createChallengeSave } from "@/src/db/saves";
 import { rankingName } from "@/src/engine/challenge";
+import { LOCALES } from "@/src/i18n/locale";
+import { publicPath, type PublicPageName } from "@/src/i18n/public-pages";
 import { describeError, phaseTimer } from "@/src/lib/diagnostics";
 import { isoWeekKey } from "@/src/lib/iso-week";
 import { ChallengeEntryExistsError, ChallengeFullError } from "@/src/lib/limits";
 
 export type PlayChallengeState = { message: string | null };
+
+/** These public pages, in both languages: a challenge save changes what they show. */
+function revalidatePublicPages(pages: PublicPageName[]): void {
+  for (const page of pages) {
+    for (const locale of LOCALES) {
+      revalidatePath(publicPath(page, locale));
+    }
+  }
+}
 
 const playChallengeSchema = z.object({ weekKey: z.string().regex(/^\d{4}-W\d{2}$/) });
 
@@ -51,14 +62,13 @@ export async function playChallengeAction(_previous: PlayChallengeState, formDat
     }));
   } catch (error) {
     if (error instanceof ChallengeEntryExistsError || error instanceof ChallengeFullError) {
-      revalidatePath("/challenge");
+      revalidatePublicPages(["challenge"]);
       return { message: error instanceof ChallengeFullError ? t("full") : t("played") };
     }
     console.error(`[playChallengeAction] failed after ${timer.elapsed()} ms: ${describeError(error)}`, error);
     return { message: isWakeUpError(error) ? (await getTranslations("common"))("wakingUp") : t("failed") };
   }
 
-  revalidatePath("/");
-  revalidatePath("/challenge");
+  revalidatePublicPages(["home", "challenge"]);
   redirect(`/saves/${saveId}`);
 }

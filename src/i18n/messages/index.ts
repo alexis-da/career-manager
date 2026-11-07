@@ -26,6 +26,7 @@ import enPlayerSheet from "./en/player-sheet.json";
 import enPublic from "./en/public.json";
 import enSeasonStart from "./en/season-start.json";
 import enSeasons from "./en/seasons.json";
+import enSeo from "./en/seo.json";
 import enSquad from "./en/squad.json";
 import enStandings from "./en/standings.json";
 import enTransfers from "./en/transfers.json";
@@ -57,6 +58,7 @@ import frPlayerSheet from "./fr/player-sheet.json";
 import frPublic from "./fr/public.json";
 import frSeasonStart from "./fr/season-start.json";
 import frSeasons from "./fr/seasons.json";
+import frSeo from "./fr/seo.json";
 import frSquad from "./fr/squad.json";
 import frStandings from "./fr/standings.json";
 import frTransfers from "./fr/transfers.json";
@@ -72,6 +74,7 @@ import frWorld from "./fr/world.json";
 export const ZONES = {
   public: { fr: frPublic, en: enPublic },
   home: { fr: frHome, en: enHome },
+  seo: { fr: frSeo, en: enSeo },
   world: { fr: frWorld, en: enWorld },
   catalogs: { fr: frCatalogs, en: enCatalogs },
   header: { fr: frHeader, en: enHeader },
@@ -106,6 +109,7 @@ export const ZONES = {
 const fr = {
   ...frPublic,
   ...frHome,
+  ...frSeo,
   ...frWorld,
   ...frCatalogs,
   ...frHeader,
@@ -145,6 +149,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
   en: {
     ...enPublic,
     ...enHome,
+    ...enSeo,
     ...enWorld,
     ...enCatalogs,
     ...enHeader,

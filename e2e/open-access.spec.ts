@@ -27,7 +27,7 @@ test("refuses a second save to an anonymous player with the message, and puts it
   saveName = name;
   // A second tab of the same browser, opened on the creation form before the first save exists.
   const otherTab = await page.context().newPage();
-  await otherTab.goto("/");
+  await otherTab.goto("/fr");
   await expect(otherTab.getByTestId("create-save")).toBeVisible();
 
   await createSave(page, name, LYON);
@@ -39,7 +39,7 @@ test("refuses a second save to an anonymous player with the message, and puts it
   await otherTab.close();
 
   // Back on the home page, the message and the Google button replace the form; the one save is there.
-  await page.goto("/");
+  await page.goto("/fr");
   const notice = page.getByTestId("save-limit");
   await expect(notice.getByText(LIMIT_MESSAGE)).toBeVisible();
   await expect(notice.getByTestId("google-sign-in")).toBeVisible();

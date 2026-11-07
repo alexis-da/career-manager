@@ -1,6 +1,7 @@
-// The game's two languages: French, its own, and English. A player's language is the one they chose with the language
-// switcher (the lw_lang cookie), else the one their browser prefers of the two (Accept-Language): negotiateLocale, read
-// for each request by src/i18n/request.ts. Pure: no request, no cookie read here.
+// The game's two languages: French, its own, and English. A public page is in its address's (src/i18n/public-pages.ts);
+// any other page in the player's language: the one they chose with the language switcher (the lw_lang cookie), else the
+// one their browser prefers of the two (Accept-Language): negotiateLocale, read for each request by src/i18n/request.ts.
+// Pure: no request, no cookie read here.
 
 export const LOCALES = ["fr", "en"] as const;
 
@@ -42,6 +43,18 @@ function rankOf(header: string, language: Locale): Rank | null {
     }
   }
   return best;
+}
+
+/**
+ * The language a visitor would rather read, when they say so: the one they chose (lw_lang), else the one their browser
+ * prefers of the two, when it sends Accept-Language. Null without either: a crawler, which sends neither, is offered no
+ * other language than its page's (app/_components/language-banner.tsx).
+ */
+export function preferredLocale(cookie: string | undefined, acceptLanguage: string | null): Locale | null {
+  if (isLocale(cookie)) {
+    return cookie;
+  }
+  return acceptLanguage === null || acceptLanguage.trim() === "" ? null : negotiateLocale(undefined, acceptLanguage);
 }
 
 /**

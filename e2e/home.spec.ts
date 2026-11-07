@@ -33,6 +33,9 @@ const SMALL_PHONE = { width: 360, height: 780 };
 
 test.use({ viewport: COMPUTER });
 
+/** The home page in French, Playwright's language (fr-FR); in English at the site's root. */
+const HOME = "/fr";
+
 const LYON = "Olympique Lyonnais";
 const WOLVERHAMPTON = "Wolverhampton Wanderers FC";
 
@@ -86,9 +89,9 @@ const listedClub = (page: Page): Locator => page.getByTestId("club").locator('[d
 
 const cookieNames = async (context: BrowserContext): Promise<string[]> => (await context.cookies()).map(({ name }) => name);
 
-/** The home page, once React has committed it: its form answers only then. */
+/** The French home page, once React has committed it: its form answers only then. */
 async function openHome(page: Page): Promise<void> {
-  await page.goto("/");
+  await page.goto(HOME);
   await waitForReact(page);
 }
 
@@ -142,11 +145,11 @@ const inlineStyles = (root: Locator): Promise<(string | null)[]> =>
       .map((node) => node.getAttribute("style")),
   );
 
-/** Every POST to the home page from now on: a form sent is one, as a Server Action. */
+/** Every POST to the French home page from now on: a form sent is one, as a Server Action. */
 function formPosts(page: Page): string[] {
   const posts: string[] = [];
   page.on("request", (request) => {
-    if (request.method() === "POST" && new URL(request.url()).pathname === "/") {
+    if (request.method() === "POST" && new URL(request.url()).pathname === HOME) {
       posts.push(request.url());
     }
   });
@@ -161,7 +164,7 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
       page,
       context,
     }) => {
-      await page.goto("/");
+      await page.goto(HOME);
       await expect(page.locator("html")).toHaveAttribute("lang", "fr");
       await expect(page.getByRole("heading", { level: 1 })).toHaveText("Choisis ton défi");
       await expect(page.getByText(/^198 clubs, deux divisions par pays/)).toBeVisible();
@@ -196,7 +199,7 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
     test("has two columns and the challenge and Google beside the game's mark from 1024 px, those two under one column below", async ({
       page,
     }) => {
-      await page.goto("/");
+      await page.goto(HOME);
       const mark = await boxOf(page.getByTestId("public-home"));
       const title = await boxOf(page.getByRole("heading", { level: 1 }));
       const clubs = await boxOf(cardOf(page, "favourite"));
@@ -217,10 +220,13 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
         expect(clubs.y).toBeGreaterThanOrEqual(title.y + title.height);
         expect(submit.y).toBeGreaterThanOrEqual(clubs.y + clubs.height);
       }
-      await expect(page.getByTestId("challenge-teaser")).toHaveAttribute("href", "/challenge");
+      await expect(page.getByTestId("challenge-teaser")).toHaveAttribute("href", "/fr/defi");
     });
 
-    test("has the language at the top of the page, the recommended card following it there and back", async ({ page, context }) => {
+    test("has the language at the top of the page, which leads to the home page in English and back, its card following", async ({
+      page,
+      context,
+    }) => {
       await openHome(page);
       const french = page.getByTestId("language-fr");
       const english = page.getByTestId("language-en");
@@ -235,6 +241,7 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
       }
 
       await english.click();
+      await expect(page).toHaveURL((url) => url.pathname === "/");
       await expect(page.locator("html")).toHaveAttribute("lang", "en");
       await expect(title).toHaveText("Choose your challenge");
       await expect(page.getByTestId("create-save")).toHaveText("Start my career");
@@ -248,6 +255,7 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
       await expectThumbTargets(page);
 
       await french.click();
+      await expect(page).toHaveURL((url) => url.pathname === HOME);
       await expect(page.locator("html")).toHaveAttribute("lang", "fr");
       await expect(title).toHaveText("Choisis ton défi");
       await expect(recommended).toContainText(RECOMMENDED_CLUB);
@@ -331,7 +339,7 @@ test("takes the first result on Enter, and never sends the form, valid as it is"
 
     await page.waitForLoadState("networkidle");
     expect(posts).toEqual([]);
-    expect(new URL(page.url()).pathname).toBe("/");
+    expect(new URL(page.url()).pathname).toBe(HOME);
     expect(await cookieNames(context)).toEqual([]);
   } finally {
     // Even when a step failed: a form sent would have made a player of this browser, and their save.
@@ -416,7 +424,7 @@ test("folds the options from the start, and a refused name alone opens them", as
   await expect(page.getByText("Donne un nom à la partie.")).toBeVisible();
   await expect(name).toBeVisible();
   await expect(seed).toBeVisible();
-  expect(new URL(page.url()).pathname).toBe("/");
+  expect(new URL(page.url()).pathname).toBe(HOME);
   expect(await cookieNames(context)).toEqual([]);
 });
 
@@ -458,23 +466,23 @@ test("leaves the chosen card's radio button checked after a refused form, as the
   await expectCheckedCard(page, "favourite");
 });
 
-test("keeps a chosen club through a change of language: the recommended card follows the language only until then", async ({ page }) => {
+test("starts each language's home page on its recommended card: a club chosen in one is not carried to the other", async ({
+  page,
+}) => {
   await openHome(page);
   await cardOf(page, "favourite").click();
   await expectCheckedCard(page, "favourite");
 
-  // A French club is no English player's card: the list has it, in orange.
   await page.getByTestId("language-en").click();
+  await expect(page).toHaveURL((url) => url.pathname === "/");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(listedClub(page)).toHaveText("Paris Saint-Germain FC");
-  await expect(page.getByTestId("save-name")).toHaveValue("Paris Saint-Germain FC career");
-  await expectCheckedCard(page, null);
-  await expect(page.getByTestId("club")).toHaveCSS("border-top-color", ACTION_ORANGE);
+  await expect(listedClub(page)).toHaveText("Fulham FC");
+  await expectCheckedCard(page, "mid-table");
 
   await page.getByTestId("language-fr").click();
-  await expect(page.locator("html")).toHaveAttribute("lang", "fr");
-  await expectCheckedCard(page, "favourite");
-  await expectChosenClub(page, "Paris Saint-Germain FC");
+  await expect(page).toHaveURL((url) => url.pathname === HOME);
+  await expectCheckedCard(page, "mid-table");
+  await expectChosenClub(page, RECOMMENDED_CLUB);
 });
 
 for (const viewport of [COMPUTER, PHONE, SMALL_PHONE]) {
@@ -483,7 +491,7 @@ for (const viewport of [COMPUTER, PHONE, SMALL_PHONE]) {
 
     test("finds their career in place of the form, « Reprendre » the one orange, Google in the notice alone", async ({ page }) => {
       await signInAs(page, DEMO_USER_ID);
-      await page.goto("/");
+      await page.goto(HOME);
       await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tes carrières");
 
       const saves = page.getByTestId("saves");
@@ -523,7 +531,7 @@ test("keeps the form under a Google account's careers, in h2, with the account a
     // A unique name to find this save again (not simulation code: the clock is fine here).
     const name = `E2E accueil ${Date.now()}`;
     await createSave(page, name, LYON);
-    await page.goto("/");
+    await page.goto(HOME);
 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tes carrières");
     const card = saveRow(page, name);
@@ -563,9 +571,9 @@ test("keeps the form under a Google account's careers, in h2, with the account a
   }
 });
 
-for (const { locale, name, mark, cards } of [
-  { locale: "fr-FR", name: "Défi — semaine", mark: "Défi", cards: "Tes carrières" },
-  { locale: "en-GB", name: "Challenge — week", mark: "Challenge", cards: "Your careers" },
+for (const { locale, name, mark, cards, home, challenge } of [
+  { locale: "fr-FR", name: "Défi — semaine", mark: "Défi", cards: "Tes carrières", home: HOME, challenge: "/fr/defi" },
+  { locale: "en-GB", name: "Challenge — week", mark: "Challenge", cards: "Your careers", home: "/", challenge: "/challenge" },
 ]) {
   test.describe(`a challenge career in ${locale}`, () => {
     test.use({ locale });
@@ -574,14 +582,14 @@ for (const { locale, name, mark, cards } of [
       page,
     }) => {
       // The page creates the week's challenge when missing.
-      await page.goto("/challenge");
+      await page.goto(challenge);
       const club = await textOf(page.getByTestId("challenge-club"));
       // Not simulation code: a player seen just now.
       const userId = await createAnonymousUser(new Date());
       try {
         await insertWeekChallengeSave(userId);
         await signInAs(page, userId);
-        await page.goto("/");
+        await page.goto(home);
 
         await expect(page.getByRole("heading", { level: 1 })).toHaveText(cards);
         const card = page.getByTestId("saves").locator("[data-save-name]");
@@ -603,18 +611,31 @@ for (const { locale, name, mark, cards } of [
   });
 }
 
-/** A public page: what its title says in each language, its one orange action, and what is its own. */
+type Language = "fr" | "en";
+
+/** Each language's home page. */
+const HOMES: Record<Language, string> = { fr: HOME, en: "/" };
+
+/**
+ * A public page: its address in each language, what its title says there, its one orange action, what is its own, and
+ * where its language switcher leads (its address in the other language; a missing page's, the home page).
+ */
 type PublicPage = {
-  path: string;
+  paths: Record<Language, string>;
   status: number;
-  title: Record<"fr" | "en", string>;
+  title: Record<Language, string>;
   orange: string[];
-  expectOwnContent?: (page: Page, language: "fr" | "en") => Promise<void>;
+  expectOwnContent?: (page: Page, language: Language) => Promise<void>;
+  switchesTo: Record<Language, string>;
 };
+
+const CHALLENGE_PATHS = { fr: "/fr/defi", en: "/challenge" };
+const PRIVACY_PATHS = { fr: "/fr/confidentialite", en: "/privacy" };
 
 const PUBLIC_PAGES: PublicPage[] = [
   {
-    path: "/challenge",
+    paths: CHALLENGE_PATHS,
+    switchesTo: CHALLENGE_PATHS,
     status: 200,
     title: { fr: "Défi de la semaine", en: "Weekly challenge" },
     orange: ["challenge-play"],
@@ -624,13 +645,15 @@ const PUBLIC_PAGES: PublicPage[] = [
     },
   },
   {
-    path: "/no-such-page",
+    paths: { fr: "/fr/no-such-page", en: "/no-such-page" },
+    switchesTo: HOMES,
     status: 404,
     title: { fr: "Page introuvable", en: "Page not found" },
     orange: ["not-found-home"],
   },
   {
-    path: "/privacy",
+    paths: PRIVACY_PATHS,
+    switchesTo: PRIVACY_PATHS,
     status: 200,
     title: { fr: "Confidentialité · Late Winner", en: "Privacy · Late Winner" },
     orange: [],
@@ -651,7 +674,8 @@ for (const { locale, language, viewport } of [
   test.describe(`the public pages at ${viewport.width} px, in ${locale}`, () => {
     test.use({ locale, viewport });
 
-    for (const { path, status, title, orange, expectOwnContent } of PUBLIC_PAGES) {
+    for (const { paths, status, title, orange, expectOwnContent } of PUBLIC_PAGES) {
+      const path = paths[language];
       test(`${path} has the game's mark, the language once, the foot's one link, and holds in the window`, async ({ page, context }) => {
         const response = await page.goto(path);
         expect(response?.status()).toBe(status);
@@ -667,9 +691,9 @@ for (const { locale, language, viewport } of [
         await expectThumbTargets(page);
 
         const mark = page.getByTestId("public-home");
-        await expect(mark).toHaveAttribute("href", "/");
+        await expect(mark).toHaveAttribute("href", HOMES[language]);
         await mark.click();
-        await expect(page).toHaveURL((url) => url.pathname === "/");
+        await expect(page).toHaveURL((url) => url.pathname === HOMES[language]);
         await expect(page.getByTestId("create-save")).toBeVisible();
 
         // Looking creates nothing.
@@ -679,20 +703,24 @@ for (const { locale, language, viewport } of [
   });
 }
 
-for (const { path, title } of PUBLIC_PAGES) {
-  test(`${path} changes language in place, there and back`, async ({ page }) => {
-    await page.goto(path);
+for (const { paths, title, switchesTo, status } of PUBLIC_PAGES) {
+  test(`${paths.fr} leads to its address in English with the language, and back`, async ({ page }) => {
+    await page.goto(paths.fr);
     await waitForReact(page);
     const pageTitle = page.getByRole("heading", { level: 1 });
 
     await page.getByTestId("language-en").click();
+    await expect(page).toHaveURL((url) => url.pathname === switchesTo.en);
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    await expect(pageTitle).toHaveText(title.en);
-    await expect(page).toHaveURL((url) => url.pathname === path);
+    if (status === 200) {
+      await expect(pageTitle).toHaveText(title.en);
+    }
 
     await page.getByTestId("language-fr").click();
+    await expect(page).toHaveURL((url) => url.pathname === switchesTo.fr);
     await expect(page.locator("html")).toHaveAttribute("lang", "fr");
-    await expect(pageTitle).toHaveText(title.fr);
-    await expect(page).toHaveURL((url) => url.pathname === path);
+    if (status === 200) {
+      await expect(pageTitle).toHaveText(title.fr);
+    }
   });
 }

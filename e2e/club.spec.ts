@@ -198,8 +198,9 @@ async function expectClubScreen(page: Page): Promise<void> {
   await expect(settings.getByTestId("language-en")).toHaveAttribute("aria-pressed", "false");
   await expect(settings.getByTestId("settings-account")).toBeVisible();
   await expect(settings.getByTestId("settings-saves")).toBeVisible();
-  await expect(settings.getByTestId("settings-change-save")).toHaveAttribute("href", "/");
-  await expect(settings.getByTestId("settings-privacy")).toHaveAttribute("href", "/privacy");
+  // The public pages in the save's language.
+  await expect(settings.getByTestId("settings-change-save")).toHaveAttribute("href", "/fr");
+  await expect(settings.getByTestId("settings-privacy")).toHaveAttribute("href", "/fr/confidentialite");
 
   await expectNoSidewaysScroll(page, "club");
 }

@@ -37,7 +37,7 @@ test("plays a career on a phone, from the home page to the honours, never wider 
   const name = `E2E téléphone ${Date.now()}`;
   saveName = name;
 
-  await page.goto("/");
+  await page.goto("/fr");
   await expectNoSidewaysScroll(page, "home page");
   await page.getByTestId("club").click();
   await expect(page.getByRole("listbox")).toBeVisible();
@@ -135,7 +135,7 @@ test("plays a career on a phone, from the home page to the honours, never wider 
   await expectNoSidewaysScroll(page, "honours");
 
   // Back home, the career is a card of the list.
-  await page.goto("/");
+  await page.goto("/fr");
   await expect(saveRow(page, name)).toBeVisible();
   await expectNoSidewaysScroll(page, "home page with a career");
 });

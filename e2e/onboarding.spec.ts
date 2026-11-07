@@ -10,6 +10,7 @@ const JOURNEYS = [
   {
     name: "in French, on a computer",
     locale: "fr-FR",
+    home: "/fr",
     viewport: { width: 1280, height: 800 },
     clubs: { favourite: "Paris Saint-Germain FC", "mid-table": "Toulouse FC", comeback: "Grenoble Foot 38" },
     careerName: "Carrière Toulouse FC",
@@ -19,6 +20,7 @@ const JOURNEYS = [
   {
     name: "in English, on a phone",
     locale: "en-GB",
+    home: "/",
     viewport: { width: 390, height: 844 },
     clubs: { favourite: "Liverpool FC", "mid-table": "Fulham FC", comeback: "Sheffield Wednesday FC" },
     careerName: "Fulham FC career",
@@ -46,7 +48,7 @@ for (const journey of JOURNEYS) {
       // A world of 198 clubs created, then a match played live.
       test.setTimeout(300_000);
       try {
-        await page.goto("/");
+        await page.goto(journey.home);
         await expectNoSidewaysScroll(page, "home page");
 
         // Three clubs of their country. A card fills the list, and the name of the career follows the club.
@@ -149,7 +151,7 @@ test("remembers what a player has seen career by career", async ({ page, context
   // Two worlds of 198 clubs created.
   test.setTimeout(300_000);
   try {
-    await page.goto("/");
+    await page.goto("/fr");
     await page.getByTestId("club-suggestion-comeback").click();
     await page.getByTestId("manager-name").fill("Test E2E");
     await page.getByTestId("create-save").click();
@@ -163,7 +165,7 @@ test("remembers what a player has seen career by career", async ({ page, context
     await waitForSeen(page, context, "rating");
 
     // The same player's challenge career starts from nothing.
-    await page.goto("/challenge");
+    await page.goto("/fr/defi");
     await page.getByTestId("challenge-play").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+$/);
     expect(page.url()).not.toBe(career);

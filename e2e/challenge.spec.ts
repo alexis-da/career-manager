@@ -22,9 +22,9 @@ test("plays the week's challenge from the home page to its tenth matchday, then 
   // A world of 198 clubs created, then some fifteen dates simulated.
   test.setTimeout(300_000);
   try {
-    await page.goto("/");
+    await page.goto("/fr");
     await page.getByTestId("challenge-teaser").click();
-    await expect(page).toHaveURL(/\/challenge$/);
+    await expect(page).toHaveURL(/\/fr\/defi$/);
     await expect(page.getByRole("heading", { name: "Défi de la semaine" })).toBeVisible();
     await expect(page.getByTestId("challenge-club")).not.toBeEmpty();
     await expect(page.getByTestId("challenge-week")).toHaveText(/^Semaine \d+ · fin lundi \d{2}:\d{2}$/);
@@ -61,7 +61,7 @@ test("plays the week's challenge from the home page to its tenth matchday, then 
       await expect(own.locator("td").first(), screen).toHaveText("—");
       await expect(page.getByTestId("challenge-resume"), screen).toHaveText("Reprendre ma partie");
       await expect(page.getByText("Score enregistré"), screen).toBeVisible();
-      await page.goto("/challenge");
+      await page.goto("/fr/defi");
     }
   } finally {
     // Even when a step failed: a leftover challenge save would count against the week's cap.
@@ -71,7 +71,7 @@ test("plays the week's challenge from the home page to its tenth matchday, then 
 
 test("replaces « Jouer le défi » once the week has its saves", async ({ page }) => {
   // The page creates the week's challenge when missing; then its saves fill it.
-  await page.goto("/challenge");
+  await page.goto("/fr/defi");
   await expect(page.getByTestId("challenge-play")).toHaveText("Jouer le défi");
   // Not simulation code: a user last seen now.
   const ownerId = await createAnonymousUser(new Date());

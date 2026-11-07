@@ -345,14 +345,14 @@ describe("the settings", () => {
     expect(markup.match(/alexis@example\.com/g)).toHaveLength(1);
   });
 
-  it("has the language switch, the saves and the privacy page's links", () => {
+  it("has the language switch, the saves and the privacy page's links, to the public pages in the save's language", () => {
     const markup = render(<ClubSettings user={user} ownedSaves={1} />);
 
     expect(textOf(markup, "language-fr")).toBe("Français");
     expect(textOf(markup, "language-en")).toBe("English");
     expect(markup).toMatch(/aria-pressed="true"[^>]*data-testid="language-fr"/);
     expect(markup).toMatch(/aria-pressed="false"[^>]*data-testid="language-en"/);
-    expect(markup).toMatch(/data-testid="settings-change-save"[^>]*href="\/"/);
-    expect(markup).toMatch(/data-testid="settings-privacy"[^>]*href="\/privacy"/);
+    expect(markup).toMatch(/data-testid="settings-change-save"[^>]*href="\/fr"/);
+    expect(markup).toMatch(/data-testid="settings-privacy"[^>]*href="\/fr\/confidentialite"/);
   });
 });

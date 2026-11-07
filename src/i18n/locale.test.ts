@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isLocale, negotiateLocale } from "./locale";
+import { isLocale, negotiateLocale, preferredLocale } from "./locale";
 
 describe("negotiateLocale", () => {
   it("keeps the language the player chose, whatever the browser prefers", () => {
@@ -46,5 +46,24 @@ describe("negotiateLocale", () => {
 describe("isLocale", () => {
   it("accepts the game's two languages only", () => {
     expect(["fr", "en", "de", "", undefined, 1].map(isLocale)).toEqual([true, true, false, false, false, false]);
+  });
+});
+
+describe("preferredLocale", () => {
+  it("is the language the visitor chose, whatever their browser says", () => {
+    expect(preferredLocale("fr", "en-GB")).toBe("fr");
+    expect(preferredLocale("en", null)).toBe("en");
+  });
+
+  it("is otherwise the one their browser prefers of the two, any other language meaning English", () => {
+    expect(preferredLocale(undefined, "fr-FR,fr;q=0.9,en;q=0.8")).toBe("fr");
+    expect(preferredLocale(undefined, "en-US")).toBe("en");
+    expect(preferredLocale("de", "de-DE,de;q=0.9")).toBe("en");
+  });
+
+  it("is nothing without a choice or a header: a crawler says neither", () => {
+    expect(preferredLocale(undefined, null)).toBeNull();
+    expect(preferredLocale(undefined, "")).toBeNull();
+    expect(preferredLocale(undefined, "  ")).toBeNull();
   });
 });

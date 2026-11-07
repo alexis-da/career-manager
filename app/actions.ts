@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import * as z from "zod";
 import { cookies } from "next/headers";
 import { signIn, signOut } from "@/src/auth/auth";
@@ -13,9 +13,17 @@ import { deleteRegisteredUser } from "@/src/db/accounts";
 import { isWakeUpError, retryOnWakeUp } from "@/src/db/retry";
 import { createSave, deleteSave } from "@/src/db/saves";
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE_SECONDS, LOCALES } from "@/src/i18n/locale";
+import { PUBLIC_PAGE_NAMES, publicPath } from "@/src/i18n/public-pages";
 import { describeError, phaseTimer } from "@/src/lib/diagnostics";
 import { SaveLimitError } from "@/src/lib/limits";
 import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
+
+/** Both home pages, English and French: a save created or deleted changes the list they show. */
+function revalidateHomePages(): void {
+  for (const locale of LOCALES) {
+    revalidatePath(publicPath("home", locale));
+  }
+}
 
 export type CreateSaveField = "name" | "managerName" | "clubId" | "seed";
 
@@ -80,28 +88,31 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
     return { values, errors: {}, message };
   }
 
-  revalidatePath("/");
+  revalidateHomePages();
   redirect(`/saves/${saveId}`);
 }
 
 export async function deleteSaveAction(saveId: string): Promise<void> {
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   await deleteSave(id);
-  revalidatePath("/");
+  revalidateHomePages();
 }
 
-const localeSchema = z.enum(LOCALES);
+const languageSchema = z.object({ locale: z.enum(LOCALES), page: z.enum(PUBLIC_PAGE_NAMES).nullable() });
 
 /**
- * The language switcher: the language the player chose, kept a year by the lw_lang comfort cookie (app/privacy), then
- * the page again in it. Anything but « fr » or « en » changes nothing.
+ * The language switcher, and the line that offers a public page in the visitor's language: the language the player
+ * chose, kept a year by the lw_lang comfort cookie (app/privacy), then a public page at its address in that language (a
+ * page's name, never an address, comes with the form), any other page again in it. Anything but « fr » or « en », or a
+ * page that is not one, changes nothing.
  */
 export async function setLanguageAction(formData: FormData): Promise<void> {
-  const parsed = localeSchema.safeParse(formData.get("locale"));
+  const parsed = languageSchema.safeParse({ locale: formData.get("locale"), page: formData.get("page") });
   if (!parsed.success) {
     return;
   }
-  (await cookies()).set(LOCALE_COOKIE, parsed.data, {
+  const { locale, page } = parsed.data;
+  (await cookies()).set(LOCALE_COOKIE, locale, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -110,15 +121,21 @@ export async function setLanguageAction(formData: FormData): Promise<void> {
   });
   // Every page the browser keeps is in the other language now.
   revalidatePath("/", "layout");
+  if (page !== null) {
+    redirect(publicPath(page, locale));
+  }
 }
 
-/** Off to Google, then back to the home page: src/auth/auth.ts makes the account one of our users. */
+/**
+ * Off to Google, then back to the home page in the language of the page it left (a save's: the player's): src/auth/auth.ts
+ * makes the account one of our users.
+ */
 export async function signInWithGoogleAction(): Promise<void> {
-  await signIn("google", { redirectTo: "/" });
+  await signIn("google", { redirectTo: publicPath("home", await getLocale()) });
 }
 
 export async function signOutAction(): Promise<void> {
-  await signOut({ redirectTo: "/" });
+  await signOut({ redirectTo: publicPath("home", await getLocale()) });
 }
 
 /**
@@ -126,11 +143,12 @@ export async function signOutAction(): Promise<void> {
  * out, the lw_uid cookie cleared, back to the home page with a message. Nothing for an anonymous player.
  */
 export async function deleteAccountAction(): Promise<void> {
-  const user = await getCurrentUser();
+  const [user, locale] = await Promise.all([getCurrentUser(), getLocale()]);
+  const home = publicPath("home", locale);
   if (user === null || user.kind !== "REGISTERED") {
-    redirect("/");
+    redirect(home);
   }
   await deleteRegisteredUser(user.id);
   (await cookies()).delete(USER_COOKIE);
-  await signOut({ redirectTo: `/?${ACCOUNT_DELETED_PARAM}=1` });
+  await signOut({ redirectTo: `${home}?${ACCOUNT_DELETED_PARAM}=1` });
 }

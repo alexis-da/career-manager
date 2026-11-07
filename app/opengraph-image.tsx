@@ -2,10 +2,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { DISPLAY_FONT, imageFonts } from "@/src/og/fonts";
+import { SHARE_IMAGE_ALT, SHARE_IMAGE_SIZE } from "@/src/og/share-image";
 
 // The share image of every page: the brand alone, never a club name (CLAUDE.md, « Marque et règles produit »).
-export const alt = "Late Winner — The football career game";
-export const size = { width: 1200, height: 630 };
+export const alt = SHARE_IMAGE_ALT;
+export const size = SHARE_IMAGE_SIZE;
 export const contentType = "image/png";
 
 const MIDNIGHT_BLUE = "#0B1340";

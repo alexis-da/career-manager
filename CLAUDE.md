@@ -303,7 +303,8 @@ plus ancienne, id (`rankChallengeEntries`) ; une entrée soumise après `endsAt`
 entrées de l'anonyme suivent ses parties (`moveChallengeEntries`), sauf pour une semaine où le compte a déjà la sienne :
 le compte la garde, celle de l'anonyme est supprimée et sa partie ne compte plus.
 
-**Écrans du défi.** `/challenge` (`app/challenge`, `getChallengePage`, `src/db/challenge-view.ts`), ouverte à tous, le
+**Écrans du défi.** `/challenge` et `/fr/defi` (`ChallengePage`, `app/challenge/_components`, `getChallengePage`,
+`src/db/challenge-view.ts`), ouverte à tous, le
 même écran que l'onglet Défi d'une partie (`ChallengeScreen`) : le club de la semaine (`displayClubName`, dans `src/db`), **jamais dans le titre
 ni l'image de partage** ; la fin du défi en heure de Paris (`formatParisDateTime`) ; « Jouer le défi »
 (`playChallengeAction`, qui reçoit la semaine de la page et refuse un défi fermé ; `maxDuration = 60`), « Reprendre ma
@@ -621,7 +622,9 @@ que le choix est ouvert, par la carte Objectifs de l'Accueil et l'onglet Club. `
 (`e2e/season-end-save.mts` : un jumeau 1 de la démo, sa saison jouée), vérifie la nouvelle dotation et choisit un objectif,
 à 1280, 390 et 360 px.
 
-**Pages hors partie.** Accueil, `/challenge`, `/privacy`, `/admin/stats` et 404 passent par `PublicPage`
+**Pages hors partie.** Accueil (`/`, `/fr`), défi (`/challenge`, `/fr/defi`), confidentialité (`/privacy`,
+`/fr/confidentialite`), `/admin/stats` et 404 passent par `PublicPage` (`page` : la page publique, pour le sélecteur et le
+bandeau de langue ; le 404 mène à l'accueil, sans bandeau)
 (`app/_components/public-page.tsx`) : la marque du jeu (`public-home`) et la langue sur une ligne, le contenu, le pied
 (`BrandFooter`, ce que la page y ajoute et `privacy-link`) ; `tools`, ce qu'une page offre à côté de la marque à partir de 1024 px,
 passent sous son contenu en dessous, un seul DOM. Accueil : sans utilisateur, le choix du club (règle « Premiers pas »), sur deux
@@ -709,12 +712,28 @@ secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.
 `MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à 05:00 UTC).
 
 **Langues : français et anglais.** Tout ce que voit un joueur existe dans les deux langues : pages publiques, écrans
-d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4, sans la langue dans l'adresse. La langue
-du joueur est celle qu'il a choisie (cookie de confort `lw_lang`, `fr` ou `en`, un an, posé seulement par le sélecteur
-« FR · EN », `setLanguageAction`, `app/actions.ts` : en haut des pages publiques ; dans une partie, les Réglages de `/club`,
-à toutes les largeurs, en bascule « Français / English »), sinon le français si `Accept-Language` le préfère
-à l'anglais, l'anglais sinon (`negotiateLocale`, `src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`) ;
-`<html lang>` la suit.
+d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4. `<html lang>` suit la langue de la page.
+- **Pages publiques : la langue est dans l'adresse** (`PUBLIC_PAGES`, `src/i18n/public-pages.ts`, pur) : l'anglais à la
+  racine, le français sous `/fr` en mots français (`/` et `/fr`, `/challenge` et `/fr/defi`, `/privacy` et
+  `/fr/confidentialite`) ; une adresse ne change jamais sans redirection. Chaque page a ses deux routes (`app/fr/…`), qui
+  rendent le même composant. `proxy.ts` pose sur la requête l'en-tête `x-lw-page-locale` (`PAGE_LOCALE_HEADER`,
+  `pageLocaleOf` : tout ce qui est sous `/fr` est français, un 404 compris), que `src/i18n/request.ts` lit avant tout.
+  **Aucune redirection selon le navigateur** : seul un visiteur qui a choisi le français (cookie `lw_lang`) et ouvre `/`
+  va à `/fr` (302, jamais une Server Action). Un bandeau discret (`LanguageBanner`, `language-banner`, dans la langue
+  du visiteur) propose l'autre adresse quand la langue du visiteur (`preferredLocale` : son cookie, sinon
+  `Accept-Language` ; rien pour un robot, qui n'envoie ni l'un ni l'autre) n'est pas celle de la page ; ses deux
+  boutons retiennent le choix. Métadonnées de chaque page (`publicPageMetadata`, `app/_lib/public-metadata.ts`,
+  messages `seo`) : titre et description propres dans sa langue, canonical absolue en `https://www.latewinner.app`
+  (`absoluteUrl`), hreflang `en`, `fr` et `x-default` (l'anglais) réciproques, image de partage nommée
+  (`SHARE_IMAGE_PATH`, une page qui a son `openGraph` perdrait sinon celle de `app/opengraph-image.tsx`). Tout lien
+  vers une page publique passe par `publicPath(page, locale)`, dans la langue de la page d'où il part.
+- **Pages d'une partie et `/admin/stats` : sans la langue dans l'adresse**, celle du joueur : celle qu'il a choisie (cookie
+  de confort `lw_lang`, `fr` ou `en`, un an, posé seulement par le sélecteur « FR · EN » et le bandeau,
+  `setLanguageAction`, `app/actions.ts` : en haut des pages publiques, où il mène à l'adresse de la page dans la langue
+  choisie, le formulaire envoyant son nom, jamais une adresse ; dans une partie, les Réglages de `/club`, à toutes les
+  largeurs, en bascule « Français / English »), sinon le français si `Accept-Language` le préfère à l'anglais, l'anglais
+  sinon (`negotiateLocale`, `src/i18n/locale.ts`, lue à chaque requête par `src/i18n/request.ts`). La connexion Google,
+  la déconnexion et la suppression du compte reviennent à l'accueil de la langue de la page.
 - **Messages** : `src/i18n/messages/<langue>/<zone>.json`, un fichier par zone et par langue, chacun ses espaces de
   noms, assemblés par `src/i18n/messages/index.ts` (`ZONES`, puis les deux objets) : `public` (connexion, défi, 404,
   sélecteur), `home` (accueil, création, compte, limites), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
@@ -752,8 +771,8 @@ licence dans le code, l'UI ou le README. Les données viennent d'OpenFootball (C
 
 **Nom.** Le jeu s'appelle **Late Winner**. Slogan : « The football career game ». Accroche : « Take your club
 to the top ». Adresse canonique : https://www.latewinner.app. « Career Manager » reste le nom interne (dépôt,
-`package.json`, projet Vercel) : seul ce que voit le joueur change. Métadonnées, slogan et accroche en anglais ;
-le jeu lui-même est en français et en anglais (règle « Langues »). Fichiers de marque dans `public/brand/` (logo clair, logo pour fond sombre,
+`package.json`, projet Vercel) : seul ce que voit le joueur change. Slogan et accroche en anglais ; les métadonnées d'une
+page publique dans sa langue, et le jeu lui-même en français et en anglais (règle « Langues »). Fichiers de marque dans `public/brand/` (logo clair, logo pour fond sombre,
 icône), icônes du site dans `app/` (`favicon.ico`, `icon.svg`, `apple-icon.png`) et `public/icons/`.
 
 **Couleurs.** Marque : bleu vif `#1F3BFF`, bleu nuit `#0B1340`, orange `#FF9F1C`, blanc, fond clair `#EEF1F7`. La palette
@@ -812,7 +831,9 @@ E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
 app/                  # routes App Router, à la racine ; UI en français et en anglais (src/i18n)
   _components/        # cadre des pages hors partie (public-page), composants de l'accueil (parties, choix du club)
   admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
-  privacy/            # page de confidentialité, publique (hors mot de passe), en français et en anglais ; à tenir à jour
+  fr/                 # les adresses françaises des pages publiques (accueil, defi/, confidentialite/), qui rendent les
+                      # composants des anglaises
+  privacy/            # page de confidentialité, publique, en français et en anglais ; à tenir à jour
                       # avec le code (_components/privacy-document.tsx : les deux versions, une date de mise à jour)
   api/                # Auth.js et les routes de maintenance (purge, défi de la semaine), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
