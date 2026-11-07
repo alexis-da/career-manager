@@ -121,7 +121,9 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
         saveId,
         season: { saveId, startYear: next.season.startYear, competition: { kind: "LEAGUE" } },
         goals: { gt: 0 },
-        playerSave: { saveId, clubSaveId: opponentId },
+        // The save is the stats' own: repeated on the player, it would have Postgres read every player of a new save for
+        // each line of stats (it believes such a save has one row, and takes any index starting with saveId).
+        playerSave: { clubSaveId: opponentId },
       },
       orderBy: [{ goals: "desc" }, { assists: "desc" }, { playerSave: { playerKey: "asc" } }],
       select: { goals: true, playerSave: { select: { firstName: true, lastName: true } } },

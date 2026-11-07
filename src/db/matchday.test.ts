@@ -86,7 +86,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
 
   it("plays the managed club's saved lineup", async () => {
     const stats = await database().playerSeasonStats.findFirst({
-      where: { saveId, playerSave: { saveId, playerKey: pickedKey } },
+      where: { saveId, playerSave: { playerKey: pickedKey } },
       select: { appearances: true, minutes: true },
     });
 

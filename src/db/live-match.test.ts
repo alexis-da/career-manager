@@ -350,7 +350,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
       relatedPlayerSave: { playerKey: leaving.playerKey },
     });
     const stats = await database().playerSeasonStats.findFirstOrThrow({
-      where: { saveId: saves.changed, playerSave: { saveId: saves.changed, playerKey: leaving.playerKey } },
+      where: { saveId: saves.changed, playerSave: { playerKey: leaving.playerKey } },
       select: { minutes: true },
     });
     expect(stats.minutes).toBe(HALF_TIME_MINUTE);

@@ -149,7 +149,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
     const result = await preview();
     const { clubSaveId } = await nextOpponent();
     const goals = await database().playerSeasonStats.aggregate({
-      where: { saveId, playerSave: { saveId, clubSaveId } },
+      where: { saveId, playerSave: { clubSaveId } },
       _max: { goals: true },
     });
 

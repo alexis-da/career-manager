@@ -670,7 +670,11 @@ l'entrée : toute page sous `app/saves/[id]` et toute Server Action qui reçoit 
 `requireOwnedSave(saveId)` (`src/auth/current-user.ts`, qui passe par `loadOwnedSave`, `src/db/access.ts`, point
 unique du contrôle) ; une partie d'un autre joueur répond 404, comme une partie inexistante. Le layout ne protège pas
 les Server Actions : chacune fait son contrôle. Ensuite, une requête Prisma sur une table de partie sans `saveId`
-dans le `where` est un bug : elle mélangerait deux parties. Les listes de parties passent par `visibleSavesWhere`
+dans le `where` est un bug : elle mélangerait deux parties. Dans un filtre de relation (une jointure), le `saveId` de la
+table de tête suffit : **ne pas le répéter dans la relation** (`playerSave: { clubSaveId }`, jamais
+`playerSave: { saveId, clubSaveId }`) : Postgres, qui croit une partie toute neuve d'une seule ligne tant que ses
+statistiques ne la connaissent pas, prendrait n'importe quel index commençant par `saveId` et relirait tous les joueurs de
+la partie pour chaque ligne (2,2 s au lieu de 3 ms). Les listes de parties passent par `visibleSavesWhere`
 (les parties du joueur, rien sans utilisateur). **Seule exception, limitée aux entrées du défi** : le classement d'un
 défi lit les `ChallengeEntry` de toutes ses parties, par `challengeId` (score, utilisateur, jamais le contenu d'une
 partie), et la fusion à la connexion Google déplace les entrées d'un utilisateur à l'autre, comme ses parties.
