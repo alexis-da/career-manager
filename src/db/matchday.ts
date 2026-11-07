@@ -26,6 +26,7 @@ import { playOn } from "../engine/live";
 import { competitionTier } from "../engine/tiers";
 import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
+import { recordFirstMatch, recordFirstSeasonEnd } from "./activation";
 import { recordChallengeScore } from "./challenge";
 import { ensureObjectiveChosen, refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
@@ -567,7 +568,10 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
       if (managed !== null && !managed.live) {
         await recordChallengeScore(tx, saveId, save.challengeId);
         await refreshBoardConfidence(tx, saveId);
+        await recordFirstMatch(tx, saveId);
       }
+      // The player's first steps (src/db/activation.ts): a season over once the last date of all is played.
+      await recordFirstSeasonEnd(tx, saveId);
       await tx.save.update({ where: { id: saveId }, data: { currentDate: matchDate } });
 
       return {

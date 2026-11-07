@@ -31,8 +31,9 @@ export type AccountStore = {
    */
   moveChallengeEntries: (fromUserId: string, toUserId: string) => Promise<{ moved: number; dropped: number }>;
   /**
-   * Gives one user's history to another, the same player: their days of visit (UserDay) and, with `arrival` (an account
-   * this sign-in creates), their creation's date and their arrival (User.source…), the account's being the sign-in's.
+   * Gives one user's history to another, the same player: their days of visit (UserDay), the earliest date of each first
+   * step of both (User.firstSaveAt…), and, with `arrival` (an account this sign-in creates), their creation's date and
+   * their arrival (User.source…), the account's being the sign-in's.
    */
   moveHistory: (fromUserId: string, toUserId: string, options: { arrival: boolean }) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;

@@ -30,6 +30,7 @@ import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { DECISIONS_SELECT, EVENTS_SELECT, toDecisionView, toEventView, type DecisionView, type MatchEventView } from "./calendar";
+import { recordFirstMatch, recordFirstSeasonEnd } from "./activation";
 import { recordChallengeScore } from "./challenge";
 import { refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
@@ -543,6 +544,9 @@ export async function advanceLiveMatch(
       // A challenge save's entry and the president's confidence, now that its club's match is over.
       await recordChallengeScore(tx, saveId, save.challengeId);
       await refreshBoardConfidence(tx, saveId);
+      // The player's first steps (src/db/activation.ts): this match, and the season once it was the last of all.
+      await recordFirstMatch(tx, saveId);
+      await recordFirstSeasonEnd(tx, saveId);
       await tx.save.update({ where: { id: saveId }, data: { liveFixtureId: null } });
       return {
         ...moved,

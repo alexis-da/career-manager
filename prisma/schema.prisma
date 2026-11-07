@@ -93,6 +93,12 @@ model User {
   landingPage      String? // adresse de sa première page publique : « / », « /fr/defi »
   locale           String? // sa langue à sa création : « fr » ou « en »
   device           DeviceKind? // téléphone ou ordinateur, déduit du navigateur, dont rien n'est gardé
+  // Premiers pas du joueur (src/db/activation.ts), à l'horloge de la base, écrits une fois dans la transaction qui les
+  // fait ; gardés ici, ses parties pouvant partir (supprimées, purgées) et aucune table ne datant un match ; null tant
+  // qu'il ne les a pas faits, ou pour ceux d'avant leur suivi.
+  firstSaveAt      DateTime? // création de sa première carrière, défi compris
+  firstMatchAt     DateTime? // premier match d'un club qu'il dirige joué, en direct ou simulé
+  firstSeasonEndAt DateTime? // première saison jouée jusqu'à son dernier match, toutes compétitions de la partie
   saves            Save[]
   days             UserDay[]
   challengeEntries ChallengeEntry[]

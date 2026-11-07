@@ -49,6 +49,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
   let first: AfterFirstAdvance | undefined;
   const kickoffs: Kickoff[] = [];
   const completedSeasonIds: (string | null)[] = [];
+  /** The owner's first steps (src/db/activation.ts): at the creation, once the first season is played, at the end. */
+  type FirstSteps = { firstSaveAt: Date | null; firstMatchAt: Date | null; firstSeasonEndAt: Date | null };
+  const steps: FirstSteps[] = [];
   let writtenResults: unknown[] = [];
   let rebuiltResults: unknown[] = [];
 
@@ -216,6 +219,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
     notFinishedError = season.SeasonNotFinishedError;
 
     saveId = await support.createDemoTwin("Test saisons");
+    const readSteps = async () => {
+      const { ownerId } = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { ownerId: true } });
+      return prisma.user.findUniqueOrThrow({
+        where: { id: ownerId ?? "" },
+        select: { firstSaveAt: true, firstMatchAt: true, firstSeasonEndAt: true },
+      });
+    };
+    steps.push(await readSteps());
     kickoffs.push(await readKickoff(FIRST_YEAR));
     refusal = await season.advanceToNextSeason(saveId).then(
       () => undefined,
@@ -224,6 +235,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
 
     for (let played = 0; played < SEASONS_PLAYED; played++) {
       await support.playRemainingMatchdays(saveId);
+      if (played === 0) {
+        steps.push(await readSteps());
+      }
       const completedFixturesBefore = played === 0 ? await fixturesOfYear(FIRST_YEAR) : [];
       const transition = await season.advanceToNextSeason(saveId);
       completedSeasonIds.push(transition.completedSeasonId);
@@ -232,6 +246,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       }
       kickoffs.push(await readKickoff(transition.startYear));
     }
+
+    steps.push(await readSteps());
 
     // The rows advanceToNextSeason wrote, then the same seasons rebuilt from the database once the rows are gone, as
     // for a save from before SeasonResult: three seasons of transfers later, the rebuilding must find the same squads.
@@ -250,6 +266,18 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
     }
     await db?.$disconnect();
   }, 120_000);
+
+  it("dates the owner's first career, first match and first season's end, each once", () => {
+    const [created, firstSeasonOver, last] = steps;
+    expect(created.firstSaveAt).toBeInstanceOf(Date);
+    expect(created).toMatchObject({ firstMatchAt: null, firstSeasonEndAt: null });
+    expect(firstSeasonOver.firstMatchAt).toBeInstanceOf(Date);
+    expect(firstSeasonOver.firstSeasonEndAt).toBeInstanceOf(Date);
+    expect(firstSeasonOver.firstSeasonEndAt?.getTime()).toBeGreaterThan(firstSeasonOver.firstMatchAt?.getTime() ?? Infinity);
+    // Three seasons later, the same dates: the first ones.
+    expect(last).toEqual(firstSeasonOver);
+    expect(last.firstSaveAt).toEqual(created.firstSaveAt);
+  });
 
   it("refuses to advance while fixtures of the season remain", () => {
     if (notFinishedError === undefined) {

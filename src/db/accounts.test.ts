@@ -49,6 +49,12 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     locale: "fr",
     device: "PHONE",
   } as const;
+  /** The anonymous player's first steps: a career the day they arrived, a first match an hour later, no season's end. */
+  const ANONYMOUS_STEPS = {
+    firstSaveAt: anonymousCreatedAt,
+    firstMatchAt: new Date(anonymousCreatedAt.getTime() + 60 * 60 * 1000),
+    firstSeasonEndAt: null,
+  };
   const dayOf = (time: Date) => time.toISOString().slice(0, 10);
   const daysOf = async (userId: string) =>
     (await loaded().db.userDay.findMany({ where: { userId }, select: { day: true } })).map(({ day }) => dayOf(day)).sort();
@@ -84,7 +90,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     access = accessModule;
     await prisma.user.create({
       // Not simulation code: lastSeenAt is real time.
-      data: { id: anonymousId, kind: "ANONYMOUS", createdAt: anonymousCreatedAt, lastSeenAt: new Date(), ...ANONYMOUS_ARRIVAL },
+      data: {
+        id: anonymousId,
+        kind: "ANONYMOUS",
+        createdAt: anonymousCreatedAt,
+        lastSeenAt: new Date(),
+        ...ANONYMOUS_ARRIVAL,
+        ...ANONYMOUS_STEPS,
+      },
     });
     await prisma.userDay.create({ data: { userId: anonymousId, day: new Date(`${dayOf(anonymousCreatedAt)}T00:00:00.000Z`) } });
     await prisma.save.createMany({ data: [bareSave("Anonyme 1", anonymousId), bareSave("Anonyme 2", anonymousId)] });
@@ -109,7 +122,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     const account = await db.user.findUniqueOrThrow({ where: { id: result.userId } });
     expect(account).toMatchObject({ kind: "REGISTERED", googleSub: profile.sub, email: profile.email, name: "Test Google" });
     // The same player: arrived as the anonymous one did, then, with their days of visit and today's sign-in.
-    expect(account).toMatchObject({ ...ANONYMOUS_ARRIVAL, createdAt: anonymousCreatedAt });
+    expect(account).toMatchObject({ ...ANONYMOUS_ARRIVAL, ...ANONYMOUS_STEPS, createdAt: anonymousCreatedAt });
     expect(await daysOf(result.userId)).toEqual([...new Set([dayOf(anonymousCreatedAt), dayOf(new Date())])].sort());
     const saves = await db.save.findMany({ where: { ownerId: result.userId }, select: { id: true } });
     expect(saves).toHaveLength(2);
@@ -184,12 +197,22 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     createdUserIds.push(otherAnonymous);
     await db.user.create({
       // Not simulation code: lastSeenAt is real time.
-      data: { id: otherAnonymous, kind: "ANONYMOUS", createdAt: anonymousCreatedAt, lastSeenAt: new Date(), ...ANONYMOUS_ARRIVAL },
+      data: {
+        id: otherAnonymous,
+        kind: "ANONYMOUS",
+        createdAt: anonymousCreatedAt,
+        lastSeenAt: new Date(),
+        ...ANONYMOUS_ARRIVAL,
+        ...ANONYMOUS_STEPS,
+      },
     });
     await db.userDay.create({ data: { userId: otherAnonymous, day: new Date(`${dayOf(anonymousCreatedAt)}T00:00:00.000Z`) } });
     const account = await signIn({ profile: otherProfile });
     createdUserIds.push(account.userId);
     const accountCreatedAt = (await db.user.findUniqueOrThrow({ where: { id: account.userId } })).createdAt;
+    // The account's own first career, earlier than the anonymous player's: it stays.
+    const accountFirstSave = new Date(anonymousCreatedAt.getTime() - 24 * 60 * 60 * 1000);
+    await db.user.update({ where: { id: account.userId }, data: { firstSaveAt: accountFirstSave } });
     const challengeSave = async (ownerId: string, challengeId: string) => {
       const { id: saveId } = await db.save.create({ data: { ...bareSave("Défi", ownerId), challengeId }, select: { id: true } });
       await db.challengeEntry.create({ data: { challengeId, userId: ownerId, saveId } });
@@ -213,6 +236,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     expect(await db.user.findUniqueOrThrow({ where: { id: account.userId } })).toMatchObject({
       ...REQUEST_ACQUISITION,
       createdAt: accountCreatedAt,
+      // Of each first step, the earliest of both.
+      firstSaveAt: accountFirstSave,
+      firstMatchAt: ANONYMOUS_STEPS.firstMatchAt,
+      firstSeasonEndAt: null,
     });
     expect(await daysOf(account.userId)).toEqual([...new Set([dayOf(anonymousCreatedAt), dayOf(new Date())])].sort());
   });

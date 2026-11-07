@@ -34,12 +34,20 @@ export function prismaAccountStore(tx: Prisma.TransactionClient): AccountStore {
       const moved = await tx.challengeEntry.updateMany({ where: { userId: fromUserId }, data: { userId: toUserId } });
       return { moved: moved.count, dropped: dropped.count };
     },
-    // The account's own days stay: a day both came is one day.
+    // The account's own days stay: a day both came is one day. Of each first step, the earliest of both (LEAST leaves
+    // out a null).
     moveHistory: async (fromUserId, toUserId, { arrival }) => {
       await tx.$executeRaw`
         INSERT INTO "UserDay" ("userId", "day")
         SELECT ${toUserId}, "day" FROM "UserDay" WHERE "userId" = ${fromUserId}
         ON CONFLICT DO NOTHING`;
+      await tx.$executeRaw`
+        UPDATE "User" AS account
+        SET "firstSaveAt" = LEAST(account."firstSaveAt", anonymous."firstSaveAt"),
+            "firstMatchAt" = LEAST(account."firstMatchAt", anonymous."firstMatchAt"),
+            "firstSeasonEndAt" = LEAST(account."firstSeasonEndAt", anonymous."firstSeasonEndAt")
+        FROM "User" AS anonymous
+        WHERE account."id" = ${toUserId} AND anonymous."id" = ${fromUserId}`;
       if (arrival) {
         await tx.$executeRaw`
           UPDATE "User" AS account

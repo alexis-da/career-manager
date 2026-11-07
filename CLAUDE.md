@@ -727,6 +727,15 @@ créé à la connexion qui absorbe un anonyme reprend sa date de création, son 
 (`moveHistory`, `src/db/accounts.ts`) : le même joueur ; un compte qui existait ne reprend que ses jours. `source` null :
 un utilisateur d'avant le suivi, ou sans le cookie.
 
+**Premiers pas des joueurs (activation).** Trois dates sur `User` (`src/db/activation.ts`), écrites une fois, à
+l'horloge de la base (`now()`, jamais celle de la simulation), dans la transaction qui fait le pas : `firstSaveAt` à la
+création d'une carrière (`createSave`, défi compris), `firstMatchAt` à la fin d'un match du club dirigé, simulé
+(`playNextMatchday`) ou en direct (`advanceLiveMatch`, jamais au coup d'envoi), `firstSeasonEndAt` quand plus aucun
+match de la partie n'est à jouer, toutes compétitions (après chaque journée et chaque fin de direct). Gardées sur
+l'utilisateur plutôt que déduites : une partie part (supprimée, défi purgé) et aucune table ne date un match en temps
+réel. À la connexion Google, la plus ancienne de chaque (`moveHistory`). null : pas encore fait, ou d'avant le suivi
+(aucune reprise des parties existantes).
+
 **Accès ouvert.** Le jeu est ouvert à tous, sans mot de passe ni page de connexion : le mode « fermé » et `/login` ne
 sont plus, et les anciens liens de `/login` mènent à l'accueil pour de bon (308, `next.config.ts`, la requête gardée).
 Auth.js y renvoie une connexion Google refusée ou échouée (`pages`, `src/auth/auth.ts` : `?error=`, `signInErrorOf`,

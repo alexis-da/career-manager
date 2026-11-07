@@ -19,6 +19,7 @@ import { canCreateSave, ChallengeEntryExistsError, ChallengeFullError, SaveLimit
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { visibleSavesWhere, type SaveViewer } from "./access";
+import { recordFirstSave } from "./activation";
 import { prisma } from "./client";
 import { openCups } from "./cup";
 import { seasonFixtures } from "./fixtures";
@@ -335,6 +336,8 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
       const first = await firstSeasonDotation(tx, save.id);
       await recordDotation(tx, save.id, first.seasonId, first.dotation);
       await openSeasonObjectives(tx, save.id, { id: first.seasonId, startYear });
+      // The owner's first career, when it is: a first step (src/db/activation.ts).
+      await recordFirstSave(tx, ownerId);
 
       return { id: save.id };
     },
