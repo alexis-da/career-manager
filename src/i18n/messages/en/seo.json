@@ -4,9 +4,21 @@
       "title": "Late Winner — Free football career game in your browser",
       "description": "A free football manager game in your browser: pick your club, set your lineup, make the calls in live matches and chase promotion. No download needed."
     },
+    "howToPlay": {
+      "title": "How to play Late Winner — the guide",
+      "description": "Create your career, play your first live match, then the market, your line-up, match events and season objectives: Late Winner in a few minutes."
+    },
     "challenge": {
       "title": "Weekly challenge · Late Winner",
       "description": "The same club for everyone, ten league matchdays and a new ranking every week: play the Late Winner challenge for free, in your browser."
+    },
+    "changelog": {
+      "title": "What's new · Late Winner",
+      "description": "Every update to Late Winner since it opened on 9 October 2026, newest first, in plain words."
+    },
+    "about": {
+      "title": "About Late Winner",
+      "description": "Who makes Late Winner, the free football career game in your browser, why it exists and how it is made."
     },
     "privacy": {
       "title": "Privacy · Late Winner",

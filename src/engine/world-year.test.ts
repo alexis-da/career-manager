@@ -16,9 +16,14 @@ function sourceFiles(directory: string): string[] {
   });
 }
 
+/** Real dates, not the game's: the changelog's days and what it says of the opening (app/changelog). */
+const REAL_DATE_FILES = new Set([join("app", "_content", "changelog.ts")]);
+
 /** Lines of code holding a year literal, comments left out: « src/engine/world.ts: export const … ». */
 function yearLiterals(): string[] {
-  const files = ["src", "app", join("prisma", "seed")].flatMap((directory) => sourceFiles(join(ROOT, directory)));
+  const files = ["src", "app", join("prisma", "seed")]
+    .flatMap((directory) => sourceFiles(join(ROOT, directory)))
+    .filter((file) => !REAL_DATE_FILES.has(file.slice(ROOT.length + 1)));
   return files.flatMap((file) =>
     readFileSync(file, "utf8")
       .split(/\r?\n/)

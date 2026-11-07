@@ -6,6 +6,7 @@
     },
     "features": {
       "title": "Ce que tu fais dans Late Winner",
+      "guide": "Comment jouer, pas à pas",
       "club": {
         "title": "Prends un club",
         "text": "Choisis parmi {count} clubs de cinq pays, du favori pour le titre au club de Division 2 qui veut remonter."

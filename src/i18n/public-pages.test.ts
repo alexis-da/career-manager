@@ -26,6 +26,12 @@ describe("the public pages' addresses", () => {
     expect(PUBLIC_PAGES.privacy).toEqual({ en: "/privacy", fr: "/fr/confidentialite" });
   });
 
+  it("give the guide, the changelog and the about page an address in each language, French in French words", () => {
+    expect(PUBLIC_PAGES.howToPlay).toEqual({ en: "/how-to-play", fr: "/fr/comment-jouer" });
+    expect(PUBLIC_PAGES.changelog).toEqual({ en: "/changelog", fr: "/fr/nouveautes" });
+    expect(PUBLIC_PAGES.about).toEqual({ en: "/about", fr: "/fr/a-propos" });
+  });
+
   it("are read back to their page and language, and nothing else is one", () => {
     for (const page of PUBLIC_PAGE_NAMES) {
       for (const locale of LOCALES) {

@@ -7,14 +7,17 @@ import { LOCALES, type Locale } from "./locale";
 // else Accept-Language). Pure: no request is read here.
 
 /** Each public page, by name: the language switcher sends its name, never an address (setLanguageAction). */
-export const PUBLIC_PAGE_NAMES = ["home", "challenge", "privacy"] as const;
+export const PUBLIC_PAGE_NAMES = ["home", "howToPlay", "challenge", "changelog", "about", "privacy"] as const;
 
 export type PublicPageName = (typeof PUBLIC_PAGE_NAMES)[number];
 
 /** A public page's address in each language. Never change one without a redirect: links to it are out there. */
 export const PUBLIC_PAGES: Record<PublicPageName, Record<Locale, string>> = {
   home: { en: "/", fr: "/fr" },
+  howToPlay: { en: "/how-to-play", fr: "/fr/comment-jouer" },
   challenge: { en: "/challenge", fr: "/fr/defi" },
+  changelog: { en: "/changelog", fr: "/fr/nouveautes" },
+  about: { en: "/about", fr: "/fr/a-propos" },
   privacy: { en: "/privacy", fr: "/fr/confidentialite" },
 };
 

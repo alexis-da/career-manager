@@ -6,6 +6,7 @@
     },
     "features": {
       "title": "What you do in Late Winner",
+      "guide": "How to play, step by step",
       "club": {
         "title": "Take over a club",
         "text": "Pick one of {count} clubs in five countries, from a title favourite to a second-division side fighting to come back up."

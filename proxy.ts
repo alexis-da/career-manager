@@ -32,5 +32,5 @@ export default function proxy(request: NextRequest): NextResponse {
 export const config = {
   // The public pages and every address under /fr: no other page needs the proxy. A literal, which Next reads when it
   // builds (proxy.test.ts checks it covers every public page).
-  matcher: ["/", "/challenge", "/privacy", "/fr", "/fr/:path*"],
+  matcher: ["/", "/how-to-play", "/challenge", "/changelog", "/about", "/privacy", "/fr", "/fr/:path*"],
 };

@@ -624,11 +624,12 @@ que le choix est ouvert, par la carte Objectifs de l'Accueil et l'onglet Club. `
 (`e2e/season-end-save.mts` : un jumeau 1 de la démo, sa saison jouée), vérifie la nouvelle dotation et choisit un objectif,
 à 1280, 390 et 360 px.
 
-**Pages hors partie.** Accueil (`/`, `/fr`), défi (`/challenge`, `/fr/defi`), confidentialité (`/privacy`,
+**Pages hors partie.** Accueil (`/`, `/fr`), comment jouer (`/how-to-play`, `/fr/comment-jouer`), défi (`/challenge`,
+`/fr/defi`), nouveautés (`/changelog`, `/fr/nouveautes`), à propos (`/about`, `/fr/a-propos`), confidentialité (`/privacy`,
 `/fr/confidentialite`), `/admin/stats` et 404 passent par `PublicPage` (`page` : la page publique, pour le sélecteur et le
 bandeau de langue ; le 404 mène à l'accueil, sans bandeau)
 (`app/_components/public-page.tsx`) : la marque du jeu (`public-home`) et la langue sur une ligne, le contenu, le pied
-(`BrandFooter`, ce que la page y ajoute et `privacy-link`) ; `tools`, ce qu'une page offre à côté de la marque à partir de 1024 px,
+(`BrandFooter`, ce que la page y ajoute, puis ses liens : comment jouer, nouveautés, à propos et `privacy-link`) ; `tools`, ce qu'une page offre à côté de la marque à partir de 1024 px,
 passent sous son contenu en dessous, un seul DOM ; `after` les suit, sous le contenu à toutes les largeurs. Accueil (`HomePage`,
 `app/_components/home-page.tsx`, rendu par `/` et `/fr`) : sans utilisateur, un h1 qui dit ce qu'est le jeu (« Jeu de carrière
 de football gratuit, dans ton navigateur », « Free football career game in your browser », `landing.title`), puis le choix du
@@ -755,8 +756,11 @@ d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4. 
   réglages), `challenge-screen` (onglet Défi), `live` (direct), `half-time` (panneau Coaching), `actions` (messages
   des Server Actions, refus), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
   `src/i18n/messages.test.ts` exige les mêmes clés et les mêmes arguments ICU dans les deux langues, que tout message
-  se formate et qu'un espace de noms n'appartienne qu'à un fichier. Seule exception : la page de confidentialité, un
-  document, a ses deux versions en JSX (`app/privacy/_components/privacy-document.tsx`, une date commune).
+  se formate et qu'un espace de noms n'appartienne qu'à un fichier. Seule exception, les documents des pages publiques,
+  hors des messages : la confidentialité et « À propos » ont leurs deux versions en JSX
+  (`app/privacy/_components/privacy-document.tsx`, une date commune ; `app/_components/documents/about-document.tsx`),
+  le guide « Comment jouer » et le journal « Nouveautés » leurs deux langues en données (`app/_content/how-to-play.ts`,
+  `**…**` pour un libellé d'écran en gras ; `app/_content/changelog.ts`, ses jours réels hors du test des années).
 - **Ajouter une chaîne** : la clé dans le fichier de la zone, en français et en anglais, mêmes arguments (pluriels
   `{count, plural, …}`, ordinaux `{rank, selectordinal, …}`, jamais d'apostrophe droite devant `{`) ; une zone
   nouvelle, c'est un fichier par langue importé dans `index.ts`. Composant client ou serveur non async :
@@ -852,7 +856,11 @@ E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
 app/                  # routes App Router, à la racine ; UI en français et en anglais (src/i18n)
   _components/        # cadre des pages hors partie (public-page), composants de l'accueil (parties, choix du club)
   admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
-  fr/                 # les adresses françaises des pages publiques (accueil, defi/, confidentialite/), qui rendent les
+  _content/           # textes des documents publics en deux langues : le guide (how-to-play.ts) et le journal des
+                      # versions (changelog.ts, une entrée par mise en ligne, en mots de joueur, la plus récente d'abord)
+  how-to-play/, changelog/, about/  # le guide, le journal des versions et « À propos » (_components/documents)
+  fr/                 # les adresses françaises des pages publiques (accueil, comment-jouer/, defi/, nouveautes/,
+                      # a-propos/, confidentialite/), qui rendent les
                       # composants des anglaises
   privacy/            # page de confidentialité, publique, en français et en anglais ; à tenir à jour
                       # avec le code (_components/privacy-document.tsx : les deux versions, une date de mise à jour)

@@ -57,6 +57,13 @@ export function LandingSections({ clubCount }: { clubCount: number }) {
             </li>
           ))}
         </ul>
+        <Link
+          href={publicPath("howToPlay", locale)}
+          className="inline-flex min-h-11 items-center text-[0.9375rem] font-semibold text-(--club) hover:text-(--club-hover)"
+          data-testid="landing-guide-link"
+        >
+          {t("features.guide")} →
+        </Link>
       </Section>
 
       <Section id="landing-screenshots" title={t("screenshots.title")}>

@@ -16,6 +16,10 @@
     }
   },
   "footer": {
+    "label": "Pages du jeu",
+    "howToPlay": "Comment jouer",
+    "changelog": "Nouveautés",
+    "about": "À propos",
     "privacy": "Confidentialité"
   },
   "common": {

@@ -7,11 +7,17 @@ The game has 198 clubs in five countries, each country with two divisions and a 
 ## Pages
 
 - [Home](https://www.latewinner.app/): start a career in one click, and what the game is
+- [How to play](https://www.latewinner.app/how-to-play): a short guide, from your first match to the season's objectives
 - [Weekly challenge](https://www.latewinner.app/challenge): this week's challenge and its rankings
+- [What's new](https://www.latewinner.app/changelog): every update since the game opened
+- [About](https://www.latewinner.app/about): who makes the game and how
 - [Privacy](https://www.latewinner.app/privacy): what the game stores, why and for how long
 
 ## In French
 
 - [Accueil](https://www.latewinner.app/fr)
+- [Comment jouer](https://www.latewinner.app/fr/comment-jouer)
 - [Défi de la semaine](https://www.latewinner.app/fr/defi)
+- [Nouveautés](https://www.latewinner.app/fr/nouveautes)
+- [À propos](https://www.latewinner.app/fr/a-propos)
 - [Confidentialité](https://www.latewinner.app/fr/confidentialite)
