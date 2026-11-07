@@ -277,8 +277,8 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
       await expect(recommended).toContainText(RECOMMENDED_CLUB);
       await expectChosenClub(page, RECOMMENDED_CLUB);
 
-      // The language is the player's choice, kept; still no user.
-      expect(await cookieNames(context)).toEqual(["lw_lang"]);
+      // The language is the player's choice, kept; still no user, the arrival's cookie besides.
+      expect((await cookieNames(context)).sort()).toEqual([ARRIVAL_COOKIE, "lw_lang"].sort());
     });
   });
 }
@@ -794,8 +794,8 @@ for (const { locale, language, viewport } of [
         await expect(page).toHaveURL((url) => url.pathname === HOMES[language]);
         await expect(page.getByTestId("create-save")).toBeVisible();
 
-        // Looking creates nothing but the arrival's cookie.
-        expect(await cookieNames(context)).toEqual([ARRIVAL_COOKIE]);
+        // Looking creates nothing but the arrival's cookie, and a missing page is no arrival.
+        expect(await cookieNames(context)).toEqual(status === 200 ? [ARRIVAL_COOKIE] : []);
       });
     }
   });
