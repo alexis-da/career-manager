@@ -34,6 +34,24 @@ describe("privacy page, in French", () => {
     expect(markup).toContain("first steps (lw_seen_…, thirty days)");
   });
 
+  it("says what the audience measurement keeps, why, and for how long, in French and in the English summary", () => {
+    for (const text of [
+      "Un cookie de mesure d&#x27;audience, lw_src",
+      "jamais l&#x27;adresse de sa page",
+      "ton type d&#x27;appareil (téléphone ou ordinateur",
+      "ta première carrière, ton premier match, ta première saison terminée",
+      "Des compteurs de visites",
+      "Le cookie lw_src expire au bout de 30 jours",
+      "gardés sans limite de durée",
+      "combien créent une carrière, jouent un match, terminent une saison et reviennent",
+      // The summary.
+      "A first-party audience cookie, lw_src (30 days)",
+      "the visit totals are kept without limit",
+    ]) {
+      expect(markup).toContain(text);
+    }
+  });
+
   it("ends with an English summary in a block marked as English, of the same date", () => {
     expect(markup).toMatch(/<section lang="en"[^>]*><h2[^>]*>English summary<\/h2>/);
     expect(markup).toContain("Last updated 7 November 2026.");
@@ -67,6 +85,12 @@ describe("privacy page, in English", () => {
       "CNIL",
       "No third-party cookies",
       `href="mailto:${CONTACT_EMAIL}"`,
+      "An audience measurement cookie, lw_src",
+      "your device type (phone or computer",
+      "your first career, your first match, your first finished season",
+      "Visit counters",
+      "The lw_src cookie expires after 30 days",
+      "kept without a time limit",
     ]) {
       expect(markup).toContain(text);
     }

@@ -56,8 +56,23 @@ function FrenchPrivacy() {
             défi, visible de tous ; sans compte, ton score n&apos;y apparaît pas.
           </li>
           <li>
+            <strong>Un cookie de mesure d&apos;audience, lw_src</strong> : à ta première visite, d&apos;où tu viens (le nom
+            de campagne du lien, comme ?ref=…, sinon le domaine du site qui t&apos;envoie, jamais l&apos;adresse de sa
+            page, sinon « direct ») et la page où tu arrives, pendant 30 jours. Les robots n&apos;en reçoivent pas.
+          </li>
+          <li>
+            <strong>À la création de ton profil de joueur</strong> (ta première partie sans compte, ou ta connexion avec
+            Google) : cette origine et cette page, ta langue et ton type d&apos;appareil (téléphone ou ordinateur, déduit
+            de ton navigateur, dont rien d&apos;autre n&apos;est gardé) ; puis les dates de tes premiers pas : ta
+            première carrière, ton premier match, ta première saison terminée.
+          </li>
+          <li>
             <strong>La date de ta dernière visite et la liste de tes jours de visite</strong>, pour mesurer combien de
             joueurs reviennent.
+          </li>
+          <li>
+            <strong>Des compteurs de visites</strong> : le nombre de premières visites par jour, par origine et par page
+            d&apos;arrivée, de simples totaux sans aucune donnée personnelle.
           </li>
           <li>
             Des cookies de confort : la langue que tu choisis, lw_lang (un an), la fermeture du bandeau qui invite à
@@ -72,7 +87,8 @@ function FrenchPrivacy() {
         <p>
           Faire fonctionner le jeu et te permettre de retrouver tes parties, y compris sur un autre appareil avec ton
           compte Google ; afficher le classement du défi de la semaine ; mesurer l&apos;audience, strictement en
-          interne.
+          interne : d&apos;où viennent les joueurs, combien créent une carrière, jouent un match, terminent une saison et
+          reviennent.
         </p>
       </Section>
 
@@ -81,6 +97,11 @@ function FrenchPrivacy() {
           Un joueur sans compte et inactif depuis 30 jours est supprimé avec ses parties ; un joueur sans compte qui
           n&apos;a plus aucune partie l&apos;est après 24 heures d&apos;inactivité. Un compte Google est conservé
           jusqu&apos;à ce que tu le supprimes.
+        </p>
+        <p>
+          Le cookie lw_src expire au bout de 30 jours. L&apos;origine, la langue, l&apos;appareil et les dates de tes
+          premiers pas restent avec ton profil de joueur et partent avec lui. Les compteurs de visites, de simples
+          totaux, sont gardés sans limite de durée.
         </p>
         <p>
           Une partie du défi de la semaine est supprimée 24 heures après la fin de sa semaine, le mardi, avec ou sans
@@ -113,7 +134,12 @@ function FrenchPrivacy() {
             Late Winner is run by Alexis Da Cruz (<Contact />). It uses a technical cookie, lw_uid (a random id, one
             year), to link your saves to your browser; if you sign in with Google, your email address, name, profile
             picture and Google id, and a session cookie; your game data; and the date of your last visit and the days
-            you visited, to measure how many players come back. If you play the weekly challenge, your score; signed in
+            you visited, to measure how many players come back. A first-party audience cookie, lw_src (30 days), keeps
+            where your first visit came from (a link&apos;s campaign such as ?ref=…, else the referring site&apos;s
+            domain, never its address, else “direct”) and the page you landed on; when your player profile is created,
+            that origin, your language and your device type (phone or computer) are kept with it, then the dates of
+            your first career, first match and first finished season. First visits are also counted by day, origin and
+            landing page, as plain totals without personal data. If you play the weekly challenge, your score; signed in
             with Google, your first name (the first word of your Google account&apos;s name) is shown with it in the
             challenge&apos;s public ranking, to everyone. Comfort cookies keep the language you choose (lw_lang, one
             year), the closing of the banner inviting you to sign in (seven days) and what you have seen of a
@@ -122,8 +148,10 @@ function FrenchPrivacy() {
           </p>
           <p>
             Purposes: running the game and finding your saves again; showing the weekly challenge&apos;s ranking; internal
-            audience measurement only. A player without an account is deleted with their saves after 30 days of
-            inactivity (24 hours if they have no save left); an account is kept until you delete it. A weekly
+            audience measurement only (where players come from, how many create a career, play a match, finish a season
+            and come back). A player without an account is deleted with their saves after 30 days of inactivity (24
+            hours if they have no save left); an account is kept until you delete it. The lw_src cookie expires after 30
+            days; the audience details go with your player profile; the visit totals are kept without limit. A weekly
             challenge save is deleted 24 hours after its week ends, with or without an account; its ranking entry is
             kept as long as your account or your profile without one. Hosting: Vercel (application) and Neon
             (database), with their contractual safeguards for transfers outside the European Union.
@@ -173,8 +201,23 @@ function EnglishPrivacy() {
             ranking, visible to everyone; without an account, your score does not appear there.
           </li>
           <li>
+            <strong>An audience measurement cookie, lw_src</strong>: on your first visit, where you came from (the
+            campaign name of the link, such as ?ref=…, else the domain of the site that sent you, never the address of
+            its page, else “direct”) and the page you landed on, for 30 days. Crawlers do not get it.
+          </li>
+          <li>
+            <strong>When your player profile is created</strong> (your first career without an account, or signing in
+            with Google): that origin and that page, your language and your device type (phone or computer, worked out
+            from your browser, of which nothing else is kept); then the dates of your first steps: your first career,
+            your first match, your first finished season.
+          </li>
+          <li>
             <strong>The date of your last visit and the list of the days you visited</strong>, to measure how many
             players come back.
+          </li>
+          <li>
+            <strong>Visit counters</strong>: the number of first visits by day, by origin and by landing page, plain
+            totals without any personal data.
           </li>
           <li>
             Comfort cookies: the language you choose, lw_lang (one year), the closing of the banner inviting you to create
@@ -188,7 +231,8 @@ function EnglishPrivacy() {
       <Section title="Purposes">
         <p>
           Running the game and letting you find your careers again, including on another device with your Google
-          account; showing the weekly challenge&apos;s ranking; measuring the audience, strictly internally.
+          account; showing the weekly challenge&apos;s ranking; measuring the audience, strictly internally: where
+          players come from, how many create a career, play a match, finish a season and come back.
         </p>
       </Section>
 
@@ -197,6 +241,10 @@ function EnglishPrivacy() {
           A player without an account who has been inactive for 30 days is deleted along with their careers; a player
           without an account who no longer has any career is deleted after 24 hours of inactivity. A Google account is
           kept until you delete it.
+        </p>
+        <p>
+          The lw_src cookie expires after 30 days. The origin, language, device and dates of your first steps stay with
+          your player profile and go with it. The visit counters, plain totals, are kept without a time limit.
         </p>
         <p>
           A weekly challenge career is deleted 24 hours after its week ends, on the Tuesday, with or without an account.
@@ -228,7 +276,8 @@ function EnglishPrivacy() {
 /**
  * What the game does with players' data, exactly as it works today: the cookies it sets, the Google account it reads,
  * the game data, the weekly challenge's public ranking (first names) and its saves' deletion, the visit days of
- * /admin/stats, the purge (src/db/purge.ts), account deletion. In the player's language: the French version, or the
+ * /admin/stats, the arrival of a player (lw_src, src/lib/arrival.ts) and their first steps (src/db/activation.ts), the
+ * visit counters (VisitDay), the purge (src/db/purge.ts), account deletion. In the player's language: the French version, or the
  * English one in full. Update both, and UPDATED_ON, whenever one of these changes.
  */
 export function PrivacyDocument({ locale }: { locale: Locale }) {
