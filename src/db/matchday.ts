@@ -28,6 +28,7 @@ import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import { recordFirstMatch, recordFirstSeasonEnd } from "./activation";
 import { recordChallengeScore } from "./challenge";
+import { countManagedMatch } from "./daily-stats";
 import { ensureObjectiveChosen, refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
@@ -442,7 +443,7 @@ export async function recordFinishedMatches(
  * fixture of the save has been played.
  */
 export async function playNextMatchday(saveId: string, options: PlayNextMatchdayOptions = {}): Promise<MatchdaySummary | null> {
-  return prisma.$transaction(
+  const summary = await prisma.$transaction(
     async (tx) => {
       await lockSave(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({
@@ -583,4 +584,10 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
     },
     { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS },
   );
+  // The day's count of the matches players play (src/db/daily-stats.ts), once the matchday is written: a live one counts
+  // at its end (advanceLiveMatch).
+  if (summary?.managed?.live === false) {
+    await countManagedMatch(prisma, "simulated");
+  }
+  return summary;
 }

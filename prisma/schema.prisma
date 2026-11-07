@@ -102,6 +102,8 @@ model User {
   saves            Save[]
   days             UserDay[]
   challengeEntries ChallengeEntry[]
+
+  @@index([createdAt]) // les nouveaux joueurs d'une période (/admin)
 }
 
 // Un jour où l'utilisateur est venu : écrit au même endroit que lastSeenAt, au plus une fois par jour, pour la
@@ -112,6 +114,7 @@ model UserDay {
   day    DateTime @db.Date // jour UTC
 
   @@id([userId, day])
+  @@index([day]) // les joueurs actifs d'un jour (/admin)
 }
 
 // Premières visites des pages publiques (proxy.ts, src/db/visits.ts) : des totaux par jour UTC, source et page
@@ -123,6 +126,18 @@ model VisitDay {
   visits Int
 
   @@id([day, source, page])
+}
+
+// Une ligne par jour UTC des chiffres que rien d'autre ne garde (/admin) : les matchs que jouent les joueurs, en direct
+// ou simulés (src/db/daily-stats.ts), puis, à la maintenance du jour, la taille de la base et ce que la purge a supprimé.
+model DailyStat {
+  day                  DateTime @id @db.Date // jour UTC
+  liveMatches          Int      @default(0) // matchs d'un club dirigé joués en direct jusqu'au bout
+  simulatedMatches     Int      @default(0) // matchs d'un club dirigé simulés
+  databaseBytes        BigInt? // taille de la base à la dernière purge du jour ; null sans purge ce jour-là
+  purgedUsers          Int      @default(0) // joueurs sans compte supprimés par la purge
+  purgedSaves          Int      @default(0) // leurs parties
+  purgedChallengeSaves Int      @default(0) // parties de défi supprimées 24 h après leur semaine
 }
 
 model Save {

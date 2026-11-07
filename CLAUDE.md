@@ -736,6 +736,13 @@ l'utilisateur plutôt que déduites : une partie part (supprimée, défi purgé)
 réel. À la connexion Google, la plus ancienne de chaque (`moveHistory`). null : pas encore fait, ou d'avant le suivi
 (aucune reprise des parties existantes).
 
+**Chiffres du jour (`DailyStat`).** Une ligne par jour UTC de ce qu'aucune autre table ne garde (`src/db/daily-stats.ts`,
+à l'horloge de la base) : les matchs d'un club dirigé joués jusqu'au bout, en direct ou simulés (`countManagedMatch`,
+**après** la transaction de `playNextMatchday` ou d'`advanceLiveMatch`, jamais dedans : la ligne du jour resterait
+verrouillée pendant la journée de chaque joueur ; un échec coûte un compte, jamais le match) ; à chaque appel de la purge
+(`recordMaintenance`, route de maintenance, jamais en `dryRun`), ce qu'elle a supprimé (anonymes, leurs parties,
+`PurgeResult.saves`, parties de défi) et la taille de la base (`pg_database_size`), un relevé par jour.
+
 **Accès ouvert.** Le jeu est ouvert à tous, sans mot de passe ni page de connexion : le mode « fermé » et `/login` ne
 sont plus, et les anciens liens de `/login` mènent à l'accueil pour de bon (308, `next.config.ts`, la requête gardée).
 Auth.js y renvoie une connexion Google refusée ou échouée (`pages`, `src/auth/auth.ts` : `?error=`, `signInErrorOf`,

@@ -32,6 +32,7 @@ import { getOrThrow } from "../lib/maps";
 import { DECISIONS_SELECT, EVENTS_SELECT, toDecisionView, toEventView, type DecisionView, type MatchEventView } from "./calendar";
 import { recordFirstMatch, recordFirstSeasonEnd } from "./activation";
 import { recordChallengeScore } from "./challenge";
+import { countManagedMatch } from "./daily-stats";
 import { refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
@@ -420,7 +421,7 @@ export async function advanceLiveMatch(
   input: PlayOnInput,
   until: PlayOnUntil,
 ): Promise<AdvancedMatch> {
-  return prisma.$transaction(
+  const advanced = await prisma.$transaction(
     async (tx) => {
       await lockSave(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({
@@ -558,6 +559,11 @@ export async function advanceLiveMatch(
     },
     { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS },
   );
+  // The day's count of the matches players play (src/db/daily-stats.ts), once this one is over and written.
+  if (advanced.result !== null) {
+    await countManagedMatch(prisma, "live");
+  }
+  return advanced;
 }
 
 /**

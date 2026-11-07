@@ -82,12 +82,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
           // Batch after batch, as the workflow calls, until none remain.
           let inactive = 0;
           let empty = 0;
+          let saves = 0;
           for (let call = 1; ; call++) {
             const result = await purge.purgeAnonymousUsers(tx, now, { dryRun: false });
             expect(result.total).toBe(result.inactive + result.empty);
             expect(result.total).toBeLessThanOrEqual(purge.PURGE_BATCH_SIZE);
             inactive += result.inactive;
             empty += result.empty;
+            saves += result.saves;
             if (result.remaining === 0) {
               break;
             }
@@ -95,6 +97,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
           }
           expect(inactive).toBeGreaterThanOrEqual(1);
           expect(empty).toBeGreaterThanOrEqual(1);
+          // The old anonymous user's save at least, counted as it went.
+          expect(saves).toBeGreaterThanOrEqual(1);
           expect(await remaining(tx)).toEqual(
             [users.recentAnonymous.id, users.freshEmptyAnonymous.id, users.oldRegistered.id, users.emptyRegistered.id].sort(),
           );
@@ -165,6 +169,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
       inactive: expect.any(Number),
       empty: expect.any(Number),
       total: expect.any(Number),
+      saves: expect.any(Number),
       challengeSaves: expect.any(Number),
       remaining: expect.any(Number),
     });

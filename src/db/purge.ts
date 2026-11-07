@@ -18,6 +18,7 @@ export type PurgeResult = {
   inactive: number; // of this batch: anonymous users not seen for 30 days, with their saves
   empty: number; // of this batch: anonymous users without a save, not seen for 24 hours
   total: number; // this batch: deleted, or in dry run what would be
+  saves: number; // the saves of this batch's users, which go with them
   remaining: number; // still to purge after this batch
 };
 
@@ -44,12 +45,15 @@ export async function purgeAnonymousUsers(
     select: { id: true, lastSeenAt: true },
   });
   const purgeableCount = await db.user.count({ where: purgeable });
+  const ids = batch.map((user) => user.id);
+  // Read before they go, with their users: what /admin shows of the purge.
+  const saves = ids.length === 0 ? 0 : await db.save.count({ where: { ownerId: { in: ids } } });
   if (!dryRun && batch.length > 0) {
     // The same conditions again: a user seen since the read is not deleted.
-    await db.user.deleteMany({ where: { AND: [purgeable, { id: { in: batch.map((user) => user.id) } }] } });
+    await db.user.deleteMany({ where: { AND: [purgeable, { id: { in: ids } }] } });
   }
   const inactive = batch.filter((user) => user.lastSeenAt < inactiveBefore).length;
-  return { dryRun, inactive, empty: batch.length - inactive, total: batch.length, remaining: purgeableCount - batch.length };
+  return { dryRun, inactive, empty: batch.length - inactive, total: batch.length, saves, remaining: purgeableCount - batch.length };
 }
 
 export type ChallengeSavePurgeResult = {
