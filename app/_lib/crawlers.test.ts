@@ -58,7 +58,8 @@ describe("sitemap.xml", () => {
 });
 
 describe("llms.txt", () => {
-  const text = readFileSync(join(process.cwd(), "public", "llms.txt"), "utf8");
+  // Its lines as served: a Windows checkout (core.autocrlf) ends them with CRLF on the workstation only.
+  const text = readFileSync(join(process.cwd(), "public", "llms.txt"), "utf8").replaceAll("\r\n", "\n");
 
   it("says what the game is, and links every public page in both languages, nothing else", () => {
     expect(text.startsWith("# Late Winner\n\n> ")).toBe(true);
