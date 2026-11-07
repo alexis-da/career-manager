@@ -595,7 +595,13 @@ reprise, « Jouer le défi », ou pourquoi pas ; aucun score provisoire, le jeu 
 « Relancer »), classements (`RankingTable`, partagée : ta ligne en bleu, l'anonyme toujours grisé). Palmarès (`/seasons`) : des
 cartes sous 1024 px, toute la carte menant à la saison, le tableau au-dessus. Bilan (`/seasons/[seasonId]`) : la carte PNG
 (avec, pour une saison qui a des objectifs, la pastille « Objectifs : 2/3 », `objectivesLine`, à côté de la saison),
-`SeasonCardActions` (« Partager » en orange où le navigateur partage des fichiers, sinon « Télécharger »), le bilan des
+`SeasonCardActions` : où le navigateur partage des fichiers (`navigator.canShare({ files })`), « Partager » en orange
+envoie le PNG carré lui-même, seul (`navigator.share({ files })`, sans titre ni texte, que perdent ou refusent Instagram,
+TikTok et Snap), le fichier lu d'avance ; ailleurs (navigateur d'une appli, la plupart des ordinateurs) ou quand le
+navigateur refuse le partage annoncé, « Enregistrer l'image » en orange, qui télécharge le PNG ou, sur iPhone et iPad,
+l'ouvre en grand pour un appui long vers Photos (`season-card-viewer`), et une phrase sur la publication depuis la
+galerie (`season-card-save-hint`) ; « Copier le lien » copie l'adresse du jeu (`SITE_URL`, `src/config/site.ts`), la
+carte ne s'ouvrant qu'à son propriétaire ; `e2e/season-card-share.spec.ts` simule les deux navigateurs. Le bilan des
 objectifs (`season-objectives`, `getClosedObjectives` : « Objectifs : 2/3 », chacun avec son issue), montées et descentes, et,
 pour la dernière saison terminée (`isLastCompletedSeason`), « Cap sur la saison 2027-28 » vers l'écran de début de saison
 (règle « Début de saison ») : `advanceSeasonAction` mène ici une fois la saison suivante commencée. `e2e/club.spec.ts` couvre
@@ -759,7 +765,7 @@ teintent pas l'interface : `--club` est l'orange, partout ; le club se montre pa
 carte PNG (`clubAccentsOn`). Une seule action orange pleine
 par écran (`variant="club"`), tenue écran par écran au fil des étapes de la refonte : sur l'Accueil, celle du héros, la
 colonne n'en ayant aucune, sur le direct, celle de ses commandes ou du panneau, sur Équipe, « Enregistrer » ou
-« Prolonger », sous Club, « Voir le défi », la reprise ou « Jouer le défi », « Partager » ou « Télécharger », hors partie, « Lancer ma carrière ». Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
+« Prolonger », sous Club, « Voir le défi », la reprise ou « Jouer le défi », « Partager » ou « Enregistrer l'image », hors partie, « Lancer ma carrière ». Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
 `--loss`, `--warning`, `--info`, `--position-*`). Titres et chiffres en Barlow Condensed 800 italique (le fichier de
 `src/assets/fonts`, chargé par `next/font/local`, une seule graisse), en majuscules par la règle `.font-heading` de
 `globals.css` (`normal-case` là où des unités et des ordinaux doivent garder leur casse : « 16e », « €11.4m ») ; texte
@@ -823,7 +829,8 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # home.spec.ts : l'accueil, le choix du club et les pages hors partie ;
                       # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone ;
-                      # objectives.spec.ts : une fin de saison, la nouvelle dotation et le choix d'un objectif
+                      # objectives.spec.ts : une fin de saison, la nouvelle dotation et le choix d'un objectif ;
+                      # season-card-share.spec.ts : la carte d'une saison partagée en image, ou enregistrée
 .github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC ; challenge.yml : défi du lundi, 05:00 UTC
 src/
   components/         # composants partagés : panneau, visage du joueur, initiales du club, bascule, styles de tableau

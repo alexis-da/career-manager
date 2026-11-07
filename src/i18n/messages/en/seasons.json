@@ -32,8 +32,14 @@
     },
     "cardPanel": {
       "alt": "Season card: {title}",
-      "download": "Download",
+      "download": "Save image",
       "share": "Share",
+      "copyLink": "Copy link",
+      "linkCopied": "Game link copied.",
+      "copyFailed": "Can't copy here: the game's address is {url}",
+      "saveHint": "Your browser can't share the image directly: save it, then post it from your gallery to Instagram, TikTok, Snap or a message.",
+      "viewerTitle": "Save the image",
+      "viewerHint": "Press and hold the image, then save it to Photos: you'll find it in your gallery.",
       "landscape": "Landscape version"
     },
     "moves": {

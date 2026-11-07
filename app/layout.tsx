@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { Toaster } from "@/src/components/ui/sonner";
+import { SITE_URL } from "@/src/config/site";
 import "./globals.css";
 
 // Barlow for text; Barlow Condensed for titles, scores and large figures (Tailwind's font-heading): one face, the file the
@@ -26,7 +27,7 @@ const TITLE = "Late Winner — The football career game";
 const DESCRIPTION = "Late Winner is a free football manager career game you play in your browser.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.latewinner.app"),
+  metadataBase: new URL(SITE_URL),
   title: { default: TITLE, template: "%s · Late Winner" },
   description: DESCRIPTION,
   applicationName: "Late Winner",

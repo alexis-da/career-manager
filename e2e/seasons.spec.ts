@@ -50,7 +50,7 @@ test("shows the demo save's palmarès, its completed season and the season's car
   await expect(page.getByTestId("season-next")).toHaveAttribute("href", `/saves/${saveId}/season-start`);
 
   // Square by default, previewed and downloaded; landscape from the quieter link.
-  const download = page.getByRole("link", { name: "Télécharger" });
+  const download = page.getByRole("link", { name: "Enregistrer l'image" });
   await expect(download).toHaveAttribute("download", "late-winner-saison-2026-27.png");
   await expect(download).toHaveAttribute("href", /\?format=square$/);
   const landscape = page.getByRole("link", { name: "Version paysage" });

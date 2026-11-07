@@ -32,8 +32,14 @@
     },
     "cardPanel": {
       "alt": "Carte de la saison : {title}",
-      "download": "Télécharger",
+      "download": "Enregistrer l'image",
       "share": "Partager",
+      "copyLink": "Copier le lien",
+      "linkCopied": "Lien du jeu copié.",
+      "copyFailed": "Copie impossible ici : l'adresse du jeu est {url}",
+      "saveHint": "Ton navigateur ne partage pas l'image directement : enregistre-la, puis publie-la depuis ta galerie dans Instagram, TikTok, Snap ou un message.",
+      "viewerTitle": "Enregistrer l'image",
+      "viewerHint": "Appuie longuement sur l'image, puis enregistre-la dans Photos : tu la retrouveras dans ta galerie.",
       "landscape": "Version paysage"
     },
     "moves": {
