@@ -7,7 +7,7 @@ import { forbiddenNamesIn } from "@/src/lib/outward-names";
 import { CHANGELOG } from "../../_content/changelog";
 import { GUIDE } from "../../_content/how-to-play";
 import { AboutDocument } from "./about-document";
-import { ChangelogDocument } from "./changelog-document";
+import { ChangelogDocument, releasesOf } from "./changelog-document";
 import { HowToPlayDocument } from "./how-to-play-document";
 
 /** What a reader reads of a markup: its text, tags dropped, entities as they read. */
@@ -61,20 +61,42 @@ describe("the guide", () => {
 });
 
 describe("the changelog", () => {
-  it("lists every batch, newest first, each with its day, from the opening on 9 October 2026", () => {
+  it("dates each entry by the day it went live, newest first, from the opening on 9 October 2026", () => {
     const days = CHANGELOG.map(({ date }) => date);
     expect([...days].sort().reverse()).toEqual(days);
-    expect(days.at(-1)).toBe("2026-10-09");
+    expect([...new Set(days)]).toEqual([
+      "2026-11-07",
+      "2026-11-06",
+      "2026-11-02",
+      "2026-10-24",
+      "2026-10-23",
+      "2026-10-22",
+      "2026-10-09",
+    ]);
     for (const entry of CHANGELOG) {
       expect(entry.fr.items).toHaveLength(entry.en.items.length);
     }
+  });
+
+  it("gathers a day's entries under it, each day an anchor numbered from the opening", () => {
+    const releases = releasesOf(CHANGELOG);
+    expect(releases.map(({ date }) => date)).toEqual([...new Set(CHANGELOG.map(({ date }) => date))]);
+    expect(releases.find(({ date }) => date === "2026-11-02")?.entries.map(({ fr }) => fr.title)).toEqual([
+      "Le défi de la semaine",
+      "Le jeu en anglais",
+      "Premiers pas guidés",
+      "Un nouveau design, pensé pour le téléphone",
+    ]);
 
     const french = renderToStaticMarkup(<ChangelogDocument locale="fr" />);
     expect(french).toContain("depuis son ouverture, le 9 octobre 2026");
     expect(french).toContain('<time dateTime="2026-10-09">9 octobre 2026</time>');
-    expect(french).toContain(`id="version-${CHANGELOG.length}"`);
+    expect(french.match(/<h2 /g)).toHaveLength(releases.length);
+    expect(french).toContain(`id="version-${releases.length}"`);
+    expect(french).toContain('id="version-1"');
     const english = renderToStaticMarkup(<ChangelogDocument locale="en" />);
     expect(english).toContain("since it opened on 9 October 2026");
+    expect(english).toContain("The game introduces itself, in two languages");
   });
 });
 

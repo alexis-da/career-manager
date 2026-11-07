@@ -877,7 +877,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
   _components/        # cadre des pages hors partie (public-page), composants de l'accueil (parties, choix du club)
   admin/stats/        # statistiques de l'administrateur (404 pour tout autre)
   _content/           # textes des documents publics en deux langues : le guide (how-to-play.ts) et le journal des
-                      # versions (changelog.ts, une entrée par mise en ligne, en mots de joueur, la plus récente d'abord)
+                      # versions (changelog.ts : chaque entrée datée du jour de sa mise en ligne, en mots de joueur, la
+                      # plus récente d'abord ; la page les regroupe par jour ; une entrée de plus à chaque mise en ligne)
   how-to-play/, changelog/, about/  # le guide, le journal des versions et « À propos » (_components/documents)
   fr/                 # les adresses françaises des pages publiques (accueil, comment-jouer/, defi/, nouveautes/,
                       # a-propos/, confidentialite/), qui rendent les
