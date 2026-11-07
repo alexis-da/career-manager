@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { ARRIVAL_COOKIE } from "../src/lib/arrival";
 import { isoWeekKey, isoWeekNumber } from "../src/lib/iso-week";
 import {
   createAnonymousUser,
@@ -206,8 +207,8 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER, PHONE, SMALL_PHONE]) {
       await expect(foot).toContainText("Jouable en français et en anglais.");
       await expect(foot).toContainText("La saison 2026-27 commence le 1er juillet 2026.");
 
-      // No user before the form is sent, and no language the player has not chosen.
-      expect(await cookieNames(context)).toEqual([]);
+      // No user before the form is sent, and no language the player has not chosen: the arrival's cookie only.
+      expect(await cookieNames(context)).toEqual([ARRIVAL_COOKIE]);
     });
 
     test("has two columns and the challenge and Google beside the game's mark from 1024 px, those two under one column below", async ({
@@ -406,7 +407,7 @@ test("takes the first result on Enter, and never sends the form, valid as it is"
     await page.waitForLoadState("networkidle");
     expect(posts).toEqual([]);
     expect(new URL(page.url()).pathname).toBe(HOME);
-    expect(await cookieNames(context)).toEqual([]);
+    expect(await cookieNames(context)).toEqual([ARRIVAL_COOKIE]);
   } finally {
     // Even when a step failed: a form sent would have made a player of this browser, and their save.
     await deleteUsers([await userIdOf(context)]);
@@ -491,7 +492,7 @@ test("folds the options from the start, and a refused name alone opens them", as
   await expect(name).toBeVisible();
   await expect(seed).toBeVisible();
   expect(new URL(page.url()).pathname).toBe(HOME);
-  expect(await cookieNames(context)).toEqual([]);
+  expect(await cookieNames(context)).toEqual([ARRIVAL_COOKIE]);
 });
 
 test("keeps the club, the manager and the seed through a refused form", async ({ page }) => {
@@ -793,8 +794,8 @@ for (const { locale, language, viewport } of [
         await expect(page).toHaveURL((url) => url.pathname === HOMES[language]);
         await expect(page.getByTestId("create-save")).toBeVisible();
 
-        // Looking creates nothing.
-        expect(await cookieNames(context)).toEqual([]);
+        // Looking creates nothing but the arrival's cookie.
+        expect(await cookieNames(context)).toEqual([ARRIVAL_COOKIE]);
       });
     }
   });

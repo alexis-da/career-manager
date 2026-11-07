@@ -711,6 +711,22 @@ L'administrateur n'a pas de colonne : `isAdmin(user)` compare son e-mail à `ADM
 (`recordUserDay`, `src/db/user-days.ts`, `INSERT … ON CONFLICT DO NOTHING`) : c'est la seule source de la
 rétention.
 
+**Arrivées des joueurs.** Sans cookie tiers ni outil extérieur (`src/lib/arrival.ts`, pur). À la première visite d'une
+page publique (le navigateur qui ouvre la page, `isPageNavigation` : ni préchargement ni requête du routeur ; ni robot
+par son user-agent, `isCrawler` ; ni joueur déjà là, `lw_uid` ou session Google), `proxy.ts` garde dans le cookie
+première partie `lw_src` (30 jours, httpOnly) la source (`?ref=`, sinon `utm_source`, nettoyés par `campaignSource` ;
+sinon le domaine du site référent sans « www. », jamais son adresse ; sinon « direct »), ce domaine et la page d'arrivée
+(`arrivalOf`), et passe à la page l'arrivée et un identifiant de visite (`x-lw-arrival`, `x-lw-visit`, retirés s'ils
+sont forgés). `CountArrival` (dans `PublicPage`) la compte après l'envoi (`after`), une seule fois même quand la page est
+rendue deux fois (`next dev` le fait), dans `VisitDay` : jour UTC, source, page, un total, sans donnée personnelle, 100
+sources par jour au plus, les suivantes dans « (other) » (`recordVisit`, `src/db/visits.ts`). La création d'un
+utilisateur garde l'arrivée du cookie, sa langue (`playerLocale`) et son appareil, téléphone ou ordinateur (`deviceOf`,
+une tablette compte comme un ordinateur, rien du navigateur lui-même n'est gardé) : `requestAcquisition`
+(`src/auth/acquisition.ts`), pour un anonyme à la création de sa partie, pour un compte Google à la connexion. Un compte
+créé à la connexion qui absorbe un anonyme reprend sa date de création, son arrivée et ses jours de visite
+(`moveHistory`, `src/db/accounts.ts`) : le même joueur ; un compte qui existait ne reprend que ses jours. `source` null :
+un utilisateur d'avant le suivi, ou sans le cookie.
+
 **Accès ouvert.** Le jeu est ouvert à tous, sans mot de passe ni page de connexion : le mode « fermé » et `/login` ne
 sont plus, et les anciens liens de `/login` mènent à l'accueil pour de bon (308, `next.config.ts`, la requête gardée).
 Auth.js y renvoie une connexion Google refusée ou échouée (`pages`, `src/auth/auth.ts` : `?error=`, `signInErrorOf`,

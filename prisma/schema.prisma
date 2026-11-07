@@ -86,6 +86,13 @@ model User {
   name             String? // nom du compte Google, mis à jour à chaque connexion
   image            String? // avatar du compte Google, mis à jour à chaque connexion
   googleSub        String?          @unique // identifiant stable du compte Google (claim « sub »)
+  // Arrivée du joueur (src/lib/arrival.ts, src/auth/acquisition.ts), écrite à sa création, ou reprise de l'utilisateur
+  // anonyme qu'un compte Google créé à la connexion absorbe ; null pour un utilisateur d'avant le suivi des arrivées.
+  source           String? // ref (sinon utm_source) de sa première page publique, sinon domaine du site référent, sinon « direct » (cookie lw_src) ; null sans ce cookie
+  referrerDomain   String? // domaine du site référent de sa première visite, jamais son adresse
+  landingPage      String? // adresse de sa première page publique : « / », « /fr/defi »
+  locale           String? // sa langue à sa création : « fr » ou « en »
+  device           DeviceKind? // téléphone ou ordinateur, déduit du navigateur, dont rien n'est gardé
   saves            Save[]
   days             UserDay[]
   challengeEntries ChallengeEntry[]
@@ -99,6 +106,17 @@ model UserDay {
   day    DateTime @db.Date // jour UTC
 
   @@id([userId, day])
+}
+
+// Premières visites des pages publiques (proxy.ts, src/db/visits.ts) : des totaux par jour UTC, source et page
+// d'arrivée, sans donnée personnelle, pour le passage de la visite à la carrière (/admin). Jamais supprimés.
+model VisitDay {
+  day    DateTime @db.Date // jour UTC
+  source String // comme User.source ; « (other) » au-delà de MAX_VISIT_SOURCES_PER_DAY sources dans la journée
+  page   String // adresse de la page d'arrivée : « / », « /fr/defi »
+  visits Int
+
+  @@id([day, source, page])
 }
 
 model Save {
@@ -483,6 +501,11 @@ enum Position {
 enum UserKind {
   ANONYMOUS
   REGISTERED
+}
+
+enum DeviceKind {
+  PHONE
+  COMPUTER // une tablette compte comme un ordinateur
 }
 
 enum FixtureStatus {

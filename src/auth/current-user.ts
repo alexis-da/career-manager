@@ -4,6 +4,7 @@ import { cache } from "react";
 import { prisma } from "../db/client";
 import { loadOwnedSave, type OwnedSave } from "../db/access";
 import { recordUserDay } from "../db/user-days";
+import { requestAcquisition } from "./acquisition";
 import { auth } from "./auth";
 import { isAdminEmail, readAdminEmail } from "./google";
 import {
@@ -59,8 +60,10 @@ async function identityContext(): Promise<IdentityContext<CurrentUser>> {
       await prisma.user.update({ where: { id }, data: { lastSeenAt: now } });
       await recordUserDay(prisma, id, now);
     },
+    // With how they arrived: the request creating a save is the player's browser.
     createUser: async (now) => {
-      const user = await prisma.user.create({ data: { kind: "ANONYMOUS", lastSeenAt: now }, select: USER_SELECT });
+      const data = { kind: "ANONYMOUS" as const, lastSeenAt: now, ...(await requestAcquisition()) };
+      const user = await prisma.user.create({ data, select: USER_SELECT });
       await recordUserDay(prisma, user.id, now);
       return user;
     },

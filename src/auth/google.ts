@@ -1,3 +1,5 @@
+import type { Acquisition } from "../lib/arrival";
+
 // Signing in with Google: which of our users a Google account is, what becomes of the anonymous user of the same
 // browser, and the administrator's inherited saves. Pure: the database is a store passed in (src/db/accounts.ts for
 // the real one, an in-memory one in the tests), the request's cookie and ADMIN_EMAIL are values passed in.
@@ -17,7 +19,8 @@ export type AccountStore = {
   findUserById: (id: string) => Promise<AccountUser | null>;
   findUserByGoogleSub: (sub: string) => Promise<AccountUser | null>;
   findUserByEmail: (email: string) => Promise<AccountUser | null>;
-  createRegisteredUser: (data: GoogleAccountData) => Promise<AccountUser>;
+  /** A new account, with the arrival of the request that creates it (src/lib/arrival.ts). */
+  createRegisteredUser: (data: GoogleAccountData, acquisition: Acquisition) => Promise<AccountUser>;
   updateRegisteredUser: (id: string, data: GoogleAccountData) => Promise<void>;
   /** Gives every save of one user to another; the number of saves moved. */
   moveSaves: (fromUserId: string, toUserId: string) => Promise<number>;
@@ -27,6 +30,11 @@ export type AccountStore = {
    * and dropped.
    */
   moveChallengeEntries: (fromUserId: string, toUserId: string) => Promise<{ moved: number; dropped: number }>;
+  /**
+   * Gives one user's history to another, the same player: their days of visit (UserDay) and, with `arrival` (an account
+   * this sign-in creates), their creation's date and their arrival (User.source…), the account's being the sign-in's.
+   */
+  moveHistory: (fromUserId: string, toUserId: string, options: { arrival: boolean }) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   /** Gives the inherited saves (ownerId NULL) to a user; the number of saves attached. */
   claimInheritedSaves: (toUserId: string) => Promise<number>;
@@ -46,6 +54,7 @@ export type GoogleSignIn = {
   anonymousUserId: string | null; // the user of a valid lw_uid cookie, if any
   adminEmail: string | null; // ADMIN_EMAIL
   now: Date; // real time, for lastSeenAt
+  acquisition: Acquisition; // the sign-in request's: the arrival of an account it creates, unless an anonymous player's
 };
 
 export type GoogleSignInResult = {
@@ -89,7 +98,7 @@ export async function signInWithGoogle(store: AccountStore, input: GoogleSignIn)
   const existing = (await store.findUserByGoogleSub(data.googleSub)) ?? (await store.findUserByEmail(data.email));
   let userId: string;
   if (existing === null) {
-    userId = (await store.createRegisteredUser(data)).id;
+    userId = (await store.createRegisteredUser(data, input.acquisition)).id;
   } else {
     userId = existing.id;
     await store.updateRegisteredUser(userId, data);
@@ -106,6 +115,8 @@ export async function signInWithGoogle(store: AccountStore, input: GoogleSignIn)
       mergedSaves = await store.moveSaves(anonymous.id, userId);
       // Before the user goes, or their entries would go with them.
       challengeEntries = await store.moveChallengeEntries(anonymous.id, userId);
+      // Their days of visit too, and, into an account created now, when and how they arrived: the same player.
+      await store.moveHistory(anonymous.id, userId, { arrival: existing === null });
       await store.deleteUser(anonymous.id);
       deletedAnonymousUserId = anonymous.id;
     }

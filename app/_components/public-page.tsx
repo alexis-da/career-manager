@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { publicPath, type PublicPageName } from "@/src/i18n/public-pages";
 import { cn } from "@/src/lib/utils";
 import { BrandFooter } from "./brand-footer";
+import { CountArrival } from "./count-arrival";
 import { LanguageBanner } from "./language-banner";
 import { LanguageSwitcher } from "./language-switcher";
 import { LocaleGuard } from "./locale-guard";
@@ -31,6 +32,8 @@ export function PublicPage({ children, tools, after, footer, className, page, la
     <main className="flex-1 bg-background text-foreground">
       {/* Reached from a save in the other language without a full load, the page loads again in its own. */}
       <LocaleGuard locale={locale} />
+      {/* A visitor's first visit, counted once the page is sent. */}
+      <CountArrival />
       {page !== undefined && languageBanner && <LanguageBanner page={page} className={className} />}
       <div
         className={cn(

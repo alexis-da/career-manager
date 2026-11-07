@@ -28,10 +28,6 @@ async function withTestDatabase<T>(run: (client: Client) => Promise<T>): Promise
   }
 }
 
-/**
- * An anonymous user made directly in the database, without a save, last seen at this time (an old one to purge, a
- * fresh one to sign a cookie for). Not simulation code: a random id.
- */
 /** The real names of the world's clubs, as the reference table keeps them: what no public page's HTML may hold. */
 export async function realClubNames(): Promise<string[]> {
   return withTestDatabase(async (client) => {
@@ -40,6 +36,37 @@ export async function realClubNames(): Promise<string[]> {
   });
 }
 
+/** The first visits counted on a day (YYYY-MM-DD, UTC) from a source, by page of arrival (VisitDay). */
+export async function visitsOf(day: string, source: string): Promise<{ page: string; visits: number }[]> {
+  return withTestDatabase(async (client) => {
+    const { rows } = await client.query<{ page: string; visits: number }>(
+      `SELECT "page", "visits" FROM "VisitDay" WHERE "day" = $1::date AND "source" = $2 ORDER BY "page"`,
+      [day, source],
+    );
+    return rows;
+  });
+}
+
+/** Deletes the counts of the sources a test made up: those starting with this prefix. */
+export async function deleteVisits(sourcePrefix: string): Promise<void> {
+  await withTestDatabase((client) => client.query(`DELETE FROM "VisitDay" WHERE starts_with("source", $1)`, [sourcePrefix]));
+}
+
+/** What a user's creation kept of their arrival (User.source…). */
+export async function arrivalOfUser(id: string): Promise<Record<string, string | null>> {
+  return withTestDatabase(async (client) => {
+    const { rows } = await client.query<Record<string, string | null>>(
+      `SELECT "source", "referrerDomain", "landingPage", "locale", "device"::text AS "device" FROM "User" WHERE "id" = $1`,
+      [id],
+    );
+    return rows[0] ?? {};
+  });
+}
+
+/**
+ * An anonymous user made directly in the database, without a save, last seen at this time (an old one to purge, a
+ * fresh one to sign a cookie for). Not simulation code: a random id.
+ */
 export async function createAnonymousUser(lastSeenAt: Date): Promise<string> {
   const id = `e2e-anon-${randomUUID()}`;
   await withTestDatabase((client) =>

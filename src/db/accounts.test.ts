@@ -38,6 +38,21 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     ownerId,
   });
 
+  /** What the sign-in's own request says of the player's arrival: a new account's, unless it takes in an anonymous one. */
+  const REQUEST_ACQUISITION = { source: "direct", referrerDomain: null, landingPage: "/", locale: "en", device: "COMPUTER" } as const;
+  /** How the anonymous player arrived, two days before (real time, not simulation code), and the days they came. */
+  const anonymousCreatedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  const ANONYMOUS_ARRIVAL = {
+    source: "reddit-playmygame",
+    referrerDomain: "reddit.com",
+    landingPage: "/fr",
+    locale: "fr",
+    device: "PHONE",
+  } as const;
+  const dayOf = (time: Date) => time.toISOString().slice(0, 10);
+  const daysOf = async (userId: string) =>
+    (await loaded().db.userDay.findMany({ where: { userId }, select: { day: true } })).map(({ day }) => dayOf(day)).sort();
+
   /** One sign-in, in its own transaction, as src/auth/auth.ts runs it. */
   const signIn = (input: Partial<GoogleSignIn>) => {
     const { db, google, accounts } = loaded();
@@ -49,6 +64,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
           adminEmail: null,
           // Not simulation code: lastSeenAt is real time.
           now: new Date(),
+          acquisition: REQUEST_ACQUISITION,
           ...input,
         }),
       { timeout: 20_000 },
@@ -66,8 +82,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     google = googleModule;
     accounts = accountsModule;
     access = accessModule;
-    // Not simulation code: lastSeenAt is real time.
-    await prisma.user.create({ data: { id: anonymousId, kind: "ANONYMOUS", lastSeenAt: new Date() } });
+    await prisma.user.create({
+      // Not simulation code: lastSeenAt is real time.
+      data: { id: anonymousId, kind: "ANONYMOUS", createdAt: anonymousCreatedAt, lastSeenAt: new Date(), ...ANONYMOUS_ARRIVAL },
+    });
+    await prisma.userDay.create({ data: { userId: anonymousId, day: new Date(`${dayOf(anonymousCreatedAt)}T00:00:00.000Z`) } });
     await prisma.save.createMany({ data: [bareSave("Anonyme 1", anonymousId), bareSave("Anonyme 2", anonymousId)] });
   }, 60_000);
 
@@ -89,6 +108,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     expect(await db.user.count({ where: { id: anonymousId } })).toBe(0);
     const account = await db.user.findUniqueOrThrow({ where: { id: result.userId } });
     expect(account).toMatchObject({ kind: "REGISTERED", googleSub: profile.sub, email: profile.email, name: "Test Google" });
+    // The same player: arrived as the anonymous one did, then, with their days of visit and today's sign-in.
+    expect(account).toMatchObject({ ...ANONYMOUS_ARRIVAL, createdAt: anonymousCreatedAt });
+    expect(await daysOf(result.userId)).toEqual([...new Set([dayOf(anonymousCreatedAt), dayOf(new Date())])].sort());
     const saves = await db.save.findMany({ where: { ownerId: result.userId }, select: { id: true } });
     expect(saves).toHaveLength(2);
     for (const save of saves) {
@@ -131,6 +153,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
             adminEmail: google.readAdminEmail(adminProfile.email.toLowerCase()),
             // Not simulation code: lastSeenAt is real time.
             now: new Date(),
+            acquisition: REQUEST_ACQUISITION,
           };
 
           const first = await google.signInWithGoogle(accounts.prismaAccountStore(tx), input);
@@ -159,10 +182,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     const otherAnonymous = `${anonymousId}-challenge`;
     const otherProfile = { ...profile, sub: `${profile.sub}-challenge`, email: `test-google-challenge-${run}@example.com` };
     createdUserIds.push(otherAnonymous);
-    // Not simulation code: lastSeenAt is real time.
-    await db.user.create({ data: { id: otherAnonymous, kind: "ANONYMOUS", lastSeenAt: new Date() } });
+    await db.user.create({
+      // Not simulation code: lastSeenAt is real time.
+      data: { id: otherAnonymous, kind: "ANONYMOUS", createdAt: anonymousCreatedAt, lastSeenAt: new Date(), ...ANONYMOUS_ARRIVAL },
+    });
+    await db.userDay.create({ data: { userId: otherAnonymous, day: new Date(`${dayOf(anonymousCreatedAt)}T00:00:00.000Z`) } });
     const account = await signIn({ profile: otherProfile });
     createdUserIds.push(account.userId);
+    const accountCreatedAt = (await db.user.findUniqueOrThrow({ where: { id: account.userId } })).createdAt;
     const challengeSave = async (ownerId: string, challengeId: string) => {
       const { id: saveId } = await db.save.create({ data: { ...bareSave("Défi", ownerId), challengeId }, select: { id: true } });
       await db.challengeEntry.create({ data: { challengeId, userId: ownerId, saveId } });
@@ -182,5 +209,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     // The anonymous user's save of the second week follows them, without an entry: it no longer counts.
     expect(await db.save.findUniqueOrThrow({ where: { id: anonymousSecond }, select: { ownerId: true } })).toEqual({ ownerId: account.userId });
     expect(await db.challengeEntry.count({ where: { saveId: anonymousSecond } })).toBe(0);
+    // An account that was there keeps its own arrival, and gets the anonymous player's days of visit.
+    expect(await db.user.findUniqueOrThrow({ where: { id: account.userId } })).toMatchObject({
+      ...REQUEST_ACQUISITION,
+      createdAt: accountCreatedAt,
+    });
+    expect(await daysOf(account.userId)).toEqual([...new Set([dayOf(anonymousCreatedAt), dayOf(new Date())])].sort());
   });
 });

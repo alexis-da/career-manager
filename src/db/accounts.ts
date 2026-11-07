@@ -15,8 +15,8 @@ export function prismaAccountStore(tx: Prisma.TransactionClient): AccountStore {
     findUserByGoogleSub: (googleSub) => tx.user.findUnique({ where: { googleSub }, select: ACCOUNT_SELECT }),
     findUserByEmail: (email) => tx.user.findUnique({ where: { email }, select: ACCOUNT_SELECT }),
     // Both write lastSeenAt, so the day's UserDay too.
-    createRegisteredUser: async (data) => {
-      const user = await tx.user.create({ data: { ...data, kind: "REGISTERED" }, select: ACCOUNT_SELECT });
+    createRegisteredUser: async (data, acquisition) => {
+      const user = await tx.user.create({ data: { ...data, ...acquisition, kind: "REGISTERED" }, select: ACCOUNT_SELECT });
       await recordUserDay(tx, user.id, data.lastSeenAt);
       return user;
     },
@@ -33,6 +33,25 @@ export function prismaAccountStore(tx: Prisma.TransactionClient): AccountStore {
       });
       const moved = await tx.challengeEntry.updateMany({ where: { userId: fromUserId }, data: { userId: toUserId } });
       return { moved: moved.count, dropped: dropped.count };
+    },
+    // The account's own days stay: a day both came is one day.
+    moveHistory: async (fromUserId, toUserId, { arrival }) => {
+      await tx.$executeRaw`
+        INSERT INTO "UserDay" ("userId", "day")
+        SELECT ${toUserId}, "day" FROM "UserDay" WHERE "userId" = ${fromUserId}
+        ON CONFLICT DO NOTHING`;
+      if (arrival) {
+        await tx.$executeRaw`
+          UPDATE "User" AS account
+          SET "createdAt" = LEAST(account."createdAt", anonymous."createdAt"),
+              "source" = anonymous."source",
+              "referrerDomain" = anonymous."referrerDomain",
+              "landingPage" = anonymous."landingPage",
+              "locale" = anonymous."locale",
+              "device" = anonymous."device"
+          FROM "User" AS anonymous
+          WHERE account."id" = ${toUserId} AND anonymous."id" = ${fromUserId}`;
+      }
     },
     deleteUser: async (id) => {
       await tx.user.delete({ where: { id } });

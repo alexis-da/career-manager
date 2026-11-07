@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { prisma } from "../db/client";
 import { prismaAccountStore } from "../db/accounts";
 import { TRANSACTION_MAX_WAIT_MS } from "../db/transactions";
+import { requestAcquisition } from "./acquisition";
 import { readAdminEmail, readGoogleProfile, signInWithGoogle } from "./google";
 import { readAuthSecret, readSignedUserId, USER_COOKIE } from "./identity";
 
@@ -49,6 +50,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         throw new Error("Google sign-in without a verified email"); // refused by the signIn callback already
       }
       const store = await cookies();
+      // Read before the transaction: an account created now arrives as the request says, unless it takes in an
+      // anonymous player, who arrived before.
+      const acquisition = await requestAcquisition();
       const { userId } = await prisma.$transaction(
         (tx) =>
           signInWithGoogle(prismaAccountStore(tx), {
@@ -57,6 +61,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             adminEmail: readAdminEmail(process.env.ADMIN_EMAIL),
             // Not simulation code: lastSeenAt is real time.
             now: new Date(),
+            acquisition,
           }),
         { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: SIGN_IN_TIMEOUT_MS },
       );

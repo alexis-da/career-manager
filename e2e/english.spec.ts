@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ARRIVAL_COOKIE } from "../src/lib/arrival";
 import { createSave, deleteSave, openScreen, saveRow } from "./helpers";
 
 // The game in English, for a browser that prefers it (Accept-Language en-GB): the public pages, the language switcher
@@ -75,8 +76,8 @@ test("speaks English to a browser that prefers it, on every public page", async 
   await expect(pageLanguage(page)).toHaveAttribute("lang", "en");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Page not found");
 
-  // Looking creates nothing: no cookie, the language included, before the player chooses one.
-  expect((await page.context().cookies()).map((cookie) => cookie.name)).toEqual([]);
+  // Looking creates nothing but the arrival's cookie: no player, no language before the player chooses one.
+  expect((await page.context().cookies()).map((cookie) => cookie.name)).toEqual([ARRIVAL_COOKIE]);
 });
 
 test("keeps the language the player chooses, whatever the browser prefers, until they choose again", async ({ page, context }) => {
