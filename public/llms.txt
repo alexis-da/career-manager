@@ -1,0 +1,17 @@
+# Late Winner
+
+> Late Winner is a free football career game you play in your browser, in English and French: take over a club, pick your line-up, make the calls during live matches, sign players and chase promotion. No download and no account needed, on a phone as on a computer.
+
+The game has 198 clubs in five countries, each country with two divisions and a national cup; players are generated. A weekly challenge gives everyone the same club for ten league matchdays, with a ranking.
+
+## Pages
+
+- [Home](https://www.latewinner.app/): start a career in one click, and what the game is
+- [Weekly challenge](https://www.latewinner.app/challenge): this week's challenge and its rankings
+- [Privacy](https://www.latewinner.app/privacy): what the game stores, why and for how long
+
+## In French
+
+- [Accueil](https://www.latewinner.app/fr)
+- [Défi de la semaine](https://www.latewinner.app/fr/defi)
+- [Confidentialité](https://www.latewinner.app/fr/confidentialite)

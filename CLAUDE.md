@@ -794,6 +794,17 @@ courant en Barlow 400 à 700 ; rayons 14 px, cartes 22 px (`rounded-card`), past
 
 **Communication sortante.** Titres de page, descriptions, images de partage (`app/opengraph-image.tsx`) et
 cartes partageables ne contiennent aucun nom de club, ni « FIFA », ni « EA FC », ni le nom d'un jeu concurrent.
+« football manager » est permis en minuscules, comme nom du genre (« free football manager game in your browser »),
+jamais en majuscules ni en comparaison. Les tests le vérifient sur chaque texte public (`forbiddenNamesIn`,
+`src/lib/outward-names.ts`) : marques, compétitions sous licence, jeux concurrents, et les noms réels des 198 clubs
+(`realClubNames`, `prisma/seed/real-club-names.ts`) comme leur cœur (« Real Madrid » de « Real Madrid CF »).
+
+**Référencement.** `app/robots.ts` : tout est permis sauf `/saves/`, `/api/` et `/admin`, avec l'adresse du sitemap ;
+les robots des moteurs de recherche et de réponse (OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User) et ceux
+qui lisent pour entraîner des modèles (GPTBot, ClaudeBot, Google-Extended) sont nommés et admis, par décision (un robot
+qui a son groupe ne lit que lui : il reprend les règles de tous). `app/sitemap.ts` : chaque page publique dans chaque
+langue, avec ses hreflang. `public/llms.txt` : ce qu'est le jeu et ses pages, en anglais (`app/_lib/crawlers.test.ts`
+vérifie qu'il les cite toutes).
 
 **Noms de clubs.** Le nom affiché d'un club passe toujours par `displayClubName` (ou `displayClubShortName`),
 point unique de résolution dans `src/engine/club-name.ts`. Il s'appelle dans `src/db`, là où les lignes Prisma
