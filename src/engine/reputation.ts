@@ -31,6 +31,25 @@ export function reputationRanks<K>(clubs: readonly RankedClub<K>[]): Map<K, numb
   return new Map(ordered.map((club, index) => [club.key, index + 1]));
 }
 
+/** A club of a division as a save's creation finds it: its rank in the source season (Club.initialRank), its slug. */
+export type CreationClub<K> = { key: K; initialRank: number; slug: string };
+
+/**
+ * Each club's reputation rank in its division at a save's creation: reputationRanks on the reputation and the wage
+ * budget the creation gives its source rank (clubFinances), never on the payrolls measured afterwards
+ * (applyCreationWageBudgets), which the seed draws: equal reputations keep the order of their source ranks, whatever the
+ * seed and the club chosen. The rank of the first season's dotation and objectives (firstSeasonDotation), and the one
+ * the creation form's cards announce (src/db/clubs.ts).
+ */
+export function creationReputationRanks<K>(clubs: readonly CreationClub<K>[], tier: CompetitionTier): Map<K, number> {
+  return reputationRanks(
+    clubs.map(({ key, initialRank, slug }) => {
+      const { reputation, wageBudget } = clubFinances(initialRank, clubs.length, tier);
+      return { key, reputation, wageBudget, slug };
+    }),
+  );
+}
+
 /** Where a club's season leaves it: its final place, and the division it plays next. */
 export type SeasonPlace = {
   finalRank: number; // in the division it played

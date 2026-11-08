@@ -1,7 +1,7 @@
 import "server-only";
 import { getLocale, getTranslations } from "next-intl/server";
 import { listClubsByCompetition, type CompetitionClubs } from "@/src/db/clubs";
-import { suggestClubs, type ClubSuggestion } from "@/src/engine/club-suggestions";
+import { suggestClubs, suggestionPreview, type ClubSuggestion, type SuggestionPreview } from "@/src/engine/club-suggestions";
 import type { Country } from "@/src/i18n/countries";
 import type { Locale } from "@/src/i18n/locale";
 
@@ -27,8 +27,17 @@ export async function creationChoices(): Promise<CreationChoices> {
   return { competitions, suggestions: suggestClubs(listed.filter(({ country }) => country === SUGGESTED_COUNTRY[locale])) };
 }
 
-/** How many clubs a save can be created with: what the page says before their names come. */
-export async function creatableClubCount(): Promise<number> {
-  const listed = await listClubsByCompetition();
-  return listed.reduce((count, competition) => count + competition.clubs.length, 0);
+/** What the page says of the creation before the clubs' names come: their number, and the cards' kinds, divisions and objectives. */
+export type CreationPreview = { clubCount: number; previews: SuggestionPreview[] };
+
+/**
+ * The creation form's clubs as the page gives them, in the page's language, without a name: how many there are, and each
+ * suggested card's kind, division and objective (suggestionPreview), so that its place shows them before its club comes.
+ */
+export async function creationPreview(): Promise<CreationPreview> {
+  const [listed, locale] = await Promise.all([listClubsByCompetition(), getLocale()]);
+  return {
+    clubCount: listed.reduce((count, competition) => count + competition.clubs.length, 0),
+    previews: suggestClubs(listed.filter(({ country }) => country === SUGGESTED_COUNTRY[locale])).map(suggestionPreview),
+  };
 }

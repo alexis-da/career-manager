@@ -30,17 +30,15 @@
     "suggestions": {
       "budget": "Budget {amount}",
       "reputation": "Reputation {reputation}",
+      "objective": "The board's objective:",
       "favourite": {
-        "label": "Easy · favourite",
-        "pitch": "Division 1 · Goal: the title"
+        "label": "Easy · favourite"
       },
       "mid-table": {
-        "label": "Balanced · recommended",
-        "pitch": "Division 1 · Goal: the top 6"
+        "label": "Balanced · recommended"
       },
       "comeback": {
-        "label": "Comeback · Division 2",
-        "pitch": "Back up to Division 1"
+        "label": "Hard · Division 2"
       }
     },
     "clubPlaceholder": "Choose a club",

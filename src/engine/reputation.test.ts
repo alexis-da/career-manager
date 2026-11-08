@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { REPUTATION_TARGET_SHARE } from "./balance";
 import { clubFinances } from "./economy";
-import { rankInNextDivision, reputationAfterSeason, reputationRanks, reputationTarget } from "./reputation";
+import { creationReputationRanks, rankInNextDivision, reputationAfterSeason, reputationRanks, reputationTarget } from "./reputation";
 
 describe("reputationRanks", () => {
   it("ranks a division by reputation, one club a rank: equal reputations by wage budget, then by slug", () => {
@@ -25,6 +25,28 @@ describe("reputationRanks", () => {
 
     expect(reputationRanks(clubs)).toEqual(reputationRanks([...clubs].reverse()));
     expect(Object.fromEntries(reputationRanks(clubs))).toEqual({ 3: 1, 2: 2, 1: 3 });
+  });
+});
+
+describe("creationReputationRanks", () => {
+  it("ranks a division at a save's creation by its source ranks, equal reputations included, whatever their slugs", () => {
+    // A second division of 24: ranks 4 and 5, 12 and 13, 20 and 21 have the same creation reputation.
+    const clubs = Array.from({ length: 24 }, (_, index) => ({ key: index + 1, initialRank: index + 1, slug: String.fromCharCode(122 - index) }));
+    const reputations = clubs.map(({ initialRank }) => clubFinances(initialRank, 24, 2).reputation);
+    expect(reputations[3]).toBe(reputations[4]);
+
+    const ranks = creationReputationRanks(clubs, 2);
+
+    expect(clubs.map(({ key }) => ranks.get(key))).toEqual(clubs.map(({ initialRank }) => initialRank));
+    expect(creationReputationRanks(clubs.toReversed(), 2)).toEqual(ranks);
+  });
+
+  it("is reputationRanks on the reputations and wage budgets the creation gives the source ranks", () => {
+    const clubs = Array.from({ length: 20 }, (_, index) => ({ key: `club-${index}`, initialRank: index + 1, slug: `club-${index}` }));
+
+    expect(creationReputationRanks(clubs, 1)).toEqual(
+      reputationRanks(clubs.map(({ key, initialRank, slug }) => ({ key, slug, ...clubFinances(initialRank, 20, 1) }))),
+    );
   });
 });
 

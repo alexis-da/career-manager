@@ -12,7 +12,7 @@ import {
   reputationThird,
   type OptionalObjective,
 } from "../engine/objectives";
-import { reputationRanks } from "../engine/reputation";
+import { creationReputationRanks } from "../engine/reputation";
 import { competitionTier } from "../engine/tiers";
 import { WORLD_START_YEAR } from "../engine/world";
 import { makeRng } from "../lib/rng";
@@ -56,6 +56,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
       where: { saveId: worldTwo, isManaged: true },
       select: {
         id: true,
+        clubId: true,
         reputation: true,
         budget: true,
         wageBudget: true,
@@ -66,13 +67,15 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
     });
     const rivals = await database().clubSave.findMany({
       where: { saveId: worldTwo, competitionId: managed.competitionId },
-      select: { id: true, reputation: true, wageBudget: true, club: { select: { slug: true } } },
+      select: { id: true, club: { select: { slug: true, initialRank: true } } },
     });
-    const rank =
-      reputationRanks(
-        rivals.map((club) => ({ key: club.id, reputation: club.reputation, wageBudget: club.wageBudget, slug: club.club.slug })),
-      ).get(managed.id) ?? NaN;
     const tier = competitionTier(managed.competition.tier);
+    // The creation's rank: the reputations and wage budgets given at the source ranks, never the payrolls drawn after.
+    const rank =
+      creationReputationRanks(
+        rivals.map((club) => ({ key: club.id, initialRank: club.club.initialRank, slug: club.club.slug })),
+        tier,
+      ).get(managed.id) ?? NaN;
     const season = await database().season.findFirstOrThrow({ where: { saveId: worldTwo, competitionId: managed.competitionId }, select: { id: true } });
     const preliminary = await database().fixture.count({
       where: { saveId: worldTwo, round: 1, season: { competition: { kind: "CUP" } }, OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }] },
@@ -85,6 +88,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
     const cup = cupObjective(tier, reputationThird(rank, rivals.length), preliminary > 0 ? 1 : 2);
 
     expect(objectives.find((objective) => objective.kind === "RANKING")).toMatchObject({ imposed: true, ...ranking });
+    // What the creation form's card of the club announced.
+    const { listClubsByCompetition } = await import("./clubs");
+    const card = (await listClubsByCompetition(2)).flatMap((competition) => competition.clubs).find((club) => club.id === managed.clubId);
+    expect(card?.objective).toEqual(ranking);
     expect(objectives.find((objective) => objective.kind === "CUP")).toMatchObject({ imposed: true, target: cup.target, exceed: cup.exceed });
     const optional = objectives.filter((objective) => !objective.imposed);
     expect(optional.map((objective) => objective.kind).sort()).toEqual([...proposed].sort());

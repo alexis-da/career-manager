@@ -22,11 +22,11 @@ export const GUIDE: GuideSection[] = [
     fr: {
       title: "Créer ta carrière",
       blocks: [
-        "Sur la page d'accueil, trois clubs français te sont proposés :",
+        "Sur la page d'accueil, trois clubs français te sont proposés, chacun avec l'objectif de classement que la direction te fixera :",
         [
-          "**Facile · favori** : le favori de la Division 1",
+          "**Facile · favori** : le favori de la Division 1, attendu dans le top 3",
           "**Équilibré · conseillé** : un club du milieu de tableau, présélectionné",
-          "**Remontée · Division 2** : un club qui peut monter",
+          "**Difficile · Division 2** : un club à qui la direction demande de monter",
         ],
         "Sinon, tape deux lettres dans **Chercher parmi les 198 clubs** ou ouvre **Parcourir les 198 clubs**. Écris **Ton nom de manager**, puis touche **Lancer ma carrière**.",
         "Pas besoin de compte : sans lui, tu mènes une seule carrière, liée à ce navigateur. **Continuer avec Google** t'en donne trois, sur tous tes appareils.",
@@ -35,11 +35,11 @@ export const GUIDE: GuideSection[] = [
     en: {
       title: "Create your career",
       blocks: [
-        "On the home page, three English clubs are suggested:",
+        "On the home page, three English clubs are suggested, each with the league objective the board will set you:",
         [
-          "**Easy · favourite**: the Division 1 favourite",
+          "**Easy · favourite**: the Division 1 favourite, expected in the top three",
           "**Balanced · recommended**: a mid-table club, selected by default",
-          "**Comeback · Division 2**: a club that can go up",
+          "**Hard · Division 2**: a club whose board wants promotion",
         ],
         "Otherwise, type two letters into **Search the 198 clubs** or open **Browse the 198 clubs**. Then enter **Your manager name** and press **Start my career**.",
         "No account needed: without one, you get a single career, tied to this browser. **Continue with Google** gives you three, on all your devices.",

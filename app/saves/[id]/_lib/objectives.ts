@@ -6,8 +6,9 @@ import { formatMoney } from "@/src/lib/format";
 import type { Locale } from "@/src/i18n/locale";
 
 // How the screens name an objective of the season (gameplay v2, V3): what it asks, what exceeds it, the figure it is
-// judged on, the tone of where it stands. Pure, shared by the season's start, the dashboard, the Club screen and the
-// season's review.
+// judged on, the tone of where it stands. Pure, shared by the season's start, the dashboard, the Club screen, the
+// season's review and the creation form's cards (app/_components/suggestion-card.tsx), which announce the ranking
+// objective a save's first season sets in the same words.
 
 /** An objective as these helpers read it. */
 type Named = Pick<ObjectiveView, "kind" | "variant" | "target" | "exceed">;

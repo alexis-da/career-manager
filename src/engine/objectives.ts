@@ -80,6 +80,18 @@ export function rankingObjective(expectedRank: number, division: Division): Rank
   return { variant: "FINISH", target, exceed: Math.max(1, target - EXCEEDED_OBJECTIVE_PLACES) };
 }
 
+/** A league as its ranking objective reads it: its code (its country's places going up and down), tier and size. */
+export type League = { code: string; tier: CompetitionTier; clubCount: number };
+
+/**
+ * The ranking objective a board sets a club of a league at its reputation rank (rankingObjective in its division): the
+ * managed club's at each season's opening (openSeasonObjectives), and the one the creation form's cards announce for a
+ * save's first season (src/db/clubs.ts, at the creation's rank, creationReputationRanks). One source for both.
+ */
+export function leagueRankingObjective(league: League, reputationRank: number, worldVersion: WorldVersion): RankingObjective {
+  return rankingObjective(reputationRank, divisionOf(league.code, league.tier, league.clubCount, worldVersion));
+}
+
 /** How a ranking objective ends at a final rank. */
 export function rankingOutcome(objective: Pick<RankingObjective, "target" | "exceed">, finalRank: number): ObjectiveOutcome {
   return finalRank <= objective.exceed ? "EXCEEDED" : finalRank <= objective.target ? "ACHIEVED" : "MISSED";

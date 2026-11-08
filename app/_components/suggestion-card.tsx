@@ -3,15 +3,17 @@
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { ClubInitials } from "@/src/components/club-initials";
-import type { ClubSuggestion } from "@/src/engine/club-suggestions";
+import { objectiveGoal } from "@/app/saves/[id]/_lib/objectives";
+import type { ClubSuggestion, SuggestionPreview } from "@/src/engine/club-suggestions";
 import { formatMillionsAmount } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 
-type SuggestionKind = ClubSuggestion["kind"];
-
-/** The card's frame and its three columns: the club's initials, its level and name, its reputation and budget. */
+/**
+ * The card's frame and its three columns: the club's initials, its level, name and the ranking objective its board will
+ * set it (objectiveGoal, the words of the save's screens), its reputation and budget.
+ */
 function CardFrame({
-  kind,
+  preview: { kind, objective },
   checked,
   initials,
   name,
@@ -19,7 +21,7 @@ function CardFrame({
   budget,
   children,
 }: {
-  kind: SuggestionKind;
+  preview: SuggestionPreview;
   checked: boolean;
   initials: ReactNode;
   name: ReactNode;
@@ -28,6 +30,8 @@ function CardFrame({
   children?: ReactNode;
 }) {
   const t = useTranslations("createSave.suggestions");
+  const tObjectives = useTranslations("objectives");
+  const goal = objectiveGoal({ kind: "RANKING", variant: objective.variant, target: objective.target, exceed: objective.exceed }, tObjectives);
   return (
     <label
       data-testid={`club-suggestion-${kind}`}
@@ -43,7 +47,10 @@ function CardFrame({
           {t(`${kind}.label`)}
         </span>
         <span className="block text-lg leading-tight font-bold wrap-break-word lg:text-[1.375rem]">{name}</span>
-        <span className="block text-[0.8125rem] leading-snug text-muted-foreground lg:text-[0.9375rem]">{t(`${kind}.pitch`)}</span>
+        <span className="block text-[0.8125rem] leading-snug text-muted-foreground lg:text-[0.9375rem]">
+          <span className="sr-only">{`${t("objective")} `}</span>
+          <span data-testid="club-suggestion-objective">{goal}</span>
+        </span>
       </span>
       <span className="justify-self-end text-right">
         {figure}
@@ -77,7 +84,7 @@ export function SuggestionCard({ suggestion, checked, onChoose }: SuggestionCard
   const budget = t("budget", { amount: formatMillionsAmount(suggestion.budget, locale).replace(" ", " ") });
   return (
     <CardFrame
-      kind={suggestion.kind}
+      preview={suggestion}
       checked={checked}
       initials={
         <ClubInitials
@@ -103,16 +110,16 @@ export function SuggestionCard({ suggestion, checked, onChoose }: SuggestionCard
 }
 
 /**
- * A suggestion's place while its club comes from the server (CreateSaveForm): its level and its goal already, the rest
- * kept by invisible lines of the same sizes, so that nothing moves when the club arrives. Chosen before, it is the one
- * chosen once its club has come.
+ * A suggestion's place while its club comes from the server (CreateSaveForm): its level, division and objective already
+ * (the page gives them, without a name), the rest kept by invisible lines of the same sizes, so that nothing moves when
+ * the club arrives. Chosen before, it is the one chosen once its club has come.
  */
 export function SuggestionCardPlaceholder({
-  kind,
+  preview,
   checked,
   onChoose,
 }: {
-  kind: SuggestionKind;
+  preview: SuggestionPreview;
   checked: boolean;
   onChoose: () => void;
 }) {
@@ -122,7 +129,7 @@ export function SuggestionCardPlaceholder({
   const budget = t("budget", { amount: formatMillionsAmount(150_000_000, locale).replace(" ", " ") });
   return (
     <CardFrame
-      kind={kind}
+      preview={preview}
       checked={checked}
       initials={<span aria-hidden className={cn(INITIALS, "grid shrink-0 animate-pulse bg-secondary")} />}
       name={

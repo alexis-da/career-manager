@@ -12,8 +12,10 @@ const JOURNEYS = [
     locale: "fr-FR",
     home: "/fr",
     viewport: { width: 1280, height: 800 },
-    clubs: { favourite: "Paris Saint-Germain FC", "mid-table": "Toulouse FC", comeback: "Grenoble Foot 38" },
+    clubs: { favourite: "Paris Saint-Germain FC", "mid-table": "Toulouse FC", comeback: "USL Dunkerque" },
     careerName: "Carrière Toulouse FC",
+    // What the recommended card announces, then the dashboard sets: the same objective, in the same words.
+    objective: "Finir 10e ou mieux",
     playMatch: "Jouer le match",
     leaveMatch: "nav-dashboard", // the sidebar stays beside the match
   },
@@ -22,8 +24,9 @@ const JOURNEYS = [
     locale: "en-GB",
     home: "/",
     viewport: { width: 390, height: 844 },
-    clubs: { favourite: "Liverpool FC", "mid-table": "Fulham FC", comeback: "Sheffield Wednesday FC" },
+    clubs: { favourite: "Liverpool FC", "mid-table": "Fulham FC", comeback: "Sunderland AFC" },
     careerName: "Fulham FC career",
+    objective: "Finish 11th or higher",
     playMatch: "Play the match",
     leaveMatch: "live-exit", // the match has the whole screen, and its own way out
   },
@@ -56,6 +59,8 @@ for (const journey of JOURNEYS) {
           await expect(page.getByTestId(`club-suggestion-${kind}`)).toContainText(club);
         }
         await expect(page.getByTestId("seed")).toBeHidden();
+        // The recommended card announces the ranking objective the board will set.
+        await expect(page.getByTestId("club-suggestion-mid-table").getByTestId("club-suggestion-objective")).toHaveText(journey.objective);
         await page.getByTestId("club-suggestion-mid-table").click();
         await expect(page.getByTestId("club")).toContainText(journey.clubs["mid-table"]);
         await expect(page.getByTestId("save-name")).toHaveValue(journey.careerName);
@@ -77,6 +82,8 @@ for (const journey of JOURNEYS) {
         await expect(page.getByTestId("tip-money")).toBeVisible();
         await expect(page.getByTestId("tip-simulation")).toHaveCount(0);
         await expect(page.getByTestId("dashboard-position")).not.toContainText(/\d/);
+        // Before any match, the board's ranking objective is the one the card announced.
+        await expect(page.getByTestId("dashboard-objectives").locator('[data-objective="RANKING"]')).toContainText(journey.objective);
         await expectNoSidewaysScroll(page, "new dashboard");
 
         // The squad ticks itself; its tip, closed, stays closed.

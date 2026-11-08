@@ -7,6 +7,7 @@ import {
   cupObjective,
   divisionOf,
   expectedSeasonGoals,
+  leagueRankingObjective,
   objectiveOutcome,
   objectiveProgress,
   objectivesRngSeed,
@@ -57,6 +58,15 @@ describe("rankingObjective", () => {
     expect(rankingObjective(5, ENGLAND_2)).toEqual({ variant: "FINISH", target: 5, exceed: 2 });
     expect(rankingObjective(24, ENGLAND_2)).toEqual({ variant: "FINISH", target: 23, exceed: 20 });
     expect(rankingObjective(20, ENGLAND_ALONE)).toEqual({ variant: "FINISH", target: 19, exceed: 16 });
+  });
+});
+
+describe("leagueRankingObjective", () => {
+  it("is rankingObjective in the league's division, its country's places going up and down in a worldVersion 2 save", () => {
+    expect(leagueRankingObjective({ code: "en.1", tier: 1, clubCount: 20 }, 11, 2)).toEqual(rankingObjective(11, ENGLAND_1));
+    expect(leagueRankingObjective({ code: "en.2", tier: 2, clubCount: 24 }, 4, 2)).toEqual({ variant: "PROMOTION", target: 3, exceed: 1 });
+    expect(leagueRankingObjective({ code: "fr.1", tier: 1, clubCount: 18 }, 16, 2)).toEqual(rankingObjective(16, FRANCE_1));
+    expect(leagueRankingObjective({ code: "en.1", tier: 1, clubCount: 20 }, 20, 1)).toEqual(rankingObjective(20, ENGLAND_ALONE));
   });
 });
 

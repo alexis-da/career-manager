@@ -30,17 +30,15 @@
     "suggestions": {
       "budget": "Budget {amount}",
       "reputation": "Réputation {reputation}",
+      "objective": "Objectif de la direction :",
       "favourite": {
-        "label": "Facile · favori",
-        "pitch": "Division 1 · Objectif : le titre"
+        "label": "Facile · favori"
       },
       "mid-table": {
-        "label": "Équilibré · conseillé",
-        "pitch": "Division 1 · Objectif : le top 6"
+        "label": "Équilibré · conseillé"
       },
       "comeback": {
-        "label": "Remontée · Division 2",
-        "pitch": "Remonte en Division 1"
+        "label": "Difficile · Division 2"
       }
     },
     "clubPlaceholder": "Choisir un club",

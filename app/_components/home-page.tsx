@@ -7,7 +7,7 @@ import { seasonLabel, WORLD_START_DATE, WORLD_START_YEAR } from "@/src/engine/wo
 import { formatDate } from "@/src/lib/format";
 import { canCreateSave } from "@/src/lib/limits";
 import { ACCOUNT_DELETED_PARAM, signInErrorOf } from "../_lib/account";
-import { creatableClubCount } from "../_lib/creation-choices";
+import { creationPreview } from "../_lib/creation-choices";
 import { homeStructuredData, jsonLdText } from "../_lib/structured-data";
 import { HOME_COLUMNS } from "../_lib/home-columns";
 import { AccountPanel, GoogleSignInButton } from "./account-panel";
@@ -98,8 +98,8 @@ function HomeNotices({ accountDeleted, signInError }: Notices) {
  * what the game is (LandingSections).
  */
 async function WelcomePage({ notices }: { notices: Notices }) {
-  // Their number only: their names come in the browser (CreateSaveForm).
-  const clubCount = await creatableClubCount();
+  // Their number and the cards' objectives only: their names come in the browser (CreateSaveForm).
+  const { clubCount, previews } = await creationPreview();
   return (
     <PublicPage
       page="home"
@@ -114,7 +114,7 @@ async function WelcomePage({ notices }: { notices: Notices }) {
     >
       <HomeStructuredData />
       <HomeNotices {...notices} />
-      <CreateSaveForm clubCount={clubCount} />
+      <CreateSaveForm clubCount={clubCount} previews={previews} />
     </PublicPage>
   );
 }
@@ -132,9 +132,9 @@ export async function HomePage({ searchParams }: { searchParams: Promise<Record<
   if (user === null) {
     return <WelcomePage notices={notices} />;
   }
-  const [saves, clubCount, ownedSaves, t] = await Promise.all([
+  const [saves, { clubCount, previews }, ownedSaves, t] = await Promise.all([
     listSaves(user),
-    creatableClubCount(),
+    creationPreview(),
     countOwnedSaves(user.id),
     getTranslations("home"),
   ]);
@@ -180,7 +180,7 @@ export async function HomePage({ searchParams }: { searchParams: Promise<Record<
             {atLimit && <SaveLimitNotice user={user} />}
           </div>
         </section>
-        {!atLimit && <CreateSaveForm clubCount={clubCount} heading="returning" />}
+        {!atLimit && <CreateSaveForm clubCount={clubCount} previews={previews} heading="returning" />}
       </div>
     </PublicPage>
   );

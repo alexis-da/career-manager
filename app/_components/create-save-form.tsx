@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import type { ClubSuggestion } from "@/src/engine/club-suggestions";
+import type { ClubSuggestion, SuggestionPreview } from "@/src/engine/club-suggestions";
 import { cn } from "@/src/lib/utils";
 import { createSaveAction, creationChoicesAction, type CreateSaveFormState } from "../actions";
 import type { ClubChoice } from "../_lib/club-search";
@@ -30,9 +30,6 @@ const INITIAL_STATE: CreateSaveFormState = {
   errors: {},
   message: null,
 };
-
-/** The three suggestions in their order (suggestClubs), as their places show them before their clubs come. */
-const SUGGESTION_KINDS: ClubSuggestion["kind"][] = ["favourite", "mid-table", "comeback"];
 
 type FieldProps = {
   id: string;
@@ -141,6 +138,8 @@ type LoadError = "newVersion" | "failed";
 
 type CreateSaveFormProps = {
   clubCount: number; // the clubs it offers, said before their names come
+  // The suggestions in their order (suggestClubs), without their clubs: what their places show before the clubs come.
+  previews: readonly SuggestionPreview[];
   heading?: FormHeading;
 };
 
@@ -149,7 +148,7 @@ type CreateSaveFormProps = {
  * browser asks for them once there (creationChoicesAction), their places kept until then by cards of the same size, the
  * button waiting for them.
  */
-export function CreateSaveForm({ clubCount, heading = "landing" }: CreateSaveFormProps) {
+export function CreateSaveForm({ clubCount, previews, heading = "landing" }: CreateSaveFormProps) {
   const [choices, setChoices] = useState<CreationChoices | null>(null);
   const [loadError, setLoadError] = useState<LoadError | null>(null);
   useEffect(() => {
@@ -170,7 +169,7 @@ export function CreateSaveForm({ clubCount, heading = "landing" }: CreateSaveFor
       current = false;
     };
   }, []);
-  return <CreateSaveFormView clubCount={clubCount} heading={heading} choices={choices} loadError={loadError} />;
+  return <CreateSaveFormView clubCount={clubCount} previews={previews} heading={heading} choices={choices} loadError={loadError} />;
 }
 
 type CreateSaveFormViewProps = CreateSaveFormProps & {
@@ -184,7 +183,7 @@ type CreateSaveFormViewProps = CreateSaveFormProps & {
  * from 1024 px on two columns, the title, the manager and the button on the left, the clubs on the right. The recommended
  * card is chosen from the start.
  */
-export function CreateSaveFormView({ clubCount, heading = "landing", choices, loadError = null }: CreateSaveFormViewProps) {
+export function CreateSaveFormView({ clubCount, previews, heading = "landing", choices, loadError = null }: CreateSaveFormViewProps) {
   const t = useTranslations("createSave");
   const common = useTranslations("common");
   const world = useTranslations("world");
@@ -247,12 +246,12 @@ export function CreateSaveFormView({ clubCount, heading = "landing", choices, lo
           <legend className="sr-only">{t("club")}</legend>
           <div className="space-y-3 lg:space-y-3.5">
             {waiting
-              ? SUGGESTION_KINDS.map((kind) => (
+              ? previews.map((preview) => (
                   <SuggestionCardPlaceholder
-                    key={kind}
-                    kind={kind}
-                    checked={chosenClub === null && kind === chosenKind}
-                    onChoose={() => setChosenKind(kind)}
+                    key={preview.kind}
+                    preview={preview}
+                    checked={chosenClub === null && preview.kind === chosenKind}
+                    onChoose={() => setChosenKind(preview.kind)}
                   />
                 ))
               : suggestions.map((suggestion) => (

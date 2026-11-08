@@ -47,11 +47,14 @@ const CHOICE_TITLE = { fr: "Choisis ton défi", en: "Choose your challenge" };
 const LYON = "Olympique Lyonnais";
 const WOLVERHAMPTON = "Wolverhampton Wanderers FC";
 
+/** The third card's club: the weakest of its second division whose board asks it to go up. */
+const COMEBACK_CLUB = "USL Dunkerque";
+
 /** The three cards of a French player, the recommended one chosen from the start. */
 const CARDS = [
   { kind: "favourite", level: "Facile · favori", club: "Paris Saint-Germain FC" },
   { kind: "mid-table", level: "Équilibré · conseillé", club: "Toulouse FC" },
-  { kind: "comeback", level: "Remontée · Division 2", club: "Grenoble Foot 38" },
+  { kind: "comeback", level: "Difficile · Division 2", club: COMEBACK_CLUB },
 ] as const;
 
 type CardKind = (typeof CARDS)[number]["kind"];
@@ -381,7 +384,7 @@ test("takes a result as the club: the field empties, no card stays checked, the 
   // Back on a card, the orange goes back with it.
   await cardOf(page, "comeback").click();
   await expectCheckedCard(page, "comeback");
-  await expectChosenClub(page, "Grenoble Foot 38");
+  await expectChosenClub(page, COMEBACK_CLUB);
   await expect(list).not.toHaveCSS("border-top-color", ACTION_ORANGE);
 });
 
@@ -457,7 +460,7 @@ test("keeps a name typed by hand in the options, whichever club comes after it",
   await name.fill("Ma remontée");
 
   await cardOf(page, "comeback").click();
-  await expect(listedClub(page)).toHaveText("Grenoble Foot 38");
+  await expect(listedClub(page)).toHaveText(COMEBACK_CLUB);
   await expect(name).toHaveValue("Ma remontée");
 
   await clubSearch(page).fill("wolver");

@@ -213,7 +213,9 @@ réputations de création, une par rang, ses réputations gardent leur étalemen
 section « Étalement des réputations » de `npm run measure:seasons`). Le rang attendu d'un club est son rang de réputation
 dans sa division pendant la saison (`reputationRanks` : un club par rang, à réputation égale le plus haut plafond
 salarial d'abord, puis le slug, pour qu'une division garde ses sommes : ses rangs attendus valent ses rangs finaux, ses
-dotations son budget de création). Puis, avant la présaison, chaque club reçoit sa dotation
+dotations son budget de création) ; à la création, sur les réputations et plafonds que la table donne à son rang d'origine
+(`creationReputationRanks`), jamais sur la masse salariale que la graine tire : le rang qu'annoncent les cartes du choix du
+club. Puis, avant la présaison, chaque club reçoit sa dotation
 (`applySeasonFinances`, `seasonFinances`, `economy.ts`) : le budget de création (`clubFinances`) à son nouveau rang de
 réputation dans sa nouvelle division, × son coefficient, + pour le seul club dirigé la moitié de son budget non dépensé
 (`BUDGET_CARRY_OVER_SHARE`, ventes et primes comprises) : un club IA repart chaque saison de sa dotation, que son budget
@@ -373,15 +375,21 @@ couvre l'écran à 390 et 1280 px.
 
 **Premiers pas.** Création d'une partie : « Choisis ton défi » au-dessus de trois cartes de club, le nom du manager et
 « Lancer ma carrière » juste après elles, puis la recherche, la liste complète et les options (`CreateSaveForm`, dans cet ordre
-dans le DOM). Les clubs arrivent dans le navigateur (`creationChoicesAction`, la page n'en donnant que le nombre) : jusque-là,
-trois cartes de réserve de la même taille (`SuggestionCardPlaceholder`, leur niveau et leur objectif déjà là), la recherche,
-la liste et le bouton inactifs, rien ne bouge à leur arrivée ; une carte choisie avant est celle choisie ensuite. Les trois
-cartes (`SuggestionCard`, `suggestClubs`,
-`src/engine/club-suggestions.ts`, pure, sans hasard : le 1er de D1, le début de la moitié basse de D1, la fin de la moitié
-haute de D2, dans le pays de la langue de la page, `app/_components/home-page.tsx` ; réputation et budget de `clubFinances`, la note d'un club
-n'existant pas avant la partie, ses joueurs naissant de la graine), celle du milieu, « Équilibré · conseillé », cochée à
-l'ouverture et suivant la langue tant que le joueur n'a rien choisi ; la dernière se nomme « Remontée », « Défi » étant le défi
-de la semaine. Dessous, la recherche (`ClubSearch`, `searchClubs`, `app/_lib/club-search.ts`, pure : deux lettres, sans accents
+dans le DOM). Les clubs arrivent dans le navigateur (`creationChoicesAction`, la page n'en donnant que le nombre et, sans
+nom, le niveau, la division et l'objectif de chaque carte, `creationPreview`) : jusque-là, trois cartes de réserve de la même
+taille (`SuggestionCardPlaceholder`, leur niveau et leur objectif déjà là), la recherche, la liste et le bouton inactifs, rien
+ne bouge à leur arrivée ; une carte choisie avant est celle choisie ensuite. Les trois cartes (`SuggestionCard`,
+`suggestClubs`, `src/engine/club-suggestions.ts`, pure, sans hasard : le 1er de D1, le début de la moitié basse de D1, le plus
+faible des clubs de D2 à qui la direction demande de monter (le 4e), dans le pays de la langue de la page,
+`app/_components/home-page.tsx` ; réputation et budget de `clubFinances`, la note d'un club n'existant pas avant la partie, ses
+joueurs naissant de la graine). **Une carte annonce l'objectif de classement que la direction fixera vraiment** à la saison
+1 : `ClubOption.objective` (`listClubsByCompetition`, `src/db/clubs.ts`), `leagueRankingObjective` au rang de réputation de la
+création (`creationReputationRanks`), les fonctions de `firstSeasonDotation` et `openSeasonObjectives`, et le libellé des
+écrans de la partie (`objectiveGoal`) : « Finir 10e ou mieux », « Monter en Division 1 », lu « Objectif de la direction » ;
+`creation-objectives.test.ts` le vérifie pour les 198 clubs (une vraie partie par club dans la suite lente). Son niveau lui
+répond : « Facile · favori » (top 3), « Équilibré · conseillé » (son rang attendu), cochée à l'ouverture et suivant la langue
+tant que le joueur n'a rien choisi, « Difficile · Division 2 » (monter), « Défi » étant le défi de la semaine ; une ligne
+d'objectif courte, pour que le bouton reste au-dessus du pli à 360 × 780, bandeau de langue compris. Dessous, la recherche (`ClubSearch`, `searchClubs`, `app/_lib/club-search.ts`, pure : deux lettres, sans accents
 ni casse, six résultats, Entrée choisit le premier et n'envoie jamais le formulaire) et la liste complète, par pays puis
 division (`club`, qui montre toujours le club choisi). Le nom de la partie vient du club tant que le joueur n'en tape pas un ;
 lui et la graine sont repliés sous « Options », ouvertes seules par leur erreur ; un formulaire refusé garde tout (`onReset`, React

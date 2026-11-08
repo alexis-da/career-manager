@@ -8,15 +8,14 @@ import {
   budgetCoefficient,
   CUP_WON_ROUND,
   cupObjective,
-  divisionOf,
   expectedSeasonGoals,
+  leagueRankingObjective,
   objectiveOutcome,
   objectiveProgress,
   objectivesRngSeed,
   OPTIONAL_OBJECTIVES,
   optionalTarget,
   proposedObjectives,
-  rankingObjective,
   reputationThird,
   type ObjectiveKind,
   type ObjectiveOutcome,
@@ -122,8 +121,8 @@ export async function openSeasonObjectives(
       rivals.map((club) => ({ key: club.id, reputation: club.reputation, wageBudget: club.wageBudget, slug: club.club.slug })),
     ).get(managed.id) ??
     clubCount;
-  const division = divisionOf(competition.code, tier, clubCount, worldVersionOf(save.worldVersion));
-  const ranking = rankingObjective(reputationRank, division);
+  // The same function as the creation form's cards (src/db/clubs.ts): what a card announces, the first season sets.
+  const ranking = leagueRankingObjective({ code: competition.code, tier, clubCount }, reputationRank, worldVersionOf(save.worldVersion));
 
   // The cup: the round the club enters at, 1 when it plays the preliminary round.
   const cupSeason = await cupSeasonOf(tx, saveId, competition.code, season.startYear);

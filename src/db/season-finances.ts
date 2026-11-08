@@ -2,7 +2,13 @@ import { NEUTRAL_BUDGET_COEFFICIENT, WAGE_BUDGET_MARGIN } from "../engine/balanc
 import { managedWageMargin, seasonFinances, wageBudgetFor, type SeasonFinances } from "../engine/economy";
 import { budgetCoefficient, divisionOf, rankingObjective, rankingOutcome } from "../engine/objectives";
 import type { MoveReason } from "../engine/promotion";
-import { rankInNextDivision, reputationAfterSeason, reputationRanks, reputationTarget } from "../engine/reputation";
+import {
+  creationReputationRanks,
+  rankInNextDivision,
+  reputationAfterSeason,
+  reputationRanks,
+  reputationTarget,
+} from "../engine/reputation";
 import { competitionTier, type CompetitionTier } from "../engine/tiers";
 import type { WorldVersion } from "../engine/world-version";
 import { Prisma } from "../generated/prisma/client";
@@ -228,19 +234,22 @@ export async function applyCreationWageBudgets(tx: Db, saveId: string): Promise<
 /**
  * The managed club's dotation for its first season, at the creation of a save: its creation finances as they are (its
  * budget, and its wage budget once measured against its payroll, applyCreationWageBudgets), its reputation rank in its
- * division, a coefficient of 100 and nothing carried over.
+ * division at the creation (creationReputationRanks), a coefficient of 100 and nothing carried over.
  */
 export async function firstSeasonDotation(tx: Db, saveId: string): Promise<{ seasonId: string; dotation: ManagedDotation }> {
   const managed = await tx.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
-    select: { id: true, competitionId: true, budget: true, wageBudget: true, reputation: true },
+    select: { id: true, competitionId: true, budget: true, wageBudget: true, reputation: true, competition: { select: { tier: true } } },
   });
   const rivals = await tx.clubSave.findMany({
     where: { saveId, competitionId: managed.competitionId },
-    select: { id: true, reputation: true, wageBudget: true, club: { select: { slug: true } } },
+    select: { id: true, club: { select: { slug: true, initialRank: true } } },
   });
-  const ranks = reputationRanks(
-    rivals.map((club) => ({ key: club.id, reputation: club.reputation, wageBudget: club.wageBudget, slug: club.club.slug })),
+  // The creation's ranks, on the reputations and wage budgets given at the clubs' source ranks: the payrolls just measured,
+  // which the seed draws, never reorder equal reputations. The rank the creation form's cards announce (src/db/clubs.ts).
+  const ranks = creationReputationRanks(
+    rivals.map((club) => ({ key: club.id, initialRank: club.club.initialRank, slug: club.club.slug })),
+    competitionTier(managed.competition.tier),
   );
   const season = await tx.season.findFirstOrThrow({
     where: { saveId, competitionId: managed.competitionId, completed: false },
