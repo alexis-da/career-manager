@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AdminDashboard, AdminDay } from "@/src/db/admin-dashboard";
+import type { ErrorGroupView, ErrorsSection } from "@/src/db/errors";
 import type { Locale } from "@/src/i18n/locale";
 
 // The page outside a request: its viewer is the administrator, its figures fixed, its language set by each test, without
@@ -89,6 +90,32 @@ vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
     },
   };
 });
+const group = (figures: Partial<ErrorGroupView>): ErrorGroupView => ({
+  fingerprint: "a1",
+  source: "SERVER",
+  kind: "render",
+  route: "/saves/[id]/live",
+  message: "TypeError: Cannot read properties of undefined (reading 'score')",
+  digest: "2718281828",
+  lastDay: 3,
+  lastWeek: 12,
+  lastSeenAt: "2026-11-07T21:14:09.000Z",
+  other: false,
+  ...figures,
+});
+vi.mock("@/src/db/errors", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/src/db/errors")>();
+  const latest = group({ fingerprint: "b2", source: "CLIENT", kind: "error", route: "/fr", message: "ChunkLoadError: Loading chunk 7 failed.", digest: null, lastDay: 1, lastWeek: 1, lastSeenAt: "2026-11-07T22:05:00.000Z" });
+  return {
+    ...original,
+    getErrorsSection: async (): Promise<ErrorsSection> => ({
+      lastDay: { total: 4, server: 3, client: 1 },
+      lastWeek: { total: 18, server: 12, client: 6 },
+      groups: [group({}), latest, group({ fingerprint: "(other):CLIENT", source: "CLIENT", kind: "error", route: "/", lastDay: 0, lastWeek: 5, other: true })],
+      latest,
+    }),
+  };
+});
 vi.mock("next-intl/server", async () => {
   const { testTranslator } = await import("@/src/i18n/test-intl");
   return {
@@ -117,6 +144,13 @@ describe("the administrator's dashboard", () => {
       ">Rétention</h2>",
       ">Activité</h2>",
       ">Santé</h2>",
+      ">Erreurs</h2>",
+      "3 serveur · 1 navigateur",
+      "La plus récente · 07/11 à 22:05 UTC",
+      "ChunkLoadError: Loading chunk 7 failed.",
+      "Navigateur · error · /fr",
+      "Serveur · render · /saves/[id]/live · digest 2718281828",
+      "Autres erreurs (au-delà de 200 groupes dans la journée)",
       "30 % des visites",
       "Langue : français 5 · anglais 5",
       "Appareil : téléphone 6 · ordinateur 4",
@@ -156,6 +190,11 @@ describe("the administrator's dashboard", () => {
       "181.4 MB",
       "Weekly challenge, week 45",
       "12 careers of 20 · 14 players entered · none ranked after 10 matchdays",
+      ">Errors</h2>",
+      "12 server · 6 browser",
+      "The latest · 07/11 at 22:05 UTC",
+      "Browser · error · /fr",
+      "Other errors (past 200 groups in the day)",
     ]) {
       expect(markup).toContain(text);
     }

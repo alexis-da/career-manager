@@ -766,13 +766,29 @@ verrouillée pendant la journée de chaque joueur ; un échec coûte un compte, 
 (`recordMaintenance`, route de maintenance, jamais en `dryRun`), ce qu'elle a supprimé (anonymes, leurs parties,
 `PurgeResult.saves`, parties de défi) et la taille de la base (`pg_database_size`), un relevé par jour.
 
+**Erreurs du jeu (`ErrorDay`).** Celles du serveur (`onRequestError`, `instrumentation.ts` : rendu, route, action,
+proxy ; jamais l'adresse, les en-têtes ni les cookies de la requête, ni ce que Next lance exprès, redirect et notFound) et
+celles des navigateurs (`ErrorReporter` dans le layout racine, `app/global-error.tsx` pour une page que React n'a pu
+rendre, sauf une erreur du serveur, qui a son digest : `reportClientError`, cinq rapports par page au plus, chacun une
+fois, jamais une extension ni « Script error. », par `sendBeacon` vers `POST /api/client-errors`). Celle-ci est la seule
+route API d'usage interne : une balise doit partir d'une page qui se ferme, et d'une page d'un déploiement d'avant, dont
+les Server Actions n'existent plus ; 2 Ko au plus, même origine, 10 par minute et par adresse (gardée en mémoire, jamais
+écrite), 300 par minute et par instance. Une erreur est nettoyée (`cleanErrorMessage`, `routeOfPath`,
+`src/lib/error-report.ts` : adresses e-mail, identifiants, nombres longs et requêtes retirés, « /saves/[id]/live »),
+regroupée par jour UTC et par empreinte (`errorFingerprint` : source, sorte, route et message aux nombres effacés) et
+comptée, avec sa dernière heure et son échantillon le plus récent (`recordError`, `src/db/errors.ts`, à l'horloge de la
+base) ; au-delà de 200 groupes par source dans la journée, dans son groupe « (other) ». La purge quotidienne supprime les
+jours de plus de 30 jours (`purgeOldErrors`). Section « Erreurs » de `/admin` (`getErrorsSection`) : 24 h et 7 jours,
+serveur et navigateur, la plus récente, les dix groupes les plus fréquents de la semaine avec leur compte des 24 h (les
+jours UTC d'hier et d'aujourd'hui d'une erreur vue depuis hier à cette heure).
+
 **Administration (`/admin`).** Le tableau de bord de l'administrateur (`app/admin/page.tsx`, `getAdminDashboard`,
 `src/db/admin-dashboard.ts`), 404 pour tout autre comme `/admin/stats`, qui reste, à un lien (« Statistiques
 détaillées », et retour) : sur 7 jours (`/admin`) ou 30 (`?days=30`), UTC, aujourd'hui compris. Acquisition (visites,
 nouveaux joueurs par jour et par source, langue, appareil, sans compte ou Google), Parcours (par source : carrière, 1er
 match, fin de saison, en part des visites ; médiane de la création de la carrière à la fin du premier match), Rétention
 (J+1 et J+7 par jour de création et par source, sur les jours dont le retour est passé), Activité (joueurs actifs par jour
-depuis `UserDay`, matchs du jour, défi de la semaine), Santé (taille, croissance moyenne sur 7 jours des relevés,
+depuis `UserDay`, matchs du jour, défi de la semaine), Erreurs (règle « Erreurs du jeu »), Santé (taille, croissance moyenne sur 7 jours des relevés,
 projection du jour où 1 Go serait atteint, `DATABASE_LIMIT_BYTES`, purges). Chaque chiffre est une requête d'agrégat sur
 la période, par un index (`User(createdAt)`, `UserDay(day)`, les jours de `VisitDay` et `DailyStat`), jamais une grande
 table de partie ; le plus cher est `pg_database_size` (environ 0,1 s). Lisible sur téléphone : sous 640 px, quatre
@@ -929,7 +945,8 @@ E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
 - Code, noms de variables et commentaires en **anglais**. Textes d'interface en **français** et en **anglais**, dans
   les messages (`src/i18n/messages`), jamais en dur dans une page traduite.
 - Server Components par défaut ; `"use client"` seulement pour un composant réellement interactif.
-- Mutations via Server Actions, jamais de route API pour un usage interne.
+- Mutations via Server Actions, jamais de route API pour un usage interne, sauf `POST /api/client-errors` (règle
+  « Erreurs du jeu »).
 - Validation des entrées avec Zod à la frontière (Server Action, parsing de fichier importé).
 - Une requête à la fois sur une connexion : pas de `Promise.all` sur un client de transaction (`tx`) ni sur un client
   pg à soi. Les requêtes que Prisma lance lui-même ensemble dans une transaction (chargement des relations, `createMany`
@@ -953,7 +970,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # composants des anglaises
   privacy/            # page de confidentialité, publique, en français et en anglais ; à tenir à jour
                       # avec le code (_components/privacy-document.tsx : les deux versions, une date de mise à jour)
-  api/                # Auth.js et les routes de maintenance (purge, défi de la semaine), seules routes API
+  api/                # Auth.js, les routes de maintenance (purge, défi de la semaine) et les erreurs des navigateurs
+                      # (client-errors), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
                       # club (club/ : finances, réglages), début de saison (season-start/ : dotation, choix de
                       # l'objectif), défi (challenge/), palmarès (seasons/, et
@@ -961,7 +979,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
                       # arrivals.spec.ts : le cookie d'arrivée, le compte des visites et la carrière qui en vient ;
-                      # admin.spec.ts : /admin, 404 pour tout autre, ses sections à 1280, 390 et 360 px, FR et EN ;
+                      # admin.spec.ts : /admin, 404 pour tout autre, ses sections à 1280, 390 et 360 px, FR et EN,
+                      # une erreur provoquée dans un navigateur, montrée dans sa section ;
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
                       # live.spec.ts : le direct et le panneau Coaching ; live-choices.spec.ts : un direct avec une
                       # décision du joueur, un changement et un arrêt demandé ; team.spec.ts : Effectif, Composition et fiche ;

@@ -1,13 +1,14 @@
 import { devices, expect, test, type Page } from "@playwright/test";
-import { createAnonymousUser, createRegisteredUser, deleteUsers, deleteVisits, ensureAdminUser, userIdOf } from "./db";
-import { expectNoSidewaysScroll, fillCreateSaveForm, signInAs } from "./helpers";
+import { createAnonymousUser, createRegisteredUser, deleteErrors, deleteUsers, deleteVisits, ensureAdminUser, userIdOf } from "./db";
+import { expectNoSidewaysScroll, fillCreateSaveForm, signInAs, waitForReact } from "./helpers";
 
 // /admin, the administrator's dashboard (app/admin, src/db/admin-dashboard.ts): a page that does not exist for anyone
-// but ADMIN_EMAIL (ADMIN_EMAIL_TEST on the test server); its five sections on a phone and a computer, in French and in
-// English, without a sideways scroll, page or table; 7 or 30 days; and a first visit from a link followed to it.
+// but ADMIN_EMAIL (ADMIN_EMAIL_TEST on the test server); its six sections on a phone and a computer, in French and in
+// English, without a sideways scroll, page or table; 7 or 30 days; a first visit from a link followed to it; and an error
+// provoked in a player's browser, shown in its errors section.
 
 const LYON = "Olympique Lyonnais";
-const SECTIONS = ["acquisition", "journey", "retention", "activity", "health"] as const;
+const SECTIONS = ["acquisition", "journey", "retention", "activity", "errors", "health"] as const;
 const VIEWPORTS = [
   { width: 1280, height: 800 },
   { width: 390, height: 844 },
@@ -39,7 +40,7 @@ test("answers 404 on /admin and /admin/stats to anyone but the administrator", a
   }
 });
 
-test("shows the administrator its five sections on a computer and a phone, over 7 or 30 days, in French and in English", async ({
+test("shows the administrator its six sections on a computer and a phone, over 7 or 30 days, in French and in English", async ({
   page,
 }) => {
   await signInAs(page, await ensureAdminUser());
@@ -84,6 +85,48 @@ test("shows the administrator its five sections on a computer and a phone, over 
   await expect(page.getByTestId("admin-period-30")).toHaveText("30 days");
   await expectNoSidewaysScroll(page, "English at 360 px");
   expect(await tablesOverflowing(page)).toEqual([]);
+});
+
+test("shows in its errors section an error provoked in a player's browser, the latest one, by its route", async ({ browser, page }) => {
+  // A word of this run only, its errors deleted at the end; letters only, which the cleaning of a message keeps.
+  const word = `erreur${Date.now().toString(36).replace(/\d/g, "x")}`;
+  const visitor = await browser.newContext({ ...devices["Pixel 7"], locale: "fr-FR" });
+  const player = await visitor.newPage();
+  try {
+    await player.goto("/fr/comment-jouer");
+    await waitForReact(player);
+    const reported = player.waitForRequest((request) => request.url().endsWith("/api/client-errors") && request.method() === "POST");
+    // An uncaught error, as a bug of the page's code would throw.
+    await player.evaluate((message) => {
+      setTimeout(() => {
+        throw new TypeError(message);
+      });
+    }, `Panne ${word}`);
+    await reported;
+
+    await signInAs(page, await ensureAdminUser());
+    await page.setViewportSize({ width: 360, height: 780 });
+    await page.goto("/admin");
+    await expect
+      .poll(async () => {
+        await page.reload();
+        return page.getByTestId("admin-errors-latest").textContent();
+      })
+      .toContain(`TypeError: Panne ${word}`);
+    await expect(page.getByTestId("admin-errors-latest")).toContainText("Navigateur · error · /fr/comment-jouer");
+    await expect(page.getByTestId("admin-errors-groups").locator("tbody tr", { hasText: word }).locator("td")).toHaveText([
+      new RegExp(`TypeError: Panne ${word}`),
+      "1",
+      "1",
+      /\d\d\/\d\d/,
+    ]);
+    await expectNoSidewaysScroll(page, "errors at 360 px");
+    expect(await tablesOverflowing(page)).toEqual([]);
+  } finally {
+    await deleteErrors(word);
+    await deleteUsers([await userIdOf(visitor)]);
+    await visitor.close();
+  }
 });
 
 test("follows a first visit from a link to the career it made, on the dashboard", async ({ browser, page }) => {

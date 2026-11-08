@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Barlow } from "next/font/google";
 import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
+import { ErrorReporter } from "./_components/error-reporter";
 import { getLocale } from "next-intl/server";
 import { Toaster } from "@/src/components/ui/sonner";
 import { SITE_URL } from "@/src/config/site";
@@ -55,6 +56,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider>
           {children}
+          {/* The page's uncaught errors, reported to the server for /admin. */}
+          <ErrorReporter />
           {/* Above a save's navigation, fixed to the foot of the screen under lg (--toast-bottom). */}
           <Toaster
             theme="dark"

@@ -3,6 +3,7 @@ import { Panel, PanelTitle } from "@/src/components/panel";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import { UNKNOWN_SOURCE, type AdminDashboard, type AdminDay, type Journey, type Share } from "@/src/db/admin-dashboard";
+import { MAX_ERROR_GROUPS_PER_DAY, type ErrorGroupView, type ErrorsSection as ErrorFigures } from "@/src/db/errors";
 import { OTHER_SOURCES } from "@/src/db/visits";
 import type { Translator } from "@/src/i18n/translator";
 import { isoWeekNumber } from "@/src/lib/iso-week";
@@ -394,6 +395,82 @@ export function HealthSection({ dashboard, t, format, statsLink }: SectionProps 
         </TableBody>
       </Table>
       {statsLink}
+    </Section>
+  );
+}
+
+/** « 08/11 à 22:15 UTC »: an error's time, from its ISO string, in UTC as the table keeps its days. */
+function errorTime(iso: string, t: Translator<"admin">): string {
+  return t("errors.at", { day: `${iso.slice(8, 10)}/${iso.slice(5, 7)}`, time: iso.slice(11, 16) });
+}
+
+/** What an error says, and where it happened: its message, then its source, kind and route, and its digest. */
+function ErrorLines({ group, t }: { group: ErrorGroupView; t: Translator<"admin"> }) {
+  return (
+    <>
+      <span className="block font-semibold wrap-anywhere">{group.other ? t("errors.other", { max: MAX_ERROR_GROUPS_PER_DAY }) : group.message}</span>
+      <span className="block text-xs text-muted-foreground wrap-anywhere">
+        {[t(`errors.source.${group.source}`), group.kind, group.route].join(" · ")}
+        {group.digest !== null && ` · ${t("errors.digest", { digest: group.digest })}`}
+      </span>
+    </>
+  );
+}
+
+/**
+ * The game's errors (src/db/errors.ts): the last 24 hours and the last seven days, server and browsers, the latest
+ * one, and the most frequent groups of the week with their 24 hours' count. Four columns on a phone too.
+ */
+export function ErrorsSection({ errors, t, format }: { errors: ErrorFigures; t: Translator<"admin">; format: AdminFormats }) {
+  const split = (window: ErrorFigures["lastDay"]) =>
+    t("errors.split", { server: format.integer(window.server), client: format.integer(window.client) });
+  return (
+    <Section id="errors" title={t("errors.title")} note={t("errors.note")}>
+      <Tiles half>
+        <Tile label={t("errors.lastDay")} value={format.integer(errors.lastDay.total)} detail={split(errors.lastDay)} testId="admin-errors-day" />
+        <Tile label={t("errors.lastWeek")} value={format.integer(errors.lastWeek.total)} detail={split(errors.lastWeek)} testId="admin-errors-week" />
+      </Tiles>
+      {errors.latest === null ? (
+        <p className="text-sm text-muted-foreground" data-testid="admin-errors-none">
+          {t("errors.none")}
+        </p>
+      ) : (
+        <>
+          <div className="space-y-1 rounded-xl bg-background/60 p-3 text-sm" data-testid="admin-errors-latest">
+            <p className="text-[0.6875rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+              {t("errors.latest")} · {errorTime(errors.latest.lastSeenAt, t)}
+            </p>
+            <p>
+              <ErrorLines group={errors.latest} t={t} />
+            </p>
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">{t("errors.frequent")}</h3>
+            <Table data-testid="admin-errors-groups">
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  <TableHead className={HEAD}>{t("errors.columns.error")}</TableHead>
+                  <TableHead className={HEAD_NUMBER}>{t("errors.columns.lastDay")}</TableHead>
+                  <TableHead className={HEAD_NUMBER}>{t("errors.columns.lastWeek")}</TableHead>
+                  <TableHead className={HEAD_NUMBER}>{t("errors.columns.last")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {errors.groups.map((group) => (
+                  <TableRow key={group.fingerprint} data-fingerprint={group.fingerprint} className={TABLE_ROW}>
+                    <TableCell className={cn(TABLE_CELL, TIGHT, "max-w-0 w-full whitespace-normal")}>
+                      <ErrorLines group={group} t={t} />
+                    </TableCell>
+                    <TableCell className={NUMBER}>{format.integer(group.lastDay)}</TableCell>
+                    <TableCell className={NUMBER}>{format.integer(group.lastWeek)}</TableCell>
+                    <TableCell className={cn(NUMBER, "max-sm:whitespace-normal")}>{format.day(group.lastSeenAt.slice(0, 10))}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
     </Section>
   );
 }

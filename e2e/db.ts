@@ -48,6 +48,11 @@ export async function visitsOf(day: string, source: string): Promise<{ page: str
   });
 }
 
+/** Deletes the errors a test provoked: those whose message holds this word. */
+export async function deleteErrors(word: string): Promise<void> {
+  await withTestDatabase((client) => client.query(`DELETE FROM "ErrorDay" WHERE strpos("message", $1) > 0`, [word]));
+}
+
 /** Deletes the counts of the sources a test made up: those starting with this prefix. */
 export async function deleteVisits(sourcePrefix: string): Promise<void> {
   await withTestDatabase((client) => client.query(`DELETE FROM "VisitDay" WHERE starts_with("source", $1)`, [sourcePrefix]));

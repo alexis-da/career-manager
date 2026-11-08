@@ -7,11 +7,13 @@ import { getCurrentUser, isAdmin } from "@/src/auth/current-user";
 import { SegmentedLinks } from "@/src/components/segmented";
 import { getAdminDashboard, type AdminPeriod } from "@/src/db/admin-dashboard";
 import { prisma } from "@/src/db/client";
+import { getErrorsSection } from "@/src/db/errors";
 import { INTL_LOCALES } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 import {
   AcquisitionSection,
   ActivitySection,
+  ErrorsSection,
   HealthSection,
   JourneySection,
   RetentionSection,
@@ -31,7 +33,8 @@ const periodOf = (days: string | string[] | undefined): AdminPeriod => (days ===
 
 /**
  * The administrator's dashboard (ADMIN_EMAIL): where players come from and how far they go, who comes back, what is
- * played, the database's health, over 7 or 30 days (src/db/admin-dashboard.ts). 404 for anyone else, signed out
+ * played, the game's errors over 24 hours and 7 days (src/db/errors.ts), the database's health, over 7 or 30 days
+ * (src/db/admin-dashboard.ts). 404 for anyone else, signed out
  * included, as a page that does not exist. /admin/stats stays, a link away, with its tables and saves' first steps.
  */
 export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
@@ -41,7 +44,8 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   }
   const period = periodOf((await searchParams).days);
   // Not simulation code: the figures are about real days.
-  const dashboard = await getAdminDashboard(prisma, new Date(), period);
+  const now = new Date();
+  const [dashboard, errors] = await Promise.all([getAdminDashboard(prisma, now, period), getErrorsSection(prisma, now)]);
   const [t, locale] = await Promise.all([getTranslations("admin"), getLocale()]);
 
   const integers = new Intl.NumberFormat(INTL_LOCALES[locale]);
@@ -94,6 +98,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
           <RetentionSection {...sections} />
           <ActivitySection {...sections} />
         </div>
+        <ErrorsSection errors={errors} t={t} format={format} />
         <HealthSection
           {...sections}
           statsLink={

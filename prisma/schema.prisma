@@ -140,6 +140,24 @@ model DailyStat {
   purgedChallengeSaves Int      @default(0) // parties de défi supprimées 24 h après leur semaine
 }
 
+// Les erreurs du jeu, regroupées par jour UTC et par empreinte (source, sorte, route et message aux nombres effacés,
+// errorFingerprint, src/lib/error-report.ts) : un compteur, la dernière heure et l'échantillon le plus récent, sans donnée
+// personnelle ni cookie (src/db/errors.ts). Du serveur (onRequestError, instrumentation.ts) et des navigateurs
+// (POST /api/client-errors). Supprimées au-delà de 30 jours par la maintenance quotidienne (purgeOldErrors).
+model ErrorDay {
+  day         DateTime    @db.Date // jour UTC
+  fingerprint String // empreinte du groupe ; « (other) » d'une source au-delà de MAX_ERROR_GROUPS_PER_DAY groupes dans la journée
+  source      ErrorSource
+  kind        String // render, route, action, proxy (serveur) ; error, rejection, react (navigateur)
+  route       String // la route (« /saves/[id]/live »), jamais l'adresse et ses identifiants
+  message     String // le message de la dernière : nom et message, nettoyés (adresses, identifiants, nombres longs), tronqués
+  digest      String? // le digest de Next d'une erreur serveur, qui la retrouve dans les journaux de l'hébergeur
+  count       Int         @default(1)
+  lastSeenAt  DateTime // la dernière, à l'horloge de la base
+
+  @@id([day, fingerprint])
+}
+
 model Save {
   id             String              @id @default(cuid())
   owner          User?               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -520,6 +538,12 @@ enum Position {
   RW
   LW
   ST
+}
+
+/// D'où vient une erreur : le serveur ou le navigateur d'un joueur.
+enum ErrorSource {
+  SERVER
+  CLIENT
 }
 
 enum UserKind {

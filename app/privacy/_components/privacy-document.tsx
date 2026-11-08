@@ -4,7 +4,7 @@ import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 
 /** The day this page last changed, the same in both versions: to update with their content. */
-const UPDATED_ON = new Date(Date.UTC(2026, 10, 7));
+const UPDATED_ON = new Date(Date.UTC(2026, 10, 8));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -75,6 +75,12 @@ function FrenchPrivacy() {
             d&apos;arrivée, de simples totaux sans aucune donnée personnelle.
           </li>
           <li>
+            <strong>Les erreurs du jeu</strong> : quand une page du jeu rencontre une erreur, sur le serveur ou dans ton
+            navigateur, la page concernée (sans ses identifiants) et le message de l&apos;erreur, nettoyé de toute adresse
+            e-mail et de tout identifiant, sont comptés par jour, sans rien qui te désigne. Pour limiter ces envois,
+            l&apos;adresse IP de ton navigateur est gardée une minute en mémoire, jamais enregistrée.
+          </li>
+          <li>
             Des cookies de confort : la langue que tu choisis, lw_lang (un an), la fermeture du bandeau qui invite à
             créer un compte (sept jours) et ce que tu as déjà vu des premiers pas d&apos;une partie, lw_seen_… (trente
             jours, envoyés pour cette partie seulement).
@@ -86,7 +92,8 @@ function FrenchPrivacy() {
       <Section title="Finalités">
         <p>
           Faire fonctionner le jeu et te permettre de retrouver tes parties, y compris sur un autre appareil avec ton
-          compte Google ; afficher le classement du défi de la semaine ; mesurer l&apos;audience, strictement en
+          compte Google ; repérer et corriger ses erreurs ; afficher le classement du défi de la semaine ; mesurer
+          l&apos;audience, strictement en
           interne : d&apos;où viennent les joueurs, combien créent une carrière, jouent un match, terminent une saison et
           reviennent.
         </p>
@@ -101,7 +108,7 @@ function FrenchPrivacy() {
         <p>
           Le cookie lw_src expire au bout de 30 jours. L&apos;origine, la langue, l&apos;appareil et les dates de tes
           premiers pas restent avec ton profil de joueur et partent avec lui. Les compteurs de visites, de simples
-          totaux, sont gardés sans limite de durée.
+          totaux, sont gardés sans limite de durée. Les erreurs comptées sont supprimées au bout de 30 jours.
         </p>
         <p>
           Une partie du défi de la semaine est supprimée 24 heures après la fin de sa semaine, le mardi, avec ou sans
@@ -143,8 +150,10 @@ function FrenchPrivacy() {
             with Google, your first name (the first word of your Google account&apos;s name) is shown with it in the
             challenge&apos;s public ranking, to everyone. Comfort cookies keep the language you choose (lw_lang, one
             year), the closing of the banner inviting you to sign in (seven days) and what you have seen of a
-            career&apos;s first steps (lw_seen_…, thirty days). No third-party cookie, no advertising, no cross-site
-            tracking, no sale of data.
+            career&apos;s first steps (lw_seen_…, thirty days). Errors the game meets, on the server or in your browser,
+            are counted by day with the page (without its identifiers) and a cleaned message, nothing that points to
+            you, and deleted after 30 days; your IP address is held in memory for a minute to limit them, never
+            recorded. No third-party cookie, no advertising, no cross-site tracking, no sale of data.
           </p>
           <p>
             Purposes: running the game and finding your saves again; showing the weekly challenge&apos;s ranking; internal
@@ -220,6 +229,12 @@ function EnglishPrivacy() {
             totals without any personal data.
           </li>
           <li>
+            <strong>The game&apos;s errors</strong>: when a page of the game meets an error, on the server or in your
+            browser, the page concerned (without its identifiers) and the error&apos;s message, cleaned of any email address
+            and identifier, are counted by day, with nothing that points to you. To limit how many are sent, your
+            browser&apos;s IP address is held in memory for a minute, never recorded.
+          </li>
+          <li>
             Comfort cookies: the language you choose, lw_lang (one year), the closing of the banner inviting you to create
             an account (seven days) and what you have already seen of a career&apos;s first steps, lw_seen_… (thirty
             days, sent for that career only).
@@ -231,7 +246,8 @@ function EnglishPrivacy() {
       <Section title="Purposes">
         <p>
           Running the game and letting you find your careers again, including on another device with your Google
-          account; showing the weekly challenge&apos;s ranking; measuring the audience, strictly internally: where
+          account; spotting and fixing its errors; showing the weekly challenge&apos;s ranking; measuring the audience,
+          strictly internally: where
           players come from, how many create a career, play a match, finish a season and come back.
         </p>
       </Section>
@@ -244,7 +260,8 @@ function EnglishPrivacy() {
         </p>
         <p>
           The lw_src cookie expires after 30 days. The origin, language, device and dates of your first steps stay with
-          your player profile and go with it. The visit counters, plain totals, are kept without a time limit.
+          your player profile and go with it. The visit counters, plain totals, are kept without a time limit. The
+          counted errors are deleted after 30 days.
         </p>
         <p>
           A weekly challenge career is deleted 24 hours after its week ends, on the Tuesday, with or without an account.
@@ -277,7 +294,7 @@ function EnglishPrivacy() {
  * What the game does with players' data, exactly as it works today: the cookies it sets, the Google account it reads,
  * the game data, the weekly challenge's public ranking (first names) and its saves' deletion, the visit days of
  * /admin/stats, the arrival of a player (lw_src, src/lib/arrival.ts) and their first steps (src/db/activation.ts), the
- * visit counters (VisitDay), the purge (src/db/purge.ts), account deletion. In the player's language: the French version, or the
+ * visit counters (VisitDay), the game's errors (src/db/errors.ts), the purge (src/db/purge.ts), account deletion. In the player's language: the French version, or the
  * English one in full. Update both, and UPDATED_ON, whenever one of these changes.
  */
 export function PrivacyDocument({ locale }: { locale: Locale }) {

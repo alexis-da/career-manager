@@ -131,6 +131,29 @@
       "minutes": "{count} min",
       "hours": "{count} h",
       "days": "{count} j"
+    },
+    "errors": {
+      "title": "Erreurs",
+      "note": "Erreurs du serveur et des navigateurs, regroupées par jour UTC et par empreinte (route et message, sans donnée personnelle), gardées 30 jours. Les 24 h comptent, pour une erreur vue depuis hier à cette heure, ses jours UTC d'hier et d'aujourd'hui.",
+      "lastDay": "24 h",
+      "lastWeek": "7 jours",
+      "split": "{server} serveur · {client} navigateur",
+      "latest": "La plus récente",
+      "frequent": "Les plus fréquentes sur 7 jours",
+      "none": "Aucune erreur sur 7 jours.",
+      "columns": {
+        "error": "Erreur",
+        "lastDay": "24 h",
+        "lastWeek": "7 j",
+        "last": "Dernière"
+      },
+      "source": {
+        "SERVER": "Serveur",
+        "CLIENT": "Navigateur"
+      },
+      "other": "Autres erreurs (au-delà de {max} groupes dans la journée)",
+      "at": "{day} à {time} UTC",
+      "digest": "digest {digest}"
     }
   }
 }

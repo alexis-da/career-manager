@@ -131,6 +131,29 @@
       "minutes": "{count} min",
       "hours": "{count} h",
       "days": "{count} d"
+    },
+    "errors": {
+      "title": "Errors",
+      "note": "Errors of the server and of browsers, grouped by UTC day and fingerprint (route and message, nothing personal), kept 30 days. For an error seen since this time yesterday, the 24 h count its UTC days of yesterday and today.",
+      "lastDay": "24 h",
+      "lastWeek": "7 days",
+      "split": "{server} server · {client} browser",
+      "latest": "The latest",
+      "frequent": "The most frequent over 7 days",
+      "none": "No error over 7 days.",
+      "columns": {
+        "error": "Error",
+        "lastDay": "24 h",
+        "lastWeek": "7 d",
+        "last": "Last"
+      },
+      "source": {
+        "SERVER": "Server",
+        "CLIENT": "Browser"
+      },
+      "other": "Other errors (past {max} groups in the day)",
+      "at": "{day} at {time} UTC",
+      "digest": "digest {digest}"
     }
   }
 }
