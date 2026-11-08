@@ -25,6 +25,7 @@ npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
 npm run measure:seasons # budgets, plafonds, réputation (son étalement) et objectifs : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
+npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json ; base locale dédiée et vide)
 ```
 
 ## Règles non négociables
@@ -984,7 +985,8 @@ prisma/
   seed/               # import OpenFootball, couleurs des clubs, génération du monde ; reference-sql.ts : SQL des migrations de données
     data/             # calendriers OpenFootball (premières et deuxièmes divisions), club-colors.json, club-aliases-fallback.json
 scripts/              # measure-save-size.ts (npm run measure:size), measure-balance.ts (npm run measure:balance), measure-d2-balance.ts (npm run measure:divisions),
-                      # measure-seasons.ts (npm run measure:seasons), generate-reference-migration.ts
+                      # measure-seasons.ts (npm run measure:seasons), measure-career-weight.ts (npm run measure:weight),
+                      # generate-reference-migration.ts
 ```
 
 ## Dettes ouvertes

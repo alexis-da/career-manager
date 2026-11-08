@@ -10,7 +10,7 @@
 import "dotenv/config";
 import { Prisma } from "../src/generated/prisma/client";
 import { prisma } from "../src/db/client";
-import { databaseSize, relationSizes } from "../src/db/db-size";
+import { compactRelationSize, databaseSize, relationSizes } from "../src/db/db-size";
 
 const MB = 1024 * 1024;
 /** The free plan's storage, read as 1 Go = 1024 Mo, and the margin kept for growth, indexes and VACUUM. */
@@ -38,50 +38,6 @@ type TableSize = {
   compact: number; // what the live rows and their indexes would take once packed, without the space freed rows left
 };
 
-/** Heap pages: 8 kB, of which the page header and free space for updates leave about this much to the rows. */
-const PAGE_FILL = 0.9;
-/** A row's line pointer in its page, and an index entry's header and line pointer. */
-const LINE_POINTER = 4;
-const INDEX_TUPLE_HEADER = 8;
-/** B-tree leaf pages after inserts in no particular order (cuid keys): about two thirds full. */
-const INDEX_FILL = 0.7;
-
-const align8 = (bytes: number): number => Math.ceil(bytes / 8) * 8;
-
-/**
- * The compact size of a table: its live rows at their real width (pg_column_size, tuple header included), and for
- * each index, an entry per row of the average width of its key columns. A lower estimate than pg_total_relation_size
- * once rows have been deleted: VACUUM makes the space reusable, it does not give it back.
- */
-async function compactSize(table: string, rows: number): Promise<number> {
-  if (rows === 0) {
-    return 0;
-  }
-  const quoted = Prisma.raw(`"${table}"`);
-  const [{ width }] = await prisma.$queryRaw<{ width: number }[]>(
-    Prisma.sql`SELECT avg(pg_column_size(t.*))::float8 AS width FROM ${quoted} t`,
-  );
-  const heap = (rows * align8(width + LINE_POINTER)) / PAGE_FILL;
-
-  const indexes = await prisma.$queryRaw<{ columns: string[] }[]>`
-    SELECT array_agg(a.attname ORDER BY a.attnum)::text[] AS columns
-    FROM pg_index i
-    JOIN pg_class c ON c.oid = i.indrelid
-    JOIN pg_namespace n ON n.oid = c.relnamespace
-    JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-    WHERE n.nspname = 'public' AND c.relname = ${table}
-    GROUP BY i.indexrelid`;
-  let index = 0;
-  for (const { columns } of indexes) {
-    const widths = columns.map((column) => `coalesce(avg(pg_column_size(t."${column}")), 0)`).join(" + ");
-    const [{ key }] = await prisma.$queryRaw<{ key: number }[]>(
-      Prisma.sql`SELECT (${Prisma.raw(widths)})::float8 AS key FROM ${quoted} t`,
-    );
-    index += (rows * (align8(INDEX_TUPLE_HEADER + key) + LINE_POINTER)) / INDEX_FILL;
-  }
-  return heap + index;
-}
-
 const mb = (bytes: number): string => (bytes / MB).toFixed(1);
 
 function printTable(title: string, headers: string[], rows: (string | number)[][]): void {
@@ -101,7 +57,7 @@ async function tableSizes(): Promise<TableSize[]> {
   for (const size of await relationSizes(prisma)) {
     // Exact counts: the tables are small enough, and reltuples is only an estimate.
     const [{ rows }] = await prisma.$queryRaw<{ rows: bigint }[]>(Prisma.sql`SELECT count(*)::bigint AS rows FROM ${Prisma.raw(`"${size.table}"`)}`);
-    result.push({ ...size, rows: Number(rows), compact: await compactSize(size.table, Number(rows)) });
+    result.push({ ...size, rows: Number(rows), compact: await compactRelationSize(prisma, size.table, Number(rows)) });
   }
   return result.sort((a, b) => b.total - a.total);
 }
