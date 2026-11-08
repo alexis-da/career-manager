@@ -59,7 +59,12 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     await client.dailyStat.deleteMany({ where: { day: { in: DAYS } } });
   };
 
+  // Its days must be the table's first: stats.test.ts writes its own, never at the same time.
+  let release: (() => Promise<void>) | undefined;
+
   beforeAll(async () => {
+    const { holdTestLock, TEST_LOCKS } = await import("./test-locks");
+    release = await holdTestLock(TEST_LOCKS.firstTrackedDays);
     const [{ prisma }, dashboardModule] = await Promise.all([import("./client"), import("./admin-dashboard")]);
     db = prisma;
     dashboard = dashboardModule;
@@ -87,10 +92,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
   }, 60_000);
 
   afterAll(async () => {
-    if (db !== undefined) {
-      await clean(db);
+    try {
+      if (db !== undefined) {
+        await clean(db);
+      }
+      await db?.$disconnect();
+    } finally {
+      await release?.();
     }
-    await db?.$disconnect();
   }, 60_000);
 
   it("gives each day of the period its visits, new players and their returns, active players, matches and health", async () => {

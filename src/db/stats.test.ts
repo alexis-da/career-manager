@@ -33,7 +33,12 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("admin statistics, in th
     return { db, stats, userDays };
   };
 
+  // The days of these users must be the table's first: admin-dashboard.test.ts writes older ones, never at the same time.
+  let release: (() => Promise<void>) | undefined;
+
   beforeAll(async () => {
+    const { holdTestLock, TEST_LOCKS } = await import("./test-locks");
+    release = await holdTestLock(TEST_LOCKS.firstTrackedDays);
     const [{ prisma }, statsModule, userDaysModule] = await Promise.all([import("./client"), import("./stats"), import("./user-days")]);
     db = prisma;
     stats = statsModule;
@@ -50,8 +55,12 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("admin statistics, in th
   }, 60_000);
 
   afterAll(async () => {
-    await db?.user.deleteMany({ where: { id: { in: users.map((user) => user.id) } } });
-    await db?.$disconnect();
+    try {
+      await db?.user.deleteMany({ where: { id: { in: users.map((user) => user.id) } } });
+      await db?.$disconnect();
+    } finally {
+      await release?.();
+    }
   }, 60_000);
 
   it("records a day once, however many times it is written", async () => {
