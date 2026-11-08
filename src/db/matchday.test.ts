@@ -94,29 +94,43 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
     expect(stats?.minutes).toBeGreaterThan(0);
   });
 
-  it("records one goal event per goal and counts them in the season stats", async () => {
+  it("records each goal, an event of the managed club's match or in another fixture's goal times, and counts them in the season stats", async () => {
     const db = database();
-    const [fixtures, goalEvents, stats] = await Promise.all([
+    const [fixtures, goalEvents, played, stats] = await Promise.all([
       db.fixture.aggregate({ where: { saveId, played: true }, _sum: { homeGoals: true, awayGoals: true } }),
       db.matchEvent.count({ where: { type: "GOAL", fixture: { saveId } } }),
+      db.fixture.findMany({
+        where: { saveId, played: true },
+        select: { goalTimes: true, homeClubSave: { select: { isManaged: true } }, awayClubSave: { select: { isManaged: true } } },
+      }),
       db.playerSeasonStats.aggregate({ where: { saveId }, _sum: { goals: true } }),
     ]);
     const goals = (fixtures._sum.homeGoals ?? 0) + (fixtures._sum.awayGoals ?? 0);
+    const managed = played.find((fixture) => fixture.homeClubSave.isManaged || fixture.awayClubSave.isManaged);
+    const goalTimes = played.reduce((sum, fixture) => sum + fixture.goalTimes.length, 0);
 
     expect(summary?.goals).toBe(goals);
-    expect(goalEvents).toBe(goals);
+    expect(managed?.goalTimes).toEqual([]);
+    expect(goalEvents + goalTimes).toBe(goals);
+    // Only the managed club's match keeps its goals as events.
+    expect(await db.matchEvent.count({ where: { type: "GOAL", fixture: { saveId, homeClubSave: { isManaged: false }, awayClubSave: { isManaged: false } } } })).toBe(0);
     expect(stats._sum.goals).toBe(goals);
   });
 
   it("stores each goal on the side that scored it", async () => {
     const fixtures = await database().fixture.findMany({
       where: { saveId, played: true },
-      select: { id: true, homeGoals: true, awayGoals: true, events: { where: { type: "GOAL" }, select: { side: true } } },
+      select: { id: true, homeGoals: true, awayGoals: true, goalTimes: true, events: { where: { type: "GOAL" }, select: { side: true } } },
     });
+    const { decodeGoalTimes } = await import("../engine/match");
+    const sides = (fixture: (typeof fixtures)[number]) => [
+      ...fixture.events.map((event) => (event.side === "HOME" ? "home" : "away")),
+      ...decodeGoalTimes(fixture.goalTimes).map((goal) => goal.side),
+    ];
     const mismatches = fixtures.filter(
       (fixture) =>
-        fixture.events.filter((event) => event.side === "HOME").length !== fixture.homeGoals ||
-        fixture.events.filter((event) => event.side === "AWAY").length !== fixture.awayGoals,
+        sides(fixture).filter((side) => side === "home").length !== fixture.homeGoals ||
+        sides(fixture).filter((side) => side === "away").length !== fixture.awayGoals,
     );
 
     expect(fixtures).toHaveLength(48);
@@ -179,16 +193,36 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
     expect(players.filter((player) => player.stats[0].redCards === 0).every((player) => player.suspendedMatches === 0)).toBe(true);
   }, 30_000);
 
-  it("gives every player of the save his days of rest before the next date, up to full fitness", async () => {
+  it("gives every player of the save his days of rest before the next date, up to full fitness, and rewrites only the rows that change", async () => {
     const db = database();
     const freeAgent = await db.playerSave.findFirstOrThrow({ where: { saveId, clubSaveId: null }, select: { id: true } });
     await db.playerSave.update({ where: { id: freeAgent.id }, data: { fitness: 40 } });
+    // A player of a club that plays, out injured: his days of rest come in memory, kept by his match's write.
+    const injured = await db.playerSave.findFirstOrThrow({
+      where: { saveId, clubSave: { isManaged: true }, playerKey: { notIn: [pickedKey, ...suspendedKeys] } },
+      orderBy: { playerKey: "asc" },
+      select: { id: true },
+    });
+    await db.playerSave.update({ where: { id: injured.id }, data: { fitness: 40, injuredUntil: new Date(Date.UTC(2027, 0, 1)) } });
+    // Each row's version (xmin) and what a matchday may change of it.
+    const rows = () =>
+      db.$queryRaw<{ id: string; version: string; values: string }[]>`
+        SELECT "id", xmin::text AS version,
+               concat_ws(',', "form", "fitness", "injuredUntil", "leagueYellows", "cupYellows", "suspendedMatches",
+                         "suspendedLeagueMatches", "suspendedCupMatches") AS values
+        FROM "PlayerSave" WHERE "saveId" = ${saveId}`;
+    const before = new Map((await rows()).map((row) => [row.id, row]));
     const { playNextMatchday } = await import("./matchday");
     const next = await playNextMatchday(saveId);
+    const after = await rows();
     const days = Math.round(((next?.date.getTime() ?? 0) - Date.UTC(2026, 7, 15)) / 86_400_000);
-    const rested = await db.playerSave.findUniqueOrThrow({ where: { id: freeAgent.id }, select: { fitness: true } });
+    const rested = await db.playerSave.findMany({ where: { saveId, id: { in: [freeAgent.id, injured.id] } }, select: { id: true, fitness: true } });
 
     expect(days).toBe(7);
-    expect(rested.fitness).toBe(Math.min(FULL_FITNESS, 40 + FITNESS_RECOVERY_PER_DAY * days));
+    expect(rested.map((player) => player.fitness)).toEqual([40, 40].map((fitness) => Math.min(FULL_FITNESS, fitness + FITNESS_RECOVERY_PER_DAY * days)));
+    // No row is written again unless it changes; most of the save's rows are left alone.
+    const rewritten = after.filter((row) => row.version !== before.get(row.id)?.version);
+    expect(rewritten.filter((row) => row.values === before.get(row.id)?.values).map((row) => row.id)).toEqual([]);
+    expect(rewritten.length).toBeLessThan(after.length / 2);
   }, 120_000);
 });

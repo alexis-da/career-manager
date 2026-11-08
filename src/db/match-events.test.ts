@@ -34,6 +34,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("match events written fo
     const fixtures = await database().fixture.findMany({
       where: { saveId, scheduledAt: firstMatchdayDate(WORLD_START_YEAR) },
       select: {
+        goalTimes: true,
         homeClubSave: { select: { isManaged: true, club: { select: { slug: true } } } },
         awayClubSave: { select: { isManaged: true, club: { select: { slug: true } } } },
         events: {
@@ -47,6 +48,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("match events written fo
         `${fixture.homeClubSave.club.slug}-${fixture.awayClubSave.club.slug}`,
         {
           managed: fixture.homeClubSave.isManaged || fixture.awayClubSave.isManaged,
+          goalTimes: fixture.goalTimes,
           events: fixture.events.map((event) => ({
             minute: event.minute,
             type: event.type,
@@ -101,7 +103,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("match events written fo
     await db?.$disconnect();
   }, 120_000);
 
-  it("writes only the goals of the matches without the managed club, all events of its own", async () => {
+  it("writes no event of the matches without the managed club, their goals in their goal times, all events of its own", async () => {
     const [filtered, unfiltered] = await Promise.all([eventsByFixture(saves.filtered), eventsByFixture(saves.unfiltered)]);
     const others = [...filtered.entries()].filter(([, fixture]) => !fixture.managed);
     const managed = [...filtered.entries()].filter(([, fixture]) => fixture.managed);
@@ -113,10 +115,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("match events written fo
       true,
     );
     for (const [key, fixture] of others) {
-      expect(fixture.events.every((event) => event.type === "GOAL")).toBe(true);
-      expect(fixture.events).toEqual(unfiltered.get(key)?.events.filter((event) => event.type === "GOAL"));
+      const goals = unfiltered.get(key)?.events.filter((event) => event.type === "GOAL") ?? [];
+      expect(fixture.events).toEqual([]);
+      // The first matchday has no extra time: each goal is its minute, negative for the away side.
+      expect(fixture.goalTimes).toEqual(goals.map((event) => (event.side === "HOME" ? event.minute : -event.minute)));
     }
+    expect([...filtered.values()].some((fixture) => fixture.goalTimes.length > 0)).toBe(true);
     const [managedKey, managedFixture] = managed[0];
+    expect(managedFixture.goalTimes).toEqual([]);
     expect(managedFixture.events).toEqual(unfiltered.get(managedKey)?.events);
     expect(new Set(managedFixture.events.map((event) => event.type)).size).toBeGreaterThan(1);
   });

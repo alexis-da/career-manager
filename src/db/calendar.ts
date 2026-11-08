@@ -1,6 +1,6 @@
 import type { ChoiceKind, ChoiceOption } from "../engine/choices";
 import { displayClubName } from "../engine/club-name";
-import type { DecidedBy, MatchEventType, Side } from "../engine/match";
+import { decodeGoalTimes, type DecidedBy, type MatchEventType, type Side } from "../engine/match";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
@@ -256,7 +256,9 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
     where: { saveId, seasonId: row.seasonId, scheduledAt: save.currentDate, played: true, id: { not: row.id } },
     select: {
       ...FIXTURE_SELECT,
+      // A match played before Fixture.goalTimes keeps its goals as events; a later one, in goalTimes.
       events: { where: { type: "GOAL" }, orderBy: EVENTS_SELECT.orderBy, select: { id: true, minute: true, period: true, side: true } },
+      goalTimes: true,
     },
   });
 
@@ -271,14 +273,17 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
     pause: status === "PLAYED" || status === "SCHEDULED" ? null : status,
     // By home club, in the names shown: the database only knows the real ones.
     others: others
-      .map(({ events: goals, ...other }): ScoreTimeline => ({
+      .map(({ events: goals, goalTimes, ...other }): ScoreTimeline => ({
         ...toFixtureView(other),
-        goals: goals.map((goal) => ({
-          id: goal.id,
-          minute: goal.minute,
-          period: goal.period,
-          side: goal.side === "HOME" ? "home" : "away",
-        })),
+        goals: [
+          ...goals.map((goal) => ({
+            id: goal.id,
+            minute: goal.minute,
+            period: goal.period,
+            side: goal.side === "HOME" ? ("home" as const) : ("away" as const),
+          })),
+          ...decodeGoalTimes(goalTimes).map((goal, index) => ({ id: `${other.id}:${index}`, ...goal })),
+        ],
       }))
       .sort((a, b) => a.home.name.localeCompare(b.home.name, "fr")),
   };

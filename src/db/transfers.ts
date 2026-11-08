@@ -130,9 +130,8 @@ const refused = (reason: TransferRefusal, refusals: OfferRefusal[] = []): Transf
   refusals,
 });
 
-/** Free agents of a save: without a club and not retired. */
-export const freeAgentWhere = (saveId: string) =>
-  ({ saveId, clubSaveId: null, transfers: { none: { saveId, type: "RETIREMENT" } } }) satisfies Prisma.PlayerSaveWhereInput;
+/** Free agents of a save: without a club and not retired (PlayerSave.retired, its index with the club's). */
+export const freeAgentWhere = (saveId: string) => ({ saveId, clubSaveId: null, retired: false }) satisfies Prisma.PlayerSaveWhereInput;
 
 function offerPlayer(player: QuotedPlayer, date: Date): OfferPlayer {
   return {

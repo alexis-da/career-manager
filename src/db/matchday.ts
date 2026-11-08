@@ -1,13 +1,14 @@
 import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS } from "../engine/balance";
 import { assistantChoices, withChoices, type MatchDecision } from "../engine/choices";
 import { disciplineAfterMatch, isSuspended, type CompetitionKind, type Discipline } from "../engine/discipline";
-import { fitnessAfterMatch } from "../engine/fitness";
+import { fitnessAfterMatch, recoveredFitness } from "../engine/fitness";
 import { chooseFormation } from "../engine/formation-choice";
 import type { FormationName } from "../engine/formations";
 import { autoFilledSlots, resolveLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import {
   cupMatchRngSeed,
   eventsToPersist,
+  goalTimesOf,
   knockoutWinner,
   matchRngSeed,
   nextForm,
@@ -89,9 +90,14 @@ export type PlayNextMatchdayOptions = {
   pauseManagedMatch?: boolean;
 };
 
-/** What the database knows of a player of the match: his row, his injury and his discipline before it. */
+/**
+ * What the database knows of a player of the match: his row, and what a match changes of it as the row holds it before
+ * the match (form, fitness, injury, discipline): a row the match leaves as it was is not written again.
+ */
 export type PlayerState = {
   playerSaveId: string;
+  form: number;
+  fitness: number; // the row's: before the days of rest a club whose match ends now recovers in memory
   injuredUntil: Date | null;
   discipline: Discipline;
 };
@@ -177,6 +183,8 @@ export function squadsOf(rows: readonly PlayerRow[], matchDate: Date): {
     } = row;
     stateByKey.set(playerKey, {
       playerSaveId,
+      form: ratings.form,
+      fitness: ratings.fitness,
       injuredUntil,
       discipline: { leagueYellows, cupYellows, suspendedMatches, suspendedLeagueMatches, suspendedCupMatches },
     });
@@ -255,6 +263,21 @@ export function matchDecisionRows(
   }));
 }
 
+const DISCIPLINE_KEYS = ["leagueYellows", "cupYellows", "suspendedMatches", "suspendedLeagueMatches", "suspendedCupMatches"] as const;
+
+/** Whether a match changes a player's row: his form, fitness, injury or discipline after it, against the row's. */
+export function rowChanges(
+  update: { form: number; fitness: number; injuredUntil: Date | null } & Discipline,
+  state: PlayerState,
+): boolean {
+  return (
+    update.form !== state.form ||
+    update.fitness !== state.fitness ||
+    (update.injuredUntil?.getTime() ?? null) !== (state.injuredUntil?.getTime() ?? null) ||
+    DISCIPLINE_KEYS.some((key) => update[key] !== state.discipline[key])
+  );
+}
+
 /** A match played to the end, ready to be written. */
 export type FinishedMatch = {
   fixtureId: string;
@@ -277,8 +300,8 @@ const seasonStatsKey = (seasonId: string, playerSaveId: string): string => `${se
 
 /**
  * Writes finished matches in bulk: final and half-time scores (the live state cleared), a cup tie's winner and how it
- * was decided, events not written yet (all of them for the managed club's match, the goals only for the others:
- * eventsToPersist), season stats (in a cup tie, the managed club's players only), form and injuries of both clubs'
+ * was decided, events not written yet (all of them for the managed club's match, none for the others, whose goals go in
+ * their fixture: eventsToPersist, goalTimesOf), season stats (in a cup tie, the managed club's players only), form and injuries of both clubs'
  * players, these three from the whole match.
  */
 export async function recordFinishedMatches(
@@ -321,7 +344,7 @@ export async function recordFinishedMatches(
       for (const player of squads[side]) {
         const state = getOrThrow(stateByKey, player.id, "player");
         const days = injuryDays.get(player.id);
-        playerUpdates.push({
+        const update = {
           playerSaveId: state.playerSaveId,
           form: nextForm(player.form, statsByKey.get(player.id), outcome),
           // The fitness his minutes have left him; a player who did not play keeps his, to recover from day to day.
@@ -329,7 +352,11 @@ export async function recordFinishedMatches(
           injuredUntil: days === undefined ? state.injuredUntil : new Date(matchDate.getTime() + days * DAY_MS),
           // Every player of the club: a suspended one has served this match, the booked and the sent-off count theirs.
           ...disciplineAfterMatch(state.discipline, competition, statsByKey.get(player.id)),
-        });
+        };
+        // Most of a bench leaves the match as it came, its form settled: its rows are not written again.
+        if (rowChanges(update, state)) {
+          playerUpdates.push(update);
+        }
       }
     }
   }
@@ -337,21 +364,23 @@ export async function recordFinishedMatches(
   // A cup tie's winner is a side of the fixture: the CASE turns it into the club's row.
   await tx.$executeRaw`
     UPDATE "Fixture" AS f
-    SET "played" = true, "status" = 'PLAYED'::"FixtureStatus", "liveState" = NULL,
+    SET "played" = true, "status" = 'PLAYED'::"FixtureStatus", "liveState" = NULL, "goalTimes" = v."goalTimes",
         "homeGoals" = v."homeGoals", "awayGoals" = v."awayGoals",
         "homeHalfTimeGoals" = v."homeHalfTimeGoals", "awayHalfTimeGoals" = v."awayHalfTimeGoals",
         "decidedBy" = v."decidedBy"::"DecidedBy", "homePenalties" = v."homePenalties", "awayPenalties" = v."awayPenalties",
         "winnerClubSaveId" = CASE v."winner" WHEN 'home' THEN f."homeClubSaveId" WHEN 'away' THEN f."awayClubSaveId" END
     FROM (VALUES ${Prisma.join(
       matches.map(
-        ({ fixtureId, result, knockout }) =>
-          Prisma.sql`(${fixtureId}::text, ${result.homeGoals}::int, ${result.awayGoals}::int,
+        ({ fixtureId, result, knockout, managedSide }) =>
+          // A match without the managed club keeps its goals here, none of its events: an int[] literal of integers.
+          Prisma.sql`(${fixtureId}::text, ${`{${managedSide === null ? goalTimesOf(result.events).join(",") : ""}}`}::int[],
+            ${result.homeGoals}::int, ${result.awayGoals}::int,
             ${result.homeHalfTimeGoals}::int, ${result.awayHalfTimeGoals}::int, ${result.decidedBy ?? null}::text,
             ${result.homePenalties ?? null}::int, ${result.awayPenalties ?? null}::int,
             ${knockout ? knockoutWinner(result) : null}::text)`,
       ),
-    )}) AS v("id", "homeGoals", "awayGoals", "homeHalfTimeGoals", "awayHalfTimeGoals", "decidedBy", "homePenalties",
-             "awayPenalties", "winner")
+    )}) AS v("id", "goalTimes", "homeGoals", "awayGoals", "homeHalfTimeGoals", "awayHalfTimeGoals", "decidedBy",
+             "homePenalties", "awayPenalties", "winner")
     WHERE f."id" = v."id" AND f."saveId" = ${saveId}`;
 
   if (events.length > 0) {
@@ -463,15 +492,6 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
       }
       const matchDate = next.scheduledAt;
 
-      // Every player recovers day by day until that date, as recoveredFitness says, up to full fitness.
-      const restDays = Math.round((matchDate.getTime() - save.currentDate.getTime()) / DAY_MS);
-      if (restDays > 0) {
-        await tx.$executeRaw`
-          UPDATE "PlayerSave"
-          SET "fitness" = LEAST(${FULL_FITNESS}, "fitness" + ${FITNESS_RECOVERY_PER_DAY * restDays})
-          WHERE "saveId" = ${saveId} AND "fitness" < ${FULL_FITNESS}`;
-      }
-
       const fixtures = await tx.fixture.findMany({
         where: { saveId, played: false, scheduledAt: matchDate },
         select: {
@@ -486,11 +506,39 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         },
       });
 
+      // Every player recovers day by day until that date, as recoveredFitness says, up to full fitness. The players of
+      // the clubs whose matches end in this transaction recover in memory, their match's write keeping it: one write of
+      // their rows instead of two. Those of a match paused live recover here, their rows read at each of its steps.
+      const restDays = Math.round((matchDate.getTime() - save.currentDate.getTime()) / DAY_MS);
+      const paused =
+        options.pauseManagedMatch === true
+          ? fixtures.find((fixture) => fixture.homeClubSave.isManaged || fixture.awayClubSave.isManaged)
+          : undefined;
+      const finishing = new Set(
+        fixtures.filter((fixture) => fixture !== paused).flatMap((fixture) => [fixture.homeClubSaveId, fixture.awayClubSaveId]),
+      );
+      if (restDays > 0) {
+        const others =
+          finishing.size === 0 ? Prisma.empty : Prisma.sql`AND ("clubSaveId" IS NULL OR "clubSaveId" NOT IN (${Prisma.join([...finishing])}))`;
+        await tx.$executeRaw`
+          UPDATE "PlayerSave"
+          SET "fitness" = LEAST(${FULL_FITNESS}, "fitness" + ${FITNESS_RECOVERY_PER_DAY * restDays})
+          WHERE "saveId" = ${saveId} AND "fitness" < ${FULL_FITNESS} ${others}`;
+      }
+
       const playerSaves = await tx.playerSave.findMany({
         where: { saveId, clubSaveId: { in: fixtures.flatMap((fixture) => [fixture.homeClubSaveId, fixture.awayClubSaveId]) } },
         select: PLAYER_SELECT,
       });
       const { squads, stateByKey } = squadsOf(playerSaves, matchDate);
+      if (restDays > 0) {
+        for (const clubSaveId of finishing) {
+          const squad = squads.get(clubSaveId);
+          if (squad !== undefined) {
+            squads.set(clubSaveId, squad.map((player) => ({ ...player, fitness: recoveredFitness(player.fitness, restDays) })));
+          }
+        }
+      }
 
       const finished: FinishedMatch[] = [];
       let managed: MatchdaySummary["managed"] = null;

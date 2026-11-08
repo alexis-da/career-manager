@@ -139,18 +139,14 @@ export async function runPreseasonInTransaction(
       club: { select: { id: true, slug: true, country: true } },
     },
   });
-  const retirements = await tx.transfer.findMany({
-    where: { saveId, type: "RETIREMENT" },
-    select: { playerSaveId: true },
-  });
-  const retired = new Set(retirements.map((transfer) => transfer.playerSaveId));
   const releases = await tx.transfer.groupBy({
     by: ["playerSaveId"],
     where: { saveId, type: "FREE", toClubId: null },
     _max: { date: true },
   });
   const releasedOn = new Map(releases.map((row) => [row.playerSaveId, row._max.date]));
-  const rows = await tx.playerSave.findMany({ where: { saveId }, select: PLAYER_STATE_SELECT });
+  // The retired players are out of the world.
+  const rows = await tx.playerSave.findMany({ where: { saveId, retired: false }, select: PLAYER_STATE_SELECT });
 
   const transfers: Prisma.TransferCreateManyInput[] = [];
   const changed = new Set<PlayerState>();
@@ -158,10 +154,8 @@ export async function runPreseasonInTransaction(
   const market = new Map<string, PlayerState>();
 
   // 1. Free agents without a club since an earlier release leave the world, unless good enough.
+  const departures: string[] = [];
   for (const { playerKey, ...row } of rows) {
-    if (retired.has(row.id)) {
-      continue;
-    }
     const player: PlayerState = { ...row, key: playerKey };
     if (player.clubSaveId !== null) {
       getOrThrow(squads, player.clubSaveId, "squad").push(player);
@@ -171,6 +165,7 @@ export async function runPreseasonInTransaction(
     const releaseDate = releasedOn.get(player.id) ?? WORLD_START_DATE;
     if (releaseDate < date && player.overall <= FREE_AGENT_STAY_MIN_OVERALL) {
       transfers.push({ saveId, playerSaveId: player.id, fromClubId: null, toClubId: null, type: "RETIREMENT", date });
+      departures.push(player.id);
       summary.departures++;
     } else {
       market.set(player.key, player);
@@ -333,6 +328,10 @@ export async function runPreseasonInTransaction(
 
   if (transfers.length > 0) {
     await tx.transfer.createMany({ data: transfers });
+  }
+  // The free agents who left the world are retired: out of the market for good.
+  if (departures.length > 0) {
+    await tx.playerSave.updateMany({ where: { saveId, id: { in: departures } }, data: { retired: true } });
   }
 
   // Dates go through ISO strings: a Date parameter would be sent in the server's local time zone.

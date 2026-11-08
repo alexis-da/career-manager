@@ -18,7 +18,10 @@ import { selectLineup, type Lineup, type SquadPlayer } from "./lineup";
 import {
   applyAutomaticHalfTime,
   assistantInstruction,
+  decodeGoalTimes,
+  EXTRA_TIME_GOAL_OFFSET,
   eventsToPersist,
+  goalTimesOf,
   applyHalfTimeChoice,
   automaticHalfTimeChoice,
   fitnessAt,
@@ -250,6 +253,26 @@ describe("simulateMatch", () => {
   });
 });
 
+describe("goalTimesOf and decodeGoalTimes", () => {
+  it("keep a match's goals in order, their side by the sign and extra time beyond the offset", () => {
+    const events = [
+      { minute: 12, side: "home" as const, type: "GOAL" as const, playerId: "a" },
+      { minute: 30, side: "away" as const, type: "YELLOW_CARD" as const, playerId: "b" },
+      { minute: 93, side: "away" as const, type: "GOAL" as const, playerId: "c", relatedPlayerId: "d" },
+      { minute: 93, side: "home" as const, type: "GOAL" as const, playerId: "e", period: "EXTRA_TIME" as const },
+      { minute: 2, side: "away" as const, type: "SHOOTOUT_GOAL" as const, playerId: "f", period: "SHOOTOUT" as const },
+    ];
+
+    expect(goalTimesOf(events)).toEqual([12, -93, EXTRA_TIME_GOAL_OFFSET + 93]);
+    expect(decodeGoalTimes(goalTimesOf(events))).toEqual([
+      { minute: 12, period: "REGULAR", side: "home" },
+      { minute: 93, period: "REGULAR", side: "away" },
+      { minute: 93, period: "EXTRA_TIME", side: "home" },
+    ]);
+    expect(decodeGoalTimes([])).toEqual([]);
+  });
+});
+
 describe("eventsToPersist", () => {
   // A match with every kind of event: goals with and without an assist, cards, an injury, substitutions.
   const full = leagueResults.find((result) => {
@@ -269,15 +292,17 @@ describe("eventsToPersist", () => {
     expect(eventsToPersist(full.events, true)).toEqual(full.events);
   });
 
-  it("keeps only the goals of another match, with their assists, in match order", () => {
+  it("writes none of another match's events: its goals go in its fixture's goal times", () => {
     if (full === undefined) {
       throw new Error("No match with every kind of event");
     }
-    const kept = eventsToPersist(full.events, false);
+    const goals = full.events.filter((event) => event.type === "GOAL");
 
-    expect(kept).toEqual(full.events.filter((event) => event.type === "GOAL"));
-    expect(kept.length).toBe(full.homeGoals + full.awayGoals);
-    expect(kept.some((event) => event.relatedPlayerId !== undefined)).toBe(true);
+    expect(eventsToPersist(full.events, false)).toEqual([]);
+    expect(decodeGoalTimes(goalTimesOf(full.events))).toEqual(
+      goals.map((event) => ({ minute: event.minute, period: "REGULAR", side: event.side })),
+    );
+    expect(goalTimesOf(full.events)).toHaveLength(full.homeGoals + full.awayGoals);
   });
 
   it("changes neither the match nor its stats, computed from every event", () => {

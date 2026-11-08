@@ -2,7 +2,7 @@ import type { ChoiceKind } from "./choices";
 import type { Curve } from "./curves";
 import type { FormationName } from "./formations";
 import type { AttributeName } from "./generation";
-import type { Instruction, MatchEventType, Outcome } from "./match";
+import type { Instruction, Outcome } from "./match";
 import type { ObjectiveOutcome, ObjectiveProgress } from "./objectives";
 import type { Position, PositionGroup } from "./positions";
 import type { CompetitionTier } from "./tiers";
@@ -660,15 +660,6 @@ export const EXHAUSTED_INJURY_CHANCE = 0.1;
 /** The tactical events: at these boundaries; « Tu mènes » one or two goals ahead, « Tu es mené ou à égalité » otherwise. */
 export const TACTICAL_CHOICE_MINUTES: readonly number[] = [60, 75];
 export const LEADING_MAX_MARGIN = 2;
-
-// ------------------------------------------------------------------ Match events kept in the database
-
-/**
- * Event types written for a match without the managed club. Only its goals are ever shown (the other matches' scores
- * during a live match); season stats, form and injuries come from the whole match in memory, before this filter.
- * The managed club's matches keep every event. Three quarters of a season's events go otherwise.
- */
-export const OTHER_MATCH_EVENT_TYPES: readonly MatchEventType[] = ["GOAL"];
 
 // ------------------------------------------------------------------ Form after a match
 

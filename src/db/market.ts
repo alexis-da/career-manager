@@ -487,12 +487,12 @@ export async function getPlayerSheet(saveId: string, playerSaveId: string): Prom
         wage: true,
         contractUntil: true,
         clubSave: { select: { isManaged: true, reputation: true, club: { select: { slug: true, name: true } } } },
-        _count: { select: { transfers: { where: { saveId, type: "RETIREMENT" } } } },
+        retired: true,
       },
     }),
   ]);
 
-  if (player._count.transfers > 0) {
+  if (player.retired) {
     return { profile, status: { kind: "retired" } };
   }
   if (player.clubSave === null) {

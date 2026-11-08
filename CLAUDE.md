@@ -590,6 +590,20 @@ départage que les joueurs de même note ; un poste secondaire, un prix maximal 
 candidats (`market-lists.test.ts` compare chaque page à l'ancienne liste). Les tableaux de l'écran avancé
 (`market-tables.tsx`) sont des composants clients : une page n'envoie que les données de ses cinquante lignes.
 
+**Écritures d'une saison (poids d'une carrière).** Mesuré par `npm run measure:weight` (chantier « fiabilité », 08/11 :
+une partie 2 de 7 Mo à la création puis environ 5 Mo par saison ; avant lui, 10 avec l'autovacuum, 25 en simulant
+chaque saison d'un trait). Une
+ligne de joueur n'est écrite qu'une fois par journée, et seulement si elle change : les joueurs des clubs dont le match
+se termine dans la transaction récupèrent en mémoire (`recoveredFitness`), l'écriture du match les garde, la récupération
+SQL ne touche que les autres (et ceux d'un match en pause du direct) ; `rowChanges` laisse les lignes qu'un match ne
+change pas (un banc à la forme posée). `PlayerSave` et `PlayerSeasonStats` ont un `fillfactor` de 50 (migration
+`…_career_weight`, invisible pour Prisma) : leurs mises à jour restent dans la page, sans entrée d'index (HOT). Un
+retraité porte `PlayerSave.retired` (`freeAgentWhere`, passage de saison, présaison : plus de lecture de ses
+transferts). Les buts d'un match sans le club dirigé sont dans `Fixture.goalTimes` (`goalTimesOf`, `decodeGoalTimes`,
+`src/engine/match.ts` : la minute, + 1000 en prolongation, négative à l'extérieur), lus par le direct pour les autres
+matchs, aucun `MatchEvent` ; les matchs d'avant gardent leurs lignes. Les index que l'unicité de mêmes premières colonnes
+sert déjà ne sont plus (`ClubSave(saveId)`, `Season(saveId)`, `PlayerSeasonStats(saveId, seasonId)`).
+
 **Club.** Trois onglets, Club, Défi et Palmarès ; l'action de jeu de la colonne y est secondaire (`OWN_ORANGE_ACTION`). Club
 (`/club`) : pastille du manager (`club-manager`, saisons terminées + 1) ; finances en lecture seule (`getClubFinances`,
 `src/db/club.ts` : budget en grand, masse salariale en barre, marge ou dépassement, puis le détail de la dernière dotation,
@@ -993,8 +1007,6 @@ scripts/              # measure-save-size.ts (npm run measure:size), measure-bal
 
 Le détail et les mesures sont dans la section « Dettes » de `docs/design/gameplay-v2.md` (chantier du 06/11).
 
-- Les joueurs retraités restent dans `PlayerSave`, sans club, comme les joueurs libres : la liste des joueurs libres,
-  son décompte et les propositions les relisent, environ 270 de plus par saison. Il faudrait les marquer (une colonne).
 - Le décompte de l'onglet clubs du marché avancé lit l'index de tous les joueurs de la partie (environ 4 900 entrées).
 - La table `Club` (198 lignes de données du monde) est lue en entier à chaque chargement de relation qui la touche.
 - Un club peu réputé lit davantage pour ses propositions (Caen : environ 1 500 lignes de `PlayerSave`, 840 pour Lyon).

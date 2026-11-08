@@ -51,6 +51,7 @@ export class SeasonNotFinishedError extends Error {
 type PlayerUpdate = PlayerAttributes & {
   playerSaveId: string;
   clubSaveId: string | null;
+  retired: boolean;
   contractUntil: Date | null;
   marketValue: number;
 };
@@ -116,16 +117,12 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
       const transitionDate = seasonStartDate(startYear);
       const lastContractDay = seasonEndDate(completedStartYear);
 
-      const retirements = await tx.transfer.findMany({
-        where: { saveId, type: "RETIREMENT" },
-        select: { playerSaveId: true },
-      });
-      const alreadyRetired = new Set(retirements.map((transfer) => transfer.playerSaveId));
       // Every club's payroll at the end of the season, before any player retires or leaves: its next wage budget's base.
       const payrolls = await payrollsOf(tx, saveId);
 
+      // The retired players are out of the world: they neither progress nor retire again.
       const players = await tx.playerSave.findMany({
-        where: { saveId },
+        where: { saveId, retired: false },
         select: {
           id: true,
           playerKey: true,
@@ -159,9 +156,6 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
       let freeAgents = 0;
 
       for (const row of players) {
-        if (alreadyRetired.has(row.id)) {
-          continue;
-        }
         const { id: playerSaveId, playerKey, birthDate, position, clubSave, clubSaveId, contractUntil, ...attributes } = row;
         const age = ageInYears(birthDate, transitionDate);
         // One stream per player: progression first, then the retirement draw.
@@ -173,7 +167,7 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
         if (willRetire(age, rng)) {
           retired++;
           transfers.push({ saveId, playerSaveId, fromClubId, toClubId: null, type: "RETIREMENT", date: transitionDate });
-          updates.push({ ...progressed, playerSaveId, clubSaveId: null, contractUntil: null, marketValue });
+          updates.push({ ...progressed, playerSaveId, clubSaveId: null, retired: true, contractUntil: null, marketValue });
         } else if (
           clubSave?.isManaged === true &&
           options.assistantContracts !== true &&
@@ -182,9 +176,9 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
         ) {
           freeAgents++;
           transfers.push({ saveId, playerSaveId, fromClubId, toClubId: null, type: "FREE", date: transitionDate });
-          updates.push({ ...progressed, playerSaveId, clubSaveId: null, contractUntil: null, marketValue });
+          updates.push({ ...progressed, playerSaveId, clubSaveId: null, retired: false, contractUntil: null, marketValue });
         } else {
-          updates.push({ ...progressed, playerSaveId, clubSaveId, contractUntil, marketValue });
+          updates.push({ ...progressed, playerSaveId, clubSaveId, retired: false, contractUntil, marketValue });
         }
       }
 
@@ -194,6 +188,7 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
         await tx.$executeRaw`
           UPDATE "PlayerSave" AS p
           SET "clubSaveId" = v."clubSaveId",
+              "retired" = v."retired",
               "contractUntil" = v."contractUntil",
               "overall" = v."overall",
               "potential" = v."potential",
@@ -213,13 +208,13 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
               "cupYellows" = 0
           FROM (VALUES ${Prisma.join(
             batch.map(
-              (update) => Prisma.sql`(${update.playerSaveId}::text, ${update.clubSaveId}::text,
+              (update) => Prisma.sql`(${update.playerSaveId}::text, ${update.clubSaveId}::text, ${update.retired}::boolean,
                 ${update.contractUntil?.toISOString() ?? null}::timestamp(3), ${update.overall}::int,
                 ${update.potential}::int, ${update.pace}::int, ${update.shooting}::int, ${update.passing}::int,
                 ${update.dribbling}::int, ${update.defending}::int, ${update.physical}::int,
                 ${update.goalkeeping}::int, ${update.marketValue}::int)`,
             ),
-          )}) AS v("id", "clubSaveId", "contractUntil", "overall", "potential", "pace", "shooting", "passing",
+          )}) AS v("id", "clubSaveId", "retired", "contractUntil", "overall", "potential", "pace", "shooting", "passing",
                    "dribbling", "defending", "physical", "goalkeeping", "marketValue")
           WHERE p."id" = v."id" AND p."saveId" = ${saveId}`;
       }

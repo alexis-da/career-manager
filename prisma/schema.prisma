@@ -184,8 +184,7 @@ model Season {
   budget        SeasonBudget? // la dotation du club dirigé, sur sa saison de championnat
   objectives    SeasonObjective[] // les objectifs du club dirigé, sur sa saison de championnat
 
-  @@unique([saveId, competitionId, startYear])
-  @@index([saveId])
+  @@unique([saveId, competitionId, startYear]) // sert aussi les lectures et la cascade par saveId
 }
 
 model ClubSave {
@@ -208,8 +207,7 @@ model ClubSave {
   awayFixtures    Fixture[]    @relation("AwayFixtures")
   wonFixtures     Fixture[]    @relation("WonFixtures")
 
-  @@unique([saveId, clubId])
-  @@index([saveId])
+  @@unique([saveId, clubId]) // sert aussi les lectures et la cascade par saveId
   @@index([saveId, competitionId])
   @@index([saveId, isManaged]) // le club dirigé, lu par presque chaque écran : une ligne, pas les 198 de la partie
   @@index([saveId, reputation]) // le marché : les clubs par réputation (acheteurs, propositions)
@@ -229,6 +227,7 @@ model PlayerSave {
   position               Position
   clubSave               ClubSave?           @relation(fields: [clubSaveId], references: [id], onDelete: NoAction)
   clubSaveId             String? // null = joueur libre ou retraité
+  retired                Boolean             @default(false) // retraité (transfert RETIREMENT) : sans club pour toujours, jamais un joueur libre
   overall                Int // 1–99, note courante
   potential              Int // 1–99, plafond estimé
   pace                   Int
@@ -260,7 +259,7 @@ model PlayerSave {
 
   @@unique([saveId, playerId])
   @@unique([saveId, playerKey])
-  @@index([saveId, clubSaveId])
+  @@index([saveId, clubSaveId, retired]) // les joueurs d'un club ; les joueurs libres sans les retraités (freeAgentWhere)
   @@index([clubSaveId]) // vérification NoAction de chaque ClubSave supprimé
   // Le marché : les joueurs par note, triés et paginés par la base, leur salaire lu dans l'index (propositions), et par
   // potentiel (Pépites).
@@ -292,6 +291,11 @@ model Fixture {
   winnerClubSave    ClubSave?       @relation("WonFixtures", fields: [winnerClubSaveId], references: [id], onDelete: Cascade)
   winnerClubSaveId  String? // qualifié d'un match de coupe joué ; null en championnat
   liveState         Json? // état du moteur du match en suspens (IN_PLAY, HALF_TIME, REGULATION_END ; validé par Zod, src/db/live-state.ts), null sinon
+  // Les buts d'un match sans le club dirigé, dans l'ordre du match, pour le score des autres matchs pendant le direct :
+  // la minute, + 1000 en prolongation, négative pour l'équipe à l'extérieur (goalTimesOf, src/engine/match.ts). Ses
+  // événements ne sont plus écrits ; vide pour un match du club dirigé et pour un match joué avant la colonne, dont les
+  // buts restent des MatchEvent.
+  goalTimes         Int[]           @default([])
   events            MatchEvent[]
   decisions         MatchDecision[]
 
@@ -372,8 +376,7 @@ model PlayerSeasonStats {
   yellowCards  Int        @default(0)
   redCards     Int        @default(0)
 
-  @@unique([saveId, seasonId, playerSaveId])
-  @@index([saveId, seasonId])
+  @@unique([saveId, seasonId, playerSaveId]) // sert aussi les lectures par (saveId, seasonId)
   // Cascades depuis PlayerSave et Season
   @@index([playerSaveId])
   @@index([seasonId])

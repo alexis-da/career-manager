@@ -29,7 +29,6 @@ import {
   MAX_STOPPAGE_MINUTES,
   MAX_SUBSTITUTION_WINDOWS,
   MAX_SUBSTITUTIONS,
-  OTHER_MATCH_EVENT_TYPES,
   OWN_GOALS_WITH_CHOICE_EVENTS,
   RED_CARDS_PER_TEAM,
   REGULATION_GOAL_WEIGHTS,
@@ -1321,12 +1320,46 @@ export function substitutionAt(start: MatchState, side: Side, playerId: string, 
 }
 
 /**
- * The events of a match worth writing: all of them for a match of the managed club, its goals only (with their
- * assists) for another match, the only events of it ever shown. Stats, form and injuries are computed before, from
- * the whole match; filtering here never changes a draw or a score.
+ * The events of a match written as rows (MatchEvent): all of them for a match of the managed club, none for another,
+ * whose goals alone are ever shown (the other matches' scores during a live match) and go in its fixture
+ * (goalTimesOf). Stats, form and injuries are computed before, from the whole match; filtering here never changes a
+ * draw or a score.
  */
 export function eventsToPersist(events: readonly MatchEvent[], involvesManagedClub: boolean): MatchEvent[] {
-  return involvesManagedClub ? [...events] : events.filter((event) => OTHER_MATCH_EVENT_TYPES.includes(event.type));
+  return involvesManagedClub ? [...events] : [];
+}
+
+/** What a goal of extra time adds to its minute in a fixture's goal times: a minute of regulation never reaches it. */
+export const EXTRA_TIME_GOAL_OFFSET = 1000;
+
+/**
+ * The goals of a match without the managed club as its fixture keeps them (Fixture.goalTimes), in match order: each
+ * the goal's minute, plus EXTRA_TIME_GOAL_OFFSET in extra time, negative for the away side (a minute is never 0).
+ * Four bytes a goal, where a MatchEvent row and its index entries took some three hundred.
+ */
+export function goalTimesOf(events: readonly MatchEvent[]): number[] {
+  return events
+    .filter((event) => event.type === "GOAL")
+    .map((event) => {
+      const time = event.minute + (event.period === "EXTRA_TIME" ? EXTRA_TIME_GOAL_OFFSET : 0);
+      return event.side === "home" ? time : -time;
+    });
+}
+
+/** A goal of a fixture's goal times, read back: its minute, its period and its side. */
+export type GoalTime = { minute: number; period: "REGULAR" | "EXTRA_TIME"; side: Side };
+
+/** A fixture's goal times read back, in match order (goalTimesOf). */
+export function decodeGoalTimes(times: readonly number[]): GoalTime[] {
+  return times.map((value) => {
+    const time = Math.abs(value);
+    const extraTime = time > EXTRA_TIME_GOAL_OFFSET;
+    return {
+      minute: extraTime ? time - EXTRA_TIME_GOAL_OFFSET : time,
+      period: extraTime ? "EXTRA_TIME" : "REGULAR",
+      side: value > 0 ? "home" : "away",
+    };
+  });
 }
 
 export function outcomeFor(result: MatchResult, side: Side): Outcome {
