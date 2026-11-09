@@ -1,0 +1,133 @@
+# The tests of every push, on main and on any branch, and of every pull request: types, lint, the unit and database
+# tests (Vitest), and a quick selection of the end-to-end tests (Playwright, npm run test:e2e:quick). The whole
+# end-to-end suite and the slow tests run every night (nightly.yml).
+# Each job has its own throwaway PostgreSQL (a service of the job, on localhost), migrated from zero and seeded. Every
+# value below is fake and written here: this workflow reads no secret of the repository (those of the maintenance are
+# for maintenance.yml and challenge.yml alone), Neon's address and password are nowhere in GitHub (only in Vercel's
+# settings), and the code refuses any database outside localhost (src/db/database-url.ts) unless VERCEL=1 or
+# ALLOW_REMOTE_DB=1, which nothing here sets.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push to the same branch makes the older run pointless, except on main, where every push keeps its result.
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # Fake values only: the database of the job's PostgreSQL service, and a secret that signs nothing real.
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/latewinner_test
+  DIRECT_URL: postgresql://postgres:postgres@localhost:5432/latewinner_test
+  DATABASE_URL_TEST: postgresql://postgres:postgres@localhost:5432/latewinner_test
+  AUTH_SECRET: ci-fake-secret-for-throwaway-test-databases
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  gate:
+    # A release pushes main and its branch on the same commit: main's run tests it, the branch's run stops here.
+    name: Already tested by main?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - name: Test unless the branch's commit is main's head
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ "$EVENT" = "push" ] && [ "$REF" != "refs/heads/main" ]; then
+            main=$(gh api "repos/$REPOSITORY/commits/main" --jq .sha || true)
+            if [ "$main" = "$SHA" ]; then
+              echo "::notice::$SHA is main's head: main's run tests it"
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+  checks:
+    name: Types, lint, Vitest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: latewinner_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username postgres --dbname latewinner_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+          --shm-size 256m
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/prepare
+      - name: Next's route types (PageProps, LayoutProps), which a fresh checkout lacks
+        run: npx next typegen
+      - name: Types (tsc)
+        run: npx tsc --noEmit
+      - name: Lint (ESLint)
+        run: npm run lint
+      - uses: ./.github/actions/test-database
+        with:
+          postgres: ${{ job.services.postgres.id }}
+      - name: Unit and database tests (Vitest)
+        run: npm run test
+
+  e2e:
+    name: E2E, quick selection
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: latewinner_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username postgres --dbname latewinner_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+          --shm-size 256m
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/prepare
+      - uses: ./.github/actions/test-database
+        with:
+          postgres: ${{ job.services.postgres.id }}
+      - uses: ./.github/actions/playwright
+      - name: Quick end-to-end selection (Playwright)
+        run: npm run test:e2e:quick
+      - name: Keep the Playwright report and the failures' screenshots, 7 days
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-quick-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

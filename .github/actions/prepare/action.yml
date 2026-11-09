@@ -1,0 +1,18 @@
+# The start of every test job (ci.yml, nightly.yml): Node at the version of package.json's engines, as on Vercel, the
+# locked dependencies from npm's cache, then the Prisma client (src/generated/prisma, never committed).
+name: Prepare
+description: Node, the locked dependencies (npm ci, from npm's cache) and the Prisma client
+runs:
+  using: composite
+  steps:
+    - name: Node (package.json's engines), with npm's cache
+      uses: actions/setup-node@v7
+      with:
+        node-version-file: package.json
+        cache: npm
+    - name: Install the locked dependencies
+      shell: bash
+      run: npm ci
+    - name: Generate the Prisma client
+      shell: bash
+      run: npx prisma generate

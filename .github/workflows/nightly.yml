@@ -1,0 +1,124 @@
+# Every night, and by hand (Actions → Nightly → Run workflow): the whole end-to-end suite (Playwright) and the slow
+# tests (Vitest, npm run test:slow), on main, each job with its own throwaway PostgreSQL, as in ci.yml, whose fake
+# values these are. A night without a new commit on main tests nothing new: the scheduled run stops at its gate when
+# main's head has already been through this workflow. A run by hand always tests.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "30 1 * * *" # 01:30 UTC, every night
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  # Fake values only, as in ci.yml.
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/latewinner_test
+  DIRECT_URL: postgresql://postgres:postgres@localhost:5432/latewinner_test
+  DATABASE_URL_TEST: postgresql://postgres:postgres@localhost:5432/latewinner_test
+  AUTH_SECRET: ci-fake-secret-for-throwaway-test-databases
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  gate:
+    name: New commit since the last night?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - name: Test unless main's head has already been through this workflow
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [ "$EVENT" = "schedule" ]; then
+            tested=$(gh api "repos/$REPOSITORY/actions/workflows/nightly.yml/runs?head_sha=$SHA&status=completed&per_page=20" \
+              --jq "[.workflow_runs[] | select(.id != $RUN_ID) | select(.conclusion == \"success\" or .conclusion == \"failure\")] | length" || echo 0)
+            if [ "$tested" != "0" ]; then
+              echo "::notice::main is still at $SHA, already through this workflow: nothing new to test tonight"
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+  e2e:
+    name: E2E, whole suite
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: latewinner_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username postgres --dbname latewinner_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+          --shm-size 256m
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/prepare
+      - uses: ./.github/actions/test-database
+        with:
+          postgres: ${{ job.services.postgres.id }}
+      - uses: ./.github/actions/playwright
+      - name: Whole end-to-end suite (Playwright)
+        run: npx playwright test
+      - name: Keep the Playwright report and the failures' screenshots, 7 days
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-nightly-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  slow:
+    name: Slow tests (Vitest)
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: latewinner_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username postgres --dbname latewinner_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+          --shm-size 256m
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/prepare
+      - uses: ./.github/actions/test-database
+        with:
+          postgres: ${{ job.services.postgres.id }}
+      - name: Slow tests, whole seasons in the database (Vitest)
+        run: npm run test:slow

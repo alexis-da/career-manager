@@ -1,3 +1,8 @@
+[![CI](https://github.com/alexis-da/career-manager/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alexis-da/career-manager/actions/workflows/ci.yml)
+[![Nightly](https://github.com/alexis-da/career-manager/actions/workflows/nightly.yml/badge.svg)](https://github.com/alexis-da/career-manager/actions/workflows/nightly.yml)
+
+Tests automatiques sur GitHub : voir « Tests automatiques (GitHub Actions) » plus bas.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -106,6 +111,25 @@ pousser une autre branche ne sert qu'à la sauvegarder sur GitHub.
 
 Toute commande locale refuse une base qui n'est pas sur localhost ; `ALLOW_REMOTE_DB=1` lève ce garde-fou, à
 n'utiliser que sciemment.
+
+### Tests automatiques (GitHub Actions)
+
+- `.github/workflows/ci.yml`, à chaque push (sur `main` et sur toute branche) et à chaque pull request : types
+  (`next typegen` puis `tsc`), lint, Vitest (`npm run test`) et une sélection rapide des E2E
+  (`npm run test:e2e:quick` : création d'une partie et sa première journée, un direct avec un événement, le marché, les
+  pages publiques et le SEO, `/admin`). Une branche poussée sur le même commit que `main` (une mise en ligne) n'est
+  testée qu'une fois, par `main`.
+- `.github/workflows/nightly.yml`, chaque nuit à 01:30 UTC et à la demande (Actions → Nightly → Run workflow) : toute la
+  suite E2E (`npx playwright test`) et la suite lente (`npm run test:slow`). Une nuit sans nouveau commit sur `main` ne
+  teste rien de plus.
+- Chaque job a sa base PostgreSQL 17 jetable (un service du job, sur localhost), migrée depuis zéro puis remplie par le
+  seed. Les valeurs sont factices et écrites dans le workflow : aucun secret du dépôt n'est lu, et l'adresse de Neon
+  n'existe nulle part dans GitHub.
+- En cas d'échec d'un E2E : le rapport Playwright et les captures sont gardés 7 jours (le passage → Artifacts).
+
+Lire le résultat : l'onglet Actions du dépôt montre chaque passage avec une coche verte (réussi) ou une croix rouge
+(échoué, cliquer pour voir le job et l'étape en cause) ; les badges en tête de ce README donnent l'état du dernier passage
+sur `main`.
 
 ### Maintenance (GitHub Actions)
 

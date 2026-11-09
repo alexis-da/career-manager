@@ -1,0 +1,25 @@
+# Chromium for the end-to-end tests (ci.yml, nightly.yml), their only browser (playwright.config.ts): from GitHub's cache
+# when this Playwright version already downloaded it, with the system libraries it needs on the runner.
+name: Playwright browsers
+description: Chromium from the cache of its Playwright version, and its system libraries
+runs:
+  using: composite
+  steps:
+    - name: Read Playwright's version
+      id: version
+      shell: bash
+      run: echo "version=$(npx playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+    - name: Chromium from the cache
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ steps.version.outputs.version }}
+    - name: Download Chromium and its system libraries
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: npx playwright install --with-deps chromium
+    - name: Install Chromium's system libraries
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: npx playwright install-deps chromium

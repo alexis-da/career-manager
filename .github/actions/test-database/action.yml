@@ -1,0 +1,32 @@
+# The test database of a job (ci.yml, nightly.yml): the job's PostgreSQL service, on localhost (the only host the code
+# accepts outside Vercel, src/db/database-url.ts), migrated from zero and seeded as on a workstation (README,
+# « Développer en local »). .env.test is written from the workflow's fake values: Playwright and Vitest read the test
+# database there (playwright.config.ts, src/db/test-database.ts), and the job has no .env.
+name: Test database
+description: The job's throwaway PostgreSQL made fast, .env.test written, the migrations applied from zero, the seed run
+inputs:
+  postgres:
+    description: The id of the job's PostgreSQL service container (job.services.postgres.id)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Make the throwaway PostgreSQL fast (nothing to keep through a crash)
+      shell: bash
+      env:
+        CONTAINER: ${{ inputs.postgres }}
+      run: >-
+        docker exec "$CONTAINER" psql --username postgres --quiet
+        --command "ALTER SYSTEM SET fsync = off"
+        --command "ALTER SYSTEM SET synchronous_commit = off"
+        --command "ALTER SYSTEM SET full_page_writes = off"
+        --command "SELECT pg_reload_conf()"
+    - name: Write .env.test from the workflow's fake values
+      shell: bash
+      run: printf 'DATABASE_URL_TEST=%s\nAUTH_SECRET=%s\n' "$DATABASE_URL_TEST" "$AUTH_SECRET" > .env.test
+    - name: Apply the migrations from zero
+      shell: bash
+      run: npx prisma migrate deploy
+    - name: Seed the reference data
+      shell: bash
+      run: npm run db:seed

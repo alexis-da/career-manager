@@ -22,6 +22,7 @@ npx prisma studio      # inspecter la base
 npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
+npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (création et journée, direct, marché, SEO, /admin)
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
 npm run measure:seasons # budgets, plafonds, réputation (son étalement) et objectifs : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
@@ -632,6 +633,22 @@ changement, une troisième à travers lui, un match en pause en direct ; `keepOt
 remet les buts comme avant `goalTimes`), et `event-cleanup.test.ts` pour les règles, les lots et la route ; un test ne
 nettoie jamais que ses propres parties (`saveIds`).
 
+**Filet de sécurité (chantier « filet », 09/11).** Deux workflows de tests sur GitHub. `ci.yml`, à chaque push (`main`
+et toute branche) et à chaque pull request : le job « Types, lint, Vitest » (`next typegen`, sans quoi un dépôt neuf n'a
+ni `PageProps` ni `LayoutProps`, puis `tsc`, lint, `npm run test`) et le job « E2E, quick selection »
+(`npm run test:e2e:quick`). `nightly.yml`, chaque nuit à 01:30 UTC et à la demande : toute la suite E2E et
+`npm run test:slow`. Chaque job a son PostgreSQL 17 jetable (service du job, sur localhost, sans durabilité : `fsync`,
+`synchronous_commit` et `full_page_writes` à off), migré depuis zéro puis rempli par le seed (actions composites
+`.github/actions/prepare`, `test-database`, `playwright`, Chromium gardé en cache par version de Playwright). Ses valeurs,
+factices, sont écrites dans le workflow (`DATABASE_URL`, `DIRECT_URL`, `DATABASE_URL_TEST`, `AUTH_SECRET`), et `.env.test`
+en est tiré. **Rien n'y peut joindre Neon** : ces workflows ne lisent aucun secret, l'adresse de Neon n'existe que dans
+Vercel, et le garde-fou (`assertLocalDatabase`) refuse tout hôte autre que localhost sans `VERCEL=1` ni
+`ALLOW_REMOTE_DB=1`, qu'ils ne posent pas. Le dépôt est privé : chaque minute compte sur le quota du compte GitHub, que
+la maintenance partage. D'où la porte de chaque workflow (`gate`) : un push de branche sur le commit de tête de `main`
+(une mise en ligne pousse les deux) s'y arrête, `main` le teste ; une nuit sans nouveau commit sur `main` aussi. Un push
+plus récent sur une même branche annule le passage en cours, sauf sur `main`. Sur GitHub (`CI`), Playwright relance une
+fois un test en échec et garde sa capture dans un rapport HTML, artefact de 7 jours.
+
 **Club.** Trois onglets, Club, Défi et Palmarès ; l'action de jeu de la colonne y est secondaire (`OWN_ORANGE_ACTION`). Club
 (`/club`) : pastille du manager (`club-manager`, saisons terminées + 1) ; finances en lecture seule (`getClubFinances`,
 `src/db/club.ts` : budget en grand, masse salariale en barre, marge ou dépassement, puis le détail de la dernière dotation,
@@ -1045,7 +1062,9 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # seo.spec.ts : les pages publiques à leurs adresses dans les deux langues (titre, description,
                       # canonical, hreflang, image de partage), robots.txt, sitemap, llms.txt, JSON-LD de l'accueil,
                       # bandeau de langue et choix retenu, lecture de chaque page sans JavaScript
-.github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC, puis nettoyage des événements ; challenge.yml : défi du lundi, 05:00 UTC
+.github/workflows/     # ci.yml : tests à chaque push et pull request ; nightly.yml : E2E complets et suite lente, 01:30 UTC ;
+                      # maintenance.yml : purge quotidienne, 04:17 UTC, puis nettoyage des événements ; challenge.yml : défi du lundi, 05:00 UTC
+.github/actions/       # étapes communes des tests : prepare (Node, npm ci, Prisma), test-database (base jetable), playwright
 src/
   components/         # composants partagés : panneau, visage du joueur, initiales du club, bascule, styles de tableau
     ui/               # composants shadcn/ui (Base UI), générés par la CLI

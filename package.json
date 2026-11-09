@@ -20,7 +20,8 @@
     "measure:seasons": "tsx scripts/measure-seasons.ts",
     "measure:weight": "tsx scripts/measure-career-weight.ts",
     "test:slow": "vitest run --config vitest.slow.config.mts",
-    "test:e2e": "tsx scripts/e2e-reset.ts && playwright test"
+    "test:e2e": "tsx scripts/e2e-reset.ts && playwright test",
+    "test:e2e:quick": "tsx scripts/e2e-reset.ts && playwright test e2e/game-loop.spec.ts e2e/live-choices.spec.ts e2e/market.spec.ts e2e/seo.spec.ts e2e/admin.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

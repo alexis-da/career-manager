@@ -30,7 +30,11 @@ if (AUTH_SECRET_TEST === undefined || AUTH_SECRET_TEST === "") {
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = `http://localhost:${PORT}`;
 
-// One browser, one worker: the tests write to the test database. No screenshot, video or trace.
+// On GitHub (.github/workflows/ci.yml, nightly.yml), which sets CI: a failure is retried once and keeps its screenshot,
+// in an HTML report the workflow keeps as an artifact for 7 days.
+const CI = process.env.CI !== undefined && process.env.CI !== "";
+
+// One browser, one worker: the tests write to the test database. No video or trace; a screenshot on GitHub only.
 export default defineConfig({
   testDir: "./e2e",
   // Deletes the anonymous users the run leaves without a save (e2e/global-setup.ts).
@@ -39,11 +43,12 @@ export default defineConfig({
   expect: { timeout: 60_000 },
   fullyParallel: false,
   workers: 1,
-  reporter: "list",
+  retries: CI ? 1 : 0,
+  reporter: CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: BASE_URL,
     locale: "fr-FR",
-    screenshot: "off",
+    screenshot: CI ? "only-on-failure" : "off",
     video: "off",
     trace: "off",
   },
@@ -62,7 +67,7 @@ export default defineConfig({
       ADMIN_EMAIL: ADMIN_EMAIL_TEST,
     },
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !CI,
     timeout: 180_000,
     stdout: "ignore",
     stderr: "pipe",
