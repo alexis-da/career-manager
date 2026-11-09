@@ -1,10 +1,12 @@
 import type { ChoiceKind, ChoiceOption } from "../engine/choices";
 import { displayClubName } from "../engine/club-name";
+import type { InstructionSpan } from "../engine/instructions";
 import { decodeGoalTimes, type DecidedBy, type MatchEventType, type Side } from "../engine/match";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
+import { instructionSpansSchema } from "./live-state";
 
 export type TeamView = {
   clubSaveId: string;
@@ -58,8 +60,17 @@ export type DecisionView = {
   playerKey: string | null;
 };
 
-/** A fixture with its events, and the managed club's decisions on its choice events: none in another club's match. */
-export type FixtureWithEvents = FixtureView & { events: MatchEventView[]; decisions: DecisionView[] };
+/**
+ * A fixture with its events, the managed club's decisions on its choice events, and the instructions it played its
+ * segments with (Fixture.instructions): none in another club's match, nor in a match played before they were kept.
+ */
+export type FixtureWithEvents = FixtureView & { events: MatchEventView[]; decisions: DecisionView[]; instructions: InstructionSpan[] };
+
+/** A fixture's kept instructions, read back: none when there are none, or when they do not read as spans. */
+export function instructionsOf(value: Prisma.JsonValue | null): InstructionSpan[] {
+  const parsed = instructionSpansSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
+}
 
 export type ClubCalendar = {
   startYear: number | null;
@@ -191,15 +202,16 @@ export async function getManagedClubCalendar(saveId: string): Promise<ClubCalend
   const rows = await prisma.fixture.findMany({
     where: { saveId, season: { startYear: latest.startYear }, ...involving(managed.id) },
     orderBy: [{ scheduledAt: "asc" }, { round: "asc" }],
-    select: { ...FIXTURE_SELECT, events: EVENTS_SELECT, decisions: DECISIONS_SELECT },
+    select: { ...FIXTURE_SELECT, events: EVENTS_SELECT, decisions: DECISIONS_SELECT, instructions: true },
   });
 
   return {
     startYear: latest.startYear,
-    fixtures: rows.map(({ events, decisions, ...row }) => ({
+    fixtures: rows.map(({ events, decisions, instructions, ...row }) => ({
       ...toFixtureView(row),
       events: events.map(toEventView(row.scheduledAt)),
       decisions: decisions.map(toDecisionView),
+      instructions: instructionsOf(instructions),
     })),
   };
 }
@@ -246,6 +258,7 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
       status: true,
       events: EVENTS_SELECT,
       decisions: DECISIONS_SELECT,
+      instructions: true,
     },
   });
   if (row === null) {
@@ -262,12 +275,13 @@ export async function getLiveMatchday(saveId: string): Promise<LiveMatchday | nu
     },
   });
 
-  const { events, decisions, status, ...fixture } = row;
+  const { events, decisions, instructions, status, ...fixture } = row;
   return {
     match: {
       ...toFixtureView(fixture),
       events: events.map(toEventView(fixture.scheduledAt)),
       decisions: decisions.map(toDecisionView),
+      instructions: instructionsOf(instructions),
     },
     stadium: fixture.homeClubSave.club.stadium,
     pause: status === "PLAYED" || status === "SCHEDULED" ? null : status,

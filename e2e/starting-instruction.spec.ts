@@ -100,4 +100,10 @@ test("compares the formations, saves a starting instruction with the lineup, and
   await expect(line).toHaveAttribute("data-instruction", "DEFEND");
   await expect(line).toHaveAttribute("data-instruction-source", "START");
   await expect(line).toHaveText("Consigne : Fermer · de départ");
+  // And the feed tells it from the first minute.
+  const change = page.getByTestId("live-events").getByTestId("live-instruction-change");
+  await expect(change).toHaveAttribute("data-instruction", "DEFEND");
+  await expect(change).toHaveAttribute("data-source", "START");
+  await expect(change).toContainText("Consigne : Fermer");
+  await expect(change).toContainText("Consigne de départ");
 });

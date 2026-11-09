@@ -315,6 +315,10 @@ model Fixture {
   // événements ne sont plus écrits ; vide pour un match du club dirigé et pour un match joué avant la colonne, dont les
   // buts restent des MatchEvent.
   goalTimes         Int[]           @default([])
+  // Les consignes du club dirigé pendant son match, une à chaque changement de segment avec qui l'a donnée
+  // ([{ from, instruction, source }], validées par Zod, instructionSpansSchema) : le fil du direct et la feuille de match.
+  // null pour un autre match et pour un match joué avant la colonne.
+  instructions      Json?
   events            MatchEvent[]
   decisions         MatchDecision[]
 

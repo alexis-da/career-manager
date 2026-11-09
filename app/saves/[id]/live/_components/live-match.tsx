@@ -16,6 +16,7 @@ import { matchResultFor } from "../../_lib/stage";
 import { playLiveStepAction, type DecisionInput, type HalfTimeChoiceInput, type LiveMoveInput } from "../../actions";
 import { decidedTeam } from "../_lib/decided-team";
 import { shownInstruction } from "../_lib/live-instruction";
+import { instructionChanges } from "../../_lib/instruction-changes";
 import {
   coachingTarget,
   endMinute as endMinuteOf,
@@ -300,6 +301,9 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
   const shown = match.events.filter((event) => event.period !== "SHOOTOUT" && isShown(event));
   // A decision comes with its effect, the minute after its boundary.
   const decisions = match.decisions.filter((decision) => isShown(decisionMoment(decision)));
+  // The club's changes of instruction the clock has passed: those of its state while it plays, those kept with the match
+  // once over (read again, its state gone). Never one of a segment still to come.
+  const changes = instructionChanges(instructions ?? match.instructions).filter(isShown);
   const goals = shown.filter((event) => event.type === "GOAL");
   const homeGoals = countFor(goals, "home");
   const awayGoals = countFor(goals, "away");
@@ -439,6 +443,7 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
             className="xl:col-span-3"
             shown={shown}
             decisions={decisions}
+            changes={changes}
             minute={minute}
             extraTime={extraTime}
             home={match.home}

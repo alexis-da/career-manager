@@ -31,6 +31,7 @@ const MATCH: FixtureWithEvents = {
   awayPenalties: null,
   events: [],
   decisions: [],
+  instructions: [],
 };
 
 /** The card at the 62nd minute, its controls left out. */

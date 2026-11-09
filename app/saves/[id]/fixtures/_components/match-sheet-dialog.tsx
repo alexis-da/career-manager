@@ -2,7 +2,7 @@
 
 import { competitionName } from "@/src/i18n/countries";
 import { useLocale, useTranslations } from "next-intl";
-import { SplitIcon } from "lucide-react";
+import { CompassIcon, SplitIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/src/components/ui/dialog";
 import type { DecisionView, FixtureWithEvents, MatchEventView } from "@/src/db/calendar";
@@ -12,6 +12,7 @@ import { cn } from "@/src/lib/utils";
 import { EventIcon, IconChip } from "../../_components/event-icon";
 import { ScoreNotes } from "../../_components/score-notes";
 import { decisionMoment, describeDecision, withDecisions, type MatchLine } from "../../_lib/decisions";
+import { describeInstructionChange, instructionChanges, type InstructionChange } from "../../_lib/instruction-changes";
 import { describeEvent, formatMinute, shootoutKicks } from "../../_lib/match-events";
 import { RESULT_CLASSES } from "../../_lib/results";
 import { matchResultFor, stageLabel } from "../../_lib/stage";
@@ -47,6 +48,29 @@ function EventItem({ event, align, managed }: { event: MatchEventView; align: Al
  * it, read in the match's events, then the event's name. Framed on the blue, with the fork of the live feed: a choice,
  * never an event.
  */
+/** A change of the managed club's instruction, among its events: what it played for from then on, and who said so. */
+function InstructionItem({ change, align }: { change: InstructionChange; align: Align }) {
+  const t = useTranslations("decisions");
+  const { title, detail } = describeInstructionChange(change, t);
+  return (
+    <li
+      data-testid="match-sheet-instruction-change"
+      data-instruction={change.instruction}
+      data-source={change.source}
+      className={cn("flex items-baseline gap-2 rounded-md border border-border px-2 py-1", align === "right" && "flex-row-reverse text-right")}
+    >
+      <span className="w-10 shrink-0 tabular-nums text-muted-foreground">{formatMinute(change.minute, change.period)}</span>
+      <IconChip className="size-5 self-start bg-secondary text-foreground">
+        <CompassIcon strokeWidth={2.5} />
+      </IconChip>
+      <span className="min-w-0 wrap-break-word">
+        <span className="block">{title}</span>
+        <span className="block text-xs text-muted-foreground">{detail}</span>
+      </span>
+    </li>
+  );
+}
+
 function DecisionItem({ decision, align, matchEvents }: { decision: DecisionView; align: Align; matchEvents: readonly MatchEventView[] }) {
   const t = useTranslations("decisions");
   const moment = decisionMoment(decision);
@@ -89,6 +113,8 @@ function EventColumn({ lines, align, managed, matchEvents }: EventColumnProps) {
       {lines.map((line) =>
         line.kind === "decision" ? (
           <DecisionItem key={`decision-${line.decision.sequence}`} decision={line.decision} align={align} matchEvents={matchEvents} />
+        ) : line.kind === "instruction" ? (
+          <InstructionItem key={`instruction-${line.change.period}-${line.change.minute}`} change={line.change} align={align} />
         ) : (
           <EventItem key={line.event.id} event={line.event} align={align} managed={managed} />
         ),
@@ -97,12 +123,26 @@ function EventColumn({ lines, align, managed, matchEvents }: EventColumnProps) {
   );
 }
 
-/** The two sides' events of a period, face to face, the managed club's decisions of the period among its own. */
-function EventColumns({ fixture, events, decisions }: { fixture: FixtureWithEvents; events: MatchEventView[]; decisions: DecisionView[] }) {
+/**
+ * The two sides' events of a period, face to face, the managed club's decisions and changes of instruction of the period
+ * among its own.
+ */
+function EventColumns({
+  fixture,
+  events,
+  decisions,
+  changes,
+}: {
+  fixture: FixtureWithEvents;
+  events: MatchEventView[];
+  decisions: DecisionView[];
+  changes: InstructionChange[];
+}) {
   const linesOf = (side: Side): MatchLine[] =>
     withDecisions(
       events.filter((event) => event.side === side),
       fixture[side].isManaged ? decisions : [],
+      fixture[side].isManaged ? changes : [],
     );
   return (
     <div className="grid grid-cols-2 gap-4">
@@ -165,6 +205,9 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
   // A decision past the 90th is one of extra time's.
   const decisionsOf = (period: MatchEventView["period"]): DecisionView[] =>
     fixture.decisions.filter((decision) => decisionMoment(decision).period === period);
+  // The managed club's changes of instruction, kept with the match (none before they were).
+  const changesOf = (period: MatchEventView["period"]): InstructionChange[] =>
+    instructionChanges(fixture.instructions).filter((change) => change.period === period);
   const playedExtraTime = fixture.decidedBy === "EXTRA_TIME" || fixture.decidedBy === "PENALTIES";
   const hasShootout = fixture.events.some((event) => event.period === "SHOOTOUT");
 
@@ -201,11 +244,11 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
         )}
 
         <div className="max-h-[55vh] space-y-4 overflow-y-auto border-t pt-4 text-sm">
-          <EventColumns fixture={fixture} events={regular} decisions={decisionsOf("REGULAR")} />
+          <EventColumns fixture={fixture} events={regular} decisions={decisionsOf("REGULAR")} changes={changesOf("REGULAR")} />
           {playedExtraTime && (
             <section className="space-y-2 border-t pt-3" data-match-sheet="extra-time">
               <h3 className="eyebrow text-center">{t("extraTime")}</h3>
-              <EventColumns fixture={fixture} events={extraTime} decisions={decisionsOf("EXTRA_TIME")} />
+              <EventColumns fixture={fixture} events={extraTime} decisions={decisionsOf("EXTRA_TIME")} changes={changesOf("EXTRA_TIME")} />
             </section>
           )}
           {hasShootout && (

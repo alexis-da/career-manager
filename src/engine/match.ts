@@ -116,6 +116,8 @@ export type MatchResult = {
   homePenalties?: number;
   awayPenalties?: number;
   decisions?: MatchDecision[]; // a match of the managed club: its choice events and the decisions made
+  // The instructions each side played its segments with, a span at each change and who set it (TeamLive.instructions).
+  instructions?: Record<Side, InstructionSpan[]>;
 };
 
 export type PlayerMatchStats = {
@@ -1182,6 +1184,7 @@ export function matchResult(state: MatchState): MatchResult {
     appearances: state.appearances,
     injuries: state.injuries,
     ...(state.choices === undefined ? {} : { decisions: state.choices.decisions }),
+    instructions: { home: state.home.instructions ?? [], away: state.away.instructions ?? [] },
   };
   if (state.knockout !== true) {
     return result;

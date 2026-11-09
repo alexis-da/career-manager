@@ -52,6 +52,19 @@
       "DEFEND": "Consigne jusqu'à la fin : fermer le jeu"
     },
     "unknownPlayer": "Joueur inconnu",
-    "substitute": "un remplaçant"
+    "substitute": "un remplaçant",
+    "instruction": {
+      "change": "Consigne : {instruction}",
+      "name": {
+        "ATTACK": "Attaquer",
+        "BALANCED": "Équilibré",
+        "DEFEND": "Fermer"
+      },
+      "by": {
+        "START": "Consigne de départ",
+        "MANAGER": "Ton coaching",
+        "ASSISTANT": "Ton adjoint"
+      }
+    }
   }
 }

@@ -28,7 +28,13 @@ function decision(sequence: number, minute: number, overrides: Partial<DecisionV
 /** The feed in a word per line, newest first. */
 const keys = (entries: FeedEntry[]): string[] =>
   entries.map((entry) =>
-    entry.kind === "event" ? entry.event.id : entry.kind === "decision" ? `decision-${entry.decision.sequence}` : entry.marker,
+    entry.kind === "event"
+      ? entry.event.id
+      : entry.kind === "decision"
+        ? `decision-${entry.decision.sequence}`
+        : entry.kind === "instruction"
+          ? `instruction-${entry.change.minute}`
+          : entry.marker,
   );
 
 const scoreAt = (entries: FeedEntry[], name: string) =>

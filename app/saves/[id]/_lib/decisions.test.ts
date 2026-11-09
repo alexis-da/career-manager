@@ -204,7 +204,34 @@ describe("describeDecision", () => {
 
 /** A match told in a word per line, in order. */
 const lineKeys = (lines: MatchLine[]): string[] =>
-  lines.map((line) => (line.kind === "event" ? line.event.id : `decision-${line.decision.sequence}`));
+  lines.map((line) =>
+    line.kind === "event"
+      ? line.event.id
+      : line.kind === "decision"
+        ? `decision-${line.decision.sequence}`
+        : `instruction-${line.change.instruction}-${line.change.minute}`,
+  );
+
+describe("withDecisions, with changes of instruction", () => {
+  it("puts a change after the events of its boundary and before those of the minute after, a decision first", () => {
+    const events = [event("at-45", 45, "GOAL"), event("at-46", 46, "SUBSTITUTION"), event("at-61", 61, "GOAL")];
+    const changes = [
+      { minute: 1, period: "REGULAR" as const, instruction: "DEFEND" as const, source: "START" as const },
+      { minute: 46, period: "REGULAR" as const, instruction: "ATTACK" as const, source: "MANAGER" as const },
+      { minute: 61, period: "REGULAR" as const, instruction: "BALANCED" as const, source: "ASSISTANT" as const },
+    ];
+
+    expect(lineKeys(withDecisions(events, [decision("SCUFFLE", "CALM", { sequence: 1, minute: 60 })], changes))).toEqual([
+      "instruction-DEFEND-1",
+      "at-45",
+      "instruction-ATTACK-46",
+      "at-46",
+      "decision-1",
+      "instruction-BALANCED-61",
+      "at-61",
+    ]);
+  });
+});
 
 describe("withDecisions", () => {
   it("puts a decision after the events of its boundary and before those of the minute after, which it caused", () => {

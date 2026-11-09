@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { PauseIcon, PlayIcon, SplitIcon, TimerIcon } from "lucide-react";
+import { CompassIcon, PauseIcon, PlayIcon, SplitIcon, TimerIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import type { DecisionView, MatchEventView, TeamView } from "@/src/db/calendar";
@@ -7,6 +7,7 @@ import { cn } from "@/src/lib/utils";
 import { EventIcon, IconChip } from "../../_components/event-icon";
 import { Panel } from "@/src/components/panel";
 import { decisionMoment, describeDecision } from "../../_lib/decisions";
+import { describeInstructionChange, type InstructionChange } from "../../_lib/instruction-changes";
 import { formatMinute } from "../../_lib/match-events";
 import { feedEntries, type FeedEntry, type FeedMarker } from "../_lib/feed-entries";
 import { LiveCardTitle } from "./live-card-title";
@@ -112,9 +113,31 @@ function DecisionRow({ decision, shown }: { decision: DecisionView; shown: reado
   );
 }
 
+/** A change of the managed club's instruction: what it plays for now, and who said so. */
+function InstructionRow({ change }: { change: InstructionChange }) {
+  const t = useTranslations("decisions");
+  const { title, detail } = describeInstructionChange(change, t);
+  return (
+    <FeedRow
+      data-testid="live-instruction-change"
+      data-instruction={change.instruction}
+      data-source={change.source}
+      minute={formatMinute(change.minute, change.period)}
+      icon={
+        <IconChip className="bg-secondary text-foreground">
+          <CompassIcon strokeWidth={2.5} />
+        </IconChip>
+      }
+      title={title}
+      detail={detail}
+    />
+  );
+}
+
 type LiveFeedProps = {
   shown: MatchEventView[]; // the match's events the clock has passed, oldest first
   decisions: DecisionView[]; // the managed club's decisions the clock has passed, whose effects are among those events
+  changes: InstructionChange[]; // the managed club's changes of instruction the clock has passed
   minute: number;
   extraTime: boolean; // the match goes on past the 90th minute
   home: TeamView;
@@ -123,15 +146,17 @@ type LiveFeedProps = {
 };
 
 /** The match, line by line, newest first: the latest event is always in view, the managed club's decisions among them. */
-export function LiveFeed({ shown, decisions, minute, extraTime, home, away, className }: LiveFeedProps) {
+export function LiveFeed({ shown, decisions, changes, minute, extraTime, home, away, className }: LiveFeedProps) {
   const t = useTranslations("live");
   return (
     <Panel className={cn("max-sm:p-4", className)} data-testid="live-events">
       <LiveCardTitle>{t("feed")}</LiveCardTitle>
       <ol role="log" aria-label={t("events")} className="mt-3 space-y-1">
-        {feedEntries(shown, decisions, minute, extraTime).map((entry) =>
+        {feedEntries(shown, decisions, minute, extraTime, changes).map((entry) =>
           entry.kind === "marker" ? (
             <MarkerRow key={entry.marker} entry={entry} />
+          ) : entry.kind === "instruction" ? (
+            <InstructionRow key={`instruction-${entry.change.period}-${entry.change.minute}`} change={entry.change} />
           ) : entry.kind === "decision" ? (
             <DecisionRow key={`decision-${entry.decision.sequence}`} decision={entry.decision} shown={shown} />
           ) : (

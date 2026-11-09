@@ -2,6 +2,7 @@ import type { DecisionView, MatchEventView } from "@/src/db/calendar";
 import { REGULATION_MINUTES } from "@/src/engine/balance";
 import type { MatchEventType } from "@/src/engine/match";
 import type { Translator } from "@/src/i18n/translator";
+import type { InstructionChange } from "./instruction-changes";
 
 // A decision of the managed club on a choice event is taken at a boundary between two segments; what it does at once is
 // in the match's events the minute after, where the engine dates it (applyOption, src/engine/choices.ts): a kick's goal,
@@ -16,8 +17,11 @@ export function decisionMoment(decision: Pick<DecisionView, "minute">): MatchMom
   return { minute, period: minute > REGULATION_MINUTES ? "EXTRA_TIME" : "REGULAR" };
 }
 
-/** A line of a match told in order: one of its events, or a decision of the managed club. */
-export type MatchLine = { kind: "event"; event: MatchEventView } | { kind: "decision"; decision: DecisionView };
+/** A line of a match told in order: one of its events, a decision of the managed club, or a change of its instruction. */
+export type MatchLine =
+  | { kind: "event"; event: MatchEventView }
+  | { kind: "decision"; decision: DecisionView }
+  | { kind: "instruction"; change: InstructionChange };
 
 const PERIODS: readonly MatchEventView["period"][] = ["REGULAR", "EXTRA_TIME", "SHOOTOUT"];
 
@@ -29,21 +33,36 @@ function notAfter(moment: MatchMoment, event: MatchEventView): boolean {
 
 const eventLine = (event: MatchEventView): MatchLine => ({ kind: "event", event });
 const decisionLine = (decision: DecisionView): MatchLine => ({ kind: "decision", decision });
+const instructionLine = (change: InstructionChange): MatchLine => ({ kind: "instruction", change });
+
+/** Whether a moment comes before another: in an earlier period, or earlier in the same one. */
+function before(a: MatchMoment, b: MatchMoment): boolean {
+  const order = PERIODS.indexOf(a.period) - PERIODS.indexOf(b.period);
+  return order < 0 || (order === 0 && a.minute < b.minute);
+}
 
 /**
- * A match's events, in the order given (the match's), with its decisions among them: each after the events up to its
- * boundary and before those of its moment, which it caused. The events keep their order.
+ * A match's events, in the order given (the match's), with its decisions and its changes of instruction among them: each
+ * after the events up to its boundary and before those of its moment, which a decision caused; at one moment, a decision
+ * before a change. The events keep their order.
  */
-export function withDecisions(events: readonly MatchEventView[], decisions: readonly DecisionView[]): MatchLine[] {
-  const placed = decisions
-    .toSorted((a, b) => a.sequence - b.sequence)
-    .map((decision) => {
-      const index = events.findIndex((event) => notAfter(decisionMoment(decision), event));
-      return { decision, index: index < 0 ? events.length : index };
+export function withDecisions(
+  events: readonly MatchEventView[],
+  decisions: readonly DecisionView[],
+  changes: readonly InstructionChange[] = [],
+): MatchLine[] {
+  const extras = [
+    ...decisions.toSorted((a, b) => a.sequence - b.sequence).map((decision) => ({ moment: decisionMoment(decision), line: decisionLine(decision) })),
+    ...changes.map((change) => ({ moment: { minute: change.minute, period: change.period }, line: instructionLine(change) })),
+  ]
+    // Stable: a decision keeps its place before a change of the same moment.
+    .toSorted((a, b) => (before(a.moment, b.moment) ? -1 : before(b.moment, a.moment) ? 1 : 0))
+    .map((extra) => {
+      const index = events.findIndex((event) => notAfter(extra.moment, event));
+      return { line: extra.line, index: index < 0 ? events.length : index };
     });
-  const decisionsAt = (index: number): MatchLine[] =>
-    placed.filter((entry) => entry.index === index).map((entry) => decisionLine(entry.decision));
-  return [...events.flatMap((event, index) => [...decisionsAt(index), eventLine(event)]), ...decisionsAt(events.length)];
+  const extrasAt = (index: number): MatchLine[] => extras.filter((entry) => entry.index === index).map((entry) => entry.line);
+  return [...events.flatMap((event, index) => [...extrasAt(index), eventLine(event)]), ...extrasAt(events.length)];
 }
 
 /**

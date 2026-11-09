@@ -301,7 +301,7 @@ const seasonStatsKey = (seasonId: string, playerSaveId: string): string => `${se
 /**
  * Writes finished matches in bulk: final and half-time scores (the live state cleared), a cup tie's winner and how it
  * was decided, events not written yet (all of them for the managed club's match, none for the others, whose goals go in
- * their fixture: eventsToPersist, goalTimesOf), season stats (in a cup tie, the managed club's players only), form and injuries of both clubs'
+ * their fixture: eventsToPersist, goalTimesOf), the managed club's instructions of its segments (Fixture.instructions), season stats (in a cup tie, the managed club's players only), form and injuries of both clubs'
  * players, these three from the whole match.
  */
 export async function recordFinishedMatches(
@@ -365,6 +365,7 @@ export async function recordFinishedMatches(
   await tx.$executeRaw`
     UPDATE "Fixture" AS f
     SET "played" = true, "status" = 'PLAYED'::"FixtureStatus", "liveState" = NULL, "goalTimes" = v."goalTimes",
+        "instructions" = v."instructions",
         "homeGoals" = v."homeGoals", "awayGoals" = v."awayGoals",
         "homeHalfTimeGoals" = v."homeHalfTimeGoals", "awayHalfTimeGoals" = v."awayHalfTimeGoals",
         "decidedBy" = v."decidedBy"::"DecidedBy", "homePenalties" = v."homePenalties", "awayPenalties" = v."awayPenalties",
@@ -374,12 +375,13 @@ export async function recordFinishedMatches(
         ({ fixtureId, result, knockout, managedSide }) =>
           // A match without the managed club keeps its goals here, none of its events: an int[] literal of integers.
           Prisma.sql`(${fixtureId}::text, ${`{${managedSide === null ? goalTimesOf(result.events).join(",") : ""}}`}::int[],
+            ${managedSide === null ? null : JSON.stringify(result.instructions?.[managedSide] ?? [])}::jsonb,
             ${result.homeGoals}::int, ${result.awayGoals}::int,
             ${result.homeHalfTimeGoals}::int, ${result.awayHalfTimeGoals}::int, ${result.decidedBy ?? null}::text,
             ${result.homePenalties ?? null}::int, ${result.awayPenalties ?? null}::int,
             ${knockout ? knockoutWinner(result) : null}::text)`,
       ),
-    )}) AS v("id", "goalTimes", "homeGoals", "awayGoals", "homeHalfTimeGoals", "awayHalfTimeGoals", "decidedBy",
+    )}) AS v("id", "goalTimes", "instructions", "homeGoals", "awayGoals", "homeHalfTimeGoals", "awayHalfTimeGoals", "decidedBy",
              "homePenalties", "awayPenalties", "winner")
     WHERE f."id" = v."id" AND f."saveId" = ${saveId}`;
 

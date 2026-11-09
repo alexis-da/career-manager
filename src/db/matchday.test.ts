@@ -47,7 +47,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
     pickedKey = weakest.playerKey;
     await saveManagedLineup(saveId, {
       formation: "4-4-2",
-      lineup: { starters: [{ slot: 9, playerKey: pickedKey }], benchOrder: [] },
+      // A starting instruction other than Équilibré: kept with the match.
+      lineup: { starters: [{ slot: 9, playerKey: pickedKey }], benchOrder: [], instruction: "DEFEND" },
     });
     const best = (isManaged: boolean) =>
       prisma.playerSave.findFirstOrThrow({
@@ -115,6 +116,21 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
     // Only the managed club's match keeps its goals as events.
     expect(await db.matchEvent.count({ where: { type: "GOAL", fixture: { saveId, homeClubSave: { isManaged: false }, awayClubSave: { isManaged: false } } } })).toBe(0);
     expect(stats._sum.goals).toBe(goals);
+  });
+
+  it("keeps the managed club's instructions with its match, from its starting one, and no other club's", async () => {
+    const fixtures = await database().fixture.findMany({
+      where: { saveId, played: true },
+      select: { instructions: true, homeClubSave: { select: { isManaged: true } }, awayClubSave: { select: { isManaged: true } } },
+    });
+    const managed = fixtures.filter((fixture) => fixture.homeClubSave.isManaged || fixture.awayClubSave.isManaged);
+    const { instructionsOf } = await import("./calendar");
+
+    expect(managed).toHaveLength(1);
+    const spans = instructionsOf(managed[0].instructions);
+    expect(spans[0]).toEqual({ from: 0, instruction: "DEFEND", source: "START" });
+    expect(spans.every((span, index) => index === 0 || span.from > spans[index - 1].from)).toBe(true);
+    expect(fixtures.filter((fixture) => fixture.instructions !== null)).toHaveLength(1);
   });
 
   it("stores each goal on the side that scored it", async () => {

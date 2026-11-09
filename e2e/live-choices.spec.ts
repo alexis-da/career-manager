@@ -120,6 +120,14 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await expect(line).toHaveAttribute("data-instruction-source", "MANAGER");
   await expect(line).toHaveAccessibleName("Consigne en cours : Attaquer, donnée par toi");
 
+  // The feed tells the change, and who made it; nothing before kick-off, the start being Équilibré.
+  const managerChange = page.getByTestId("live-events").locator('[data-testid="live-instruction-change"][data-source="MANAGER"]');
+  await expect(managerChange).toHaveCount(1);
+  await expect(managerChange).toHaveAttribute("data-instruction", "ATTACK");
+  await expect(managerChange).toContainText("Consigne : Attaquer");
+  await expect(managerChange).toContainText("Ton coaching");
+  await expect(page.locator('[data-testid="live-instruction-change"][data-source="START"]')).toHaveCount(0);
+
   // A stop asked for at the next boundary: pressed, then the clock reaches it and the panel opens there.
   await expect(request).toHaveText("Coaching à la 30e");
   await request.click();
@@ -172,6 +180,11 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   const sheet = page.getByTestId("match-sheet");
   await expect(sheet.getByTestId("match-sheet-decision")).toHaveCount(1);
   await expect(sheet.getByTestId("match-sheet-decision")).toContainText("Tu as protesté");
+  // The player's instruction, kept with the match.
+  const sheetChange = sheet.locator('[data-testid="match-sheet-instruction-change"][data-source="MANAGER"]');
+  await expect(sheetChange).toHaveCount(1);
+  await expect(sheetChange).toHaveAttribute("data-instruction", "ATTACK");
+  await expect(sheetChange).toContainText("Ton coaching");
   await expect(sheet.locator(`li[data-player-key="${incoming}"][data-related-player-key="${outgoing}"]`)).toContainText("16'");
 
   await deleteSave(page, name);

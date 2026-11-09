@@ -16,6 +16,14 @@ const side = z.enum(["home", "away"]);
 const position = z.enum(POSITIONS);
 const instruction = z.enum(INSTRUCTIONS);
 const givenBy = z.enum(["MANAGER", "EVENT"]);
+/** An instruction a side plays with from a minute on, and who set it (InstructionSpan). */
+const instructionSpan = z.object({ from: minute, instruction, source: z.enum(["START", "ASSISTANT", "MANAGER", "EVENT"]) });
+
+/**
+ * The instructions of a side's segments, a span at each change: kept in a paused match's state, and with the managed
+ * club's match once played (Fixture.instructions). One a segment at most.
+ */
+export const instructionSpansSchema = z.array(instructionSpan).max(8);
 
 const squadPlayerSchema = z.object({
   id: playerKey,
@@ -58,7 +66,7 @@ const teamSchema = z.object({
   startingInstruction: instruction.optional(), // the managed club's, unless Équilibré
   // The instructions of its segments played, from the first one paused after they were kept.
   instructions: z
-    .array(z.object({ from: minute, instruction, source: z.enum(["START", "ASSISTANT", "MANAGER", "EVENT"]) }))
+    .array(instructionSpan)
     .max(8) // one a segment at most
     .optional(),
 });

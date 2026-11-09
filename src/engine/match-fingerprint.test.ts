@@ -73,6 +73,10 @@ describe("league match fingerprint", () => {
     );
 
     expect(results).toHaveLength(99);
-    expect(createHash("sha256").update(JSON.stringify(results)).digest("hex")).toBe("bd13f5e4e8dc91e4d944197193399155dd8e42373ba7fc4534da09f3085b48e2");
+    // The instructions each team played, kept with the result since the match feed tells their changes, are pinned
+    // apart: without them, the matchday is the very one pinned before.
+    const draws = results.map((match) => ({ ...match, result: { ...match.result, instructions: undefined } }));
+    expect(createHash("sha256").update(JSON.stringify(draws)).digest("hex")).toBe("bd13f5e4e8dc91e4d944197193399155dd8e42373ba7fc4534da09f3085b48e2");
+    expect(createHash("sha256").update(JSON.stringify(results)).digest("hex")).toBe("9086ae996683d25db0667b05c7ff9b6882b6ebfb546642098bbea3311966bc1e");
   });
 });

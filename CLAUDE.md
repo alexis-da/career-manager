@@ -474,7 +474,12 @@ joueur touché ; la consigne choisie), et la décision part avec sa reprise. Des
 repères, le plus récent en haut, `EventIcon` en SVG, aussi dans la feuille de match), les statistiques en barres, comptées
 sur les seuls événements montrés (`matchStats`), et les autres matchs ; le fil montre aussi les décisions des événements
 avec leur effet, à la minute qui suit leur limite (`withDecisions`, `describeDecision`, `app/saves/[id]/_lib/decisions.ts`,
-zone `decisions` : « Penalty de Diallo : but », « Tu as protesté : Mendy averti »), comme la feuille de match. Panneau
+zone `decisions` : « Penalty de Diallo : but », « Tu as protesté : Mendy averti »), et les changements de consigne du
+club (`instructionChanges`, `app/saves/[id]/_lib/instruction-changes.ts` : une consigne de départ autre qu'Équilibré à la
+1re minute, puis chaque changement à la minute qui suit sa limite, et qui l'a donné, départ, toi ou l'adjoint ; celle
+d'un événement est dite par sa décision), gardés avec le match (`Fixture.instructions`, migration d'ajout
+`…_fixture_instructions` : les segments du club dirigé, `MatchResult.instructions` ; rien pour un match d'avant), comme
+la feuille de match. Panneau
 Coaching (`HalfTime`) : `Sheet` modal, ouvert à la demande seulement (carte de pause, carte d'événement, barre, arrêt
 demandé), fermé par Échap ou la croix, rouvert par `live-coaching`, ses changements gardés (la barre n'offre plus alors
 de reprise : rien ne reprend sans eux) ; plein écran sous 1024 px, 440 px à droite au-dessus ; son titre dit la pause

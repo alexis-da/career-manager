@@ -52,6 +52,19 @@
       "DEFEND": "Until full time: shut up shop"
     },
     "unknownPlayer": "Unknown player",
-    "substitute": "a substitute"
+    "substitute": "a substitute",
+    "instruction": {
+      "change": "Instruction: {instruction}",
+      "name": {
+        "ATTACK": "Attack",
+        "BALANCED": "Balanced",
+        "DEFEND": "Sit back"
+      },
+      "by": {
+        "START": "Starting instruction",
+        "MANAGER": "Your coaching",
+        "ASSISTANT": "Your assistant"
+      }
+    }
   }
 }

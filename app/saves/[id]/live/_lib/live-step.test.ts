@@ -52,6 +52,7 @@ const MATCH: FixtureWithEvents = {
   awayPenalties: null,
   events: [event("a", 12)],
   decisions: [decision(1, 15)],
+  instructions: [],
 };
 
 const STARTED: InstructionSpan = { from: 0, instruction: "DEFEND", source: "START" };
