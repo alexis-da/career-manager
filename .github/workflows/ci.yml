@@ -33,7 +33,7 @@ jobs:
   gate:
     # A release pushes main and its branch on the same commit: main's run tests it, the branch's run stops here.
     name: Already tested by main?
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       run: ${{ steps.gate.outputs.run }}
@@ -61,7 +61,7 @@ jobs:
     name: Types, lint, Vitest
     needs: gate
     if: needs.gate.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:
@@ -96,7 +96,7 @@ jobs:
     name: E2E, quick selection
     needs: gate
     if: needs.gate.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:

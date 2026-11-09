@@ -27,7 +27,7 @@ permissions: {}
 
 jobs:
   purge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - name: Purge the anonymous users and the finished challenges' saves, batch after batch
@@ -52,7 +52,7 @@ jobs:
 
   cleanup:
     needs: purge
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Clean up the match events no screen reads, counted or deleted batch after batch

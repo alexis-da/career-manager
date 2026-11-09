@@ -27,7 +27,7 @@ env:
 jobs:
   gate:
     name: New commit since the last night?
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       actions: read
@@ -58,7 +58,7 @@ jobs:
     name: E2E, whole suite
     needs: gate
     if: needs.gate.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     services:
       postgres:
@@ -98,7 +98,7 @@ jobs:
     name: Slow tests (Vitest)
     needs: gate
     if: needs.gate.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     services:
       postgres:

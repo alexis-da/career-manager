@@ -637,7 +637,8 @@ nettoie jamais que ses propres parties (`saveIds`).
 et toute branche) et à chaque pull request : le job « Types, lint, Vitest » (`next typegen`, sans quoi un dépôt neuf n'a
 ni `PageProps` ni `LayoutProps`, puis `tsc`, lint, `npm run test`) et le job « E2E, quick selection »
 (`npm run test:e2e:quick`). `nightly.yml`, chaque nuit à 01:30 UTC et à la demande : toute la suite E2E et
-`npm run test:slow`. Chaque job a son PostgreSQL 17 jetable (service du job, sur localhost, sans durabilité : `fsync`,
+`npm run test:slow`. Chaque job tourne sur `ubuntu-24.04` (image fixée dans tous les workflows, jamais `ubuntu-latest`,
+qui change sans prévenir) et a son PostgreSQL 17 jetable (service du job, sur localhost, sans durabilité : `fsync`,
 `synchronous_commit` et `full_page_writes` à off), migré depuis zéro puis rempli par le seed (actions composites
 `.github/actions/prepare`, `test-database`, `playwright`, Chromium gardé en cache par version de Playwright). Ses valeurs,
 factices, sont écrites dans le workflow (`DATABASE_URL`, `DIRECT_URL`, `DATABASE_URL_TEST`, `AUTH_SECRET`), et `.env.test`
