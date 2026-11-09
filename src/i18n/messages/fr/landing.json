@@ -88,7 +88,7 @@
       },
       "save": {
         "question": "Où est gardée ma partie ?",
-        "answer": "Sur le serveur du jeu. Sans compte, elle est liée à ce navigateur et supprimée si tu ne reviens pas pendant 30 jours ; avec un compte Google, elle est gardée tant que ton compte existe. Une partie du défi de la semaine est supprimée le mardi qui suit sa semaine."
+        "answer": "Sur le serveur du jeu. Sans compte, elle est liée à ce navigateur et supprimée si tu ne reviens pas : après 14 jours si tu n'as joué que le jour de sa création, après 30 jours sinon ; avec un compte Google, elle est gardée tant que ton compte existe. Une partie du défi de la semaine est supprimée le mardi qui suit sa semaine."
       }
     }
   }

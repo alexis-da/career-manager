@@ -37,7 +37,7 @@ describe("the game's year", () => {
   it("is set in one place, WORLD_START_YEAR; the only other years are the OpenFootball season and real dates", () => {
     expect(yearLiterals()).toEqual([
       // A real date, not the game's: the day the privacy page last changed.
-      "app/privacy/_components/privacy-document.tsx: const UPDATED_ON = new Date(Date.UTC(2026, 10, 8));",
+      "app/privacy/_components/privacy-document.tsx: const UPDATED_ON = new Date(Date.UTC(2026, 10, 10));",
       "prisma/seed/openfootball.ts: export const SOURCE_SEASON_START_YEAR = 2024;",
       "src/engine/world.ts: export const WORLD_START_YEAR = 2026;",
     ]);

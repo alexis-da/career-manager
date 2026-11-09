@@ -156,6 +156,12 @@ la route tant qu'il en reste, 20 appels au plus (le reste attend le lendemain). 
 workflow du défi essaie trois fois, à 30 s d'intervalle, et échoue si aucune réponse n'est 200 ; rappelé, il ne crée
 rien de plus (`created: false`).
 
+Règle des 14 jours de la purge (`?oneDay=1`) : un anonyme venu le seul jour de la création de sa carrière part après
+14 jours sans visite au lieu de 30. Un lancement à la main du workflow choisit `purge` : `count` (un appel en
+`?dryRun=1&oneDay=1`, rien supprimé, `byRule` dit ce que chaque règle supprimerait), `one-day` (la purge avec cette
+règle) ou `daily` (comme chaque jour). Le passage quotidien ne l'applique que si la variable de dépôt `PURGE_ONE_DAY`
+vaut `delete` (Settings > Secrets and variables > Actions > Variables) ; sinon il la compte seulement.
+
 ## Accès et comptes
 
 - **Jouer en un clic** : un visiteur crée sa partie depuis l'accueil, sans compte ; il devient un utilisateur
@@ -164,8 +170,9 @@ rien de plus (`created: false`).
   création seulement (la fusion à la connexion peut dépasser trois).
 - **Bandeau** : sur le tableau de bord d'un anonyme, après une journée jouée, une invitation à créer un compte ;
   la croix la masque sept jours (cookie `lw_banner_closed`).
-- **Purge** (`src/db/purge.ts`) : anonymes non vus depuis 30 jours (avec leurs parties) et anonymes sans partie
-  non vus depuis 24 h, par lots de 25. Jamais un compte Google. Seule suppression automatique d'utilisateurs.
+- **Purge** (`src/db/purge.ts`) : anonymes non vus depuis 30 jours (avec leurs parties), anonymes venus le seul jour
+  de leur création après 14 jours (règle des 14 jours, voir « Maintenance ») et anonymes sans partie non vus depuis
+  24 h, par lots de 25. Jamais un compte Google. Seule suppression automatique d'utilisateurs.
 - **Premiers pas** : ce qu'un joueur a vu d'une partie reste dans de petits cookies de confort (`lw_seen_…`,
   30 jours), sur les chemins de cette partie, jamais en base.
 - **Mesure** : la table `UserDay` note chaque jour où un utilisateur vient ; `/admin/stats`, réservée à

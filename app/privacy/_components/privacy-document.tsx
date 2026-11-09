@@ -4,7 +4,7 @@ import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 
 /** The day this page last changed, the same in both versions: to update with their content. */
-const UPDATED_ON = new Date(Date.UTC(2026, 10, 8));
+const UPDATED_ON = new Date(Date.UTC(2026, 10, 10));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -102,9 +102,10 @@ function FrenchPrivacy() {
 
       <Section title="Durées de conservation">
         <p>
-          Un joueur sans compte et inactif depuis 30 jours est supprimé avec ses parties ; un joueur sans compte qui
-          n&apos;a plus aucune partie l&apos;est après 24 heures d&apos;inactivité. Un compte Google est conservé
-          jusqu&apos;à ce que tu le supprimes.
+          Un joueur sans compte qui n&apos;est venu que le jour où il a créé sa carrière, une carrière jamais reprise, est
+          supprimé avec ses parties après 14 jours sans visite ; un joueur sans compte revenu au moins un autre jour
+          l&apos;est après 30 jours sans visite ; un joueur sans compte qui n&apos;a plus aucune partie l&apos;est après
+          24 heures d&apos;inactivité. Un compte Google est conservé jusqu&apos;à ce que tu le supprimes.
         </p>
         <p>
           Le cookie lw_src expire au bout de 30 jours. L&apos;origine, la langue, l&apos;appareil et les dates de tes
@@ -130,7 +131,7 @@ function FrenchPrivacy() {
           Tu disposes d&apos;un droit d&apos;accès, de rectification, d&apos;effacement et d&apos;opposition. Le bouton
           « Supprimer mon compte », sur l&apos;accueil une fois connecté, efface immédiatement ton compte, tes parties et
           tes entrées au classement du défi ; sans compte, supprimer ta partie suffit (une entrée au classement du
-          défi, elle, part avec ton profil, après 30 jours sans visite). Tu peux aussi écrire à <Contact />. En cas de désaccord, tu peux
+          défi, elle, part avec ton profil, après 14 ou 30 jours sans visite). Tu peux aussi écrire à <Contact />. En cas de désaccord, tu peux
           adresser une réclamation à la CNIL (cnil.fr).
         </p>
       </Section>
@@ -159,8 +160,9 @@ function FrenchPrivacy() {
           <p>
             Purposes: running the game and finding your saves again; showing the weekly challenge&apos;s ranking; internal
             audience measurement only (where players come from, how many create a career, play a match, finish a season
-            and come back). A player without an account is deleted with their saves after 30 days of inactivity (24
-            hours if they have no save left); an account is kept until you delete it. The lw_src cookie expires after 30
+            and come back). A player without an account is deleted with their saves after 14 days without a visit if
+            they only came on the day they created their career, after 30 days otherwise (24 hours if they have no save
+            left); an account is kept until you delete it. The lw_src cookie expires after 30
             days; the audience details go with your player profile; the visit totals are kept without limit. A weekly
             challenge save is deleted 24 hours after its week ends, with or without an account; its ranking entry is
             kept as long as your account or your profile without one. Hosting: Vercel (application) and Neon
@@ -255,9 +257,10 @@ function EnglishPrivacy() {
 
       <Section title="Retention periods">
         <p>
-          A player without an account who has been inactive for 30 days is deleted along with their careers; a player
-          without an account who no longer has any career is deleted after 24 hours of inactivity. A Google account is
-          kept until you delete it.
+          A player without an account who only came on the day they created their career, a career never resumed, is
+          deleted along with their careers after 14 days without a visit; one who came back on at least one other day,
+          after 30 days without a visit; a player without an account who no longer has any career is deleted after 24
+          hours of inactivity. A Google account is kept until you delete it.
         </p>
         <p>
           The lw_src cookie expires after 30 days. The origin, language, device and dates of your first steps stay with
@@ -283,7 +286,7 @@ function EnglishPrivacy() {
           You have the right to access, rectify, erase and object to your data. The “Delete my account” button, on the
           home page once signed in, immediately deletes your account, your careers and your entries in the challenge
           rankings; without an account, deleting your career is enough (a challenge ranking entry goes with your
-          profile, after 30 days without a visit). You can also write to <Contact />. If you disagree, you can lodge a
+          profile, after 14 or 30 days without a visit). You can also write to <Contact />. If you disagree, you can lodge a
           complaint with the CNIL (cnil.fr), the French data protection authority.
         </p>
       </Section>

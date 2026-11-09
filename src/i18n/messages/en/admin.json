@@ -17,7 +17,7 @@
       "day7": "D+7"
     },
     "firstSteps": "First steps of new careers, last {days} complete days (UTC)",
-    "firstStepsNote": "By day of creation, weekly challenge left out: how far these careers have gone today. A career its player deleted is no longer counted; one over 30 days old may have been purged.",
+    "firstStepsNote": "By day of creation, weekly challenge left out: how far these careers have gone today. A career its player deleted is no longer counted; a career without an account never resumed after its first day may be purged after 14 days.",
     "firstStepsSummary": "Over these {days} days: {saves, plural, =0 {no career} one {# career} other {# careers}}, first match played: {share}",
     "firstStepsColumns": {
       "day": "Day",
@@ -88,7 +88,9 @@
       "appLaunches": "App launches",
       "storageCost": "Storage a month",
       "projectedCost": "In {days} days",
-      "perNewPlayer": "Per new player"
+      "perNewPlayer": "Per new player",
+      "purgedInactive": "Careers purged at 30 days",
+      "purgedOneDay": "Careers purged at 14 days"
     },
     "details": {
       "conversion": "{percent}% of visits",
@@ -104,7 +106,9 @@
       "storagePrice": "at {price} per GB",
       "projectedSize": "{size} at this pace",
       "costAlert": "Past {alert} a month",
-      "newPlayers": "{count, plural, =0 {no new player} one {# new player} other {# new players}} over those days"
+      "newPlayers": "{count, plural, =0 {no new player} one {# new player} other {# new players}} over those days",
+      "purgedInactive": "of players without an account, not seen for 30 days",
+      "purgedOneDay": "{users, plural, =0 {no player seen only on the day they started} one {of a player seen only on the day they started} other {of # players seen only on the day they started}}"
     },
     "breakdown": {
       "languages": "Language: French {fr} · English {en}",

@@ -9,7 +9,16 @@ const LIMIT_MESSAGE = "Tu as déjà une carrière en cours. Connecte-toi avec Go
 const BANNER = "Crée un compte pour ne pas perdre ta carrière";
 
 /** What the maintenance endpoint answers (src/db/purge.ts, PurgeResult). */
-type PurgeResponse = { dryRun: boolean; inactive: number; empty: number; total: number; remaining: number };
+type PurgeResponse = {
+  dryRun: boolean;
+  oneDayRule: boolean;
+  inactive: number;
+  oneDay: number;
+  empty: number;
+  total: number;
+  remaining: number;
+  byRule: { oneDay: { users: number; saves: number } };
+};
 
 // Name of the save the running test created, until it is deleted.
 let saveName: string | undefined;
@@ -87,8 +96,10 @@ test("asks an anonymous player to sign in once a matchday is played, and the cro
 });
 
 test("purges an anonymous user not seen for 40 days: counted in dry run, deleted batch after batch, 404 without the secret", async ({ request }) => {
-  // Not simulation code: the user is aged against real time.
+  // Not simulation code: the users are aged against real time. Both were seen only on the day they were created; the
+  // second has a save, which keeps them from the purge of the saveless after 24 hours.
   const userId = await createAnonymousUser(new Date(Date.now() - 40 * DAY_MS));
+  const oneDayUserId = await createAnonymousUser(new Date(Date.now() - 15 * DAY_MS), { withSave: true });
   try {
     const authorization = `Bearer ${MAINTENANCE_SECRET_TEST}`;
     expect((await request.post("/api/maintenance/purge", { headers: { authorization: "Bearer wrong" } })).status()).toBe(404);
@@ -101,6 +112,16 @@ test("purges an anonymous user not seen for 40 days: counted in dry run, deleted
     expect(counted.total + counted.remaining).toBeGreaterThanOrEqual(1);
     expect(await userExists(userId)).toBe(true);
 
+    // The 14-day rule, counted when asked, deleting nothing either.
+    const oneDayCount = await request.post("/api/maintenance/purge?dryRun=1&oneDay=1", { headers: { authorization } });
+    expect(oneDayCount.status()).toBe(200);
+    const oneDayCounted = (await oneDayCount.json()) as PurgeResponse;
+    expect(oneDayCounted).toMatchObject({ dryRun: true, oneDayRule: true });
+    expect(oneDayCounted.byRule.oneDay.users).toBeGreaterThanOrEqual(1);
+    expect(oneDayCounted.byRule.oneDay.saves).toBeGreaterThanOrEqual(1);
+    expect(oneDayCounted.total + oneDayCounted.remaining).toBeGreaterThan(counted.total + counted.remaining);
+    expect(await userExists(oneDayUserId)).toBe(true);
+
     // Batch after batch, as the workflow calls (20 calls at most), until none remain.
     let purged: PurgeResponse | undefined;
     for (let call = 0; call < 20 && (purged === undefined || purged.remaining > 0); call++) {
@@ -111,8 +132,11 @@ test("purges an anonymous user not seen for 40 days: counted in dry run, deleted
     }
     expect(purged?.remaining).toBe(0);
     expect(await userExists(userId)).toBe(false);
+    // Without the 14-day rule, the one-day user of 15 days stays until their 30.
+    expect(purged).toMatchObject({ oneDayRule: false, oneDay: 0 });
+    expect(await userExists(oneDayUserId)).toBe(true);
   } finally {
-    await deleteUsers([userId]);
+    await deleteUsers([userId, oneDayUserId]);
   }
 });
 

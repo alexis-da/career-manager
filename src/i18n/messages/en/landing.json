@@ -88,7 +88,7 @@
       },
       "save": {
         "question": "Where is my career saved?",
-        "answer": "On the game's server. Without an account, it is tied to this browser and deleted if you do not come back for 30 days; with a Google account, it is kept as long as your account exists. A weekly challenge career is deleted on the Tuesday after its week."
+        "answer": "On the game's server. Without an account, it is tied to this browser and deleted if you do not come back: after 14 days if you only played on the day you created it, after 30 days otherwise; with a Google account, it is kept as long as your account exists. A weekly challenge career is deleted on the Tuesday after its week."
       }
     }
   }

@@ -25,12 +25,25 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the day's figures, in t
         databaseBytes: bigint | null;
         purgedUsers: number;
         purgedSaves: number;
+        purgedOneDayUsers: number;
+        purgedOneDaySaves: number;
         purgedChallengeSaves: number;
       }[]
-    >`SELECT "liveMatches", "simulatedMatches", "appLaunches", "databaseBytes", "purgedUsers", "purgedSaves", "purgedChallengeSaves"
+    >`SELECT "liveMatches", "simulatedMatches", "appLaunches", "databaseBytes", "purgedUsers", "purgedSaves", "purgedOneDayUsers",
+             "purgedOneDaySaves", "purgedChallengeSaves"
       FROM "DailyStat" WHERE "day" = (now() AT TIME ZONE 'UTC')::date`;
     return (
-      row ?? { liveMatches: 0, simulatedMatches: 0, appLaunches: 0, databaseBytes: null, purgedUsers: 0, purgedSaves: 0, purgedChallengeSaves: 0 }
+      row ?? {
+        liveMatches: 0,
+        simulatedMatches: 0,
+        appLaunches: 0,
+        databaseBytes: null,
+        purgedUsers: 0,
+        purgedSaves: 0,
+        purgedOneDayUsers: 0,
+        purgedOneDaySaves: 0,
+        purgedChallengeSaves: 0,
+      }
     );
   };
 
@@ -72,12 +85,15 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the day's figures, in t
     const { db, stats } = loaded();
     const before = await today();
 
-    await stats.recordMaintenance(db, { users: 2, saves: 3, challengeSaves: 1 });
-    await stats.recordMaintenance(db, { users: 0, saves: 0, challengeSaves: 0 });
+    // Of the 3 users and their 4 saves, one user and their save by the 14-day rule.
+    await stats.recordMaintenance(db, { users: 3, saves: 4, oneDayUsers: 1, oneDaySaves: 1, challengeSaves: 1 });
+    await stats.recordMaintenance(db, { users: 0, saves: 0, oneDayUsers: 0, oneDaySaves: 0, challengeSaves: 0 });
 
     const after = await today();
-    expect(after.purgedUsers).toBeGreaterThanOrEqual(before.purgedUsers + 2);
-    expect(after.purgedSaves).toBeGreaterThanOrEqual(before.purgedSaves + 3);
+    expect(after.purgedUsers).toBeGreaterThanOrEqual(before.purgedUsers + 3);
+    expect(after.purgedSaves).toBeGreaterThanOrEqual(before.purgedSaves + 4);
+    expect(after.purgedOneDayUsers).toBeGreaterThanOrEqual(before.purgedOneDayUsers + 1);
+    expect(after.purgedOneDaySaves).toBeGreaterThanOrEqual(before.purgedOneDaySaves + 1);
     expect(after.purgedChallengeSaves).toBeGreaterThanOrEqual(before.purgedChallengeSaves + 1);
     const [{ size }] = await db.$queryRaw<{ size: bigint }[]>`SELECT pg_database_size(current_database()) AS size`;
     // The size of a moment ago: within a few megabytes of now, whatever the other files write meanwhile.

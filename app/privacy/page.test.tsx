@@ -8,7 +8,7 @@ describe("privacy page, in French", () => {
 
   it("has its title, its date and every section, in French", () => {
     expect(markup).toContain("Confidentialité · Late Winner");
-    expect(markup).toContain("Mise à jour le 8 novembre 2026.");
+    expect(markup).toContain("Mise à jour le 10 novembre 2026.");
     for (const section of ["Responsable", "Données traitées", "Finalités", "Durées de conservation", "Hébergement", "Tes droits"]) {
       expect(markup).toContain(`>${section}</h2>`);
     }
@@ -20,7 +20,17 @@ describe("privacy page, in French", () => {
   });
 
   it("says what is processed and what is not", () => {
-    for (const text of ["lw_uid", "30 jours", "Supprimer mon compte", "Vercel", "Neon", "CNIL", "Aucun cookie tiers"]) {
+    for (const text of [
+      "lw_uid",
+      "30 jours",
+      // A career never resumed after its day goes sooner.
+      "n&#x27;est venu que le jour où il a créé sa carrière, une carrière jamais reprise, est supprimé avec ses parties après 14 jours sans visite",
+      "Supprimer mon compte",
+      "Vercel",
+      "Neon",
+      "CNIL",
+      "Aucun cookie tiers",
+    ]) {
       expect(markup).toContain(text);
     }
     // No password: the game has no closed mode any more.
@@ -54,7 +64,7 @@ describe("privacy page, in French", () => {
 
   it("ends with an English summary in a block marked as English, of the same date", () => {
     expect(markup).toMatch(/<section lang="en"[^>]*><h2[^>]*>English summary<\/h2>/);
-    expect(markup).toContain("Last updated 8 November 2026.");
+    expect(markup).toContain("Last updated 10 November 2026.");
   });
 });
 
@@ -64,7 +74,7 @@ describe("privacy page, in English", () => {
   it("is the whole document in English, of the French one's date, without the summary", () => {
     expect(markup).toMatch(/<article lang="en"/);
     expect(markup).toContain("Privacy · Late Winner");
-    expect(markup).toContain("Last updated 8 November 2026.");
+    expect(markup).toContain("Last updated 10 November 2026.");
     for (const section of ["Controller", "Data processed", "Purposes", "Retention periods", "Hosting", "Your rights"]) {
       expect(markup).toContain(`>${section}</h2>`);
     }
@@ -79,6 +89,7 @@ describe("privacy page, in English", () => {
       "lw_seen_… (thirty days, sent for that career only)",
       "30 days",
       "24 hours after its week ends",
+      "only came on the day they created their career, a career never resumed, is deleted along with their careers after 14 days without a visit",
       "Delete my account",
       "Vercel",
       "Neon",

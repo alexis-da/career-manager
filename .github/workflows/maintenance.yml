@@ -4,6 +4,11 @@
 # Secrets of the repository: MAINTENANCE_URL, the purge's full address
 # (https://www.latewinner.app/api/maintenance/purge), the cleanup's next to it (…/api/maintenance/cleanup), and
 # MAINTENANCE_SECRET, the same value as on Vercel.
+# The purge's mode: on a manual run, its « purge » input; on the daily run, « daily ». daily: the anonymous users not
+# seen for 30 days, without a save for 24 hours, and those seen only on the day they were created (a career never
+# resumed) after 14 days if the repository variable PURGE_ONE_DAY is « delete », only counted otherwise; count: one call
+# with ?dryRun=1&oneDay=1, which deletes nothing and says what each rule would remove; one-day: as daily, the 14-day rule
+# included whatever the variable.
 # The cleanup's mode: on a manual run, its « cleanup » input; on the daily run, the repository variable EVENT_CLEANUP
 # (Settings → Secrets and variables → Actions → Variables), « count » without it. count: one call with ?dryRun=1, which
 # deletes nothing; delete: calls until nothing is left, at most MAX_CALLS; skip: nothing. Every call shows in /admin.
@@ -14,6 +19,14 @@ on:
     - cron: "17 4 * * *" # 04:17 UTC, every day
   workflow_dispatch:
     inputs:
+      purge:
+        description: "Anonymous users: as every day (the 14-day rule if PURGE_ONE_DAY is delete), count what each rule would remove (dryRun, nothing deleted), or with the 14-day rule"
+        type: choice
+        options:
+          - daily
+          - count
+          - one-day
+        default: daily
       cleanup:
         description: "Match events nothing reads: count them (dryRun, nothing deleted), delete them by batches, or skip"
         type: choice
@@ -34,11 +47,19 @@ jobs:
         env:
           MAINTENANCE_URL: ${{ secrets.MAINTENANCE_URL }}
           MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.purge || 'daily' }}
+          ONE_DAY: ${{ vars.PURGE_ONE_DAY }}
           MAX_CALLS: 20 # each call deletes at most 25 users and 10 challenge saves
         run: |
-          for call in $(seq 1 "$MAX_CALLS"); do
-            status=$(curl --silent --show-error --max-time 90 --output response.json --write-out "%{http_code}"               --request POST --header "Authorization: Bearer ${MAINTENANCE_SECRET}" "${MAINTENANCE_URL}")
-            echo "Call $call: HTTP $status $(cat response.json)"
+          case "$MODE" in
+            daily) if [ "$ONE_DAY" = "delete" ]; then query="?oneDay=1"; else query=""; fi; calls="$MAX_CALLS" ;;
+            count) query="?dryRun=1&oneDay=1"; calls=1 ;;
+            one-day) query="?oneDay=1"; calls="$MAX_CALLS" ;;
+            *) echo "::error::Unknown purge mode « $MODE »: daily, count or one-day"; exit 1 ;;
+          esac
+          for call in $(seq 1 "$calls"); do
+            status=$(curl --silent --show-error --max-time 90 --output response.json --write-out "%{http_code}" --request POST --header "Authorization: Bearer ${MAINTENANCE_SECRET}" "${MAINTENANCE_URL}${query}")
+            echo "Call $call ($MODE): HTTP $status $(cat response.json)"
             if [ "$status" != "200" ]; then
               echo "::error::The purge answered HTTP $status"
               exit 1
@@ -48,7 +69,11 @@ jobs:
               exit 0
             fi
           done
-          echo "::warning::$remaining anonymous users or challenge saves still to purge after $MAX_CALLS calls: the next run goes on"
+          if [ "$MODE" = "count" ]; then
+            echo "Counted, nothing deleted: byRule says what each rule would remove"
+          else
+            echo "::warning::$remaining anonymous users or challenge saves still to purge after $calls calls: the next run goes on"
+          fi
 
   cleanup:
     needs: purge

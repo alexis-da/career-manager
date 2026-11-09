@@ -753,7 +753,14 @@ efface `lw_uid`. **La purge est la seule suppression automatique d'utilisateurs*
 via `POST /api/maintenance/purge` (en-tête `Authorization: Bearer <MAINTENANCE_SECRET>`, 404 sans la variable ou
 avec un mauvais secret, `?dryRun=1` pour compter sans supprimer). Elle supprime les `ANONYMOUS` non vus depuis
 30 jours (`lastSeenAt`, avec leurs parties) et les `ANONYMOUS` sans partie non vus depuis 24 h ; jamais un
-`REGISTERED`. Par lots : 25 utilisateurs au plus par appel, les plus anciens d'abord (`maxDuration = 60`), et la
+`REGISTERED`. **Règle des 14 jours** (décidée le 10/11, `?oneDay=1`) : un `ANONYMOUS` vu le seul jour de sa création
+(le jour UTC de `lastSeenAt` est celui de `createdAt` : une carrière jamais reprise) part après 14 jours sans visite
+(`ONE_DAY_ANONYMOUS_DAYS`, `src/lib/maintenance.ts`), en SQL, Prisma ne comparant pas deux jours d'une ligne ; sans
+`?oneDay=1`, il est seulement compté. Chaque utilisateur est compté sous la première règle qu'il remplit (30 jours,
+14 jours, sans partie), et la réponse donne en plus `byRule`, ce que chaque règle supprime à cette heure, celle des
+14 jours même éteinte. Le workflow l'applique au passage quotidien quand la variable de dépôt `PURGE_ONE_DAY` vaut
+`delete`, sinon la compte seulement ; un lancement à la main choisit `daily`, `count` (un appel en `?dryRun=1&oneDay=1`)
+ou `one-day`. Par lots : 25 utilisateurs au plus par appel, les plus anciens d'abord (`maxDuration = 60`), et la
 réponse donne `remaining` ; le workflow rappelle la route tant que `remaining > 0`, 20 appels au plus. Aucun autre code ne supprime d'utilisateur de lui-même.
 Après les anonymes, chaque appel supprime aussi un lot de 10 parties de défi dont le défi est fini depuis plus de 24 h
 (le mardi qui suit sa semaine), **quel que soit leur propriétaire** (`purgeChallengeSaves`) : **première suppression
@@ -817,7 +824,8 @@ réel. À la connexion Google, la plus ancienne de chaque (`moveHistory`). null 
 **après** la transaction de `playNextMatchday` ou d'`advanceLiveMatch`, jamais dedans : la ligne du jour resterait
 verrouillée pendant la journée de chaque joueur ; un échec coûte un compte, jamais le match) ; à chaque appel de la purge
 (`recordMaintenance`, route de maintenance, jamais en `dryRun`), ce qu'elle a supprimé (anonymes, leurs parties,
-`PurgeResult.saves`, parties de défi) et la taille de la base (`pg_database_size`), un relevé par jour.
+`PurgeResult.saves`, dont ceux de la règle des 14 jours à part, `purgedOneDayUsers` et `purgedOneDaySaves`, migration
+d'ajout `…_purge_one_day` ; parties de défi) et la taille de la base (`pg_database_size`), un relevé par jour.
 
 **Erreurs du jeu (`ErrorDay`).** Celles du serveur (`onRequestError`, `instrumentation.ts` : rendu, route, action,
 proxy ; jamais l'adresse, les en-têtes ni les cookies de la requête, ni ce que Next lance exprès, redirect et notFound) et
@@ -863,7 +871,8 @@ depuis `UserDay`, matchs du jour, défi de la semaine, lancements de l'appli ins
 (`storageHealth`, pure : taille, croissance sur les 7 derniers jours de relevés, coût de stockage estimé sur l'offre Launch
 de Neon, taille × 0,35 $ le Go par mois, `STORAGE_PRICE_PER_GB_MONTH`, et sa projection à 30 jours à ce rythme, en
 alerte au-delà de 5 $ par mois, `STORAGE_COST_ALERT_DOLLARS` ; poids par nouveau joueur, la croissance divisée par les
-joueurs créés du jour du premier relevé à la veille du dernier ; purges ; puis les passages du nettoyage des événements
+joueurs créés du jour du premier relevé à la veille du dernier ; purges, et les parties purgées par chacune des deux règles,
+30 et 14 jours (`admin-purged-inactive`, `admin-purged-one-day`) ; puis les passages du nettoyage des événements
 de la période, 30 au plus, `CleanupPass` : ce que le dernier laisse, sorte par sorte, puis chaque passage, comptage ou
 suppression, supprimées, restantes et durée, celle-ci masquée sous 640 px). Chaque chiffre est une requête d'agrégat sur
 la période, par un index (`User(createdAt)`, `UserDay(day)`, les jours de `VisitDay` et `DailyStat`), jamais une grande
@@ -883,8 +892,8 @@ anonyme dont la partie a un match joué voit sur le tableau de bord un bandeau l
 jours par le cookie `lw_banner_closed`. `/admin` et `/admin/stats` (`src/db/stats.ts`) sont réservées à `isAdmin(user)` et
 répondent 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (routes de purge, du défi et du
 nettoyage) ; secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml` ; l'adresse du nettoyage
-est celle de la purge, `…/cleanup` au lieu de `…/purge`) et variable de dépôt facultative `EVENT_CLEANUP` (règle
-« Nettoyage des événements »), `CHALLENGE_URL` et le même `MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à
+est celle de la purge, `…/cleanup` au lieu de `…/purge`) et variables de dépôt facultatives `EVENT_CLEANUP` (règle
+« Nettoyage des événements ») et `PURGE_ONE_DAY` (règle des 14 jours de la purge), `CHALLENGE_URL` et le même `MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à
 05:00 UTC).
 
 **Langues : français et anglais.** Tout ce que voit un joueur existe dans les deux langues : pages publiques, écrans

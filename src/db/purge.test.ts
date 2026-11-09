@@ -14,6 +14,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
   const now = new Date();
   const run = `${now.getTime()}`;
   const ago = (hours: number) => new Date(now.getTime() - hours * 3_600_000);
+  // Created when last seen, unless created earlier: a user who came back on a later day.
   const users = {
     oldAnonymous: { id: `test-purge-old-${run}`, kind: "ANONYMOUS", lastSeenAt: ago(31 * 24), saves: 1 },
     recentAnonymous: { id: `test-purge-recent-${run}`, kind: "ANONYMOUS", lastSeenAt: ago(2), saves: 1 },
@@ -21,6 +22,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     freshEmptyAnonymous: { id: `test-purge-fresh-${run}`, kind: "ANONYMOUS", lastSeenAt: ago(1), saves: 0 },
     oldRegistered: { id: `test-purge-reg-${run}`, kind: "REGISTERED", lastSeenAt: ago(90 * 24), saves: 1 },
     emptyRegistered: { id: `test-purge-reg-empty-${run}`, kind: "REGISTERED", lastSeenAt: ago(90 * 24), saves: 0 },
+    // Seen only on the day they were created: their career goes after 14 days with the 14-day rule, after 30 without.
+    oneDayAnonymous: { id: `test-purge-one-day-${run}`, kind: "ANONYMOUS", lastSeenAt: ago(15 * 24), saves: 1 },
+    oneDayRecent: { id: `test-purge-one-day-recent-${run}`, kind: "ANONYMOUS", lastSeenAt: ago(13 * 24), saves: 1 },
+    oneDayRegistered: { id: `test-purge-one-day-reg-${run}`, kind: "REGISTERED", lastSeenAt: ago(20 * 24), saves: 1 },
+    returningAnonymous: { id: `test-purge-returning-${run}`, kind: "ANONYMOUS", lastSeenAt: ago(15 * 24), createdAt: ago(20 * 24), saves: 1 },
   } as const;
   const ids = Object.values(users).map((user) => user.id);
   const SECRET = "test-maintenance-secret-0123456789";
@@ -50,7 +56,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     db = prisma;
     purge = purgeModule;
     route = routeModule;
-    await prisma.user.createMany({ data: Object.values(users).map(({ id, kind, lastSeenAt }) => ({ id, kind, lastSeenAt, createdAt: lastSeenAt })) });
+    await prisma.user.createMany({
+      data: Object.values(users).map((user) => ({
+        id: user.id,
+        kind: user.kind,
+        lastSeenAt: user.lastSeenAt,
+        createdAt: "createdAt" in user ? user.createdAt : user.lastSeenAt,
+      })),
+    });
     await prisma.save.createMany({
       data: Object.values(users)
         .filter((user) => user.saves > 0)
@@ -99,11 +112,21 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
           expect(empty).toBeGreaterThanOrEqual(1);
           // The old anonymous user's save at least, counted as it went.
           expect(saves).toBeGreaterThanOrEqual(1);
+          // Without the 14-day rule, the one-day users stay until their 30 days.
           expect(await remaining(tx)).toEqual(
-            [users.recentAnonymous.id, users.freshEmptyAnonymous.id, users.oldRegistered.id, users.emptyRegistered.id].sort(),
+            [
+              users.recentAnonymous.id,
+              users.freshEmptyAnonymous.id,
+              users.oldRegistered.id,
+              users.emptyRegistered.id,
+              users.oneDayAnonymous.id,
+              users.oneDayRecent.id,
+              users.oneDayRegistered.id,
+              users.returningAnonymous.id,
+            ].sort(),
           );
-          // The old anonymous user's save went with them; the old account's stays.
-          expect(await tx.save.count({ where: { ownerId: { in: ids } } })).toBe(2);
+          // The old anonymous user's save went with them; the old account's stays, and every other.
+          expect(await tx.save.count({ where: { ownerId: { in: ids } } })).toBe(6);
           throw new Rollback();
         },
         { timeout: 60_000 },
@@ -111,6 +134,65 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     ).rejects.toBeInstanceOf(Rollback);
     expect(await remaining(db)).toEqual([...ids].sort());
   }, 90_000);
+
+  it("with the 14-day rule, also deletes a career never resumed, never one that came back, a younger one nor an account (rolled back)", async () => {
+    const { db, purge } = loaded();
+    await expect(
+      db.$transaction(
+        async (tx) => {
+          let oneDay = 0;
+          let oneDaySaves = 0;
+          for (let call = 1; ; call++) {
+            const result = await purge.purgeAnonymousUsers(tx, now, { dryRun: false, oneDayRule: true });
+            expect(result.oneDayRule).toBe(true);
+            expect(result.total).toBe(result.inactive + result.oneDay + result.empty);
+            expect(result.oneDaySaves).toBeLessThanOrEqual(result.saves);
+            oneDay += result.oneDay;
+            oneDaySaves += result.oneDaySaves;
+            if (result.remaining === 0) {
+              break;
+            }
+            expect(call).toBeLessThan(1_000);
+          }
+          // Our one-day user and their save, counted under their rule.
+          expect(oneDay).toBeGreaterThanOrEqual(1);
+          expect(oneDaySaves).toBeGreaterThanOrEqual(1);
+          expect(await remaining(tx)).toEqual(
+            [
+              users.recentAnonymous.id,
+              users.freshEmptyAnonymous.id,
+              users.oldRegistered.id,
+              users.emptyRegistered.id,
+              users.oneDayRecent.id,
+              users.oneDayRegistered.id,
+              users.returningAnonymous.id,
+            ].sort(),
+          );
+          throw new Rollback();
+        },
+        { timeout: 60_000 },
+      ),
+    ).rejects.toBeInstanceOf(Rollback);
+    expect(await remaining(db)).toEqual([...ids].sort());
+  }, 90_000);
+
+  it("counts what each rule removes, the 14-day one even when it does not purge, and only counts in dry run", async () => {
+    const { db, purge } = loaded();
+
+    const without = await purge.purgeAnonymousUsers(db, now, { dryRun: true });
+    const withRule = await purge.purgeAnonymousUsers(db, now, { dryRun: true, oneDayRule: true });
+
+    expect(without).toMatchObject({ dryRun: true, oneDayRule: false, oneDay: 0, oneDaySaves: 0 });
+    // The same counts by rule either way: our one-day user and their save at least, besides the 30-day and empty ones.
+    expect(withRule.byRule).toEqual(without.byRule);
+    expect(without.byRule.oneDay.users).toBeGreaterThanOrEqual(1);
+    expect(without.byRule.oneDay.saves).toBeGreaterThanOrEqual(1);
+    expect(without.byRule.inactive.users).toBeGreaterThanOrEqual(1);
+    expect(without.byRule.empty.users).toBeGreaterThanOrEqual(1);
+    // With the rule, the one-day users are purgeable too.
+    expect(withRule.total + withRule.remaining).toBe(without.total + without.remaining + without.byRule.oneDay.users);
+    expect(await remaining(db)).toEqual([...ids].sort());
+  });
 
   it("stops at the batch size, the users seen longest ago first, and says how many remain (rolled back)", async () => {
     const { db, purge } = loaded();
@@ -157,22 +239,35 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     expect(await remaining(loaded().db)).toEqual([...ids].sort());
   });
 
-  it("answers the counts in JSON, in dry run without deleting anything", async () => {
+  it("answers the counts in JSON, in dry run without deleting anything, with the 14-day rule when asked", async () => {
     process.env.MAINTENANCE_SECRET = SECRET;
 
-    const response = await call("?dryRun=1", `Bearer ${SECRET}`);
+    for (const [query, oneDayRule] of [
+      ["?dryRun=1", false],
+      ["?dryRun=1&oneDay=1", true],
+    ] as const) {
+      const response = await call(query, `Bearer ${SECRET}`);
 
-    expect(response.status).toBe(200);
-    const body: unknown = await response.json();
-    expect(body).toMatchObject({
-      dryRun: true,
-      inactive: expect.any(Number),
-      empty: expect.any(Number),
-      total: expect.any(Number),
-      saves: expect.any(Number),
-      challengeSaves: expect.any(Number),
-      remaining: expect.any(Number),
-    });
+      expect(response.status).toBe(200);
+      const body: unknown = await response.json();
+      expect(body).toMatchObject({
+        dryRun: true,
+        oneDayRule,
+        inactive: expect.any(Number),
+        oneDay: expect.any(Number),
+        empty: expect.any(Number),
+        total: expect.any(Number),
+        saves: expect.any(Number),
+        oneDaySaves: expect.any(Number),
+        challengeSaves: expect.any(Number),
+        remaining: expect.any(Number),
+        byRule: {
+          inactive: { users: expect.any(Number), saves: expect.any(Number) },
+          oneDay: { users: expect.any(Number), saves: expect.any(Number) },
+          empty: { users: expect.any(Number) },
+        },
+      });
+    }
     expect(await remaining(loaded().db)).toEqual([...ids].sort());
   });
 });

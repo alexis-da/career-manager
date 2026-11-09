@@ -43,8 +43,11 @@ export async function countAppLaunch(db: Db): Promise<void> {
   }
 }
 
-/** What one call of the purge deleted (src/db/purge.ts). */
-export type PurgedToday = { users: number; saves: number; challengeSaves: number };
+/**
+ * What one call of the purge deleted (src/db/purge.ts): anonymous users and their saves, of which the one-day users' (the
+ * 14-day rule), and challenge saves.
+ */
+export type PurgedToday = { users: number; saves: number; oneDayUsers: number; oneDaySaves: number; challengeSaves: number };
 
 /**
  * One call of the day's maintenance (app/api/maintenance/purge): what it deleted, added to the day's, and the database's
@@ -52,12 +55,15 @@ export type PurgedToday = { users: number; saves: number; challengeSaves: number
  */
 export async function recordMaintenance(db: Db, purged: PurgedToday): Promise<void> {
   await db.$executeRaw`
-    INSERT INTO "DailyStat" ("day", "databaseBytes", "purgedUsers", "purgedSaves", "purgedChallengeSaves")
+    INSERT INTO "DailyStat"
+      ("day", "databaseBytes", "purgedUsers", "purgedSaves", "purgedOneDayUsers", "purgedOneDaySaves", "purgedChallengeSaves")
     VALUES ((now() AT TIME ZONE 'UTC')::date, pg_database_size(current_database()), ${purged.users}, ${purged.saves},
-            ${purged.challengeSaves})
+            ${purged.oneDayUsers}, ${purged.oneDaySaves}, ${purged.challengeSaves})
     ON CONFLICT ("day") DO UPDATE SET
       "databaseBytes" = EXCLUDED."databaseBytes",
       "purgedUsers" = "DailyStat"."purgedUsers" + EXCLUDED."purgedUsers",
       "purgedSaves" = "DailyStat"."purgedSaves" + EXCLUDED."purgedSaves",
+      "purgedOneDayUsers" = "DailyStat"."purgedOneDayUsers" + EXCLUDED."purgedOneDayUsers",
+      "purgedOneDaySaves" = "DailyStat"."purgedOneDaySaves" + EXCLUDED."purgedOneDaySaves",
       "purgedChallengeSaves" = "DailyStat"."purgedChallengeSaves" + EXCLUDED."purgedChallengeSaves"`;
 }

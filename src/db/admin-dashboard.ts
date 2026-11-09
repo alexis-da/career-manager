@@ -66,6 +66,8 @@ export type AdminDay = {
   growth: number | null; // since the day before's; null without both
   purgedUsers: number; // anonymous users the purge deleted
   purgedSaves: number; // their saves
+  purgedOneDayUsers: number; // of them, seen only on the day they were created, purged after 14 days
+  purgedOneDaySaves: number; // their saves: careers never resumed
   purgedChallengeSaves: number; // weekly challenge saves deleted 24 h after their week
 };
 
@@ -337,6 +339,8 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
       growth: bytes === null || before === null ? null : bytes - before,
       purgedUsers: stat?.purgedUsers ?? 0,
       purgedSaves: stat?.purgedSaves ?? 0,
+      purgedOneDayUsers: stat?.purgedOneDayUsers ?? 0,
+      purgedOneDaySaves: stat?.purgedOneDaySaves ?? 0,
       purgedChallengeSaves: stat?.purgedChallengeSaves ?? 0,
     };
   });

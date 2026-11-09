@@ -93,15 +93,24 @@ export async function arrivalOfUser(id: string): Promise<Record<string, string |
  * An anonymous user made directly in the database, without a save, last seen at this time (an old one to purge, a
  * fresh one to sign a cookie for). Not simulation code: a random id.
  */
-export async function createAnonymousUser(lastSeenAt: Date): Promise<string> {
+export async function createAnonymousUser(lastSeenAt: Date, { withSave = false }: { withSave?: boolean } = {}): Promise<string> {
   const id = `e2e-anon-${randomUUID()}`;
-  await withTestDatabase((client) =>
-    client.query(
+  await withTestDatabase(async (client) => {
+    await client.query(
       `INSERT INTO "User" ("id", "kind", "createdAt", "lastSeenAt") VALUES ($1, 'ANONYMOUS', $2::timestamp(3), $2::timestamp(3))`,
       // An ISO string: a Date parameter would be sent in the local time zone, and the columns hold UTC.
       [id, lastSeenAt.toISOString()],
-    ),
-  );
+    );
+    if (withSave) {
+      // A bare save, enough for the purge to count it: one without a save would go after 24 hours whatever its days.
+      await client.query(
+        `INSERT INTO "Save" ("id", "ownerId", "name", "managerName", "seed", "worldVersion", "currentDate", "updatedAt")
+         VALUES (gen_random_uuid()::text, $1, 'E2E purge', 'Test', 'e2e-purge', 2, '2026-07-01T00:00:00.000Z'::timestamp(3),
+                 now() AT TIME ZONE 'UTC')`,
+        [id],
+      );
+    }
+  });
   return id;
 }
 

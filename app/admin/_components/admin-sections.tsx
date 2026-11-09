@@ -56,9 +56,9 @@ function Section({ id, title, note, children }: { id: string; title: string; not
   );
 }
 
-/** Two a row; four from 1024 px in a section as wide as the page (three for six tiles), two in a half one. */
-function Tiles({ children, half = false, six = false }: { children: ReactNode; half?: boolean; six?: boolean }) {
-  return <div className={cn("grid grid-cols-2 gap-2", !half && (six ? "lg:grid-cols-3" : "lg:grid-cols-4"))}>{children}</div>;
+/** Two a row; four from 1024 px in a section as wide as the page, two in a half one. */
+function Tiles({ children, half = false }: { children: ReactNode; half?: boolean }) {
+  return <div className={cn("grid grid-cols-2 gap-2", !half && "lg:grid-cols-4")}>{children}</div>;
 }
 
 /** A figure in a tile; an alert one framed in the warning colour, its alert under it. */
@@ -383,9 +383,11 @@ export function HealthSection({ dashboard, t, format, statsLink }: SectionProps 
     (sum, day) => ({
       users: sum.users + day.purgedUsers,
       saves: sum.saves + day.purgedSaves,
+      oneDayUsers: sum.oneDayUsers + day.purgedOneDayUsers,
+      oneDaySaves: sum.oneDaySaves + day.purgedOneDaySaves,
       challenge: sum.challenge + day.purgedChallengeSaves,
     }),
-    { users: 0, saves: 0, challenge: 0 },
+    { users: 0, saves: 0, oneDayUsers: 0, oneDaySaves: 0, challenge: 0 },
   );
   const alert = t("details.costAlert", { alert: format.dollars(STORAGE_COST_ALERT_DOLLARS) });
   return (
@@ -398,7 +400,7 @@ export function HealthSection({ dashboard, t, format, statsLink }: SectionProps 
         alert: format.dollars(STORAGE_COST_ALERT_DOLLARS),
       })}
     >
-      <Tiles six>
+      <Tiles>
         <Tile label={t("figures.databaseSize")} value={format.megabytes(health.databaseBytes)} testId="admin-database-size" />
         <Tile
           label={t("figures.growth")}
@@ -434,6 +436,19 @@ export function HealthSection({ dashboard, t, format, statsLink }: SectionProps 
           label={t("figures.purged")}
           value={t("values.purged", { users: format.integer(purged.users), saves: format.integer(purged.saves) })}
           detail={t("details.purged", { users: purged.users, saves: purged.saves, challenge: purged.challenge })}
+        />
+        {/* The saves of each rule of the anonymous users' purge: the 14-day one's are the one-day users'. */}
+        <Tile
+          label={t("figures.purgedInactive")}
+          value={format.integer(purged.saves - purged.oneDaySaves)}
+          detail={t("details.purgedInactive")}
+          testId="admin-purged-inactive"
+        />
+        <Tile
+          label={t("figures.purgedOneDay")}
+          value={format.integer(purged.oneDaySaves)}
+          detail={t("details.purgedOneDay", { users: purged.oneDayUsers })}
+          testId="admin-purged-one-day"
         />
       </Tiles>
       <Table data-testid="admin-health-days">

@@ -26,6 +26,8 @@ const day = (date: string, figures: Partial<AdminDay> = {}): AdminDay => ({
   growth: null,
   purgedUsers: 0,
   purgedSaves: 0,
+  purgedOneDayUsers: 0,
+  purgedOneDaySaves: 0,
   purgedChallengeSaves: 0,
   ...figures,
 });
@@ -69,6 +71,9 @@ vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
             growth: 1.4 * MB,
             purgedUsers: 3,
             purgedSaves: 2,
+            // Of them, one player seen only on the day they started, and their career, at 14 days.
+            purgedOneDayUsers: 1,
+            purgedOneDaySaves: 1,
           }),
         ],
         sources: [
@@ -214,6 +219,11 @@ describe("the administrator's dashboard", () => {
       "Défi de la semaine 45",
       "12 parties sur 20 · 14 joueurs inscrits · aucun classé après 10 journées",
       "3 joueurs, 2 parties et aucune partie de défi",
+      // The saves of each rule: one at 30 days, one at 14, its player seen only on the day they started.
+      "Parties purgées à 30 jours",
+      "de joueurs sans compte, sans visite depuis 30 jours",
+      "Parties purgées à 14 jours",
+      "d&#x27;un joueur venu le seul jour de sa création",
       'href="/admin/stats"',
       // The event cleanup's passes: what the latest left, kind by kind, then each pass.
       "Nettoyage des événements",
@@ -227,6 +237,9 @@ describe("the administrator's dashboard", () => {
     ]) {
       expect(markup.replace(/ /g, " ")).toContain(text);
     }
+    // One save a rule: the 30-day one's are the anonymous users' saves but the one-day users'.
+    expect(markup).toMatch(/data-testid="admin-purged-inactive"(?:(?!<\/div>).)*>1<\/p>/);
+    expect(markup).toMatch(/data-testid="admin-purged-one-day"(?:(?!<\/div>).)*>1<\/p>/);
     // The projected cost alerts, today's does not repeat it.
     expect(markup).toMatch(/data-testid="admin-storage-projection" data-alert="true"/);
     expect(markup).toMatch(/data-testid="admin-storage-cost" data-alert="false"/);
@@ -251,6 +264,9 @@ describe("the administrator's dashboard", () => {
       "Unknown (before tracking)",
       "181.4 MB",
       "storage cost estimated on Neon&#x27;s Launch plan, $0.35 per GB a month, and its projection 30 days ahead at this pace, flagged past $5 a month",
+      "Careers purged at 30 days",
+      "Careers purged at 14 days",
+      "of a player seen only on the day they started",
       "Growth over 7 days",
       "+1,061.9 MB a day since 06/11",
       "Storage a month",

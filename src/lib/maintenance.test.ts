@@ -17,10 +17,11 @@ describe("maintenance endpoint", () => {
     expect(bearerMatches(null, "s3cret")).toBe(false);
   });
 
-  it("purges the anonymous users not seen for 30 days, the saveless ones not seen for 24 hours, and the saves of a challenge over for 24 hours", () => {
+  it("purges the anonymous users not seen for 30 days, those seen only the day of their creation after 14, the saveless ones after 24 hours, and the saves of a challenge over for 24 hours", () => {
     const now = new Date("2026-10-09T04:17:00.000Z");
     expect(purgeCutoffs(now)).toEqual({
       inactiveBefore: new Date("2026-09-09T04:17:00.000Z"),
+      oneDayBefore: new Date("2026-09-25T04:17:00.000Z"),
       emptyBefore: new Date("2026-10-08T04:17:00.000Z"),
       challengeEndedBefore: new Date("2026-10-08T04:17:00.000Z"),
     });

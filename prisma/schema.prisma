@@ -137,6 +137,8 @@ model DailyStat {
   databaseBytes        BigInt? // taille de la base à la dernière purge du jour ; null sans purge ce jour-là
   purgedUsers          Int      @default(0) // joueurs sans compte supprimés par la purge
   purgedSaves          Int      @default(0) // leurs parties
+  purgedOneDayUsers    Int      @default(0) // dont ceux vus le seul jour de leur création, supprimés après 14 jours
+  purgedOneDaySaves    Int      @default(0) // leurs parties : une carrière jamais reprise
   purgedChallengeSaves Int      @default(0) // parties de défi supprimées 24 h après leur semaine
   appLaunches          Int      @default(0) // lancements de l'appli installée (affichage standalone), un par session de l'appli
 }

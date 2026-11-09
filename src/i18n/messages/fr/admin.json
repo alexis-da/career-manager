@@ -17,7 +17,7 @@
       "day7": "J+7"
     },
     "firstSteps": "Premiers pas des nouvelles parties, {days} derniers jours complets (UTC)",
-    "firstStepsNote": "Par jour de création, hors défi : où en sont ces parties aujourd'hui. Une partie supprimée par son joueur n'y est plus ; une partie de plus de 30 jours pourrait avoir été purgée.",
+    "firstStepsNote": "Par jour de création, hors défi : où en sont ces parties aujourd'hui. Une partie supprimée par son joueur n'y est plus ; une partie sans compte jamais reprise après son premier jour peut être purgée au bout de 14 jours.",
     "firstStepsSummary": "Sur ces {days} jours : {saves, plural, =0 {aucune partie} one {# partie} other {# parties}}, 1er match joué : {share}",
     "firstStepsColumns": {
       "day": "Jour",
@@ -88,7 +88,9 @@
       "appLaunches": "Lancements de l'appli",
       "storageCost": "Stockage par mois",
       "projectedCost": "Dans {days} jours",
-      "perNewPlayer": "Par nouveau joueur"
+      "perNewPlayer": "Par nouveau joueur",
+      "purgedInactive": "Parties purgées à 30 jours",
+      "purgedOneDay": "Parties purgées à 14 jours"
     },
     "details": {
       "conversion": "{percent} % des visites",
@@ -104,7 +106,9 @@
       "storagePrice": "à {price} le Go",
       "projectedSize": "{size} à ce rythme",
       "costAlert": "Au-delà de {alert} par mois",
-      "newPlayers": "{count, plural, =0 {aucun nouveau joueur} one {# nouveau joueur} other {# nouveaux joueurs}} sur ces jours"
+      "newPlayers": "{count, plural, =0 {aucun nouveau joueur} one {# nouveau joueur} other {# nouveaux joueurs}} sur ces jours",
+      "purgedInactive": "de joueurs sans compte, sans visite depuis 30 jours",
+      "purgedOneDay": "{users, plural, =0 {aucun joueur venu le seul jour de sa création} one {d'un joueur venu le seul jour de sa création} other {de # joueurs venus le seul jour de leur création}}"
     },
     "breakdown": {
       "languages": "Langue : français {fr} · anglais {en}",
