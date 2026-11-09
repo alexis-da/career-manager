@@ -609,8 +609,28 @@ change pas (un banc à la forme posée). `PlayerSave` et `PlayerSeasonStats` ont
 retraité porte `PlayerSave.retired` (`freeAgentWhere`, passage de saison, présaison : plus de lecture de ses
 transferts). Les buts d'un match sans le club dirigé sont dans `Fixture.goalTimes` (`goalTimesOf`, `decodeGoalTimes`,
 `src/engine/match.ts` : la minute, + 1000 en prolongation, négative à l'extérieur), lus par le direct pour les autres
-matchs, aucun `MatchEvent` ; les matchs d'avant gardent leurs lignes. Les index que l'unicité de mêmes premières colonnes
-sert déjà ne sont plus (`ClubSave(saveId)`, `Season(saveId)`, `PlayerSeasonStats(saveId, seasonId)`).
+matchs, aucun `MatchEvent` ; les matchs d'avant gardent leurs lignes, jusqu'à ce que le nettoyage les supprime (règle
+« Nettoyage des événements »). Les index que l'unicité de mêmes premières colonnes sert déjà ne sont plus
+(`ClubSave(saveId)`, `Season(saveId)`, `PlayerSeasonStats(saveId, seasonId)`).
+
+**Nettoyage des événements (chantier « nettoyage », 09/11).** Une tâche de la maintenance quotidienne, jamais une
+migration : `POST /api/maintenance/cleanup` (même secret et mêmes réponses 404 que la purge, `?dryRun=1` compte sans rien
+supprimer), `cleanUpEvents` (`src/db/event-cleanup.ts`). Deux sortes de lignes seulement, que plus aucun écran ne lit :
+les buts des matchs sans le club dirigé gardés en `MatchEvent` (d'avant `Fixture.goalTimes`) **d'une date antérieure à
+celle de la partie** (le direct lit les autres matchs de sa date seule, qu'un match en pause depuis montre encore), et les
+événements et décisions des matchs du club dirigé **d'une saison terminée** (`Season.completed` : le calendrier et ses
+feuilles lisent la dernière saison, le dernier match de l'Accueil les saisons en cours, le résumé de simulation la période
+simulée). Rien d'autre : scores, temps de buts, statistiques, transferts restent ; une carte d'un autre match d'un code
+plus ancien aussi. Par lots : 20 000 lignes au plus par appel (`EVENT_CLEANUP_MAX_ROWS`), 2 000 par requête, aucune
+requête lancée après 20 s (`EVENT_CLEANUP_MAX_MS`), puis le compte de ce qui reste ; chaque appel, comptage ou
+suppression, est une ligne `CleanupPass` (migration d'ajout `…_cleanup_passes`), que la section Santé de `/admin` montre.
+Le workflow `maintenance.yml` l'appelle après la purge : en comptage tant qu'on ne lui dit pas de supprimer (entrée
+`cleanup` d'un lancement à la main : `count`, `delete`, `skip` ; variable de dépôt `EVENT_CLEANUP` pour le passage
+quotidien, `count` sans elle), en suppression jusqu'à ce qu'il ne reste rien, 10 appels au plus par passage. Preuve
+qu'aucun écran ne bouge : `src/db/event-cleanup.slow.test.ts` (deux saisons d'une partie 2 avec coupes jouées avant le
+changement, une troisième à travers lui, un match en pause en direct ; `keepOtherGoalsAsEvents`, `src/db/test-support.ts`,
+remet les buts comme avant `goalTimes`), et `event-cleanup.test.ts` pour les règles, les lots et la route ; un test ne
+nettoie jamais que ses propres parties (`saveIds`).
 
 **Club.** Trois onglets, Club, Défi et Palmarès ; l'action de jeu de la colonne y est secondaire (`OWN_ORANGE_ACTION`). Club
 (`/club`) : pastille du manager (`club-manager`, saisons terminées + 1) ; finances en lecture seule (`getClubFinances`,
@@ -813,7 +833,9 @@ nouveaux joueurs par jour et par source, langue, appareil, sans compte ou Google
 match, fin de saison, en part des visites ; médiane de la création de la carrière à la fin du premier match), Rétention
 (J+1 et J+7 par jour de création et par source, sur les jours dont le retour est passé), Activité (joueurs actifs par jour
 depuis `UserDay`, matchs du jour, défi de la semaine, lancements de l'appli installée), Erreurs (règle « Erreurs du jeu »), Santé (taille, croissance moyenne sur 7 jours des relevés,
-projection du jour où 1 Go serait atteint, `DATABASE_LIMIT_BYTES`, purges). Chaque chiffre est une requête d'agrégat sur
+projection du jour où 1 Go serait atteint, `DATABASE_LIMIT_BYTES`, purges ; puis les passages du nettoyage des événements
+de la période, 30 au plus, `CleanupPass` : ce que le dernier laisse, sorte par sorte, puis chaque passage, comptage ou
+suppression, supprimées, restantes et durée, celle-ci masquée sous 640 px). Chaque chiffre est une requête d'agrégat sur
 la période, par un index (`User(createdAt)`, `UserDay(day)`, les jours de `VisitDay` et `DailyStat`), jamais une grande
 table de partie ; le plus cher est `pg_database_size` (environ 0,1 s). Lisible sur téléphone : sous 640 px, quatre
 colonnes au plus par tableau (le Parcours y laisse ses visites, déjà dans l'Acquisition, et sa médiane), aucun ne défile
@@ -829,9 +851,11 @@ d'environnement) : `MAX_SAVES_ANONYMOUS = 1`, `MAX_SAVES_REGISTERED = 3`, appliq
 parties de défi n'y comptent pas (`countOwnedSaves`, `challengeId` NULL). Un
 anonyme dont la partie a un match joué voit sur le tableau de bord un bandeau l'invitant à se connecter, masqué sept
 jours par le cookie `lw_banner_closed`. `/admin` et `/admin/stats` (`src/db/stats.ts`) sont réservées à `isAdmin(user)` et
-répondent 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (routes de purge et du défi) ;
-secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml`), `CHALLENGE_URL` et le même
-`MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à 05:00 UTC).
+répondent 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (routes de purge, du défi et du
+nettoyage) ; secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml` ; l'adresse du nettoyage
+est celle de la purge, `…/cleanup` au lieu de `…/purge`) et variable de dépôt facultative `EVENT_CLEANUP` (règle
+« Nettoyage des événements »), `CHALLENGE_URL` et le même `MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à
+05:00 UTC).
 
 **Langues : français et anglais.** Tout ce que voit un joueur existe dans les deux langues : pages publiques, écrans
 d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4. `<html lang>` suit la langue de la page.
@@ -994,7 +1018,7 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # composants des anglaises
   privacy/            # page de confidentialité, publique, en français et en anglais ; à tenir à jour
                       # avec le code (_components/privacy-document.tsx : les deux versions, une date de mise à jour)
-  api/                # Auth.js, les routes de maintenance (purge, défi de la semaine) et les erreurs des navigateurs
+  api/                # Auth.js, les routes de maintenance (purge, défi de la semaine, nettoyage des événements) et les erreurs des navigateurs
                       # (client-errors), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
                       # club (club/ : finances, réglages), début de saison (season-start/ : dotation, choix de
@@ -1021,7 +1045,7 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # seo.spec.ts : les pages publiques à leurs adresses dans les deux langues (titre, description,
                       # canonical, hreflang, image de partage), robots.txt, sitemap, llms.txt, JSON-LD de l'accueil,
                       # bandeau de langue et choix retenu, lecture de chaque page sans JavaScript
-.github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC ; challenge.yml : défi du lundi, 05:00 UTC
+.github/workflows/     # maintenance.yml : purge quotidienne, 04:17 UTC, puis nettoyage des événements ; challenge.yml : défi du lundi, 05:00 UTC
 src/
   components/         # composants partagés : panneau, visage du joueur, initiales du club, bascule, styles de tableau
     ui/               # composants shadcn/ui (Base UI), générés par la CLI

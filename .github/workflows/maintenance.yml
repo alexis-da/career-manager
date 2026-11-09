@@ -1,13 +1,27 @@
 # Daily maintenance of the production database: the purge of anonymous users, then of the saves of finished weekly
-# challenges (app/api/maintenance/purge/route.ts).
-# Secrets of the repository: MAINTENANCE_URL, the endpoint's full address
-# (https://www.latewinner.app/api/maintenance/purge), and MAINTENANCE_SECRET, the same value as on Vercel.
+# challenges (app/api/maintenance/purge/route.ts); then the cleanup of the match events no screen reads any more
+# (app/api/maintenance/cleanup/route.ts), counted only until told to delete.
+# Secrets of the repository: MAINTENANCE_URL, the purge's full address
+# (https://www.latewinner.app/api/maintenance/purge), the cleanup's next to it (…/api/maintenance/cleanup), and
+# MAINTENANCE_SECRET, the same value as on Vercel.
+# The cleanup's mode: on a manual run, its « cleanup » input; on the daily run, the repository variable EVENT_CLEANUP
+# (Settings → Secrets and variables → Actions → Variables), « count » without it. count: one call with ?dryRun=1, which
+# deletes nothing; delete: calls until nothing is left, at most MAX_CALLS; skip: nothing. Every call shows in /admin.
 name: Maintenance
 
 on:
   schedule:
     - cron: "17 4 * * *" # 04:17 UTC, every day
   workflow_dispatch:
+    inputs:
+      cleanup:
+        description: "Match events nothing reads: count them (dryRun, nothing deleted), delete them by batches, or skip"
+        type: choice
+        options:
+          - count
+          - delete
+          - skip
+        default: count
 
 permissions: {}
 
@@ -35,3 +49,38 @@ jobs:
             fi
           done
           echo "::warning::$remaining anonymous users or challenge saves still to purge after $MAX_CALLS calls: the next run goes on"
+
+  cleanup:
+    needs: purge
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Clean up the match events no screen reads, counted or deleted batch after batch
+        env:
+          MAINTENANCE_URL: ${{ secrets.MAINTENANCE_URL }}
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.cleanup || vars.EVENT_CLEANUP || 'count' }}
+          MAX_CALLS: 10 # each call deletes at most 20,000 rows, for 20 seconds at most
+        run: |
+          url="${MAINTENANCE_URL%/purge}/cleanup"
+          case "$MODE" in
+            skip) echo "Cleanup skipped"; exit 0 ;;
+            count) query="?dryRun=1"; calls=1 ;;
+            delete) query=""; calls="$MAX_CALLS" ;;
+            *) echo "::error::Unknown cleanup mode « $MODE »: count, delete or skip"; exit 1 ;;
+          esac
+          for call in $(seq 1 "$calls"); do
+            status=$(curl --silent --show-error --max-time 90 --output response.json --write-out "%{http_code}" --request POST --header "Authorization: Bearer ${MAINTENANCE_SECRET}" "${url}${query}")
+            echo "Call $call ($MODE): HTTP $status $(cat response.json)"
+            if [ "$status" != "200" ]; then
+              echo "::error::The cleanup answered HTTP $status"
+              exit 1
+            fi
+            remaining=$(jq -r '.remaining' response.json)
+            if [ "$remaining" = "0" ]; then
+              exit 0
+            fi
+          done
+          if [ "$MODE" = "delete" ]; then
+            echo "::warning::$remaining rows still to clean up after $calls calls: the next run goes on"
+          fi

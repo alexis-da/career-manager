@@ -63,6 +63,16 @@ export async function deleteErrors(word: string): Promise<void> {
   await withTestDatabase((client) => client.query(`DELETE FROM "ErrorDay" WHERE strpos("message", $1) > 0`, [word]));
 }
 
+/** Deletes the event cleanup's passes recorded from this time on, at the database's clock: a test's own. */
+export async function deleteCleanupPassesSince(since: Date): Promise<void> {
+  await withTestDatabase((client) => client.query(`DELETE FROM "CleanupPass" WHERE "at" >= $1`, [since]));
+}
+
+/** The database's clock now: what a test's rows are dated from. */
+export async function databaseNow(): Promise<Date> {
+  return withTestDatabase(async (client) => (await client.query<{ now: Date }>(`SELECT now() AS now`)).rows[0].now);
+}
+
 /** Deletes the counts of the sources a test made up: those starting with this prefix. */
 export async function deleteVisits(sourcePrefix: string): Promise<void> {
   await withTestDatabase((client) => client.query(`DELETE FROM "VisitDay" WHERE starts_with("source", $1)`, [sourcePrefix]));

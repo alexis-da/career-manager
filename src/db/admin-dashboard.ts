@@ -2,6 +2,7 @@ import type { PrismaClient } from "../generated/prisma/client";
 import { MAX_CHALLENGE_SAVES_PER_WEEK } from "../config/challenge";
 import { isoWeekKey } from "../lib/iso-week";
 import { databaseSize } from "./db-size";
+import type { EventCleanupCounts } from "./event-cleanup";
 import { daysBetween } from "./stats";
 import { utcDayOf } from "./user-days";
 
@@ -75,7 +76,20 @@ export type AdminDashboard = {
     limitBytes: number;
     dailyGrowth: number | null; // bytes a day over the last GROWTH_DAYS days of snapshots; null with fewer than two
     fullOn: string | null; // the day the limit would be reached at that pace; null without growth
+    cleanup: CleanupPassView[]; // the event cleanup's passes of the period, the latest first, CLEANUP_PASSES_SHOWN at most
   };
+};
+
+/** The event cleanup's passes /admin shows, the latest of the period first. */
+export const CLEANUP_PASSES_SHOWN = 30;
+
+/** A pass of the event cleanup (src/db/event-cleanup.ts): a count or a deletion, and what was left after it. */
+export type CleanupPassView = {
+  at: string; // ISO, UTC
+  dryRun: boolean;
+  deleted: EventCleanupCounts;
+  remaining: EventCleanupCounts;
+  milliseconds: number;
 };
 
 const addDays = (day: string, days: number): string => utcDayOf(new Date(Date.parse(`${day}T00:00:00.000Z`) + days * DAY_MS));
@@ -106,7 +120,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
   const statsFrom = addDays(first, -1);
   const weekKey = isoWeekKey(now);
 
-  const [groups, medians, visits, [{ trackedSince }], [{ daysTrackedSince }], active, stats, challenge, bytesNow] = await Promise.all([
+  const [groups, medians, visits, [{ trackedSince }], [{ daysTrackedSince }], active, stats, challenge, bytesNow, passes] = await Promise.all([
     db.$queryRaw<PlayerGroup[]>`
       SELECT u."createdAt"::date AS day,
              coalesce(u."source", ${UNKNOWN_SOURCE}) AS source,
@@ -158,6 +172,11 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
       select: { _count: { select: { saves: true, entries: true } }, entries: { where: { submittedAt: { not: null } }, select: { id: true } } },
     }),
     databaseSize(db),
+    db.cleanupPass.findMany({
+      where: { at: { gte: dateOf(first), lt: dateOf(end) } },
+      orderBy: { at: "desc" },
+      take: CLEANUP_PASSES_SHOWN,
+    }),
   ]);
 
   // A cohort's return day counts once it is over (strictly before today), from the first day visits were recorded.
@@ -299,6 +318,18 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
             submitted: challenge.entries.length,
             maxSaves: MAX_CHALLENGE_SAVES_PER_WEEK,
           },
-    health: { databaseBytes: bytesNow, limitBytes: DATABASE_LIMIT_BYTES, dailyGrowth, fullOn },
+    health: {
+      databaseBytes: bytesNow,
+      limitBytes: DATABASE_LIMIT_BYTES,
+      dailyGrowth,
+      fullOn,
+      cleanup: passes.map((pass) => ({
+        at: pass.at.toISOString(),
+        dryRun: pass.dryRun,
+        deleted: { otherGoals: pass.otherGoalsDeleted, managedEvents: pass.managedEventsDeleted, decisions: pass.decisionsDeleted },
+        remaining: { otherGoals: pass.otherGoalsRemaining, managedEvents: pass.managedEventsRemaining, decisions: pass.decisionsRemaining },
+        milliseconds: pass.milliseconds,
+      })),
+    },
   };
 }

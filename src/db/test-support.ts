@@ -3,6 +3,8 @@ import { Client } from "pg";
 import { seasonLabel, seasonStartYear, WORLD_START_YEAR } from "../engine/world";
 import type { WorldVersion } from "../engine/world-version";
 import type { LivePause } from "../engine/live";
+import { decodeGoalTimes } from "../engine/match";
+import type { Prisma } from "../generated/prisma/client";
 import { prisma } from "./client";
 import { pgConnection } from "./database-url";
 import { advanceLiveMatch, getLivePause } from "./live-match";
@@ -188,4 +190,51 @@ async function ensureDemoSaveNow(worldVersion: WorldVersion): Promise<string> {
     await advanceToNextSeason(saveId);
   }
   return saveId;
+}
+
+/**
+ * Gives the matches without the managed club played on the dates chosen their goals as the game kept them before
+ * Fixture.goalTimes (chantier « fiabilité », 08/11): one GOAL MatchEvent per goal, at its minute, period and side, scored
+ * by a player of the scoring club (one goal in two with an assist), and no goal times left. A save played before the
+ * change, as production holds it, for the tests of the event cleanup. Returns how many events were written.
+ */
+export async function keepOtherGoalsAsEvents(saveId: string, scheduledAt: Prisma.DateTimeFilter): Promise<number> {
+  const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
+  const fixtures = await prisma.fixture.findMany({
+    where: {
+      saveId,
+      played: true,
+      scheduledAt,
+      goalTimes: { isEmpty: false },
+      homeClubSaveId: { not: managed.id },
+      awayClubSaveId: { not: managed.id },
+    },
+    select: { id: true, goalTimes: true, homeClubSaveId: true, awayClubSaveId: true },
+  });
+  const clubIds = [...new Set(fixtures.flatMap((fixture) => [fixture.homeClubSaveId, fixture.awayClubSaveId]))];
+  const players = await prisma.playerSave.findMany({
+    where: { saveId, clubSaveId: { in: clubIds } },
+    orderBy: { playerKey: "asc" },
+    select: { id: true, clubSaveId: true },
+  });
+  const squads = Map.groupBy(players, (player) => player.clubSaveId);
+  const events: Prisma.MatchEventCreateManyInput[] = fixtures.flatMap((fixture) =>
+    decodeGoalTimes(fixture.goalTimes).map((goal, index) => {
+      const squad = squads.get(goal.side === "home" ? fixture.homeClubSaveId : fixture.awayClubSaveId) ?? [];
+      return {
+        fixtureId: fixture.id,
+        minute: goal.minute,
+        period: goal.period,
+        type: "GOAL" as const,
+        side: goal.side === "home" ? ("HOME" as const) : ("AWAY" as const),
+        playerSaveId: squad.at(index % Math.max(1, squad.length))?.id ?? null,
+        relatedPlayerSaveId: index % 2 === 0 ? (squad.at((index + 1) % Math.max(1, squad.length))?.id ?? null) : null,
+      };
+    }),
+  );
+  for (let start = 0; start < events.length; start += 1_000) {
+    await prisma.matchEvent.createMany({ data: events.slice(start, start + 1_000) });
+  }
+  await prisma.fixture.updateMany({ where: { saveId, id: { in: fixtures.map((fixture) => fixture.id) } }, data: { goalTimes: [] } });
+  return events.length;
 }

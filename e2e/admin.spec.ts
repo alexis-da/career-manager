@@ -1,5 +1,16 @@
 import { devices, expect, test, type Page } from "@playwright/test";
-import { createAnonymousUser, createRegisteredUser, deleteErrors, deleteUsers, deleteVisits, ensureAdminUser, userIdOf } from "./db";
+import { MAINTENANCE_SECRET_TEST } from "./constants";
+import {
+  createAnonymousUser,
+  createRegisteredUser,
+  databaseNow,
+  deleteCleanupPassesSince,
+  deleteErrors,
+  deleteUsers,
+  deleteVisits,
+  ensureAdminUser,
+  userIdOf,
+} from "./db";
 import { expectNoSidewaysScroll, fillCreateSaveForm, signInAs, waitForReact } from "./helpers";
 
 // /admin, the administrator's dashboard (app/admin, src/db/admin-dashboard.ts): a page that does not exist for anyone
@@ -126,6 +137,34 @@ test("shows in its errors section an error provoked in a player's browser, the l
     await deleteErrors(word);
     await deleteUsers([await userIdOf(visitor)]);
     await visitor.close();
+  }
+});
+
+test("shows in its health section the event cleanup's pass, a count by the maintenance that deletes nothing", async ({ page, request }) => {
+  const since = await databaseNow();
+  try {
+    // The cleanup's endpoint, as the daily maintenance calls it: 404 without its secret, a count with ?dryRun=1.
+    expect((await request.post("/api/maintenance/cleanup?dryRun=1")).status()).toBe(404);
+    const response = await request.post("/api/maintenance/cleanup?dryRun=1", { headers: { authorization: `Bearer ${MAINTENANCE_SECRET_TEST}` } });
+    expect(response.status()).toBe(200);
+    const counted = (await response.json()) as { dryRun: boolean; deleted: number; remaining: number };
+    expect(counted).toMatchObject({ dryRun: true, deleted: 0 });
+
+    await signInAs(page, await ensureAdminUser());
+    await page.goto("/admin");
+    const cleanup = page.getByTestId("admin-health").getByTestId("admin-cleanup");
+    await expect(cleanup.getByRole("heading")).toHaveText("Nettoyage des événements");
+    await expect(cleanup.getByTestId("admin-cleanup-latest")).toContainText("Reste après le dernier passage");
+    const pass = cleanup.getByTestId("admin-cleanup-passes").locator("tbody tr").first();
+    await expect(pass).toHaveAttribute("data-dry-run", "true");
+    await expect(pass).toHaveAttribute("data-deleted", "0");
+    await expect(pass).toHaveAttribute("data-remaining", String(counted.remaining));
+    await expect(pass).toContainText("Comptage");
+    await page.setViewportSize({ width: 360, height: 780 });
+    await expectNoSidewaysScroll(page, "health at 360 px");
+    expect(await tablesOverflowing(page)).toEqual([]);
+  } finally {
+    await deleteCleanupPassesSince(since);
   }
 });
 

@@ -133,7 +133,8 @@
       "growth": "{sign}{size} MB",
       "minutes": "{count} min",
       "hours": "{count} h",
-      "days": "{count} d"
+      "days": "{count} d",
+      "seconds": "{seconds} s"
     },
     "errors": {
       "title": "Errors",
@@ -157,6 +158,22 @@
       "other": "Other errors (past {max} groups in the day)",
       "at": "{day} at {time} UTC",
       "digest": "digest {digest}"
+    },
+    "cleanup": {
+      "title": "Event cleanup",
+      "note": "The goals of other matches kept as events before 9 November 2026, and the events and decisions of the managed club's matches in finished seasons: no screen reads them any more. One pass per maintenance call, by batches; a count deletes nothing.",
+      "none": "No cleanup pass over the period.",
+      "latest": "Left after the latest pass: {otherGoals, plural, one {# goal of other matches} other {# goals of other matches}}, {managedEvents, plural, one {# event} other {# events}} and {decisions, plural, one {# decision} other {# decisions}} of the managed club.",
+      "mode": {
+        "count": "Count",
+        "delete": "Deletion"
+      },
+      "columns": {
+        "pass": "Pass (UTC)",
+        "deleted": "Deleted",
+        "remaining": "Left",
+        "duration": "Time"
+      }
     }
   }
 }

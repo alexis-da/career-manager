@@ -133,7 +133,8 @@
       "growth": "{sign}{size} Mo",
       "minutes": "{count} min",
       "hours": "{count} h",
-      "days": "{count} j"
+      "days": "{count} j",
+      "seconds": "{seconds} s"
     },
     "errors": {
       "title": "Erreurs",
@@ -157,6 +158,22 @@
       "other": "Autres erreurs (au-delà de {max} groupes dans la journée)",
       "at": "{day} à {time} UTC",
       "digest": "digest {digest}"
+    },
+    "cleanup": {
+      "title": "Nettoyage des événements",
+      "note": "Les buts des autres matchs gardés en événements avant le 9 novembre 2026, et les événements et décisions des matchs du club dirigé des saisons terminées : plus aucun écran ne les lit. Un passage par appel de la maintenance, par lots ; un comptage ne supprime rien.",
+      "none": "Aucun passage du nettoyage sur la période.",
+      "latest": "Reste après le dernier passage : {otherGoals, plural, one {# but des autres matchs} other {# buts des autres matchs}}, {managedEvents, plural, one {# événement} other {# événements}} et {decisions, plural, one {# décision} other {# décisions}} du club dirigé.",
+      "mode": {
+        "count": "Comptage",
+        "delete": "Suppression"
+      },
+      "columns": {
+        "pass": "Passage (UTC)",
+        "deleted": "Supprimées",
+        "remaining": "Restantes",
+        "duration": "Durée"
+      }
     }
   }
 }

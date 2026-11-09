@@ -65,6 +65,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         : minutes < 48 * 60
           ? t("values.hours", { count: Math.round(minutes / 60) })
           : t("values.days", { count: Math.round(minutes / (24 * 60)) }),
+    seconds: (milliseconds) => t("values.seconds", { seconds: decimals.format(milliseconds / 1000) }),
   };
   const sections = { dashboard, t, format };
 

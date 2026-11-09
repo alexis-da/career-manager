@@ -159,6 +159,24 @@ model ErrorDay {
   @@id([day, fingerprint])
 }
 
+// Les passages du nettoyage des événements que plus aucun écran ne lit (src/db/event-cleanup.ts), un par appel de
+// POST /api/maintenance/cleanup : un comptage (dryRun) ou une suppression par lots, les lignes supprimées et celles qui
+// restent de chaque sorte, sa durée. Sans donnée de joueur ni de partie ; lus par la section Santé de /admin.
+model CleanupPass {
+  id                     String   @id @default(cuid())
+  at                     DateTime @default(now()) // à l'horloge de la base
+  dryRun                 Boolean // un comptage : rien n'est supprimé
+  otherGoalsDeleted      Int // buts des matchs sans le club dirigé gardés en MatchEvent (d'avant Fixture.goalTimes), dates passées
+  otherGoalsRemaining    Int
+  managedEventsDeleted   Int // événements des matchs du club dirigé, saisons terminées
+  managedEventsRemaining Int
+  decisionsDeleted       Int // décisions des matchs du club dirigé (MatchDecision), saisons terminées
+  decisionsRemaining     Int
+  milliseconds           Int // durée du passage, comptage compris
+
+  @@index([at])
+}
+
 model Save {
   id             String              @id @default(cuid())
   owner          User?               @relation(fields: [ownerId], references: [id], onDelete: Cascade)

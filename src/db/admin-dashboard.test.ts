@@ -57,7 +57,20 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     await client.user.deleteMany({ where: { id: { in: users.map((user) => user.id) } } });
     await client.visitDay.deleteMany({ where: { day: { in: DAYS } } });
     await client.dailyStat.deleteMany({ where: { day: { in: DAYS } } });
+    await client.cleanupPass.deleteMany({ where: { at: { gte: day("01"), lt: new Date("1999-04-01T00:00:00.000Z") } } });
   };
+  /** A pass of the event cleanup, as the maintenance records it. */
+  const cleanupPass = (time: string, dryRun: boolean, deleted: number, remaining: number) => ({
+    at: at(time),
+    dryRun,
+    otherGoalsDeleted: deleted,
+    otherGoalsRemaining: remaining,
+    managedEventsDeleted: 0,
+    managedEventsRemaining: 7,
+    decisionsDeleted: 0,
+    decisionsRemaining: 2,
+    milliseconds: 1_500,
+  });
 
   // Its days must be the table's first: stats.test.ts writes its own, never at the same time.
   let release: (() => Promise<void>) | undefined;
@@ -87,6 +100,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
         { day: day("05"), liveMatches: 3, simulatedMatches: 7, appLaunches: 2 },
         { day: day("09"), databaseBytes: 103 * MB },
         { day: day("10"), databaseBytes: 104 * MB, purgedUsers: 2, purgedSaves: 3 },
+      ],
+    });
+    // The event cleanup's passes: one on the 3rd, before the seven days; a count, then a deletion, on the 10th.
+    await prisma.cleanupPass.createMany({
+      data: [
+        cleanupPass("03T04:17:00.000", true, 0, 900),
+        cleanupPass("10T04:17:30.000", true, 0, 900),
+        cleanupPass("10T04:18:00.000", false, 600, 300),
       ],
     });
   }, 60_000);
@@ -176,5 +197,31 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     expect(days).toHaveLength(30);
     // The player of the 2nd and the visits of that day are in it now.
     expect(total).toMatchObject({ visits: 70, players: 4 });
+  });
+
+  it("lists the event cleanup's passes of the period, the latest first, with what each deleted and left", async () => {
+    const { db, dashboard } = loaded();
+
+    const week = await dashboard.getAdminDashboard(db, NOW, 7);
+    const month = await dashboard.getAdminDashboard(db, NOW, 30);
+
+    expect(week.health.cleanup).toEqual([
+      {
+        at: "1999-03-10T04:18:00.000Z",
+        dryRun: false,
+        deleted: { otherGoals: 600, managedEvents: 0, decisions: 0 },
+        remaining: { otherGoals: 300, managedEvents: 7, decisions: 2 },
+        milliseconds: 1_500,
+      },
+      {
+        at: "1999-03-10T04:17:30.000Z",
+        dryRun: true,
+        deleted: { otherGoals: 0, managedEvents: 0, decisions: 0 },
+        remaining: { otherGoals: 900, managedEvents: 7, decisions: 2 },
+        milliseconds: 1_500,
+      },
+    ]);
+    // The pass of the 3rd, before the seven days, is in the thirty.
+    expect(month.health.cleanup.map((pass) => pass.at)).toEqual(["1999-03-10T04:18:00.000Z", "1999-03-10T04:17:30.000Z", "1999-03-03T04:17:00.000Z"]);
   });
 });

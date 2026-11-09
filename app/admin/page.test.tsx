@@ -87,7 +87,29 @@ vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
         total: journey("", { visits: 40, players: 12, careers: 11, firstMatches: 7, seasonEnds: 1, medianMinutesToFirstMatch: 9, day1: { part: 1, whole: 4 } }),
         players: { anonymous: 11, registered: 1, fr: 5, en: 5, phone: 6, computer: 4 },
         challenge: { weekKey: "2026-W45", saves: 12, entries: 14, submitted: 0, maxSaves: 20 },
-        health: { databaseBytes: 181.4 * MB, limitBytes: 1024 ** 3, dailyGrowth: 1.4 * MB, fullOn: "2028-06-12" },
+        health: {
+          databaseBytes: 181.4 * MB,
+          limitBytes: 1024 ** 3,
+          dailyGrowth: 1.4 * MB,
+          fullOn: "2028-06-12",
+          // A deletion, then the count before it: the latest first.
+          cleanup: [
+            {
+              at: "2026-11-07T04:18:02.000Z",
+              dryRun: false,
+              deleted: { otherGoals: 18_000, managedEvents: 1_500, decisions: 500 },
+              remaining: { otherGoals: 60_000, managedEvents: 1, decisions: 0 },
+              milliseconds: 6_120,
+            },
+            {
+              at: "2026-11-07T04:17:40.000Z",
+              dryRun: true,
+              deleted: { otherGoals: 0, managedEvents: 0, decisions: 0 },
+              remaining: { otherGoals: 78_000, managedEvents: 1_501, decisions: 500 },
+              milliseconds: 950,
+            },
+          ],
+        },
       };
     },
   };
@@ -173,9 +195,21 @@ describe("the administrator's dashboard", () => {
       "12 parties sur 20 · 14 joueurs inscrits · aucun classé après 10 journées",
       "3 joueurs, 2 parties et aucune partie de défi",
       'href="/admin/stats"',
+      // The event cleanup's passes: what the latest left, kind by kind, then each pass.
+      "Nettoyage des événements",
+      "Reste après le dernier passage : 60 000 buts des autres matchs, 1 événement et 0 décision du club dirigé.",
+      "07/11 04:18",
+      "Passage (UTC)",
+      "Suppression",
+      "Comptage",
+      "20 000",
+      "6,1 s",
     ]) {
-      expect(markup).toContain(text);
+      expect(markup.replace(/ /g, " ")).toContain(text);
     }
+    // A count deletes nothing: « — » in its column, and every row says its totals.
+    expect(markup).toMatch(/data-dry-run="true" data-deleted="0" data-remaining="80001"/);
+    expect(markup).toMatch(/data-deleted="20000" data-remaining="60001"/);
     // A step's share of its source's visits, under it: 6 first matches of 32 visits.
     expect(markup).toMatch(/>6<\/span><span[^>]*>19 %<\/span>/);
     // Before the tracking, a day's visits are not known.
@@ -201,6 +235,11 @@ describe("the administrator's dashboard", () => {
       "The latest · 07/11 at 22:05 UTC",
       "Browser · error · /fr",
       "Other errors (past 200 groups in the day)",
+      "Event cleanup",
+      "Left after the latest pass: 60,000 goals of other matches, 1 event and 0 decisions of the managed club.",
+      "Deletion",
+      "Count",
+      "6.1 s",
     ]) {
       expect(markup).toContain(text);
     }

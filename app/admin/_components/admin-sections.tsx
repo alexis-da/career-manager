@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { Panel, PanelTitle } from "@/src/components/panel";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
-import { UNKNOWN_SOURCE, type AdminDashboard, type AdminDay, type Journey, type Share } from "@/src/db/admin-dashboard";
+import { UNKNOWN_SOURCE, type AdminDashboard, type AdminDay, type CleanupPassView, type Journey, type Share } from "@/src/db/admin-dashboard";
+import { totalOf } from "@/src/db/event-cleanup";
 import { MAX_ERROR_GROUPS_PER_DAY, type ErrorGroupView, type ErrorsSection as ErrorFigures } from "@/src/db/errors";
 import { OTHER_SOURCES } from "@/src/db/visits";
 import type { Translator } from "@/src/i18n/translator";
@@ -20,6 +21,7 @@ export type AdminFormats = {
   day: (day: string) => string; // « 07/11 »
   date: (day: string) => string; // « 7 novembre 2026 »
   duration: (minutes: number) => string;
+  seconds: (milliseconds: number) => string; // « 6,1 s »
 };
 
 type SectionProps = { dashboard: AdminDashboard; t: Translator<"admin">; format: AdminFormats };
@@ -403,13 +405,72 @@ export function HealthSection({ dashboard, t, format, statsLink }: SectionProps 
           ))}
         </TableBody>
       </Table>
+      <CleanupPasses passes={health.cleanup} t={t} format={format} />
       {statsLink}
     </Section>
   );
 }
 
+/**
+ * The event cleanup's passes of the period (src/db/event-cleanup.ts), the latest first: when, a count or a deletion, the
+ * rows deleted and those left, and how long it took; what the latest left, kind by kind, over the table.
+ */
+function CleanupPasses({ passes, t, format }: { passes: CleanupPassView[]; t: Translator<"admin">; format: AdminFormats }) {
+  const latest = passes.at(0);
+  return (
+    <div className="space-y-2" data-testid="admin-cleanup">
+      <h3 className="text-sm font-semibold">{t("cleanup.title")}</h3>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t("cleanup.note")}</p>
+      {latest === undefined ? (
+        <p className="text-sm text-muted-foreground" data-testid="admin-cleanup-none">
+          {t("cleanup.none")}
+        </p>
+      ) : (
+        <>
+          <p className="text-sm" data-testid="admin-cleanup-latest">
+            {t("cleanup.latest", latest.remaining)}
+          </p>
+          <Table data-testid="admin-cleanup-passes">
+            <TableHeader>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className={HEAD}>{t("cleanup.columns.pass")}</TableHead>
+                <TableHead className={HEAD_NUMBER}>{t("cleanup.columns.deleted")}</TableHead>
+                <TableHead className={HEAD_NUMBER}>{t("cleanup.columns.remaining")}</TableHead>
+                <TableHead className={cn(HEAD_NUMBER, "max-sm:hidden")}>{t("cleanup.columns.duration")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {passes.map((pass, index) => (
+                <TableRow
+                  key={`${pass.at}-${index}`}
+                  data-dry-run={pass.dryRun || undefined}
+                  data-deleted={totalOf(pass.deleted)}
+                  data-remaining={totalOf(pass.remaining)}
+                  className={TABLE_ROW}
+                >
+                  <TableCell className={cn(TABLE_CELL, TIGHT, "tabular-nums")}>
+                    {/* « 09/11 04:17 », in UTC as its header says; a count or a deletion under it. */}
+                    <Figure
+                      value={`${pass.at.slice(8, 10)}/${pass.at.slice(5, 7)} ${pass.at.slice(11, 16)}`}
+                      share={t(pass.dryRun ? "cleanup.mode.count" : "cleanup.mode.delete")}
+                    />
+                  </TableCell>
+                  <TableCell className={NUMBER}>{pass.dryRun ? "—" : format.integer(totalOf(pass.deleted))}</TableCell>
+                  <TableCell className={NUMBER}>{format.integer(totalOf(pass.remaining))}</TableCell>
+                  {/* Under 640 px, three columns: the time a pass took is the least needed. */}
+                  <TableCell className={cn(NUMBER, "max-sm:hidden")}>{format.seconds(pass.milliseconds)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** « 08/11 à 22:15 UTC »: an error's time, from its ISO string, in UTC as the table keeps its days. */
-function errorTime(iso: string, t: Translator<"admin">): string {
+function utcTime(iso: string, t: Translator<"admin">): string {
   return t("errors.at", { day: `${iso.slice(8, 10)}/${iso.slice(5, 7)}`, time: iso.slice(11, 16) });
 }
 
@@ -447,7 +508,7 @@ export function ErrorsSection({ errors, t, format }: { errors: ErrorFigures; t: 
         <>
           <div className="space-y-1 rounded-xl bg-background/60 p-3 text-sm" data-testid="admin-errors-latest">
             <p className="text-[0.6875rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-              {t("errors.latest")} · {errorTime(errors.latest.lastSeenAt, t)}
+              {t("errors.latest")} · {utcTime(errors.latest.lastSeenAt, t)}
             </p>
             <p>
               <ErrorLines group={errors.latest} t={t} />
