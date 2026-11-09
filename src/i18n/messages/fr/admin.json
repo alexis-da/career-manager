@@ -34,7 +34,22 @@
       "total": "Total"
     },
     "megabytes": "{size} Mo",
-    "share": "{part} ({percent} %)"
+    "share": "{part} ({percent} %)",
+    "percent": "{percent} %",
+    "upkeep": "Lignes et entretien des plus grosses tables",
+    "upkeepNote": "Compteurs de PostgreSQL depuis le démarrage du serveur, le {since} UTC ; sur Neon, chaque démarrage du calcul les remet à zéro. Lignes vivantes, lignes mortes que VACUUM doit récupérer et leur part, mises à jour faites dans leur page sans nouvelle entrée d'index (HOT), dernier autovacuum et leur nombre, puis dernier autoanalyze.",
+    "upkeepColumns": {
+      "table": "Table",
+      "live": "Vivantes",
+      "dead": "Mortes",
+      "hot": "MàJ HOT",
+      "upkeep": "Autovacuum · analyse"
+    },
+    "upkeepValues": {
+      "never": "jamais",
+      "vacuum": "{when} · {count, plural, one {# fois} other {# fois}}",
+      "analyze": "analyse : {when}"
+    }
   },
   "admin": {
     "title": "Administration",

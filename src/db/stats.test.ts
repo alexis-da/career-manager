@@ -201,7 +201,19 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("admin statistics, in th
     expect(result.firstSteps.at(-1)?.day).toBe(new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
     expect(result.usersByKind.anonymous).toBeGreaterThanOrEqual(users.length);
     expect(result.databaseBytes).toBeGreaterThan(0);
-    expect(result.largestTables).toHaveLength(5);
+    expect(result.largestTables).toHaveLength(8);
     expect(result.largestTables.map((table) => table.total)).toEqual([...result.largestTables.map((table) => table.total)].sort((a, b) => b - a));
+    // PostgreSQL's counters of each table, since the server started: rows, updates, upkeep.
+    for (const table of result.largestTables) {
+      expect(table.live, table.table).toBeGreaterThanOrEqual(0);
+      expect(table.dead, table.table).toBeGreaterThanOrEqual(0);
+      expect(table.hotUpdates, table.table).toBeLessThanOrEqual(table.updates);
+      expect(table.autovacuums, table.table).toBeGreaterThanOrEqual(0);
+      for (const time of [table.lastAutovacuum, table.lastAutoanalyze]) {
+        expect(time === null || !Number.isNaN(Date.parse(time)), table.table).toBe(true);
+      }
+    }
+    expect(result.largestTables.some((table) => table.live > 0)).toBe(true);
+    expect(Date.parse(result.serverStartedAt)).toBeLessThanOrEqual(now.getTime());
   });
 });

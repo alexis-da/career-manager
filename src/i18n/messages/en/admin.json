@@ -34,7 +34,22 @@
       "total": "Total"
     },
     "megabytes": "{size} MB",
-    "share": "{part} ({percent}%)"
+    "share": "{part} ({percent}%)",
+    "percent": "{percent}%",
+    "upkeep": "Rows and upkeep of the largest tables",
+    "upkeepNote": "PostgreSQL's counters since the server started, on {since} UTC; on Neon, every start of the compute resets them. Live rows, dead rows VACUUM must reclaim and their share, updates made in their page without a new index entry (HOT), the last autovacuum and how many, then the last autoanalyze.",
+    "upkeepColumns": {
+      "table": "Table",
+      "live": "Live",
+      "dead": "Dead",
+      "hot": "HOT updates",
+      "upkeep": "Autovacuum · analysis"
+    },
+    "upkeepValues": {
+      "never": "never",
+      "vacuum": "{when} · {count, plural, one {# time} other {# times}}",
+      "analyze": "analysis: {when}"
+    }
   },
   "admin": {
     "title": "Administration",

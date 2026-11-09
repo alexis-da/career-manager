@@ -11,7 +11,14 @@ export type RelationSize = {
   indexes: number;
   toast: number; // TOAST, free space and visibility maps
   total: number; // all of it: pg_total_relation_size
+  // PostgreSQL's counters (pg_stat_user_tables), since its server started: on Neon, since the compute last started.
+  live: number; // live rows, estimated
   dead: number; // dead rows waiting for VACUUM
+  updates: number; // rows updated
+  hotUpdates: number; // of them, updated in their page without a new index entry (HOT)
+  lastAutovacuum: string | null; // ISO; null when autovacuum has not run on the table since
+  autovacuums: number;
+  lastAutoanalyze: string | null; // ISO
 };
 
 /** Heap pages: 8 kB, of which the page header and free space for updates leave about this much to the rows. */
@@ -63,17 +70,42 @@ export async function databaseSize(db: Db): Promise<number> {
   return Number(size);
 }
 
+/** When the database's server started, ISO: PostgreSQL's counters start with it (on Neon, a compute's every start). */
+export async function serverStartedAt(db: Db): Promise<string> {
+  const [{ startedAt }] = await db.$queryRaw<{ startedAt: Date }[]>`SELECT pg_postmaster_start_time() AS "startedAt"`;
+  return startedAt.toISOString();
+}
+
 /** Every table of the public schema, largest first. */
 export async function relationSizes(db: Db): Promise<RelationSize[]> {
   const sizes = await db.$queryRaw<
-    { table: string; data: bigint; indexes: bigint; toast: bigint; total: bigint; dead: bigint | null }[]
+    {
+      table: string;
+      data: bigint;
+      indexes: bigint;
+      toast: bigint;
+      total: bigint;
+      live: bigint | null;
+      dead: bigint | null;
+      updates: bigint | null;
+      hotUpdates: bigint | null;
+      lastAutovacuum: Date | null;
+      autovacuums: bigint | null;
+      lastAutoanalyze: Date | null;
+    }[]
   >`
     SELECT c.relname AS "table",
            pg_relation_size(c.oid) AS data,
            pg_indexes_size(c.oid) AS indexes,
            pg_table_size(c.oid) - pg_relation_size(c.oid) AS toast,
            pg_total_relation_size(c.oid) AS total,
-           s.n_dead_tup AS dead
+           s.n_live_tup AS live,
+           s.n_dead_tup AS dead,
+           s.n_tup_upd AS updates,
+           s.n_tup_hot_upd AS "hotUpdates",
+           s.last_autovacuum AS "lastAutovacuum",
+           s.autovacuum_count AS autovacuums,
+           s.last_autoanalyze AS "lastAutoanalyze"
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
     LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
@@ -85,7 +117,13 @@ export async function relationSizes(db: Db): Promise<RelationSize[]> {
       indexes: Number(size.indexes),
       toast: Number(size.toast),
       total: Number(size.total),
+      live: Number(size.live ?? 0),
       dead: Number(size.dead ?? 0),
+      updates: Number(size.updates ?? 0),
+      hotUpdates: Number(size.hotUpdates ?? 0),
+      lastAutovacuum: size.lastAutovacuum?.toISOString() ?? null,
+      autovacuums: Number(size.autovacuums ?? 0),
+      lastAutoanalyze: size.lastAutoanalyze?.toISOString() ?? null,
     }))
     .sort((a, b) => b.total - a.total);
 }

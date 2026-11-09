@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
-import { databaseSize, relationSizes, type RelationSize } from "./db-size";
+import { databaseSize, relationSizes, serverStartedAt, type RelationSize } from "./db-size";
 import { utcDayOf } from "./user-days";
 
 // The figures of /admin/stats: users, saves, sign-ups, retention, first steps of new saves, size of the database. Read
@@ -33,11 +33,12 @@ export type AdminStats = {
   cohorts: Cohort[]; // the same 14 days
   firstSteps: FirstStepsCohort[]; // the 14 complete days before today, oldest first
   databaseBytes: number;
-  largestTables: RelationSize[];
+  largestTables: RelationSize[]; // sizes, rows and upkeep of the largest tables
+  serverStartedAt: string; // ISO: the start of PostgreSQL's counters (on Neon, the compute's last start)
 };
 
 export const STATS_DAYS = 14;
-const LARGEST_TABLES = 5;
+const LARGEST_TABLES = 8;
 /** Matches of its club after which a new save counts as well started: the figure after the first match. */
 const FIRST_STEPS_MATCHES = 10;
 
@@ -127,7 +128,7 @@ export async function firstStepsByCohort(db: Db, { first, last }: { first: strin
 export async function getAdminStats(db: Db, now: Date): Promise<AdminStats> {
   const last = utcDayOf(now);
   const first = addDays(last, -(STATS_DAYS - 1));
-  const [kinds, saves, cohorts, firstSteps, databaseBytes, tables] = await Promise.all([
+  const [kinds, saves, cohorts, firstSteps, databaseBytes, tables, startedAt] = await Promise.all([
     db.user.groupBy({ by: ["kind"], _count: { _all: true } }),
     db.save.count(),
     retentionByCohort(db, { first, last, now }),
@@ -135,6 +136,7 @@ export async function getAdminStats(db: Db, now: Date): Promise<AdminStats> {
     firstStepsByCohort(db, { first: addDays(first, -1), last: addDays(last, -1) }),
     databaseSize(db),
     relationSizes(db),
+    serverStartedAt(db),
   ]);
   const countOf = (kind: "ANONYMOUS" | "REGISTERED") => kinds.find((row) => row.kind === kind)?._count._all ?? 0;
   return {
@@ -145,5 +147,6 @@ export async function getAdminStats(db: Db, now: Date): Promise<AdminStats> {
     firstSteps,
     databaseBytes,
     largestTables: tables.slice(0, LARGEST_TABLES),
+    serverStartedAt: startedAt,
   };
 }

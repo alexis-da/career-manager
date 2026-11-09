@@ -21,6 +21,8 @@ export async function generateMetadata(): Promise<Metadata> {
 const MB = 1024 * 1024;
 /** « 2026-10-09 » as « 09/10 », day first in both languages. */
 const shortDay = (day: string): string => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
+/** An ISO time as « 09/10 04:17 », in UTC. */
+const utcTime = (iso: string): string => `${shortDay(iso)} ${iso.slice(11, 16)}`;
 /** The wide tables on a phone: narrower gutters, so that they hold in their frame at 360 px, in both languages. */
 const TIGHT_ON_PHONE = "max-sm:px-1.5";
 
@@ -44,7 +46,9 @@ export default async function AdminStatsPage() {
   const users = stats.usersByKind.anonymous + stats.usersByKind.registered;
   const [t, locale] = await Promise.all([getTranslations("adminStats"), getLocale()]);
   const size = new Intl.NumberFormat(INTL_LOCALES[locale], { maximumFractionDigits: 1 });
+  const integer = new Intl.NumberFormat(INTL_LOCALES[locale]);
   const megabytes = (bytes: number): string => t("megabytes", { size: size.format(bytes / MB) });
+  const percent = (part: number, whole: number): string => (whole === 0 ? "—" : t("percent", { percent: Math.round((part / whole) * 100) }));
   const share = (part: number | null, whole: number): string =>
     part === null ? "—" : whole === 0 ? "0" : t("share", { part, percent: Math.round((part / whole) * 100) });
   const newSaves = stats.firstSteps.reduce((sum, cohort) => sum + cohort.saves, 0);
@@ -143,6 +147,57 @@ export default async function AdminStatsPage() {
                   <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "text-right tabular-nums")}>{megabytes(table.data)}</TableCell>
                   <TableCell className={cn(TABLE_CELL, "text-right tabular-nums max-sm:hidden")}>{megabytes(table.indexes)}</TableCell>
                   <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "text-right tabular-nums")}>{megabytes(table.total)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Panel>
+
+        <Panel className="space-y-3">
+          <PanelTitle>{t("upkeep")}</PanelTitle>
+          <p className="text-xs text-muted-foreground" data-testid="admin-stats-upkeep-note">
+            {t("upkeepNote", { since: utcTime(stats.serverStartedAt) })}
+          </p>
+          {/* On a phone, without the HOT updates: four columns hold at 360 px, the two upkeeps one above the other. */}
+          <Table data-testid="admin-stats-upkeep">
+            <TableHeader>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE)}>{t("upkeepColumns.table")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE, "text-right")}>{t("upkeepColumns.live")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE, "text-right")}>{t("upkeepColumns.dead")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, "text-right max-sm:hidden")}>{t("upkeepColumns.hot")}</TableHead>
+                <TableHead className={cn(TABLE_HEAD, TIGHT_ON_PHONE, "text-right")}>{t("upkeepColumns.upkeep")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stats.largestTables.map((table) => (
+                <TableRow
+                  key={table.table}
+                  className={TABLE_ROW}
+                  data-table={table.table}
+                  data-live={table.live}
+                  data-dead={table.dead}
+                  data-autovacuums={table.autovacuums}
+                >
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE)}>{table.table}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "text-right tabular-nums")}>{integer.format(table.live)}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "text-right tabular-nums")}>
+                    <span className="block">{integer.format(table.dead)}</span>
+                    <span className="block text-[0.6875rem] text-muted-foreground">{percent(table.dead, table.live + table.dead)}</span>
+                  </TableCell>
+                  <TableCell className={cn(TABLE_CELL, "text-right tabular-nums max-sm:hidden")}>{percent(table.hotUpdates, table.updates)}</TableCell>
+                  <TableCell className={cn(TABLE_CELL, TIGHT_ON_PHONE, "text-right tabular-nums")}>
+                    <span className="block">
+                      {table.lastAutovacuum === null
+                        ? t("upkeepValues.never")
+                        : t("upkeepValues.vacuum", { when: utcTime(table.lastAutovacuum), count: table.autovacuums })}
+                    </span>
+                    <span className="block text-[0.6875rem] text-muted-foreground">
+                      {t("upkeepValues.analyze", {
+                        when: table.lastAutoanalyze === null ? t("upkeepValues.never") : utcTime(table.lastAutoanalyze),
+                      })}
+                    </span>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

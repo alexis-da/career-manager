@@ -23,7 +23,38 @@ vi.mock("@/src/db/stats", () => ({
       { day: "2026-10-27", saves: 2, lineups: 0, firstMatches: 1, tenMatches: 0 },
     ],
     databaseBytes: 3.5 * 1024 * 1024,
-    largestTables: [{ table: "PlayerSave", data: 1024 * 1024, indexes: 512 * 1024, toast: 0, total: 1.5 * 1024 * 1024, dead: 0 }],
+    largestTables: [
+      {
+        table: "PlayerSave",
+        data: 1024 * 1024,
+        indexes: 512 * 1024,
+        toast: 0,
+        total: 1.5 * 1024 * 1024,
+        // A quarter of the rows dead, three updates in four in their page; four autovacuums, no autoanalyze yet.
+        live: 750_000,
+        dead: 250_000,
+        updates: 400_000,
+        hotUpdates: 300_000,
+        lastAutovacuum: "2026-10-27T03:12:40.000Z",
+        autovacuums: 4,
+        lastAutoanalyze: null,
+      },
+      {
+        table: "MatchEvent",
+        data: 512 * 1024,
+        indexes: 256 * 1024,
+        toast: 0,
+        total: 0.75 * 1024 * 1024,
+        live: 9_000,
+        dead: 0,
+        updates: 0,
+        hotUpdates: 0,
+        lastAutovacuum: null,
+        autovacuums: 0,
+        lastAutoanalyze: "2026-10-27T05:00:00.000Z",
+      },
+    ],
+    serverStartedAt: "2026-10-26T22:05:09.000Z",
   }),
 }));
 vi.mock("next-intl/server", async () => {
@@ -69,5 +100,42 @@ describe("the administrator's statistics", () => {
     expect(markup).toContain("Database: 3.5 MB");
     expect(markup).toContain("1 (25%)");
     expect(markup).not.toMatch(/Statistiques|Utilisateurs|Données/);
+  });
+
+  it("show the rows and upkeep of the largest tables, since the server started, in French and in English", async () => {
+    // The thousands' separator of French, a narrow no-break space, read as a space.
+    const fr = (await render("fr")).replace(/[  ]/g, " ");
+    for (const text of [
+      "Lignes et entretien des plus grosses tables",
+      "depuis le démarrage du serveur, le 26/10 22:05 UTC",
+      "750 000",
+      "250 000",
+      "25 %",
+      "75 %",
+      "27/10 03:12 · 4 fois",
+      "analyse : jamais",
+      "analyse : 27/10 05:00",
+      ">jamais<",
+    ]) {
+      expect(fr).toContain(text);
+    }
+    expect(fr).toMatch(/data-table="PlayerSave" data-live="750000" data-dead="250000" data-autovacuums="4"/);
+    // No update yet: no share of them.
+    expect(fr).toMatch(/data-table="MatchEvent"[^>]*>(?:(?!<\/tr>).)*>—</);
+
+    const en = await render("en");
+    for (const text of [
+      "Rows and upkeep of the largest tables",
+      "since the server started, on 26/10 22:05 UTC",
+      "750,000",
+      "250,000",
+      "25%",
+      "75%",
+      "27/10 03:12 · 4 times",
+      "analysis: never",
+      ">never<",
+    ]) {
+      expect(en).toContain(text);
+    }
   });
 });
