@@ -21,6 +21,29 @@ export const CHANGELOG_LABELS = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-09",
+    fr: {
+      title: "Le jeu sur ton écran d'accueil, et un fil du match plus complet",
+      items: [
+        "Tu peux installer Late Winner comme une appli, sans passer par un store : Club, Réglages, « Installer l'appli ». Sur Android et dans Chrome, ton navigateur te le propose ; sur iPhone et iPad, le jeu te dit comment l'ajouter à l'écran d'accueil. Il faut toujours une connexion pour jouer.",
+        "Le fil du match en direct et la feuille de match montrent les changements de consigne de ton équipe : ta consigne de départ, celles que tu donnes au coaching et celles de ton adjoint.",
+        "Le « Coaching à la 30e » que tu demandes pendant un match en direct tient même si tu recharges la page.",
+        "Au choix du club, chaque carte annonce l'objectif que la direction te fixera vraiment, en Division 1 comme en Division 2 ; la carte « Difficile » est un club de Division 2 qui doit monter.",
+        "Dans le marché complet, l'onglet Mouvements montre le visage des joueurs.",
+      ],
+    },
+    en: {
+      title: "The game on your home screen, and a fuller match feed",
+      items: [
+        "You can install Late Winner as an app, without any store: Club, Settings, “Install the app”. On Android and in Chrome, your browser offers it; on iPhone and iPad, the game tells you how to add it to your home screen. You still need a connection to play.",
+        "The live match feed and the match sheet show your team's changes of instruction: your starting instruction, the ones you give from the coaching panel and your assistant's.",
+        "The “Coach at 30’” you ask for during a live match now holds even if you reload the page.",
+        "When you choose your club, each card announces the objective the board will really set you, in Division 1 as in Division 2; the “Hard” card is a Division 2 club that must go up.",
+        "In the full market, the Moves tab shows the players' faces.",
+      ],
+    },
+  },
+  {
     date: "2026-11-07",
     fr: {
       title: "Une mesure d'audience sans cookie tiers",
