@@ -32,10 +32,19 @@ test("refuses a second save to an anonymous player with the message, and puts it
 
   await createSave(page, name, LYON);
 
-  // The tab opened earlier still shows the form: the server refuses the creation with the message.
+  // The tab opened earlier still shows the form: the server refuses the creation with the message. The form keeps what
+  // was typed without a default value changing under Base UI's fields, which warned at each refusal.
+  const warnings: string[] = [];
+  otherTab.on("console", (message) => {
+    if (message.text().includes("Base UI")) {
+      warnings.push(message.text());
+    }
+  });
   await fillCreateSaveForm(otherTab, `${name} bis`, LYON);
   await otherTab.getByTestId("create-save").click();
   await expect(otherTab.getByTestId("create-save-message")).toHaveText(LIMIT_MESSAGE);
+  await expect(otherTab.getByTestId("manager-name")).toHaveValue("Test E2E");
+  expect(warnings).toEqual([]);
   await otherTab.close();
 
   // Back on the home page, the message and the Google button replace the form; the one save is there.
