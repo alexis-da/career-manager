@@ -648,7 +648,9 @@ connexion appelle le garde-fou, et que ces workflows ne lisent ni secret ni base
 la maintenance partage. D'où la porte de chaque workflow (`gate`) : un push de branche sur le commit de tête de `main`
 (une mise en ligne pousse les deux) s'y arrête, `main` le teste ; une nuit sans nouveau commit sur `main` aussi. Un push
 plus récent sur une même branche annule le passage en cours, sauf sur `main`. Sur GitHub (`CI`), Playwright relance une
-fois un test en échec et garde sa capture dans un rapport HTML, artefact de 7 jours.
+fois un test en échec et garde sa capture dans un rapport HTML, artefact de 7 jours. Sauvegardes : instantané
+hebdomadaire programmé dans la console Neon, procédure de restauration dans `docs/restauration.md`, aucune copie des
+données hors de Neon.
 
 **Club.** Trois onglets, Club, Défi et Palmarès ; l'action de jeu de la colonne y est secondaire (`OWN_ORANGE_ACTION`). Club
 (`/club`) : pastille du manager (`club-manager`, saisons terminées + 1) ; finances en lecture seule (`getClubFinances`,
@@ -1066,6 +1068,7 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
 .github/workflows/     # ci.yml : tests à chaque push et pull request ; nightly.yml : E2E complets et suite lente, 01:30 UTC ;
                       # maintenance.yml : purge quotidienne, 04:17 UTC, puis nettoyage des événements ; challenge.yml : défi du lundi, 05:00 UTC
 .github/actions/       # étapes communes des tests : prepare (Node, npm ci, Prisma), test-database (base jetable), playwright
+docs/                 # design/ : cahiers des chantiers ; restauration.md : restaurer la base de production (Neon)
 src/
   components/         # composants partagés : panneau, visage du joueur, initiales du club, bascule, styles de tableau
     ui/               # composants shadcn/ui (Base UI), générés par la CLI

@@ -131,6 +131,11 @@ Lire le résultat : l'onglet Actions du dépôt montre chaque passage avec une c
 (échoué, cliquer pour voir le job et l'étape en cause) ; les badges en tête de ce README donnent l'état du dernier passage
 sur `main`.
 
+### Sauvegardes de la base
+
+Instantané hebdomadaire programmé dans la console Neon, et restauration (d'abord sur une nouvelle branche, puis bascule
+de la production) : `docs/restauration.md`.
+
 ### Maintenance (GitHub Actions)
 
 `.github/workflows/maintenance.yml` appelle chaque jour à 04:17 UTC (et à la demande, onglet Actions) la purge des
