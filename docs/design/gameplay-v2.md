@@ -245,12 +245,13 @@ Chantier « dettes » du 06/11 (branche `dettes`, un commit par point ; base loc
 - **Calendrier du monde 1 : retirée.** Plus aucune partie n'y naît : le formulaire de création ne passe pas de monde, `createSave` prend `DEFAULT_WORLD_VERSION` (2), le défi passe 2. Les parties 1 existantes gardent leur calendrier.
 - **Avertissements sslmode de pg : réglée dans le code.** `pgConnection` écrit `verify-full` les `sslmode` `prefer`, `require` et `verify-ca` d'une URL distante, ce que pg en fait déjà, sans son avertissement ; aucune variable à changer sur Vercel.
 
+- **Les joueurs retraités relus comme des joueurs libres : réglée (chantier « fiabilité », 08/11).** `PlayerSave.retired` (migration d'ajout `…_career_weight`, remplie depuis les transferts `RETIREMENT`) : la liste des joueurs libres, son décompte et les propositions passent par `freeAgentWhere` (`retired: false`), l'index `PlayerSave(saveId, clubSaveId, retired)` remplaçant `PlayerSave(saveId, clubSaveId)`.
+
 Restent ouvertes :
 
-- **Les joueurs retraités restent dans `PlayerSave`**, sans club, comme les joueurs libres : la liste des joueurs libres, son décompte et les propositions les relisent, environ 270 de plus par saison (en saison 2, 533 lignes sans club pour 259 joueurs libres). Il faudrait les marquer (une colonne, une migration).
-- **Le décompte de l'onglet clubs** lit l'index de tous les joueurs de la partie (environ 4 900 entrées, et autant de contrôles de visibilité une fois la saison jouée) pour afficher « N joueurs » et le nombre de pages.
+- **Le décompte de l'onglet clubs** lit les entrées d'index des joueurs des clubs pour afficher « N joueurs » et le nombre de pages : depuis l'index `PlayerSave(saveId, clubSaveId, retired)`, `clubSaveId IS NOT NULL` est une condition d'index, et les joueurs sans club ne sont plus lus (partie 2 de `measure:weight`, saison 3 : 4 107 entrées sur 6 258 joueurs, 15 pages, 0,9 ms, aucune lecture de la table après un vacuum). Un compte exact lit toutes les entrées qu'il compte ; le garder ailleurs demanderait de le tenir à jour à chaque transfert et à chaque retraite. Laissée (09/11).
 - **Premier chargement d'une page de la partie** (rafraîchissement, lien direct) : 140 à 470 Ko bruts, 33 à 51 Ko compressés ; l'écran avancé y garde le HTML de ses cinquante lignes, visages compris (420 et 474 Ko), quand une navigation n'en envoie que les données (23 et 41 Ko).
-- **La table `Club`** (198 lignes de données du monde) est lue en entier à chaque chargement de relation qui la touche ; un cache en mémoire l'enlèverait partout.
+- **La table `Club`** (198 lignes de données du monde, 6 pages, 48 Ko) est lue en entier à chaque chargement de relation qui la touche : un parcours de ses 6 pages en mémoire, 0,1 ms, Postgres le préférant à l'index pour si peu. Un cache en mémoire l'enlèverait partout, mais demanderait de réécrire les 41 lectures de la relation `club` de `src/db`. Laissée (09/11).
 - **Un club peu réputé** (Caen) lit davantage pour ses propositions : 1 468 lignes de `PlayerSave` contre 840 pour Lyon, son point faible très bas (46) laissant Mes besoins et Bonnes affaires descendre loin.
 - **Poste vide et meilleur poste** : un poste vide, noté 0, est aussi le meilleur poste des Pépites, Bonnes affaires et Stars, qui s'y affichent à « +51 » ; cas rarissime (moins de onze joueurs disponibles).
 

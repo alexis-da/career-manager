@@ -1049,10 +1049,13 @@ scripts/              # measure-save-size.ts (npm run measure:size), measure-bal
 
 ## Dettes ouvertes
 
-Le détail et les mesures sont dans la section « Dettes » de `docs/design/gameplay-v2.md` (chantier du 06/11).
+Le détail et les mesures sont dans la section « Dettes » de `docs/design/gameplay-v2.md` (chantiers du 06/11 et du 09/11).
 
-- Le décompte de l'onglet clubs du marché avancé lit l'index de tous les joueurs de la partie (environ 4 900 entrées).
-- La table `Club` (198 lignes de données du monde) est lue en entier à chaque chargement de relation qui la touche.
+- Le décompte de l'onglet clubs du marché avancé lit les entrées d'index des joueurs des clubs (`PlayerSave(saveId,
+  clubSaveId, retired)` : 4 107 en saison 3, 0,9 ms) ; un compte exact les lit toutes. Laissée : le garder ailleurs
+  demanderait de le tenir à jour à chaque transfert et à chaque retraite.
+- La table `Club` (198 lignes, 6 pages) est lue en entier à chaque chargement de relation qui la touche (0,1 ms, en
+  mémoire). Laissée : l'enlever demanderait un cache et la réécriture des 41 lectures de la relation.
 - Un club peu réputé lit davantage pour ses propositions (Caen : environ 1 500 lignes de `PlayerSave`, 840 pour Lyon).
 
 ## Ordre de construction
