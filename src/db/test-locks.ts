@@ -1,5 +1,5 @@
 import { Client } from "pg";
-import { pgConnection } from "./database-url";
+import { assertLocalDatabase, pgConnection } from "./database-url";
 
 // Advisory locks of the database tests that must not run at the same time, though Vitest runs their files in parallel.
 // Session locks, each on a connection of its own: held from a file's setup to its teardown, released with the connection
@@ -17,6 +17,7 @@ export async function holdTestLock(key: number): Promise<() => Promise<void>> {
   if (url === undefined || url === "") {
     throw new Error("DATABASE_URL is not set");
   }
+  assertLocalDatabase(url, "DATABASE_URL");
   const client = new Client(pgConnection(url));
   await client.connect();
   await client.query("SELECT pg_advisory_lock($1)", [key]);

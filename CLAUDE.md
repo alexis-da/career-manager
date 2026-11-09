@@ -643,7 +643,8 @@ ni `PageProps` ni `LayoutProps`, puis `tsc`, lint, `npm run test`) et le job « 
 factices, sont écrites dans le workflow (`DATABASE_URL`, `DIRECT_URL`, `DATABASE_URL_TEST`, `AUTH_SECRET`), et `.env.test`
 en est tiré. **Rien n'y peut joindre Neon** : ces workflows ne lisent aucun secret, l'adresse de Neon n'existe que dans
 Vercel, et le garde-fou (`assertLocalDatabase`) refuse tout hôte autre que localhost sans `VERCEL=1` ni
-`ALLOW_REMOTE_DB=1`, qu'ils ne posent pas. Le dépôt est privé : chaque minute compte sur le quota du compte GitHub, que
+`ALLOW_REMOTE_DB=1`, qu'ils ne posent pas ; `src/db/connection-guard.test.ts` vérifie que chaque fichier qui ouvre une
+connexion appelle le garde-fou, et que ces workflows ne lisent ni secret ni base distante. Le dépôt est privé : chaque minute compte sur le quota du compte GitHub, que
 la maintenance partage. D'où la porte de chaque workflow (`gate`) : un push de branche sur le commit de tête de `main`
 (une mise en ligne pousse les deux) s'y arrête, `main` le teste ; une nuit sans nouveau commit sur `main` aussi. Un push
 plus récent sur une même branche annule le passage en cours, sauf sur `main`. Sur GitHub (`CI`), Playwright relance une

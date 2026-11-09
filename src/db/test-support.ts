@@ -6,7 +6,7 @@ import type { LivePause } from "../engine/live";
 import { decodeGoalTimes } from "../engine/match";
 import type { Prisma } from "../generated/prisma/client";
 import { prisma } from "./client";
-import { pgConnection } from "./database-url";
+import { assertLocalDatabase, pgConnection } from "./database-url";
 import { advanceLiveMatch, getLivePause } from "./live-match";
 import { playNextMatchday } from "./matchday";
 import { createSave } from "./saves";
@@ -148,6 +148,7 @@ async function withDemoSaveLock<T>(work: () => Promise<T>): Promise<T> {
   if (url === undefined || url === "") {
     throw new Error("DATABASE_URL is not set");
   }
+  assertLocalDatabase(url, "DATABASE_URL");
   const lock = new Client(pgConnection(url));
   await lock.connect();
   try {

@@ -3,7 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "../generated/prisma/client";
-import { pgConnection } from "./database-url";
+import { assertLocalDatabase, pgConnection } from "./database-url";
 import { SequentialPrismaPg } from "./pg-adapter";
 
 // One query at a time on a pg connection, against DATABASE_URL: the tests' guard (src/db/test-pg-guard.ts) fails a
@@ -16,6 +16,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("one query at a time on 
   let saveId = "";
 
   beforeAll(async () => {
+    assertLocalDatabase(url, "DATABASE_URL");
     const { ensureDemoSave } = await import("./test-support");
     saveId = await ensureDemoSave();
   }, 180_000);
