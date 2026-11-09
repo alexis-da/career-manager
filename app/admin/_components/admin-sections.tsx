@@ -2,7 +2,17 @@ import type { ReactNode } from "react";
 import { Panel, PanelTitle } from "@/src/components/panel";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
-import { UNKNOWN_SOURCE, type AdminDashboard, type AdminDay, type CleanupPassView, type Journey, type Share } from "@/src/db/admin-dashboard";
+import {
+  PROJECTION_DAYS,
+  STORAGE_COST_ALERT_DOLLARS,
+  STORAGE_PRICE_PER_GB_MONTH,
+  UNKNOWN_SOURCE,
+  type AdminDashboard,
+  type AdminDay,
+  type CleanupPassView,
+  type Journey,
+  type Share,
+} from "@/src/db/admin-dashboard";
 import { totalOf } from "@/src/db/event-cleanup";
 import { MAX_ERROR_GROUPS_PER_DAY, type ErrorGroupView, type ErrorsSection as ErrorFigures } from "@/src/db/errors";
 import { OTHER_SOURCES } from "@/src/db/visits";
@@ -16,7 +26,9 @@ import { cn } from "@/src/lib/utils";
 export type AdminFormats = {
   integer: (value: number) => string;
   megabytes: (bytes: number) => string;
+  size: (bytes: number) => string; // in Mo under 1 Go, in Go from it
   growth: (bytes: number) => string; // signed
+  dollars: (amount: number) => string; // « 0,46 $ », « $0.46 »
   percent: (part: number, whole: number) => string | null; // null when the whole is 0
   day: (day: string) => string; // « 07/11 »
   date: (day: string) => string; // « 7 novembre 2026 »
@@ -44,17 +56,36 @@ function Section({ id, title, note, children }: { id: string; title: string; not
   );
 }
 
-/** Two a row; four from 1024 px in a section as wide as the page, two in a half one. */
-function Tiles({ children, half = false }: { children: ReactNode; half?: boolean }) {
-  return <div className={cn("grid grid-cols-2 gap-2", !half && "lg:grid-cols-4")}>{children}</div>;
+/** Two a row; four from 1024 px in a section as wide as the page (three for six tiles), two in a half one. */
+function Tiles({ children, half = false, six = false }: { children: ReactNode; half?: boolean; six?: boolean }) {
+  return <div className={cn("grid grid-cols-2 gap-2", !half && (six ? "lg:grid-cols-3" : "lg:grid-cols-4"))}>{children}</div>;
 }
 
-function Tile({ label, value, detail, testId }: { label: string; value: string; detail?: string | null; testId?: string }) {
+/** A figure in a tile; an alert one framed in the warning colour, its alert under it. */
+function Tile({
+  label,
+  value,
+  detail,
+  alert,
+  testId,
+}: {
+  label: string;
+  value: string;
+  detail?: string | null;
+  alert?: string | null;
+  testId?: string;
+}) {
+  const alerting = alert !== undefined && alert !== null;
   return (
-    <div className="min-w-0 rounded-xl bg-background/60 p-3" data-testid={testId}>
+    <div
+      className={cn("min-w-0 rounded-xl bg-background/60 p-3", alerting && "ring-2 ring-warning")}
+      data-testid={testId}
+      data-alert={alert === undefined ? undefined : String(alerting)}
+    >
       <p className="text-[0.6875rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">{label}</p>
-      <p className="font-heading text-2xl normal-case tabular-nums">{value}</p>
+      <p className={cn("font-heading text-2xl normal-case tabular-nums", alerting && "text-warning")}>{value}</p>
       {detail !== undefined && detail !== null && <p className="text-xs text-muted-foreground">{detail}</p>}
+      {alerting && <p className="text-xs font-semibold text-warning">{alert}</p>}
     </div>
   );
 }
@@ -356,26 +387,48 @@ export function HealthSection({ dashboard, t, format, statsLink }: SectionProps 
     }),
     { users: 0, saves: 0, challenge: 0 },
   );
-  const fullOn = health.fullOn === null ? null : format.date(health.fullOn);
+  const alert = t("details.costAlert", { alert: format.dollars(STORAGE_COST_ALERT_DOLLARS) });
   return (
-    <Section id="health" title={t("sections.health")} note={t("sections.healthNote")}>
-      <Tiles>
-        <Tile
-          label={t("figures.databaseSize")}
-          value={format.megabytes(health.databaseBytes)}
-          detail={t("details.ofLimit", { percent: Math.round((health.databaseBytes / health.limitBytes) * 1000) / 10 })}
-          testId="admin-database-size"
-        />
+    <Section
+      id="health"
+      title={t("sections.health")}
+      note={t("sections.healthNote", {
+        price: format.dollars(STORAGE_PRICE_PER_GB_MONTH),
+        days: PROJECTION_DAYS,
+        alert: format.dollars(STORAGE_COST_ALERT_DOLLARS),
+      })}
+    >
+      <Tiles six>
+        <Tile label={t("figures.databaseSize")} value={format.megabytes(health.databaseBytes)} testId="admin-database-size" />
         <Tile
           label={t("figures.growth")}
-          value={health.dailyGrowth === null ? "—" : format.growth(health.dailyGrowth)}
-          detail={health.dailyGrowth === null ? t("details.noGrowth") : t("details.perDay")}
+          value={health.growth === null ? "—" : format.growth(health.growth)}
+          detail={
+            health.dailyGrowth === null || health.growthSince === null
+              ? t("details.noGrowth")
+              : t("details.growthSince", { perDay: format.growth(health.dailyGrowth), date: format.day(health.growthSince) })
+          }
+          testId="admin-growth"
         />
         <Tile
-          label={t("figures.fullOn")}
-          value={fullOn ?? "—"}
-          detail={health.dailyGrowth === null ? null : fullOn === null ? t("details.notBefore") : null}
-          testId="admin-full-on"
+          label={t("figures.storageCost")}
+          value={format.dollars(health.storageCost)}
+          detail={t("details.storagePrice", { price: format.dollars(STORAGE_PRICE_PER_GB_MONTH) })}
+          alert={health.projectedCost === null && health.costAlert ? alert : null}
+          testId="admin-storage-cost"
+        />
+        <Tile
+          label={t("figures.projectedCost", { days: PROJECTION_DAYS })}
+          value={health.projectedCost === null ? "—" : format.dollars(health.projectedCost)}
+          detail={health.projectedBytes === null ? t("details.noGrowth") : t("details.projectedSize", { size: format.size(health.projectedBytes) })}
+          alert={health.projectedCost !== null && health.costAlert ? alert : null}
+          testId="admin-storage-projection"
+        />
+        <Tile
+          label={t("figures.perNewPlayer")}
+          value={health.bytesPerNewPlayer === null ? "—" : format.megabytes(health.bytesPerNewPlayer)}
+          detail={t("details.newPlayers", { count: health.newPlayers })}
+          testId="admin-per-new-player"
         />
         <Tile
           label={t("figures.purged")}

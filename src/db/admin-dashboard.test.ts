@@ -174,17 +174,23 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     expect(players).toEqual({ anonymous: 2, registered: 1, fr: 1, en: 1, phone: 1, computer: 1 });
   });
 
-  it("projects the day the database would reach 1 GB at its pace of the last seven days, and knows no challenge that week", async () => {
+  it("measures the storage's growth over the last seven days of snapshots, its cost and the weight a new player adds", async () => {
     const { db, dashboard } = loaded();
 
     const { health, challenge } = await dashboard.getAdminDashboard(db, NOW, 7);
 
-    // From the 3rd to the 10th: 4 MB in seven days.
+    // From the 3rd to the 10th: 4 MB in seven days, over the players created from the 3rd to the 9th: a and b on the 5th,
+    // c on the 9th; d, on the 2nd, came before.
+    expect(health.growth).toBeCloseTo(4 * MB);
     expect(health.dailyGrowth).toBeCloseTo((4 * MB) / 7);
+    expect(health.growthSince).toBe("1999-03-03");
+    expect(health.newPlayers).toBe(3);
+    expect(health.bytesPerNewPlayer).toBeCloseTo((4 * MB) / 3);
+    // The size now, the test database's own: priced, then projected 30 days ahead at 4/7 MB a day.
     expect(health.databaseBytes).toBeGreaterThan(0);
-    expect(health.limitBytes).toBe(1024 ** 3);
-    const daysLeft = Math.ceil((health.limitBytes - health.databaseBytes) / ((4 * MB) / 7));
-    expect(health.fullOn).toBe(new Date(NOW.getTime() + daysLeft * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+    expect(health.storageCost).toBeCloseTo((health.databaseBytes / 1024 ** 3) * 0.35);
+    expect(health.projectedBytes).toBeCloseTo(health.databaseBytes + (30 * 4 * MB) / 7);
+    expect(health.costAlert).toBe((health.projectedCost ?? 0) > 5);
     expect(challenge).toBeNull();
   });
 

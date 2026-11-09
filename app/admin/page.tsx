@@ -27,6 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const MB = 1024 * 1024;
+const GB = 1024 * MB;
 
 /** The period of ?days=: 30 days, else 7. */
 const periodOf = (days: string | string[] | undefined): AdminPeriod => (days === "30" ? 30 : 7);
@@ -50,11 +51,16 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
   const integers = new Intl.NumberFormat(INTL_LOCALES[locale]);
   const decimals = new Intl.NumberFormat(INTL_LOCALES[locale], { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const cents = new Intl.NumberFormat(INTL_LOCALES[locale], { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const dateOf = (day: string) => new Date(`${day}T00:00:00.000Z`);
   const format: AdminFormats = {
     integer: (value) => integers.format(value),
     megabytes: (bytes) => t("values.megabytes", { size: decimals.format(bytes / MB) }),
+    size: (bytes) =>
+      bytes < GB ? t("values.megabytes", { size: decimals.format(bytes / MB) }) : t("values.gigabytes", { size: decimals.format(bytes / GB) }),
     growth: (bytes) => t("values.growth", { sign: bytes < 0 ? "−" : "+", size: decimals.format(Math.abs(bytes) / MB) }),
+    // « 5 $ », « 0,46 $ »: cents only when there are some.
+    dollars: (amount) => t("values.dollars", { amount: (Number.isInteger(amount) ? integers : cents).format(amount) }),
     percent: (part, whole) => (whole === 0 ? null : t("values.percent", { percent: Math.round((part / whole) * 100) })),
     // « 07/11 », day first in both languages.
     day: (day) => `${day.slice(8, 10)}/${day.slice(5, 7)}`,

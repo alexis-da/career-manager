@@ -55,7 +55,7 @@
       "activity": "Activity",
       "activityNote": "Players who came each day; matches of their clubs played to the end, live or simulated; launches of the installed app, one a session.",
       "health": "Health",
-      "healthNote": "Size taken at each purge (every day, 04:17 UTC); average growth over 7 days and projection up to 1 GB, the limit of Neon's free plan."
+      "healthNote": "Size taken at each purge (every day, 04:17 UTC); growth over the last 7 days of snapshots; storage cost estimated on Neon's Launch plan, {price} per GB a month, and its projection {days} days ahead at this pace, flagged past {alert} a month; weight per new player: that growth divided by the players created over those days."
     },
     "figures": {
       "visits": "Visits",
@@ -68,10 +68,12 @@
       "active": "Active a day",
       "matches": "Matches played",
       "databaseSize": "Database size",
-      "growth": "Growth",
-      "fullOn": "1 GB reached",
+      "growth": "Growth over 7 days",
       "purged": "Purged",
-      "appLaunches": "App launches"
+      "appLaunches": "App launches",
+      "storageCost": "Storage a month",
+      "projectedCost": "In {days} days",
+      "perNewPlayer": "Per new player"
     },
     "details": {
       "conversion": "{percent}% of visits",
@@ -79,13 +81,15 @@
       "medianNote": "from creating the career to the end of the match",
       "activeAverage": "on average, {max} at most",
       "matches": "{live} live · {simulated} simulated",
-      "ofLimit": "{percent, number}% of 1 GB",
-      "perDay": "a day, averaged over 7 days",
       "noGrowth": "not measured yet",
       "around": "around {date}",
-      "notBefore": "not at this pace",
       "purged": "{users, plural, =0 {no player} one {# player} other {# players}}, {saves, plural, =0 {no career} one {# career} other {# careers}} and {challenge, plural, =0 {no challenge career} one {# challenge career} other {# challenge careers}}",
-      "appLaunches": "from the home screen, one a session"
+      "appLaunches": "from the home screen, one a session",
+      "growthSince": "{perDay} a day since {date}",
+      "storagePrice": "at {price} per GB",
+      "projectedSize": "{size} at this pace",
+      "costAlert": "Past {alert} a month",
+      "newPlayers": "{count, plural, =0 {no new player} one {# new player} other {# new players}} over those days"
     },
     "breakdown": {
       "languages": "Language: French {fr} · English {en}",
@@ -134,7 +138,9 @@
       "minutes": "{count} min",
       "hours": "{count} h",
       "days": "{count} d",
-      "seconds": "{seconds} s"
+      "seconds": "{seconds} s",
+      "gigabytes": "{size} GB",
+      "dollars": "${amount}"
     },
     "errors": {
       "title": "Errors",

@@ -68,6 +68,13 @@ test("shows the administrator its six sections on a computer and a phone, over 7
     }
     await expect(page.getByTestId("admin-acquisition-days").locator("tbody tr")).toHaveCount(7);
     await expect(page.getByTestId("admin-period-7")).toHaveAttribute("aria-current", "page");
+    // The storage: size, growth, its monthly cost now and in 30 days, alerted or not, and the weight per new player.
+    const health = page.getByTestId("admin-health");
+    for (const tile of ["admin-database-size", "admin-growth", "admin-storage-cost", "admin-storage-projection", "admin-per-new-player"]) {
+      await expect(health.getByTestId(tile), `${step} ${tile}`).toBeVisible();
+    }
+    await expect(health.getByTestId("admin-storage-cost")).toContainText(/\d \$/);
+    await expect(health.getByTestId("admin-storage-projection")).toHaveAttribute("data-alert", /^(true|false)$/);
     await expectNoSidewaysScroll(page, step);
     expect(await tablesOverflowing(page), step).toEqual([]);
   }
@@ -94,6 +101,8 @@ test("shows the administrator its six sections on a computer and a phone, over 7
   await expect(page.getByTestId("admin-lead")).toContainText("The last 7 days (UTC)");
   await expect(page.getByRole("heading", { name: "Journey" })).toBeVisible();
   await expect(page.getByTestId("admin-period-30")).toHaveText("30 days");
+  await expect(page.getByTestId("admin-storage-cost")).toContainText(/\$\d/);
+  await expect(page.getByTestId("admin-storage-projection")).toContainText("In 30 days");
   await expectNoSidewaysScroll(page, "English at 360 px");
   expect(await tablesOverflowing(page)).toEqual([]);
 });

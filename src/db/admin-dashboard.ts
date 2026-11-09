@@ -17,14 +17,22 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const ADMIN_PERIODS = [7, 30] as const;
 export type AdminPeriod = (typeof ADMIN_PERIODS)[number];
 
-/** The storage of Neon's free plan, which the database must stay under (CLAUDE.md, « Budget base de données »). */
-export const DATABASE_LIMIT_BYTES = 1024 ** 3;
+/** Neon's storage price on its Launch plan, in dollars a GB and a month: the estimate of the storage's bill. */
+export const STORAGE_PRICE_PER_GB_MONTH = 0.35;
+
+/** Past this monthly storage cost, projected PROJECTION_DAYS days ahead, the health section warns. In dollars. */
+export const STORAGE_COST_ALERT_DOLLARS = 5;
+
+/** Days ahead of the storage cost's projection, at the pace of the last GROWTH_DAYS days. */
+export const PROJECTION_DAYS = 30;
+
+const GB = 1024 ** 3;
 
 /** The source of a player whose arrival is not known: created before the tracking of arrivals, or without its cookie. */
 export const UNKNOWN_SOURCE = "(unknown)";
 
-/** Days over which the database's growth is averaged, for its projection. */
-const GROWTH_DAYS = 7;
+/** Days of snapshots over which the database's growth is measured. */
+export const GROWTH_DAYS = 7;
 
 /** A part of a whole, shown as a rate when the whole is not 0. */
 export type Share = { part: number; whole: number };
@@ -71,14 +79,60 @@ export type AdminDashboard = {
   total: Journey; // every source
   players: { anonymous: number; registered: number; fr: number; en: number; phone: number; computer: number };
   challenge: { weekKey: string; saves: number; entries: number; submitted: number; maxSaves: number } | null;
-  health: {
-    databaseBytes: number; // now
-    limitBytes: number;
-    dailyGrowth: number | null; // bytes a day over the last GROWTH_DAYS days of snapshots; null with fewer than two
-    fullOn: string | null; // the day the limit would be reached at that pace; null without growth
+  health: StorageHealth & {
     cleanup: CleanupPassView[]; // the event cleanup's passes of the period, the latest first, CLEANUP_PASSES_SHOWN at most
   };
 };
+
+/** The database's storage: its size, its growth, what it costs a month on Neon's Launch plan, now and ahead. */
+export type StorageHealth = {
+  databaseBytes: number; // now
+  growth: number | null; // bytes gained from the first snapshot of the last GROWTH_DAYS days to the last; null with fewer than two
+  growthSince: string | null; // the first of those snapshots' day
+  dailyGrowth: number | null; // that growth a day
+  storageCost: number; // dollars a month at today's size
+  projectedBytes: number | null; // the size PROJECTION_DAYS days ahead at that pace; null without growth
+  projectedCost: number | null; // dollars a month at that size
+  costAlert: boolean; // the projected cost, or today's without a projection, past STORAGE_COST_ALERT_DOLLARS
+  newPlayers: number; // players created over the days of that growth, from its first snapshot's day to its last's eve
+  bytesPerNewPlayer: number | null; // the growth over them; null without growth or new players
+};
+
+/**
+ * The storage's figures from the size now, the day's snapshots of the last GROWTH_DAYS days (oldest first) and the
+ * players created each day. A snapshot is taken by the day's purge, at 04:17 UTC: the growth from one to the next comes
+ * mostly from the players of the day before, hence the new players of a growth counted from its first snapshot's day to
+ * its last's eve. Every byte the database gains is counted against them, the other players' matches included.
+ */
+export function storageHealth(
+  databaseBytes: number,
+  snapshots: readonly { day: string; bytes: number }[],
+  playersOn: (day: string) => number,
+): StorageHealth {
+  const [oldest, newest] = [snapshots.at(0), snapshots.at(-1)];
+  const span = oldest === undefined || newest === undefined ? 0 : (Date.parse(newest.day) - Date.parse(oldest.day)) / DAY_MS;
+  const growth = oldest === undefined || newest === undefined || span <= 0 ? null : newest.bytes - oldest.bytes;
+  const dailyGrowth = growth === null ? null : growth / span;
+  const newPlayers =
+    oldest === undefined || newest === undefined || span <= 0
+      ? 0
+      : daysBetween(oldest.day, addDays(newest.day, -1)).reduce((sum, day) => sum + playersOn(day), 0);
+  const storageCost = (databaseBytes / GB) * STORAGE_PRICE_PER_GB_MONTH;
+  const projectedBytes = dailyGrowth === null ? null : Math.max(0, databaseBytes + PROJECTION_DAYS * dailyGrowth);
+  const projectedCost = projectedBytes === null ? null : (projectedBytes / GB) * STORAGE_PRICE_PER_GB_MONTH;
+  return {
+    databaseBytes,
+    growth,
+    growthSince: growth === null ? null : (oldest?.day ?? null),
+    dailyGrowth,
+    storageCost,
+    projectedBytes,
+    projectedCost,
+    costAlert: (projectedCost ?? storageCost) > STORAGE_COST_ALERT_DOLLARS,
+    newPlayers,
+    bytesPerNewPlayer: growth === null || newPlayers === 0 ? null : growth / newPlayers,
+  };
+}
 
 /** The event cleanup's passes /admin shows, the latest of the period first. */
 export const CLEANUP_PASSES_SHOWN = 30;
@@ -120,7 +174,9 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
   const statsFrom = addDays(first, -1);
   const weekKey = isoWeekKey(now);
 
-  const [groups, medians, visits, [{ trackedSince }], [{ daysTrackedSince }], active, stats, challenge, bytesNow, passes] = await Promise.all([
+  const growthFrom = addDays(last, -GROWTH_DAYS);
+
+  const [groups, medians, visits, [{ trackedSince }], [{ daysTrackedSince }], active, stats, challenge, bytesNow, passes, newPlayers] = await Promise.all([
     db.$queryRaw<PlayerGroup[]>`
       SELECT u."createdAt"::date AS day,
              coalesce(u."source", ${UNKNOWN_SOURCE}) AS source,
@@ -177,6 +233,12 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
       orderBy: { at: "desc" },
       take: CLEANUP_PASSES_SHOWN,
     }),
+    // The players of the days of the storage's growth, which may start before the period.
+    db.$queryRaw<{ day: Date; players: bigint }[]>`
+      SELECT "createdAt"::date AS day, count(*)::bigint AS players
+      FROM "User"
+      WHERE "createdAt" >= ${growthFrom}::date AND "createdAt" < ${end}::date
+      GROUP BY 1`,
   ]);
 
   // A cohort's return day counts once it is over (strictly before today), from the first day visits were recorded.
@@ -279,17 +341,11 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
     };
   });
 
-  // The pace of the last GROWTH_DAYS days of snapshots, from the first of them to the last.
-  const snapshots = daysBetween(addDays(last, -GROWTH_DAYS), last)
+  // The snapshots of the last GROWTH_DAYS days, from the first of them to the last.
+  const snapshots = daysBetween(growthFrom, last)
     .map((day) => ({ day, bytes: bytesOf(day) }))
     .filter((snapshot): snapshot is { day: string; bytes: number } => snapshot.bytes !== null);
-  const [oldest, newest] = [snapshots.at(0), snapshots.at(-1)];
-  const span = oldest === undefined || newest === undefined ? 0 : (Date.parse(newest.day) - Date.parse(oldest.day)) / DAY_MS;
-  const dailyGrowth = oldest === undefined || newest === undefined || span === 0 ? null : (newest.bytes - oldest.bytes) / span;
-  const fullOn =
-    dailyGrowth === null || dailyGrowth <= 0
-      ? null
-      : addDays(last, Math.max(0, Math.ceil((DATABASE_LIMIT_BYTES - bytesNow) / dailyGrowth)));
+  const newPlayersByDay = new Map(newPlayers.map((row) => [utcDayOf(row.day), Number(row.players)]));
 
   const sources = [...journeys.values()].sort(
     (a, b) =>
@@ -319,10 +375,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
             maxSaves: MAX_CHALLENGE_SAVES_PER_WEEK,
           },
     health: {
-      databaseBytes: bytesNow,
-      limitBytes: DATABASE_LIMIT_BYTES,
-      dailyGrowth,
-      fullOn,
+      ...storageHealth(bytesNow, snapshots, (day) => newPlayersByDay.get(day) ?? 0),
       cleanup: passes.map((pass) => ({
         at: pass.at.toISOString(),
         dryRun: pass.dryRun,

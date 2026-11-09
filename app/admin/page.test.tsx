@@ -87,11 +87,18 @@ vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
         total: journey("", { visits: 40, players: 12, careers: 11, firstMatches: 7, seasonEnds: 1, medianMinutesToFirstMatch: 9, day1: { part: 1, whole: 4 } }),
         players: { anonymous: 11, registered: 1, fr: 5, en: 5, phone: 6, computer: 4 },
         challenge: { weekKey: "2026-W45", saves: 12, entries: 14, submitted: 0, maxSaves: 20 },
+        // The production database of 9 November: 1 062 Mo in a day, 46 new players the day before.
         health: {
-          databaseBytes: 181.4 * MB,
-          limitBytes: 1024 ** 3,
-          dailyGrowth: 1.4 * MB,
-          fullOn: "2028-06-12",
+          databaseBytes: 1339.1 * MB,
+          growth: 1061.9 * MB,
+          growthSince: "2026-11-06",
+          dailyGrowth: 1061.9 * MB,
+          storageCost: 0.4577,
+          projectedBytes: 33_196.1 * MB,
+          projectedCost: 11.3463,
+          costAlert: true,
+          newPlayers: 46,
+          bytesPerNewPlayer: 23.08 * MB,
           // A deletion, then the count before it: the latest first.
           cleanup: [
             {
@@ -189,8 +196,21 @@ describe("the administrator's dashboard", () => {
       "3 h",
       "181,4 Mo",
       "+1,4 Mo",
-      "par jour, moyenne sur 7 jours",
-      "12 juin 2028",
+      // The storage: its growth over the week, its cost on Neon's Launch plan now and in 30 days, past 5 $ there.
+      "coût de stockage estimé sur l&#x27;offre Launch de Neon, 0,35 $ le Go par mois, et sa projection à 30 jours à ce rythme, en alerte au-delà de 5 $ par mois",
+      "1 339,1 Mo",
+      "Croissance sur 7 jours",
+      "+1 061,9 Mo par jour depuis le 06/11",
+      "Stockage par mois",
+      "0,46 $",
+      "à 0,35 $ le Go",
+      "Dans 30 jours",
+      "11,35 $",
+      "32,4 Go à ce rythme",
+      "Au-delà de 5 $ par mois",
+      "Par nouveau joueur",
+      "23,1 Mo",
+      "46 nouveaux joueurs sur ces jours",
       "Défi de la semaine 45",
       "12 parties sur 20 · 14 joueurs inscrits · aucun classé après 10 journées",
       "3 joueurs, 2 parties et aucune partie de défi",
@@ -207,6 +227,9 @@ describe("the administrator's dashboard", () => {
     ]) {
       expect(markup.replace(/ /g, " ")).toContain(text);
     }
+    // The projected cost alerts, today's does not repeat it.
+    expect(markup).toMatch(/data-testid="admin-storage-projection" data-alert="true"/);
+    expect(markup).toMatch(/data-testid="admin-storage-cost" data-alert="false"/);
     // A count deletes nothing: « — » in its column, and every row says its totals.
     expect(markup).toMatch(/data-dry-run="true" data-deleted="0" data-remaining="80001"/);
     expect(markup).toMatch(/data-deleted="20000" data-remaining="60001"/);
@@ -227,6 +250,19 @@ describe("the administrator's dashboard", () => {
       "30% of visits",
       "Unknown (before tracking)",
       "181.4 MB",
+      "storage cost estimated on Neon&#x27;s Launch plan, $0.35 per GB a month, and its projection 30 days ahead at this pace, flagged past $5 a month",
+      "Growth over 7 days",
+      "+1,061.9 MB a day since 06/11",
+      "Storage a month",
+      "$0.46",
+      "at $0.35 per GB",
+      "In 30 days",
+      "$11.35",
+      "32.4 GB at this pace",
+      "Past $5 a month",
+      "Per new player",
+      "23.1 MB",
+      "46 new players over those days",
       "Weekly challenge, week 45",
       "12 careers of 20 · 14 players entered · none ranked after 10 matchdays",
       ">Errors</h2>",

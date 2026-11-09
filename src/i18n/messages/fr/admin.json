@@ -55,7 +55,7 @@
       "activity": "Activité",
       "activityNote": "Joueurs venus chaque jour ; matchs de leurs clubs joués jusqu'au bout, en direct ou simulés ; lancements de l'appli installée, un par session.",
       "health": "Santé",
-      "healthNote": "Taille relevée à chaque purge (chaque jour, 04:17 UTC) ; croissance moyenne sur 7 jours et projection jusqu'à 1 Go, la limite du plan gratuit de Neon."
+      "healthNote": "Taille relevée à chaque purge (chaque jour, 04:17 UTC) ; croissance sur les 7 derniers jours de relevés ; coût de stockage estimé sur l'offre Launch de Neon, {price} le Go par mois, et sa projection à {days} jours à ce rythme, en alerte au-delà de {alert} par mois ; poids par nouveau joueur : cette croissance divisée par les joueurs créés sur ces jours."
     },
     "figures": {
       "visits": "Visites",
@@ -68,10 +68,12 @@
       "active": "Actifs par jour",
       "matches": "Matchs joués",
       "databaseSize": "Taille de la base",
-      "growth": "Croissance",
-      "fullOn": "1 Go atteint",
+      "growth": "Croissance sur 7 jours",
       "purged": "Purgés",
-      "appLaunches": "Lancements de l'appli"
+      "appLaunches": "Lancements de l'appli",
+      "storageCost": "Stockage par mois",
+      "projectedCost": "Dans {days} jours",
+      "perNewPlayer": "Par nouveau joueur"
     },
     "details": {
       "conversion": "{percent} % des visites",
@@ -79,13 +81,15 @@
       "medianNote": "de la création de la carrière à la fin du match",
       "activeAverage": "en moyenne, {max} au plus",
       "matches": "{live} en direct · {simulated} simulés",
-      "ofLimit": "{percent, number} % de 1 Go",
-      "perDay": "par jour, moyenne sur 7 jours",
       "noGrowth": "pas encore mesurée",
       "around": "vers le {date}",
-      "notBefore": "pas à ce rythme",
       "purged": "{users, plural, =0 {aucun joueur} one {# joueur} other {# joueurs}}, {saves, plural, =0 {aucune partie} one {# partie} other {# parties}} et {challenge, plural, =0 {aucune partie de défi} one {# partie de défi} other {# parties de défi}}",
-      "appLaunches": "depuis l'écran d'accueil, un par session"
+      "appLaunches": "depuis l'écran d'accueil, un par session",
+      "growthSince": "{perDay} par jour depuis le {date}",
+      "storagePrice": "à {price} le Go",
+      "projectedSize": "{size} à ce rythme",
+      "costAlert": "Au-delà de {alert} par mois",
+      "newPlayers": "{count, plural, =0 {aucun nouveau joueur} one {# nouveau joueur} other {# nouveaux joueurs}} sur ces jours"
     },
     "breakdown": {
       "languages": "Langue : français {fr} · anglais {en}",
@@ -134,7 +138,9 @@
       "minutes": "{count} min",
       "hours": "{count} h",
       "days": "{count} j",
-      "seconds": "{seconds} s"
+      "seconds": "{seconds} s",
+      "gigabytes": "{size} Go",
+      "dollars": "{amount} $"
     },
     "errors": {
       "title": "Erreurs",

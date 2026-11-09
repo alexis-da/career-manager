@@ -857,8 +857,11 @@ détaillées », et retour) : sur 7 jours (`/admin`) ou 30 (`?days=30`), UTC, au
 nouveaux joueurs par jour et par source, langue, appareil, sans compte ou Google), Parcours (par source : carrière, 1er
 match, fin de saison, en part des visites ; médiane de la création de la carrière à la fin du premier match), Rétention
 (J+1 et J+7 par jour de création et par source, sur les jours dont le retour est passé), Activité (joueurs actifs par jour
-depuis `UserDay`, matchs du jour, défi de la semaine, lancements de l'appli installée), Erreurs (règle « Erreurs du jeu »), Santé (taille, croissance moyenne sur 7 jours des relevés,
-projection du jour où 1 Go serait atteint, `DATABASE_LIMIT_BYTES`, purges ; puis les passages du nettoyage des événements
+depuis `UserDay`, matchs du jour, défi de la semaine, lancements de l'appli installée), Erreurs (règle « Erreurs du jeu »), Santé
+(`storageHealth`, pure : taille, croissance sur les 7 derniers jours de relevés, coût de stockage estimé sur l'offre Launch
+de Neon, taille × 0,35 $ le Go par mois, `STORAGE_PRICE_PER_GB_MONTH`, et sa projection à 30 jours à ce rythme, en
+alerte au-delà de 5 $ par mois, `STORAGE_COST_ALERT_DOLLARS` ; poids par nouveau joueur, la croissance divisée par les
+joueurs créés du jour du premier relevé à la veille du dernier ; purges ; puis les passages du nettoyage des événements
 de la période, 30 au plus, `CleanupPass` : ce que le dernier laisse, sorte par sorte, puis chaque passage, comptage ou
 suppression, supprimées, restantes et durée, celle-ci masquée sous 640 px). Chaque chiffre est une requête d'agrégat sur
 la période, par un index (`User(createdAt)`, `UserDay(day)`, les jours de `VisitDay` et `DailyStat`), jamais une grande
@@ -1008,10 +1011,12 @@ Jamais de logo ni d'écusson de club.
 **Hébergement.** Aucun service propre à Vercel (Blob, KV, Cron, Analytics) : le jeu doit rester déplaçable
 chez un autre hébergeur.
 
-**Budget base de données.** Le plan gratuit Neon donne, par mois, 100 CU-h de calcul, 1 Go de stockage et
-5 Go de transfert, désormais pour la **production seule** : les tests l'avaient épuisé le 24 octobre 2026 (production
-hors ligne jusqu'au 1er novembre), d'où le Postgres local. Les tests lourds (`npm run test:slow`, saisons complètes,
-E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
+**Budget base de données.** La production est sur l'offre Launch de Neon, facturée à l'usage (stockage 0,35 $ le Go
+par mois, instantanés 0,09 $) : la section Santé de `/admin` estime le coût du stockage et alerte au-delà de 5 $ par
+mois projetés. Le plan gratuit (100 CU-h de calcul, 1 Go de stockage, 5 Go de transfert par mois) avait été épuisé par
+les tests le 24 octobre 2026 (production hors ligne jusqu'au 1er novembre), d'où le Postgres local : la production
+seule touche Neon. Les tests lourds (`npm run test:slow`, saisons complètes, E2E) ne lui coûtent rien : les lancer quand
+le changement le justifie.
 
 ## Conventions
 

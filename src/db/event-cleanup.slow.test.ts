@@ -105,7 +105,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the event cleanup, scre
     const month = await m.adminDashboard.getAdminDashboard(m.db, now, 30);
     const adminStats = await m.stats.getAdminStats(m.db, now);
     // The database's size is what the cleanup frees, and its passes are its own: the rest of /admin must not move.
-    const withoutSizes = (figures: typeof week) => ({ ...figures, health: { ...figures.health, databaseBytes: 0, fullOn: null, cleanup: [] } });
+    const withoutSizes = (figures: typeof week) => ({
+      ...figures,
+      health: { ...figures.health, databaseBytes: 0, storageCost: 0, projectedBytes: null, projectedCost: null, costAlert: false, cleanup: [] },
+    });
     const statsFigures = { ...adminStats, databaseBytes: 0, largestTables: [] };
     return {
       matchSheetsAndCalendar: await m.calendar.getManagedClubCalendar(saveId),
