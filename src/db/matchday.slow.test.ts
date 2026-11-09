@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { decodeGoalTimes } from "../engine/match";
 import { WORLD_START_DATE } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 import type { getStandings as getStandingsFunction } from "./standings";
@@ -52,8 +53,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on a t
     expect(withoutScore).toBe(0);
   });
 
-  it("records one goal event per goal, for the scoring side, and counts goals and assists in the stats", async () => {
+  it("records each goal: an event for the scoring side in the managed club's matches, a goal time in the others', and counts them in the stats", async () => {
     const db = database();
+    const managed = await db.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
     const fixtures = await db.fixture.findMany({
       where: { saveId },
       select: {
@@ -62,6 +64,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on a t
         awayGoals: true,
         homeClubSaveId: true,
         awayClubSaveId: true,
+        goalTimes: true,
         events: {
           where: { type: "GOAL" },
           select: { relatedPlayerSaveId: true, playerSave: { select: { clubSaveId: true } } },
@@ -70,20 +73,32 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday on a t
     });
     const goalsBy = (fixture: (typeof fixtures)[number], clubSaveId: string) =>
       fixture.events.filter((event) => event.playerSave?.clubSaveId === clubSaveId).length;
+    const timesBy = (fixture: (typeof fixtures)[number], side: "home" | "away") =>
+      decodeGoalTimes(fixture.goalTimes).filter((goal) => goal.side === side).length;
+    const isManagedClubs = (fixture: (typeof fixtures)[number]) =>
+      fixture.homeClubSaveId === managed.id || fixture.awayClubSaveId === managed.id;
     const mismatches = fixtures
-      .filter(
-        (fixture) =>
-          goalsBy(fixture, fixture.homeClubSaveId) !== fixture.homeGoals ||
-          goalsBy(fixture, fixture.awayClubSaveId) !== fixture.awayGoals,
+      .filter((fixture) =>
+        isManagedClubs(fixture)
+          ? fixture.goalTimes.length > 0 ||
+            goalsBy(fixture, fixture.homeClubSaveId) !== fixture.homeGoals ||
+            goalsBy(fixture, fixture.awayClubSaveId) !== fixture.awayGoals
+          : fixture.events.length > 0 || timesBy(fixture, "home") !== fixture.homeGoals || timesBy(fixture, "away") !== fixture.awayGoals,
       )
       .map((fixture) => fixture.id);
-    const goalEvents = fixtures.flatMap((fixture) => fixture.events);
+    const managedAssists = fixtures
+      .filter(isManagedClubs)
+      .flatMap((fixture) => fixture.events)
+      .filter((event) => event.relatedPlayerSaveId !== null).length;
     const totalGoals = fixtures.reduce((sum, fixture) => sum + (fixture.homeGoals ?? 0) + (fixture.awayGoals ?? 0), 0);
     const stats = await db.playerSeasonStats.aggregate({ where: { saveId }, _sum: { goals: true, assists: true } });
 
+    expect(fixtures.filter(isManagedClubs).length).toBeGreaterThan(0);
     expect(mismatches).toEqual([]);
     expect(stats._sum.goals).toBe(totalGoals);
-    expect(stats._sum.assists).toBe(goalEvents.filter((event) => event.relatedPlayerSaveId !== null).length);
+    // The other matches' assists are kept in the stats alone: at least the managed club's matches', at most one a goal.
+    expect(stats._sum.assists).toBeGreaterThanOrEqual(managedAssists);
+    expect(stats._sum.assists).toBeLessThanOrEqual(totalGoals);
   });
 
   it("builds complete standings of 20 or 18 clubs", async () => {
