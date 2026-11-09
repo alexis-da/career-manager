@@ -1021,6 +1021,11 @@ E2E) ne coûtent plus rien à Neon : les lancer quand le changement le justifie.
   découpé) sont chaînées par `SequentialPrismaPg` (`src/db/pg-adapter.ts`), l'adaptateur de tous les clients Prisma ;
   en test, `src/db/test-pg-guard.ts` fait échouer toute requête envoyée sur une connexion occupée (pg 9 la refusera).
 - Pas de `any`. Pas de `!` non-null sans commentaire justifiant.
+- `package-lock.json` est commité à chaque changement de dépendance ; ne jamais commiter des modifications du lock qui
+  ne viennent pas d'un changement voulu de dépendance ; la CI (`npm ci`) vérifie qu'il est à jour.
+- Le lock s'écrit avec la version de npm de la CI, celle du Node 24 le plus récent (npm 11.19.1 le 09/11/2026), plus
+  stricte que celle du poste (11.6.2, qui acceptait un lock sans `@emnapi/core` ni `@emnapi/runtime`) : après un
+  changement de dépendance, `npx npm@<version de la CI> install --package-lock-only`.
 - Un commit = un changement cohérent, message en français à l'impératif.
 
 ## Structure
