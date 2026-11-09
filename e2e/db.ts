@@ -48,6 +48,16 @@ export async function visitsOf(day: string, source: string): Promise<{ page: str
   });
 }
 
+/** Today's launches of the installed app (DailyStat), at the database's clock; 0 before the first. */
+export async function appLaunchesToday(): Promise<number> {
+  const result = await withTestDatabase((client) =>
+    client.query<{ launches: number }>(
+      `SELECT "appLaunches" AS launches FROM "DailyStat" WHERE "day" = (now() AT TIME ZONE 'UTC')::date`,
+    ),
+  );
+  return result.rows[0]?.launches ?? 0;
+}
+
 /** Deletes the errors a test provoked: those whose message holds this word. */
 export async function deleteErrors(word: string): Promise<void> {
   await withTestDatabase((client) => client.query(`DELETE FROM "ErrorDay" WHERE strpos("message", $1) > 0`, [word]));

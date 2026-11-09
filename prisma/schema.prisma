@@ -138,6 +138,7 @@ model DailyStat {
   purgedUsers          Int      @default(0) // joueurs sans compte supprimés par la purge
   purgedSaves          Int      @default(0) // leurs parties
   purgedChallengeSaves Int      @default(0) // parties de défi supprimées 24 h après leur semaine
+  appLaunches          Int      @default(0) // lancements de l'appli installée (affichage standalone), un par session de l'appli
 }
 
 // Les erreurs du jeu, regroupées par jour UTC et par empreinte (source, sorte, route et message aux nombres effacés,

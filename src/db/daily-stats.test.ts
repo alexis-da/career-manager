@@ -18,10 +18,20 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the day's figures, in t
   /** Today's row at the database's clock, as the statements write it; zeros before its first figure. */
   const today = async () => {
     const [row] = await loaded().db.$queryRaw<
-      { liveMatches: number; simulatedMatches: number; databaseBytes: bigint | null; purgedUsers: number; purgedSaves: number; purgedChallengeSaves: number }[]
-    >`SELECT "liveMatches", "simulatedMatches", "databaseBytes", "purgedUsers", "purgedSaves", "purgedChallengeSaves"
+      {
+        liveMatches: number;
+        simulatedMatches: number;
+        appLaunches: number;
+        databaseBytes: bigint | null;
+        purgedUsers: number;
+        purgedSaves: number;
+        purgedChallengeSaves: number;
+      }[]
+    >`SELECT "liveMatches", "simulatedMatches", "appLaunches", "databaseBytes", "purgedUsers", "purgedSaves", "purgedChallengeSaves"
       FROM "DailyStat" WHERE "day" = (now() AT TIME ZONE 'UTC')::date`;
-    return row ?? { liveMatches: 0, simulatedMatches: 0, databaseBytes: null, purgedUsers: 0, purgedSaves: 0, purgedChallengeSaves: 0 };
+    return (
+      row ?? { liveMatches: 0, simulatedMatches: 0, appLaunches: 0, databaseBytes: null, purgedUsers: 0, purgedSaves: 0, purgedChallengeSaves: 0 }
+    );
   };
 
   beforeAll(async () => {
@@ -45,6 +55,17 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the day's figures, in t
     const after = await today();
     expect(after.liveMatches).toBeGreaterThanOrEqual(before.liveMatches + 1);
     expect(after.simulatedMatches).toBeGreaterThanOrEqual(before.simulatedMatches + 2);
+  });
+
+  it("counts the installed app's launches today, nothing else", async () => {
+    const { db, stats } = loaded();
+    const before = await today();
+
+    await stats.countAppLaunch(db);
+    await stats.countAppLaunch(db);
+
+    const after = await today();
+    expect(after.appLaunches).toBeGreaterThanOrEqual(before.appLaunches + 2);
   });
 
   it("adds each maintenance call's deletions to the day's, and keeps the database's size of the last one", async () => {

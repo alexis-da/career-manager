@@ -45,6 +45,14 @@
     "browserOnly": "Your career is tied to this browser.",
     "saves": "Careers",
     "savesUsed": "{used} of {max} used",
-    "changeSave": "Switch career"
+    "changeSave": "Switch career",
+    "install": {
+      "title": "App",
+      "detail": "The game on your home screen, no store needed.",
+      "installed": "You are playing in the installed app.",
+      "button": "Install the app",
+      "ios": "Tap Share, then “Add to Home Screen”.",
+      "other": "In your browser's menu, choose “Install app” or “Add to Home screen”."
+    }
   }
 }

@@ -782,13 +782,29 @@ jours de plus de 30 jours (`purgeOldErrors`). Section « Erreurs » de `/admin` 
 serveur et navigateur, la plus récente, les dix groupes les plus fréquents de la semaine avec leur compte des 24 h (les
 jours UTC d'hier et d'aujourd'hui d'une erreur vue depuis hier à cette heure).
 
+**Appli installable (sans store).** `app/manifest.ts` (`/manifest.webmanifest`, lié par chaque page) : Late Winner,
+`display: standalone` depuis `/`, fond et barres `#0B1340` (`APP_BACKGROUND`, `app/_lib/install-app.ts`, aussi le
+`themeColor` du layout), les icônes 192 et 512 de `public/icons` et leurs versions masquables, sans coins arrondis (la
+marque tient dans la zone sûre) ; `apple-icon.png` et `appleWebApp` (barre d'état opaque, rien dessous) pour l'iPhone. Pas
+de jeu hors ligne : le service worker (`public/sw.js`, enregistré par `AppShell` dans un build de production seulement)
+ne garde que `public/offline.html` (« Pas de connexion », FR et EN) et ne la sert qu'à une navigation sans réseau ; Chrome
+ne propose son invite qu'à un site dont le service worker a un gestionnaire `fetch`. L'invite est retenue dès la
+première page (`HOLD_INSTALL_PROMPT_SCRIPT`, script `beforeInteractive` du layout : `preventDefault`, pas de mini-barre
+sur Android) : **aucune fenêtre ne vient d'elle-même**. Le joueur la demande dans Club → Réglages (`InstallApp`,
+`settings-install`, `data-state`) : « Installer l'appli », discret, ouvre l'invite du navigateur où elle existe (Chrome,
+Edge, Android), sinon dit en une ligne comment faire (iPhone et iPad : Partager, puis « Sur l'écran d'accueil » ;
+ailleurs : le menu du navigateur) ; dans l'appli installée, il le dit. Un lancement de l'appli installée (affichage
+`standalone`, `isStandalone`) est compté une fois par session (`sessionStorage`), `countAppLaunchAction`, publique,
+20 par heure et par adresse gardée en mémoire : `DailyStat.appLaunches`, dans l'Activité de `/admin`.
+`e2e/install.spec.ts` simule l'invite, l'iPhone et l'affichage installé.
+
 **Administration (`/admin`).** Le tableau de bord de l'administrateur (`app/admin/page.tsx`, `getAdminDashboard`,
 `src/db/admin-dashboard.ts`), 404 pour tout autre comme `/admin/stats`, qui reste, à un lien (« Statistiques
 détaillées », et retour) : sur 7 jours (`/admin`) ou 30 (`?days=30`), UTC, aujourd'hui compris. Acquisition (visites,
 nouveaux joueurs par jour et par source, langue, appareil, sans compte ou Google), Parcours (par source : carrière, 1er
 match, fin de saison, en part des visites ; médiane de la création de la carrière à la fin du premier match), Rétention
 (J+1 et J+7 par jour de création et par source, sur les jours dont le retour est passé), Activité (joueurs actifs par jour
-depuis `UserDay`, matchs du jour, défi de la semaine), Erreurs (règle « Erreurs du jeu »), Santé (taille, croissance moyenne sur 7 jours des relevés,
+depuis `UserDay`, matchs du jour, défi de la semaine, lancements de l'appli installée), Erreurs (règle « Erreurs du jeu »), Santé (taille, croissance moyenne sur 7 jours des relevés,
 projection du jour où 1 Go serait atteint, `DATABASE_LIMIT_BYTES`, purges). Chaque chiffre est une requête d'agrégat sur
 la période, par un index (`User(createdAt)`, `UserDay(day)`, les jours de `VisitDay` et `DailyStat`), jamais une grande
 table de partie ; le plus cher est `pg_database_size` (environ 0,1 s). Lisible sur téléphone : sous 640 px, quatre
@@ -993,6 +1009,7 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone ;
                       # objectives.spec.ts : une fin de saison, la nouvelle dotation et le choix d'un objectif ;
                       # season-card-share.spec.ts : la carte d'une saison partagée en image, ou enregistrée ;
+                      # install.spec.ts : le manifeste, le service worker, le bouton d'installation et les lancements ;
                       # seo.spec.ts : les pages publiques à leurs adresses dans les deux langues (titre, description,
                       # canonical, hreflang, image de partage), robots.txt, sitemap, llms.txt, JSON-LD de l'accueil,
                       # bandeau de langue et choix retenu, lecture de chaque page sans JavaScript

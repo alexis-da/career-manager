@@ -53,7 +53,7 @@
       "retention": "Retention",
       "retentionNote": "Back the day after they were created (D+1) and a week later (D+7), over the days whose return day is over; “—”: not known yet.",
       "activity": "Activity",
-      "activityNote": "Players who came each day; matches of their clubs played to the end, live or simulated.",
+      "activityNote": "Players who came each day; matches of their clubs played to the end, live or simulated; launches of the installed app, one a session.",
       "health": "Health",
       "healthNote": "Size taken at each purge (every day, 04:17 UTC); average growth over 7 days and projection up to 1 GB, the limit of Neon's free plan."
     },
@@ -70,7 +70,8 @@
       "databaseSize": "Database size",
       "growth": "Growth",
       "fullOn": "1 GB reached",
-      "purged": "Purged"
+      "purged": "Purged",
+      "appLaunches": "App launches"
     },
     "details": {
       "conversion": "{percent}% of visits",
@@ -83,7 +84,8 @@
       "noGrowth": "not measured yet",
       "around": "around {date}",
       "notBefore": "not at this pace",
-      "purged": "{users, plural, =0 {no player} one {# player} other {# players}}, {saves, plural, =0 {no career} one {# career} other {# careers}} and {challenge, plural, =0 {no challenge career} one {# challenge career} other {# challenge careers}}"
+      "purged": "{users, plural, =0 {no player} one {# player} other {# players}}, {saves, plural, =0 {no career} one {# career} other {# careers}} and {challenge, plural, =0 {no challenge career} one {# challenge career} other {# challenge careers}}",
+      "appLaunches": "from the home screen, one a session"
     },
     "breakdown": {
       "languages": "Language: French {fr} · English {en}",
@@ -109,7 +111,8 @@
       "simulated": "Simulated",
       "size": "Size",
       "growth": "Growth",
-      "purged": "Purged"
+      "purged": "Purged",
+      "appLaunches": "App"
     },
     "sources": {
       "all": "Every source",

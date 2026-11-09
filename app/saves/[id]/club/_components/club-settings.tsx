@@ -9,10 +9,8 @@ import { maxSavesFor } from "@/src/lib/limits";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
 import { CLUB_CARD_LINK, ClubCardTitle } from "./club-card";
-
-const ROW = "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5";
-const NAME = "text-[0.9375rem]";
-const DETAIL = "text-[0.8125rem] text-muted-foreground";
+import { InstallApp } from "./install-app";
+import { SETTINGS_DETAIL as DETAIL, SETTINGS_NAME as NAME, SETTINGS_ROW as ROW } from "./settings-styles";
 
 /** What an account says, wide enough for most e-mails: its action goes under it rather than break one. */
 const ACCOUNT_LABEL = "min-w-0 flex-[1_1_12rem] wrap-break-word";
@@ -55,7 +53,7 @@ type ClubSettingsProps = {
   className?: string;
 };
 
-/** The player's settings: language, account, saves used and privacy. */
+/** The player's settings: language, account, saves used, the installable game and privacy. */
 export function ClubSettings({ user, ownedSaves, className }: ClubSettingsProps) {
   const t = useTranslations("settings");
   const tLanguage = useTranslations("language");
@@ -79,6 +77,7 @@ export function ClubSettings({ user, ownedSaves, className }: ClubSettingsProps)
           {t("changeSave")}
         </Link>
       </div>
+      <InstallApp />
       <Link
         href={publicPath("privacy", locale)}
         data-testid="settings-privacy"

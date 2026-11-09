@@ -53,7 +53,7 @@
       "retention": "Rétention",
       "retentionNote": "Revenus le lendemain de leur création (J+1) et une semaine après (J+7), sur les jours dont le retour est passé ; « — » : pas encore connu.",
       "activity": "Activité",
-      "activityNote": "Joueurs venus chaque jour ; matchs de leurs clubs joués jusqu'au bout, en direct ou simulés.",
+      "activityNote": "Joueurs venus chaque jour ; matchs de leurs clubs joués jusqu'au bout, en direct ou simulés ; lancements de l'appli installée, un par session.",
       "health": "Santé",
       "healthNote": "Taille relevée à chaque purge (chaque jour, 04:17 UTC) ; croissance moyenne sur 7 jours et projection jusqu'à 1 Go, la limite du plan gratuit de Neon."
     },
@@ -70,7 +70,8 @@
       "databaseSize": "Taille de la base",
       "growth": "Croissance",
       "fullOn": "1 Go atteint",
-      "purged": "Purgés"
+      "purged": "Purgés",
+      "appLaunches": "Lancements de l'appli"
     },
     "details": {
       "conversion": "{percent} % des visites",
@@ -83,7 +84,8 @@
       "noGrowth": "pas encore mesurée",
       "around": "vers le {date}",
       "notBefore": "pas à ce rythme",
-      "purged": "{users, plural, =0 {aucun joueur} one {# joueur} other {# joueurs}}, {saves, plural, =0 {aucune partie} one {# partie} other {# parties}} et {challenge, plural, =0 {aucune partie de défi} one {# partie de défi} other {# parties de défi}}"
+      "purged": "{users, plural, =0 {aucun joueur} one {# joueur} other {# joueurs}}, {saves, plural, =0 {aucune partie} one {# partie} other {# parties}} et {challenge, plural, =0 {aucune partie de défi} one {# partie de défi} other {# parties de défi}}",
+      "appLaunches": "depuis l'écran d'accueil, un par session"
     },
     "breakdown": {
       "languages": "Langue : français {fr} · anglais {en}",
@@ -109,7 +111,8 @@
       "simulated": "Simulés",
       "size": "Taille",
       "growth": "Croissance",
-      "purged": "Purgés"
+      "purged": "Purgés",
+      "appLaunches": "Appli"
     },
     "sources": {
       "all": "Toutes les sources",

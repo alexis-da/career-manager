@@ -2,7 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { Barlow } from "next/font/google";
 import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
+import Script from "next/script";
+import { AppShell } from "./_components/app-shell";
 import { ErrorReporter } from "./_components/error-reporter";
+import { APP_BACKGROUND, HOLD_INSTALL_PROMPT_SCRIPT } from "./_lib/install-app";
 import { getLocale } from "next-intl/server";
 import { Toaster } from "@/src/components/ui/sonner";
 import { SITE_URL } from "@/src/config/site";
@@ -32,6 +35,8 @@ export const metadata: Metadata = {
   title: { default: TITLE, template: "%s · Late Winner" },
   description: DESCRIPTION,
   applicationName: "Late Winner",
+  // Added to an iPhone's home screen, the game opens as an app, under an opaque status bar: nothing goes under it.
+  appleWebApp: { capable: true, title: "Late Winner", statusBarStyle: "black" },
   openGraph: {
     type: "website",
     siteName: "Late Winner",
@@ -47,17 +52,24 @@ export const metadata: Metadata = {
 };
 
 // To the screen's edges: the bars at the foot of a save keep the home indicator's room themselves (safe-area-inset-bottom).
-export const viewport: Viewport = { viewportFit: "cover" };
+// The browser's bars, and the installed app's, in the colour of the game's screens (app/manifest.ts).
+export const viewport: Viewport = { viewportFit: "cover", themeColor: APP_BACKGROUND };
 
 // Each page in the player's language (src/i18n/request.ts), its messages handed down to the client components.
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang={await getLocale()} className={`dark ${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
+        {/* Before React: the browser's install prompt held back, for the settings' button (no window comes by itself). */}
+        <Script id="hold-install-prompt" strategy="beforeInteractive">
+          {HOLD_INSTALL_PROMPT_SCRIPT}
+        </Script>
         <NextIntlClientProvider>
           {children}
           {/* The page's uncaught errors, reported to the server for /admin. */}
           <ErrorReporter />
+          {/* The installable game: its service worker, its launches counted. */}
+          <AppShell />
           {/* Above a save's navigation, fixed to the foot of the screen under lg (--toast-bottom). */}
           <Toaster
             theme="dark"

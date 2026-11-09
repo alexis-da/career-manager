@@ -279,6 +279,7 @@ export function ActivitySection({ dashboard, t, format }: SectionProps) {
   const { days, challenge } = dashboard;
   const live = days.reduce((sum, day) => sum + day.liveMatches, 0);
   const simulated = days.reduce((sum, day) => sum + day.simulatedMatches, 0);
+  const launches = days.reduce((sum, day) => sum + day.appLaunches, 0);
   const active = days.map((day) => day.active);
   return (
     <Section id="activity" title={t("sections.activity")} note={t("sections.activityNote")}>
@@ -293,6 +294,12 @@ export function ActivitySection({ dashboard, t, format }: SectionProps) {
           value={format.integer(live + simulated)}
           detail={t("details.matches", { live: format.integer(live), simulated: format.integer(simulated) })}
           testId="admin-matches"
+        />
+        <Tile
+          label={t("figures.appLaunches")}
+          value={format.integer(launches)}
+          detail={t("details.appLaunches")}
+          testId="admin-app-launches"
         />
       </Tiles>
       <p className="text-sm" data-testid="admin-challenge">
@@ -318,6 +325,7 @@ export function ActivitySection({ dashboard, t, format }: SectionProps) {
             <TableHead className={HEAD_NUMBER}>{t("columns.active")}</TableHead>
             <TableHead className={HEAD_NUMBER}>{t("columns.live")}</TableHead>
             <TableHead className={HEAD_NUMBER}>{t("columns.simulated")}</TableHead>
+            <TableHead className={cn(HEAD_NUMBER, "max-sm:hidden")}>{t("columns.appLaunches")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -327,6 +335,7 @@ export function ActivitySection({ dashboard, t, format }: SectionProps) {
               <TableCell className={NUMBER}>{format.integer(day.active)}</TableCell>
               <TableCell className={NUMBER}>{format.integer(day.liveMatches)}</TableCell>
               <TableCell className={NUMBER}>{format.integer(day.simulatedMatches)}</TableCell>
+              <TableCell className={cn(NUMBER, "max-sm:hidden")}>{format.integer(day.appLaunches)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

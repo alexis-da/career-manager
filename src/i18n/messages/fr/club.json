@@ -45,6 +45,14 @@
     "browserOnly": "Ta partie est liée à ce navigateur.",
     "saves": "Parties",
     "savesUsed": "{used, plural, one {# sur {max} utilisée} other {# sur {max} utilisées}}",
-    "changeSave": "Changer de partie"
+    "changeSave": "Changer de partie",
+    "install": {
+      "title": "Appli",
+      "detail": "Le jeu sur ton écran d'accueil, sans store.",
+      "installed": "Tu joues dans l'appli installée.",
+      "button": "Installer l'appli",
+      "ios": "Touche Partager, puis « Sur l'écran d'accueil ».",
+      "other": "Dans le menu de ton navigateur, choisis « Installer l'appli » ou « Ajouter à l'écran d'accueil »."
+    }
   }
 }

@@ -5,16 +5,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 import * as z from "zod";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { signIn, signOut } from "@/src/auth/auth";
 import { getCurrentUser, requireCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { USER_COOKIE } from "@/src/auth/identity";
 import { deleteRegisteredUser } from "@/src/db/accounts";
+import { prisma } from "@/src/db/client";
+import { countAppLaunch } from "@/src/db/daily-stats";
 import { isWakeUpError, retryOnWakeUp } from "@/src/db/retry";
 import { createSave, deleteSave } from "@/src/db/saves";
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE_SECONDS, LOCALES } from "@/src/i18n/locale";
 import { PUBLIC_PAGE_NAMES, publicPath } from "@/src/i18n/public-pages";
 import { describeError, phaseTimer } from "@/src/lib/diagnostics";
+import { rateLimit } from "@/src/lib/rate-limit";
 import { SaveLimitError } from "@/src/lib/limits";
 import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
 import { creationChoices, type CreationChoices } from "./_lib/creation-choices";
@@ -32,6 +35,21 @@ function revalidateHomePages(): void {
  */
 export async function creationChoicesAction(): Promise<CreationChoices> {
   return creationChoices();
+}
+
+/** A few launches an hour an address at most: an address stays in this instance's memory, never written. */
+const appLaunches = rateLimit({ limit: 20, windowMs: 60 * 60 * 1000, maxKeys: 5_000 });
+
+/**
+ * A launch of the installed game, once a session of it (AppShell): one more on the day's count for /admin, nothing else
+ * kept. Public: no user needed.
+ */
+export async function countAppLaunchAction(): Promise<void> {
+  const address = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  // Not simulation code: a rate is real time.
+  if (appLaunches.allow(address, Date.now())) {
+    await countAppLaunch(prisma);
+  }
 }
 
 export type CreateSaveField = "name" | "managerName" | "clubId" | "seed";

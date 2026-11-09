@@ -2,7 +2,8 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client";
 import { describeError } from "../lib/diagnostics";
 
 // The figures of a day that no other table keeps (DailyStat, one row a UTC day, read by /admin): the matches players
-// play, live or simulated, and, at the day's maintenance, the database's size and what the purge deleted. Each one
+// play, live or simulated, the installed app's launches, and, at the day's maintenance, the database's size and what
+// the purge deleted. Each one
 // statement on the day's row, at the database's clock: never the simulation's.
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -25,6 +26,20 @@ export async function countManagedMatch(db: Db, mode: "live" | "simulated"): Pro
     }
   } catch (error) {
     console.error(`[countManagedMatch] ${mode}: ${describeError(error)}`);
+  }
+}
+
+/**
+ * Counts a launch of the installed game (displayed standalone, once a session: app/_components/app-shell.tsx). Nothing
+ * of the player is kept: one more on the day's row. A failure costs a count: logged, not thrown.
+ */
+export async function countAppLaunch(db: Db): Promise<void> {
+  try {
+    await db.$executeRaw`
+      INSERT INTO "DailyStat" ("day", "appLaunches") VALUES ((now() AT TIME ZONE 'UTC')::date, 1)
+      ON CONFLICT ("day") DO UPDATE SET "appLaunches" = "DailyStat"."appLaunches" + 1`;
+  } catch (error) {
+    console.error(`[countAppLaunch] ${describeError(error)}`);
   }
 }
 

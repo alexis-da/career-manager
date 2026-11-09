@@ -84,7 +84,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     await prisma.dailyStat.createMany({
       data: [
         { day: day("03"), databaseBytes: 100 * MB },
-        { day: day("05"), liveMatches: 3, simulatedMatches: 7 },
+        { day: day("05"), liveMatches: 3, simulatedMatches: 7, appLaunches: 2 },
         { day: day("09"), databaseBytes: 103 * MB },
         { day: day("10"), databaseBytes: 104 * MB, purgedUsers: 2, purgedSaves: 3 },
       ],
@@ -112,7 +112,17 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     const [fourth, fifth, sixth, , , ninth, tenth] = days;
     expect(fourth).toMatchObject({ visits: 0, players: 0, active: 0, day1: 0 });
     // The 5th: two players, one back on the 6th; their seventh day is not over on the 10th.
-    expect(fifth).toMatchObject({ visits: 14, players: 2, registered: 1, day1: 1, day7: null, active: 2, liveMatches: 3, simulatedMatches: 7 });
+    expect(fifth).toMatchObject({
+      visits: 14,
+      players: 2,
+      registered: 1,
+      day1: 1,
+      day7: null,
+      active: 2,
+      liveMatches: 3,
+      simulatedMatches: 7,
+      appLaunches: 2,
+    });
     expect(sixth).toMatchObject({ visits: 0, players: 0, active: 1 });
     // The 9th: its next day, the 10th, is today, not over.
     expect(ninth).toMatchObject({ visits: 6, players: 1, day1: null, active: 1, databaseBytes: 103 * MB, growth: null });

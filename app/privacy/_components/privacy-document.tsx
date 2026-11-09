@@ -72,7 +72,8 @@ function FrenchPrivacy() {
           </li>
           <li>
             <strong>Des compteurs de visites</strong> : le nombre de premières visites par jour, par origine et par page
-            d&apos;arrivée, de simples totaux sans aucune donnée personnelle.
+            d&apos;arrivée, et le nombre de lancements de l&apos;appli installée par jour, de simples totaux sans aucune
+            donnée personnelle.
           </li>
           <li>
             <strong>Les erreurs du jeu</strong> : quand une page du jeu rencontre une erreur, sur le serveur ou dans ton
@@ -146,7 +147,7 @@ function FrenchPrivacy() {
             domain, never its address, else “direct”) and the page you landed on; when your player profile is created,
             that origin, your language and your device type (phone or computer) are kept with it, then the dates of
             your first career, first match and first finished season. First visits are also counted by day, origin and
-            landing page, as plain totals without personal data. If you play the weekly challenge, your score; signed in
+            landing page, and launches of the installed app by day, as plain totals without personal data. If you play the weekly challenge, your score; signed in
             with Google, your first name (the first word of your Google account&apos;s name) is shown with it in the
             challenge&apos;s public ranking, to everyone. Comfort cookies keep the language you choose (lw_lang, one
             year), the closing of the banner inviting you to sign in (seven days) and what you have seen of a
@@ -225,8 +226,8 @@ function EnglishPrivacy() {
             players come back.
           </li>
           <li>
-            <strong>Visit counters</strong>: the number of first visits by day, by origin and by landing page, plain
-            totals without any personal data.
+            <strong>Visit counters</strong>: the number of first visits by day, by origin and by landing page, and the
+            number of launches of the installed app by day, plain totals without any personal data.
           </li>
           <li>
             <strong>The game&apos;s errors</strong>: when a page of the game meets an error, on the server or in your

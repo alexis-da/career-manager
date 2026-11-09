@@ -52,6 +52,7 @@ export type AdminDay = {
   active: number; // users who came that day
   liveMatches: number; // matches of a managed club played live to their end
   simulatedMatches: number;
+  appLaunches: number; // the installed app's launches, once a session of it
   databaseBytes: number | null; // at the day's maintenance; null without one
   growth: number | null; // since the day before's; null without both
   purgedUsers: number; // anonymous users the purge deleted
@@ -250,6 +251,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
       active: activeByDay.get(day) ?? 0,
       liveMatches: stat?.liveMatches ?? 0,
       simulatedMatches: stat?.simulatedMatches ?? 0,
+      appLaunches: stat?.appLaunches ?? 0,
       databaseBytes: bytes,
       growth: bytes === null || before === null ? null : bytes - before,
       purgedUsers: stat?.purgedUsers ?? 0,
