@@ -30,7 +30,7 @@ if (AUTH_SECRET_TEST === undefined || AUTH_SECRET_TEST === "") {
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = `http://localhost:${PORT}`;
 
-// On GitHub (.github/workflows/ci.yml, nightly.yml), which sets CI: a failure is retried once and keeps its screenshot,
+// On GitHub (.github/workflows/ci.yml, weekly.yml), which sets CI: a failure is retried once and keeps its screenshot,
 // in an HTML report the workflow keeps as an artifact for 7 days.
 const CI = process.env.CI !== undefined && process.env.CI !== "";
 

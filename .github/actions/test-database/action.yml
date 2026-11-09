@@ -1,4 +1,4 @@
-# The test database of a job (ci.yml, nightly.yml): the job's PostgreSQL service, on localhost (the only host the code
+# The test database of a job (ci.yml, weekly.yml): the job's PostgreSQL service, on localhost (the only host the code
 # accepts outside Vercel, src/db/database-url.ts), migrated from zero and seeded as on a workstation (README,
 # « Développer en local »). .env.test is written from the workflow's fake values: Playwright and Vitest read the test
 # database there (playwright.config.ts, src/db/test-database.ts), and the job has no .env.

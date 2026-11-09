@@ -1,4 +1,4 @@
-# Chromium for the end-to-end tests (ci.yml, nightly.yml), their only browser (playwright.config.ts): from GitHub's cache
+# Chromium for the end-to-end tests (ci.yml, weekly.yml), their only browser (playwright.config.ts): from GitHub's cache
 # when this Playwright version already downloaded it, with the system libraries it needs on the runner.
 name: Playwright browsers
 description: Chromium from the cache of its Playwright version, and its system libraries

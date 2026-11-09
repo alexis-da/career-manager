@@ -1,4 +1,4 @@
-# The start of every test job (ci.yml, nightly.yml): Node at the version of package.json's engines, as on Vercel, the
+# The start of every test job (ci.yml, weekly.yml): Node at the version of package.json's engines, as on Vercel, the
 # locked dependencies from npm's cache, then the Prisma client (src/generated/prisma, never committed).
 name: Prepare
 description: Node, the locked dependencies (npm ci, from npm's cache) and the Prisma client

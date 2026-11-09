@@ -633,25 +633,29 @@ changement, une troisième à travers lui, un match en pause en direct ; `keepOt
 remet les buts comme avant `goalTimes`), et `event-cleanup.test.ts` pour les règles, les lots et la route ; un test ne
 nettoie jamais que ses propres parties (`saveIds`).
 
-**Filet de sécurité (chantier « filet », 09/11).** Deux workflows de tests sur GitHub. `ci.yml`, à chaque push (`main`
-et toute branche) et à chaque pull request : le job « Types, lint, Vitest » (`next typegen`, sans quoi un dépôt neuf n'a
-ni `PageProps` ni `LayoutProps`, puis `tsc`, lint, `npm run test`) et le job « E2E, quick selection »
-(`npm run test:e2e:quick`). `nightly.yml`, chaque nuit à 01:30 UTC et à la demande : toute la suite E2E et
-`npm run test:slow`. Chaque job tourne sur `ubuntu-24.04` (image fixée dans tous les workflows, jamais `ubuntu-latest`,
-qui change sans prévenir) et a son PostgreSQL 17 jetable (service du job, sur localhost, sans durabilité : `fsync`,
-`synchronous_commit` et `full_page_writes` à off), migré depuis zéro puis rempli par le seed (actions composites
-`.github/actions/prepare`, `test-database`, `playwright`, Chromium gardé en cache par version de Playwright). Ses valeurs,
-factices, sont écrites dans le workflow (`DATABASE_URL`, `DIRECT_URL`, `DATABASE_URL_TEST`, `AUTH_SECRET`), et `.env.test`
-en est tiré. **Rien n'y peut joindre Neon** : ces workflows ne lisent aucun secret, l'adresse de Neon n'existe que dans
-Vercel, et le garde-fou (`assertLocalDatabase`) refuse tout hôte autre que localhost sans `VERCEL=1` ni
-`ALLOW_REMOTE_DB=1`, qu'ils ne posent pas ; `src/db/connection-guard.test.ts` vérifie que chaque fichier qui ouvre une
-connexion appelle le garde-fou, et que ces workflows ne lisent ni secret ni base distante. Le dépôt est privé : chaque minute compte sur le quota du compte GitHub, que
-la maintenance partage. D'où la porte de chaque workflow (`gate`) : un push de branche sur le commit de tête de `main`
-(une mise en ligne pousse les deux) s'y arrête, `main` le teste ; une nuit sans nouveau commit sur `main` aussi. Un push
-plus récent sur une même branche annule le passage en cours, sauf sur `main`. Sur GitHub (`CI`), Playwright relance une
-fois un test en échec et garde sa capture dans un rapport HTML, artefact de 7 jours. Sauvegardes : instantané
-hebdomadaire programmé dans la console Neon, procédure de restauration dans `docs/restauration.md`, aucune copie des
-données hors de Neon.
+**Filet de sécurité (chantier « filet », 09/11).** Deux workflows de tests sur GitHub. `ci.yml`, à chaque push sur
+`main` et à chaque pull request (une branche sans pull request n'est pas testée), en un seul job, « Types, lint, Vitest,
+quick E2E » : `next typegen` (sans quoi un dépôt neuf n'a ni `PageProps` ni `LayoutProps`), `tsc`, lint,
+`npm run test`, puis `npm run test:e2e:quick` ; un second job installerait tout et remplirait une seconde base.
+`weekly.yml`, le dimanche à 01:30 UTC et à la demande : toute la suite E2E et `npm run test:slow`, deux jobs. Chaque job
+tourne sur `ubuntu-24.04` (image fixée dans tous les workflows, jamais `ubuntu-latest`, qui change sans prévenir) et a son
+PostgreSQL 17 jetable (service du job, sur localhost, sans durabilité : `fsync`, `synchronous_commit` et
+`full_page_writes` à off), migré depuis zéro puis rempli par le seed (actions composites `.github/actions/prepare`,
+`test-database`, `playwright`, Chromium gardé en cache par version de Playwright). Ses valeurs, factices, sont écrites
+dans le workflow (`DATABASE_URL`, `DIRECT_URL`, `DATABASE_URL_TEST`, `AUTH_SECRET`), et `.env.test` en est tiré. **Rien
+n'y peut joindre Neon** : ces workflows ne lisent aucun secret, l'adresse de Neon n'existe que dans Vercel, et le
+garde-fou (`assertLocalDatabase`) refuse tout hôte autre que localhost sans `VERCEL=1` ni `ALLOW_REMOTE_DB=1`, qu'ils ne
+posent pas ; `src/db/connection-guard.test.ts` vérifie que chaque fichier qui ouvre une connexion appelle le garde-fou,
+et que ces workflows ne lisent ni secret ni base distante. **Le dépôt est privé** : chaque minute compte sur le quota du
+compte GitHub (Free : 12 $ inclus, environ 2 000 minutes Linux), que la maintenance partage ; au-delà, sans budget, tous
+les workflows s'arrêtent jusqu'au mois suivant, purge et défi compris. Cible : moins de la moitié. D'où la porte de
+chaque workflow (`gate`) : `main` avancée en avance rapide sur la tête d'une pull request verte (le même commit) ne la
+reteste pas ; une semaine sans nouveau commit sur `main` ne lance rien. Un push plus récent sur une pull request annule
+son passage en cours. Estimation du 09/11 (mesures locales × 1,5 à 2 pour un runner à 2 vCPU) : environ 16 minutes par
+passage de la CI, 1 par porte, 53 par semaine testée ; avec 35 mises en ligne par mois, environ 890 minutes, 45 % du
+quota, maintenance comprise (65). Sur GitHub (`CI`), Playwright relance une fois un test en échec et garde sa capture
+dans un rapport HTML, artefact de 7 jours. Sauvegardes : instantané hebdomadaire programmé dans la console Neon,
+procédure de restauration dans `docs/restauration.md`, aucune copie des données hors de Neon.
 
 **Club.** Trois onglets, Club, Défi et Palmarès ; l'action de jeu de la colonne y est secondaire (`OWN_ORANGE_ACTION`). Club
 (`/club`) : pastille du manager (`club-manager`, saisons terminées + 1) ; finances en lecture seule (`getClubFinances`,
@@ -1071,7 +1075,7 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # seo.spec.ts : les pages publiques à leurs adresses dans les deux langues (titre, description,
                       # canonical, hreflang, image de partage), robots.txt, sitemap, llms.txt, JSON-LD de l'accueil,
                       # bandeau de langue et choix retenu, lecture de chaque page sans JavaScript
-.github/workflows/     # ci.yml : tests à chaque push et pull request ; nightly.yml : E2E complets et suite lente, 01:30 UTC ;
+.github/workflows/     # ci.yml : tests à chaque push sur main et pull request ; weekly.yml : E2E complets et suite lente, dimanche 01:30 UTC ;
                       # maintenance.yml : purge quotidienne, 04:17 UTC, puis nettoyage des événements ; challenge.yml : défi du lundi, 05:00 UTC
 .github/actions/       # étapes communes des tests : prepare (Node, npm ci, Prisma), test-database (base jetable), playwright
 docs/                 # design/ : cahiers des chantiers ; restauration.md : restaurer la base de production (Neon)

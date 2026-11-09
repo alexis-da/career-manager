@@ -1,7 +1,8 @@
-# The tests of every push, on main and on any branch, and of every pull request: types, lint, the unit and database
-# tests (Vitest), and a quick selection of the end-to-end tests (Playwright, npm run test:e2e:quick). The whole
-# end-to-end suite and the slow tests run every night (nightly.yml).
-# Each job has its own throwaway PostgreSQL (a service of the job, on localhost), migrated from zero and seeded. Every
+# The tests of every push on main and of every pull request: types, lint, the unit and database tests (Vitest), then a
+# quick selection of the end-to-end tests (Playwright, npm run test:e2e:quick), in one job: a second job would install
+# everything and seed a second database, minutes that count on the account's quota (the repository is private). The
+# whole end-to-end suite and the slow tests run once a week (weekly.yml).
+# The job has its own throwaway PostgreSQL (a service of the job, on localhost), migrated from zero and seeded. Every
 # value below is fake and written here: this workflow reads no secret of the repository (those of the maintenance are
 # for maintenance.yml and challenge.yml alone), Neon's address and password are nowhere in GitHub (only in Vercel's
 # settings), and the code refuses any database outside localhost (src/db/database-url.ts) unless VERCEL=1 or
@@ -10,14 +11,14 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  # A newer push to the same branch makes the older run pointless, except on main, where every push keeps its result.
+  # A newer push to a pull request makes its older run pointless; on main, every push keeps its result.
   group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
@@ -31,38 +32,40 @@ env:
 
 jobs:
   gate:
-    # A release pushes main and its branch on the same commit: main's run tests it, the branch's run stops here.
-    name: Already tested by main?
+    # main fast-forwarded to a pull request's head gets the very commit that request tested: it is not tested twice.
+    name: Already tested in its pull request?
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      actions: read
     outputs:
       run: ${{ steps.gate.outputs.run }}
     steps:
-      - name: Test unless the branch's commit is main's head
+      - name: Test unless this commit of main passed in a pull request
         id: gate
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
-          REF: ${{ github.ref }}
           SHA: ${{ github.sha }}
           REPOSITORY: ${{ github.repository }}
         run: |
-          if [ "$EVENT" = "push" ] && [ "$REF" != "refs/heads/main" ]; then
-            main=$(gh api "repos/$REPOSITORY/commits/main" --jq .sha || true)
-            if [ "$main" = "$SHA" ]; then
-              echo "::notice::$SHA is main's head: main's run tests it"
+          if [ "$EVENT" = "push" ]; then
+            tested=$(gh api "repos/$REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SHA&event=pull_request&status=success&per_page=1" \
+              --jq .total_count || echo 0)
+            if [ "$tested" != "0" ]; then
+              echo "::notice::$SHA already passed in its pull request: nothing more to test"
               echo "run=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           fi
           echo "run=true" >> "$GITHUB_OUTPUT"
 
-  checks:
-    name: Types, lint, Vitest
+  ci:
+    name: Types, lint, Vitest, quick E2E
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:17
@@ -91,33 +94,6 @@ jobs:
           postgres: ${{ job.services.postgres.id }}
       - name: Unit and database tests (Vitest)
         run: npm run test
-
-  e2e:
-    name: E2E, quick selection
-    needs: gate
-    if: needs.gate.outputs.run == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: latewinner_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready --username postgres --dbname latewinner_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-          --shm-size 256m
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/prepare
-      - uses: ./.github/actions/test-database
-        with:
-          postgres: ${{ job.services.postgres.id }}
       - uses: ./.github/actions/playwright
       - name: Quick end-to-end selection (Playwright)
         run: npm run test:e2e:quick

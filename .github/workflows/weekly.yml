@@ -1,19 +1,19 @@
-# Every night, and by hand (Actions → Nightly → Run workflow): the whole end-to-end suite (Playwright) and the slow
+# Every Sunday, and by hand (Actions → Weekly → Run workflow): the whole end-to-end suite (Playwright) and the slow
 # tests (Vitest, npm run test:slow), on main, each job with its own throwaway PostgreSQL, as in ci.yml, whose fake
-# values these are. A night without a new commit on main tests nothing new: the scheduled run stops at its gate when
+# values these are. A week without a new commit on main tests nothing new: the scheduled run stops at its gate when
 # main's head has already been through this workflow. A run by hand always tests.
-name: Nightly
+name: Weekly
 
 on:
   schedule:
-    - cron: "30 1 * * *" # 01:30 UTC, every night
+    - cron: "30 1 * * 0" # 01:30 UTC, every Sunday
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: nightly
+  group: weekly
   cancel-in-progress: false
 
 env:
@@ -26,7 +26,7 @@ env:
 
 jobs:
   gate:
-    name: New commit since the last night?
+    name: New commit on main since the last run?
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -44,10 +44,10 @@ jobs:
           RUN_ID: ${{ github.run_id }}
         run: |
           if [ "$EVENT" = "schedule" ]; then
-            tested=$(gh api "repos/$REPOSITORY/actions/workflows/nightly.yml/runs?head_sha=$SHA&status=completed&per_page=20" \
+            tested=$(gh api "repos/$REPOSITORY/actions/workflows/weekly.yml/runs?head_sha=$SHA&status=completed&per_page=20" \
               --jq "[.workflow_runs[] | select(.id != $RUN_ID) | select(.conclusion == \"success\" or .conclusion == \"failure\")] | length" || echo 0)
             if [ "$tested" != "0" ]; then
-              echo "::notice::main is still at $SHA, already through this workflow: nothing new to test tonight"
+              echo "::notice::main is still at $SHA, already through this workflow: nothing new to test this week"
               echo "run=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
@@ -87,7 +87,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-nightly-${{ github.run_attempt }}
+          name: playwright-weekly-${{ github.run_attempt }}
           path: |
             playwright-report/
             test-results/

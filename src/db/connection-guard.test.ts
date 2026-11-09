@@ -6,7 +6,7 @@ import { isLocalDatabase } from "./database-url";
 // Nothing run from the workstation or from GitHub's tests may reach Neon, which holds production alone and is reached
 // by Vercel only (CLAUDE.md, « Bases de données »). Two guarantees, kept by this file: every database connection the
 // code opens checks its URL first (assertLocalDatabase, src/db/database-url.ts, refusing any host but localhost outside
-// Vercel unless ALLOW_REMOTE_DB=1); and the test workflows (.github/workflows/ci.yml, nightly.yml) read no secret, give
+// Vercel unless ALLOW_REMOTE_DB=1); and the test workflows (.github/workflows/ci.yml, weekly.yml) read no secret, give
 // only local databases and never lift the guard.
 
 const SOURCE_ROOTS = ["app", "src", "e2e", "scripts", "prisma"];
@@ -26,7 +26,7 @@ function sourceFiles(root: string): string[] {
 /** The workflows that run the tests, and the steps they share. */
 const TEST_WORKFLOWS = [
   ".github/workflows/ci.yml",
-  ".github/workflows/nightly.yml",
+  ".github/workflows/weekly.yml",
   ".github/actions/prepare/action.yml",
   ".github/actions/test-database/action.yml",
   ".github/actions/playwright/action.yml",
@@ -54,7 +54,7 @@ describe("the connections to the database", () => {
       expect(text, workflow).not.toMatch(/ALLOW_REMOTE_DB|VERCEL/);
       expect(urls.filter((url) => !isLocalDatabase(url)), workflow).toEqual([]);
     }
-    // ci.yml and nightly.yml each give the three URLs of their jobs.
+    // ci.yml and weekly.yml each give the three URLs of their jobs.
     const workflowUrls = TEST_WORKFLOWS.slice(0, 2).flatMap(
       (workflow) => readFileSync(workflow, "utf8").match(/postgresql:\/\/[^\s"']+/g) ?? [],
     );
