@@ -29,6 +29,7 @@ import {
 } from "../_lib/live-pause";
 import { readAgain, withStep, type LiveData } from "../_lib/live-step";
 import { countFor } from "../_lib/match-stats";
+import { readStopRequest, stopRequestKey, subscribeToStopRequests, writeStopRequest } from "../_lib/stop-request";
 import { BreakCard } from "./break-card";
 import { ChoiceCard, type ChoiceCardDecision, type ChoiceThen } from "./choice-card";
 import { HalfTime } from "./half-time";
@@ -124,7 +125,12 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
   const [coachedAt, setCoachedAt] = useState<string | null>(null); // the break whose Coaching panel has been opened
   const [resumingAt, setResumingAt] = useState<string | null>(null); // the pause the match is going on from
   const [failedAt, setFailedAt] = useState<string | null>(null); // the pause whose next step failed: live-skip asks again
-  const [stopAt, setStopAt] = useState<string | null>(null); // the pause « Coaching » asked the match to stop at
+  // The pause « Coaching » asked the match to stop at, kept for the tab's session, so a reload stops there too: read once
+  // the page runs in the browser, undefined until then (the server has no session), when nothing is asked from a pause.
+  const stopKey = stopRequestKey(saveId, match.id);
+  const storedStop = useSyncExternalStore(subscribeToStopRequests, () => readStopRequest(stopKey), () => undefined);
+  const stopKnown = storedStop !== undefined;
+  const stopAt = storedStop ?? null;
   const [chosen, setChosen] = useState<Chosen | null>(null);
   const askedAt = useRef<string | null>(null); // the pause the next step was asked from: once per pause
   const resuming = useRef<string | null>(null); // the same, for a resume: one per pause, however fast the presses
@@ -188,7 +194,7 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
           if (result.ok) {
             if (resumed) {
               setSkipping(false);
-              setStopAt(null);
+              writeStopRequest(stopKey, null);
               setClock(at.minute);
             }
             onStep(result.step);
@@ -203,13 +209,14 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
           toast.error(isNewVersionError(error) ? tCommon("newVersion") : t("stepFailed"));
         },
       ),
-    [saveId, onStep, router, t, tCommon],
+    [saveId, stopKey, onStep, router, t, tCommon],
   );
 
   // The clock at a pause: where the manager acts, the card or the panel opens, which needs the team at the pause: without
-  // it, the match went on between the page's reads, which are read again. Anywhere else what follows is asked for, once.
+  // it, the match went on between the page's reads, which are read again. Anywhere else what follows is asked for, once,
+  // never before the stop asked for is read: after a reload, the clock is at the pause from the first render.
   useEffect(() => {
-    if (pause === null || !clockDone) {
+    if (pause === null || !clockDone || !stopKnown) {
       return;
     }
     const at = pauseKey(pause);
@@ -222,7 +229,14 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
       return;
     }
     void play(pause, NO_MOVE, until);
-  }, [pause, clockDone, stopsHere, team, failedAt, until, play, router]);
+  }, [pause, clockDone, stopKnown, stopsHere, team, failedAt, until, play, router]);
+
+  // A stop asked for at a pause the match has gone past (another tab, the end of the match): forgotten.
+  useEffect(() => {
+    if (stopAt !== null && stopAt !== key) {
+      writeStopRequest(stopKey, null);
+    }
+  }, [stopAt, key, stopKey]);
 
   // « live-skip » disappears with the final whistle: keep the keyboard focus on the next step.
   useEffect(() => {
@@ -235,7 +249,7 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
   const skip = () => {
     setSkipping(true);
     setFailedAt(null);
-    setStopAt(null);
+    writeStopRequest(stopKey, null);
   };
 
   /**
@@ -361,7 +375,7 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
             asked: stopAt !== null && stopAt === key,
             // At the pause, the step from it is being played: too late to stop there.
             busy: clockDone,
-            onToggle: () => setStopAt(stopAt === key ? null : key),
+            onToggle: () => writeStopRequest(stopKey, stopAt === key ? null : key),
           }}
           speed={speed}
           onSpeedChange={onSpeedChange}

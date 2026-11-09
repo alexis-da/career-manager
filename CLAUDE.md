@@ -440,7 +440,9 @@ mise à jour conditionnelle sur `liveState`, la reprise d'une pause déjà joué
 (`PauseMismatchError`) et rien n'est écrit deux fois. Le match s'arrête pour le joueur à la mi-temps, à la fin du temps
 réglementaire d'une coupe nulle, à un événement à choix et là où il l'a demandé : `live-coaching-request` (« Coaching à
 la 30e », l'orange de l'écran pendant que l'horloge court) l'arrête à la prochaine limite non jouée, 15', 30', 60', 75' ou
-105' ; « Coaching à la mi-temps », inactif, avant la 45e, où le match s'arrête de lui-même, et inactif dans le dernier
+105', et la demande survit à un rechargement : gardée pour la session de l'onglet (`stop-request.ts`,
+`lw_live_stop:<partie>:<match>`, la clé de la pause seule, déjà jouée, rien de la suite ; la mémoire de la page sans
+stockage), lue après l'hydratation (`useSyncExternalStore`), la page ne demandant aucune suite avant ; « Coaching à la mi-temps », inactif, avant la 45e, où le match s'arrête de lui-même, et inactif dans le dernier
 segment, qui sinon annoncerait un nul. `live-skip` (« Aller à la mi-temps », « Aller au résultat », secondaire, une icône
 sous 640 px) mène à la prochaine pause de jeu ou à la fin, l'adjoint décidant en chemin ; le mouvement réduit va d'un
 arrêt à l'autre d'un coup, événements compris (`stepUntil` : « segment », « pause », « break »). Le moteur n'a ni

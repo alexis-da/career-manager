@@ -155,7 +155,16 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await page.getByTestId("break-resume").click();
   await expect(request).toHaveText("Coaching à la 60e");
   await request.click();
+  await expect(request).toHaveAttribute("aria-pressed", "true");
+  // Kept for the tab's session, the pause's key alone, nothing of what follows: a reload, which replays the match from
+  // kick-off, stops there too.
+  const kept = await page.evaluate(() => Object.entries(sessionStorage).filter(([key]) => key.startsWith("lw_live_stop:")));
+  expect(kept.map(([, pause]) => pause)).toEqual(["IN_PLAY:60"]);
+  await page.reload();
+  await expect(request).toHaveText("Arrêt demandé · 60e");
+  await page.getByTestId("live-speed-4").click();
   await expect(page.getByTestId("half-time-title")).toHaveText("60e minute", { timeout: 30_000 });
+  await expect(page.getByTestId("live-score").locator("xpath=following-sibling::p")).toHaveText("60'");
   await page.getByTestId("half-time-resume-unchanged").click();
   await expect(panel).toBeHidden();
 
