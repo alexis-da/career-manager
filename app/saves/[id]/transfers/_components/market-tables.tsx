@@ -462,6 +462,7 @@ export function MovementsTable({ saveId, values, mine, list }: ListProps & { min
                   saveId={saveId}
                   values={values}
                   player={{ id: movement.playerSaveId, firstName: movement.firstName, lastName: movement.lastName }}
+                  face={{ playerKey: movement.playerKey, age: movement.age, clubColors: movement.clubColors }}
                 />
                 <TableCell className={cn(TABLE_CELL, "max-sm:col-start-1 max-sm:row-start-2 max-sm:px-0 max-sm:whitespace-normal")}>
                   {movement.fromClubName ?? <span className="text-muted-foreground">{t("free")}</span>}

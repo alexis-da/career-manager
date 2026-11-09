@@ -196,6 +196,18 @@ test("signs a proposal after a short confirmation, and nobody signed in this win
   await freeAgent.getByTestId("sign-free-agent").click();
   await page.getByTestId("sign-free-agent-dialog").getByTestId("confirm-signing").click();
   await expect(page.getByText(`${freeAgentName} : Contrat signé`, { exact: false })).toBeVisible();
+
+  // Both among the club's movements, each with his face, as in the other lists.
+  await page.getByTestId("market-tab-moves").click();
+  await page.getByTestId("movements-mine").click();
+  await expect(page).toHaveURL(/tab=moves.*mine=1|mine=1.*tab=moves/);
+  const moves = page.getByTestId("movements-table").locator("tbody tr");
+  for (const name of [playerName, freeAgentName]) {
+    const move = moves.filter({ has: page.getByText(name, { exact: true }) });
+    await expect(move).toHaveCount(1);
+    await expect(move.locator("td svg")).toHaveCount(1);
+  }
+  await expect(moves.locator("td svg")).toHaveCount(await moves.count());
   await expectNoResale(page, freeAgentName);
 
   // Neither is among the offers of « Vendre », in the eleven or out of it.

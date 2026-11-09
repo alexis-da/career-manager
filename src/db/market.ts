@@ -40,17 +40,23 @@ const countFreeAgents = cache(
 );
 
 /** Names of reference clubs by id; Club is world data, shared by every save. */
-async function clubNames(ids: readonly (string | null)[]): Promise<Map<string, string>> {
+/** A club as the market shows it: its name, and its colors, which dress a player's face. */
+type ClubLook = { name: string; colors: ClubColors };
+
+async function clubLooks(ids: readonly (string | null)[]): Promise<Map<string, ClubLook>> {
   const unique = [...new Set(ids)].filter((id): id is string => id !== null);
   if (unique.length === 0) {
     return new Map();
   }
-  const clubs = await prisma.club.findMany({ where: { id: { in: unique } }, select: { id: true, slug: true, name: true } });
-  return new Map(clubs.map((club) => [club.id, displayClubName(club)]));
+  const clubs = await prisma.club.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, slug: true, name: true, primaryColor: true, secondaryColor: true },
+  });
+  return new Map(clubs.map((club) => [club.id, { name: displayClubName(club), colors: clubColorsOf(club) }]));
 }
 
-const nameOf = (names: ReadonlyMap<string, string>, id: string | null | undefined): string | null =>
-  id === null || id === undefined ? null : (names.get(id) ?? null);
+const nameOf = (looks: ReadonlyMap<string, ClubLook>, id: string | null | undefined): string | null =>
+  id === null || id === undefined ? null : (looks.get(id)?.name ?? null);
 
 // ---------------------------------------------------------------- overview
 
@@ -148,7 +154,7 @@ export async function listFreeAgents(saveId: string, page: number): Promise<Pagi
       },
     },
   });
-  const names = await clubNames(players.flatMap((player) => player.transfers.map((transfer) => transfer.fromClubId)));
+  const names = await clubLooks(players.flatMap((player) => player.transfers.map((transfer) => transfer.fromClubId)));
 
   return {
     total,
@@ -401,9 +407,12 @@ export type MovementRow = {
   type: TransferKind;
   fee: number; // euros
   playerSaveId: string;
+  playerKey: string; // his face's
   firstName: string;
   lastName: string;
   position: Position;
+  age: number; // today, his face's as everywhere else
+  clubColors: ClubColors | null; // the club he joins, his face's shirt; none for a release or a retirement
   fromClubName: string | null; // null: a free agent signing
   toClubName: string | null; // null: a release or a retirement
   managedClubInvolved: boolean;
@@ -411,7 +420,7 @@ export type MovementRow = {
 
 /** Every transfer of the save, most recent first, one page at a time; only the managed club's when `mine`. */
 export async function listTransfers(saveId: string, options: { mine: boolean; page: number }): Promise<Paginated<MovementRow>> {
-  const club = await managedClub(saveId);
+  const [club, currentDate] = await Promise.all([managedClub(saveId), currentDateOf(saveId)]);
   const where: Prisma.TransferWhereInput = {
     saveId,
     ...(options.mine ? { OR: [{ fromClubId: club.clubId }, { toClubId: club.clubId }] } : {}),
@@ -431,10 +440,10 @@ export async function listTransfers(saveId: string, options: { mine: boolean; pa
       fee: true,
       fromClubId: true,
       toClubId: true,
-      playerSave: { select: { id: true, firstName: true, lastName: true, position: true } },
+      playerSave: { select: { id: true, playerKey: true, firstName: true, lastName: true, position: true, birthDate: true } },
     },
   });
-  const names = await clubNames(transfers.flatMap((transfer) => [transfer.fromClubId, transfer.toClubId]));
+  const looks = await clubLooks(transfers.flatMap((transfer) => [transfer.fromClubId, transfer.toClubId]));
 
   return {
     total,
@@ -446,11 +455,14 @@ export async function listTransfers(saveId: string, options: { mine: boolean; pa
       type: transfer.type,
       fee: transfer.fee,
       playerSaveId: transfer.playerSave.id,
+      playerKey: transfer.playerSave.playerKey,
       firstName: transfer.playerSave.firstName,
       lastName: transfer.playerSave.lastName,
       position: transfer.playerSave.position,
-      fromClubName: nameOf(names, transfer.fromClubId),
-      toClubName: nameOf(names, transfer.toClubId),
+      age: ageInYears(transfer.playerSave.birthDate, currentDate),
+      clubColors: transfer.toClubId === null ? null : (looks.get(transfer.toClubId)?.colors ?? null),
+      fromClubName: nameOf(looks, transfer.fromClubId),
+      toClubName: nameOf(looks, transfer.toClubId),
       managedClubInvolved: transfer.fromClubId === club.clubId || transfer.toClubId === club.clubId,
     })),
   };

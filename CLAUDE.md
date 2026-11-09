@@ -561,7 +561,8 @@ du plafond) et les trois façons d'en retrouver : vendre (vers l'onglet Vendre),
 « Signé ! ». Vendre : il n'y a pas d'offres reçues ni de bouton Refuser, rien à enregistrer : `getMarketSales`
 (`src/db/market-sales.ts`) liste les joueurs hors du onze, un titulaire blessé restant du onze, avec la meilleure offre
 IA de `quoteSquad` ; le compteur compte ces offres. Écran avancé (`/transfers/advanced`, liens « Marché complet » et
-« Détails du contrat · ajuster l'offre ») : filtres, joueurs libres, mouvements, fiche et dialogues de toujours ; un
+« Détails du contrat · ajuster l'offre ») : filtres, joueurs libres, mouvements (le visage du joueur comme dans les autres
+listes, aux couleurs du club qu'il rejoint, neutre pour une libération ou une retraite), fiche et dialogues de toujours ; un
 joueur qui refuserait le club pour sa réputation le dit dans la fiche et le dialogue, l'envoi désactivé. Un joueur arrivé
 au club dirigé pendant le mercato ouvert (ligne `Transfer` vers le club, `TRANSFER` ou `FREE`) ne se vend pas avant le
 suivant (`bought_this_window`, `transferWindowOpenDate`, `src/engine/world.ts`), première règle d'une vente ; puis,
