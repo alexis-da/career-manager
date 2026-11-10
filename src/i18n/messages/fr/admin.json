@@ -37,7 +37,7 @@
     "share": "{part} ({percent} %)",
     "percent": "{percent} %",
     "upkeep": "Lignes et entretien des plus grosses tables",
-    "upkeepNote": "Compteurs de PostgreSQL depuis le démarrage du serveur, le {since} UTC ; sur Neon, chaque démarrage du calcul les remet à zéro. Lignes vivantes, lignes mortes que VACUUM doit récupérer et leur part, mises à jour faites dans leur page sans nouvelle entrée d'index (HOT), dernier autovacuum et leur nombre, puis dernier autoanalyze.",
+    "upkeepNote": "Compteurs de PostgreSQL, gardés d'un démarrage du calcul de Neon à l'autre ; dernier démarrage du serveur le {since} UTC. Lignes vivantes, lignes mortes que VACUUM doit récupérer et leur part, mises à jour faites dans leur page sans nouvelle entrée d'index (HOT), dernier autovacuum et leur nombre, puis dernier autoanalyze.",
     "upkeepColumns": {
       "table": "Table",
       "live": "Vivantes",

@@ -34,7 +34,7 @@ export type AdminStats = {
   firstSteps: FirstStepsCohort[]; // the 14 complete days before today, oldest first
   databaseBytes: number;
   largestTables: RelationSize[]; // sizes, rows and upkeep of the largest tables
-  serverStartedAt: string; // ISO: the start of PostgreSQL's counters (on Neon, the compute's last start)
+  serverStartedAt: string; // ISO: the server's last start (on Neon, the compute's), which keeps the counters
 };
 
 export const STATS_DAYS = 14;

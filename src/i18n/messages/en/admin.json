@@ -37,7 +37,7 @@
     "share": "{part} ({percent}%)",
     "percent": "{percent}%",
     "upkeep": "Rows and upkeep of the largest tables",
-    "upkeepNote": "PostgreSQL's counters since the server started, on {since} UTC; on Neon, every start of the compute resets them. Live rows, dead rows VACUUM must reclaim and their share, updates made in their page without a new index entry (HOT), the last autovacuum and how many, then the last autoanalyze.",
+    "upkeepNote": "PostgreSQL's counters, kept from one start of Neon's compute to the next; the server last started on {since} UTC. Live rows, dead rows VACUUM must reclaim and their share, updates made in their page without a new index entry (HOT), the last autovacuum and how many, then the last autoanalyze.",
     "upkeepColumns": {
       "table": "Table",
       "live": "Live",

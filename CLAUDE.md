@@ -863,7 +863,7 @@ ailleurs : le menu du navigateur) ; dans l'appli installée, il le dit. Un lance
 `src/db/admin-dashboard.ts`), 404 pour tout autre comme `/admin/stats`, qui reste, à un lien (« Statistiques
 détaillées », et retour ; ses huit plus grosses tables avec leurs données et index, puis leurs lignes vivantes et mortes,
 la part des mises à jour HOT, le dernier autovacuum et leur nombre, le dernier autoanalyze, `relationSizes`, compteurs de
-PostgreSQL depuis le démarrage du serveur, `serverStartedAt`, que chaque démarrage du calcul de Neon remet à zéro) : sur 7 jours (`/admin`) ou 30 (`?days=30`), UTC, aujourd'hui compris. Acquisition (visites,
+PostgreSQL, que Neon garde d'un démarrage de son calcul à l'autre, et le dernier démarrage du serveur, `serverStartedAt`) : sur 7 jours (`/admin`) ou 30 (`?days=30`), UTC, aujourd'hui compris. Acquisition (visites,
 nouveaux joueurs par jour et par source, langue, appareil, sans compte ou Google), Parcours (par source : carrière, 1er
 match, fin de saison, en part des visites ; médiane de la création de la carrière à la fin du premier match), Rétention
 (J+1 et J+7 par jour de création et par source, sur les jours dont le retour est passé), Activité (joueurs actifs par jour

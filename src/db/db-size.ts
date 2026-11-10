@@ -11,7 +11,7 @@ export type RelationSize = {
   indexes: number;
   toast: number; // TOAST, free space and visibility maps
   total: number; // all of it: pg_total_relation_size
-  // PostgreSQL's counters (pg_stat_user_tables), since its server started: on Neon, since the compute last started.
+  // PostgreSQL's cumulative counters (pg_stat_user_tables): Neon keeps them across its compute's restarts (seen on 10/11).
   live: number; // live rows, estimated
   dead: number; // dead rows waiting for VACUUM
   updates: number; // rows updated
@@ -70,7 +70,7 @@ export async function databaseSize(db: Db): Promise<number> {
   return Number(size);
 }
 
-/** When the database's server started, ISO: PostgreSQL's counters start with it (on Neon, a compute's every start). */
+/** When the database's server last started, ISO: on Neon, the compute's last start, which keeps the counters. */
 export async function serverStartedAt(db: Db): Promise<string> {
   const [{ startedAt }] = await db.$queryRaw<{ startedAt: Date }[]>`SELECT pg_postmaster_start_time() AS "startedAt"`;
   return startedAt.toISOString();

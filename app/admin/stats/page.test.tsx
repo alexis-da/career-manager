@@ -107,7 +107,7 @@ describe("the administrator's statistics", () => {
     const fr = (await render("fr")).replace(/[  ]/g, " ");
     for (const text of [
       "Lignes et entretien des plus grosses tables",
-      "depuis le démarrage du serveur, le 26/10 22:05 UTC",
+      "dernier démarrage du serveur le 26/10 22:05 UTC",
       "750 000",
       "250 000",
       "25 %",
@@ -126,7 +126,7 @@ describe("the administrator's statistics", () => {
     const en = await render("en");
     for (const text of [
       "Rows and upkeep of the largest tables",
-      "since the server started, on 26/10 22:05 UTC",
+      "the server last started on 26/10 22:05 UTC",
       "750,000",
       "250,000",
       "25%",
