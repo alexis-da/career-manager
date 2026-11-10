@@ -1,6 +1,6 @@
 /**
  * Weight of a career, table by table (npm run measure:weight -- [--seasons=3] [--seed=S] [--club=slug] [--out=file]
- * [--keep] [--vacuum-every=N]): creates a worldVersion 2 save on the local database (the demo club and seed unless told otherwise, cups
+ * [--keep] [--vacuum-every=N] [--archive]): creates a worldVersion 2 save on the local database (the demo club and seed unless told otherwise, cups
  * as the game gives them) and plays N complete seasons (default 3), the assistant deciding everything, the managed
  * club's contracts included (assistantContracts), each followed by advanceToNextSeason. At the creation and after each
  * season's transition, it prints each table's rows, data, indexes and TOAST, the real size (pg_total_relation_size,
@@ -13,7 +13,10 @@
  * this script even with ALLOW_REMOTE_DB=1). --out writes the snapshots there as JSON, to compare two runs; --keep
  * keeps the save and its owner (deleted otherwise). --vacuum-every=N runs a VACUUM of the tables a season rewrites every N
  * matchdays, as autovacuum does on a server where players take their time; without it, each season is played at once,
- * as a « simulate to the end of the season » does, with no VACUUM until the snapshot.
+ * as a « simulate to the end of the season » does, with no VACUUM until the snapshot. --archive runs the « archive » task
+ * after each season's transition (src/db/season-archiving.ts: the completed seasons archived, then their rows deleted,
+ * without the delay of a production deletion), as the nightly maintenance would: the weight of a career once its
+ * completed seasons are archives.
  */
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
@@ -23,6 +26,7 @@ import { isLocalDatabase } from "../src/db/database-url";
 import { compactRelationSize, relationSizes } from "../src/db/db-size";
 import { createSave } from "../src/db/saves";
 import { advanceToNextSeason } from "../src/db/season";
+import { runArchivePass } from "../src/db/season-archiving";
 import { playNextMatchday } from "../src/db/matchday";
 import { DEMO_CLUB_SLUG, DEMO_SEED } from "../src/db/test-support";
 
@@ -61,8 +65,25 @@ function parseArgs(argv: readonly string[]) {
     club: value("club") ?? DEMO_CLUB_SLUG,
     out: value("out"),
     keep: argv.includes("--keep"),
+    archive: argv.includes("--archive"),
     vacuumEvery,
   };
+}
+
+/**
+ * The « archive » task on the save, as the nightly maintenance would run it once the season is advanced: its completed
+ * seasons archived, then their rows deleted, pass after pass, without the delay a production deletion waits.
+ */
+async function archiveSeasons(saveId: string): Promise<void> {
+  for (let pass = await runArchivePass(prisma, { mode: "delete", saveIds: [saveId], deleteAfterMs: 0 }); ; ) {
+    if (pass.mismatches > 0) {
+      throw new Error(`The archive left ${pass.mismatches} season(s) as rows`);
+    }
+    if (pass.pending + pass.deletableNow === 0) {
+      return;
+    }
+    pass = await runArchivePass(prisma, { mode: "delete", saveIds: [saveId], deleteAfterMs: 0 });
+  }
 }
 
 const mb = (bytes: number): string => (bytes / MB).toFixed(2);
@@ -226,7 +247,7 @@ function printGrowth(snapshots: readonly Snapshot[]): void {
 }
 
 async function main(): Promise<void> {
-  const { seasons, seed, club, out, keep, vacuumEvery } = parseArgs(process.argv.slice(2));
+  const { seasons, seed, club, out, keep, archive, vacuumEvery } = parseArgs(process.argv.slice(2));
   // The client already refuses any database but a local one, ALLOW_REMOTE_DB=1 aside: this script writes, so it refuses
   // even that.
   const url = process.env.DATABASE_URL ?? "";
@@ -237,7 +258,10 @@ async function main(): Promise<void> {
     throw new Error("This database already holds saves: run on a dedicated empty one (sizes would mix them)");
   }
   const vacuum = vacuumEvery === 0 ? "sans VACUUM pendant la saison" : `VACUUM toutes les ${vacuumEvery} journées`;
-  console.log(`# Poids d'une carrière : base ${new URL(url).pathname.slice(1)} (locale), graine ${seed}, club ${club}, ${seasons} saison(s), ${vacuum}`);
+  const archiving = archive ? ", saisons terminées archivées et leurs lignes supprimées après chaque passage" : "";
+  console.log(
+    `# Poids d'une carrière : base ${new URL(url).pathname.slice(1)} (locale), graine ${seed}, club ${club}, ${seasons} saison(s), ${vacuum}${archiving}`,
+  );
   const started = performance.now();
   await prisma.user.deleteMany({ where: { id: OWNER } });
   // Not simulation code: lastSeenAt is real time.
@@ -261,13 +285,16 @@ async function main(): Promise<void> {
       }
     }
     await advanceToNextSeason(saveId, { assistantContracts: true });
+    if (archive) {
+      await archiveSeasons(saveId);
+    }
     snapshots.push(await snapshot(saveId, `Après ${season} saison${season > 1 ? "s" : ""}`, season, started));
   }
   if (snapshots.length > 1) {
     printGrowth(snapshots);
   }
   if (out !== undefined) {
-    writeFileSync(out, `${JSON.stringify({ seed, club, seasons, vacuumEvery, snapshots }, null, 2)}\n`);
+    writeFileSync(out, `${JSON.stringify({ seed, club, seasons, vacuumEvery, archive, snapshots }, null, 2)}\n`);
     console.log(`\nRelevés écrits dans ${out}`);
   }
   if (!keep) {
