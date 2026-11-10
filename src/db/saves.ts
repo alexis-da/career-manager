@@ -173,7 +173,6 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
       const players = await tx.player.findMany({
         where: { OR: [{ initialClubId: null }, { initialClub: { competition: { tier: { in: tiers } } } }] },
         select: {
-          id: true,
           initialClubId: true,
           squadSlot: true,
           firstName: true,
@@ -233,7 +232,7 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
       timer.mark("clubs");
 
       const playerRows = players.map(
-        ({ id: playerId, initialClubId, squadSlot, ...identity }): Prisma.PlayerSaveCreateManyInput => {
+        ({ initialClubId, squadSlot, ...identity }): Prisma.PlayerSaveCreateManyInput => {
           const age = ageInYears(identity.birthDate, save.currentDate);
 
           if (initialClubId === null) {
@@ -242,7 +241,6 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
             const attributes = generateFreeAgentAttributes({ position: identity.position, age }, rng);
             return {
               saveId: save.id,
-              playerId,
               playerKey: freeAgentPlayerKey(squadSlot),
               ...identity,
               clubSaveId: null,
@@ -269,7 +267,6 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
           );
           return {
             saveId: save.id,
-            playerId,
             playerKey: worldPlayerKey(club.slug, squadSlot),
             ...identity,
             clubSaveId: getOrThrow(clubSaveIdByClubId, club.id, "club save"),

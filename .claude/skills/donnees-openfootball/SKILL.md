@@ -175,8 +175,9 @@ Le monde compte aussi 120 joueurs **sans club** au 1er juillet 2026 (`generateFr
 
 `createSave` copie l'identité de chaque `Player` dans son `PlayerSave` : `firstName`, `lastName`,
 `birthDate`, `nationality`, `position`, tous NOT NULL, plus `playerKey`. À partir de là, **le jeu ne lit
-jamais `Player` pour connaître un joueur** : `PlayerSave.playerId` est optionnel et ne sert qu'à tracer
-l'origine dans le monde du seed (null pour un jeune arrivé en cours de partie).
+jamais `Player` pour connaître un joueur**. `PlayerSave` ne garde aucune clé vers `Player` (la colonne `playerId` et
+son index unique sont partis le 10/11/2026, migration `…_drop_player_save_player_id`, faute de lecteur) : son origine
+dans le monde du seed se lit dans `playerKey`.
 
 - `playerKey` (`@@unique([saveId, playerKey])`) est la clé stable du joueur dans la partie :
   `slug du club initial#squadSlot` pour un joueur du monde (`worldPlayerKey`), `youth:année:club:rang` pour

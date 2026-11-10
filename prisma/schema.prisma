@@ -60,7 +60,6 @@ model Player {
   birthDate     DateTime
   nationality   String
   position      Position
-  playerSaves   PlayerSave[]
 
   @@unique([initialClubId, squadSlot])
 }
@@ -256,9 +255,9 @@ model PlayerSave {
   id                     String              @id @default(cuid())
   save                   Save                @relation(fields: [saveId], references: [id], onDelete: Cascade)
   saveId                 String
-  player                 Player?             @relation(fields: [playerId], references: [id], onDelete: Restrict)
-  playerId               String? // origine dans le monde du seed ; null pour un jeune arrivé en cours de partie
-  playerKey              String // clé stable dans la partie : "olympique-lyonnais#5", "youth:2027:olympique-lyonnais:1"
+  // clé stable dans la partie, qui dit aussi l'origine dans le monde du seed : "olympique-lyonnais#5" (Player du club
+  // initial et de son squadSlot), "free-agents#12" (vivier), "youth:2027:olympique-lyonnais:1" (jeune arrivé en cours de partie)
+  playerKey              String
   firstName              String // identité copiée depuis Player à la création de partie, ou tirée pour un jeune
   lastName               String
   birthDate              DateTime
@@ -296,7 +295,6 @@ model PlayerSave {
   relatedEvents          MatchEvent[]        @relation("MatchEventRelatedPlayer")
   decisions              MatchDecision[]
 
-  @@unique([saveId, playerId])
   @@unique([saveId, playerKey])
   @@index([saveId, clubSaveId, retired]) // les joueurs d'un club ; les joueurs libres sans les retraités (freeAgentWhere)
   @@index([clubSaveId]) // vérification NoAction de chaque ClubSave supprimé

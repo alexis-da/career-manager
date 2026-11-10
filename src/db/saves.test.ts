@@ -137,7 +137,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
         db.clubSave.count({ where: { saveId } }),
         db.clubSave.findMany({ where: { saveId, isManaged: true }, select: { club: { select: { slug: true } } } }),
         db.playerSave.count({ where: { saveId } }),
-        db.playerSave.count({ where: { saveId, playerId: null, playerKey: { startsWith: `youth:${WORLD_START_YEAR}:` } } }),
+        db.playerSave.count({ where: { saveId, playerKey: { startsWith: `youth:${WORLD_START_YEAR}:` } } }),
         db.season.findMany({ where: { saveId }, select: { startYear: true } }),
         db.fixture.count({ where: { saveId } }),
         db.club.groupBy({ by: ["competitionId"], where: { competition: { tier: 1 } }, _count: { _all: true } }),
@@ -161,16 +161,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
     );
   });
 
-  it("copies each world player's identity and key from Player, the free agent pool included", async () => {
+  it("copies each world player's identity from Player, found by his key, the free agent pool included", async () => {
     const [saveId] = saveIds;
+    // playerKey is the origin: « club slug#squadSlot », « free-agents#squadSlot » for the pool.
     const [row] = await database().$queryRaw<{ mismatches: number; copied: number }[]>`
       SELECT count(*)::int AS copied,
         count(*) FILTER (WHERE ps."firstName" <> p."firstName" OR ps."lastName" <> p."lastName"
-          OR ps."birthDate" <> p."birthDate" OR ps.nationality <> p.nationality OR ps.position <> p.position
-          OR ps."playerKey" <> coalesce(c.slug, 'free-agents') || '#' || p."squadSlot")::int AS mismatches
+          OR ps."birthDate" <> p."birthDate" OR ps.nationality <> p.nationality OR ps.position <> p.position)::int AS mismatches
       FROM "PlayerSave" ps
-      JOIN "Player" p ON p.id = ps."playerId"
-      LEFT JOIN "Club" c ON c.id = p."initialClubId"
+      JOIN ("Player" p LEFT JOIN "Club" c ON c.id = p."initialClubId")
+        ON ps."playerKey" = coalesce(c.slug, 'free-agents') || '#' || p."squadSlot"
       WHERE ps."saveId" = ${saveId}`;
     const [, , playerCount] = await countWorld([1]);
 
