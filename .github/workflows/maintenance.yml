@@ -12,6 +12,11 @@
 # The cleanup's mode: on a manual run, its « cleanup » input; on the daily run, the repository variable EVENT_CLEANUP
 # (Settings → Secrets and variables → Actions → Variables), « count » without it. count: one call with ?dryRun=1, which
 # deletes nothing; delete: calls until nothing is left, at most MAX_CALLS; skip: nothing. Every call shows in /admin.
+# Then the archive of the completed seasons (app/api/maintenance/archive/route.ts), off unless told: on a manual run,
+# its « archive » input; on the daily run, the repository variable SEASON_ARCHIVE, « skip » without it. count: one call
+# with ?dryRun=1, which writes nothing but its pass; archive: archives the completed seasons, deletes nothing, call after
+# call until none is left; delete: archives them, then deletes the rows of the seasons archived two minutes ago or more,
+# each compared with its archive first, batch after batch; skip: nothing. Every call shows in /admin, Santé.
 name: Maintenance
 
 on:
@@ -35,6 +40,15 @@ on:
           - delete
           - skip
         default: count
+      archive:
+        description: "Completed seasons: skip, count (dryRun, nothing written), archive them (nothing deleted), or archive then delete their checked rows by batches"
+        type: choice
+        options:
+          - skip
+          - count
+          - archive
+          - delete
+        default: skip
 
 permissions: {}
 
@@ -109,3 +123,42 @@ jobs:
           if [ "$MODE" = "delete" ]; then
             echo "::warning::$remaining rows still to clean up after $calls calls: the next run goes on"
           fi
+
+  archive:
+    needs: cleanup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Archive the completed seasons, counted, archived, or archived then pruned batch after batch
+        env:
+          MAINTENANCE_URL: ${{ secrets.MAINTENANCE_URL }}
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET }}
+          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.archive || vars.SEASON_ARCHIVE || 'skip' }}
+          MAX_CALLS: 30 # each call starts no season after 20 seconds
+        run: |
+          url="${MAINTENANCE_URL%/purge}/archive"
+          case "$MODE" in
+            skip) echo "Archive skipped"; exit 0 ;;
+            count) query="?dryRun=1"; calls=1 ;;
+            archive) query=""; calls="$MAX_CALLS" ;;
+            delete) query="?delete=1"; calls="$MAX_CALLS" ;;
+            *) echo "::error::Unknown archive mode « $MODE »: skip, count, archive or delete"; exit 1 ;;
+          esac
+          for call in $(seq 1 "$calls"); do
+            status=$(curl --silent --show-error --max-time 90 --output response.json --write-out "%{http_code}" --request POST --header "Authorization: Bearer ${MAINTENANCE_SECRET}" "${url}${query}")
+            echo "Call $call ($MODE): HTTP $status $(cat response.json)"
+            if [ "$status" != "200" ]; then
+              echo "::error::The archive answered HTTP $status"
+              exit 1
+            fi
+            if [ "$(jq -r '.mismatches' response.json)" != "0" ]; then
+              echo "::warning::Seasons left as rows, nothing of them deleted: see /admin, Santé"
+            fi
+            remaining=$(jq -r '.remaining' response.json)
+            progress=$(jq -r '.archived + .deletedSeasons' response.json)
+            # Nothing left, or nothing more this call could do (seasons archived too recently to delete, or left as rows).
+            if [ "$remaining" = "0" ] || [ "$progress" = "0" ]; then
+              exit 0
+            fi
+          done
+          echo "::warning::$remaining seasons still to archive or prune after $calls calls: the next run goes on"
