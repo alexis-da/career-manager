@@ -26,7 +26,7 @@ npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (créat
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
 npm run measure:seasons # budgets, plafonds, réputation (son étalement) et objectifs : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
-npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json ; base locale dédiée et vide)
+npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json, --archive : saisons terminées archivées ; base locale dédiée et vide)
 ```
 
 ## Règles non négociables
@@ -633,6 +633,42 @@ changement, une troisième à travers lui, un match en pause en direct ; `keepOt
 remet les buts comme avant `goalTimes`), et `event-cleanup.test.ts` pour les règles, les lots et la route ; un test ne
 nettoie jamais que ses propres parties (`saveIds`).
 
+**Archives des saisons terminées (chantier « archives », 10/11).** Les matchs et statistiques d'une saison terminée
+(`Season.completed`) sont gardés au format compact dans `SeasonArchive` (migration d'ajout `…_season_archives`, une ligne
+par saison, clé `seasonId`) : des tableaux d'entiers, un nombre fixe par match (`FIXTURE_FIELDS`, 14) et par ligne de
+statistiques (`STAT_FIELDS`, 8), un club ou un joueur par son rang dans une liste triée d'identifiants, les temps de buts
+à la suite, les consignes du club dirigé en JSON (`src/lib/season-archive.ts`, pur : `encodeSeason`, `decodeSeason`,
+`sameSeason`). Rien n'y est perdu de ce qu'un écran lit ; une valeur qu'il ne garderait pas exactement (une date à la
+seconde, un score négatif) est refusée, jamais arrondie ; les identifiants des lignes et les événements et décisions des
+matchs (cibles du nettoyage) ne sont pas gardés. **Dès qu'une saison a son archive, elle est lue à la place de ses
+lignes**, supprimées ou non (`src/db/season-archive.ts`) : reconstruction paresseuse du palmarès (`ensureSeasonResults`),
+vainqueur de la coupe du bilan (`getCupWinnerName`), forme récente de l'adversaire (`getOpponentPreview`, complétée par la
+saison d'avant), premiers pas (`managedMatchesPlayed`, par `SeasonArchive.managedPlayed`), bandeau de connexion
+(`hasPlayedMatch`), `/admin/stats` (`firstStepsByCohort`), classement d'une saison passée (`getStandings`) et nombre de
+clubs de la dotation de l'écran Club ; tout autre lecteur ne lit que des saisons en cours. Une tâche de la maintenance
+quotidienne, jamais une migration : `POST /api/maintenance/archive` (même secret et mêmes réponses 404 que la purge),
+`runArchivePass` (`src/db/season-archiving.ts`), trois modes : `?dryRun=1` compte ; sans paramètre, archive sans rien
+supprimer ; `?delete=1` archive, puis supprime les lignes des saisons archivées depuis au moins `ARCHIVE_DELETE_AFTER_MS`
+(2 minutes, plus que toute requête : aucune qui aurait lu une saison avant son archive ne la lit après), et avec elles
+les événements et décisions de leurs matchs (cascade). Chaque saison dans sa transaction, la partie verrouillée
+(`lockSave`) : le palmarès reconstruit d'abord, les lignes codées, décodées et comparées avant d'écrire l'archive, puis
+relues et comparées à elle avant d'être supprimées ; une saison impossible à garder exactement, ou dont les lignes ne
+sont plus celles de son archive, reste en lignes (un écart, `mismatches`), et les saisons suivantes de sa partie
+attendent : les saisons archivées sont toujours les plus anciennes. Parties de défi exclues (purgées après leur
+semaine). Par lots : aucune saison commencée après 20 s (`ARCHIVE_MAX_MS`), au plus `ARCHIVE_MAX_SEASONS` archivées et
+`ARCHIVE_MAX_ROWS` lignes supprimées par appel, chaque appel une ligne `ArchivePass` (même migration), que la section
+Santé de `/admin` montre (`admin-archive`). Le workflow `maintenance.yml` l'appelle après le nettoyage, **éteinte par
+défaut** : entrée `archive` d'un lancement à la main (`skip`, `count`, `archive`, `delete`), variable de dépôt
+`SEASON_ARCHIVE` pour le passage quotidien, `skip` sans elle ; il rappelle la route tant qu'elle a du travail, 30 appels
+au plus. Preuve qu'aucun écran ne bouge : `src/db/season-archive.slow.test.ts` (deux saisons d'une partie 2 avec coupes
+et deux dates d'une troisième, chaque écran relu avant, après le comptage, après l'archivage et après la suppression,
+puis les archives retirées : les écrans changent, la preuve verrait une suppression sans archive) ;
+`season-archiving.test.ts` pour les règles, l'écart, les lots et la route ; un test n'archive que ses propres parties
+(`saveIds`). Mesure : `npm run measure:weight -- --archive` (10/11, une partie 2 seule dans sa base : 6,2, 10,7, 12,8 et
+14,0 Mo réels à la création puis après 1, 2 et 3 saisons, au lieu de 7,0, 12,7, 17,3 et 21,8 avant le chantier ; 8,3 Mo
+de données vivantes après 3 saisons, environ 1,2 Mo de plus par saison au lieu de 4,5 ; la place des lignes supprimées
+reste dans les fichiers, et sert aux lignes suivantes, de toutes les parties).
+
 **Filet de sécurité (chantier « filet », 09/11).** Deux workflows de tests sur GitHub. `ci.yml`, à chaque push sur
 `main` et à chaque pull request (une branche sans pull request n'est pas testée), en un seul job, « Types, lint, Vitest,
 quick E2E » : `next typegen` (sans quoi un dépôt neuf n'a ni `PageProps` ni `LayoutProps`), `tsc`, lint,
@@ -890,10 +926,11 @@ d'environnement) : `MAX_SAVES_ANONYMOUS = 1`, `MAX_SAVES_REGISTERED = 3`, appliq
 parties de défi n'y comptent pas (`countOwnedSaves`, `challengeId` NULL). Un
 anonyme dont la partie a un match joué voit sur le tableau de bord un bandeau l'invitant à se connecter, masqué sept
 jours par le cookie `lw_banner_closed`. `/admin` et `/admin/stats` (`src/db/stats.ts`) sont réservées à `isAdmin(user)` et
-répondent 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (routes de purge, du défi et du
-nettoyage) ; secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml` ; l'adresse du nettoyage
-est celle de la purge, `…/cleanup` au lieu de `…/purge`) et variables de dépôt facultatives `EVENT_CLEANUP` (règle
-« Nettoyage des événements ») et `PURGE_ONE_DAY` (règle des 14 jours de la purge), `CHALLENGE_URL` et le même `MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à
+répondent 404 à tout autre, déconnecté compris. Variables propres : `MAINTENANCE_SECRET` (routes de purge, du défi, du
+nettoyage et de l'archivage) ; secrets GitHub `MAINTENANCE_URL` et `MAINTENANCE_SECRET` (workflow `maintenance.yml` ; les
+adresses du nettoyage et de l'archivage sont celle de la purge, `…/cleanup` et `…/archive` au lieu de `…/purge`) et
+variables de dépôt facultatives `EVENT_CLEANUP` (règle
+« Nettoyage des événements »), `SEASON_ARCHIVE` (règle « Archives des saisons terminées ») et `PURGE_ONE_DAY` (règle des 14 jours de la purge), `CHALLENGE_URL` et le même `MAINTENANCE_SECRET` (workflow `challenge.yml`, le lundi à
 05:00 UTC).
 
 **Langues : français et anglais.** Tout ce que voit un joueur existe dans les deux langues : pages publiques, écrans
@@ -1064,7 +1101,7 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # composants des anglaises
   privacy/            # page de confidentialité, publique, en français et en anglais ; à tenir à jour
                       # avec le code (_components/privacy-document.tsx : les deux versions, une date de mise à jour)
-  api/                # Auth.js, les routes de maintenance (purge, défi de la semaine, nettoyage des événements) et les erreurs des navigateurs
+  api/                # Auth.js, les routes de maintenance (purge, défi de la semaine, nettoyage des événements, archivage des saisons) et les erreurs des navigateurs
                       # (client-errors), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
                       # club (club/ : finances, réglages), début de saison (season-start/ : dotation, choix de
@@ -1092,7 +1129,8 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # canonical, hreflang, image de partage), robots.txt, sitemap, llms.txt, JSON-LD de l'accueil,
                       # bandeau de langue et choix retenu, lecture de chaque page sans JavaScript
 .github/workflows/     # ci.yml : tests à chaque push sur main et pull request ; weekly.yml : E2E complets et suite lente, dimanche 01:30 UTC ;
-                      # maintenance.yml : purge quotidienne, 04:17 UTC, puis nettoyage des événements ; challenge.yml : défi du lundi, 05:00 UTC
+                      # maintenance.yml : purge quotidienne, 04:17 UTC, puis nettoyage des événements et archivage des saisons
+                      # terminées (éteint par défaut) ; challenge.yml : défi du lundi, 05:00 UTC
 .github/actions/       # étapes communes des tests : prepare (Node, npm ci, Prisma), test-database (base jetable), playwright
 docs/                 # design/ : cahiers des chantiers ; restauration.md : restaurer la base de production (Neon)
 src/
@@ -1117,6 +1155,7 @@ prisma/
     data/             # calendriers OpenFootball (premières et deuxièmes divisions), club-colors.json, club-aliases-fallback.json
 scripts/              # measure-save-size.ts (npm run measure:size), measure-balance.ts (npm run measure:balance), measure-d2-balance.ts (npm run measure:divisions),
                       # measure-seasons.ts (npm run measure:seasons), measure-career-weight.ts (npm run measure:weight),
+                      # measure-career-countries.ts (npx tsx : le poids d'une carrière et ses écritures par pays),
                       # generate-reference-migration.ts
 ```
 

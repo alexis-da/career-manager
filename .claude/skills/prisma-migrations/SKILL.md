@@ -86,7 +86,10 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prism
 - `Save.ownerId` NULL = partie **héritée** (créée avant les propriétaires) : visible de personne, rattachée au
   compte administrateur à sa connexion Google. Une nouvelle partie a toujours un propriétaire.
 - Aucun code ne supprime un PlayerSave, un ClubSave ou une Season directement.
-  La seule suppression autorisée est celle d'un Save (ou de son User), qui cascade.
+  La seule suppression autorisée est celle d'un Save (ou de son User), qui cascade. Deux tâches de maintenance, décidées
+  par l'utilisateur, suppriment en plus des lignes que plus aucun écran ne lit : le nettoyage (`MatchEvent`,
+  `MatchDecision`, `src/db/event-cleanup.ts`) et l'archivage (`Fixture` et `PlayerSeasonStats` d'une saison terminée,
+  une fois gardés et vérifiés dans `SeasonArchive`, `src/db/season-archiving.ts`) ; aucune autre.
 - Exception : une table de partie qui référence `PlayerSave` (`MatchEvent`, `Transfer`) est en `Cascade`
   vers `PlayerSave`. PostgreSQL exécute chaque étape de la cascade depuis `Save` comme une instruction
   interne et vérifie `Restrict` **et même `NoAction`** à la fin de chacune : dès la suppression des
@@ -151,7 +154,9 @@ progressent, partent ou prennent leur retraite. Les saisons terminées avant cet
 `skipDuplicates`, deux requêtes simultanées n'en écrivent qu'une), puis ne les recalcule plus jamais.
 
 La reconstruction n'utilise que des données qui ne changent pas après la saison : `Fixture` (classement final),
-`PlayerSeasonStats` (note de saison, `seasonRating`, calculée des seules stats) et `Transfer` : le club d'un joueur à
+`PlayerSeasonStats` (note de saison, `seasonRating`, calculée des seules stats), ou leur archive une fois la saison
+archivée (`SeasonArchive`, CLAUDE.md « Archives des saisons terminées », que la tâche d'archivage fait précéder de la
+reconstruction), et `Transfer` : le club d'un joueur à
 la fin de la saison est celui que quitte son premier transfert daté après le 30 juin (`clubAtDate`,
 `src/engine/season-result.ts`), son club actuel sans transfert ultérieur. Tout changement de club doit donc rester
 enregistré dans `Transfer`. Seule approximation : `formation` est le dispositif actuel du club, pas celui de la saison.
