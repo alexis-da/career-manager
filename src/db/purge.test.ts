@@ -10,6 +10,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
   let db: typeof prismaClient | undefined;
   let purge: typeof import("./purge") | undefined;
   let route: typeof import("@/app/api/maintenance/purge/route") | undefined;
+  let demoUsers: string[] = [];
   // Real time, not simulation code: who goes depends on it, and a unique suffix keeps parallel runs apart.
   const now = new Date();
   const run = `${now.getTime()}`;
@@ -48,11 +49,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
   };
 
   beforeAll(async () => {
-    const [{ prisma }, purgeModule, routeModule] = await Promise.all([
+    const [{ prisma }, purgeModule, routeModule, support] = await Promise.all([
       import("./client"),
       import("./purge"),
       import("@/app/api/maintenance/purge/route"),
+      import("./test-support"),
     ]);
+    demoUsers = [support.DEMO_USER_ID, support.DEMO_V2_USER_ID];
     db = prisma;
     purge = purgeModule;
     route = routeModule;
@@ -84,6 +87,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     await db?.$disconnect();
   }, 120_000);
 
+  /**
+   * The demo users, made with the test database, are as old as it: in a rolled-back purge, their saves'
+   * whole seasons would go by cascade at every run, slowing the files that run alongside. Seen now, in the transaction only.
+   */
+  const keepDemoUsers = (tx: Pick<typeof prismaClient, "user">) =>
+    tx.user.updateMany({ where: { id: { in: demoUsers } }, data: { lastSeenAt: now } });
+
   const remaining = async (client: Pick<typeof prismaClient, "user">) =>
     (await client.user.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((user) => user.id).sort();
 
@@ -92,6 +102,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     await expect(
       db.$transaction(
         async (tx) => {
+          await keepDemoUsers(tx);
           // Batch after batch, as the workflow calls, until none remain.
           let inactive = 0;
           let empty = 0;
@@ -140,6 +151,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     await expect(
       db.$transaction(
         async (tx) => {
+          await keepDemoUsers(tx);
           let oneDay = 0;
           let oneDaySaves = 0;
           for (let call = 1; ; call++) {
@@ -199,6 +211,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("purge of anonymous user
     await expect(
       db.$transaction(
         async (tx) => {
+          await keepDemoUsers(tx);
           const before = await remaining(tx);
           // At least our two purgeable users: a batch of one leaves one at least.
           const result = await purge.purgeAnonymousUsers(tx, now, { dryRun: false, batchSize: 1 });
