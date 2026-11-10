@@ -2,6 +2,7 @@ import { displayClubName } from "../engine/club-name";
 import { competitionCountry, type Country } from "../i18n/countries";
 import { computeForm, computeStandings, type FormResult, type MatchScore, type StandingRow } from "../engine/standings";
 import { prisma } from "./client";
+import { clubOf, clubsOfSave, readArchivedSeason } from "./season-archive";
 
 export type ClubStandingRow = StandingRow & {
   clubName: string;
@@ -34,8 +35,36 @@ type SeasonScores = {
   scores: MatchScore[]; // its counted fixtures, in chronological order
 };
 
-async function readSeasonScores(saveId: string, seasonId: string, options: StandingsOptions = {}): Promise<SeasonScores> {
-  const fixtures = await prisma.fixture.findMany({
+type ScoreRow = {
+  id: string;
+  played: boolean;
+  scheduledAt: Date;
+  homeGoals: number | null;
+  awayGoals: number | null;
+  homeClubSave: { isManaged: boolean; club: { slug: string; name: string } };
+  awayClubSave: { isManaged: boolean; club: { slug: string; name: string } };
+};
+
+/** A season's fixtures, by date: from its archive once it has one (a completed season), from its rows otherwise. */
+async function seasonFixtures(saveId: string, seasonId: string): Promise<ScoreRow[]> {
+  const archived = await readArchivedSeason(prisma, saveId, seasonId);
+  if (archived !== null) {
+    const clubs = await clubsOfSave(
+      prisma,
+      saveId,
+      archived.fixtures.flatMap((fixture) => [fixture.homeClubSaveId, fixture.awayClubSaveId]),
+    );
+    return archived.fixtures.map((fixture, index) => ({
+      id: `${seasonId}#${index}`,
+      played: fixture.played,
+      scheduledAt: fixture.scheduledAt,
+      homeGoals: fixture.homeGoals,
+      awayGoals: fixture.awayGoals,
+      homeClubSave: clubOf(clubs, fixture.homeClubSaveId),
+      awayClubSave: clubOf(clubs, fixture.awayClubSaveId),
+    }));
+  }
+  return prisma.fixture.findMany({
     where: { saveId, seasonId },
     orderBy: { scheduledAt: "asc" },
     select: {
@@ -48,6 +77,10 @@ async function readSeasonScores(saveId: string, seasonId: string, options: Stand
       awayClubSave: STANDINGS_CLUB_SELECT,
     },
   });
+}
+
+async function readSeasonScores(saveId: string, seasonId: string, options: StandingsOptions = {}): Promise<SeasonScores> {
+  const fixtures = await seasonFixtures(saveId, seasonId);
   if (fixtures.length === 0) {
     throw new Error(`Season ${seasonId} of save ${saveId} has no fixture`);
   }

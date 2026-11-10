@@ -401,9 +401,15 @@ export async function countOwnedSaves(userId: string): Promise<number> {
   return prisma.save.count({ where: { ownerId: userId, challengeId: null } });
 }
 
-/** Whether a save has a match played: from then on, an anonymous player is asked to sign in. */
+/**
+ * Whether a save has a match played: from then on, an anonymous player is asked to sign in. An archived season (all its
+ * matches played) counts too, its rows deleted or not (src/db/season-archive.ts).
+ */
 export async function hasPlayedMatch(saveId: string): Promise<boolean> {
-  return (await prisma.fixture.findFirst({ where: { saveId, played: true }, select: { id: true } })) !== null;
+  return (
+    (await prisma.fixture.findFirst({ where: { saveId, played: true }, select: { id: true } })) !== null ||
+    (await prisma.seasonArchive.findFirst({ where: { saveId, fixtureCount: { gt: 0 } }, select: { seasonId: true } })) !== null
+  );
 }
 
 /** A save with its managed club, or null when it does not exist. */

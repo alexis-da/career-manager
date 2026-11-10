@@ -63,13 +63,20 @@ async function getLatestDotation(saveId: string): Promise<ClubDotation | null> {
   const { season, ...dotation } = row;
   const seasonId = season.id;
   const [clubCount, earlierSeasons] = await Promise.all([
-    // The clubs of its fixtures, exact for a past season too: a club promoted or relegated since has changed division.
-    prisma.clubSave.count({
-      where: {
-        saveId,
-        OR: [{ homeFixtures: { some: { saveId, seasonId } } }, { awayFixtures: { some: { saveId, seasonId } } }],
-      },
-    }),
+    // The clubs of its fixtures, exact for a past season too: a club promoted or relegated since has changed division. An
+    // archived season's from its archive (src/db/season-archive.ts), never its rows.
+    prisma.seasonArchive
+      .findFirst({ where: { saveId, seasonId }, select: { clubSaveIds: true } })
+      .then(
+        (archive) =>
+          archive?.clubSaveIds.length ??
+          prisma.clubSave.count({
+            where: {
+              saveId,
+              OR: [{ homeFixtures: { some: { saveId, seasonId } } }, { awayFixtures: { some: { saveId, seasonId } } }],
+            },
+          }),
+      ),
     prisma.season.count({ where: { saveId, completed: true, startYear: { lt: season.startYear } } }),
   ]);
   return {

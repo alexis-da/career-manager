@@ -14,8 +14,10 @@ import { seasonEndDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
 import { clubColorsOf, type ClubColors } from "../lib/color";
+import { getOrThrow } from "../lib/maps";
 import { prisma } from "./client";
 import type { SeasonMove } from "./promotion";
+import { clubOf, clubsOfSave, readArchivedSeason } from "./season-archive";
 
 type Db = Prisma.TransactionClient;
 
@@ -55,16 +57,73 @@ async function managedClubOf(db: Db, saveId: string): Promise<ManagedClub> {
 
 const RESULT_CLUB_SELECT = { select: { clubId: true, club: { select: { slug: true } } } } as const;
 
+const RESULT_PLAYER_SELECT = {
+  id: true,
+  playerKey: true,
+  firstName: true,
+  lastName: true,
+  position: true,
+  clubSave: { select: { clubId: true } },
+} as const;
+
+type ResultFixture = {
+  id: string;
+  played: boolean;
+  homeGoals: number | null;
+  awayGoals: number | null;
+  homeClubSave: { clubId: string; club: { slug: string } };
+  awayClubSave: { clubId: string; club: { slug: string } };
+};
+
+type ResultStats = {
+  appearances: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+  playerSave: { id: string; playerKey: string; firstName: string; lastName: string; position: Position; clubSave: { clubId: string } | null };
+};
+
 /**
- * The managed club's season, from the database as it stands: the final table from the season's fixtures, the
- * statistics of the players who were at the club at the end of the season (their club then is rebuilt from the
- * transfers dated after it, so it holds for a season long over), and the club's formation now. The season's clubs are
- * the ones of its fixtures, whatever their competition now. null when the club played none of them.
+ * A season's fixtures and statistics: from its archive once it has one (src/db/season-archive.ts), from its rows
+ * otherwise. One query after the other: in a transaction, its queries share its connection.
  */
-async function computeSeasonResult(db: Db, saveId: string, managed: ManagedClub, season: SeasonRef): Promise<SeasonResultData | null> {
-  // One after the other: in a transaction (recordSeasonResult), its queries share its connection.
+async function seasonRows(db: Db, saveId: string, seasonId: string): Promise<{ fixtures: ResultFixture[]; stats: ResultStats[] }> {
+  const archived = await readArchivedSeason(db, saveId, seasonId, { stats: true });
+  if (archived !== null) {
+    const clubs = await clubsOfSave(
+      db,
+      saveId,
+      archived.fixtures.flatMap((fixture) => [fixture.homeClubSaveId, fixture.awayClubSaveId]),
+    );
+    const players = await db.playerSave.findMany({
+      where: { saveId, id: { in: archived.stats.map((line) => line.playerSaveId) } },
+      select: RESULT_PLAYER_SELECT,
+    });
+    const playerById = new Map(players.map((player) => [player.id, player]));
+    return {
+      fixtures: archived.fixtures.map((fixture, index) => ({
+        id: `${seasonId}#${index}`,
+        played: fixture.played,
+        homeGoals: fixture.homeGoals,
+        awayGoals: fixture.awayGoals,
+        homeClubSave: clubOf(clubs, fixture.homeClubSaveId),
+        awayClubSave: clubOf(clubs, fixture.awayClubSaveId),
+      })),
+      stats: archived.stats.map(({ playerSaveId, appearances, minutes, goals, assists, yellowCards, redCards }) => ({
+        appearances,
+        minutes,
+        goals,
+        assists,
+        yellowCards,
+        redCards,
+        playerSave: getOrThrow(playerById, playerSaveId, "archived player"),
+      })),
+    };
+  }
   const fixtures = await db.fixture.findMany({
-    where: { saveId, seasonId: season.id },
+    where: { saveId, seasonId },
     select: {
       id: true,
       played: true,
@@ -75,7 +134,7 @@ async function computeSeasonResult(db: Db, saveId: string, managed: ManagedClub,
     },
   });
   const stats = await db.playerSeasonStats.findMany({
-    where: { saveId, seasonId: season.id },
+    where: { saveId, seasonId },
     select: {
       appearances: true,
       minutes: true,
@@ -83,18 +142,20 @@ async function computeSeasonResult(db: Db, saveId: string, managed: ManagedClub,
       assists: true,
       yellowCards: true,
       redCards: true,
-      playerSave: {
-        select: {
-          id: true,
-          playerKey: true,
-          firstName: true,
-          lastName: true,
-          position: true,
-          clubSave: { select: { clubId: true } },
-        },
-      },
+      playerSave: { select: RESULT_PLAYER_SELECT },
     },
   });
+  return { fixtures, stats };
+}
+
+/**
+ * The managed club's season, from the database as it stands: the final table from the season's fixtures, the
+ * statistics of the players who were at the club at the end of the season (their club then is rebuilt from the
+ * transfers dated after it, so it holds for a season long over), and the club's formation now. The season's clubs are
+ * the ones of its fixtures, whatever their competition now. null when the club played none of them.
+ */
+async function computeSeasonResult(db: Db, saveId: string, managed: ManagedClub, season: SeasonRef): Promise<SeasonResultData | null> {
+  const { fixtures, stats } = await seasonRows(db, saveId, season.id);
 
   const clubs = fixtures.flatMap(({ homeClubSave, awayClubSave }) => [homeClubSave, awayClubSave]);
   const managedSlug = clubs.find(({ clubId }) => clubId === managed.clubId)?.club.slug;
@@ -224,33 +285,35 @@ export async function recordSeasonResult(
 }
 
 /**
- * Lazy rebuilding: a season completed before SeasonResult existed has no row; it is computed from Fixture,
- * PlayerSeasonStats and Transfer, and inserted once. skipDuplicates: two requests at once insert it once. Returns the
- * managed club.
+ * Lazy rebuilding: a season completed before SeasonResult existed has no row; it is computed from its fixtures and
+ * statistics (its archive once it has one) and its transfers, and inserted once. skipDuplicates: two requests at once
+ * insert it once. The « archive » task calls it before archiving a save's seasons (src/db/season-archiving.ts), in its
+ * transaction. Returns the managed club.
  */
-async function ensureSeasonResults(saveId: string): Promise<ManagedClub> {
-  const managed = await managedClubOf(prisma, saveId);
+export async function ensureSeasonResults(db: Db, saveId: string): Promise<ManagedClub> {
+  const managed = await managedClubOf(db, saveId);
+  const involving = { OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }] };
   // The completed league seasons the club played, whichever division it was in then: a cup has no table.
-  const missing = await prisma.season.findMany({
+  const missing = await db.season.findMany({
     where: {
       saveId,
       completed: true,
       competition: { kind: "LEAGUE" },
       results: { none: { saveId } },
-      fixtures: { some: { saveId, OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }] } },
+      OR: [{ fixtures: { some: { saveId, ...involving } } }, { archive: { is: { clubSaveIds: { has: managed.id } } } }],
     },
     select: { id: true, startYear: true, competitionId: true },
   });
   const rows: Prisma.SeasonResultCreateManyInput[] = [];
   for (const season of missing) {
-    const result = await computeSeasonResult(prisma, saveId, managed, season);
+    const result = await computeSeasonResult(db, saveId, managed, season);
     if (result !== null) {
       // A rebuilt row has no move nor cup run: promoted and relegated stay false, cupRound null.
       rows.push(seasonResultRow(saveId, season, result, null, null));
     }
   }
   if (rows.length > 0) {
-    await prisma.seasonResult.createMany({ data: rows, skipDuplicates: true });
+    await db.seasonResult.createMany({ data: rows, skipDuplicates: true });
   }
   return managed;
 }
@@ -296,7 +359,7 @@ export type SeasonResults = {
  * rebuilt and inserted first.
  */
 export async function getSeasonResults(saveId: string, seasonId?: string): Promise<SeasonResults> {
-  const managed = await ensureSeasonResults(saveId);
+  const managed = await ensureSeasonResults(prisma, saveId);
   const rows = await prisma.seasonResult.findMany({
     where: { saveId, ...(seasonId === undefined ? {} : { seasonId }) },
     orderBy: { season: { startYear: "desc" } },

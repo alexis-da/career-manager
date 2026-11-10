@@ -51,8 +51,8 @@ model Club {
 // seed avec une graine fixe. L'identité est copiée dans PlayerSave à la création de partie : le jeu ne lit jamais
 // Player pour connaître un joueur. Sans club initial, le joueur fait partie du vivier de joueurs libres ; PostgreSQL ne compare pas les NULL dans l'unicité : le seed garantit celle du vivier.
 model Player {
-  id            String       @id @default(cuid())
-  initialClub   Club?        @relation(fields: [initialClubId], references: [id], onDelete: Restrict)
+  id            String   @id @default(cuid())
+  initialClub   Club?    @relation(fields: [initialClubId], references: [id], onDelete: Restrict)
   initialClubId String? // club dans le monde du seed, null = vivier de joueurs libres ; le club en cours de partie est porté par PlayerSave
   squadSlot     Int // 1–23 dans un club, 1–120 dans le vivier : avec initialClubId, identité stable (clé du seed et des graines d'attributs)
   firstName     String
@@ -202,6 +202,7 @@ model Save {
   seasonBudgets  SeasonBudget[]
   objectives     SeasonObjective[]
   challengeEntry ChallengeEntry?
+  seasonArchives SeasonArchive[]
 
   @@index([ownerId])
   @@index([challengeId])
@@ -221,8 +222,55 @@ model Season {
   results       SeasonResult[] // au plus une : @@unique([saveId, seasonId])
   budget        SeasonBudget? // la dotation du club dirigé, sur sa saison de championnat
   objectives    SeasonObjective[] // les objectifs du club dirigé, sur sa saison de championnat
+  archive       SeasonArchive? // ses matchs et statistiques au format compact, une fois terminée et archivée
 
   @@unique([saveId, competitionId, startYear]) // sert aussi les lectures et la cascade par saveId
+}
+
+// Les matchs et les statistiques d'une saison terminée, au format compact (chantier « archives », 10/11) : écrite par la
+// tâche de maintenance « archive » (src/db/season-archiving.ts), lue dès qu'elle existe à la place des lignes Fixture et
+// PlayerSeasonStats de sa saison (src/db/season-archive.ts), que la même tâche supprime ensuite, par lots, après les
+// avoir comparées à l'archive. Tableaux d'entiers de longueur fixe par ligne, codés et décodés par
+// src/lib/season-archive.ts. Les identifiants des lignes et les événements et décisions des matchs (MatchEvent,
+// MatchDecision, cibles du nettoyage, que plus aucun écran ne lit pour une saison terminée) ne sont pas gardés.
+model SeasonArchive {
+  season        Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId      String   @id
+  save          Save     @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId        String
+  version       Int // format du codage (SEASON_ARCHIVE_VERSION)
+  clubSaveIds   String[] // les clubs de ses matchs, triés : leur index dans cette liste code un club
+  fixtures      Int[] // FIXTURE_FIELDS entiers par match, dans l'ordre (date, tour, domicile, extérieur)
+  goalTimes     Int[] // les temps de buts de ses matchs (Fixture.goalTimes), à la suite, dans le même ordre
+  instructions  Json? // les consignes des matchs du club dirigé, [index du match, Fixture.instructions] ; null sans aucune
+  playerSaveIds String[] // les joueurs de ses statistiques, triés : leur index code un joueur
+  stats         Int[] // STAT_FIELDS entiers par ligne de statistiques, dans l'ordre des joueurs
+  fixtureCount  Int
+  statCount     Int
+  managedPlayed Int // matchs joués du club dirigé dans la saison : premiers pas, /admin/stats
+  createdAt     DateTime @default(now()) // à l'horloge de la base : ses lignes ne sont supprimées qu'ARCHIVE_DELETE_AFTER_MS après
+
+  @@index([saveId])
+}
+
+// Les passages de la tâche « archive » (src/db/season-archiving.ts), un par appel de POST /api/maintenance/archive : un
+// comptage, un archivage sans suppression, ou un archivage suivi de la suppression des lignes archivées, par lots. Sans
+// donnée de joueur ni de partie ; lus par la section Santé de /admin.
+model ArchivePass {
+  id               String          @id @default(cuid())
+  at               DateTime        @default(now()) // à l'horloge de la base
+  mode             ArchivePassMode
+  seasonsArchived  Int // saisons archivées par ce passage
+  seasonsPending   Int // saisons terminées encore sans archive après lui (parties de défi exclues)
+  seasonsDeleted   Int // saisons dont il a supprimé les lignes
+  fixturesDeleted  Int
+  statsDeleted     Int
+  seasonsDeletable Int // saisons archivées dont des lignes restent après lui
+  rowsRemaining    Int // ces lignes, matchs et statistiques
+  mismatches       Int // saisons laissées en lignes : impossibles à coder, ou différentes de leur archive ; jamais supprimées
+  milliseconds     Int // durée du passage, comptage compris
+
+  @@index([at])
 }
 
 model ClubSave {
@@ -640,6 +688,13 @@ enum DecidedBy {
   REGULATION
   EXTRA_TIME
   PENALTIES
+}
+
+// Ce que fait un passage de la tâche « archive » (ArchivePass).
+enum ArchivePassMode {
+  COUNT // compte, n'écrit rien d'autre que son passage
+  ARCHIVE // archive les saisons terminées, ne supprime rien
+  DELETE // archive, puis supprime les lignes des saisons archivées identiques à leur archive
 }
 
 enum MatchSide {

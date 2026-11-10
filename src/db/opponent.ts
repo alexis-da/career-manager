@@ -11,6 +11,7 @@ import { prisma } from "./client";
 import { DISCIPLINE_SELECT } from "./discipline-view";
 import { getManagedLineup, type LineupPlayer } from "./lineup";
 import { fitnessAtKickOff } from "./fitness-view";
+import { archivedSeasonIds, clubOf, clubsOfSave, readArchivedSeasonsOfClub } from "./season-archive";
 
 /** Results shown in the opponent's recent form. */
 export const OPPONENT_FORM_LENGTH = 5;
@@ -36,6 +37,67 @@ export type OpponentPreview = {
   recent: OpponentResult[]; // his last played matches, most recent first, whatever the season
   topScorer: { name: string; goals: number } | null; // in his squad, this season
 };
+
+type RecentRow = {
+  scheduledAt: Date;
+  homeClubSaveId: string;
+  homeGoals: number | null;
+  awayGoals: number | null;
+  homeClubSave: { club: { slug: string; name: string } };
+  awayClubSave: { club: { slug: string; name: string } };
+};
+
+/**
+ * A club's last played matches, most recent first, whatever the season: the rows of the seasons not archived, merged by
+ * date with its matches of the archived seasons (src/db/season-archive.ts), at the start of a season the end of the one
+ * before, unless those rows are OPPONENT_FORM_LENGTH matches of seasons in progress: every match of a completed season,
+ * archived or not, was played before them.
+ */
+async function recentResults(
+  saveId: string,
+  clubSaveId: string,
+  rows: readonly (RecentRow & { season: { completed: boolean } })[],
+  anyArchived: boolean,
+): Promise<OpponentResult[]> {
+  const fromRow = (fixture: RecentRow): OpponentResult => {
+    const home = fixture.homeClubSaveId === clubSaveId;
+    return {
+      date: fixture.scheduledAt,
+      againstName: displayClubName((home ? fixture.awayClubSave : fixture.homeClubSave).club),
+      atHome: home,
+      scored: (home ? fixture.homeGoals : fixture.awayGoals) ?? 0,
+      conceded: (home ? fixture.awayGoals : fixture.homeGoals) ?? 0,
+    };
+  };
+  if (!anyArchived || (rows.length >= OPPONENT_FORM_LENGTH && rows.every((row) => !row.season.completed))) {
+    return rows.map(fromRow);
+  }
+  // A club plays once a date at most: the most recent first, by date alone.
+  const archived = (await readArchivedSeasonsOfClub(prisma, saveId, clubSaveId))
+    .flatMap(({ season }) => season.fixtures)
+    .filter((fixture) => fixture.played && (fixture.homeClubSaveId === clubSaveId || fixture.awayClubSaveId === clubSaveId))
+    .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())
+    .slice(0, OPPONENT_FORM_LENGTH);
+  const clubs = await clubsOfSave(
+    prisma,
+    saveId,
+    archived.flatMap((fixture) => [fixture.homeClubSaveId, fixture.awayClubSaveId]),
+  );
+  const fromArchive = archived.map(
+    (fixture): RecentRow => ({
+      scheduledAt: fixture.scheduledAt,
+      homeClubSaveId: fixture.homeClubSaveId,
+      homeGoals: fixture.homeGoals,
+      awayGoals: fixture.awayGoals,
+      homeClubSave: clubOf(clubs, fixture.homeClubSaveId),
+      awayClubSave: clubOf(clubs, fixture.awayClubSaveId),
+    }),
+  );
+  return [...rows, ...fromArchive]
+    .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())
+    .slice(0, OPPONENT_FORM_LENGTH)
+    .map(fromRow);
+}
 
 /**
  * The managed club's next opponent, or the opponent of one of its unplayed fixtures, as he will likely line up: the
@@ -69,6 +131,8 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
   const atHome = next.homeClubSaveId === managed.id;
   const opponentId = atHome ? next.awayClubSaveId : next.homeClubSaveId;
   const matchDate = next.scheduledAt;
+  // An archived season is read from its archive (recentResults), never from the rows it may still have.
+  const archived = await archivedSeasonIds(prisma, saveId);
 
   const [opponent, rows, recentRows, scorer, managedLineup] = await Promise.all([
     prisma.clubSave.findFirstOrThrow({
@@ -103,7 +167,12 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
       },
     }),
     prisma.fixture.findMany({
-      where: { saveId, played: true, OR: [{ homeClubSaveId: opponentId }, { awayClubSaveId: opponentId }] },
+      where: {
+        saveId,
+        played: true,
+        OR: [{ homeClubSaveId: opponentId }, { awayClubSaveId: opponentId }],
+        ...(archived.length === 0 ? {} : { seasonId: { notIn: archived } }),
+      },
       orderBy: { scheduledAt: "desc" },
       take: OPPONENT_FORM_LENGTH,
       select: {
@@ -113,6 +182,7 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
         awayGoals: true,
         homeClubSave: { select: { club: { select: { slug: true, name: true } } } },
         awayClubSave: { select: { club: { select: { slug: true, name: true } } } },
+        season: { select: { completed: true } },
       },
     }),
     prisma.playerSeasonStats.findFirst({
@@ -170,16 +240,7 @@ export async function getOpponentPreview(saveId: string, fixtureId?: string): Pr
     averageRating: averageStarterRating(lineup),
     strength: formationStrength(lineup, formation),
     managedAverageRating: averageStarterRating(managedLineup.lineup),
-    recent: recentRows.map((fixture) => {
-      const home = fixture.homeClubSaveId === opponentId;
-      return {
-        date: fixture.scheduledAt,
-        againstName: displayClubName((home ? fixture.awayClubSave : fixture.homeClubSave).club),
-        atHome: home,
-        scored: (home ? fixture.homeGoals : fixture.awayGoals) ?? 0,
-        conceded: (home ? fixture.awayGoals : fixture.homeGoals) ?? 0,
-      };
-    }),
+    recent: await recentResults(saveId, opponentId, recentRows, archived.length > 0),
     topScorer:
       scorer === null
         ? null

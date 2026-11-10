@@ -92,8 +92,9 @@ export async function retentionByCohort(db: Db, { first, last, now }: { first: s
 
 /**
  * How far the saves of each creation day went, from first to last (UTC days, both included): their managed club's own
- * matches, never those of the other clubs a « Prochain match » plays around them. Challenge saves are left out: their
- * club is imposed and they are purged every week. Every day of the range has its row, empty ones included.
+ * matches, never those of the other clubs a « Prochain match » plays around them, an archived season's from its archive
+ * (SeasonArchive.managedPlayed), never its rows. Challenge saves are left out: their club is imposed and they are purged
+ * every week. Every day of the range has its row, empty ones included.
  */
 export async function firstStepsByCohort(db: Db, { first, last }: { first: string; last: string }): Promise<FirstStepsCohort[]> {
   const rows = await db.$queryRaw<{ day: Date; saves: bigint; lineups: bigint; firstMatches: bigint; tenMatches: bigint }[]>`
@@ -105,9 +106,14 @@ export async function firstStepsByCohort(db: Db, { first, last }: { first: strin
     FROM "Save" s
     JOIN "ClubSave" c ON c."saveId" = s."id" AND c."isManaged"
     CROSS JOIN LATERAL (
-      SELECT count(*) AS "played"
-      FROM "Fixture" f
-      WHERE f."saveId" = s."id" AND f."played" AND (f."homeClubSaveId" = c."id" OR f."awayClubSaveId" = c."id")
+      SELECT (
+        SELECT count(*)
+        FROM "Fixture" f
+        WHERE f."saveId" = s."id" AND f."played" AND (f."homeClubSaveId" = c."id" OR f."awayClubSaveId" = c."id")
+          AND NOT EXISTS (SELECT 1 FROM "SeasonArchive" a WHERE a."seasonId" = f."seasonId")
+      ) + (
+        SELECT coalesce(sum(a."managedPlayed"), 0) FROM "SeasonArchive" a WHERE a."saveId" = s."id"
+      ) AS "played"
     ) m
     WHERE s."challengeId" IS NULL AND s."createdAt" >= ${first}::date AND s."createdAt" < ${last}::date + 1
     GROUP BY 1`;
