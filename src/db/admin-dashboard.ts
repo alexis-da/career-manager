@@ -1,8 +1,9 @@
-import type { PrismaClient } from "../generated/prisma/client";
+import type { ArchivePassMode, PrismaClient } from "../generated/prisma/client";
 import { MAX_CHALLENGE_SAVES_PER_WEEK } from "../config/challenge";
 import { isoWeekKey } from "../lib/iso-week";
 import { databaseSize } from "./db-size";
 import type { EventCleanupCounts } from "./event-cleanup";
+import type { ArchiveMode } from "./season-archiving";
 import { daysBetween } from "./stats";
 import { utcDayOf } from "./user-days";
 
@@ -83,6 +84,7 @@ export type AdminDashboard = {
   challenge: { weekKey: string; saves: number; entries: number; submitted: number; maxSaves: number } | null;
   health: StorageHealth & {
     cleanup: CleanupPassView[]; // the event cleanup's passes of the period, the latest first, CLEANUP_PASSES_SHOWN at most
+    archive: ArchivePassView[]; // the « archive » task's passes of the period, the latest first, CLEANUP_PASSES_SHOWN at most
   };
 };
 
@@ -148,6 +150,25 @@ export type CleanupPassView = {
   milliseconds: number;
 };
 
+/**
+ * A pass of the « archive » task (src/db/season-archiving.ts): a count, an archiving or a deletion, what it did, and what
+ * was left after it.
+ */
+export type ArchivePassView = {
+  at: string; // ISO, UTC
+  mode: ArchiveMode;
+  archived: number; // seasons archived
+  deletedSeasons: number; // seasons whose rows it deleted
+  deletedRows: number; // those rows, fixtures and statistics
+  mismatches: number; // seasons left as rows: impossible to archive exactly, or unlike their archive
+  pending: number; // completed seasons without an archive after it
+  deletable: number; // archived seasons whose rows remain after it
+  rowsRemaining: number; // the rows of completed seasons still in the tables, archived or not
+  milliseconds: number;
+};
+
+const ARCHIVE_MODE_OF = { COUNT: "count", ARCHIVE: "archive", DELETE: "delete" } as const satisfies Record<ArchivePassMode, ArchiveMode>;
+
 const addDays = (day: string, days: number): string => utcDayOf(new Date(Date.parse(`${day}T00:00:00.000Z`) + days * DAY_MS));
 const dateOf = (day: string): Date => new Date(`${day}T00:00:00.000Z`);
 const emptyShare = (): Share => ({ part: 0, whole: 0 });
@@ -178,7 +199,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
 
   const growthFrom = addDays(last, -GROWTH_DAYS);
 
-  const [groups, medians, visits, [{ trackedSince }], [{ daysTrackedSince }], active, stats, challenge, bytesNow, passes, newPlayers] = await Promise.all([
+  const [groups, medians, visits, [{ trackedSince }], [{ daysTrackedSince }], active, stats, challenge, bytesNow, passes, archivePasses, newPlayers] = await Promise.all([
     db.$queryRaw<PlayerGroup[]>`
       SELECT u."createdAt"::date AS day,
              coalesce(u."source", ${UNKNOWN_SOURCE}) AS source,
@@ -231,6 +252,11 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
     }),
     databaseSize(db),
     db.cleanupPass.findMany({
+      where: { at: { gte: dateOf(first), lt: dateOf(end) } },
+      orderBy: { at: "desc" },
+      take: CLEANUP_PASSES_SHOWN,
+    }),
+    db.archivePass.findMany({
       where: { at: { gte: dateOf(first), lt: dateOf(end) } },
       orderBy: { at: "desc" },
       take: CLEANUP_PASSES_SHOWN,
@@ -385,6 +411,18 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
         dryRun: pass.dryRun,
         deleted: { otherGoals: pass.otherGoalsDeleted, managedEvents: pass.managedEventsDeleted, decisions: pass.decisionsDeleted },
         remaining: { otherGoals: pass.otherGoalsRemaining, managedEvents: pass.managedEventsRemaining, decisions: pass.decisionsRemaining },
+        milliseconds: pass.milliseconds,
+      })),
+      archive: archivePasses.map((pass) => ({
+        at: pass.at.toISOString(),
+        mode: ARCHIVE_MODE_OF[pass.mode],
+        archived: pass.seasonsArchived,
+        deletedSeasons: pass.seasonsDeleted,
+        deletedRows: pass.fixturesDeleted + pass.statsDeleted,
+        mismatches: pass.mismatches,
+        pending: pass.seasonsPending,
+        deletable: pass.seasonsDeletable,
+        rowsRemaining: pass.rowsRemaining,
         milliseconds: pass.milliseconds,
       })),
     },

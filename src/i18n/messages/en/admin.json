@@ -199,6 +199,27 @@
         "remaining": "Left",
         "duration": "Time"
       }
+    },
+    "archive": {
+      "title": "Archives of finished seasons",
+      "note": "The matches and statistics of finished seasons kept in a compact form, which the screens read as soon as it exists; their rows are then deleted, by batches, once compared with the archive. One pass per maintenance call; a count writes nothing, an archiving deletes nothing. Challenge careers left out.",
+      "none": "No archive pass over the period.",
+      "latest": "Left after the latest pass: {pending, plural, =0 {no season} one {# season} other {# seasons}} to archive, {deletable, plural, =0 {no archived season} one {# archived season} other {# archived seasons}} whose rows remain, {rows, plural, =0 {no row} one {# row} other {# rows}} of finished seasons.",
+      "mismatches": "{count, plural, one {# season left} other {# seasons left}} as rows by the latest pass: impossible to archive exactly, or unlike its archive. Nothing of it was deleted.",
+      "mismatchShare": "{count, plural, one {# mismatch} other {# mismatches}}",
+      "seasons": "{count, plural, =0 {no season} one {# season} other {# seasons}}",
+      "mode": {
+        "count": "Count",
+        "archive": "Archiving",
+        "delete": "Deletion"
+      },
+      "columns": {
+        "pass": "Pass (UTC)",
+        "archived": "Seasons archived",
+        "deleted": "Rows deleted",
+        "remaining": "Rows left",
+        "duration": "Time"
+      }
     }
   }
 }

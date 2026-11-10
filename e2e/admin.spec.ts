@@ -4,6 +4,7 @@ import {
   createAnonymousUser,
   createRegisteredUser,
   databaseNow,
+  deleteArchivePassesSince,
   deleteCleanupPassesSince,
   deleteErrors,
   deleteUsers,
@@ -174,6 +175,36 @@ test("shows in its health section the event cleanup's pass, a count by the maint
     expect(await tablesOverflowing(page)).toEqual([]);
   } finally {
     await deleteCleanupPassesSince(since);
+  }
+});
+
+test("shows in its health section the archive task's pass, a count by the maintenance that writes nothing else", async ({ page, request }) => {
+  const since = await databaseNow();
+  try {
+    // The archive's endpoint, as the daily maintenance calls it: 404 without its secret, a count with ?dryRun=1. Never
+    // an archiving here: the test database's demo saves stay as they are.
+    expect((await request.post("/api/maintenance/archive?dryRun=1")).status()).toBe(404);
+    const response = await request.post("/api/maintenance/archive?dryRun=1", { headers: { authorization: `Bearer ${MAINTENANCE_SECRET_TEST}` } });
+    expect(response.status()).toBe(200);
+    const counted = (await response.json()) as { mode: string; archived: number; rowsRemaining: number; remaining: number };
+    expect(counted).toMatchObject({ mode: "count", archived: 0, remaining: 0 });
+
+    await signInAs(page, await ensureAdminUser());
+    await page.goto("/admin");
+    const archive = page.getByTestId("admin-health").getByTestId("admin-archive");
+    await expect(archive.getByRole("heading")).toHaveText("Archives des saisons terminées");
+    await expect(archive.getByTestId("admin-archive-latest")).toContainText("Reste après le dernier passage");
+    const pass = archive.getByTestId("admin-archive-passes").locator("tbody tr").first();
+    await expect(pass).toHaveAttribute("data-mode", "count");
+    await expect(pass).toHaveAttribute("data-archived", "0");
+    await expect(pass).toHaveAttribute("data-deleted", "0");
+    await expect(pass).toHaveAttribute("data-remaining", String(counted.rowsRemaining));
+    await expect(pass).toContainText("Comptage");
+    await page.setViewportSize({ width: 360, height: 780 });
+    await expectNoSidewaysScroll(page, "health at 360 px");
+    expect(await tablesOverflowing(page)).toEqual([]);
+  } finally {
+    await deleteArchivePassesSince(since);
   }
 });
 

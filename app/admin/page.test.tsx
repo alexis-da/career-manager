@@ -121,6 +121,33 @@ vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
               milliseconds: 950,
             },
           ],
+          // A deletion with a mismatch, then the count before it: the latest first.
+          archive: [
+            {
+              at: "2026-11-07T04:20:05.000Z",
+              mode: "delete",
+              archived: 12,
+              deletedSeasons: 40,
+              deletedRows: 38_000,
+              mismatches: 1,
+              pending: 0,
+              deletable: 3,
+              rowsRemaining: 2_900,
+              milliseconds: 18_400,
+            },
+            {
+              at: "2026-11-07T04:19:30.000Z",
+              mode: "count",
+              archived: 0,
+              deletedSeasons: 0,
+              deletedRows: 0,
+              mismatches: 0,
+              pending: 12,
+              deletable: 30,
+              rowsRemaining: 40_900,
+              milliseconds: 420,
+            },
+          ],
         },
       };
     },
@@ -234,6 +261,15 @@ describe("the administrator's dashboard", () => {
       "Comptage",
       "20 000",
       "6,1 s",
+      // The archive task's passes: what the latest left, its mismatch, then each pass.
+      "Archives des saisons terminées",
+      "Reste après le dernier passage : aucune saison à archiver, 3 saisons archivées dont les lignes restent, 2 900 lignes de saisons terminées.",
+      "1 saison laissée en lignes au dernier passage",
+      "Saisons archivées",
+      "38 000",
+      "40 saisons",
+      "1 écart",
+      "18,4 s",
     ]) {
       expect(markup.replace(/ /g, " ")).toContain(text);
     }
@@ -246,6 +282,9 @@ describe("the administrator's dashboard", () => {
     // A count deletes nothing: « — » in its column, and every row says its totals.
     expect(markup).toMatch(/data-dry-run="true" data-deleted="0" data-remaining="80001"/);
     expect(markup).toMatch(/data-deleted="20000" data-remaining="60001"/);
+    expect(markup).toMatch(/data-mode="delete" data-archived="12" data-deleted="38000" data-remaining="2900" data-mismatches="1"/);
+    expect(markup).toMatch(/data-mode="count" data-archived="0" data-deleted="0" data-remaining="40900" data-mismatches="0"/);
+    expect(markup).toContain('data-testid="admin-archive-mismatches"');
     // A step's share of its source's visits, under it: 6 first matches of 32 visits.
     expect(markup).toMatch(/>6<\/span><span[^>]*>19 %<\/span>/);
     // Before the tracking, a day's visits are not known.
@@ -292,6 +331,13 @@ describe("the administrator's dashboard", () => {
       "Deletion",
       "Count",
       "6.1 s",
+      "Archives of finished seasons",
+      "Left after the latest pass: no season to archive, 3 archived seasons whose rows remain, 2,900 rows of finished seasons.",
+      "1 season left as rows by the latest pass",
+      "Rows deleted",
+      "40 seasons",
+      "1 mismatch",
+      "18.4 s",
     ]) {
       expect(markup).toContain(text);
     }

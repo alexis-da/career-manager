@@ -9,6 +9,7 @@ import {
   UNKNOWN_SOURCE,
   type AdminDashboard,
   type AdminDay,
+  type ArchivePassView,
   type CleanupPassView,
   type Journey,
   type Share,
@@ -474,6 +475,7 @@ export function HealthSection({ dashboard, t, format, statsLink }: SectionProps 
         </TableBody>
       </Table>
       <CleanupPasses passes={health.cleanup} t={t} format={format} />
+      <ArchivePasses passes={health.archive} t={t} format={format} />
       {statsLink}
     </Section>
   );
@@ -526,6 +528,86 @@ function CleanupPasses({ passes, t, format }: { passes: CleanupPassView[]; t: Tr
                   <TableCell className={NUMBER}>{pass.dryRun ? "—" : format.integer(totalOf(pass.deleted))}</TableCell>
                   <TableCell className={NUMBER}>{format.integer(totalOf(pass.remaining))}</TableCell>
                   {/* Under 640 px, three columns: the time a pass took is the least needed. */}
+                  <TableCell className={cn(NUMBER, "max-sm:hidden")}>{format.seconds(pass.milliseconds)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The « archive » task's passes of the period (src/db/season-archiving.ts), the latest first: when, a count, an archiving
+ * or a deletion, the seasons archived, the rows deleted and those left, and how long it took; what the latest left over
+ * the table, and its mismatches if it had any.
+ */
+function ArchivePasses({ passes, t, format }: { passes: ArchivePassView[]; t: Translator<"admin">; format: AdminFormats }) {
+  const latest = passes.at(0);
+  return (
+    <div className="space-y-2" data-testid="admin-archive">
+      <h3 className="text-sm font-semibold">{t("archive.title")}</h3>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t("archive.note")}</p>
+      {latest === undefined ? (
+        <p className="text-sm text-muted-foreground" data-testid="admin-archive-none">
+          {t("archive.none")}
+        </p>
+      ) : (
+        <>
+          <p className="text-sm" data-testid="admin-archive-latest">
+            {t("archive.latest", { pending: latest.pending, deletable: latest.deletable, rows: latest.rowsRemaining })}
+          </p>
+          {latest.mismatches > 0 && (
+            <p className="text-sm font-semibold text-warning" data-testid="admin-archive-mismatches">
+              {t("archive.mismatches", { count: latest.mismatches })}
+            </p>
+          )}
+          <Table data-testid="admin-archive-passes">
+            <TableHeader>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className={HEAD}>{t("archive.columns.pass")}</TableHead>
+                <TableHead className={HEAD_NUMBER}>{t("archive.columns.archived")}</TableHead>
+                <TableHead className={HEAD_NUMBER}>{t("archive.columns.deleted")}</TableHead>
+                <TableHead className={HEAD_NUMBER}>{t("archive.columns.remaining")}</TableHead>
+                <TableHead className={cn(HEAD_NUMBER, "max-sm:hidden")}>{t("archive.columns.duration")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {passes.map((pass, index) => (
+                <TableRow
+                  key={`${pass.at}-${index}`}
+                  data-mode={pass.mode}
+                  data-archived={pass.archived}
+                  data-deleted={pass.deletedRows}
+                  data-remaining={pass.rowsRemaining}
+                  data-mismatches={pass.mismatches}
+                  className={TABLE_ROW}
+                >
+                  <TableCell className={cn(TABLE_CELL, TIGHT, "tabular-nums")}>
+                    {/* « 10/11 04:20 », in UTC as its header says; what the pass did under it. */}
+                    <Figure value={`${pass.at.slice(8, 10)}/${pass.at.slice(5, 7)} ${pass.at.slice(11, 16)}`} share={t(`archive.mode.${pass.mode}`)} />
+                  </TableCell>
+                  <TableCell className={NUMBER}>
+                    {pass.mode === "count" ? (
+                      "—"
+                    ) : (
+                      <Figure
+                        value={format.integer(pass.archived)}
+                        share={pass.mismatches > 0 ? t("archive.mismatchShare", { count: pass.mismatches }) : null}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell className={NUMBER}>
+                    {pass.mode === "delete" ? (
+                      <Figure value={format.integer(pass.deletedRows)} share={t("archive.seasons", { count: pass.deletedSeasons })} />
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className={NUMBER}>{format.integer(pass.rowsRemaining)}</TableCell>
+                  {/* Under 640 px, four columns: the time a pass took is the least needed. */}
                   <TableCell className={cn(NUMBER, "max-sm:hidden")}>{format.seconds(pass.milliseconds)}</TableCell>
                 </TableRow>
               ))}

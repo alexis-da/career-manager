@@ -58,6 +58,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     await client.visitDay.deleteMany({ where: { day: { in: DAYS } } });
     await client.dailyStat.deleteMany({ where: { day: { in: DAYS } } });
     await client.cleanupPass.deleteMany({ where: { at: { gte: day("01"), lt: new Date("1999-04-01T00:00:00.000Z") } } });
+    await client.archivePass.deleteMany({ where: { at: { gte: day("01"), lt: new Date("1999-04-01T00:00:00.000Z") } } });
   };
   /** A pass of the event cleanup, as the maintenance records it. */
   const cleanupPass = (time: string, dryRun: boolean, deleted: number, remaining: number) => ({
@@ -70,6 +71,20 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     decisionsDeleted: 0,
     decisionsRemaining: 2,
     milliseconds: 1_500,
+  });
+  /** A pass of the « archive » task, as the maintenance records it. */
+  const archivePass = (time: string, mode: "COUNT" | "ARCHIVE" | "DELETE", archived: number, deleted: number, remaining: number) => ({
+    at: at(time),
+    mode,
+    seasonsArchived: archived,
+    seasonsPending: 15 - archived,
+    seasonsDeleted: deleted === 0 ? 0 : 4,
+    fixturesDeleted: deleted / 2,
+    statsDeleted: deleted / 2,
+    seasonsDeletable: 3,
+    rowsRemaining: remaining,
+    mismatches: mode === "DELETE" ? 1 : 0,
+    milliseconds: 2_500,
   });
 
   // Its days must be the table's first: stats.test.ts writes its own, never at the same time.
@@ -108,6 +123,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
         cleanupPass("03T04:17:00.000", true, 0, 900),
         cleanupPass("10T04:17:30.000", true, 0, 900),
         cleanupPass("10T04:18:00.000", false, 600, 300),
+      ],
+    });
+    // The archive task's passes: a count on the 2nd, before the seven days; an archiving, then a deletion, on the 10th.
+    await prisma.archivePass.createMany({
+      data: [
+        archivePass("02T04:20:00.000", "COUNT", 0, 0, 9_000),
+        archivePass("10T04:20:00.000", "ARCHIVE", 15, 0, 9_000),
+        archivePass("10T04:21:00.000", "DELETE", 0, 6_000, 3_000),
       ],
     });
   }, 60_000);
@@ -229,5 +252,41 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     ]);
     // The pass of the 3rd, before the seven days, is in the thirty.
     expect(month.health.cleanup.map((pass) => pass.at)).toEqual(["1999-03-10T04:18:00.000Z", "1999-03-10T04:17:30.000Z", "1999-03-03T04:17:00.000Z"]);
+  });
+
+  it("lists the archive task's passes of the period, the latest first, with what each archived, deleted and left", async () => {
+    const { db, dashboard } = loaded();
+
+    const week = await dashboard.getAdminDashboard(db, NOW, 7);
+    const month = await dashboard.getAdminDashboard(db, NOW, 30);
+
+    expect(week.health.archive).toEqual([
+      {
+        at: "1999-03-10T04:21:00.000Z",
+        mode: "delete",
+        archived: 0,
+        deletedSeasons: 4,
+        deletedRows: 6_000,
+        mismatches: 1,
+        pending: 15,
+        deletable: 3,
+        rowsRemaining: 3_000,
+        milliseconds: 2_500,
+      },
+      {
+        at: "1999-03-10T04:20:00.000Z",
+        mode: "archive",
+        archived: 15,
+        deletedSeasons: 0,
+        deletedRows: 0,
+        mismatches: 0,
+        pending: 0,
+        deletable: 3,
+        rowsRemaining: 9_000,
+        milliseconds: 2_500,
+      },
+    ]);
+    // The count of the 2nd, before the seven days, is in the thirty.
+    expect(month.health.archive.map((pass) => pass.mode)).toEqual(["delete", "archive", "count"]);
   });
 });

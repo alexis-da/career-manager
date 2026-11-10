@@ -68,6 +68,14 @@ export async function deleteCleanupPassesSince(since: Date): Promise<void> {
   await withTestDatabase((client) => client.query(`DELETE FROM "CleanupPass" WHERE "at" >= $1`, [since]));
 }
 
+/**
+ * Deletes the « archive » task's passes recorded since then: a test's own counts. Their time is kept in UTC (now() AT TIME
+ * ZONE 'UTC'), whatever the server's zone: the instant is converted the same way.
+ */
+export async function deleteArchivePassesSince(since: Date): Promise<void> {
+  await withTestDatabase((client) => client.query(`DELETE FROM "ArchivePass" WHERE "at" >= ($1::timestamptz AT TIME ZONE 'UTC')`, [since]));
+}
+
 /** The database's clock now: what a test's rows are dated from. */
 export async function databaseNow(): Promise<Date> {
   return withTestDatabase(async (client) => (await client.query<{ now: Date }>(`SELECT now() AS now`)).rows[0].now);
