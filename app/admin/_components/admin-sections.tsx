@@ -541,8 +541,8 @@ function CleanupPasses({ passes, t, format }: { passes: CleanupPassView[]; t: Tr
 
 /**
  * The « archive » task's passes of the period (src/db/season-archiving.ts), the latest first: when, a count, an archiving
- * or a deletion, the seasons archived, the rows deleted and those left, and how long it took; what the latest left over
- * the table, and its mismatches if it had any.
+ * or a deletion, the seasons archived (and its mismatches), the rows left (and those deleted), and how long it took; what
+ * the latest left over the table, and its mismatches if it had any. Three columns on a phone, as the cleanup's.
  */
 function ArchivePasses({ passes, t, format }: { passes: ArchivePassView[]; t: Translator<"admin">; format: AdminFormats }) {
   const latest = passes.at(0);
@@ -569,7 +569,6 @@ function ArchivePasses({ passes, t, format }: { passes: ArchivePassView[]; t: Tr
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className={HEAD}>{t("archive.columns.pass")}</TableHead>
                 <TableHead className={HEAD_NUMBER}>{t("archive.columns.archived")}</TableHead>
-                <TableHead className={HEAD_NUMBER}>{t("archive.columns.deleted")}</TableHead>
                 <TableHead className={HEAD_NUMBER}>{t("archive.columns.remaining")}</TableHead>
                 <TableHead className={cn(HEAD_NUMBER, "max-sm:hidden")}>{t("archive.columns.duration")}</TableHead>
               </TableRow>
@@ -600,14 +599,13 @@ function ArchivePasses({ passes, t, format }: { passes: ArchivePassView[]; t: Tr
                     )}
                   </TableCell>
                   <TableCell className={NUMBER}>
-                    {pass.mode === "delete" ? (
-                      <Figure value={format.integer(pass.deletedRows)} share={t("archive.seasons", { count: pass.deletedSeasons })} />
-                    ) : (
-                      "—"
-                    )}
+                    {/* The rows left, and under them those a deletion took. */}
+                    <Figure
+                      value={format.integer(pass.rowsRemaining)}
+                      share={pass.mode === "delete" ? t("archive.deletedShare", { count: pass.deletedRows }) : null}
+                    />
                   </TableCell>
-                  <TableCell className={NUMBER}>{format.integer(pass.rowsRemaining)}</TableCell>
-                  {/* Under 640 px, four columns: the time a pass took is the least needed. */}
+                  {/* Under 640 px, three columns: the time a pass took is the least needed. */}
                   <TableCell className={cn(NUMBER, "max-sm:hidden")}>{format.seconds(pass.milliseconds)}</TableCell>
                 </TableRow>
               ))}

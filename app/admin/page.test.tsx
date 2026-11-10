@@ -266,8 +266,8 @@ describe("the administrator's dashboard", () => {
       "Reste après le dernier passage : aucune saison à archiver, 3 saisons archivées dont les lignes restent, 2 900 lignes de saisons terminées.",
       "1 saison laissée en lignes au dernier passage",
       "Saisons archivées",
-      "38 000",
-      "40 saisons",
+      "Lignes restantes",
+      "38 000 supprimées",
       "1 écart",
       "18,4 s",
     ]) {
@@ -334,8 +334,8 @@ describe("the administrator's dashboard", () => {
       "Archives of finished seasons",
       "Left after the latest pass: no season to archive, 3 archived seasons whose rows remain, 2,900 rows of finished seasons.",
       "1 season left as rows by the latest pass",
-      "Rows deleted",
-      "40 seasons",
+      "Rows left",
+      "38,000 deleted",
       "1 mismatch",
       "18.4 s",
     ]) {
