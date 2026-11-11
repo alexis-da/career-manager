@@ -166,7 +166,9 @@ niveau moyen, `CLUB_LEVEL_BY_TIER`, en 4-3-3 sentinelle) ; égalité au premier 
 le match (`lineupOf`, `src/db/matchday.ts`), l'aperçu de l'adversaire (`getOpponentPreview`, qui montre son dispositif
 et son profil, `opponent-formation`), les trois meilleurs de l'écran de composition (`rankFormations`) et les tests
 (`src/db/opponent.test.ts` compare l'aperçu au match joué). Le club dirigé garde le sien. Base des buts recalibrée pour
-les six cibles : `BASE_GOALS_PER_TEAM` 1,23 → 1,31.
+les six cibles : `BASE_GOALS_PER_TEAM` 1,23 → 1,31. Pour peser les dix-sept dispositifs, l'effectif est classé une fois
+à chaque poste (`restedLineups`, `src/engine/lineup.ts`, chantier « cpu », 11/11 : note au poste puis identifiant, les
+mêmes onze et bancs que `selectRestedLineup`, que `lineup.test.ts` compare sur 200 effectifs tirés).
 
 **Composition et consigne de départ (gameplay v1, G6).** La force d'une équipe a une seule source,
 `src/engine/strength.ts` (`condition`, `teamStrength`, `formationStrength`, `expectedGoals`, `expectedGoalDifference`,
