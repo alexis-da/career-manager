@@ -10,6 +10,12 @@ vi.mock("../auth/current-user", async () => {
   return { requireOwnedSave: (saveId: string) => loadOwnedSave(saveId, viewer.current) };
 });
 
+// Nor Next's data cache, which keeps the drawn cards across requests on a real server: each call draws here.
+vi.mock("next/cache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/cache")>()),
+  unstable_cache: <T extends (...args: never[]) => unknown>(draw: T): T => draw,
+}));
+
 // Nor its language: the card's words in French.
 vi.mock("next-intl/server", async () => {
   const { testTranslator } = await import("../i18n/test-intl");
@@ -84,11 +90,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("season results of the d
     expect(second).toEqual(first);
   });
 
-  // 15 s: the first card drawn loads the fonts and the image engine, more than the default 5 s on a busy machine.
+  // 15 s: the first card drawn loads the fonts and the image engine, more than the default 5 s on a busy machine. An
+  // address with its language always gives the same image: the browser keeps it a year, privately; without it, the
+  // card follows the player's language, asked again each time.
   it.each([
-    ["landscape", "", { width: 1200, height: 630 }],
-    ["square", "?format=square", { width: 1080, height: 1080 }],
-  ] as const)("draws the %s card as a PNG for the save's owner", async (_format, query, size) => {
+    ["landscape", "?lang=fr&v=1", { width: 1200, height: 630 }, "private, max-age=31536000, immutable"],
+    ["square", "?lang=fr&v=1&format=square", { width: 1080, height: 1080 }, "private, max-age=31536000, immutable"],
+    ["landscape", "", { width: 1200, height: 630 }, "private, no-cache"],
+  ] as const)("draws the %s card as a PNG for the save's owner (%s)", async (_format, query, size, cacheControl) => {
     const { route } = loaded();
     viewer.current = { id: owner };
     const response = await route.GET(new Request(`http://localhost/saves/${saveId}/seasons/${seasonId}/card${query}`), {
@@ -98,7 +107,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("season results of the d
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/png");
-    expect(response.headers.get("cache-control")).toBe("private, max-age=0");
+    expect(response.headers.get("cache-control")).toBe(cacheControl);
     expect(bytes.subarray(1, 4).toString("ascii")).toBe("PNG");
     expect({ width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) }).toEqual(size);
   }, 15_000);
