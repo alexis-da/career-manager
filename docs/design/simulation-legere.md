@@ -52,8 +52,33 @@ des saisons.
 ## Gain attendu
 
 Estimé le 11/11, avant les deux étapes : de 245 ms à 70 à 100 ms par journée sous profileur (−60 à −70 %), soit environ
-30 minutes de CPU par jour en production au rythme du 11/11. Le gain qui reste après les deux étapes est à remesurer
-avec `scratchpad/cpu/profile-matchdays.ts` (journées d'une partie 2 sur une base dédiée), le script du chantier « cpu ».
+30 minutes de CPU par jour en production au rythme du 11/11.
+
+Après les deux étapes, une journée coûte environ 164 ms de CPU sans profileur, 194 ms sous profileur. Sous profileur, en
+temps inclus :
+
+| Poste | Part |
+|---|---:|
+| Simulation des matchs (`simulateMatch`) | 18 % |
+| Choix du dispositif (`chooseFormation`), clubs du pays du club dirigé et choix du mois | 11 % |
+| Écriture des matchs joués (`recordFinishedMatches`) | 6 % |
+
+En temps propre :
+
+| Famille | Part |
+|---|---:|
+| Moteur | 30 % |
+| Client Prisma | 25 % |
+| Node et ramasse-miettes | 24 % |
+| `src/db` | 8 % |
+| Pilote pg | 5 % |
+
+La simulation légère retirerait, pour environ 80 % des matchs, la simulation par segments, les écritures par joueur et
+une grande part du ramasse-miettes. Estimation à vérifier : 60 à 80 ms par journée sans profileur.
+
+Mesure : un script du chantier, hors du dépôt, rejoue des journées d'une partie 2 sur une base locale dédiée. Il est à
+réécrire au besoin à partir de cette description : `process.cpuUsage()` sur toute la série de journées, par pas de
+15,6 ms sous Windows.
 
 ## À l'écran
 
@@ -87,4 +112,12 @@ les mesures (`measure:balance`, `measure:seasons`, `measure:divisions`, `measure
    local.
 2. **Dispositif des clubs étrangers choisi une fois par mois** (préparé le 11/11, mise en ligne prévue le lundi 16/11
    après 00:00 UTC, au changement de semaine du défi) : les clubs IA des quatre autres pays choisissent leur dispositif à
-   leur premier match de chaque mois du jeu, ceux du pays du club dirigé toujours avant chaque match.
+   leur premier match de chaque mois du jeu, ceux du pays du club dirigé toujours avant chaque match (règle « Les clubs
+   IA choisissent leur dispositif » de CLAUDE.md). Une journée : 185 → 164 ms de CPU en local. Les six cibles
+   d'équilibrage ne bougent presque pas sur trois saisons complètes (`measure:balance -- --world-only`) :
+   - buts par match : 2,64 → 2,65 ;
+   - nuls : 25,1 → 25,2 % ;
+   - victoires à domicile : 43,6 % ;
+   - écart du 1er au dernier : 55,2 → 55,3 points ;
+   - forme des onze en fin de saison : de 35,3–75,3 à 35,0–73,1 ;
+   - victoires du moins fort : 23,2 %.
