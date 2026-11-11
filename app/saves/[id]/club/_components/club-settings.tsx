@@ -1,5 +1,5 @@
 import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { GoogleSignInButton } from "@/app/_components/account-panel";
 import { LanguageSwitcher } from "@/app/_components/language-switcher";
 import { signOutAction } from "@/app/actions";

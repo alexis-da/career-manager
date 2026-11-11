@@ -1,5 +1,5 @@
 import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { Badge } from "@/src/components/ui/badge";
 import type { CupBracket } from "@/src/db/cup-view";
 import { CUP_WINNER_PRIZE } from "@/src/engine/balance";

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";

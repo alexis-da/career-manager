@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDaysIcon, ChevronDownIcon, FastForwardIcon, LoaderCircleIcon, PlayIcon } from "lucide-react";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState, useTransition, type ReactNode } from "react";

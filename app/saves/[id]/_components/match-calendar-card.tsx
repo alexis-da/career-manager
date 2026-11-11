@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import type { FixtureWithEvents } from "@/src/db/calendar";
 import { cn } from "@/src/lib/utils";
 import { fixtureWindow, nextFixture } from "../_lib/fixture-window";

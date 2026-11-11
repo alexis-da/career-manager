@@ -1,7 +1,7 @@
 import { competitionName } from "@/src/i18n/countries";
 import { getLocale, getTranslations } from "next-intl/server";
 import Image from "next/image";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { notFound } from "next/navigation";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { ClubInitials } from "@/src/components/club-initials";

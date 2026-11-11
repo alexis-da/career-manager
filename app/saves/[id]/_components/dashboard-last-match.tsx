@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import type { ReactNode } from "react";
 import type { Dashboard, Scorer } from "@/src/db/dashboard";
 import { cn } from "@/src/lib/utils";

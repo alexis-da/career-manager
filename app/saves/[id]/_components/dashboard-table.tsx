@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import type { Dashboard } from "@/src/db/dashboard";
 import { seasonLabel } from "@/src/engine/world";
 import { competitionName } from "@/src/i18n/countries";

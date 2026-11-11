@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import type { ChallengeBannerView } from "@/src/db/challenge-view";

@@ -1,6 +1,6 @@
 import { competitionName } from "@/src/i18n/countries";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import type { ReactNode } from "react";
 import { Button, buttonVariants } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";

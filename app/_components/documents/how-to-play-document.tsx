@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { buttonVariants } from "@/src/components/ui/button";
 import type { Locale } from "@/src/i18n/locale";
 import { publicPath } from "@/src/i18n/public-pages";

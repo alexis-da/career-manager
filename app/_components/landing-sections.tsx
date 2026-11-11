@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { buttonVariants } from "@/src/components/ui/button";

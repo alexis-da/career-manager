@@ -9,7 +9,7 @@ import {
   UserMinusIcon,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import type { ComponentType, ReactNode } from "react";
 import type { Dashboard } from "@/src/db/dashboard";
 import type { ManagedLineup } from "@/src/db/lineup";

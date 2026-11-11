@@ -1,6 +1,6 @@
 import { ChevronLeftIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import type { ReactNode } from "react";
 import { ClubInitials } from "@/src/components/club-initials";
 import type { FixtureWithEvents, TeamView } from "@/src/db/calendar";

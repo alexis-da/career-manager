@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 import Image from "next/image";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import type { SeasonResultView } from "@/src/db/season-results";
 import { seasonLabel } from "@/src/engine/world";
 import { competitionName } from "@/src/i18n/countries";

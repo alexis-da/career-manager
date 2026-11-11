@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { useLocale } from "next-intl";
 import type { ReactNode } from "react";
 import { publicPath, type PublicPageName } from "@/src/i18n/public-pages";

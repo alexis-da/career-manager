@@ -16,6 +16,16 @@ const eslintConfig = defineConfig([
     ".next-e2e/**",
     "src/generated/**",
   ]),
+  {
+    rules: {
+      // Every link goes through src/components/link.tsx: next/link prefetches every link in view, and again after every
+      // Server Action, a server invocation each (chantier « cpu », 11/11).
+      "no-restricted-imports": [
+        "error",
+        { paths: [{ name: "next/link", message: "Use @/src/components/link: no automatic prefetch, a hover's only." }] },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -4,7 +4,7 @@
 // class names of fifty rows, ten times heavier.
 
 import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import type { ReactNode } from "react";
 import { PlayerFace } from "@/src/components/player-face";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";

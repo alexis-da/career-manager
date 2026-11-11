@@ -1,7 +1,7 @@
 import { competitionName } from "@/src/i18n/countries";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { PlayerFace } from "@/src/components/player-face";
 import { MANAGED_ROW, TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";

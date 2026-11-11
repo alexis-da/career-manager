@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 import { SkipForwardIcon } from "lucide-react";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import type { Ref } from "react";
 import { Button, buttonVariants } from "@/src/components/ui/button";
 import { cn } from "@/src/lib/utils";

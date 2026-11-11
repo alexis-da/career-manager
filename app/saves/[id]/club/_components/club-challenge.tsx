@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { buttonVariants } from "@/src/components/ui/button";
 import type { ChallengePageView, ChallengeRankingRow } from "@/src/db/challenge-view";
 import type { Translator } from "@/src/i18n/translator";

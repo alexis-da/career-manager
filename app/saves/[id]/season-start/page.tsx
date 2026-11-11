@@ -1,6 +1,6 @@
 import { ChevronLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";

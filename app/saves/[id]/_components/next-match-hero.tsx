@@ -1,5 +1,5 @@
 import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { ClubInitials } from "@/src/components/club-initials";
 import { buttonVariants } from "@/src/components/ui/button";
 import type { ClubPreview, Dashboard } from "@/src/db/dashboard";

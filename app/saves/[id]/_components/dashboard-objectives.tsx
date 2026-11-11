@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { Panel } from "@/src/components/panel";
 import type { ObjectiveView, SeasonObjectivesView } from "@/src/db/objectives";
 import type { ObjectiveProgress } from "@/src/engine/objectives";

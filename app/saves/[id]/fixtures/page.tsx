@@ -2,7 +2,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { requireOwnedSave } from "@/src/auth/current-user";

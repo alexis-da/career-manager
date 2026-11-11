@@ -1,5 +1,5 @@
 import { useLocale, useTranslations } from "next-intl";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { Panel } from "@/src/components/panel";
 import type { ObjectiveView, SeasonObjectivesView } from "@/src/db/objectives";
 import { assistantObjective, type ObjectiveKind, type OptionalObjective } from "@/src/engine/objectives";

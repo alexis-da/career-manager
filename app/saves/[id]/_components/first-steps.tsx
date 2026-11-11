@@ -1,7 +1,7 @@
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cookies } from "next/headers";
-import Link from "next/link";
+import Link from "@/src/components/link";
 import { managedMatchesPlayed } from "@/src/db/first-steps";
 import { SECONDARY_POSITION_FAMILIARITY } from "@/src/engine/balance";
 import { cn } from "@/src/lib/utils";
