@@ -134,3 +134,33 @@ export function chooseFormation<P extends SquadPlayer>(
   const [best] = rankFormations(squad, tier);
   return { formation: best.formation, lineup: best.lineup };
 }
+
+/** The formation an AI club keeps for a month of the game: the one it chose, and that month (formationMonthOf). */
+export type KeptFormation = { formation: FormationName; month: number };
+
+/** The month of the game a match falls in, as an AI club keeps its formation: 202611 for November 2026 (dates in UTC). */
+export function formationMonthOf(date: Date): number {
+  return date.getUTCFullYear() * 100 + date.getUTCMonth() + 1;
+}
+
+/**
+ * The formation of an AI club that chooses once a month, and its eleven for a match: within the month of the formation it
+ * keeps, that formation, its eleven picked for this match as chooseFormation picks it in there (selectRestedLineup); at
+ * its first match of another month, or with none kept, chooseFormation's, to keep until the month after (`toKeep`, null
+ * when the kept one plays). The clubs of the countries other than the managed club's choose so (src/db/matchday.ts): the
+ * player sees only their scores, and weighing seventeen formations before each of their matches was a large share of a
+ * matchday's CPU.
+ */
+export function monthlyFormation<P extends SquadPlayer>(
+  squad: readonly P[],
+  tier: CompetitionTier,
+  kept: KeptFormation | null,
+  date: Date,
+): { formation: FormationName; lineup: Lineup<P>; toKeep: KeptFormation | null } {
+  const month = formationMonthOf(date);
+  if (kept !== null && kept.month === month) {
+    return { formation: kept.formation, lineup: selectRestedLineup(squad, formationPositions(kept.formation)), toKeep: null };
+  }
+  const chosen = chooseFormation(squad, tier);
+  return { ...chosen, toKeep: { formation: chosen.formation, month } };
+}

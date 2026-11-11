@@ -2,7 +2,7 @@ import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS } from "../engine/balance";
 import { assistantChoices, withChoices, type MatchDecision } from "../engine/choices";
 import { disciplineAfterMatch, isSuspended, type CompetitionKind, type Discipline } from "../engine/discipline";
 import { fitnessAfterMatch, recoveredFitness } from "../engine/fitness";
-import { chooseFormation } from "../engine/formation-choice";
+import { chooseFormation, monthlyFormation, type KeptFormation } from "../engine/formation-choice";
 import type { FormationName } from "../engine/formations";
 import { autoFilledSlots, resolveLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import {
@@ -105,10 +105,11 @@ export type PlayerState = {
 const TEAM_SELECT = {
   isManaged: true,
   formation: true,
+  formationMonth: true,
   lineup: true,
   club: { select: { slug: true } },
-  // Its division, whose average opponent an AI club weighs its formations against.
-  competition: { select: { tier: true } },
+  // Its division, whose average opponent an AI club weighs its formations against, and its country.
+  competition: { select: { tier: true, country: true } },
 } as const;
 
 export const PLAYER_SELECT = {
@@ -137,24 +138,59 @@ export const PLAYER_SELECT = {
 
 type PlayerRow = Prisma.PlayerSaveGetPayload<{ select: typeof PLAYER_SELECT }>;
 
-type Team = { isManaged: boolean; formation: string; lineup: unknown; competition: { tier: number } };
+/** What an AI club's formation for a match depends on: the one kept on its row, its division and its country. */
+export type AiTeam = { formation: string; formationMonth: number | null; competition: { tier: number; country: string } };
 
-type TeamLineup = { lineup: Lineup; formation: FormationName; autoFilledSlots: number };
+type Team = AiTeam & { isManaged: boolean; lineup: unknown };
+
+// The formation a club chooses now, to keep on its row for the rest of the month (monthlyFormation); null when none.
+type TeamLineup = { lineup: Lineup; formation: FormationName; autoFilledSlots: number; toKeep: KeptFormation | null };
 
 /**
- * The managed club plays its saved lineup, completed automatically; an AI club chooses its formation for its squad as it
- * stands before the match (chooseFormation: the most points expected against the average opponent of its division) and
- * plays its automatic eleven in it, resting its tired players where a rested one is hardly worse (selectRestedLineup).
+ * An AI club's formation and eleven for a match: its automatic eleven, its tired players rested where a rested one is
+ * hardly worse (selectRestedLineup), in the formation it chooses for its squad as it stands (chooseFormation: the most
+ * points expected against the average opponent of its division). Before each match in the managed club's country, whose
+ * clubs the player meets in league and cup; elsewhere at its first match of each month of the game, the formation then
+ * kept on its row until the month after (monthlyFormation, ClubSave.formation and formationMonth; `toKeep`).
  */
-function lineupOf(team: Team, squad: readonly SquadPlayer[]): TeamLineup {
+export function aiLineupOf(
+  team: AiTeam,
+  squad: readonly SquadPlayer[],
+  managedCountry: string,
+  matchDate: Date,
+): { formation: FormationName; lineup: Lineup; toKeep: KeptFormation | null } {
+  const tier = competitionTier(team.competition.tier);
+  if (team.competition.country === managedCountry) {
+    return { ...chooseFormation(squad, tier), toKeep: null };
+  }
+  const kept = team.formationMonth === null ? null : { formation: parseFormation(team.formation), month: team.formationMonth };
+  return monthlyFormation(squad, tier, kept, matchDate);
+}
+
+/** The managed club plays its saved lineup, completed automatically; an AI club, aiLineupOf's. */
+function lineupOf(team: Team, squad: readonly SquadPlayer[], managedCountry: string, matchDate: Date): TeamLineup {
   if (!team.isManaged) {
-    const { formation, lineup } = chooseFormation(squad, competitionTier(team.competition.tier));
-    return { lineup, formation, autoFilledSlots: 0 };
+    const { formation, lineup, toKeep } = aiLineupOf(team, squad, managedCountry, matchDate);
+    return { lineup, formation, autoFilledSlots: 0, toKeep };
   }
   const saved = parseSavedLineup(team.lineup);
   const formation = parseFormation(team.formation);
   const lineup = resolveLineup(formation, saved, squad);
-  return { lineup, formation, autoFilledSlots: autoFilledSlots(saved, lineup) };
+  return { lineup, formation, autoFilledSlots: autoFilledSlots(saved, lineup), toKeep: null };
+}
+
+/** Keeps on their rows the formations AI clubs chose for the rest of the month (lineupOf), in one statement. */
+async function keepFormations(tx: Transaction, saveId: string, kept: readonly ({ clubSaveId: string } & KeptFormation)[]): Promise<void> {
+  if (kept.length === 0) {
+    return;
+  }
+  await tx.$executeRaw`
+    UPDATE "ClubSave" AS c
+    SET "formation" = v."formation", "formationMonth" = v."month"
+    FROM (VALUES ${Prisma.join(
+      kept.map(({ clubSaveId, formation, month }) => Prisma.sql`(${clubSaveId}::text, ${formation}::text, ${month}::int)`),
+    )}) AS v("id", "formation", "month")
+    WHERE c."id" = v."id" AND c."saveId" = ${saveId}`;
 }
 
 /**
@@ -548,6 +584,12 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
       if (fixtures.some((fixture) => fixture.homeClubSave.isManaged || fixture.awayClubSave.isManaged)) {
         await ensureObjectiveChosen(tx, saveId);
       }
+      // The managed club's country, whose AI clubs choose their formation before each match (lineupOf).
+      const { competition: managedCompetition } = await tx.clubSave.findFirstOrThrow({
+        where: { saveId, isManaged: true },
+        select: { competition: { select: { country: true } } },
+      });
+      const kept: ({ clubSaveId: string } & KeptFormation)[] = [];
 
       for (const fixture of fixtures) {
         // The players suspended for this match's competition sit it out.
@@ -557,8 +599,14 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
           away: withSuspensions(getOrThrow(squads, fixture.awayClubSaveId, "away squad"), competition, stateByKey),
         };
         const matchSeed = fixtureMatchSeed(save.seed, fixture);
-        const home = lineupOf(fixture.homeClubSave, squadsBySide.home);
-        const away = lineupOf(fixture.awayClubSave, squadsBySide.away);
+        const home = lineupOf(fixture.homeClubSave, squadsBySide.home, managedCompetition.country, matchDate);
+        const away = lineupOf(fixture.awayClubSave, squadsBySide.away, managedCompetition.country, matchDate);
+        if (home.toKeep !== null) {
+          kept.push({ clubSaveId: fixture.homeClubSaveId, ...home.toKeep });
+        }
+        if (away.toKeep !== null) {
+          kept.push({ clubSaveId: fixture.awayClubSaveId, ...away.toKeep });
+        }
         const formations = { home: home.formation, away: away.formation };
         const managedSide: Side | null = fixture.homeClubSave.isManaged ? "home" : fixture.awayClubSave.isManaged ? "away" : null;
         const knockout = isKnockout(fixture.season);
@@ -608,6 +656,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         });
       }
 
+      await keepFormations(tx, saveId, kept);
       await recordFinishedMatches(tx, saveId, matchDate, finished, stateByKey);
       await progressCups(
         tx,

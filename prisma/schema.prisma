@@ -286,7 +286,8 @@ model ClubSave {
   wageBudget      Int          @default(0) // euros par saison
   reputation      Int          @default(50) // 1–99
   boardConfidence Int          @default(50) // 1–99
-  formation       String       @default("4-3-3") // dispositif, l'un de FORMATION_NAMES (src/engine/formations.ts)
+  formation       String       @default("4-3-3") // dispositif, l'un de FORMATION_NAMES (src/engine/formations.ts) ; pour un club IA d'un autre pays que le club dirigé, celui qu'il garde jusqu'à la fin de formationMonth
+  formationMonth  Int? // mois du jeu (année × 100 + mois, UTC) où un club IA d'un autre pays que le club dirigé a choisi formation (monthlyFormation) ; null : jamais choisi ainsi
   lineup          Json? // composition enregistrée du club dirigé : { starters: [{ slot, playerKey }], benchOrder }
   players         PlayerSave[]
   homeFixtures    Fixture[]    @relation("HomeFixtures")

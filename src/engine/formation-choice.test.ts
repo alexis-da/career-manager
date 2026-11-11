@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { FORMATION_PROFILES, POSITION_PROFILES } from "./balance";
-import { averageLevel, averageOpponent, chooseFormation, expectedPoints, rankFormations } from "./formation-choice";
+import {
+  averageLevel,
+  averageOpponent,
+  chooseFormation,
+  expectedPoints,
+  formationMonthOf,
+  monthlyFormation,
+  rankFormations,
+} from "./formation-choice";
 import { FORMATION_NAMES, formationPositions } from "./formations";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "./generation";
 import { selectRestedLineup, type SquadPlayer } from "./lineup";
@@ -76,5 +84,34 @@ describe("the formations an AI club weighs", () => {
     }
     expect(chooseFormation(players, 1)).toEqual(chooseFormation(players, 1));
     expect(chooseFormation(players, 1)).toEqual({ formation: rankFormations(players, 1)[0].formation, lineup: rankFormations(players, 1)[0].lineup });
+  });
+});
+
+describe("the formation an AI club chooses once a month", () => {
+  const november = new Date(Date.UTC(2026, 10, 14));
+
+  it("is the month of the game's calendar, in UTC", () => {
+    expect(formationMonthOf(november)).toBe(202611);
+    expect(formationMonthOf(new Date(Date.UTC(2026, 10, 30, 23, 59)))).toBe(202611);
+    expect(formationMonthOf(new Date(Date.UTC(2026, 11, 1)))).toBe(202612);
+    expect(formationMonthOf(new Date(Date.UTC(2027, 0, 2)))).toBe(202701);
+  });
+
+  it("is chooseFormation's at the first match of a month, or without one kept, to keep until the month after", () => {
+    const players = squad(70);
+    const chosen = chooseFormation(players, 1);
+    const expected = { ...chosen, toKeep: { formation: chosen.formation, month: 202611 } };
+
+    expect(monthlyFormation(players, 1, null, november)).toEqual(expected);
+    expect(monthlyFormation(players, 1, { formation: "5-4-1", month: 202610 }, november)).toEqual(expected);
+  });
+
+  it("is the one kept within its month, the eleven picked for this match in it, the injured left out", () => {
+    const players = squad(70).map((candidate) => (candidate.id === "ST#1" ? { ...candidate, injured: true } : candidate));
+    const kept = { formation: "5-4-1", month: 202611 } as const;
+    const result = monthlyFormation(players, 1, kept, new Date(Date.UTC(2026, 10, 28)));
+
+    expect(result).toEqual({ formation: "5-4-1", lineup: selectRestedLineup(players, formationPositions("5-4-1")), toKeep: null });
+    expect(result.lineup.starters.map(({ player: starter }) => starter.id)).not.toContain("ST#1");
   });
 });

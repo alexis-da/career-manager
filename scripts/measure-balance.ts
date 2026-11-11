@@ -13,7 +13,8 @@
  *
  * World, on a save of the local database: a complete season of a worldVersion 2 save for each of --seeds seeds (default
  * 3), its goals, draws, home wins, points gap, upsets and final form, the AI starters' fitness at kick-off, the players
- * they rest and the suspensions they serve, and the formations they choose (chooseFormation) by division and by level;
+ * they rest and the suspensions they serve, and the formations they play by division and by level (aiLineupOf: chosen
+ * before each match in the managed club's country, once a month elsewhere);
  * the same leagues played on paper, squads frozen at kick-off, form at 50, each club in the formation it chooses, for what
  * a season's form, fatigue and injuries add; and, with --real-formations, the formations on real squads. Each save and its
  * throwaway owner are deleted at the end. Writes to the database: the local one only.
@@ -1108,7 +1109,13 @@ async function playSeasonWatchingFatigue(
   playerSelect: typeof import("../src/db/matchday").PLAYER_SELECT,
   playNextMatchday: typeof import("../src/db/matchday").playNextMatchday,
   withSuspensions: typeof import("../src/db/matchday").withSuspensions,
+  aiLineupOf: typeof import("../src/db/matchday").aiLineupOf,
 ): Promise<void> {
+  const { competition: managed } = await prisma.clubSave.findFirstOrThrow({
+    where: { saveId, isManaged: true },
+    select: { competition: { select: { country: true } } },
+  });
+  const teamSelect = { id: true, isManaged: true, formation: true, formationMonth: true, competition: { select: { tier: true, country: true } } };
   for (;;) {
     const [save, next] = await Promise.all([
       prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
@@ -1120,8 +1127,8 @@ async function playSeasonWatchingFatigue(
     const fixtures = await prisma.fixture.findMany({
       where: { saveId, played: false, scheduledAt: next.scheduledAt },
       select: {
-        homeClubSave: { select: { id: true, isManaged: true, competition: { select: { tier: true } } } },
-        awayClubSave: { select: { id: true, isManaged: true, competition: { select: { tier: true } } } },
+        homeClubSave: { select: teamSelect },
+        awayClubSave: { select: teamSelect },
         season: { select: { competition: { select: { kind: true } } } },
       },
     });
@@ -1143,9 +1150,10 @@ async function playSeasonWatchingFatigue(
           fatigue.suspensions[discipline.suspendedMatches > 0 ? "red" : "yellows"]++;
         }
       }
-      // The formation it chooses, as the matchday has it choose (chooseFormation), and its eleven in it.
+      // The formation it plays, as the matchday has it choose (aiLineupOf: before each match in the managed club's
+      // country, once a month elsewhere), and its eleven in it.
       const tier = competitionTier(club.competition.tier);
-      const chosen = chooseFormation(squad, tier);
+      const chosen = aiLineupOf(club, squad, managed.country, next.scheduledAt);
       const key = `${tier}|${levelBand(averageStarterRating(chosen.lineup), tier)}|${chosen.formation}`;
       fatigue.formations.set(key, (fatigue.formations.get(key) ?? 0) + 1);
       const rested = chosen.lineup;
@@ -1270,7 +1278,7 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
   const { createSave } = await import("../src/db/saves");
   const { getStandings } = await import("../src/db/standings");
   const { DEMO_CLUB_SLUG } = await import("../src/db/test-support");
-  const { playNextMatchday, withSuspensions } = await import("../src/db/matchday");
+  const { playNextMatchday, withSuspensions, aiLineupOf } = await import("../src/db/matchday");
 
   const url = process.env.DATABASE_URL ?? "";
   if (url === "" || !isLocalDatabase(url)) {
@@ -1326,7 +1334,7 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
       }
 
       fatigue.clubSeasons += clubs.filter((row) => !row.isManaged).length;
-      await playSeasonWatchingFatigue(saveId, fatigue, prisma, squadsOf, PLAYER_SELECT, playNextMatchday, withSuspensions);
+      await playSeasonWatchingFatigue(saveId, fatigue, prisma, squadsOf, PLAYER_SELECT, playNextMatchday, withSuspensions, aiLineupOf);
 
       const final = await prisma.playerSave.findMany({
         where: { saveId, clubSaveId: { not: null } },

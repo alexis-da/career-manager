@@ -158,17 +158,24 @@ enregistrée (`ClubSave.formation`, `ClubSave.lineup` par index d'emplacement) e
 renommer un dispositif ni réordonner ses emplacements** (test : `src/db/lineup.test.ts` relit une composition de chacun
 des sept de G1). Seul le libellé change, message `formations.label` (zone `catalogs`) : le « 4-3-3 » est le « 4-3-3
 sentinelle », le « 4-2-3-1 » le « 4-2-3-1 large », le « 4-4-2 » le « 4-4-2 à plat » ; aucun écran n'affiche l'identifiant.
-**Les clubs IA choisissent leur dispositif** avant chaque match (`chooseFormation`, `src/engine/formation-choice.ts`,
+**Les clubs IA choisissent leur dispositif** (`chooseFormation`, `src/engine/formation-choice.ts`,
 pure) : de tous, avec la composition de l'adjoint dans chacun (`selectRestedLineup` : blessés et suspendus écartés,
 fatigués reposés), celui qui rapporte le plus de points attendus (`expectedPoints` : buts attendus du moteur, loi de
 Poisson, domicile et extérieur moyennés) face à l'adversaire moyen de leur division (`averageOpponent` : un onze de son
 niveau moyen, `CLUB_LEVEL_BY_TIER`, en 4-3-3 sentinelle) ; égalité au premier de `FORMATION_NAMES`. La même fonction pour
 le match (`lineupOf`, `src/db/matchday.ts`), l'aperçu de l'adversaire (`getOpponentPreview`, qui montre son dispositif
 et son profil, `opponent-formation`), les trois meilleurs de l'écran de composition (`rankFormations`) et les tests
-(`src/db/opponent.test.ts` compare l'aperçu au match joué). Le club dirigé garde le sien. Base des buts recalibrée pour
-les six cibles : `BASE_GOALS_PER_TEAM` 1,23 → 1,31. Pour peser les dix-sept dispositifs, l'effectif est classé une fois
-à chaque poste (`restedLineups`, `src/engine/lineup.ts`, chantier « cpu », 11/11 : note au poste puis identifiant, les
-mêmes onze et bancs que `selectRestedLineup`, que `lineup.test.ts` compare sur 200 effectifs tirés).
+(`src/db/opponent.test.ts` compare l'aperçu au match joué). Le club dirigé garde le sien. **Quand :** les clubs du pays
+du club dirigé, qu'il rencontre en championnat et en coupe, avant chaque match ; ceux des quatre autres pays à leur premier
+match de chaque mois du jeu (chantier « cpu », mise en ligne du 16/11 : `aiLineupOf`, `src/db/matchday.ts`,
+`monthlyFormation`), le dispositif alors choisi gardé sur leur ligne jusqu'au mois suivant (`ClubSave.formation` et
+`ClubSave.formationMonth`, année × 100 + mois en UTC, `formationMonthOf`, migration d'ajout `…_formation_month`), leur onze
+choisi à chaque match dans ce dispositif (`selectRestedLineup` ; `src/db/monthly-formation.test.ts`). Le joueur ne voit
+que leurs scores, et peser les dix-sept dispositifs avant chacun de leurs matchs était une grande part du CPU d'une
+journée. Base des buts recalibrée pour les six cibles : `BASE_GOALS_PER_TEAM` 1,23 → 1,31. Pour peser les dix-sept
+dispositifs, l'effectif est classé une fois à chaque poste (`restedLineups`, `src/engine/lineup.ts`, chantier « cpu »,
+11/11 : note au poste puis identifiant, les mêmes onze et bancs que `selectRestedLineup`, que `lineup.test.ts` compare
+sur 200 effectifs tirés).
 
 **Composition et consigne de départ (gameplay v1, G6).** La force d'une équipe a une seule source,
 `src/engine/strength.ts` (`condition`, `teamStrength`, `formationStrength`, `expectedGoals`, `expectedGoalDifference`,

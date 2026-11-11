@@ -87,10 +87,13 @@ une blessure ou un changement compte donc dès le segment suivant.
 - Profils de dispositif (`FORMATION_PROFILES`, `balance.ts`, appliqués par `formationStrength`) : multiplicateurs de
   l'attaque et de la défense, dix-sept dispositifs (gameplay v2, V1), du 3-4-3 et du 4-3-3 offensif (+5 % / −5 %) au
   5-4-1 (−6 / +6), le 4-4-2 à plat et le 4-4-1-1 neutres ; ceux de G1 inchangés (4-3-3 sentinelle +3 / −3, 4-2-3-1 large
-  +2 / −1, 3-5-2 +1 / −1, 4-1-4-1 −2 / +2, 5-3-2 −5 / +5). Les clubs IA choisissent le leur avant chaque match
+  +2 / −1, 3-5-2 +1 / −1, 4-1-4-1 −2 / +2, 5-3-2 −5 / +5). Les clubs IA choisissent le leur
   (`chooseFormation`, `src/engine/formation-choice.ts`, pure) : le plus de points attendus (`expectedPoints`, Poisson,
   domicile et extérieur moyennés) avec la composition de l'adjoint dans chacun, face à l'adversaire moyen de leur
-  division (`averageOpponent`) ; la même fonction pour le match, l'aperçu de l'adversaire et l'écran de composition.
+  division (`averageOpponent`) ; la même fonction pour le match, l'aperçu de l'adversaire et l'écran de composition. Ceux
+  du pays du club dirigé avant chaque match, ceux des quatre autres pays à leur premier match de chaque mois du jeu,
+  gardé jusqu'au mois suivant (`monthlyFormation`, `formationMonthOf` ; `aiLineupOf`, `src/db/matchday.ts`, qui le garde
+  dans `ClubSave.formation` et `formationMonth`), leur onze choisi à chaque match dans ce dispositif.
 - Consignes (`Instruction` : `ATTACK`, `BALANCED`, `DEFEND` ; `INSTRUCTION_EFFECTS`) : Attaquer ouvre le match
   (λ propre × 1,13, λ adverse × 1,15), Fermer le ferme (× 0,89 des deux côtés). Réglées pour qu'entre équipes égales
   aucune ne s'écarte de plus de 0,015 point par match d'Équilibré, que mené à partir de la 60e Attaquer rapporte et que
@@ -366,7 +369,8 @@ historique, celui des clubs IA). Le club dirigé a `ClubSave.formation` et `Club
 écriture). `resolveLineup(formation, saved, squad)` part de la composition enregistrée : un slot dont le joueur
 est blessé, absent de l'effectif ou déjà titulaire plus tôt est recomplété par l'affectation gloutonne ; sans
 composition, c'est `selectLineup` dans le dispositif. `playNextMatchday` l'utilise pour le club dirigé ; un
-club IA joue le dispositif qu'il choisit et sa composition automatique (`chooseFormation`). `changeFormation` réaffecte un onze d'un dispositif à l'autre (même
+club IA joue le dispositif qu'il choisit et sa composition automatique (`aiLineupOf` : `chooseFormation` avant chaque
+match dans le pays du club dirigé, une fois par mois du jeu ailleurs). `changeFormation` réaffecte un onze d'un dispositif à l'autre (même
 poste, puis même ligne, puis automatique).
 
 **Le moteur utilise `ratingAt` du slot occupé, jamais `overall` seul :**
