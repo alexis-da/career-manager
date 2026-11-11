@@ -1,5 +1,5 @@
 import { competitionName } from "@/src/i18n/countries";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { ChevronLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "@/src/components/link";
@@ -37,10 +37,11 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
   const { id, seasonId } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const [t, tWorld, tStage] = await Promise.all([
+  const [t, tWorld, tStage, locale] = await Promise.all([
     getTranslations("seasons"),
     getTranslations("world"),
     getTranslations("stage"),
+    getLocale(),
   ]);
   const [result, moves, save, objectives] = await Promise.all([
     getSeasonResult(id, seasonId),
@@ -97,8 +98,8 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
       </div>
       <div className={cn("grid grid-cols-1 items-start gap-5", beside && "lg:grid-cols-2 xl:grid-cols-[28rem_minmax(0,1fr)]")}>
         <SeasonCardPanel
-          square={{ url: seasonCardPath(id, seasonId, "square"), fileName: seasonCardFileName(season.startYear, "square", t) }}
-          landscape={{ url: seasonCardPath(id, seasonId), fileName: seasonCardFileName(season.startYear, "landscape", t) }}
+          square={{ url: seasonCardPath(id, seasonId, locale, "square"), fileName: seasonCardFileName(season.startYear, "square", t) }}
+          landscape={{ url: seasonCardPath(id, seasonId, locale), fileName: seasonCardFileName(season.startYear, "landscape", t) }}
           shareTitle={t("completed.shareTitle", { season: label })}
         />
         <div className="space-y-5 empty:hidden">

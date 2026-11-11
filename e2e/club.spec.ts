@@ -225,7 +225,7 @@ for (const viewport of [COMPUTER, SMALL_COMPUTER]) {
       const honours = page.getByTestId("club-honours");
       const preview = honours.locator("img");
       await expect(preview).toBeVisible();
-      await expect(preview).toHaveAttribute("src", /\/card\?format=square$/);
+      await expect(preview).toHaveAttribute("src", /\/card\?lang=fr&v=\d+&format=square$/);
       await preview.scrollIntoViewIfNeeded();
       await expect.poll(() => preview.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1080);
       await expect(honours.getByTestId("season-card-download")).toBeVisible();

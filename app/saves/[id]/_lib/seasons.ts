@@ -1,4 +1,5 @@
 import { seasonLabel, seasonStartYear } from "@/src/engine/world";
+import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
 import { cupRoundReached } from "./stage";
 
@@ -33,10 +34,19 @@ export function isLastCompletedSeason(startYear: number, currentDate: Date): boo
   return seasonStartYear(currentDate) === startYear + 1;
 }
 
-/** Where a season's card is drawn; format "square" for 1080 × 1080, 1200 × 630 otherwise. */
-export function seasonCardPath(saveId: string, seasonId: string, format: "landscape" | "square" = "landscape"): string {
-  const path = `/saves/${saveId}/seasons/${seasonId}/card`;
-  return format === "square" ? `${path}?format=square` : path;
+/** The card's drawing: bumped when the card changes, so that no browser nor the server keeps an old one. */
+export const SEASON_CARD_VERSION = 1;
+
+/**
+ * Where a season's card is drawn, in a language and a format ("square" for 1080 × 1080, 1200 × 630 otherwise): an
+ * address that always gives the same image, which the browser and the server keep (the route's cache).
+ */
+export function seasonCardPath(saveId: string, seasonId: string, locale: Locale, format: "landscape" | "square" = "landscape"): string {
+  const query = new URLSearchParams({ lang: locale, v: String(SEASON_CARD_VERSION) });
+  if (format === "square") {
+    query.set("format", "square");
+  }
+  return `/saves/${saveId}/seasons/${seasonId}/card?${query.toString()}`;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import Link from "@/src/components/link";
 import type { SeasonResultView } from "@/src/db/season-results";
@@ -23,6 +23,7 @@ export function ClubHonours({ saveId, seasons, className }: ClubHonoursProps) {
   const t = useTranslations("seasons");
   const tClub = useTranslations("club");
   const tWorld = useTranslations("world");
+  const locale = useLocale();
   const latest = seasons.at(0);
   const title = <ClubCardTitle id="club-honours-title">{t("title")}</ClubCardTitle>;
 
@@ -36,7 +37,7 @@ export function ClubHonours({ saveId, seasons, className }: ClubHonoursProps) {
       </Panel>
     );
   }
-  const card = seasonCardPath(saveId, latest.seasonId, "square");
+  const card = seasonCardPath(saveId, latest.seasonId, locale, "square");
   return (
     <Panel aria-labelledby="club-honours-title" data-testid="club-honours" className={cn("flex gap-5.5", className)}>
       {/* Its season is named by the first line beside it. Lazy and hidden, a phone never fetches it. */}

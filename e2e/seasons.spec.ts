@@ -52,10 +52,10 @@ test("shows the demo save's palmarès, its completed season and the season's car
   // Square by default, previewed and downloaded; landscape from the quieter link.
   const download = page.getByRole("link", { name: "Enregistrer l'image" });
   await expect(download).toHaveAttribute("download", "late-winner-saison-2026-27.png");
-  await expect(download).toHaveAttribute("href", /\?format=square$/);
+  await expect(download).toHaveAttribute("href", /\?lang=fr&v=\d+&format=square$/);
   const landscape = page.getByRole("link", { name: "Version paysage" });
   await expect(landscape).toHaveAttribute("download", "late-winner-saison-2026-27-paysage.png");
-  await expect(landscape).not.toHaveAttribute("href", /format=/);
+  await expect(landscape).toHaveAttribute("href", /\?lang=fr&v=\d+$/);
   const card = page.getByRole("img", { name: /^Carte de la saison/ });
   await expect(card).toBeVisible();
   await expect

@@ -300,7 +300,8 @@ describe("the honours", () => {
     expect(markup).toContain('href="/saves/save/seasons/season-2026"');
     expect(line.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()).toBe("6e 2026-27 France — Division 1 · 64 pts Carte");
     expect(markup).toMatch(/<img alt="" [^>]*loading="lazy"[^>]*class="[^"]*max-lg:hidden/);
-    expect(markup).toContain("/saves/save/seasons/season-2026/card?format=square");
+    // In the page's language: an address that always gives the same image, which the browser keeps.
+    expect(markup).toContain("/saves/save/seasons/season-2026/card?lang=fr&amp;v=1&amp;format=square");
     expect(markup).not.toContain('data-testid="club-honours-all"');
   });
 

@@ -1,39 +1,73 @@
+import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getLocale } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getClosedObjectives } from "@/src/db/objectives";
 import { getSeasonResult } from "@/src/db/season-results";
-import { seasonCardResponse } from "./season-card";
+import { isLocale, type Locale } from "@/src/i18n/locale";
+import { translatorFor } from "@/src/i18n/messages-translator";
+import { SEASON_CARD_VERSION } from "../../../_lib/seasons";
+import { seasonCardResponse, type CardFormat } from "./season-card";
 
 export const dynamic = "force-dynamic";
 
+/** How long the server keeps a card it drew: a completed season's card never changes (SEASON_CARD_VERSION aside). */
+const CARD_CACHE_SECONDS = 30 * 24 * 60 * 60;
+
 /**
- * The PNG card of a completed season, in the player's language: 1200 × 630, or 1080 × 1080 with ?format=square. 404 for
- * another player's save.
+ * A completed season's card as PNG bytes (base64), drawn once for its save, season, format and language, then kept by
+ * the server across requests and instances (Next's data cache): drawing one is some 440 ms of CPU (satori and resvg).
+ * null when the season has no result. Reads no request data: its language comes from its address.
+ */
+const drawCard = unstable_cache(
+  async (saveId: string, seasonId: string, format: CardFormat, locale: Locale): Promise<string | null> => {
+    const [result, objectives] = await Promise.all([getSeasonResult(saveId, seasonId), getClosedObjectives(saveId, seasonId)]);
+    if (result === null) {
+      return null;
+    }
+    const response = await seasonCardResponse(
+      result.season,
+      result.clubColors,
+      format,
+      {
+        positions: translatorFor(locale, "positions"),
+        world: translatorFor(locale, "world"),
+        seasons: translatorFor(locale, "seasons"),
+        seasonCard: translatorFor(locale, "seasonCard"),
+        objectives: translatorFor(locale, "objectives"),
+      },
+      locale,
+      objectives,
+    );
+    return Buffer.from(await response.arrayBuffer()).toString("base64");
+  },
+  ["season-card", String(SEASON_CARD_VERSION)],
+  { revalidate: CARD_CACHE_SECONDS },
+);
+
+/**
+ * The PNG card of a completed season: 1200 × 630, or 1080 × 1080 with ?format=square, in the language of ?lang= (the
+ * player's without it). 404 for another player's save, checked before any cache. An address with its language (the
+ * pages build them, seasonCardPath) always gives the same image: the browser keeps it a year, privately (never a shared
+ * cache: the card opens to its owner only), and the server draws it once (drawCard).
  */
 export async function GET(request: Request, { params }: RouteContext<"/saves/[id]/seasons/[seasonId]/card">) {
   const { id, seasonId } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const [result, objectives] = await Promise.all([getSeasonResult(id, seasonId), getClosedObjectives(id, seasonId)]);
-  if (result === null) {
+  const query = new URL(request.url).searchParams;
+  const format: CardFormat = query.get("format") === "square" ? "square" : "landscape";
+  const lang = query.get("lang");
+  const locale = isLocale(lang) ? lang : await getLocale();
+  const png = await drawCard(id, seasonId, format, isLocale(locale) ? locale : "en");
+  if (png === null) {
     notFound();
   }
-  const format = new URL(request.url).searchParams.get("format") === "square" ? "square" : "landscape";
-  const [positions, world, seasons, seasonCard, tObjectives, locale] = await Promise.all([
-    getTranslations("positions"),
-    getTranslations("world"),
-    getTranslations("seasons"),
-    getTranslations("seasonCard"),
-    getTranslations("objectives"),
-    getLocale(),
-  ]);
-  return seasonCardResponse(
-    result.season,
-    result.clubColors,
-    format,
-    { positions, world, seasons, seasonCard, objectives: tObjectives },
-    locale,
-    objectives,
-  );
+  return new Response(Buffer.from(png, "base64"), {
+    headers: {
+      "Content-Type": "image/png",
+      // Without its language in the address, the card follows the player's: the browser asks again each time.
+      "Cache-Control": isLocale(lang) ? "private, max-age=31536000, immutable" : "private, no-cache",
+    },
+  });
 }
