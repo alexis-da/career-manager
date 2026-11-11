@@ -1,7 +1,7 @@
 import { CLUB_LEVEL_BY_TIER, HOME_ADVANTAGE, POSITION_PROFILES } from "./balance";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, FORMATIONS, formationPositions, type FormationName } from "./formations";
 import { clampRating, overallFor, type AttributeName } from "./generation";
-import { selectRestedLineup, type Lineup, type SquadPlayer } from "./lineup";
+import { restedLineups, selectRestedLineup, type Lineup, type SquadPlayer } from "./lineup";
 import { expectedGoals, formationStrength, type TeamStrength } from "./strength";
 import type { CompetitionTier } from "./tiers";
 
@@ -106,14 +106,15 @@ export type RankedFormation<P extends SquadPlayer = SquadPlayer> = {
 
 /**
  * Every formation for a squad, best first: its automatic eleven in each (selectRestedLineup: the injured and the
- * suspended out, a tired player rested where a rested one is hardly worse), that eleven's strength with the formation's
- * profile, and the points it expects per match against the average opponent of its division. Equal points keep the
- * order of FORMATION_NAMES.
+ * suspended out, a tired player rested where a rested one is hardly worse; picked by restedLineups, the squad ranked
+ * once at each position), that eleven's strength with the formation's profile, and the points it expects per match
+ * against the average opponent of its division. Equal points keep the order of FORMATION_NAMES.
  */
 export function rankFormations<P extends SquadPlayer>(squad: readonly P[], tier: CompetitionTier): RankedFormation<P>[] {
   const opponent = averageOpponent(tier);
+  const lineupIn = restedLineups(squad);
   const ranked = FORMATION_NAMES.map((formation): RankedFormation<P> => {
-    const lineup = selectRestedLineup(squad, formationPositions(formation));
+    const lineup = lineupIn(formationPositions(formation));
     const strength = formationStrength(lineup, formation);
     return { formation, lineup, strength, points: expectedPoints(strength, opponent) };
   });

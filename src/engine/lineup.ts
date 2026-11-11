@@ -153,6 +153,53 @@ export function selectRestedLineup<P extends LineupCandidate & { fitness: number
   return toLineup(formation, assigned, automaticBench(remaining));
 }
 
+/** A player and his rating in a slot. */
+type RatedCandidate<P> = { player: P; rating: number };
+
+/**
+ * selectRestedLineup for one squad in many formations, as a club weighs them (rankFormations, compareFormations): its
+ * available players ranked once for each position a formation asks, by rating in the slot (ratingAt, computed once a
+ * player and a slot) then id, as bestFor picks them. Each slot of a formation then takes, in order, the first player of
+ * its ranking not placed yet, or the first rested one if he is tired, restedFor's rule. The very elevens and benches of
+ * selectRestedLineup, without computing a rating again (lineup.test.ts compares them).
+ */
+export function restedLineups<P extends LineupCandidate & { fitness: number }>(
+  squad: readonly P[],
+): (formation: Formation) => Lineup<P> {
+  const available = squad.filter(isAvailable);
+  const rankings = new Map<Position, RatedCandidate<P>[]>();
+  const rankingAt = (slot: Position): RatedCandidate<P>[] => {
+    let ranking = rankings.get(slot);
+    if (ranking === undefined) {
+      ranking = available
+        .map((player) => ({ player, rating: ratingAt(player, slot) }))
+        .sort((a, b) => b.rating - a.rating || byId(a.player, b.player));
+      rankings.set(slot, ranking);
+    }
+    return ranking;
+  };
+  return (formation) => {
+    const assigned: (P | undefined)[] = formation.map(() => undefined);
+    const placed = new Set<P>();
+    formation.forEach((slot, index) => {
+      const ranking = rankingAt(slot);
+      const best = ranking.find(({ player }) => !placed.has(player));
+      if (best === undefined) {
+        return;
+      }
+      // restedFor's rule: a tired best player gives way to the best rested one, if he is hardly worse in the slot.
+      const rested =
+        best.player.fitness < ROTATION_FITNESS
+          ? ranking.find(({ player }) => player.fitness >= ROTATION_FITNESS && !placed.has(player))
+          : undefined;
+      const chosen = rested !== undefined && rested.rating >= best.rating - ROTATION_MAX_RATING_GAP ? rested : best;
+      assigned[index] = chosen.player;
+      placed.add(chosen.player);
+    });
+    return toLineup(formation, assigned, automaticBench(available.filter((player) => !placed.has(player))));
+  };
+}
+
 /**
  * The lineup a club plays: the saved one where it still holds, completed automatically. A saved starter keeps
  * their slot unless injured, gone from the squad, or already starting in an earlier slot; the slots left empty

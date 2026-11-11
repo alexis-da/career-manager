@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formationPositions } from "./formations";
+import { makeRng } from "../lib/rng";
+import { FORMATION_NAMES, formationPositions } from "./formations";
 import {
   autoFilledSlots,
   averageStarterRating,
@@ -7,13 +8,14 @@ import {
   changeFormation,
   DEFAULT_FORMATION,
   resolveLineup,
+  restedLineups,
   selectLineup,
   selectRestedLineup,
   type Lineup,
   type SavedLineup,
   type SquadPlayer,
 } from "./lineup";
-import { ratingAt, secondaryPositions, type Position } from "./positions";
+import { POSITIONS, ratingAt, secondaryPositions, type Position } from "./positions";
 
 function player(id: string, position: Position, overall: number, overrides: Partial<SquadPlayer> = {}): SquadPlayer {
   return {
@@ -159,6 +161,34 @@ describe("selectRestedLineup", () => {
     expect(startersOf(selectRestedLineup(weary))[0]).toEqual(["GK", "gk-1"]);
     expect(selectRestedLineup(weary).bench[0].id).toBe("gk-2");
     expect(selectRestedLineup([...weary].reverse())).toEqual(selectRestedLineup(weary));
+  });
+});
+
+describe("restedLineups", () => {
+  // Squads drawn from a fixed seed: any position, overalls close enough to tie, a third of the players tired, some
+  // injured or suspended, a few squads too short for an eleven.
+  const drawnSquad = (seed: number): SquadPlayer[] => {
+    const rng = makeRng(`rested-lineups:${seed}`);
+    return Array.from({ length: 6 + Math.floor(rng() * 24) }, (_, index) => {
+      const roll = rng();
+      const position = POSITIONS[Math.floor(rng() * POSITIONS.length)];
+      return player(`p${seed}-${index}`, position, 60 + Math.floor(rng() * 8), {
+        fitness: rng() < 0.33 ? 55 + Math.floor(rng() * 20) : 75 + Math.floor(rng() * 26),
+        injured: roll < 0.05,
+        suspended: roll > 0.95,
+      });
+    });
+  };
+
+  it("picks selectRestedLineup's eleven and bench in every formation, for any squad", () => {
+    for (let seed = 0; seed < 200; seed++) {
+      const players = drawnSquad(seed);
+      const lineupIn = restedLineups(players);
+      for (const formation of FORMATION_NAMES) {
+        const positions = formationPositions(formation);
+        expect(lineupIn(positions)).toEqual(selectRestedLineup(players, positions));
+      }
+    }
   });
 });
 

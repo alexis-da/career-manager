@@ -15,7 +15,7 @@ import {
 import { fitnessFactor } from "./fitness";
 import { FORMATION_NAMES, formationPositions, type FormationName } from "./formations";
 import { ATTRIBUTE_NAMES, type AttributeName } from "./generation";
-import { selectRestedLineup, type Lineup, type LineupSlot, type SquadPlayer } from "./lineup";
+import { restedLineups, type Lineup, type LineupSlot, type SquadPlayer } from "./lineup";
 import { playerFamiliarity, positionGroup, type Position, type PositionGroup } from "./positions";
 
 /**
@@ -130,16 +130,18 @@ export type FormationOption = { formation: FormationName; strength: TeamStrength
 
 /**
  * Every formation with the club's automatic eleven in it (selectRestedLineup: its tired players rested where a rested
- * one is hardly worse, the injured and the suspended left out), each one's attack and defense and, against the next
- * opponent, the goals it expects to score more than it concedes. The best is the formation with the largest difference,
- * the first of FORMATION_NAMES among equals; none without an opponent.
+ * one is hardly worse, the injured and the suspended left out; picked by restedLineups, the squad ranked once at each
+ * position), each one's attack and defense and, against the next opponent, the goals it expects to score more than it
+ * concedes. The best is the formation with the largest difference, the first of FORMATION_NAMES among equals; none
+ * without an opponent.
  */
 export function compareFormations(
   squad: readonly SquadPlayer[],
   opposition: Opposition | null,
 ): { options: FormationOption[]; best: FormationName | null } {
+  const lineupIn = restedLineups(squad);
   const options = FORMATION_NAMES.map((formation): FormationOption => {
-    const strength = formationStrength(selectRestedLineup(squad, formationPositions(formation)), formation);
+    const strength = formationStrength(lineupIn(formationPositions(formation)), formation);
     return { formation, strength, goalDifference: opposition === null ? null : expectedGoalDifference(strength, opposition) };
   });
   if (opposition === null) {
