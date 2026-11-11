@@ -719,7 +719,10 @@ TikTok et Snap), le fichier lu d'avance ; ailleurs (navigateur d'une appli, la p
 navigateur refuse le partage annoncé, « Enregistrer l'image » en orange, qui télécharge le PNG ou, sur iPhone et iPad,
 l'ouvre en grand pour un appui long vers Photos (`season-card-viewer`), et une phrase sur la publication depuis la
 galerie (`season-card-save-hint`) ; « Copier le lien » copie l'adresse du jeu (`SITE_URL`, `src/config/site.ts`), la
-carte ne s'ouvrant qu'à son propriétaire ; `e2e/season-card-share.spec.ts` simule les deux navigateurs. Le bilan des
+carte ne s'ouvrant qu'à son propriétaire ; `e2e/season-card-share.spec.ts` simule les deux navigateurs. Une carte coûte
+environ 440 ms de CPU à dessiner : son adresse porte sa langue et la version de son dessin (`seasonCardPath`,
+`SEASON_CARD_VERSION`, à augmenter quand la carte change), une adresse donnant toujours la même image, que le navigateur
+garde un an en privé et le serveur 30 jours (`unstable_cache`, traducteurs hors requête `translatorFor`). Le bilan des
 objectifs (`season-objectives`, `getClosedObjectives` : « Objectifs : 2/3 », chacun avec son issue), montées et descentes, et,
 pour la dernière saison terminée (`isLastCompletedSeason`), « Cap sur la saison 2027-28 » vers l'écran de début de saison
 (règle « Début de saison ») : `advanceSeasonAction` mène ici une fois la saison suivante commencée. `e2e/club.spec.ts` couvre
@@ -1059,6 +1062,14 @@ Jamais de logo ni d'écusson de club.
 **Hébergement.** Aucun service propre à Vercel (Blob, KV, Cron, Analytics) : le jeu doit rester déplaçable
 chez un autre hébergeur.
 
+**Budget CPU Vercel (chantier « cpu », 11/11).** L'offre Hobby compte 4 h de Fluid Active CPU par mois, et chaque
+requête qui atteint le serveur en coûte : **aucun préchargement automatique**. Tous les liens passent par
+`src/components/link.tsx` (`prefetch={false}`, `router.prefetch` au seul survol d'un pointeur, jamais sur un écran
+tactile ; ESLint refuse `next/link` ailleurs) : `next/link` préchargeait chaque lien visible, de nouveau après chaque
+Server Action, deux requêtes sur trois d'une session type, et l'accueil depuis chaque écran de partie, à travers le proxy.
+Le proxy ne tourne que sur les pages publiques (`config.matcher`). L'essentiel du reste est le jeu lui-même : une
+journée d'une partie 2 coûte environ 0,5 s de CPU en local, une création de partie environ 4 s.
+
 **Budget base de données.** La production est sur l'offre Launch de Neon, facturée à l'usage (stockage 0,35 $ le Go
 par mois, instantanés 0,09 $) : la section Santé de `/admin` estime le coût du stockage et alerte au-delà de 5 $ par
 mois projetés. Le plan gratuit (100 CU-h de calcul, 1 Go de stockage, 5 Go de transfert par mois) avait été épuisé par
@@ -1071,6 +1082,7 @@ le changement le justifie.
 - Code, noms de variables et commentaires en **anglais**. Textes d'interface en **français** et en **anglais**, dans
   les messages (`src/i18n/messages`), jamais en dur dans une page traduite.
 - Server Components par défaut ; `"use client"` seulement pour un composant réellement interactif.
+- Un lien interne est un `Link` de `@/src/components/link`, jamais de `next/link` (règle « Budget CPU Vercel »).
 - Mutations via Server Actions, jamais de route API pour un usage interne, sauf `POST /api/client-errors` (règle
   « Erreurs du jeu »).
 - Validation des entrées avec Zod à la frontière (Server Action, parsing de fichier importé).
