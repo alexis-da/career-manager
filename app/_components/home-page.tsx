@@ -14,6 +14,7 @@ import { AccountPanel, GoogleSignInButton } from "./account-panel";
 import { ChallengeTeaser } from "./challenge-teaser";
 import { CreateSaveForm } from "./create-save-form";
 import { DeleteAccountDialog } from "./delete-account-dialog";
+import { InAppNotice } from "./in-app-notice";
 import { LandingSections, SCREENSHOTS, screenshotPath } from "./landing-sections";
 import { PublicPage } from "./public-page";
 import { SaveCard } from "./save-card";
@@ -41,11 +42,14 @@ function HomeTools({ children }: { children: ReactNode }) {
   );
 }
 
-/** Google for a player without an account, second to the creation form: the way back to careers played elsewhere. */
+/**
+ * Google for a player without an account, second to the creation form: the way back to careers played elsewhere. Not in
+ * an app's browser, where Google does not sign in: the in-app notice says what to do there.
+ */
 function OtherDevice() {
   const t = useTranslations("home");
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2.5 in-app:hidden">
       <p className="text-sm text-muted-foreground lg:hidden">{t("otherDevice")}</p>
       <GoogleSignInButton tall />
     </div>
@@ -114,6 +118,8 @@ async function WelcomePage({ notices }: { notices: Notices }) {
     >
       <HomeStructuredData />
       <HomeNotices {...notices} />
+      {/* In an app's browser only: begin in the phone's browser, where the career stays. */}
+      <InAppNotice career={false} className="mb-6" />
       <CreateSaveForm clubCount={clubCount} previews={previews} />
     </PublicPage>
   );
@@ -160,6 +166,8 @@ export async function HomePage({ searchParams }: { searchParams: Promise<Record<
     >
       <HomeStructuredData />
       <HomeNotices {...notices} />
+      {/* In an app's browser only: an anonymous player's careers go to the phone's browser by their resume link. */}
+      <InAppNotice career={user.kind === "ANONYMOUS" && saves.length > 0} className="mb-6" />
       <div className="space-y-12 lg:space-y-16">
         <section aria-labelledby="saves-title" className={HOME_COLUMNS} data-testid="saves">
           <div className="space-y-2 lg:space-y-4">

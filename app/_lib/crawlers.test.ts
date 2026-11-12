@@ -14,7 +14,7 @@ const PUBLIC_URLS = PUBLIC_PAGE_NAMES.flatMap((page) => LOCALES.map((locale) => 
 describe("robots.txt", () => {
   it("lets every crawler read all but a save's pages, the API and the admin page, and says where the sitemap is", () => {
     const { rules, sitemap: sitemapUrl } = robots();
-    expect(ROBOTS_DISALLOW).toEqual(["/saves/", "/api/", "/admin"]);
+    expect(ROBOTS_DISALLOW).toEqual(["/saves/", "/api/", "/admin", "/resume"]);
     expect(rules).toEqual([
       { userAgent: "*", allow: "/", disallow: ROBOTS_DISALLOW },
       { userAgent: NAMED_CRAWLERS, allow: "/", disallow: ROBOTS_DISALLOW },

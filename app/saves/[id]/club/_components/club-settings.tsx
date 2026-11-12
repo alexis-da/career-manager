@@ -1,6 +1,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import Link from "@/src/components/link";
 import { GoogleSignInButton } from "@/app/_components/account-panel";
+import { ResumeLinkCopy } from "@/app/_components/in-app-actions";
 import { LanguageSwitcher } from "@/app/_components/language-switcher";
 import { signOutAction } from "@/app/actions";
 import type { CurrentUser } from "@/src/auth/current-user";
@@ -27,6 +28,8 @@ function Account({ user }: { user: CurrentUser }) {
           <p className={DETAIL}>{t("browserOnly")}</p>
         </div>
         <GoogleSignInButton />
+        {/* In an app's browser, where Google does not sign in: the careers' resume link instead. */}
+        <ResumeLinkCopy className="hidden in-app:block" />
       </div>
     );
   }

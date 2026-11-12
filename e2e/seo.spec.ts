@@ -61,7 +61,7 @@ test("serves robots.txt: everything but a save's pages, the API and the admin pa
   const response = await request.get("/robots.txt");
   expect(response.status()).toBe(200);
   const text = await response.text();
-  for (const line of ["User-Agent: *", "Allow: /", "Disallow: /saves/", "Disallow: /api/", "Disallow: /admin"]) {
+  for (const line of ["User-Agent: *", "Allow: /", "Disallow: /saves/", "Disallow: /api/", "Disallow: /admin", "Disallow: /resume"]) {
     expect(text).toContain(line);
   }
   for (const crawler of ["OAI-SearchBot", "PerplexityBot", "Claude-SearchBot", "Claude-User", "GPTBot", "ClaudeBot", "Google-Extended"]) {

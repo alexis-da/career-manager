@@ -8,7 +8,7 @@ describe("privacy page, in French", () => {
 
   it("has its title, its date and every section, in French", () => {
     expect(markup).toContain("Confidentialité · Late Winner");
-    expect(markup).toContain("Mise à jour le 10 novembre 2026.");
+    expect(markup).toContain("Mise à jour le 12 novembre 2026.");
     for (const section of ["Responsable", "Données traitées", "Finalités", "Durées de conservation", "Hébergement", "Tes droits"]) {
       expect(markup).toContain(`>${section}</h2>`);
     }
@@ -64,7 +64,7 @@ describe("privacy page, in French", () => {
 
   it("ends with an English summary in a block marked as English, of the same date", () => {
     expect(markup).toMatch(/<section lang="en"[^>]*><h2[^>]*>English summary<\/h2>/);
-    expect(markup).toContain("Last updated 10 November 2026.");
+    expect(markup).toContain("Last updated 12 November 2026.");
   });
 });
 
@@ -74,7 +74,7 @@ describe("privacy page, in English", () => {
   it("is the whole document in English, of the French one's date, without the summary", () => {
     expect(markup).toMatch(/<article lang="en"/);
     expect(markup).toContain("Privacy · Late Winner");
-    expect(markup).toContain("Last updated 10 November 2026.");
+    expect(markup).toContain("Last updated 12 November 2026.");
     for (const section of ["Controller", "Data processed", "Purposes", "Retention periods", "Hosting", "Your rights"]) {
       expect(markup).toContain(`>${section}</h2>`);
     }

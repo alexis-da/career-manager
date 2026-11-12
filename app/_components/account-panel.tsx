@@ -24,11 +24,14 @@ type GoogleSignInButtonProps = {
   className?: string;
 };
 
-/** « Continuer avec Google »: off to Google, back to the home page. */
+/**
+ * « Continuer avec Google »: off to Google, back to the home page. Never in an app's browser, where Google refuses to sign
+ * in (disallowed_useragent): the resume link takes its place there (InAppNotice, ResumeLinkCopy).
+ */
 export function GoogleSignInButton({ compact = false, tall = false, className }: GoogleSignInButtonProps) {
   const t = useTranslations("account");
   return (
-    <form action={signInWithGoogleAction} className={className}>
+    <form action={signInWithGoogleAction} className={cn(className, "in-app:hidden")}>
       <Button
         type="submit"
         variant="outline"

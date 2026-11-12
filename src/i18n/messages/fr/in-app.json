@@ -1,0 +1,54 @@
+{
+  "inApp": {
+    "title": "Ouvre Late Winner dans ton navigateur pour garder ta carrière",
+    "why": "Tu es dans le navigateur d'une appli : une carrière commencée ici y reste, et la connexion Google n'y marche pas.",
+    "whyCareer": "Ta carrière ne vit que dans le navigateur de cette appli : tu ne la retrouveras ni dans ton navigateur, ni sur un autre appareil.",
+    "steps": "Touche le menu ⋯ de l'appli, puis choisis d'ouvrir la page dans ton navigateur.",
+    "stepsCareer": "Copie ton lien de reprise, puis colle-le dans la barre d'adresse de Safari ou de Chrome : ta carrière s'y ouvre.",
+    "openInChrome": "Ouvrir dans Chrome",
+    "copyResume": "Copier mon lien de reprise",
+    "preparing": "Préparation du lien…",
+    "copied": "Lien copié · il sert une fois, pendant {days, plural, one {# jour} other {# jours}}",
+    "copyByHand": "Copie ce lien · il sert une fois, pendant {days, plural, one {# jour} other {# jours}}",
+    "linkLabel": "Ton lien de reprise",
+    "unavailable": "Lien indisponible pour l'instant. Réessaie dans un moment."
+  },
+  "resume": {
+    "title": "Reprendre ta carrière",
+    "career": "{club} · {manager} · {date}",
+    "moreCareers": "{count, plural, one {Et # autre carrière} other {Et # autres carrières}}",
+    "home": "Retour à l'accueil",
+    "ready": {
+      "heading": "Reprends ta carrière ici",
+      "text": "Ce lien ouvre ta carrière dans ce navigateur. Elle reste aussi dans l'appli où tu l'as commencée.",
+      "submit": "Reprendre ma carrière",
+      "pending": "Ouverture…",
+      "once": "Le lien ne sert qu'une fois."
+    },
+    "here": {
+      "heading": "Ta carrière est déjà là",
+      "text": "Ce navigateur a déjà cette carrière : rien à faire.",
+      "open": "Ouvrir ma carrière"
+    },
+    "account": {
+      "heading": "Ce navigateur est connecté à Google",
+      "text": "Pour ne rien mélanger, le lien ne s'ouvre pas sur un compte Google. Ouvre-le dans un autre navigateur, ou déconnecte-toi d'abord."
+    },
+    "other-career": {
+      "heading": "Ce navigateur a déjà une carrière",
+      "text": "Pour ne pas la remplacer, le lien ne s'ouvre pas ici. Ouvre-le dans un autre navigateur."
+    },
+    "used": {
+      "heading": "Ce lien a déjà servi",
+      "text": "Ta carrière est dans le navigateur où tu l'as ouvert. Pour un nouveau lien, retourne dans ta carrière et copie-le de nouveau."
+    },
+    "expired": {
+      "heading": "Ce lien a expiré",
+      "text": "Un lien de reprise dure {days, plural, one {# jour} other {# jours}}. Retourne dans ta carrière, là où tu l'as commencée, et copie un nouveau lien."
+    },
+    "unknown": {
+      "heading": "Ce lien ne marche pas",
+      "text": "Il est incomplet ou n'existe pas. Vérifie que tu l'as collé en entier."
+    }
+  }
+}

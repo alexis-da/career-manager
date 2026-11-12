@@ -15,6 +15,7 @@ import enFixtures from "./en/fixtures.json";
 import enHalfTime from "./en/half-time.json";
 import enHeader from "./en/header.json";
 import enHome from "./en/home.json";
+import enInApp from "./en/in-app.json";
 import enLanding from "./en/landing.json";
 import enLineup from "./en/lineup.json";
 import enLineupPlan from "./en/lineup-plan.json";
@@ -48,6 +49,7 @@ import frFixtures from "./fr/fixtures.json";
 import frHalfTime from "./fr/half-time.json";
 import frHeader from "./fr/header.json";
 import frHome from "./fr/home.json";
+import frInApp from "./fr/in-app.json";
 import frLanding from "./fr/landing.json";
 import frLineup from "./fr/lineup.json";
 import frLineupPlan from "./fr/lineup-plan.json";
@@ -76,6 +78,7 @@ import frWorld from "./fr/world.json";
 export const ZONES = {
   public: { fr: frPublic, en: enPublic },
   home: { fr: frHome, en: enHome },
+  "in-app": { fr: frInApp, en: enInApp },
   landing: { fr: frLanding, en: enLanding },
   seo: { fr: frSeo, en: enSeo },
   world: { fr: frWorld, en: enWorld },
@@ -112,6 +115,7 @@ export const ZONES = {
 const fr = {
   ...frPublic,
   ...frHome,
+  ...frInApp,
   ...frLanding,
   ...frSeo,
   ...frWorld,
@@ -153,6 +157,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
   en: {
     ...enPublic,
     ...enHome,
+    ...enInApp,
     ...enLanding,
     ...enSeo,
     ...enWorld,

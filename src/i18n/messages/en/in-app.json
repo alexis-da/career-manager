@@ -1,0 +1,54 @@
+{
+  "inApp": {
+    "title": "Open Late Winner in your browser to keep your career",
+    "why": "You're in an app's own browser: a career started here stays here, and Google sign-in doesn't work.",
+    "whyCareer": "Your career only lives in this app's browser: you won't find it in your own browser or on another device.",
+    "steps": "Tap the app's ⋯ menu, then choose to open the page in your browser.",
+    "stepsCareer": "Copy your resume link, then paste it into the address bar of Safari or Chrome: your career opens there.",
+    "openInChrome": "Open in Chrome",
+    "copyResume": "Copy my resume link",
+    "preparing": "Preparing the link…",
+    "copied": "Link copied · it works once, for {days, plural, one {# day} other {# days}}",
+    "copyByHand": "Copy this link · it works once, for {days, plural, one {# day} other {# days}}",
+    "linkLabel": "Your resume link",
+    "unavailable": "Link unavailable right now. Try again in a moment."
+  },
+  "resume": {
+    "title": "Pick up your career",
+    "career": "{club} · {manager} · {date}",
+    "moreCareers": "{count, plural, one {And # other career} other {And # other careers}}",
+    "home": "Back to the home page",
+    "ready": {
+      "heading": "Pick up your career here",
+      "text": "This link opens your career in this browser. It also stays in the app where you started it.",
+      "submit": "Pick up my career",
+      "pending": "Opening…",
+      "once": "The link works only once."
+    },
+    "here": {
+      "heading": "Your career is already here",
+      "text": "This browser already has this career: nothing to do.",
+      "open": "Open my career"
+    },
+    "account": {
+      "heading": "This browser is signed in with Google",
+      "text": "To keep things apart, the link doesn't open on a Google account. Open it in another browser, or sign out first."
+    },
+    "other-career": {
+      "heading": "This browser already has a career",
+      "text": "So as not to replace it, the link doesn't open here. Open it in another browser."
+    },
+    "used": {
+      "heading": "This link has already been used",
+      "text": "Your career is in the browser where you opened it. For a new link, go back to your career and copy it again."
+    },
+    "expired": {
+      "heading": "This link has expired",
+      "text": "A resume link lasts {days, plural, one {# day} other {# days}}. Go back to your career, where you started it, and copy a new link."
+    },
+    "unknown": {
+      "heading": "This link doesn't work",
+      "text": "It's incomplete or doesn't exist. Check that you pasted all of it."
+    }
+  }
+}

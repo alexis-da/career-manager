@@ -9,6 +9,7 @@ import { APP_BACKGROUND, HOLD_INSTALL_PROMPT_SCRIPT } from "./_lib/install-app";
 import { getLocale } from "next-intl/server";
 import { Toaster } from "@/src/components/ui/sonner";
 import { SITE_URL } from "@/src/config/site";
+import { IN_APP_BROWSER_SCRIPT } from "@/src/lib/in-app-browser";
 import "./globals.css";
 
 // Barlow for text; Barlow Condensed for titles, scores and large figures (Tailwind's font-heading): one face, the file the
@@ -58,7 +59,16 @@ export const viewport: Viewport = { viewportFit: "cover", themeColor: APP_BACKGR
 // Each page in the player's language (src/i18n/request.ts), its messages handed down to the client components.
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang={await getLocale()} className={`dark ${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}>
+    // The first script marks <html> in an app's browser (data-in-app): an attribute the server never renders.
+    <html
+      lang={await getLocale()}
+      className={`dark ${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
+      <head>
+        {/* Inline and first, before the page paints: what concerns an app's browser shows from the start, nothing moves. */}
+        <script dangerouslySetInnerHTML={{ __html: IN_APP_BROWSER_SCRIPT }} />
+      </head>
       <body className="flex min-h-full flex-col">
         {/* Before React: the browser's install prompt held back, for the settings' button (no window comes by itself). */}
         <Script id="hold-install-prompt" strategy="beforeInteractive">

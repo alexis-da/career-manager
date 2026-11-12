@@ -12,12 +12,14 @@ import { USER_COOKIE } from "@/src/auth/identity";
 import { deleteRegisteredUser } from "@/src/db/accounts";
 import { prisma } from "@/src/db/client";
 import { countAppLaunch } from "@/src/db/daily-stats";
+import { createResumeLink } from "@/src/db/resume-links";
 import { isWakeUpError, retryOnWakeUp } from "@/src/db/retry";
 import { createSave, deleteSave } from "@/src/db/saves";
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE_SECONDS, LOCALES } from "@/src/i18n/locale";
 import { PUBLIC_PAGE_NAMES, publicPath } from "@/src/i18n/public-pages";
 import { describeError, phaseTimer } from "@/src/lib/diagnostics";
 import { rateLimit } from "@/src/lib/rate-limit";
+import { resumeLinkPath } from "@/src/lib/resume-link";
 import { SaveLimitError } from "@/src/lib/limits";
 import { ACCOUNT_DELETED_PARAM } from "./_lib/account";
 import { creationChoices, type CreationChoices } from "./_lib/creation-choices";
@@ -159,6 +161,23 @@ export async function setLanguageAction(formData: FormData): Promise<void> {
  */
 export async function signInWithGoogleAction(): Promise<void> {
   await signIn("google", { redirectTo: publicPath("home", await getLocale()) });
+}
+
+export type ResumeLinkResult = { ok: true; path: string } | { ok: false };
+
+/**
+ * A resume link for the player of this browser (src/db/resume-links.ts): an anonymous player with a career, whose page
+ * runs in an app's browser (InAppActions asks for one as it opens). Its path only: the browser adds its own origin.
+ * Nothing for an account, a player without a career, or past the hour's links.
+ */
+export async function createResumeLinkAction(): Promise<ResumeLinkResult> {
+  const user = await getCurrentUser();
+  if (user === null) {
+    return { ok: false };
+  }
+  // Not simulation code: a link's time is real time.
+  const link = await createResumeLink(prisma, user.id, new Date());
+  return link.ok ? { ok: true, path: resumeLinkPath(link.token) } : { ok: false };
 }
 
 export async function signOutAction(): Promise<void> {

@@ -4,6 +4,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* In an app's browser (Instagram, Facebook, TikTok, Snapchat): <html> marked by the layout's first script before the page
+   paints (src/lib/in-app-browser.ts). in-app-android offers Chrome; in-app-other (an iPhone) gives the steps. */
+@custom-variant in-app (&:where([data-in-app] *));
+@custom-variant in-app-android (&:where([data-in-app-platform="android"] *));
+@custom-variant in-app-other (&:where([data-in-app]:not([data-in-app-platform="android"]) *));
+
 /* The game is dark only: one palette, read by every shadcn component. */
 :root,
 .dark {

@@ -4,7 +4,7 @@ import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 
 /** The day this page last changed, the same in both versions: to update with their content. */
-const UPDATED_ON = new Date(Date.UTC(2026, 10, 10));
+const UPDATED_ON = new Date(Date.UTC(2026, 10, 12));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -42,6 +42,12 @@ function FrenchPrivacy() {
           <li>
             <strong>Un cookie technique, lw_uid</strong> : un identifiant aléatoire, valable un an, qui rattache tes parties
             à ton navigateur quand tu joues sans compte.
+          </li>
+          <li>
+            <strong>Si tu demandes un lien de reprise</strong> (dans le navigateur d&apos;une appli comme Instagram, pour
+            retrouver tes parties dans ton navigateur) : une empreinte du lien, jamais le lien lui-même, avec ses dates de
+            création, d&apos;expiration (sept jours) et d&apos;utilisation. Le lien ne sert qu&apos;une fois ; ces lignes
+            sont supprimées avec ton profil de joueur.
           </li>
           <li>
             <strong>Si tu te connectes avec Google</strong> : ton adresse e-mail, ton nom, ta photo de profil (son adresse)
@@ -141,7 +147,8 @@ function FrenchPrivacy() {
         <div className="space-y-2 text-sm leading-relaxed text-muted-foreground">
           <p>
             Late Winner is run by Alexis Da Cruz (<Contact />). It uses a technical cookie, lw_uid (a random id, one
-            year), to link your saves to your browser; if you sign in with Google, your email address, name, profile
+            year), to link your saves to your browser, and the fingerprint of any resume link you ask for (seven days,
+            used once); if you sign in with Google, your email address, name, profile
             picture and Google id, and a session cookie; your game data; and the date of your last visit and the days
             you visited, to measure how many players come back. A first-party audience cookie, lw_src (30 days), keeps
             where your first visit came from (a link&apos;s campaign such as ?ref=…, else the referring site&apos;s
@@ -199,6 +206,11 @@ function EnglishPrivacy() {
           <li>
             <strong>A technical cookie, lw_uid</strong>: a random identifier, valid for one year, that links your careers
             to your browser when you play without an account.
+          </li>
+          <li>
+            <strong>If you ask for a resume link</strong> (in an app&apos;s browser such as Instagram&apos;s, to find your
+            careers in your own browser): a fingerprint of the link, never the link itself, with the dates it was created,
+            expires (seven days) and was used. The link works only once; these rows are deleted with your player profile.
           </li>
           <li>
             <strong>If you sign in with Google</strong>: your email address, your name, your profile picture (its address)

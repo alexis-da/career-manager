@@ -22,7 +22,8 @@ export function AccountBannerFrame({ children }: { children: ReactNode }) {
       role="region"
       aria-label={t("label")}
       data-testid="account-banner"
-      className="flex items-center gap-2 rounded-card border bg-card py-1.5 pr-1.5 pl-3 text-foreground sm:gap-3"
+      // Never in an app's browser, where Google does not sign in: the in-app notice offers the resume link there.
+      className="flex items-center gap-2 rounded-card border bg-card py-1.5 pr-1.5 pl-3 text-foreground in-app:hidden sm:gap-3"
     >
       {children}
       <button

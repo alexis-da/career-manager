@@ -1,8 +1,8 @@
 import type { MetadataRoute } from "next";
 import { absoluteUrl } from "@/src/i18n/public-pages";
 
-/** What no crawler reads: a save's pages (a player's own), the API, the administrator's page. */
-export const ROBOTS_DISALLOW = ["/saves/", "/api/", "/admin"];
+/** What no crawler reads: a save's pages (a player's own), the API, the administrator's page, a resume link's page. */
+export const ROBOTS_DISALLOW = ["/saves/", "/api/", "/admin", "/resume"];
 
 /**
  * The crawlers let in by name: those of search and answer engines (OAI-SearchBot, PerplexityBot, Claude-SearchBot,

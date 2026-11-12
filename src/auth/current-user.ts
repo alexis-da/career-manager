@@ -11,6 +11,7 @@ import {
   readAuthSecret,
   resolveCurrentUser,
   resolveOrCreateUser,
+  signUserId,
   USER_COOKIE,
   USER_COOKIE_MAX_AGE_SECONDS,
   type IdentityContext,
@@ -38,6 +39,15 @@ export function isAdmin(user: Pick<CurrentUser, "email"> | null): boolean {
   return user !== null && isAdminEmail(user.email, ADMIN_EMAIL);
 }
 
+/** The lw_uid cookie's options: the server's alone, sent back by the browser on the game's pages, for a year. */
+const USER_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV !== "development",
+  path: "/",
+  maxAge: USER_COOKIE_MAX_AGE_SECONDS,
+} as const;
+
 async function identityContext(): Promise<IdentityContext<CurrentUser>> {
   const [store, session] = await Promise.all([cookies(), auth()]);
   return {
@@ -46,14 +56,7 @@ async function identityContext(): Promise<IdentityContext<CurrentUser>> {
     // Not simulation code: lastSeenAt is real time.
     now: new Date(),
     readCookie: () => store.get(USER_COOKIE)?.value,
-    writeCookie: (value) =>
-      store.set(USER_COOKIE, value, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV !== "development",
-        path: "/",
-        maxAge: USER_COOKIE_MAX_AGE_SECONDS,
-      }),
+    writeCookie: (value) => store.set(USER_COOKIE, value, USER_COOKIE_OPTIONS),
     findUser: (id) => prisma.user.findUnique({ where: { id }, select: USER_SELECT }),
     // lastSeenAt and the day's UserDay, together: the first request of a day.
     touchUser: async (id, now) => {
@@ -86,3 +89,11 @@ export async function requireCurrentUser(): Promise<CurrentUser> {
  * otherwise. Every entry point that receives a saveId goes through it: the layout alone does not protect actions.
  */
 export const requireOwnedSave = cache(async (saveId: string): Promise<OwnedSave> => loadOwnedSave(saveId, await getCurrentUser()));
+
+/**
+ * Makes this browser an anonymous player's: their signed cookie, as their first save set it in the browser they began
+ * in. Only for a resume link spent by its button (app/resume/actions.ts), so only in a Server Action; never an account's.
+ */
+export async function adoptAnonymousUser(userId: string): Promise<void> {
+  (await cookies()).set(USER_COOKIE, signUserId(userId, AUTH_SECRET), USER_COOKIE_OPTIONS);
+}
