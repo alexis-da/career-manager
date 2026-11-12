@@ -28,12 +28,33 @@ const objective = (kind: ObjectiveKind, rest: Partial<ObjectiveView> = {}): Obje
   ...rest,
 });
 
-/** A new season of a save with its cup: the two imposed, three proposed, none chosen before the first match. */
+/** A new season of a save with its cup: the two imposed, three proposed, none chosen before the first match, too early to judge. */
 const OPEN: SeasonObjectivesView = {
   startYear: 2026,
-  objectives: [objective("RANKING"), objective("CUP"), objective("YOUTH"), objective("ENTERTAINMENT"), objective("SOLIDITY")],
+  objectives: [
+    objective("RANKING", { status: "TOO_EARLY" }),
+    objective("CUP", { status: "TOO_EARLY" }),
+    objective("YOUTH", { status: "TOO_EARLY" }),
+    objective("ENTERTAINMENT", { status: "TOO_EARLY" }),
+    objective("SOLIDITY", { status: "TOO_EARLY" }),
+  ],
   choiceOpen: true,
   confidence: 57,
+  early: true,
+  over: false,
+};
+
+/** Three league matches on: the assistant took Jeunesse at the first kick-off; too early to judge, the club out of the cup already. */
+const EARLY: SeasonObjectivesView = {
+  startYear: 2026,
+  objectives: [
+    objective("RANKING", { status: "TOO_EARLY", current: 14 }),
+    objective("CUP", { status: "MISSED", current: 2 }),
+    objective("YOUTH", { chosen: true, byAssistant: true, status: "TOO_EARLY", current: 2 }),
+  ],
+  choiceOpen: false,
+  confidence: 59,
+  early: true,
   over: false,
 };
 
@@ -47,6 +68,7 @@ const UNDER_WAY: SeasonObjectivesView = {
   ],
   choiceOpen: false,
   confidence: 47,
+  early: false,
   over: false,
 };
 
@@ -60,6 +82,7 @@ const OVER: SeasonObjectivesView = {
   ],
   choiceOpen: false,
   confidence: 75,
+  early: false,
   over: true,
 };
 
@@ -114,17 +137,40 @@ describe("the president's objectives on the Club screen", () => {
     expect(objectivesOf(markup)).toEqual([
       {
         kind: "RANKING",
-        status: "ON_TRACK",
-        text: "Classement · Imposé par la direction En bonne voie Finir 8e ou mieux Dépassé en finissant 5e ou mieux",
+        status: "TOO_EARLY",
+        text: "Classement · Imposé par la direction Trop tôt pour juger Finir 8e ou mieux Dépassé en finissant 5e ou mieux",
       },
       {
         kind: "CUP",
-        status: "ON_TRACK",
-        text: "Coupe · Imposé par la direction En bonne voie Atteindre les huitièmes de finale Dépassé en atteignant les demi-finales",
+        status: "TOO_EARLY",
+        text: "Coupe · Imposé par la direction Trop tôt pour juger Atteindre les huitièmes de finale Dépassé en atteignant les demi-finales",
       },
     ]);
     expect(markup).not.toContain('data-testid="objective-current"');
     expect(markup).not.toContain('data-testid="club-objectives-met"');
+  });
+
+  it("judges no undecided objective while it is too early, but shows an outcome decided, and the assistant's pick", () => {
+    const markup = render(EARLY);
+
+    expect(objectivesOf(markup)).toEqual([
+      {
+        kind: "RANKING",
+        status: "TOO_EARLY",
+        text: "Classement · Imposé par la direction Trop tôt pour juger Finir 8e ou mieux Dépassé en finissant 5e ou mieux 14e actuellement",
+      },
+      {
+        kind: "CUP",
+        status: "MISSED",
+        text: "Coupe · Imposé par la direction Manqué Atteindre les huitièmes de finale Dépassé en atteignant les demi-finales Éliminé : Seizièmes de finale",
+      },
+      {
+        kind: "YOUTH",
+        status: "TOO_EARLY",
+        text: "Jeunesse · Choisi par l'adjoint Trop tôt pour juger Titulariser 15 fois en championnat un joueur de 21 ans ou moins 2 titularisations au mieux",
+      },
+    ]);
+    expect(markup).not.toContain('data-testid="club-objectives-proposals"');
   });
 
   it("lists the three proposals while the choice is open, the assistant's pick, and the way to the choice", () => {
@@ -175,7 +221,7 @@ describe("the president's objectives on the Club screen", () => {
   });
 
   it("shows the president's confidence as a gauge of 0 to 99, with its words, and that nobody is ever sacked", () => {
-    const confidence = blockOf(render(OPEN), "club-confidence");
+    const confidence = blockOf(render({ ...UNDER_WAY, confidence: 57 }), "club-confidence");
 
     expect(confidence).toContain('data-confidence="57"');
     expect(confidence).toMatch(/role="meter" aria-label="Confiance du président" aria-valuemin="0" aria-valuemax="99" aria-valuenow="57"/);
@@ -185,6 +231,19 @@ describe("the president's objectives on the Club screen", () => {
       "Confiance du président 57 Il attend des résultats Elle suit tes objectifs, match après match. " +
         "La direction ne renvoie jamais son entraîneur : un échec réduit seulement le budget suivant.",
     );
+  });
+
+  it("holds the confidence still while it is too early to judge, and says from which league match it follows the objectives", () => {
+    const confidence = blockOf(render(OPEN), "club-confidence");
+
+    expect(confidence).toContain('data-confidence="57"');
+    expect(confidence).toContain('aria-valuetext="57 · Il te laisse le temps de démarrer"');
+    expect(confidence).toMatch(/<div class="[^"]*bg-info[^"]*" style="width:58%"><\/div>/);
+    expect(textOf(confidence)).toBe(
+      "Confiance du président 57 Il te laisse le temps de démarrer Elle suivra tes objectifs à partir de ton 5e match de championnat. " +
+        "La direction ne renvoie jamais son entraîneur : un échec réduit seulement le budget suivant.",
+    );
+    expect(textOf(blockOf(render(EARLY), "club-confidence"))).toContain("59 Il te laisse le temps de démarrer");
   });
 
   it("colours the confidence by its level: trust in green, worry in red", () => {
@@ -198,7 +257,7 @@ describe("the president's objectives on the Club screen", () => {
   });
 
   it("adds no action of its own but the way to the choice, never in the screen's full orange", () => {
-    for (const view of [OPEN, UNDER_WAY, OVER]) {
+    for (const view of [OPEN, EARLY, UNDER_WAY, OVER]) {
       const markup = render(view);
       expect(markup).not.toContain("<button");
       expect(markup).not.toContain("bg-(--club)");
@@ -212,14 +271,18 @@ describe("the president's objectives on the Club screen", () => {
 
     expect(open).toMatch(/>Chairman&#x27;s objectives<\/h2>/);
     expect(open).toContain(">2026-27 season</p>");
-    expect(objectivesOf(open)[0].text).toBe("League · Set by the board On track Finish 8th or higher Exceeded by finishing 5th or higher");
+    expect(objectivesOf(open)[0].text).toBe("League · Set by the board Too early to tell Finish 8th or higher Exceeded by finishing 5th or higher");
     expect(textOf(blockOf(open, "club-objectives-proposals"))).toBe(
       "Optional objective Choose one before your first match of the season. If you don't, your assistant will take Youth. " +
         "Youth · Start a player aged 21 or under 15 times in the league Entertainment · Score at least 55 league goals " +
         "Solidity · Concede at most 36 league goals Choose my objective",
     );
     expect(textOf(blockOf(open, "club-confidence"))).toBe(
-      "Chairman's confidence 57 Expects results It follows your objectives, match by match. " +
+      "Chairman's confidence 57 Giving you time to settle in It will follow your objectives from your 5th league match. " +
+        "The board never sacks its manager: a failure only cuts the next budget.",
+    );
+    expect(textOf(blockOf(render(UNDER_WAY, "en"), "club-confidence"))).toBe(
+      "Chairman's confidence 47 Expects results It follows your objectives, match by match. " +
         "The board never sacks its manager: a failure only cuts the next budget.",
     );
     expect(textOf(blockOf(over, "club-objectives-met"))).toBe("Season over: 2 of 3 objectives met This record sets the bonus or penalty on next season's budget.");

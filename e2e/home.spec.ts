@@ -477,7 +477,11 @@ test("folds the options from the start, and a refused name alone opens them", as
   await expect(name).toBeHidden();
   await expect(seed).toBeHidden();
 
-  // A refused manager says so where the player is, and has no business in the options.
+  // The manager's name is filled in from the start: only emptied by hand is it refused, which says so where the player
+  // is, with no business in the options.
+  const manager = page.getByTestId("manager-name");
+  await expect(manager).toHaveValue("Coach");
+  await manager.fill("");
   await page.getByTestId("create-save").click();
   await expect(page.getByText("Indique le nom du manager.")).toBeVisible();
   await expect(name).toBeHidden();
@@ -488,7 +492,7 @@ test("folds the options from the start, and a refused name alone opens them", as
   await name.fill("");
   await options.click();
   await expect(name).toBeHidden();
-  await page.getByTestId("manager-name").fill("Test E2E");
+  await manager.fill("Test E2E");
   await page.getByTestId("create-save").click();
 
   await expect(page.getByText("Donne un nom à la partie.")).toBeVisible();
@@ -506,8 +510,11 @@ test("keeps the club, the manager and the seed through a refused form", async ({
   await page.getByTestId("create-save-options").click();
   await seed.fill("ma-graine");
 
+  // The manager's name emptied by hand: refused, and kept empty, its default not back.
+  await manager.fill("");
   await page.getByTestId("create-save").click();
   await expect(page.getByText("Indique le nom du manager.")).toBeVisible();
+  await expect(manager).toHaveValue("");
   await expectChosenClub(page, "Paris Saint-Germain FC");
   await expect(cardOf(page, "favourite")).toHaveCSS("border-top-color", ACTION_ORANGE);
   await expect(seed).toHaveValue("ma-graine");
@@ -531,6 +538,7 @@ test("leaves the chosen card's radio button checked after a refused form, as the
   await cardOf(page, "favourite").click();
   await expectCheckedCard(page, "favourite");
 
+  await page.getByTestId("manager-name").fill("");
   await page.getByTestId("create-save").click();
   await expect(page.getByText("Indique le nom du manager.")).toBeVisible();
   await expectCheckedCard(page, "favourite");

@@ -65,7 +65,7 @@ const PHONES = [
       form: /^Forme \d+$/,
       rating: "Note",
       substitute: /^Remplaçant 1 : /,
-      saved: "Composition enregistrée",
+      notSaved: "Onze automatique · pas encore enregistré",
       unsaved: "Modifications non enregistrées",
     },
   },
@@ -79,7 +79,7 @@ const PHONES = [
       form: /^Form \d+$/,
       rating: "Rating",
       substitute: /^Substitute 1: /,
-      saved: "Line-up saved",
+      notSaved: "Automatic eleven · not saved yet",
       unsaved: "Unsaved changes",
     },
   },
@@ -363,10 +363,10 @@ for (const { name, locale, viewport, says } of PHONES) {
       // The bench stays in sight along the list; it holds at the top of the screen, and the navigation at its foot.
       expect(await pinnedToScreen(page)).toEqual(["save-nav", "lineup-bench"]);
 
-      // Nothing to save yet, and no orange.
+      // Nothing to save yet, and no orange: no line-up was ever saved, the match would play the automatic eleven shown.
       const save = page.getByTestId("lineup-save");
       const status = page.getByTestId("lineup-status");
-      await expect(status).toHaveText(says.saved);
+      await expect(status).toHaveText(says.notSaved);
       await expect(save).toBeDisabled();
       await expectOrangeActions(page, []);
 

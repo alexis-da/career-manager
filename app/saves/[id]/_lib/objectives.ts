@@ -1,6 +1,6 @@
 import type { ObjectiveView } from "@/src/db/objectives";
 import { YOUTH_OBJECTIVE_MAX_AGE } from "@/src/engine/balance";
-import type { ObjectiveProgress } from "@/src/engine/objectives";
+import type { ObjectiveOutcome, ObjectiveProgress, ObjectiveStatus } from "@/src/engine/objectives";
 import type { Translator } from "@/src/i18n/translator";
 import { formatMoney } from "@/src/lib/format";
 import type { Locale } from "@/src/i18n/locale";
@@ -59,9 +59,15 @@ export function objectiveExceed(objective: Named, t: Translator<"objectives">): 
   }
 }
 
+/** Whether an objective's status is its outcome, decided: neither on track, nor at risk, nor too early to tell. */
+export function isDecided(status: ObjectiveStatus): status is ObjectiveOutcome {
+  return status === "ACHIEVED" || status === "EXCEEDED" || status === "MISSED";
+}
+
 /**
  * The figure an objective is judged on, in words: the place now (or at the end), the cup round reached (out or not),
- * the most starts of a young player, the goals, the transfer balance. Null before anything is known.
+ * the most starts of a young player, the goals, the transfer balance. Null before anything is known. Shown while it is
+ * too early to tell where the objective stands, too: the figure is no verdict.
  */
 export function objectiveCurrent(
   objective: Pick<ObjectiveView, "kind" | "current" | "status">,
@@ -72,7 +78,7 @@ export function objectiveCurrent(
   if (current === null) {
     return null;
   }
-  const decided = objective.status !== "ON_TRACK" && objective.status !== "AT_RISK";
+  const decided = isDecided(objective.status);
   switch (objective.kind) {
     case "RANKING":
       return t(decided ? "current.RANKING_FINAL" : "current.RANKING", { rank: current });
@@ -94,7 +100,10 @@ export function objectiveCurrent(
   }
 }
 
-/** The colour of where an objective stands: the result colours of the screens, and the alerts' amber when at risk. */
+/**
+ * The colour of where an objective stands: the result colours of the screens, and the alerts' amber when at risk. Too
+ * early to tell has none: no verdict, a neutral pill (ObjectiveStatusPill).
+ */
 export const STATUS_TONE: Readonly<Record<ObjectiveProgress, "win" | "warning" | "loss" | "info">> = {
   ON_TRACK: "info",
   AT_RISK: "warning",
@@ -106,4 +115,12 @@ export const STATUS_TONE: Readonly<Record<ObjectiveProgress, "win" | "warning" |
 /** The president's confidence in three words' worth: 60 and more, 40 to 59, below 40. */
 export function confidenceLevel(confidence: number): "high" | "middle" | "low" {
   return confidence >= 60 ? "high" : confidence >= 40 ? "middle" : "low";
+}
+
+/**
+ * The president's confidence in words: while it is too early to judge the objectives (SeasonObjectivesView.early), why it
+ * holds still (« Il te laisse le temps de démarrer »); its level's words otherwise (« Il attend des résultats »).
+ */
+export function confidenceWords(confidence: number, early: boolean, t: Translator<"objectives">): string {
+  return early ? t("confidenceEarly") : t(`confidenceLevel.${confidenceLevel(confidence)}`);
 }

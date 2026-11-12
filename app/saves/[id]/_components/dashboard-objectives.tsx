@@ -3,14 +3,15 @@ import { useLocale, useTranslations } from "next-intl";
 import Link from "@/src/components/link";
 import { Panel } from "@/src/components/panel";
 import type { ObjectiveView, SeasonObjectivesView } from "@/src/db/objectives";
-import type { ObjectiveProgress } from "@/src/engine/objectives";
+import type { ObjectiveProgress, ObjectiveStatus } from "@/src/engine/objectives";
 import { INTL_LOCALES, type Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
 import { cn } from "@/src/lib/utils";
-import { confidenceLevel, objectiveCurrent, objectiveGoal, STATUS_TONE } from "../_lib/objectives";
+import { confidenceLevel, confidenceWords, objectiveCurrent, objectiveGoal, STATUS_TONE } from "../_lib/objectives";
 
-// The season's objectives on the dashboard (gameplay v2, V3): where each stands, the way to the choice of the optional one
-// while it is open, and the president's confidence. Their detail is the Club screen's (club/_components/club-objectives.tsx),
+// The season's objectives on the dashboard (gameplay v2, V3): where each stands (too early to tell before the club's fifth
+// league match, unless decided), the way to the choice of the optional one while it is open, the assistant's pick when he
+// made it, and the president's confidence. Their detail is the Club screen's (club/_components/club-objectives.tsx),
 // which takes the pill, the confidence's colours and the split of the objectives from here.
 
 /** A status's pill, in the result colours STATUS_TONE gives it. */
@@ -21,8 +22,14 @@ const TONE_CLASSES: Readonly<Record<(typeof STATUS_TONE)[ObjectiveProgress], str
   info: "bg-info/15 text-info",
 };
 
-/** Where an objective stands, in its colour: « En bonne voie », « En danger », « Atteint », « Dépassé », « Manqué ». */
-export function ObjectiveStatusPill({ status, className }: { status: ObjectiveProgress; className?: string }) {
+/** Too early to tell: no verdict yet, so no result colour, a neutral pill. */
+const TOO_EARLY_CLASSES = "bg-secondary text-muted-foreground";
+
+/**
+ * Where an objective stands, in its colour: « En bonne voie », « En danger », « Atteint », « Dépassé », « Manqué »; « Trop
+ * tôt pour juger » neutral.
+ */
+export function ObjectiveStatusPill({ status, className }: { status: ObjectiveStatus; className?: string }) {
   const t = useTranslations("objectives");
   return (
     <span
@@ -30,7 +37,7 @@ export function ObjectiveStatusPill({ status, className }: { status: ObjectivePr
       data-status={status}
       className={cn(
         "inline-flex min-h-6 items-center rounded-full px-2.5 text-xs leading-tight font-semibold whitespace-nowrap",
-        TONE_CLASSES[STATUS_TONE[status]],
+        status === "TOO_EARLY" ? TOO_EARLY_CLASSES : TONE_CLASSES[STATUS_TONE[status]],
         className,
       )}
     >
@@ -71,7 +78,10 @@ export const CLUB_OBJECTIVES_ANCHOR = "objectifs";
 /** A way on from the card: 44 px high on a phone. */
 const CARD_LINK = "text-sm font-semibold text-(--club) hover:text-(--club-hover) max-sm:inline-flex max-sm:min-h-11 max-sm:items-center";
 
-/** An objective at a glance: its kind, where it stands, what it asks, and the figure it is judged on once there is one. */
+/**
+ * An objective at a glance: its kind, where it stands, what it asks, who chose it when the assistant did (« Choisi par
+ * l'adjoint », as on the Club screen and the season's start), and the figure it is judged on once there is one.
+ */
 function ObjectiveCell({ objective }: { objective: ObjectiveView }) {
   const t = useTranslations("objectives");
   const locale = useLocale();
@@ -83,6 +93,11 @@ function ObjectiveCell({ objective }: { objective: ObjectiveView }) {
         <ObjectiveStatusPill status={objective.status} />
       </div>
       <p className="text-[0.9375rem] leading-snug font-bold wrap-break-word">{objectiveGoal(objective, t)}</p>
+      {objective.chosen && objective.byAssistant && (
+        <p data-testid="objective-by-assistant" className="text-[0.8125rem] leading-snug text-muted-foreground">
+          {t("chosenBy.assistant")}
+        </p>
+      )}
       {current !== null && (
         <p data-testid="objective-current" className="text-[0.8125rem] leading-snug text-muted-foreground tabular-nums">
           {current}
@@ -101,7 +116,8 @@ type DashboardObjectivesProps = {
 /**
  * The dashboard's card of the season's objectives: the imposed ones and the chosen one, each with its status; while the
  * optional one is still to choose, its place leads to the season's start screen (no full orange: the hero keeps the
- * screen's one); the count of those met once the season is over; the president's confidence in one line.
+ * screen's one); while it is too early to judge them, why the assistant chose the optional one when he did; the count of
+ * those met once the season is over; the president's confidence in one line.
  */
 export function DashboardObjectives({ saveId, view, className }: DashboardObjectivesProps) {
   const t = useTranslations("dashboard.objectives");
@@ -110,6 +126,8 @@ export function DashboardObjectives({ saveId, view, className }: DashboardObject
   const inPlay = objectivesInPlay(view);
   const proposals = proposalsOf(view);
   const level = confidenceLevel(view.confidence);
+  // The player chose none before the club's first match: the assistant did, at its kick-off. Said while too early to judge.
+  const assistantPick = view.early ? inPlay.find((objective) => objective.chosen && objective.byAssistant) : undefined;
   return (
     <Panel aria-labelledby="dashboard-objectives-title" data-testid="dashboard-objectives" className={cn("flex flex-col gap-3", className)}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -150,6 +168,11 @@ export function DashboardObjectives({ saveId, view, className }: DashboardObject
           </li>
         )}
       </ul>
+      {assistantPick !== undefined && (
+        <p data-testid="dashboard-objectives-assistant" className="text-[0.8125rem] leading-snug text-muted-foreground">
+          {t("assistantPicked", { objective: tObjectives(`kind.${assistantPick.kind}`) })}
+        </p>
+      )}
       <dl
         data-testid="dashboard-confidence"
         data-confidence={view.confidence}
@@ -157,7 +180,7 @@ export function DashboardObjectives({ saveId, view, className }: DashboardObject
       >
         <dt className="text-muted-foreground">{tObjectives("confidence")}</dt>
         <dd className={cn("font-bold tabular-nums", CONFIDENCE_TEXT[level])}>
-          {`${view.confidence} · ${tObjectives(`confidenceLevel.${level}`)}`}
+          {`${view.confidence} · ${confidenceWords(view.confidence, view.early, tObjectives)}`}
         </dd>
       </dl>
     </Panel>

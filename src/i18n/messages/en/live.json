@@ -66,12 +66,12 @@
     },
     "otherMatches": "Other matches",
     "request": {
-      "at": "Coach at {minute}’",
-      "asked": "Stopping at {minute}’",
-      "halfTime": "Coach at half-time",
-      "none": "Coaching",
+      "at": "Pause at {minute}’",
+      "asked": "Pausing at {minute}’",
+      "halfTime": "Pause at half-time",
+      "none": "Pause",
       "noneHint": "No more stoppages before the end",
-      "askedHint": "The match will stop at {minute}’ for your coaching. Tap again to cancel."
+      "askedHint": "The match will stop at {minute}’ so you can change your team. Press again to cancel."
     }
   }
 }

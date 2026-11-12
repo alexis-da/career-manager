@@ -1,7 +1,10 @@
 {
   "fixtures": {
     "title": "Calendrier",
-    "subtitle": "Saison {season} · clique sur un match pour sa feuille ou son adversaire",
+    "subtitle": {
+      "touch": "Saison {season} · touche un match pour sa feuille ou son adversaire",
+      "click": "Saison {season} · clique sur un match pour sa feuille ou son adversaire"
+    },
     "views": {
       "label": "Vue du calendrier",
       "list": "Liste",
@@ -30,7 +33,10 @@
     "pick": {
       "day": "Simuler jusqu'au {date}",
       "title": "Simuler jusqu'à une date :",
-      "hint": "clique sur un jour à venir de la saison."
+      "hint": {
+        "touch": "touche un jour à venir de la saison.",
+        "click": "clique sur un jour à venir de la saison."
+      }
     },
     "opponent": {
       "loading": "Chargement de l'adversaire…",

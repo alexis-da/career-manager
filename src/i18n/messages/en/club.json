@@ -36,6 +36,7 @@
       "choiceDetail": "Choose one before your first match of the season. If you don't, your assistant will take {objective}.",
       "choose": "Choose my objective",
       "confidenceFollows": "It follows your objectives, match by match.",
+      "confidenceFrom": "It will follow your objectives from your {match, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} league match.",
       "neverSacked": "The board never sacks its manager: a failure only cuts the next budget."
     }
   },

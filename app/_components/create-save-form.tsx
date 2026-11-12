@@ -272,11 +272,14 @@ export function CreateSaveFormView({ clubCount, previews, heading = "landing", c
       </div>
 
       <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-start-2 lg:max-w-105">
+        {/* Filled in from the start, so that a career is one click away: the player types over it at will. Its default
+            never changes once rendered, and a refused form keeps what was typed (onReset). */}
         <Field id="manager-name" label={t("manager")} errors={state.errors.managerName}>
           <Input
             id="manager-name"
             name="managerName"
             maxLength={100}
+            defaultValue={t("managerDefault")}
             aria-invalid={state.errors.managerName !== undefined}
             className="h-12 px-4 md:text-base dark:bg-card"
             data-testid="manager-name"

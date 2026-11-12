@@ -23,6 +23,7 @@
     "namePlaceholder": "Ma carrière",
     "defaultName": "Carrière {club}",
     "manager": "Ton nom de manager",
+    "managerDefault": "Coach",
     "club": "Choisis ton club",
     "search": "Chercher parmi les {count} clubs",
     "searchEmpty": "Aucun club ne correspond.",

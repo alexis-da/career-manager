@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIRST_STEPS_MATCHES, seenItems, showsFirstActions, showsTip } from "./first-steps";
+import { FIRST_STEPS_MATCHES, seenItems, showsFirstActions, showsTip, type FirstSteps } from "./first-steps";
 
 describe("seenItems", () => {
   const among = (...names: string[]) => seenItems((name) => names.includes(name));
@@ -28,11 +28,34 @@ describe("showsTip", () => {
     expect(showsTip("secondary", { matches: 2, seen: new Set(["rating"]) })).toBe(true);
   });
 
-  it("gives the dashboard one tip at a time: the money before the first match, the simulation after it", () => {
-    expect(showsTip("money", { matches: 0, seen: nothingSeen })).toBe(true);
+  it("gives the dashboard no tip before the first match, its first actions' time", () => {
+    expect(showsTip("money", { matches: 0, seen: nothingSeen })).toBe(false);
     expect(showsTip("simulation", { matches: 0, seen: nothingSeen })).toBe(false);
-    expect(showsTip("money", { matches: 1, seen: nothingSeen })).toBe(false);
-    expect(showsTip("simulation", { matches: 1, seen: nothingSeen })).toBe(true);
+  });
+
+  it("gives the dashboard the money at the first match, then the simulation from the second", () => {
+    expect(showsTip("money", { matches: 1, seen: nothingSeen })).toBe(true);
+    expect(showsTip("simulation", { matches: 1, seen: nothingSeen })).toBe(false);
+    for (const matches of [2, 3, 4]) {
+      expect(showsTip("money", { matches, seen: nothingSeen })).toBe(false);
+      expect(showsTip("simulation", { matches, seen: nothingSeen })).toBe(true);
+    }
+  });
+
+  it("brings the simulation at the first match once the money's tip is closed", () => {
+    expect(showsTip("money", { matches: 1, seen: new Set(["money"]) })).toBe(false);
+    expect(showsTip("simulation", { matches: 1, seen: new Set(["money"]) })).toBe(true);
+    expect(showsTip("simulation", { matches: 1, seen: new Set(["money", "simulation"]) })).toBe(false);
+  });
+
+  it("never gives the dashboard two tips at once", () => {
+    const seenSets = [[], ["money"], ["simulation"], ["money", "simulation"]] as const;
+    for (let matches = 0; matches <= FIRST_STEPS_MATCHES + 1; matches += 1) {
+      for (const seen of seenSets) {
+        const steps: FirstSteps = { matches, seen: new Set(seen) };
+        expect(showsTip("money", steps) && showsTip("simulation", steps), `${matches} matches, ${seen.join()} seen`).toBe(false);
+      }
+    }
   });
 
   it("stops every tip by itself at the club's fifth match, closed or not", () => {

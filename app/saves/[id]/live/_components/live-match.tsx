@@ -10,7 +10,9 @@ import type { HalfTimeTeam, LivePauseView, LiveStep } from "@/src/db/live-match"
 import { EXTRA_TIME_END_MINUTE } from "@/src/engine/balance";
 import type { LivePause } from "@/src/engine/live";
 import type { Instruction, InstructionSpan } from "@/src/engine/match";
+import { SessionEndCard } from "../../_components/session-end-card";
 import { decisionMoment } from "../../_lib/decisions";
+import type { SessionEnd } from "../../_lib/session-end";
 import { REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
 import { matchResultFor } from "../../_lib/stage";
 import { playLiveStepAction, type DecisionInput, type HalfTimeChoiceInput, type LiveMoveInput } from "../../actions";
@@ -91,6 +93,7 @@ type LiveMatchProps = {
   team: HalfTimeTeam | null; // the managed club at that pause: the Coaching panel's
   instructions: InstructionSpan[] | null; // the managed club's up to that pause; null once over, its state gone
   startMinute: number; // 0 from kick-off; the pause's minute to go on from where the match waits
+  sessionEnd: SessionEnd | null; // the « À demain » card's, read once the match is over; null before
 };
 
 type ReplayProps = Omit<LiveMatchProps, "match" | "pause" | "team" | "instructions"> & {
@@ -106,13 +109,13 @@ type ReplayProps = Omit<LiveMatchProps, "match" | "pause" | "team" | "instructio
  * never read again: the clock runs up to the pause the match waits at, holds there while the page asks for the next
  * segment, once per pause, then goes on with what comes back. The match stops for its manager at a break, with its card
  * (the score, a word of his assistant's, « Reprendre » and « Coaching »), at a choice event, whose card he answers, the
- * match going on at once unless he asks for the panel, and where he asked for it with « Coaching », where the panel
+ * match going on at once unless he asks for the panel, and where he asked for it (« Pause à la 30e »), where the panel
  * opens. The Coaching panel never opens by itself. « live-skip » takes the clock to the pause and asks for all that
  * comes before the next break, or the end, his assistant deciding the choice events on the way. A cup tie that went to
  * extra time runs on to 120' (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the match goes
  * from one stop to the next at once, its choice events and breaks shown.
  */
-function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onStep, speed, onSpeedChange }: ReplayProps) {
+function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEnd, data, onStep, speed, onSpeedChange }: ReplayProps) {
   const t = useTranslations("live");
   const tCommon = useTranslations("common");
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
@@ -125,8 +128,8 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
   const [coachedAt, setCoachedAt] = useState<string | null>(null); // the break whose Coaching panel has been opened
   const [resumingAt, setResumingAt] = useState<string | null>(null); // the pause the match is going on from
   const [failedAt, setFailedAt] = useState<string | null>(null); // the pause whose next step failed: live-skip asks again
-  // The pause « Coaching » asked the match to stop at, kept for the tab's session, so a reload stops there too: read once
-  // the page runs in the browser, undefined until then (the server has no session), when nothing is asked from a pause.
+  // The pause asked for (« Pause à la 30e »), kept for the tab's session, so a reload stops there too: read once the
+  // page runs in the browser, undefined until then (the server has no session), when nothing is asked from a pause.
   const stopKey = stopRequestKey(saveId, match.id);
   const storedStop = useSyncExternalStore(subscribeToStopRequests, () => readStopRequest(stopKey), () => undefined);
   const stopKnown = storedStop !== undefined;
@@ -450,6 +453,8 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, data, onS
       )}
 
       <div className="space-y-5 max-lg:px-4">
+        {/* The final whistle: what comes next, and why to come back. */}
+        {over && sessionEnd !== null && <SessionEndCard saveId={saveId} appointment={sessionEnd.appointment} word={sessionEnd.word} />}
         {kicks.length > 0 && clockDone && <LiveShootout taken={taken} />}
 
         <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-5">

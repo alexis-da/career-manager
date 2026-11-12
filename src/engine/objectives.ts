@@ -295,14 +295,59 @@ export function objectiveOutcome(objective: Objective, progress: SeasonProgress)
 }
 
 /**
+ * The league match from which a season's objectives are judged: before the club has played this many, a result or two
+ * says nothing yet. The screens judge none still undecided (« Trop tôt pour juger », objectiveStatus), and the president's
+ * confidence holds still (seasonConfidence).
+ */
+export const OBJECTIVES_JUDGED_FROM_MATCH = 5;
+
+/**
+ * Whether it is too early to judge a season's objectives: fewer league matches played than OBJECTIVES_JUDGED_FROM_MATCH,
+ * the season not over.
+ */
+export function tooEarlyToJudge(progress: Pick<SeasonProgress, "played" | "over">): boolean {
+  return !progress.over && progress.played < OBJECTIVES_JUDGED_FROM_MATCH;
+}
+
+/** Where an objective stands on the screens: as it stands (objectiveProgress), or too early to tell. */
+export type ObjectiveStatus = ObjectiveProgress | "TOO_EARLY";
+
+/**
+ * Where an objective stands on the screens: too early to tell while it is undecided (on track or at risk) and it is too
+ * early to judge the season's objectives (tooEarlyToJudge); otherwise as it stands. An outcome, once decided, always shows.
+ */
+export function objectiveStatus(standing: ObjectiveProgress, early: boolean): ObjectiveStatus {
+  return early && (standing === "ON_TRACK" || standing === "AT_RISK") ? "TOO_EARLY" : standing;
+}
+
+/**
+ * Where the objectives a president's confidence reads stand: the ranking, the cup when the club plays one, the chosen
+ * objective once chosen.
+ */
+export type ObjectivesStanding = { ranking: ObjectiveProgress; cup?: ObjectiveProgress; chosen?: ObjectiveProgress };
+
+/**
  * The president's confidence (1–99): BOARD_CONFIDENCE_BASE, plus each objective's points for where it stands
  * (BOARD_CONFIDENCE_POINTS): the ranking, the cup when the club plays one, the chosen objective once chosen. Shown, never
  * acted upon: nobody is ever sacked.
  */
-export function boardConfidence(standing: { ranking: ObjectiveProgress; cup?: ObjectiveProgress; chosen?: ObjectiveProgress }): number {
+export function boardConfidence(standing: ObjectivesStanding): number {
   const points =
     BOARD_CONFIDENCE_POINTS.ranking[standing.ranking] +
     (standing.cup === undefined ? 0 : BOARD_CONFIDENCE_POINTS.cup[standing.cup]) +
     (standing.chosen === undefined ? 0 : BOARD_CONFIDENCE_POINTS.chosen[standing.chosen]);
   return Math.min(99, Math.max(1, BOARD_CONFIDENCE_BASE + points));
+}
+
+/**
+ * The president's confidence during a season: while it is too early to judge the objectives (tooEarlyToJudge), the one
+ * the season opened with, each objective counted on track, decided or not (the chosen one too, once chosen): he gives
+ * his manager time to settle in; from then on, boardConfidence on where they stand.
+ */
+export function seasonConfidence(standing: ObjectivesStanding, early: boolean): number {
+  if (!early) {
+    return boardConfidence(standing);
+  }
+  const onTrack = (status: ObjectiveProgress | undefined) => (status === undefined ? undefined : "ON_TRACK");
+  return boardConfidence({ ranking: "ON_TRACK", cup: onTrack(standing.cup), chosen: onTrack(standing.chosen) });
 }

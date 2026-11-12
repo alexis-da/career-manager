@@ -15,6 +15,7 @@ import { formatMonth, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { FixtureRow } from "../_components/fixture-row";
 import { Panel } from "@/src/components/panel";
+import { PointerText } from "../_components/pointer-text";
 import { ScoreNotes } from "../_components/score-notes";
 import { nextFixture } from "../_lib/fixture-window";
 import { RESULT_CLASSES } from "../_lib/results";
@@ -367,7 +368,10 @@ export default async function FixturesPage({ params, searchParams }: PageProps<"
           <h1 className="font-heading text-4xl font-bold" data-testid="fixtures-title">{t("title")}</h1>
           {calendar.startYear !== null && (
             <p className="text-sm text-muted-foreground tabular-nums">
-              {t("subtitle", { season: seasonLabel(calendar.startYear) })}
+              <PointerText
+                touch={t("subtitle.touch", { season: seasonLabel(calendar.startYear) })}
+                click={t("subtitle.click", { season: seasonLabel(calendar.startYear) })}
+              />
             </p>
           )}
         </div>

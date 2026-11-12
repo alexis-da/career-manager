@@ -36,6 +36,7 @@
       "choiceDetail": "Choisis-en un avant ton premier match de la saison. Sans choix, l'adjoint prendra {objective}.",
       "choose": "Choisir mon objectif",
       "confidenceFollows": "Elle suit tes objectifs, match après match.",
+      "confidenceFrom": "Elle suivra tes objectifs à partir de ton {match, selectordinal, one {#er} other {#e}} match de championnat.",
       "neverSacked": "La direction ne renvoie jamais son entraîneur : un échec réduit seulement le budget suivant."
     }
   },

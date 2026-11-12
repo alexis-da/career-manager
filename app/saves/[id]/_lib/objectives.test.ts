@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { testTranslator } from "@/src/i18n/test-intl";
-import { confidenceLevel, objectiveCurrent, objectiveExceed, objectiveGoal } from "./objectives";
+import { confidenceLevel, confidenceWords, isDecided, objectiveCurrent, objectiveExceed, objectiveGoal } from "./objectives";
 
 const fr = testTranslator("fr", "objectives");
 const en = testTranslator("en", "objectives");
@@ -38,10 +38,39 @@ describe("objectiveCurrent", () => {
     expect(objectiveCurrent({ kind: "YOUTH", current: 1, status: "AT_RISK" }, fr, "fr")).toBe("1 titularisation au mieux");
     expect(objectiveCurrent({ kind: "RANKING", current: null, status: "ON_TRACK" }, fr, "fr")).toBeNull();
   });
+
+  it("still gives the figure while it is too early to tell, as one of a season under way", () => {
+    expect(objectiveCurrent({ kind: "RANKING", current: 18, status: "TOO_EARLY" }, fr, "fr")).toBe("18e actuellement");
+    expect(objectiveCurrent({ kind: "RANKING", current: 18, status: "TOO_EARLY" }, en, "en")).toBe("18th now");
+    expect(objectiveCurrent({ kind: "CUP", current: 2, status: "TOO_EARLY" }, fr, "fr")).toBe("Seizièmes de finale");
+    expect(objectiveCurrent({ kind: "SOLIDITY", current: 3, status: "TOO_EARLY" }, fr, "fr")).toBe("3 buts encaissés");
+  });
+});
+
+describe("isDecided", () => {
+  it("knows an outcome from a status that is none yet", () => {
+    expect((["EXCEEDED", "ACHIEVED", "MISSED", "ON_TRACK", "AT_RISK", "TOO_EARLY"] as const).map(isDecided)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
 });
 
 describe("confidenceLevel", () => {
   it("splits the president's confidence in three", () => {
     expect([99, 60, 59, 40, 39, 1].map(confidenceLevel)).toEqual(["high", "high", "middle", "middle", "low", "low"]);
+  });
+});
+
+describe("confidenceWords", () => {
+  it("says the president's confidence by its level, or why it holds still while it is too early to judge", () => {
+    expect(confidenceWords(57, false, fr)).toBe("Il attend des résultats");
+    expect(confidenceWords(37, false, en)).toBe("Worried");
+    expect(confidenceWords(59, true, fr)).toBe("Il te laisse le temps de démarrer");
+    expect(confidenceWords(59, true, en)).toBe("Giving you time to settle in");
   });
 });

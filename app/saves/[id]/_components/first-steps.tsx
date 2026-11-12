@@ -1,11 +1,14 @@
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cookies } from "next/headers";
+import type { ReactNode } from "react";
 import Link from "@/src/components/link";
+import { Panel, PanelTitle } from "@/src/components/panel";
 import { managedMatchesPlayed } from "@/src/db/first-steps";
 import { SECONDARY_POSITION_FAMILIARITY } from "@/src/engine/balance";
 import { cn } from "@/src/lib/utils";
 import { FIRST_STEPS_MATCHES, seenItems, type FirstSteps, type SeenItem, type Tip } from "../_lib/first-steps";
+import { PointerText } from "./pointer-text";
 import { TipFrame } from "./tip-frame";
 
 /** Where a save's first steps are at: its club's matches, from the game, and what the player has seen, from the cookies. */
@@ -34,9 +37,9 @@ export function FirstStepTip({ saveId, tip, className }: { saveId: string; tip: 
 type ActionRowProps = {
   id: SeenItem | "match";
   title: string;
-  hint: string;
+  hint: ReactNode;
   done: boolean;
-  href?: string; // the first match has no link: its button is the hero's, at the top of the same page
+  href?: string; // the first match has no link: its button is the hero's, right above the list
 };
 
 function ActionRow({ id, title, hint, done, href }: ActionRowProps) {
@@ -77,15 +80,34 @@ type FirstActionsProps = {
   button: string; // the name of the button that plays the next match
 };
 
-/** The first three actions of a new save, in the panel of the last result until there is one. They tick themselves. */
-export function FirstActions({ saveId, seen, button }: FirstActionsProps) {
+/** The first three actions of a new save, one under the other, side by side from lg. They tick themselves. */
+function FirstActions({ saveId, seen, button }: FirstActionsProps) {
   const t = useTranslations("firstSteps");
   const base = `/saves/${saveId}`;
   return (
-    <ol className="my-auto space-y-1 pt-3" aria-label={t("title")} data-testid="first-actions">
+    <ol aria-label={t("title")} data-testid="first-actions" className="grid grid-cols-1 gap-1 pt-3 lg:grid-cols-3 lg:gap-3">
       <ActionRow id="squad" title={t("squad.title")} hint={t("squad.hint")} done={seen.has("squad")} href={`${base}/squad`} />
       <ActionRow id="lineup" title={t("lineup.title")} hint={t("lineup.hint")} done={seen.has("lineup")} href={`${base}/lineup`} />
-      <ActionRow id="match" title={t("match.title")} hint={t("match.hint", { button })} done={false} />
+      <ActionRow
+        id="match"
+        title={t("match.title")}
+        hint={<PointerText touch={t("match.hint.touch", { button })} click={t("match.hint.click", { button })} />}
+        done={false}
+      />
     </ol>
+  );
+}
+
+/**
+ * A new save's first actions in their own panel, right under the hero whose button plays the first match, until the
+ * club has played it (showsFirstActions): its result then has its own card.
+ */
+export function FirstActionsPanel({ className, ...props }: FirstActionsProps & { className?: string }) {
+  const t = useTranslations("firstSteps");
+  return (
+    <Panel className={className} data-testid="dashboard-first-steps">
+      <PanelTitle>{t("title")}</PanelTitle>
+      <FirstActions {...props} />
+    </Panel>
   );
 }

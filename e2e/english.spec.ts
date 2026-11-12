@@ -30,8 +30,11 @@ test("speaks English to a browser that prefers it, on every public page", async 
   await expect(page.getByTestId("google-sign-in")).toHaveText("Continue with Google");
   await expect(page.getByTestId("privacy-link")).toHaveText("Privacy");
 
-  // The creation form's refusals come from the server, in English too. A club is ticked from the start and the career's
-  // name follows it: the other two refusals take a form emptied by hand.
+  // The creation form's refusals come from the server, in English too. The manager's name is filled in, a club is
+  // ticked from the start and the career's name follows it: each refusal takes a form emptied by hand.
+  const manager = page.getByTestId("manager-name");
+  await expect(manager).toHaveValue("Coach");
+  await manager.fill("");
   await page.getByTestId("create-save").click();
   await expect(page.getByText("Enter the manager's name.")).toBeVisible();
   await page.getByTestId("create-save-options").click();

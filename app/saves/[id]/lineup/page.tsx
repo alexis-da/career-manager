@@ -8,6 +8,7 @@ import { formatShortDate } from "@/src/lib/format";
 import { FirstStepTip, getFirstSteps } from "../_components/first-steps";
 import { MarkSeen } from "../_components/mark-seen";
 import { OpponentSheet } from "../_components/opponent-sheet";
+import { PointerText } from "../_components/pointer-text";
 import { showsFirstActions, showsTip } from "../_lib/first-steps";
 import { LineupScreen } from "./_components/lineup-editor";
 
@@ -28,6 +29,7 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
     getOpponentPreview(id),
     getFirstSteps(id),
   ]);
+  const date = formatShortDate(editor.matchDate, locale);
 
   return (
     <div className="space-y-5">
@@ -37,7 +39,7 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
           {t("title")}
         </h1>
         <p className="text-sm text-muted-foreground first-letter:uppercase" data-testid="lineup-instructions">
-          {t("instructions", { date: formatShortDate(editor.matchDate, locale) })}
+          <PointerText touch={t("instructions.touch", { date })} click={t("instructions.click", { date })} />
         </p>
         {/* Next to my eleven: adjust it while looking at his. */}
         {opponent !== null && (

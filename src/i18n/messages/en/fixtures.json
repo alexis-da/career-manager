@@ -1,7 +1,10 @@
 {
   "fixtures": {
     "title": "Fixtures",
-    "subtitle": "Season {season} · click a match for its report or the opponent",
+    "subtitle": {
+      "touch": "Season {season} · tap a match for its report or the opponent",
+      "click": "Season {season} · click a match for its report or the opponent"
+    },
     "views": {
       "label": "Fixtures view",
       "list": "List",
@@ -30,7 +33,10 @@
     "pick": {
       "day": "Simulate until {date}",
       "title": "Simulate until a date:",
-      "hint": "click an upcoming day of the season."
+      "hint": {
+        "touch": "tap an upcoming day of the season.",
+        "click": "click an upcoming day of the season."
+      }
     },
     "opponent": {
       "loading": "Loading the opponent…",

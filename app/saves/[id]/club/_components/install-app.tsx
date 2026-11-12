@@ -21,13 +21,10 @@ function currentState(): InstallState {
 }
 
 /**
- * The settings' row of the installable game: a discreet button that opens the browser's own prompt where there is one
- * (Chrome, Edge, Android: held back from the first page, app/_lib/install-app.ts), or says in a line how to install it,
- * Share then Add to Home Screen on an iPhone or an iPad, the browser's menu elsewhere. In the installed app, says so.
- * Nothing opens unless the player presses it.
+ * Where the browser stands for installing the game, followed as it changes, and what pressing « Installer l'appli » does:
+ * the browser's own prompt where there is one, else the help line shown or hidden.
  */
-export function InstallApp() {
-  const t = useTranslations("settings.install");
+function useInstallApp(): { state: InstallState; help: boolean; install: () => Promise<void> } {
   const [state, setState] = useState<InstallState>("unknown");
   const [help, setHelp] = useState(false);
 
@@ -55,6 +52,18 @@ export function InstallApp() {
     setHelp((open) => !open);
   };
 
+  return { state, help, install };
+}
+
+/**
+ * The settings' row of the installable game: a discreet button that opens the browser's own prompt where there is one
+ * (Chrome, Edge, Android: held back from the first page, app/_lib/install-app.ts), or says in a line how to install it,
+ * Share then Add to Home Screen on an iPhone or an iPad, the browser's menu elsewhere. In the installed app, says so.
+ * Nothing opens unless the player presses it.
+ */
+export function InstallApp() {
+  const t = useTranslations("settings.install");
+  const { state, help, install } = useInstallApp();
   return (
     <div data-testid="settings-install" data-state={state} className={SETTINGS_ROW}>
       <div className="min-w-0 flex-1">
@@ -77,6 +86,26 @@ export function InstallApp() {
           {state === "apple" ? t("ios") : t("other")}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * « Installer l'appli » in one line, for the « À demain » card: the same button as the settings', nothing once installed,
+ * and never in an app's browser, which installs nothing (the in-app notice sends the player to their browser first).
+ */
+export function InstallAppLink({ className }: { className?: string }) {
+  const t = useTranslations("settings.install");
+  const { state, help, install } = useInstallApp();
+  if (state === "unknown" || state === "installed") {
+    return null;
+  }
+  return (
+    <div data-testid="install-app-link" data-state={state} className={cn("space-y-1 in-app:hidden", className)}>
+      <button type="button" aria-expanded={state === "prompt" ? undefined : help} className={CLUB_CARD_LINK} onClick={() => void install()}>
+        {t("button")}
+      </button>
+      {help && state !== "prompt" && <p className="text-sm text-muted-foreground">{state === "apple" ? t("ios") : t("other")}</p>}
     </div>
   );
 }

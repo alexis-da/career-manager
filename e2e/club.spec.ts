@@ -128,7 +128,8 @@ async function expectConfidence(objectives: Locator): Promise<void> {
   await expect(gauge).toHaveAttribute("aria-valuenow", String(value));
   await expect(gauge).toHaveAttribute("aria-valuemin", "0");
   await expect(gauge).toHaveAttribute("aria-valuemax", "99");
-  await expect(confidence).toContainText(/Il te fait confiance|Il attend des résultats|Il s'inquiète/);
+  // Before the club's fifth league match, the president gives his manager time (OBJECTIVES_JUDGED_FROM_MATCH).
+  await expect(confidence).toContainText("Il te laisse le temps de démarrer");
   await expect(confidence).toContainText("La direction ne renvoie jamais son entraîneur : un échec réduit seulement le budget suivant.");
 }
 
@@ -148,7 +149,7 @@ async function expectDemoObjectives(page: Page): Promise<void> {
   await expect(imposed).toHaveCount(1);
   await expect(imposed).toHaveAttribute("data-objective", "RANKING");
   await expect(imposed).toContainText("Classement · Imposé par la direction");
-  await expect(imposed.getByTestId("objective-status")).toHaveText("En bonne voie");
+  await expect(imposed.getByTestId("objective-status")).toHaveText("Trop tôt pour juger");
   await expect(objectives.getByTestId("club-objectives-proposals").locator("[data-proposal]")).toHaveCount(3);
   await expect(objectives.getByTestId("club-objectives-choose")).toHaveAttribute("href", `/saves/${demo}/season-start`);
   await expectConfidence(objectives);
@@ -617,7 +618,8 @@ test.describe("a Google account's Lyon", () => {
     await expect(objectives.getByRole("heading", { level: 2 })).toHaveText("Objectifs du président");
     await expect(objectives).toContainText("Saison 2026-27");
 
-    // Imposed by the board, on track before a ball is kicked: the league, then France's cup, each with what exceeds it.
+    // Imposed by the board, too early to tell before a ball is kicked: the league, then France's cup, each with what
+    // exceeds it.
     const imposed = objectives.locator("[data-objective]");
     await expect(imposed).toHaveCount(2);
     const [ranking, cup] = [imposed.nth(0), imposed.nth(1)];
@@ -628,7 +630,7 @@ test.describe("a Google account's Lyon", () => {
     await expect(cup).toContainText("Coupe · Imposé par la direction");
     await expect(cup).toContainText(/Atteindre les (seizièmes|huitièmes|quarts) de finale/);
     await expect(cup).toContainText(/Dépassé en atteignant (les|la) /);
-    await expect(objectives.getByTestId("objective-status")).toHaveText(["En bonne voie", "En bonne voie"]);
+    await expect(objectives.getByTestId("objective-status")).toHaveText(["Trop tôt pour juger", "Trop tôt pour juger"]);
 
     // Three of the four optional objectives, what each asks, the assistant's pick if the player makes none (Jeunesse, or
     // Spectacle when Jeunesse is not proposed), and the way to the choice, on the season's start screen.

@@ -128,6 +128,18 @@ describe("the creation form", () => {
     expect(at("club")).toBeLessThan(at("create-save-options"));
   });
 
+  it("fills the manager's name in from the start, « Coach » in both languages, a field the player types over", () => {
+    const managerOf = (markup: string) => /<input[^>]*data-testid="manager-name"[^>]*>/.exec(markup)?.[0] ?? "";
+    for (const locale of ["fr", "en"] as const) {
+      for (const choices of [null, { competitions: COMPETITIONS, suggestions: SUGGESTIONS }]) {
+        const manager = managerOf(render(<CreateSaveFormView clubCount={4} previews={PREVIEWS} choices={choices} />, locale));
+        expect(manager).toContain('name="managerName"');
+        expect(manager).toContain('value="Coach"');
+        expect(manager).not.toMatch(/ (readonly|disabled)=""/i);
+      }
+    }
+  });
+
   it("counts the clubs it offers in its pitch, its search and its list", () => {
     const markup = render(<CreateSaveFormView clubCount={4} previews={PREVIEWS} choices={{ competitions: COMPETITIONS, suggestions: SUGGESTIONS }} />);
 

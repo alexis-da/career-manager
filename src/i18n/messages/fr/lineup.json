@@ -1,7 +1,10 @@
 {
   "lineup": {
     "title": "Composition",
-    "instructions": "Pour le match du {date} · clique sur un poste, puis sur un joueur",
+    "instructions": {
+      "touch": "Pour le match du {date} · touche un poste, puis un joueur",
+      "click": "Pour le match du {date} · clique sur un poste, puis sur un joueur"
+    },
     "formation": "Dispositif",
     "picker": {
       "open": "Dispositif : {formation}",
@@ -16,9 +19,10 @@
     "automatic": "Composition automatique",
     "unsaved": "Modifications non enregistrées",
     "saved": "Composition enregistrée",
+    "notSaved": "Onze automatique · pas encore enregistré",
     "saving": "Enregistrement…",
     "save": "Enregistrer",
-    "incompleteRefused": "Onze incomplet : {count, plural, one {# poste est vide} other {# postes sont vides}}. Place un joueur sur chaque poste ou clique sur « {complete} ».",
+    "incompleteRefused": "Onze incomplet : {count, plural, one {# poste est vide} other {# postes sont vides}}. Place un joueur sur chaque poste ou utilise « {complete} ».",
     "saveFailed": "L'enregistrement a échoué. Réessaie.",
     "incomplete": "Onze incomplet : {count, plural, one {# poste vide} other {# postes vides}}, à remplir avant d'enregistrer.",
     "injuredStarter": "{count, plural, one {Un titulaire blessé sera remplacé} other {# titulaires blessés seront remplacés}} automatiquement au coup d'envoi.",
@@ -35,7 +39,10 @@
     "age": "{age, plural, one {# an} other {# ans}}",
     "rating": "Note",
     "ratingAt": "Note au poste {position}",
-    "selectHint": "Sélectionne un poste sur le terrain pour voir qui peut y jouer, du mieux noté à ce poste au moins bien noté, ou glisse un joueur sur un poste. Touche un joueur de la liste pour voir sa fiche.",
+    "selectHint": {
+      "touch": "Sélectionne un poste sur le terrain pour voir qui peut y jouer, du mieux noté à ce poste au moins bien noté, ou glisse un joueur sur un poste. Touche un joueur de la liste pour voir sa fiche.",
+      "click": "Sélectionne un poste sur le terrain pour voir qui peut y jouer, du mieux noté à ce poste au moins bien noté, ou glisse un joueur sur un poste. Clique sur un joueur de la liste pour voir sa fiche."
+    },
     "selectedSlot": "Poste sélectionné :",
     "emptySlot": "Personne à ce poste pour l'instant.",
     "sendToBench": "Mettre sur le banc",

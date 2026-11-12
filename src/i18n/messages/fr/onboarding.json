@@ -12,7 +12,10 @@
     },
     "match": {
       "title": "Jouer le premier match",
-      "hint": "Clique sur « {button} » : il se joue en direct."
+      "hint": {
+        "touch": "Touche « {button} » : il se joue en direct.",
+        "click": "Clique sur « {button} » : il se joue en direct."
+      }
     },
     "tips": {
       "rating": "La note, de 1 à 99, résume le niveau actuel d'un joueur. Le potentiel (Pot.) est le plafond estimé qu'il peut atteindre.",

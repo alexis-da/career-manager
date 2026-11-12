@@ -71,6 +71,9 @@ type DashboardTodoProps = {
   dashboard: Dashboard;
   lineup: ManagedLineup;
   sales: MarketSales | null; // null out of a transfer window
+  // Whether the club has played a match: before its first, the dashboard has its first steps to show, and the market
+  // waits (no offer, no weak spot).
+  firstMatchPlayed: boolean;
   className?: string;
 };
 
@@ -122,7 +125,7 @@ function weakSpotDetail({ reason, rating }: WeakSpot, t: Translator<"dashboardTo
 }
 
 function todosOf(
-  { saveId, dashboard, lineup, sales }: DashboardTodoProps,
+  { saveId, dashboard, lineup, sales, firstMatchPlayed }: DashboardTodoProps,
   t: Translator<"dashboardTodo">,
   tPositions: Translator<"positions">,
   locale: Locale,
@@ -187,7 +190,8 @@ function todosOf(
     });
   }
 
-  const best = sales === null ? null : bestOffer(sales);
+  // The market's lines once the club has played: a new manager meets his squad before its buyers and its weak spot.
+  const best = sales === null || !firstMatchPlayed ? null : bestOffer(sales);
   if (best !== null) {
     todos.push({
       id: "offers",
@@ -206,7 +210,7 @@ function todosOf(
 
   // Every eleven has a weak spot, an empty slot or one held out of line first, the market's: never an alert, only where
   // to look next.
-  const weakSpot = weakSpotOf(elevenOf(lineup.formation, lineup.lineup.starters));
+  const weakSpot = firstMatchPlayed ? weakSpotOf(elevenOf(lineup.formation, lineup.lineup.starters)) : null;
   if (weakSpot !== null) {
     todos.push({
       id: "weak-spot",
@@ -291,7 +295,8 @@ function TodoRow({ severity, icon: Icon, title, detail, href }: Omit<Todo, "id">
 
 /**
  * What the dashboard asks of the manager, the most pressing first: the starters out of the next match, injured then
- * suspended, the other injured, the players one booking from a suspension, offers, the weak spot, then the squad's state.
+ * suspended, the other injured, the players one booking from a suspension, offers, the weak spot (these two once the
+ * club has played), then the squad's state.
  */
 export function DashboardTodo({ className, ...props }: DashboardTodoProps): ReactNode {
   const t = useTranslations("dashboardTodo");

@@ -32,18 +32,26 @@ export function seenItems(hasCookie: (name: string) => boolean): Set<SeenItem> {
   return new Set(SEEN_ITEMS.filter((item) => hasCookie(`${SEEN_COOKIE_PREFIX}${item}`)));
 }
 
-/** The list stays until the club has played: its first result then takes the panel. */
+/** The list stays, in its own panel under the dashboard's hero, until the club has played: its last match comes next. */
 export const showsFirstActions = ({ matches }: FirstSteps): boolean => matches === 0;
 
 /**
  * Whether a screen shows a tip: until it is closed, and until the club's FIRST_STEPS_MATCHES-th match at most, closed or
- * not. The dashboard shows one at a time: the money before the first match, the simulation after it.
+ * not. The dashboard shows one at a time, and none before the first match, the first actions' time: the money once it
+ * is played, then the simulation, from the second match or as soon as the money's is closed.
  */
 export function showsTip(tip: Tip, { matches, seen }: FirstSteps): boolean {
   if (seen.has(tip) || matches >= FIRST_STEPS_MATCHES) {
     return false;
   }
-  return tip === "money" ? matches === 0 : tip === "simulation" ? matches > 0 : true;
+  switch (tip) {
+    case "money":
+      return matches === 1;
+    case "simulation":
+      return matches >= 2 || (matches === 1 && seen.has("money"));
+    default:
+      return true;
+  }
 }
 
 /** In the browser: remembers an item for this save, on the save's paths, so that it is this save's alone. */

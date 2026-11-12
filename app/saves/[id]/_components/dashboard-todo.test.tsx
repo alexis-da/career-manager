@@ -83,10 +83,16 @@ const saleRow = (lastName: string, sale: SaleQuote): SaleRow => ({
 
 const salesOf = (...rows: SaleRow[]): MarketSales => ({ rows, offers: rows.filter((row) => row.terms.sale.ok).length });
 
-type Props = { dashboard: Dashboard; lineup: ManagedLineup; sales?: MarketSales | null };
+type Props = { dashboard: Dashboard; lineup: ManagedLineup; sales?: MarketSales | null; firstMatchPlayed?: boolean };
 
-const render = ({ dashboard, lineup, sales = null }: Props, locale: Locale = "fr"): string =>
-  renderToStaticMarkup(inLanguage(<DashboardTodo saveId="save-1" dashboard={dashboard} lineup={lineup} sales={sales} />, locale));
+/** The list of a club that has played, unless told otherwise. */
+const render = ({ dashboard, lineup, sales = null, firstMatchPlayed = true }: Props, locale: Locale = "fr"): string =>
+  renderToStaticMarkup(
+    inLanguage(
+      <DashboardTodo saveId="save-1" dashboard={dashboard} lineup={lineup} sales={sales} firstMatchPlayed={firstMatchPlayed} />,
+      locale,
+    ),
+  );
 
 /** The lines of the list, in order: id, link and text, title and detail one after the other. */
 const lines = (markup: string) =>
@@ -264,6 +270,19 @@ describe("the dashboard's to-do list", () => {
         { name: "E. Even", competitions: ["LEAGUE"] },
       ]).text,
     ).toBe("5 joueurs à 4 jaunes A. Aubert, B. Bonnet (coupe), C. Caron (championnat et coupe) et 2 autres : un jaune de plus vaut une suspension.");
+  });
+
+  it("leaves the market alone before the club's first match: no offer, no weak spot, the rest as it is", () => {
+    const props = {
+      dashboard: dashboardWith({ players: 17, goalkeepers: 2 }, { expiringContracts: ["A. Faure"] }),
+      lineup: lineupOf([starter("Noir", "LB", 58)], [injuredStarter("Morel")]),
+      sales: salesOf(saleRow("Lemoine", offer("Rhône FC", 1_250_000))),
+    };
+
+    expect(idsOf(render({ ...props, firstMatchPlayed: false }))).toEqual(["injured-starters", "expiring-contracts", "small-squad"]);
+    expect(idsOf(render({ ...props, firstMatchPlayed: false }, "en"))).toEqual(["injured-starters", "expiring-contracts", "small-squad"]);
+    // Once it is played, both come back, in their places.
+    expect(idsOf(render(props))).toEqual(["injured-starters", "offers", "weak-spot", "expiring-contracts", "small-squad"]);
   });
 
   it("shows the first row with an offer, and nothing without one or out of a window", () => {

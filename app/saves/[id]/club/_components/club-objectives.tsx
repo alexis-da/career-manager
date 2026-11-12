@@ -2,7 +2,7 @@ import { useLocale, useTranslations } from "next-intl";
 import Link from "@/src/components/link";
 import { Panel } from "@/src/components/panel";
 import type { ObjectiveView, SeasonObjectivesView } from "@/src/db/objectives";
-import { assistantObjective, type ObjectiveKind, type OptionalObjective } from "@/src/engine/objectives";
+import { assistantObjective, OBJECTIVES_JUDGED_FROM_MATCH, type ObjectiveKind, type OptionalObjective } from "@/src/engine/objectives";
 import { seasonLabel } from "@/src/engine/world";
 import type { Translator } from "@/src/i18n/translator";
 import { cn } from "@/src/lib/utils";
@@ -15,7 +15,7 @@ import {
   objectivesInPlay,
   proposalsOf,
 } from "../../_components/dashboard-objectives";
-import { confidenceLevel, objectiveCurrent, objectiveExceed, objectiveGoal } from "../../_lib/objectives";
+import { confidenceLevel, confidenceWords, objectiveCurrent, objectiveExceed, objectiveGoal } from "../../_lib/objectives";
 import { CLUB_CARD_LINK, ClubCardTitle } from "./club-card";
 
 /** The president's confidence runs from 1 to 99: its gauge, from 0 to 99. */
@@ -91,12 +91,15 @@ function Proposals({ saveId, proposals }: { saveId: string; proposals: readonly 
   );
 }
 
-/** The president's confidence: its figure and its words, a gauge of 0 to 99, and that it is shown only. */
-function Confidence({ confidence }: { confidence: number }) {
+/**
+ * The president's confidence: its figure and its words, a gauge of 0 to 99, and that it is shown only. While it is too
+ * early to judge the objectives, it holds still, and says from which league match it will follow them.
+ */
+function Confidence({ confidence, early }: { confidence: number; early: boolean }) {
   const t = useTranslations("club.objectives");
   const tObjectives = useTranslations("objectives");
   const level = confidenceLevel(confidence);
-  const words = tObjectives(`confidenceLevel.${level}`);
+  const words = confidenceWords(confidence, early, tObjectives);
   const share = Math.round((Math.min(CONFIDENCE_MAX, Math.max(0, confidence)) / CONFIDENCE_MAX) * 100);
   return (
     <div data-testid="club-confidence" data-confidence={confidence} className="flex flex-col gap-2.5 rounded-lg bg-background p-4 lg:self-start">
@@ -116,7 +119,9 @@ function Confidence({ confidence }: { confidence: number }) {
       >
         <div className={cn("h-full rounded-full", CONFIDENCE_FILL[level])} style={{ width: `${share}%` }} />
       </div>
-      <p className="text-[0.8125rem] leading-snug text-muted-foreground">{t("confidenceFollows")}</p>
+      <p className="text-[0.8125rem] leading-snug text-muted-foreground">
+        {early ? t("confidenceFrom", { match: OBJECTIVES_JUDGED_FROM_MATCH }) : t("confidenceFollows")}
+      </p>
       <p className="text-[0.8125rem] leading-snug text-muted-foreground">{t("neverSacked")}</p>
     </div>
   );
@@ -130,9 +135,10 @@ type ClubObjectivesProps = {
 
 /**
  * The president's objectives for the season, in detail: the imposed ones and the chosen one, who set each, what it asks
- * and what exceeds it, where it stands and its figure; while the optional one is still to choose, the proposals and the
- * way to the choice; the count of those met once the season is over. Beside them from 1024 px, under them on a phone, the
- * president's confidence, which follows them and acts on nothing. The dashboard's card leads straight to it, by its anchor.
+ * and what exceeds it, where it stands (too early to tell before the club's fifth league match, unless decided) and its
+ * figure; while the optional one is still to choose, the proposals and the way to the choice; the count of those met once
+ * the season is over. Beside them from 1024 px, under them on a phone, the president's confidence, which follows them
+ * (holding still until then) and acts on nothing. The dashboard's card leads straight to it, by its anchor.
  */
 export function ClubObjectives({ saveId, view, className }: ClubObjectivesProps) {
   const t = useTranslations("club.objectives");
@@ -163,7 +169,7 @@ export function ClubObjectives({ saveId, view, className }: ClubObjectivesProps)
         </ul>
         {proposals.length > 0 && <Proposals saveId={saveId} proposals={proposals} />}
       </div>
-      <Confidence confidence={view.confidence} />
+      <Confidence confidence={view.confidence} early={view.early} />
     </Panel>
   );
 }

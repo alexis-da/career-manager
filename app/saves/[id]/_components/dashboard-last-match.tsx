@@ -1,13 +1,15 @@
 import { ChevronRightIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "@/src/components/link";
-import type { ReactNode } from "react";
 import type { Dashboard, Scorer } from "@/src/db/dashboard";
+import { OBJECTIVES_JUDGED_FROM_MATCH } from "@/src/engine/objectives";
+import { assistantWordAfter } from "@/src/lib/session-end";
 import { cn } from "@/src/lib/utils";
 import { monthOf, monthParam } from "../fixtures/_lib/month-grid";
 import { RESULT_CLASSES } from "../_lib/results";
 import { matchResultFor, stageLabel } from "../_lib/stage";
 import { Panel, PanelTitle } from "@/src/components/panel";
+import { AssistantWordLine } from "./assistant-word";
 import { ScoreNotes } from "./score-notes";
 
 const TEAM_NAME = "w-full font-heading text-2xl leading-tight text-balance wrap-break-word";
@@ -24,12 +26,20 @@ function Scorers({ scorers, className }: { scorers: Scorer[]; className?: string
   );
 }
 
-function LastResult({ saveId, lastResult }: { saveId: string; lastResult: NonNullable<Dashboard["lastResult"]> }) {
+type LastResultProps = {
+  saveId: string;
+  lastResult: NonNullable<Dashboard["lastResult"]>;
+  leaguePlayed: number; // the managed club's league matches of the season: the assistant's word reads it
+};
+
+function LastResult({ saveId, lastResult, leaguePlayed }: LastResultProps) {
   const t = useTranslations("dashboard");
   const tStage = useTranslations("stage");
   const { fixture, homeScorers, awayScorers } = lastResult;
   const { home, away, homeGoals, awayGoals } = fixture;
   const result = matchResultFor({ ...fixture, homeGoals: homeGoals ?? 0, awayGoals: awayGoals ?? 0 }, home.isManaged);
+  const [scored, conceded] = home.isManaged ? [homeGoals ?? 0, awayGoals ?? 0] : [awayGoals ?? 0, homeGoals ?? 0];
+  const word = assistantWordAfter({ result, scored, conceded, cup: fixture.cup }, leaguePlayed, OBJECTIVES_JUDGED_FROM_MATCH);
   return (
     <>
       <PanelTitle>
@@ -49,6 +59,7 @@ function LastResult({ saveId, lastResult }: { saveId: string; lastResult: NonNul
         <Scorers scorers={homeScorers} />
         <Scorers scorers={awayScorers} className="text-right" />
       </div>
+      {word !== null && <AssistantWordLine word={word} className="mt-4" />}
       <Link
         // The month of this match: the calendar opens on the next one's, which may be another.
         href={`/saves/${saveId}/fixtures?mois=${monthParam(monthOf(fixture.scheduledAt))}`}
@@ -65,29 +76,25 @@ function LastResult({ saveId, lastResult }: { saveId: string; lastResult: NonNul
 type LastMatchCardProps = {
   saveId: string;
   dashboard: Dashboard;
-  firstActions: ReactNode; // in place of the result until the club's first match: nothing (null, false) afterwards
   className?: string;
 };
 
-/** The managed club's last match, or a new save's first actions before it. */
-export function LastMatchCard({ saveId, dashboard, firstActions, className }: LastMatchCardProps) {
+/**
+ * The managed club's last match, none yet at the start of a season. The dashboard shows it once the club has played: a
+ * new save has its first actions instead, in their own panel.
+ */
+export function LastMatchCard({ saveId, dashboard, className }: LastMatchCardProps) {
   const t = useTranslations("dashboard");
-  const tFirstSteps = useTranslations("firstSteps");
   const { lastResult } = dashboard;
   return (
     <Panel className={cn("flex flex-col", className)} data-testid="dashboard-last-result">
-      {firstActions ? (
-        <>
-          <PanelTitle>{tFirstSteps("title")}</PanelTitle>
-          {firstActions}
-        </>
-      ) : lastResult === null ? (
+      {lastResult === null ? (
         <>
           <PanelTitle>{t("lastResult")}</PanelTitle>
           <p className="py-10 text-center text-muted-foreground">{t("noMatchPlayed")}</p>
         </>
       ) : (
-        <LastResult saveId={saveId} lastResult={lastResult} />
+        <LastResult saveId={saveId} lastResult={lastResult} leaguePlayed={dashboard.table.find((row) => row.isManaged)?.played ?? 0} />
       )}
     </Panel>
   );

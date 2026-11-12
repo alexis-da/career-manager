@@ -41,9 +41,9 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await page.getByTestId("dashboard-next-match").getByTestId("next-match").click();
   await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/, { timeout: 120_000 });
 
-  // While the clock runs, « Coaching » is the screen's orange, and says where it stops the match.
+  // While the clock runs, the pause is the screen's orange, and says where it stops the match.
   const request = page.getByTestId("live-coaching-request");
-  await expect(request).toHaveText("Coaching à la 15e");
+  await expect(request).toHaveText("Pause à la 15e");
   await expectOrangeActions(page, ["live-coaching-request"]);
   await expect(page.getByTestId("live-skip")).toHaveText("Aller à la mi-temps");
 
@@ -129,10 +129,10 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await expect(page.locator('[data-testid="live-instruction-change"][data-source="START"]')).toHaveCount(0);
 
   // A stop asked for at the next boundary: pressed, then the clock reaches it and the panel opens there.
-  await expect(request).toHaveText("Coaching à la 30e");
+  await expect(request).toHaveText("Pause à la 30e");
   await request.click();
   await expect(request).toHaveAttribute("aria-pressed", "true");
-  await expect(request).toHaveText("Arrêt demandé · 30e");
+  await expect(request).toHaveText("Pause demandée · 30e");
   await expect(panel).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("half-time-title")).toHaveText("30e minute");
   await expect(page.getByTestId("live-score").locator("xpath=following-sibling::p")).toHaveText("30'");
@@ -153,7 +153,7 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   await expect(panel).toBeHidden();
   await expectOrangeActions(page, ["break-resume"]);
   await page.getByTestId("break-resume").click();
-  await expect(request).toHaveText("Coaching à la 60e");
+  await expect(request).toHaveText("Pause à la 60e");
   await request.click();
   await expect(request).toHaveAttribute("aria-pressed", "true");
   // Kept for the tab's session, the pause's key alone, nothing of what follows: a reload, which replays the match from
@@ -161,7 +161,7 @@ test("plays a match live with a decision of the player's, a substitution, an ins
   const kept = await page.evaluate(() => Object.entries(sessionStorage).filter(([key]) => key.startsWith("lw_live_stop:")));
   expect(kept.map(([, pause]) => pause)).toEqual(["IN_PLAY:60"]);
   await page.reload();
-  await expect(request).toHaveText("Arrêt demandé · 60e");
+  await expect(request).toHaveText("Pause demandée · 60e");
   await page.getByTestId("live-speed-4").click();
   await expect(page.getByTestId("half-time-title")).toHaveText("60e minute", { timeout: 30_000 });
   await expect(page.getByTestId("live-score").locator("xpath=following-sibling::p")).toHaveText("60'");

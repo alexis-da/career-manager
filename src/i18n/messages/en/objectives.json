@@ -48,7 +48,8 @@
       "AT_RISK": "At risk",
       "ACHIEVED": "Achieved",
       "EXCEEDED": "Exceeded",
-      "MISSED": "Missed"
+      "MISSED": "Missed",
+      "TOO_EARLY": "Too early to tell"
     },
     "current": {
       "RANKING": "{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} now",
@@ -71,6 +72,7 @@
       "middle": "Expects results",
       "low": "Worried"
     },
+    "confidenceEarly": "Giving you time to settle in",
     "met": "Objectives: {met}/{total}"
   }
 }

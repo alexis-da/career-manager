@@ -1,0 +1,27 @@
+{
+  "sessionEnd": {
+    "title": "À demain",
+    "next": "Ton prochain match",
+    "home": "contre {opponent}, à domicile",
+    "away": "chez {opponent}",
+    "seasonOver": "Tous tes matchs de la saison sont joués : la suite t'attend au passage à la saison suivante.",
+    "stake": {
+      "cup": "Élimination directe : un tour de plus en coupe",
+      "opening": "Ton premier match de championnat",
+      "rival": "Un concurrent direct : {gap, plural, =0 {à égalité de points} one {# point d'écart} other {# points d'écart}}",
+      "climb": "Une victoire peut te faire gagner {places, plural, one {# place} other {# places}}",
+      "rank": "Face au {rank, selectordinal, one {#er} other {#e}} du classement"
+    },
+    "challenge": "Défi de la semaine : {days, plural, one {dernier jour} other {encore # jours}}",
+    "challengeOwn": "Ton défi : {played}/{horizon} journées · {days, plural, one {dernier jour} other {encore # jours}}",
+    "prepare": "Préparer ce match"
+  },
+  "assistantWord": {
+    "label": "Ton adjoint :",
+    "cupExit": "On sort de la coupe. Toute l'énergie pour le championnat maintenant.",
+    "early": "Une défaite ne fait pas une saison. La direction ne jugera qu'après quelques journées : on se reprend au prochain match.",
+    "narrow": "Défaite de peu. On n'est pas loin : on garde l'idée et on se reprend.",
+    "heavy": "Journée difficile. Avant le prochain match, regarde la composition et la condition des joueurs.",
+    "plain": "Ça arrive. On analyse et on repart au prochain match."
+  }
+}

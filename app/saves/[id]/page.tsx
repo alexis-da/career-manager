@@ -8,6 +8,7 @@ import { getMarketSales } from "@/src/db/market-sales";
 import { getSeasonObjectives } from "@/src/db/objectives";
 import { getOpponentPreview } from "@/src/db/opponent";
 import { hasPlayedMatch } from "@/src/db/saves";
+import { InAppNotice } from "@/app/_components/in-app-notice";
 import { AccountBanner } from "./_components/account-banner";
 import { ChallengeCard } from "./_components/challenge-banner";
 import { LastMatchCard } from "./_components/dashboard-last-match";
@@ -15,7 +16,7 @@ import { DashboardObjectives } from "./_components/dashboard-objectives";
 import { DashboardPills, DashboardTiles } from "./_components/dashboard-summary";
 import { DashboardTable } from "./_components/dashboard-table";
 import { DashboardTodo } from "./_components/dashboard-todo";
-import { FirstActions, FirstStepTip, getFirstSteps } from "./_components/first-steps";
+import { FirstActionsPanel, FirstStepTip, getFirstSteps } from "./_components/first-steps";
 import { NextMatchHero } from "./_components/next-match-hero";
 import { showsFirstActions, showsTip } from "./_lib/first-steps";
 
@@ -46,8 +47,11 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   ]);
   // Only an anonymous player's save is at risk: it lives in this browser's cookie.
   const askToSignIn = user?.kind === "ANONYMOUS" && (await hasPlayedMatch(id));
-  // No offer outside a transfer window: nothing to read.
-  const sales = dashboard.windowOpen ? await getMarketSales(id) : null;
+  // Until the club's first match, its first actions under the hero, in place of the last match's card: the market's
+  // offers and weak spot wait for it too.
+  const firstMatchPlayed = !showsFirstActions(firstSteps);
+  // No offer outside a transfer window, nor before the club's first match: nothing to read.
+  const sales = dashboard.windowOpen && firstMatchPlayed ? await getMarketSales(id) : null;
 
   return (
     <div className="space-y-5">
@@ -57,12 +61,17 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
         </h1>
         <DashboardPills dashboard={dashboard} />
       </div>
+      {/* In an app's browser only: an anonymous player's career goes to the phone's browser by its resume link, Google
+          (the banner's) not signing in there. */}
+      {user?.kind === "ANONYMOUS" && <InAppNotice career />}
       <AccountBanner show={askToSignIn} />
       {showsTip("simulation", firstSteps) && <FirstStepTip saveId={id} tip="simulation" />}
 
       {/* One column the screen's width under lg (minmax(0, 1fr)): never as wide as its widest content. The small table last
-          on a phone, beside the hero from xl, the sidebar leaving no room for it before. The season's objectives under the
-          tiles, across the page: none in a save from before them. */}
+          on a phone, beside the hero from xl, in the first row's last cell whatever comes between them in the page,
+          the sidebar leaving no room for it before. A new save's first actions right under the hero, at every width,
+          until the club's first match; its last match's card from then on. The season's objectives under the tiles,
+          across the page: none in a save from before them. */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 xl:grid-cols-3">
         <NextMatchHero
           saveId={id}
@@ -71,27 +80,38 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           opponent={opponent}
           className="lg:col-span-2 xl:self-stretch"
         />
-        <DashboardTable saveId={id} dashboard={dashboard} className="max-lg:order-last lg:col-span-2 xl:col-span-1 xl:h-full" />
+        {!firstMatchPlayed && (
+          <FirstActionsPanel
+            saveId={id}
+            seen={firstSteps.seen}
+            button={tGame(dashboard.worldVersion === 2 ? "playMatch" : "playMatchday")}
+            className={WIDE}
+          />
+        )}
+        <DashboardTable
+          saveId={id}
+          dashboard={dashboard}
+          className="max-lg:order-last lg:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 xl:h-full"
+        />
         {showsTip("money", firstSteps) && <FirstStepTip saveId={id} tip="money" className={WIDE} />}
         <div className={WIDE}>
           <DashboardTiles dashboard={dashboard} />
         </div>
         {objectives !== null && <DashboardObjectives saveId={id} view={objectives} className={WIDE} />}
-        <DashboardTodo saveId={id} dashboard={dashboard} lineup={lineup} sales={sales} />
-        <LastMatchCard
+        <DashboardTodo
           saveId={id}
           dashboard={dashboard}
-          firstActions={
-            showsFirstActions(firstSteps) && (
-              <FirstActions
-                saveId={id}
-                seen={firstSteps.seen}
-                button={tGame(dashboard.worldVersion === 2 ? "playMatch" : "playMatchday")}
-              />
-            )
-          }
+          lineup={lineup}
+          sales={sales}
+          firstMatchPlayed={firstMatchPlayed}
         />
-        <ChallengeCard view={challenge} saveId={id} className="lg:col-span-2 xl:col-span-1" />
+        {firstMatchPlayed && <LastMatchCard saveId={id} dashboard={dashboard} />}
+        {/* Without the last match's card, the rest of the list's row. */}
+        <ChallengeCard
+          view={challenge}
+          saveId={id}
+          className={firstMatchPlayed ? "lg:col-span-2 xl:col-span-1" : "xl:col-span-2"}
+        />
       </div>
     </div>
   );

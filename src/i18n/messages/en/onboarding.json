@@ -12,7 +12,10 @@
     },
     "match": {
       "title": "Play your first match",
-      "hint": "Hit “{button}”: it plays live."
+      "hint": {
+        "touch": "Tap “{button}”: it plays live.",
+        "click": "Click “{button}”: it plays live."
+      }
     },
     "tips": {
       "rating": "A rating, from 1 to 99, sums up a player's current level. Potential (Pot.) is the estimated ceiling they can reach.",

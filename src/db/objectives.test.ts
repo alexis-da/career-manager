@@ -5,11 +5,14 @@ import {
   boardConfidence,
   cupObjective,
   divisionOf,
+  OBJECTIVES_JUDGED_FROM_MATCH,
   objectivesRngSeed,
   OPTIONAL_OBJECTIVES,
   proposedObjectives,
   rankingObjective,
   reputationThird,
+  type ObjectiveProgress,
+  type ObjectiveStatus,
   type OptionalObjective,
 } from "../engine/objectives";
 import { creationReputationRanks } from "../engine/reputation";
@@ -18,10 +21,18 @@ import { WORLD_START_YEAR } from "../engine/world";
 import { makeRng } from "../lib/rng";
 import type { prisma as prismaClient } from "./client";
 
+/** Where a judged objective stands: never too early to tell. */
+function judged(status: ObjectiveStatus | undefined): ObjectiveProgress {
+  if (status === undefined || status === "TOO_EARLY") {
+    throw new Error(`Objective not judged: ${String(status)}`);
+  }
+  return status;
+}
+
 // The managed club's season objectives (gameplay v2, V3) on two throwaway twins of the demo save, a worldVersion 2 one
 // (with its cup) and a worldVersion 1 one: opened with the save, chosen once by the player, or by the assistant at the
-// first match, the president's confidence following. Runs against DATABASE_URL and is skipped without it; modules are
-// imported lazily because the client throws without it.
+// first match, the president's confidence holding still until the club's fifth league match, then following them. Runs
+// against DATABASE_URL and is skipped without it; modules are imported lazily because the client throws without it.
 describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's season objectives", () => {
   let db: typeof prismaClient | undefined;
   let worldTwo = "";
@@ -33,6 +44,18 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
       throw new Error("Database client not initialised");
     }
     return db;
+  };
+
+  /** The president's confidence as the save's matches and choice wrote it (ClubSave.boardConfidence). */
+  const storedConfidence = async (saveId: string): Promise<number> =>
+    (await database().clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { boardConfidence: true } })).boardConfidence;
+
+  /** Plays the save's dates, simulated, until its managed club has played one more match. */
+  const playManagedMatch = async (saveId: string): Promise<void> => {
+    const { playNextMatchday } = await import("./matchday");
+    for (let summary = await playNextMatchday(saveId); summary !== null && summary.managed === null; ) {
+      summary = await playNextMatchday(saveId);
+    }
   };
 
   beforeAll(async () => {
@@ -128,9 +151,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
     const missing = OPTIONAL_OBJECTIVES.find((kind) => !proposed.includes(kind)) ?? "YOUTH";
     const [first, second] = proposed;
 
-    expect(before).toMatchObject({ startYear: WORLD_START_YEAR, choiceOpen: true, over: false });
+    // Before a ball is kicked: too early to judge, the confidence the season opened with.
+    expect(before).toMatchObject({ startYear: WORLD_START_YEAR, choiceOpen: true, early: true, over: false });
     expect(before?.objectives.map((objective) => objective.kind)).toEqual(["RANKING", "CUP", ...proposed]);
-    expect(before?.objectives.every((objective) => objective.status === "ON_TRACK")).toBe(true);
+    expect(before?.objectives.every((objective) => objective.status === "TOO_EARLY")).toBe(true);
+    expect(before?.confidence).toBe(boardConfidence({ ranking: "ON_TRACK", cup: "ON_TRACK" }));
     await expect(chooseObjective(worldTwo, missing)).rejects.toMatchObject({ reason: "not-proposed" });
 
     await chooseObjective(worldTwo, second);
@@ -142,21 +167,60 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
       ["CUP", false, false],
       [second, true, false],
     ]);
+    // Still too early: the chosen objective adds its points on track, written with the choice.
+    expect(after?.early).toBe(true);
+    expect(after?.objectives.every((objective) => objective.status === "TOO_EARLY")).toBe(true);
+    expect(after?.confidence).toBe(boardConfidence({ ranking: "ON_TRACK", cup: "ON_TRACK", chosen: "ON_TRACK" }));
+    expect(await storedConfidence(worldTwo)).toBe(after?.confidence);
   });
 
-  it("lets the assistant choose at the club's first match, then the president's confidence follows the objectives", async () => {
-    const [{ playNextMatchday }, { chooseObjective, getSeasonObjectives }] = await Promise.all([import("./matchday"), import("./objectives")]);
-    for (let summary = await playNextMatchday(worldOne); summary !== null && summary.managed === null; ) {
-      summary = await playNextMatchday(worldOne);
-    }
+  it("lets the assistant choose at the club's first match, the president's confidence holding still", async () => {
+    const { chooseObjective, getSeasonObjectives } = await import("./objectives");
+    await playManagedMatch(worldOne);
     const view = await getSeasonObjectives(worldOne);
     const chosen = view?.objectives.find((objective) => objective.chosen);
     const ranking = view?.objectives.find((objective) => objective.kind === "RANKING");
 
     expect(chosen).toMatchObject({ kind: assistantObjective(proposed), byAssistant: true });
     expect(view?.choiceOpen).toBe(false);
+    // Its place known, its figure shown, but no verdict on one match.
     expect(ranking?.current).toBeGreaterThan(0);
-    expect(view?.confidence).toBe(boardConfidence({ ranking: ranking?.status ?? "ON_TRACK", chosen: chosen?.status }));
+    expect(view?.early).toBe(true);
+    expect(view?.objectives.map((objective) => objective.status)).toEqual(view?.objectives.map(() => "TOO_EARLY"));
+    expect(view?.confidence).toBe(boardConfidence({ ranking: "ON_TRACK", chosen: "ON_TRACK" }));
+    expect(await storedConfidence(worldOne)).toBe(view?.confidence);
     await expect(chooseObjective(worldOne, proposed[0])).rejects.toMatchObject({ reason: "already-chosen" });
-  });
+  }, 60_000);
+
+  it("holds the president's confidence until the club's fifth league match, then judges the objectives", async () => {
+    const { getSeasonObjectives } = await import("./objectives");
+    const held = boardConfidence({ ranking: "ON_TRACK", chosen: "ON_TRACK" });
+
+    // A confidence written by the rule of before (a defeat, the league and the chosen objective at risk): the screens
+    // show the one it holds still at, and the next match writes it.
+    await database().clubSave.updateMany({ where: { saveId: worldOne, isManaged: true }, data: { boardConfidence: 37 } });
+    expect((await getSeasonObjectives(worldOne))?.confidence).toBe(held);
+
+    // The first match is played (above): the second to the fourth, too early to judge.
+    for (let match = 2; match < OBJECTIVES_JUDGED_FROM_MATCH; match++) {
+      await playManagedMatch(worldOne);
+      const view = await getSeasonObjectives(worldOne);
+      expect(view?.early, `after match ${match}`).toBe(true);
+      expect(view?.objectives.map((objective) => objective.status)).toEqual(view?.objectives.map(() => "TOO_EARLY"));
+      expect(view?.confidence, `after match ${match}`).toBe(held);
+      expect(await storedConfidence(worldOne), `after match ${match}`).toBe(held);
+    }
+
+    // The fifth: every objective judged, and the confidence with them (ClubSave.boardConfidence, refreshBoardConfidence).
+    await playManagedMatch(worldOne);
+    const view = await getSeasonObjectives(worldOne);
+    const ranking = view?.objectives.find((objective) => objective.kind === "RANKING");
+    const chosen = view?.objectives.find((objective) => objective.chosen);
+
+    expect(view?.early).toBe(false);
+    expect(view?.objectives.some((objective) => objective.status === "TOO_EARLY")).toBe(false);
+    expect(ranking?.status).toMatch(/^(ON_TRACK|AT_RISK)$/);
+    expect(view?.confidence).toBe(boardConfidence({ ranking: judged(ranking?.status), chosen: judged(chosen?.status) }));
+    expect(await storedConfidence(worldOne)).toBe(view?.confidence);
+  }, 180_000);
 });

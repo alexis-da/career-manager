@@ -1,0 +1,27 @@
+{
+  "sessionEnd": {
+    "title": "See you tomorrow",
+    "next": "Your next match",
+    "home": "against {opponent}, at home",
+    "away": "away at {opponent}",
+    "seasonOver": "All your matches of the season are played: what comes next waits at the move to the next season.",
+    "stake": {
+      "cup": "Knockout: one more round in the cup",
+      "opening": "Your first league match",
+      "rival": "A direct rival: {gap, plural, =0 {level on points} one {# point apart} other {# points apart}}",
+      "climb": "A win could lift you {places, plural, one {# place} other {# places}}",
+      "rank": "Against the {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} in the table"
+    },
+    "challenge": "Weekly challenge: {days, plural, one {last day} other {# days left}}",
+    "challengeOwn": "Your challenge: {played}/{horizon} matchdays · {days, plural, one {last day} other {# days left}}",
+    "prepare": "Prepare this match"
+  },
+  "assistantWord": {
+    "label": "Your assistant:",
+    "cupExit": "We're out of the cup. All our energy goes into the league now.",
+    "early": "One defeat doesn't make a season. The board will only judge after a few matchdays: let's bounce back next match.",
+    "narrow": "A narrow defeat. We're not far off: keep the idea and we'll bounce back.",
+    "heavy": "A tough day. Before the next match, check the line-up and the players' fitness.",
+    "plain": "It happens. We'll look at it and go again next match."
+  }
+}

@@ -31,7 +31,8 @@
       "detail": "See details",
       "optional": "Optional objective",
       "choose": "Choose your objective for the season",
-      "met": "Season over: {met} of {total, plural, one {# objective} other {# objectives}} met"
+      "met": "Season over: {met} of {total, plural, one {# objective} other {# objectives}} met",
+      "assistantPicked": "You hadn't chosen before your first match: your assistant picked {objective}."
     }
   },
   "lineupSummary": {

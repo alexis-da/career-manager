@@ -8,15 +8,19 @@ import {
   divisionOf,
   expectedSeasonGoals,
   leagueRankingObjective,
+  OBJECTIVES_JUDGED_FROM_MATCH,
   objectiveOutcome,
   objectiveProgress,
   objectivesRngSeed,
+  objectiveStatus,
   OPTIONAL_OBJECTIVES,
   optionalTarget,
   proposedObjectives,
   rankingObjective,
   rankingOutcome,
   reputationThird,
+  seasonConfidence,
+  tooEarlyToJudge,
   type SeasonProgress,
 } from "./objectives";
 
@@ -227,5 +231,74 @@ describe("boardConfidence", () => {
     expect(boardConfidence({ ranking: "AT_RISK", cup: "MISSED", chosen: "AT_RISK" })).toBe(25);
     expect(boardConfidence({ ranking: "EXCEEDED", cup: "EXCEEDED", chosen: "ACHIEVED" })).toBe(99);
     expect(boardConfidence({ ranking: "MISSED", cup: "MISSED", chosen: "MISSED" })).toBe(5);
+  });
+});
+
+describe("too early to judge", () => {
+  /** A first-division season of 34 league matches, its cup on, the club's first match lost 0-3: 18th of 18. */
+  const afterADefeat: SeasonProgress = {
+    played: 1,
+    total: 34,
+    rank: 18,
+    cup: { reached: 2, out: false },
+    youthStarts: 0,
+    scored: 0,
+    conceded: 3,
+    balance: 0,
+    over: false,
+  };
+
+  it("judges the season's objectives from the club's fifth league match, or once the season is over", () => {
+    expect(OBJECTIVES_JUDGED_FROM_MATCH).toBe(5);
+    expect([0, 1, 4, 5, 6, 34].map((played) => tooEarlyToJudge({ played, over: false }))).toEqual([true, true, true, false, false, false]);
+    expect(tooEarlyToJudge({ played: 3, over: true })).toBe(false);
+  });
+
+  it("shows an undecided objective too early to tell until then, and an outcome always", () => {
+    expect(objectiveStatus("ON_TRACK", true)).toBe("TOO_EARLY");
+    expect(objectiveStatus("AT_RISK", true)).toBe("TOO_EARLY");
+    for (const outcome of ["EXCEEDED", "ACHIEVED", "MISSED"] as const) {
+      expect(objectiveStatus(outcome, true)).toBe(outcome);
+      expect(objectiveStatus(outcome, false)).toBe(outcome);
+    }
+    expect(objectiveStatus("ON_TRACK", false)).toBe("ON_TRACK");
+    expect(objectiveStatus("AT_RISK", false)).toBe("AT_RISK");
+  });
+
+  it("judges nothing on a lost first match, but a cup run ended is missed", () => {
+    const early = tooEarlyToJudge(afterADefeat);
+    const ranking = { kind: "RANKING", target: 6, exceed: 3 } as const;
+    const youth = { kind: "YOUTH", target: 15, exceed: null } as const;
+    const cup = { kind: "CUP", target: 4, exceed: 6 } as const;
+
+    // At risk on the rules' reading…
+    expect(objectiveProgress(ranking, afterADefeat)).toBe("AT_RISK");
+    expect(objectiveProgress(youth, afterADefeat)).toBe("AT_RISK");
+    // …too early to tell on the screens.
+    expect(objectiveStatus(objectiveProgress(ranking, afterADefeat), early)).toBe("TOO_EARLY");
+    expect(objectiveStatus(objectiveProgress(youth, afterADefeat), early)).toBe("TOO_EARLY");
+    expect(objectiveStatus(objectiveProgress(cup, { ...afterADefeat, cup: { reached: 2, out: true } }), early)).toBe("MISSED");
+    // The fifth match judges them.
+    const fifth = { ...afterADefeat, played: 5 };
+    expect(objectiveStatus(objectiveProgress(ranking, fifth), tooEarlyToJudge(fifth))).toBe("AT_RISK");
+  });
+
+  it("holds the president's confidence the season opened with until then, the chosen objective counted on track", () => {
+    // The audit's case: one defeat, the league and the chosen objective at risk, would make him worried (37).
+    const standing = { ranking: "AT_RISK", cup: "ON_TRACK", chosen: "AT_RISK" } as const;
+    expect(boardConfidence(standing)).toBe(37);
+    expect(seasonConfidence(standing, true)).toBe(boardConfidence({ ranking: "ON_TRACK", cup: "ON_TRACK", chosen: "ON_TRACK" }));
+    expect(seasonConfidence(standing, true)).toBe(59);
+    // Decided or not, every objective counts on track: an early cup exit too.
+    expect(seasonConfidence({ ranking: "AT_RISK", cup: "MISSED" }, true)).toBe(57);
+    // Without a cup, before the choice: the season's opening value, then the chosen objective's points once chosen.
+    expect(seasonConfidence({ ranking: "AT_RISK" }, true)).toBe(55);
+    expect(seasonConfidence({ ranking: "AT_RISK", chosen: "AT_RISK" }, true)).toBe(57);
+  });
+
+  it("follows where the objectives stand from then on", () => {
+    const standing = { ranking: "AT_RISK", cup: "MISSED", chosen: "AT_RISK" } as const;
+    expect(seasonConfidence(standing, false)).toBe(boardConfidence(standing));
+    expect(seasonConfidence({ ranking: "EXCEEDED", cup: "EXCEEDED", chosen: "ACHIEVED" }, false)).toBe(99);
   });
 });

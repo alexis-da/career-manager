@@ -31,7 +31,8 @@
       "detail": "Voir le détail",
       "optional": "Objectif au choix",
       "choose": "Choisis ton objectif de la saison",
-      "met": "Saison terminée : {met, plural, one {# objectif atteint} other {# objectifs atteints}} sur {total}"
+      "met": "Saison terminée : {met, plural, one {# objectif atteint} other {# objectifs atteints}} sur {total}",
+      "assistantPicked": "Tu n'avais pas choisi avant ton premier match : ton adjoint a pris {objective}."
     }
   },
   "lineupSummary": {

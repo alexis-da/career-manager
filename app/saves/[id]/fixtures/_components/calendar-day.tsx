@@ -6,6 +6,7 @@ import { useEffect, type ReactNode } from "react";
 import { Button } from "@/src/components/ui/button";
 import { formatDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { PointerText } from "../../_components/pointer-text";
 import { useSimulation } from "../../_components/simulation";
 
 /**
@@ -80,7 +81,8 @@ export function PickBanner() {
       className="flex items-center gap-3 rounded-lg border border-(--club)/40 bg-(--club)/10 px-4 py-2.5 text-sm"
     >
       <span className="flex-1">
-        <span className="font-semibold">{t("pick.title")}</span> {t("pick.hint")}
+        <span className="font-semibold">{t("pick.title")}</span>{" "}
+        <PointerText touch={t("pick.hint.touch")} click={t("pick.hint.click")} />
       </span>
       <Button variant="ghost" size="sm" onClick={cancelPicking} data-testid="fixtures-pick-cancel">
         <XIcon />

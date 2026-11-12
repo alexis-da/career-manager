@@ -173,6 +173,7 @@ const view = (objectives: ObjectiveView[], choiceOpen: boolean): SeasonObjective
   objectives,
   choiceOpen,
   confidence: 50,
+  early: true,
   over: false,
 });
 

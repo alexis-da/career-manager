@@ -21,6 +21,7 @@ import { LineupSummary } from "../../_components/lineup-summary";
 import { Pitch } from "../../_components/pitch";
 import { CardMark, disciplineBadges, nextMatchCard } from "../../_components/player-badges";
 import { PlayerSheet } from "../../_components/player-sheet";
+import { PointerText } from "../../_components/pointer-text";
 import { PositionBadge, PositionBadges } from "../../_components/position-badge";
 import { fitnessFigure } from "../../_lib/fitness";
 import { saveLineupAction } from "../actions";
@@ -333,11 +334,14 @@ function LineupEditor({ saveId, editor, squad, opponent, chosen, onChoose }: Lin
           </Button>
         </div>
         <div className="flex items-center gap-3 max-sm:w-full max-sm:justify-between">
+          {/* Never saved, the eleven shown is the one the match plays without a saved lineup: picked automatically, the
+              best available at each slot (resolveLineup without one: selectLineup). Not quite the assistant's,
+              « Composition automatique », who also rests the tired (selectRestedLineup): the same until one tires. */}
           <p role="status" className="text-sm" data-testid="lineup-status">
             {dirty ? (
               <span className="text-warning">{t("unsaved")}</span>
             ) : (
-              <span className="text-muted-foreground">{t("saved")}</span>
+              <span className="text-muted-foreground">{saved === null ? t("notSaved") : t("saved")}</span>
             )}
           </p>
           {/* The screen's only orange: filled when there is something to save. */}
@@ -481,7 +485,13 @@ function LineupEditor({ saveId, editor, squad, opponent, chosen, onChoose }: Lin
           onLineClick={clickLine}
           sourceProps={sourceProps}
           selection={
-            computer && selected !== null ? selection(true) : <p className="px-1 text-sm text-muted-foreground">{t("selectHint")}</p>
+            computer && selected !== null ? (
+              selection(true)
+            ) : (
+              <p className="px-1 text-sm text-muted-foreground">
+                <PointerText touch={t("selectHint.touch")} click={t("selectHint.click")} />
+              </p>
+            )
           }
           candidates={
             computer && selected !== null && listedPosition !== null ? (

@@ -167,7 +167,7 @@ le match (`lineupOf`, `src/db/matchday.ts`), l'aperçu de l'adversaire (`getOppo
 et son profil, `opponent-formation`), les trois meilleurs de l'écran de composition (`rankFormations`) et les tests
 (`src/db/opponent.test.ts` compare l'aperçu au match joué). Le club dirigé garde le sien. **Quand :** les clubs du pays
 du club dirigé, qu'il rencontre en championnat et en coupe, avant chaque match ; ceux des quatre autres pays à leur premier
-match de chaque mois du jeu (chantier « cpu », mise en ligne du 16/11 : `aiLineupOf`, `src/db/matchday.ts`,
+match de chaque mois du jeu (chantier « cpu », mise en ligne du 11/11 : `aiLineupOf`, `src/db/matchday.ts`,
 `monthlyFormation`), le dispositif alors choisi gardé sur leur ligne jusqu'au mois suivant (`ClubSave.formation` et
 `ClubSave.formationMonth`, année × 100 + mois en UTC, `formationMonthOf`, migration d'ajout `…_formation_month`), leur onze
 choisi à chaque match dans ce dispositif (`selectRestedLineup` ; `src/db/monthly-formation.test.ts`). Le joueur ne voit
@@ -261,7 +261,16 @@ fois, avant le premier match du club de la saison, la partie verrouillée), sino
 joue ce premier match (`ensureObjectiveChosen` : Jeunesse, ou le premier proposé). Où en est chacun : `objectiveProgress`
 (pur ; `SeasonProgress` lu par `readSeasonProgress` : rang, matchs, parcours de coupe, titularisations, buts, solde) ; la
 confiance du président (`ClubSave.boardConfidence`, `boardConfidence` : 50 et des points par objectif) est réécrite
-après chaque match du club (`refreshBoardConfidence`), affichée seulement : jamais de renvoi. À `advanceToNextSeason`,
+après chaque match du club (`refreshBoardConfidence`), affichée seulement : jamais de renvoi. **Un début qui ne juge
+pas** (chantier « première session », 12/11) : avant le 5e match de championnat du club de la saison
+(`OBJECTIVES_JUDGED_FROM_MATCH`, `tooEarlyToJudge`, la saison pas finie), un objectif encore indécis s'affiche « Trop tôt
+pour juger » (`objectiveStatus`, statut de vue `TOO_EARLY`, pastille neutre ; une issue déjà décidée reste montrée), et la
+confiance tient à sa valeur d'ouverture, chaque objectif compté en bonne voie (`seasonConfidence`, lue telle quelle par
+`getSeasonObjectives` pendant ce temps), « Il te laisse le temps de démarrer » ; l'objectif pris par l'adjoint le dit
+(« Choisi par l'adjoint », et pendant ce temps une ligne de la carte Objectifs du tableau de bord). Après une défaite,
+un mot de l'adjoint (`assistantWordAfter`, `src/lib/session-end.ts`, pur : sortie de coupe, trop tôt pour juger, défaite
+de peu, lourde, ou sans plus ; zone `session-end`), sous le dernier match de l'Accueil et dans la carte « À demain ».
+À `advanceToNextSeason`,
 `closeSeasonObjectives` écrit l'issue des imposés et du choisi (`objectiveOutcome`) et donne le coefficient de la
 dotation suivante (`budgetCoefficient` : classement +20 / +10 / −15, coupe +10 / +5 / −5, choisi +10 / 0, de 70 à 140).
 Une partie d'avant eux n'en a qu'à partir de sa saison suivante. Les écrans les nomment par `objectiveGoal`,
@@ -379,9 +388,13 @@ ouvert, la case de l'objectif au choix mène à l'écran de début de saison, `d
 détail » mène à l'onglet Club, `#objectifs`), « À
 faire » (`DashboardTodo`, du plus pressant au reste : titulaires blessés, titulaires suspendus, autres blessés, joueurs à
 4 jaunes, meilleure offre reçue, point faible, contrats, gardiens, effectif ; toute la ligne est un lien, sauf « Effectif
-complet »), le dernier match
-(`LastMatchCard`, ou les premières actions avant lui) et la carte du défi. Aucune offre hors mercato (`getMarketSales` non
-lu), le point faible n'est jamais une alerte. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
+complet » ; l'offre et le point faible seulement après le premier match du club, `firstMatchPlayed`), le dernier match
+(`LastMatchCard`, après le premier match seulement, avec le mot de l'adjoint après une défaite) et la carte du défi. **Avant
+le premier match du club** (chantier « première session », 12/11) : ses trois premières actions dans leur propre panneau
+juste sous le héros, à toutes les largeurs (`FirstActionsPanel`, `dashboard-first-steps`), aucune bulle ni carte du
+dernier match. Dans le navigateur d'une appli, l'avis des navigateurs intégrés en tête (règle « Navigateurs intégrés et
+lien de reprise »). Aucune offre hors mercato ni avant le premier match (`getMarketSales` non lu), le point faible n'est
+jamais une alerte. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
 couvre l'écran à 390 et 1280 px.
 
 **Premiers pas.** Création d'une partie : « Choisis ton défi » au-dessus de trois cartes de club, le nom du manager et
@@ -402,16 +415,18 @@ répond : « Facile · favori » (top 3), « Équilibré · conseillé » (son r
 tant que le joueur n'a rien choisi, « Difficile · Division 2 » (monter), « Défi » étant le défi de la semaine ; une ligne
 d'objectif courte, pour que le bouton reste au-dessus du pli à 360 × 780, bandeau de langue compris. Dessous, la recherche (`ClubSearch`, `searchClubs`, `app/_lib/club-search.ts`, pure : deux lettres, sans accents
 ni casse, six résultats, Entrée choisit le premier et n'envoie jamais le formulaire) et la liste complète, par pays puis
-division (`club`, qui montre toujours le club choisi). Le nom de la partie vient du club tant que le joueur n'en tape pas un ;
+division (`club`, qui montre toujours le club choisi). Le nom de manager est pré-rempli (« Coach »,
+`createSave.managerDefault`), toujours modifiable. Le nom de la partie vient du club tant que le joueur n'en tape pas un ;
 lui et la graine sont repliés sous « Options », ouvertes seules par leur erreur ; un formulaire refusé garde tout (`onReset`, React
 le viderait sinon après son action). Tableau de bord : tant que le club
-n'a pas joué, aucun rang (« — ») et « Tes trois premières actions » (`FirstActions`,
-`app/saves/[id]/_components/first-steps.tsx`) dans la carte du dernier match (`LastMatchCard`). Effectif et Composition se
+n'a pas joué, aucun rang (« — ») et « Tes trois premières actions » (`FirstActions`, `FirstActionsPanel`,
+`app/saves/[id]/_components/first-steps.tsx`) juste sous le héros. Effectif et Composition se
 cochent à l'ouverture de leur page (`MarkSeen`) : on ne peut pas enregistrer une composition sans la changer. Le match se
 lit dans le jeu (`managedMatchesPlayed`, `src/db/first-steps.ts`) : les matchs du club, jamais `hasPlayedMatch`, déjà vrai
 à la mi-temps avec ceux des autres clubs. Bulles (`showsTip`, `app/saves/[id]/_lib/first-steps.ts`, `FirstStepTip`) : note
-sur l'effectif, poste secondaire sur la composition, argent sur le tableau de bord avant le premier match, simulation
-après lui ; une par écran, dans le flux de la page (elles ne recouvrent aucun bouton), fermables, et finies d'elles-mêmes
+sur l'effectif, poste secondaire sur la composition ; sur le tableau de bord, aucune avant le premier match, l'argent au
+premier, puis la simulation (dès le 2e, ou au 1er une fois l'argent fermée) ; une par écran, dans le flux de la page
+(elles ne recouvrent aucun bouton), fermables, et finies d'elles-mêmes
 au 5e match du club ; rien n'est bloquant et tout s'applique aussi à une partie de défi. Ce qui est vu n'est pas en base :
 un cookie de confort par élément (`lw_seen_squad`…, 30 jours, `Path=/saves/<id>`, écrit dans le navigateur par
 `rememberSeen`), donc propre à chaque partie, sans lecture avant écriture : une page atteinte par navigation interne ne
@@ -448,11 +463,12 @@ que la page affiche (`getLiveStep`, `src/db/live-match.ts` : nouveaux événemen
 change). Chaque reprise nomme sa pause, phase et minute : la partie verrouillée (`lockSave`), la pause réclamée par une
 mise à jour conditionnelle sur `liveState`, la reprise d'une pause déjà jouée (deux onglets, deux clics) est refusée
 (`PauseMismatchError`) et rien n'est écrit deux fois. Le match s'arrête pour le joueur à la mi-temps, à la fin du temps
-réglementaire d'une coupe nulle, à un événement à choix et là où il l'a demandé : `live-coaching-request` (« Coaching à
-la 30e », l'orange de l'écran pendant que l'horloge court) l'arrête à la prochaine limite non jouée, 15', 30', 60', 75' ou
+réglementaire d'une coupe nulle, à un événement à choix et là où il l'a demandé : `live-coaching-request` (« Pause à la
+30e », « Pause demandée · 30e » une fois touché ; « Coaching à la 30e » jusqu'au 12/11, mal compris ; l'orange de
+l'écran pendant que l'horloge court) l'arrête à la prochaine limite non jouée, 15', 30', 60', 75' ou
 105', et la demande survit à un rechargement : gardée pour la session de l'onglet (`stop-request.ts`,
 `lw_live_stop:<partie>:<match>`, la clé de la pause seule, déjà jouée, rien de la suite ; la mémoire de la page sans
-stockage), lue après l'hydratation (`useSyncExternalStore`), la page ne demandant aucune suite avant ; « Coaching à la mi-temps », inactif, avant la 45e, où le match s'arrête de lui-même, et inactif dans le dernier
+stockage), lue après l'hydratation (`useSyncExternalStore`), la page ne demandant aucune suite avant ; « Pause à la mi-temps », inactif, avant la 45e, où le match s'arrête de lui-même, et inactif dans le dernier
 segment, qui sinon annoncerait un nul. `live-skip` (« Aller à la mi-temps », « Aller au résultat », secondaire, une icône
 sous 640 px) mène à la prochaine pause de jeu ou à la fin, l'adjoint décidant en chemin ; le mouvement réduit va d'un
 arrêt à l'autre d'un coup, événements compris (`stepUntil` : « segment », « pause », « break »). Le moteur n'a ni
@@ -467,7 +483,16 @@ au pied de l'écran en dessous) : vitesse x1, x2, x4 (`live-speed-*`), `live-coa
 il mène (jamais la pause de la 90e, qui annoncerait un nul avant qu'il soit joué) ; à un arrêt, `live-coaching` (le
 panneau) et, à une pause de jeu dont le panneau n'a pas été ouvert, `live-resume` (la reprise sans changement de sa
 carte, l'orange quand rien n'est ouvert) ; `live-continue` à la fin. **Le panneau Coaching ne s'ouvre jamais de
-lui-même** (retours du 05/11). Carte de pause (`BreakCard`, `break-card`, `data-break`) : à la mi-temps et à la fin du
+lui-même** (retours du 05/11). **Carte « À demain »** (`SessionEndCard`, `session-end`, chantier « première session »,
+12/11), au coup de sifflet final du direct (sous la carte du score, lue par la page relue à la fin, `readSessionEnd`,
+`app/saves/[id]/_lib/session-end.ts`) et en bas du résumé d'une simulation (`simulationSummaryAction`, ses liens fermant
+le dialogue) : le mot de l'adjoint après une défaite, le prochain match du club (`getNextAppointment`,
+`src/db/next-appointment.ts`, lecture seule ; le direct en cours écarté) et son enjeu lu au classement (`stakeOf`,
+`src/lib/session-end.ts`, pur : coupe, premier match de championnat, concurrent direct à 3 points, places qu'une victoire
+peut faire gagner, sinon le rang de l'adversaire), « Préparer ce match », les jours qui restent au défi de la semaine (et
+où en est une partie de défi), « Installer l'appli » (`InstallAppLink`, hors navigateur intégré et appli installée) ;
+seulement des liens, l'orange reste celui de l'écran. Aucune simulation de plus : une lecture par fin de direct ou de
+simulation. Carte de pause (`BreakCard`, `break-card`, `data-break`) : à la mi-temps et à la fin du
 temps réglementaire d'une coupe nulle, `Sheet` modal compact, depuis le pied de l'écran sous 1024 px, au pied de la
 colonne du panneau (440 px, en bas à droite) au-dessus ; le titre de la pause, le score (`PauseScore`, partagé avec le
 panneau), buteurs et exclus de chaque côté (`breakMarks`), un mot de l'adjoint (blessés, exclus, changement conseillé ou
@@ -543,7 +568,10 @@ tiennent (`switchFormation`) et ferme la feuille. Panneau du dispositif
 défense du onze à côté de celles de l'adversaire (règle « Composition et consigne de départ ») et, déplié, le comparatif
 des dix-sept dispositifs, écart au centième, le meilleur signalé, « Choisir » l'appliquant avec le onze de l'adjoint ; la
 consigne de départ (`StartingInstruction`) : une bascule, ce qu'elle fait au match, le principe en une phrase et la règle
-de l'adjoint ; dans l'état de l'éditeur, enregistrée avec lui. Fiche (`PlayerSheet`, partagée avec le marché avancé, `?player=`) : tête sur le bleu vif, initiales
+de l'adjoint ; dans l'état de l'éditeur, enregistrée avec lui. Statut (`lineup-status`) : « Modifications non
+enregistrées », « Composition enregistrée », ou sans composition jamais enregistrée « Onze automatique · pas encore
+enregistré » (le match joue alors `selectLineup`). Un texte qui dit « Clique » à la souris dit « Touche » au doigt
+(`PointerText`, variantes `pointer-fine:` / `pointer-coarse:`, deux clés de message `click` / `touch`). Fiche (`PlayerSheet`, partagée avec le marché avancé, `?player=`) : tête sur le bleu vif, initiales
 (`playerInitials`, le visage reste partout ailleurs), note et poste en grand, saison, barres, contrat, transferts ; Prolonger
 orange, secondaire dans la Composition, dont l'orange est « Enregistrer » (`primary`) ; une vente impossible se lit dans le
 pied, `sell-player` désactivé (`player-sale-refusal`). Sur toute l'entrée, l'action de jeu de la colonne est secondaire
@@ -836,11 +864,43 @@ partie), et la fusion à la connexion Google déplace les entrées d'un utilisat
 **Identité.** Le joueur est reconnu par sa session Google (Auth.js, `src/auth/auth.ts` : JWT sans adaptateur ni
 table, qui porte notre `User.id`), sinon par le cookie anonyme `lw_uid` (id d'utilisateur signé HMAC-SHA256 avec
 `AUTH_SECRET`, obligatoire). `getCurrentUser()` lit sans rien créer ; `requireCurrentUser()` crée un utilisateur
-anonyme et pose le cookie, seulement depuis la création de partie. La connexion Google efface `lw_uid`.
+anonyme et pose le cookie, seulement depuis la création de partie ; `adoptAnonymousUser` pose celui d'un anonyme
+existant, seulement depuis le bouton d'un lien de reprise (règle suivante). La connexion Google efface `lw_uid`.
 L'administrateur n'a pas de colonne : `isAdmin(user)` compare son e-mail à `ADMIN_EMAIL`, sans casse.
 `lastSeenAt` est réécrit à la première requête de chaque jour UTC, avec une ligne `UserDay(userId, day)`
 (`recordUserDay`, `src/db/user-days.ts`, `INSERT … ON CONFLICT DO NOTHING`) : c'est la seule source de la
 rétention.
+
+**Navigateurs intégrés et lien de reprise (chantier « première session », 12/11).** Le navigateur d'Instagram, de
+Facebook (Messenger compris), de TikTok ou de Snapchat a ses propres cookies, à part de ceux du téléphone : une carrière
+commencée là y reste, et Google y refuse la connexion (disallowed_useragent). Détection dans le navigateur seulement, par
+le user-agent (`inAppBrowserOf`, `IN_APP_PATTERNS`, `src/lib/in-app-browser.ts`, pur) : `IN_APP_BROWSER_SCRIPT`, script
+en ligne en tête du `<head>` du layout racine (jamais `next/script`, qui l'exécuterait après le premier rendu), marque
+`<html>` de `data-in-app` (l'appli) et `data-in-app-platform` (`android`, `ios`, `other`) avant que la page s'affiche
+(`suppressHydrationWarning` sur `<html>`) ; les écrans montrent ou cachent par CSS, variantes `in-app:`,
+`in-app-android:` et `in-app-other:` (`globals.css`) : rien ne bouge, le serveur ne lit jamais le navigateur. Avis
+(`InAppNotice`, `app/_components/in-app-notice.tsx`, `in-app-notice`, caché ailleurs) : « Ouvre Late Winner dans ton
+navigateur pour garder ta carrière », sur l'accueil (au-dessus du formulaire) et le tableau de bord ; sur Android
+« Ouvrir dans Chrome » (`in-app-chrome`, intent `chromeIntentUrl`, la page elle-même, ou avec une carrière son lien de
+reprise), ailleurs la marche à suivre (`in-app-steps`) ; avec une carrière, « Copier mon lien de reprise »
+(`ResumeLinkCopy`, `resume-link-copy`, puis le lien dans un champ, `resume-link-value`, si le presse-papiers refuse).
+`GoogleSignInButton` est caché dans un navigateur intégré (`in-app:hidden`), comme le bandeau du compte et
+`OtherDevice` ; les Réglages du Club y donnent le lien de reprise à sa place. **Lien de reprise** (`ResumeLink`,
+migration d'ajout `…_resume_links`, `src/db/resume-links.ts`) : 32 octets aléatoires en base64url dans le lien
+`/resume?t=…` (`resumeLinkPath`, sans l'origine, que le navigateur ajoute), seule leur empreinte SHA-256 en base, jamais
+l'identifiant du joueur ; pour un anonyme qui a une carrière seulement (`createResumeLink`, `createResumeLinkAction`,
+20 par heure au plus), valable 7 jours (`RESUME_LINK_DAYS`), une seule fois. La page s'en charge par une Server Action
+dès qu'une page intégrée avec carrière s'ouvre, puis l'onglet le garde 30 minutes (`app/_lib/resume-link-store.ts`,
+`sessionStorage`) : copie et intent partent dans le toucher. Ouvrir `/resume` ne consomme rien (`readResumeLink`, un
+aperçu de lien ne le grille pas) : la page (`app/resume`, sans langue dans l'adresse, `noindex`, `no-referrer`, refusée
+aux robots) montre la carrière et, quand ce navigateur peut la prendre (`resumeViewOf`, `src/lib/resume-link.ts`, pur),
+« Reprendre ma carrière » (`resume-submit`, `resumeCareerAction`) : consommation atomique (`consumeResumeLink`,
+`UPDATE … WHERE usedAt IS NULL AND expiresAt > maintenant`), puis le cookie `lw_uid` du même joueur
+(`adoptAnonymousUser`) et sa dernière carrière : même utilisateur, même source, même rétention ; l'appli d'origine la
+garde aussi. Refus expliqués (`data-view`) : lien inconnu, déjà servi, expiré, navigateur connecté à Google
+(« account ») ou ayant sa propre carrière sans compte (« other-career ») : rien n'est remplacé ni supprimé ; « here »
+quand ce navigateur a déjà ces carrières. Les liens partent avec leur utilisateur (cascade). `e2e/in-app.spec.ts` simule
+Instagram sur Android et iPhone à 390 px et reprend une carrière dans un autre navigateur, une fois.
 
 **Arrivées des joueurs.** Sans cookie tiers ni outil extérieur (`src/lib/arrival.ts`, pur). À la première visite d'une
 page publique (le navigateur qui ouvre la page, `isPageNavigation` : ni préchargement ni requête du routeur ; ni robot
@@ -985,8 +1045,9 @@ d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4. 
   `challenge-banner` (carte du défi), `squad` (effectif), `player-sheet` (fiche joueur, contrats), `lineup`,
   `market` (Acheter, confirmation), `market-sell` (Vendre), `transfers` (marché avancé), `fixtures` (calendrier,
   feuille de match), `standings` (classement), `seasons` (palmarès, bilan, carte), `cup` (coupe), `club` (écran Club,
-  réglages), `challenge-screen` (onglet Défi), `live` (direct), `half-time` (panneau Coaching), `actions` (messages
-  des Server Actions, refus), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
+  réglages), `challenge-screen` (onglet Défi), `live` (direct), `session-end` (carte « À demain », mot de l'adjoint),
+  `half-time` (panneau Coaching), `actions` (messages des Server Actions, refus), `in-app` (navigateurs intégrés, page
+  du lien de reprise), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
   `src/i18n/messages.test.ts` exige les mêmes clés et les mêmes arguments ICU dans les deux langues, que tout message
   se formate et qu'un espace de noms n'appartienne qu'à un fichier. Seule exception, les documents des pages publiques,
   hors des messages : la confidentialité et « À propos » ont leurs deux versions en JSX
@@ -1049,7 +1110,8 @@ leurs noms sur le serveur. Les tests le vérifient sur chaque texte public (`for
 `src/lib/outward-names.ts`) : marques, compétitions sous licence, jeux concurrents, et les noms réels des 198 clubs
 (`realClubNames`, `prisma/seed/real-club-names.ts`) comme leur cœur (« Real Madrid » de « Real Madrid CF »).
 
-**Référencement.** `app/robots.ts` : tout est permis sauf `/saves/`, `/api/` et `/admin`, avec l'adresse du sitemap ;
+**Référencement.** `app/robots.ts` : tout est permis sauf `/saves/`, `/api/`, `/admin` et `/resume`, avec l'adresse du
+sitemap ;
 les robots des moteurs de recherche et de réponse (OAI-SearchBot, PerplexityBot, Claude-SearchBot, Claude-User) et ceux
 qui lisent pour entraîner des modèles (GPTBot, ClaudeBot, Google-Extended) sont nommés et admis, par décision (un robot
 qui a son groupe ne lit que lui : il reprend les règles de tous). `app/sitemap.ts` : chaque page publique dans chaque
@@ -1122,6 +1184,7 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # composants des anglaises
   privacy/            # page de confidentialité, publique, en français et en anglais ; à tenir à jour
                       # avec le code (_components/privacy-document.tsx : les deux versions, une date de mise à jour)
+  resume/             # page d'un lien de reprise (/resume?t=…) et son bouton, qui consomme le lien
   api/                # Auth.js, les routes de maintenance (purge, défi de la semaine, nettoyage des événements, archivage des saisons) et les erreurs des navigateurs
                       # (client-errors), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
@@ -1131,6 +1194,7 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
                       # arrivals.spec.ts : le cookie d'arrivée, le compte des visites et la carrière qui en vient ;
+                      # in-app.spec.ts : le navigateur d'Instagram simulé (Android, iPhone) et le lien de reprise ;
                       # admin.spec.ts : /admin, 404 pour tout autre, ses sections à 1280, 390 et 360 px, FR et EN,
                       # une erreur provoquée dans un navigateur, montrée dans sa section ;
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;

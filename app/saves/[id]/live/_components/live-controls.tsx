@@ -39,10 +39,10 @@ type LiveControlsProps = {
 
 /**
  * The screen's controls, one element: in the card from lg, fixed to the foot of the screen under it. While the match runs,
- * its speed, « Coaching », the screen's main action, which stops the match at the next boundary for the Coaching panel,
- * and the way to what comes next, which says where it leads: half-time before it, the result after, the assistant deciding
- * on the way; on a phone, an icon. At a pause, the way to the panel, and at a break whose panel has not been opened the
- * way on without a change, its card's two ways; at the end, the way on.
+ * its speed, « Pause à la 30e », the screen's main action, which stops the match at the next boundary for the Coaching
+ * panel, and the way to what comes next, which says where it leads: half-time before it, the result after, the
+ * assistant deciding on the way; on a phone, an icon. At a pause, the way to the panel, and at a break whose panel has not been
+ * opened the way on without a change, its card's two ways; at the end, the way on.
  */
 export function LiveControls({
   dashboardHref,

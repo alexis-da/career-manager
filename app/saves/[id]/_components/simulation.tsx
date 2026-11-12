@@ -12,11 +12,18 @@ import { ProgressIndicator, ProgressLabel, ProgressTrack } from "@/src/component
 import type { SimulatedMatch, SimulationSummary } from "@/src/db/simulation";
 import { formatDate, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { planSimulationAction, simulateMatchdays, simulationSummaryAction, type SimulationTargetInput } from "../actions";
+import {
+  planSimulationAction,
+  simulateMatchdays,
+  simulationSummaryAction,
+  type SimulationResult,
+  type SimulationTargetInput,
+} from "../actions";
 import { RESULT_CLASSES } from "../_lib/results";
 import { matchResultFor, stageLabel } from "../_lib/stage";
 import { ResultPill } from "./result-pill";
 import { ScoreNotes } from "./score-notes";
+import { SessionEndCard } from "./session-end-card";
 
 /** Where a simulation stops; a picked day is sent as « 2026-08-31 ». */
 export type SimulationTarget = SimulationTargetInput;
@@ -33,7 +40,7 @@ type Phase =
       played: number;
       matches: SimulatedMatch[];
       stopped: boolean;
-      summary: SimulationSummary | null; // null when the simulation failed halfway
+      summary: SimulationResult | null; // null when the simulation failed halfway
     };
 
 type SimulationContextValue = {
@@ -120,7 +127,14 @@ function RankChange({ summary }: { summary: SimulationSummary }) {
   );
 }
 
-function Finished({ phase, onContinue }: { phase: Extract<Phase, { kind: "finished" }>; onContinue: () => void }) {
+type FinishedProps = {
+  saveId: string;
+  phase: Extract<Phase, { kind: "finished" }>;
+  onContinue: () => void; // to the dashboard
+  onLeave: () => void; // the dialog closed, a link of its « À demain » card followed
+};
+
+function Finished({ saveId, phase, onContinue, onLeave }: FinishedProps) {
   const t = useTranslations("simulation");
   const locale = useLocale();
   const { summary, matches } = phase;
@@ -200,6 +214,14 @@ function Finished({ phase, onContinue }: { phase: Extract<Phase, { kind: "finish
                 </ul>
               )}
             </SummarySection>
+
+            <SessionEndCard
+              saveId={saveId}
+              appointment={summary.sessionEnd.appointment}
+              word={summary.sessionEnd.word}
+              onNavigate={onLeave}
+              className="bg-background"
+            />
           </>
         )}
       </div>
@@ -364,6 +386,9 @@ export function SimulationProvider({ saveId, children }: { saveId: string; child
     router.push(`/saves/${saveId}`);
   };
 
+  // A link of the summary's « À demain » card: its page, the dialog closed.
+  const leave = () => setPhase({ kind: "idle" });
+
   const value = useMemo(
     () => ({ busy, start, picking, beginPicking, cancelPicking }),
     [busy, start, picking, beginPicking, cancelPicking],
@@ -385,7 +410,7 @@ export function SimulationProvider({ saveId, children }: { saveId: string; child
           data-testid="simulation-dialog"
         >
           {phase.kind === "running" && <Running phase={phase} onStop={stop} />}
-          {phase.kind === "finished" && <Finished phase={phase} onContinue={finish} />}
+          {phase.kind === "finished" && <Finished saveId={saveId} phase={phase} onContinue={finish} onLeave={leave} />}
         </DialogContent>
       </Dialog>
     </SimulationContext.Provider>

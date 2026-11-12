@@ -21,6 +21,27 @@ export const CHANGELOG_LABELS = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-12",
+    fr: {
+      title: "Un début plus doux, et ta carrière dans ton navigateur",
+      items: [
+        "Ouvert depuis Instagram, Facebook, TikTok ou Snapchat, le jeu te propose de passer dans ton navigateur pour garder ta carrière : « Ouvrir dans Chrome » sur Android, la marche à suivre sur iPhone. Une carrière déjà commencée dans l'appli t'y suit grâce à « Copier mon lien de reprise » : le lien ne sert qu'une fois et dure sept jours.",
+        "Pendant tes quatre premiers matchs de championnat, la direction ne juge pas encore tes objectifs (« Trop tôt pour juger ») et la confiance du président ne bouge pas. Si ton adjoint choisit ton objectif de la saison à ta place, il te le dit, et après une défaite il a un mot pour toi.",
+        "Après un match en direct ou une simulation, la carte « À demain » te montre ton prochain match et ce qu'il vaut, les jours qui restent au défi de la semaine, et comment installer l'appli.",
+        "Le premier tableau de bord va à l'essentiel : tes trois premières actions juste sous le prochain match ; les offres, ton point faible et la bulle sur l'argent arrivent après ton premier match. Ton nom de manager est déjà rempli, le direct propose « Pause à la 15e », et la composition ne se dit plus enregistrée tant que tu ne l'as pas fait.",
+      ],
+    },
+    en: {
+      title: "A gentler start, and your career in your own browser",
+      items: [
+        "Opened from Instagram, Facebook, TikTok or Snapchat, the game offers to move to your browser to keep your career: “Open in Chrome” on Android, the steps to follow on iPhone. A career already started in the app follows you there with “Copy my resume link”: the link works once and lasts seven days.",
+        "During your first four league matches, the board doesn't judge your objectives yet (“Too early to tell”) and the chairman's confidence stays put. If your assistant picks your objective of the season for you, he tells you, and after a defeat he has a word for you.",
+        "After a live match or a simulation, the “See you tomorrow” card shows your next match and what it's worth, the days left in the weekly challenge, and how to install the app.",
+        "The first dashboard keeps to the essentials: your first three actions right under the next match; offers, your weak spot and the money tip come after your first match. Your manager name is already filled in, the live match offers “Pause at 15’”, and the line-up no longer says it's saved until you've saved it.",
+      ],
+    },
+  },
+  {
     date: "2026-11-09",
     fr: {
       title: "Le jeu sur ton écran d'accueil, et un fil du match plus complet",

@@ -66,12 +66,12 @@
     },
     "otherMatches": "Autres matchs",
     "request": {
-      "at": "Coaching à la {minute}e",
-      "asked": "Arrêt demandé · {minute}e",
-      "halfTime": "Coaching à la mi-temps",
-      "none": "Coaching",
+      "at": "Pause à la {minute}e",
+      "asked": "Pause demandée · {minute}e",
+      "halfTime": "Pause à la mi-temps",
+      "none": "Pause",
       "noneHint": "Plus d'arrêt de jeu avant la fin",
-      "askedHint": "Le match s'arrêtera à la {minute}e pour ton coaching. Touche encore pour annuler."
+      "askedHint": "Le match s'arrêtera à la {minute}e pour que tu changes ton équipe. Appuie encore pour annuler."
     }
   }
 }

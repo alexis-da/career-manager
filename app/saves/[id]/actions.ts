@@ -31,6 +31,7 @@ import type { Translator } from "@/src/i18n/translator";
 import { formatDate } from "@/src/lib/format";
 import type { ActionResult } from "./_lib/action-result";
 import { halfTimeRefusalMessage } from "./_lib/live-match";
+import { readSessionEnd, type SessionEnd } from "./_lib/session-end";
 import { extraTimeNote, penaltiesNote, stageLabel, type Decision } from "./_lib/stage";
 
 export type GameActionResult = {
@@ -318,12 +319,17 @@ export async function simulateMatchdays(
 }
 
 /** The managed club's rank, injuries and ended contracts since fromDate (« 2026-08-15 »), the date before a simulation. */
-export async function simulationSummaryAction(saveId: string, fromDate: string): Promise<SimulationSummary> {
+/** A simulation's summary, with the « À demain » card's next appointment. */
+export type SimulationResult = SimulationSummary & { sessionEnd: SessionEnd };
+
+export async function simulationSummaryAction(saveId: string, fromDate: string): Promise<SimulationResult> {
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   const summary = await getSimulationSummary(id, daySchema.parse(fromDate));
+  // Not simulation code: the challenge's days left are real time.
+  const sessionEnd = await readSessionEnd(id, new Date());
   // The simulation is over: every page of the save shows the new date, results and table.
   revalidatePath(`/saves/${id}`, "layout");
-  return summary;
+  return { ...summary, sessionEnd };
 }
 
 /** The opponent of an unplayed fixture of the managed club, for the calendar's « Voir l'adversaire » panel. */

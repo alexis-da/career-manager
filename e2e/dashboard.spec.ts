@@ -16,8 +16,9 @@ import {
 
 // The dashboard of a Lyon just created: 1 July 2026, the window open, nothing played. A world of 198 clubs takes some 20
 // seconds, so the tests share one, in the order of this file: those that only read it, then the one that plays its
-// match, then the one that simulates the rest of its season. Its user goes at the end, and the save with them. After a
-// failure, Playwright starts a new worker, which creates its own.
+// match, the one that reads the market's lines that come with it, then the one that simulates the rest of its season.
+// Its user goes at the end, and the save with them. After a failure, Playwright starts a new worker, which creates its
+// own.
 
 const LYON = "Olympique Lyonnais";
 
@@ -148,16 +149,17 @@ test("sets the season's objectives out, the optional one still to choose, and th
   const objectives = page.getByTestId("dashboard-objectives");
   await expect(objectives.getByRole("heading")).toHaveText("Objectifs");
 
-  // Imposed by the board, on track before a ball is kicked: the league, then France's cup.
+  // Imposed by the board, too early to tell before a ball is kicked (OBJECTIVES_JUDGED_FROM_MATCH): the league, then
+  // France's cup.
   const imposed = objectives.locator("[data-objective]");
   await expect(imposed).toHaveCount(2);
   await expect(imposed.nth(0)).toHaveAttribute("data-objective", "RANKING");
   await expect(imposed.nth(1)).toHaveAttribute("data-objective", "CUP");
   await expect(imposed.nth(1)).toContainText(/Atteindre les (seizièmes|huitièmes|quarts) de finale/);
   const statuses = objectives.getByTestId("objective-status");
-  await expect(statuses).toHaveText(["En bonne voie", "En bonne voie"]);
+  await expect(statuses).toHaveText(["Trop tôt pour juger", "Trop tôt pour juger"]);
   for (const status of await statuses.all()) {
-    await expect(status).toHaveAttribute("data-status", "ON_TRACK");
+    await expect(status).toHaveAttribute("data-status", "TOO_EARLY");
   }
 
   // The optional one is the player's to choose, of three the board proposes, on the season's start screen: never in the
@@ -174,7 +176,8 @@ test("sets the season's objectives out, the optional one still to choose, and th
   await expect(confidence).toHaveAttribute("data-confidence", /^\d+$/);
   const value = (await confidence.getAttribute("data-confidence")) ?? "";
   await expect(confidence.locator("dt")).toHaveText("Confiance du président");
-  await expect(confidence.locator("dd")).toHaveText(new RegExp(`^${value} · (Il te fait confiance|Il attend des résultats|Il s'inquiète)$`));
+  // Before the club's fifth league match, the president gives his manager time.
+  await expect(confidence.locator("dd")).toHaveText(new RegExp(`^${value} · Il te laisse le temps de démarrer$`));
   await objectives.getByTestId("dashboard-objectives-detail").click();
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/club#objectifs$`));
   const detail = page.getByTestId("club-objectives");
@@ -183,29 +186,37 @@ test("sets the season's objectives out, the optional one still to choose, and th
   await expect(detail.getByTestId("club-confidence")).toHaveAttribute("data-confidence", value);
 });
 
-test("sends the weak spot to the market and, while the window is open, the best offer to its sales", async ({ page }) => {
+test("lays a new career's first actions right under the hero, and leaves the money, the offers and the weak spot for later", async ({
+  page,
+}) => {
   await openDashboard(page);
+  const steps = page.getByTestId("dashboard-first-steps");
+  await expect(steps.getByRole("heading")).toHaveText("Tes trois premières actions");
+  await expect(steps.getByTestId("first-action-squad").getByRole("link")).toHaveAttribute("href", `/saves/${saveId}/squad`);
+  await expect(steps.getByTestId("first-action-lineup").getByRole("link")).toHaveAttribute("href", `/saves/${saveId}/lineup`);
+  // Under a mouse, a click: the touch's words are in the page, hidden.
+  const match = steps.getByTestId("first-action-match");
+  await expect(match).toContainText("Clique sur « Jouer le match » : il se joue en direct.", { useInnerText: true });
+  await expect(match).not.toContainText("Touche", { useInnerText: true });
 
-  // The market says the same of the same spot.
-  const weakSpot = page.getByTestId("dashboard-alerts").getByTestId("alert-weak-spot");
-  await expect(weakSpot).toHaveText(WEAK_SPOT);
-  const [, position, rating] = WEAK_SPOT.exec(await textOf(weakSpot)) ?? [];
-  await weakSpot.getByTestId("alert-action").click();
-  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/transfers$`));
-  await expect(page.getByTestId("market-intro")).toHaveText(`Ton point faible : ${position} (note ${rating}). Voici qui le comblerait.`);
+  // The small table beside the hero, the actions under both, across the page.
+  const hero = await boxOf(heroOf(page));
+  const table = await boxOf(page.getByTestId("dashboard-table"));
+  const box = await boxOf(steps);
+  expect(table.y).toBe(hero.y);
+  expect(box.y - (hero.y + hero.height)).toBeGreaterThanOrEqual(0);
+  expect(box.y - (hero.y + hero.height)).toBeLessThanOrEqual(24);
+  expect(box.x).toBe(hero.x);
+  expect(Math.abs(box.x + box.width - (table.x + table.width))).toBeLessThanOrEqual(1);
 
-  // The sales open on the offer the line gives, and count as many.
-  await openScreen(page, "dashboard");
-  const offers = page.getByTestId("dashboard-alerts").getByTestId("alert-offers");
-  await expect(offers).toHaveText(BEST_OFFER);
-  const [, buyer, fee, player, count] = BEST_OFFER.exec(await textOf(offers)) ?? [];
-  await offers.getByTestId("alert-action").click();
-  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/transfers\\?tab=sell$`));
-  const best = page.getByTestId("market-sell").getByTestId("market-sale-offer");
-  await expect(best).toHaveAttribute("aria-label", player);
-  await expect(best).toContainText(buyer);
-  await expect(best).toContainText(fee);
-  await expect(page.getByTestId("market-tab-sell")).toHaveText(new RegExp(`^Vendre · ${count} offres?$`));
+  // No card of a last match: « Aucun match joué » would only repeat the list. No tip, no offer, no weak spot: the first
+  // steps first.
+  await expect(page.getByTestId("dashboard-last-result")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="tip-"]')).toHaveCount(0);
+  const alerts = page.getByTestId("dashboard-alerts");
+  await expect(alerts).toBeVisible();
+  await expect(alerts.getByTestId("alert-offers")).toHaveCount(0);
+  await expect(alerts.getByTestId("alert-weak-spot")).toHaveCount(0);
 });
 
 test("leads to the week's challenge from a career outside it", async ({ page }) => {
@@ -243,10 +254,19 @@ test.describe("on a phone, in English", () => {
       expect((await boxOf(hero.getByTestId(control))).height).toBeGreaterThanOrEqual(44);
     }
 
-    // The season's objectives under the tiles: the imposed ones on track, the optional one to choose, its ways a thumb high.
+    // The first actions right under the hero, before anything else of the page.
+    const steps = page.getByTestId("dashboard-first-steps");
+    await expect(steps.getByRole("heading")).toHaveText("Your first three moves");
+    const heroBox = await boxOf(hero);
+    const below = (await boxOf(steps)).y - (heroBox.y + heroBox.height);
+    expect(below).toBeGreaterThanOrEqual(0);
+    expect(below).toBeLessThanOrEqual(24);
+
+    // The season's objectives under the tiles: the imposed ones too early to tell, the optional one to choose, its ways a
+    // thumb high.
     const objectives = page.getByTestId("dashboard-objectives");
     await expect(objectives.getByRole("heading")).toHaveText("Objectives");
-    await expect(objectives.getByTestId("objective-status")).toHaveText(["On track", "On track"]);
+    await expect(objectives.getByTestId("objective-status")).toHaveText(["Too early to tell", "Too early to tell"]);
     await expect(objectives.getByTestId("dashboard-objectives-choose")).toContainText("Choose your objective for the season");
     await expect(objectives.getByTestId("dashboard-confidence").locator("dt")).toHaveText("Chairman's confidence");
     for (const link of ["dashboard-objectives-choose", "dashboard-objectives-detail"]) {
@@ -299,15 +319,33 @@ test("plays the match from the hero, offers only to resume it at the break, then
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live$`));
   await page.getByTestId("break-resume").click();
   await page.getByTestId("live-skip").click();
+
+  // The final whistle: « À demain », the next match and what it is worth (no longer the season's opening one), the way
+  // to prepare it; the assistant's word only after a defeat, too early to judge the season then.
+  const sessionEnd = page.getByTestId("session-end");
+  await expect(sessionEnd).toBeVisible();
+  await expect(sessionEnd.getByRole("heading")).toHaveText("À demain");
+  await expect(sessionEnd.getByTestId("session-end-match")).toContainText("Journée 2");
+  await expect(sessionEnd.getByTestId("session-end-stake")).toHaveAttribute("data-stake", /^(rival|climb|rank)$/);
+  await expect(sessionEnd.getByTestId("session-end-prepare")).toHaveAttribute("href", `/saves/${saveId}/lineup`);
+  for (const word of await sessionEnd.getByTestId("assistant-word").all()) {
+    await expect(word).toHaveAttribute("data-word", "early");
+  }
+  // Links only: the live page's one orange stays « Continuer ».
+  expect(await fullOrangeActions(page)).toEqual(["live-continue"]);
   await page.getByTestId("live-continue").click();
 
-  // The hero goes on to the next match; the cards have the one played.
+  // The hero goes on to the next match; the cards have the one played, its card in place of the first actions, and the
+  // money's tip comes, the dashboard's first.
   await expect(hero.getByRole("heading")).toHaveText("Prochain match · Journée 2");
   await expect(play).toBeVisible();
   const lastResult = page.getByTestId("dashboard-last-result");
   await expect(lastResult).toContainText("Dernier résultat · Journée 1");
   await expect(lastResult).toContainText(LYON);
-  await expect(lastResult.getByTestId("first-actions")).toHaveCount(0);
+  await expect(page.getByTestId("dashboard-first-steps")).toHaveCount(0);
+  await expect(page.getByTestId("first-actions")).toHaveCount(0);
+  await expect(page.getByTestId("tip-money")).toBeVisible();
+  await expect(page.getByTestId("tip-simulation")).toHaveCount(0);
   await expect(page.getByTestId("dashboard-position")).toContainText(/\d/);
   await expect(page.getByTestId("dashboard-points")).toContainText(/\d/);
   await expect(page.getByTestId("dashboard-form").locator("span[title]")).toHaveCount(1);
@@ -319,6 +357,11 @@ test("plays the match from the hero, offers only to resume it at the break, then
   await expect(inPlay).toHaveCount(3);
   await expect(inPlay.nth(2)).toHaveAttribute("data-objective", /^(YOUTH|ENTERTAINMENT|SOLIDITY|FINANCES)$/);
   await expect(objectives.getByTestId("dashboard-objectives-choose")).toHaveCount(0);
+  // The assistant's pick said, while it is too early to judge; the president's confidence held at the season's opening
+  // value, the chosen objective counted on track: 50 + 5 (league) + 2 (cup) + 2 (chosen).
+  await expect(inPlay.nth(2).getByTestId("objective-by-assistant")).toHaveText("Choisi par l'adjoint");
+  await expect(objectives.getByTestId("dashboard-objectives-assistant")).toContainText("ton adjoint a pris");
+  await expect(objectives.getByTestId("dashboard-confidence").locator("dd")).toHaveText("59 · Il te laisse le temps de démarrer");
   await expect(objectives.locator('[data-objective="RANKING"]').getByTestId("objective-current")).toHaveText(/^\d+(er|e) actuellement$/);
 
   await lastResult.getByTestId("dashboard-match-report").click();
@@ -328,6 +371,33 @@ test("plays the match from the hero, offers only to resume it at the break, then
   await expect(page.getByTestId("fixtures-month")).toHaveText("août 2026");
 });
 
+test("once the first match is played, sends the weak spot to the market and, the window open, the best offer to its sales", async ({
+  page,
+}) => {
+  await openDashboard(page);
+
+  // The market says the same of the same spot.
+  const weakSpot = page.getByTestId("dashboard-alerts").getByTestId("alert-weak-spot");
+  await expect(weakSpot).toHaveText(WEAK_SPOT);
+  const [, position, rating] = WEAK_SPOT.exec(await textOf(weakSpot)) ?? [];
+  await weakSpot.getByTestId("alert-action").click();
+  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/transfers$`));
+  await expect(page.getByTestId("market-intro")).toHaveText(`Ton point faible : ${position} (note ${rating}). Voici qui le comblerait.`);
+
+  // The sales open on the offer the line gives, and count as many.
+  await openScreen(page, "dashboard");
+  const offers = page.getByTestId("dashboard-alerts").getByTestId("alert-offers");
+  await expect(offers).toHaveText(BEST_OFFER);
+  const [, buyer, fee, player, count] = BEST_OFFER.exec(await textOf(offers)) ?? [];
+  await offers.getByTestId("alert-action").click();
+  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/transfers\\?tab=sell$`));
+  const best = page.getByTestId("market-sell").getByTestId("market-sale-offer");
+  await expect(best).toHaveAttribute("aria-label", player);
+  await expect(best).toContainText(buyer);
+  await expect(best).toContainText(fee);
+  await expect(page.getByTestId("market-tab-sell")).toHaveText(new RegExp(`^Vendre · ${count} offres?$`));
+});
+
 // Last: nothing is left to play after it.
 test("leads only to the next season once this one is over, with no offer to show out of the window", async ({ page }) => {
   // The rest of the season, simulated.
@@ -335,7 +405,11 @@ test("leads only to the next season once this one is over, with no offer to show
   await openDashboard(page);
   await heroOf(page).getByTestId("simulate-menu").click();
   await page.getByTestId("simulate-season-end").click();
-  await page.locator('[data-simulation="dialog"]').getByRole("button", { name: "Continuer" }).click({ timeout: 180_000 });
+  // The summary's « À demain »: no match left, what comes next is the next season.
+  const dialog = page.locator('[data-simulation="dialog"]');
+  await expect(dialog.getByTestId("session-end")).toContainText("Tous tes matchs de la saison sont joués", { timeout: 180_000 });
+  await expect(dialog.getByTestId("session-end-match")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Continuer" }).click();
   await openDashboard(page);
 
   // No match left to name or to prepare: the sidebar's card goes, the hero keeps the way on.

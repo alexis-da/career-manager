@@ -49,6 +49,7 @@ const PHONES = [
       exit: "Retour à l'accueil",
       skip: "Aller à la mi-temps",
       toResult: "Aller au résultat",
+      request: "Pause à la mi-temps",
       title: "Mi-temps",
       instruction: "Consigne : Équilibré · de départ",
     },
@@ -62,6 +63,7 @@ const PHONES = [
       exit: "Back to home",
       skip: "Go to half-time",
       toResult: "Go to the result",
+      request: "Pause at half-time",
       title: "Half-time",
       instruction: "Instruction: Balanced · starting",
     },
@@ -275,10 +277,10 @@ test("runs the first half: the clock, its speeds, and its ways on, which say whe
   await expect(page.getByTestId("nav-match")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("live-exit")).toBeHidden();
 
-  // The ways on name the break: « Coaching », the orange of a match running to a boundary of play, waits for it here,
+  // The ways on name the break: the pause, the orange of a match running to a boundary of play, waits for it here,
   // where the match stops by itself, and the skip goes there at once. The game's actions have left the column.
   const coaching = page.getByTestId("live-coaching-request");
-  await expect(coaching).toHaveText("Coaching à la mi-temps");
+  await expect(coaching).toHaveText("Pause à la mi-temps");
   await expect(coaching).toBeDisabled();
   await expect(page.getByTestId("live-skip")).toHaveText("Aller à la mi-temps");
   await expectOrangeActions(page, []);
@@ -485,16 +487,16 @@ test("compares the change the assistant suggests side by side, makes it, undoes 
   await expect(change).toContainText(new RegExp(`remplace .*${outgoing}$`));
 });
 
-test("goes to the result, « Coaching » the orange while the clock runs, then on from the final whistle, the only orange then", async ({ page }) => {
+test("goes to the result, the pause the orange while the clock runs, then on from the final whistle, the only orange then", async ({ page }) => {
   await replaySecondHalf(page);
 
-  // Nothing waits past the 90th minute: a secondary way on, the speeds still there, and « Coaching », which would stop the
+  // Nothing waits past the 90th minute: a secondary way on, the speeds still there, and the pause, which would stop the
   // match at the next boundary, the 60th.
   const skip = page.getByTestId("live-skip");
   await expect(skip).toHaveText("Aller au résultat");
   await expect(page.getByTestId("live-status")).toHaveText("En direct");
   await expectSpeed(page, 1);
-  await expect(page.getByTestId("live-coaching-request")).toHaveText("Coaching à la 60e");
+  await expect(page.getByTestId("live-coaching-request")).toHaveText("Pause à la 60e");
   await expectOrangeActions(page, ["live-coaching-request"]);
   await skip.click();
 
@@ -574,6 +576,8 @@ for (const { name, locale, viewport, says } of PHONES) {
       await expect(skip).toHaveText(says.skip);
       await expect(skip).toBeInViewport({ ratio: 1 });
       await expectUncovered(skip);
+      // The pause waits for half-time, where the match stops by itself.
+      await expect(page.getByTestId("live-coaching-request")).toHaveText(says.request);
       await expect(page.getByTestId("live-coaching-request")).toBeInViewport({ ratio: 1 });
       await expectOrangeActions(page, []);
       for (const control of ["live-speed-1", "live-speed-2", "live-speed-4", "live-coaching-request", "live-skip", "live-exit"]) {

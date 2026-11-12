@@ -13,13 +13,16 @@ import {
   objectiveOutcome,
   objectiveProgress,
   objectivesRngSeed,
+  objectiveStatus,
   OPTIONAL_OBJECTIVES,
   optionalTarget,
   proposedObjectives,
   reputationThird,
+  seasonConfidence,
+  tooEarlyToJudge,
   type ObjectiveKind,
   type ObjectiveOutcome,
-  type ObjectiveProgress,
+  type ObjectiveStatus,
   type OptionalObjective,
   type RankingVariant,
   type SeasonProgress,
@@ -286,16 +289,25 @@ export async function readSeasonProgress(
   };
 }
 
-/** Where each objective stands, and the president's confidence that follows. */
+/**
+ * Where each objective stands as the screens show it (objectiveStatus), whether it is still too early to judge them
+ * (tooEarlyToJudge: before the club's OBJECTIVES_JUDGED_FROM_MATCH-th league match), and the president's confidence that
+ * follows (seasonConfidence: until then, the one the season opened with, the chosen objective counted on track).
+ */
 function standingOf(objectives: readonly ObjectiveRow[], progress: SeasonProgress) {
-  const statuses = new Map(objectives.map((objective) => [objective.kind, objectiveProgress(objective, progress)]));
+  const early = tooEarlyToJudge(progress);
+  const standings = new Map(objectives.map((objective) => [objective.kind, objectiveProgress(objective, progress)]));
   const chosen = objectives.find((objective) => objective.chosen);
-  const confidence = boardConfidence({
-    ranking: statuses.get("RANKING") ?? "ON_TRACK",
-    cup: statuses.get("CUP"),
-    chosen: chosen === undefined ? undefined : statuses.get(chosen.kind),
-  });
-  return { statuses, confidence };
+  const confidence = seasonConfidence(
+    {
+      ranking: standings.get("RANKING") ?? "ON_TRACK",
+      cup: standings.get("CUP"),
+      chosen: chosen === undefined ? undefined : standings.get(chosen.kind),
+    },
+    early,
+  );
+  const status = (kind: ObjectiveKind): ObjectiveStatus => objectiveStatus(standings.get(kind) ?? "ON_TRACK", early);
+  return { status, confidence, early };
 }
 
 /**
@@ -315,7 +327,11 @@ export async function ensureObjectiveChosen(tx: Tx, saveId: string): Promise<voi
   });
 }
 
-/** After a match of the managed club, inside its transaction: the president's confidence follows its objectives. */
+/**
+ * After a match of the managed club, inside its transaction: the president's confidence follows its objectives, from its
+ * OBJECTIVES_JUDGED_FROM_MATCH-th league match of the season; before it, the one the season opened with, the chosen
+ * objective counted on track (standingOf).
+ */
 export async function refreshBoardConfidence(tx: Tx, saveId: string): Promise<void> {
   const current = await currentObjectives(tx, saveId);
   if (current === null) {
@@ -431,7 +447,7 @@ export type ObjectiveView = {
   variant: RankingVariant | null; // the ranking's
   target: number;
   exceed: number | null;
-  status: ObjectiveProgress; // where it stands, or its outcome once decided
+  status: ObjectiveStatus; // where it stands, its outcome once decided, or too early to tell while undecided and `early`
   current: number | null; // the rank, the cup round reached, the starts, the goals scored or conceded, the balance
 };
 
@@ -440,7 +456,10 @@ export type SeasonObjectivesView = {
   startYear: number;
   objectives: ObjectiveView[]; // imposed, then the chosen one, or the three proposed while none is chosen
   choiceOpen: boolean; // none chosen, the club's first match of the season still to come
-  confidence: number; // ClubSave.boardConfidence
+  confidence: number; // ClubSave.boardConfidence; while `early`, the one it holds still at (seasonConfidence)
+  // Too early to judge (tooEarlyToJudge): fewer league matches played than OBJECTIVES_JUDGED_FROM_MATCH, the season not
+  // over. The undecided objectives are too early to tell, the confidence the one the season opened with.
+  early: boolean;
   over: boolean;
 };
 
@@ -473,9 +492,14 @@ export async function getSeasonObjectives(saveId: string): Promise<SeasonObjecti
     return null;
   }
   const progress = await readSeasonProgress(prisma, saveId, current.managed, current.season);
-  const { statuses } = standingOf(current.objectives, progress);
+  const standing = standingOf(current.objectives, progress);
   const anyChosen = current.objectives.some((objective) => objective.chosen);
-  const club = await prisma.clubSave.findUniqueOrThrow({ where: { id: current.managed.id }, select: { boardConfidence: true } });
+  // While it is too early to judge, the confidence it holds still at (standingOf), the one the matches and the choice
+  // write: shown at once in a save whose confidence an earlier rule wrote, and during a first match played live, whose
+  // assistant's pick it counts before the final whistle writes it. ClubSave.boardConfidence from then on.
+  const confidence = standing.early
+    ? standing.confidence
+    : (await prisma.clubSave.findUniqueOrThrow({ where: { id: current.managed.id }, select: { boardConfidence: true } })).boardConfidence;
   const started = await prisma.fixture.count({
     where: {
       saveId,
@@ -496,11 +520,12 @@ export async function getSeasonObjectives(saveId: string): Promise<SeasonObjecti
         variant: rankingVariant(objective.variant),
         target: objective.target,
         exceed: objective.exceed,
-        status: statuses.get(objective.kind) ?? "ON_TRACK",
+        status: standing.status(objective.kind),
         current: currentFigure(objective.kind, progress),
       })),
     choiceOpen: !anyChosen && started === 0,
-    confidence: club.boardConfidence,
+    confidence,
+    early: standing.early,
     over: progress.over,
   };
 }
