@@ -28,6 +28,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
       device: "PHONE" as const,
       firstSaveAt: at("05T10:01:00.000"),
       firstMatchAt: at("05T10:11:00.000"),
+      // The first live match recorded of all, in March 1999: live matches tracked from the 5th.
+      firstLiveMatchAt: at("05T10:40:00.000"),
       days: ["05", "06"],
     },
     {
@@ -125,6 +127,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
         cleanupPass("10T04:18:00.000", false, 600, 300),
       ],
     });
+    // Resume links: two of a's in the seven days, the first used the next day; one of b's on the 1st, used on the 5th.
+    await prisma.resumeLink.createMany({
+      data: [
+        { userId: id("a"), tokenHash: id("hash-1"), createdAt: at("05T10:30:00.000"), expiresAt: at("12T10:30:00.000"), usedAt: at("06T08:00:00.000") },
+        { userId: id("a"), tokenHash: id("hash-2"), createdAt: at("06T09:00:00.000"), expiresAt: at("13T09:00:00.000") },
+        { userId: id("b"), tokenHash: id("hash-3"), createdAt: at("01T12:00:00.000"), expiresAt: at("08T12:00:00.000"), usedAt: at("05T09:00:00.000") },
+      ],
+    });
     // The archive task's passes: a count on the 2nd, before the seven days; an archiving, then a deletion, on the 10th.
     await prisma.archivePass.createMany({
       data: [
@@ -188,13 +198,38 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
       seasonEnds: 1,
       // 10 and 30 minutes.
       medianMinutesToFirstMatch: 20,
+      live: { part: 1, whole: 2 },
       day1: { part: 1, whole: 2 },
       day7: { part: 0, whole: 0 },
     });
     expect(sources[1]).toMatchObject({ source: "direct", visits: 4, players: 0 });
-    expect(sources[2]).toMatchObject({ visits: 0, players: 1, careers: 0, medianMinutesToFirstMatch: null });
+    expect(sources[2]).toMatchObject({ visits: 0, players: 1, careers: 0, medianMinutesToFirstMatch: null, live: { part: 0, whole: 1 } });
     expect(total).toMatchObject({ visits: 20, players: 3, careers: 2, firstMatches: 2, seasonEnds: 1, medianMinutesToFirstMatch: 20 });
     expect(players).toEqual({ anonymous: 2, registered: 1, fr: 1, en: 1, phone: 1, computer: 1 });
+  });
+
+  it("shares out the players who played a match live among those created since live matches are tracked", async () => {
+    const { db, dashboard } = loaded();
+
+    const week = await dashboard.getAdminDashboard(db, NOW, 7);
+    const month = await dashboard.getAdminDashboard(db, NOW, 30);
+
+    expect(week.liveTrackedSince).toBe("1999-03-05");
+    // a, b and c were created from the 5th: a played live.
+    expect(week.total.live).toEqual({ part: 1, whole: 3 });
+    // d, on the 2nd, came before the tracking: in the thirty days, but not in the share.
+    expect(month.total).toMatchObject({ players: 4, live: { part: 1, whole: 3 } });
+  });
+
+  it("counts the period's resume links: created, for how many players, and used", async () => {
+    const { db, dashboard } = loaded();
+
+    const week = await dashboard.getAdminDashboard(db, NOW, 7);
+    const month = await dashboard.getAdminDashboard(db, NOW, 30);
+
+    // a's two links; a's first and b's, created on the 1st, used in the seven days.
+    expect(week.resumeLinks).toEqual({ created: 2, creators: 1, used: 2 });
+    expect(month.resumeLinks).toEqual({ created: 3, creators: 2, used: 2 });
   });
 
   it("measures the storage's growth over the last seven days of snapshots, its cost and the weight a new player adds", async () => {

@@ -8,7 +8,7 @@ describe("privacy page, in French", () => {
 
   it("has its title, its date and every section, in French", () => {
     expect(markup).toContain("Confidentialité · Late Winner");
-    expect(markup).toContain("Mise à jour le 12 novembre 2026.");
+    expect(markup).toContain("Mise à jour le 17 novembre 2026.");
     for (const section of ["Responsable", "Données traitées", "Finalités", "Durées de conservation", "Hébergement", "Tes droits"]) {
       expect(markup).toContain(`>${section}</h2>`);
     }
@@ -49,7 +49,7 @@ describe("privacy page, in French", () => {
       "Un cookie de mesure d&#x27;audience, lw_src",
       "jamais l&#x27;adresse de sa page",
       "ton type d&#x27;appareil (téléphone ou ordinateur",
-      "ta première carrière, ton premier match, ta première saison terminée",
+      "ta première carrière, ton premier match, ton premier match joué en direct, ta première saison terminée",
       "Des compteurs de visites",
       "Le cookie lw_src expire au bout de 30 jours",
       "gardés sans limite de durée",
@@ -64,7 +64,7 @@ describe("privacy page, in French", () => {
 
   it("ends with an English summary in a block marked as English, of the same date", () => {
     expect(markup).toMatch(/<section lang="en"[^>]*><h2[^>]*>English summary<\/h2>/);
-    expect(markup).toContain("Last updated 12 November 2026.");
+    expect(markup).toContain("Last updated 17 November 2026.");
   });
 });
 
@@ -74,7 +74,7 @@ describe("privacy page, in English", () => {
   it("is the whole document in English, of the French one's date, without the summary", () => {
     expect(markup).toMatch(/<article lang="en"/);
     expect(markup).toContain("Privacy · Late Winner");
-    expect(markup).toContain("Last updated 12 November 2026.");
+    expect(markup).toContain("Last updated 17 November 2026.");
     for (const section of ["Controller", "Data processed", "Purposes", "Retention periods", "Hosting", "Your rights"]) {
       expect(markup).toContain(`>${section}</h2>`);
     }
@@ -98,7 +98,7 @@ describe("privacy page, in English", () => {
       `href="mailto:${CONTACT_EMAIL}"`,
       "An audience measurement cookie, lw_src",
       "your device type (phone or computer",
-      "your first career, your first match, your first finished season",
+      "your first career, your first match, your first match played live, your first finished season",
       "Visit counters",
       "The lw_src cookie expires after 30 days",
       "kept without a time limit",

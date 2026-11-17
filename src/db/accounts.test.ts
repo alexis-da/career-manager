@@ -49,10 +49,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     locale: "fr",
     device: "PHONE",
   } as const;
-  /** The anonymous player's first steps: a career the day they arrived, a first match an hour later, no season's end. */
+  /**
+   * The anonymous player's first steps: a career the day they arrived, a first match an hour later, a first live one two
+   * hours later, no season's end.
+   */
   const ANONYMOUS_STEPS = {
     firstSaveAt: anonymousCreatedAt,
     firstMatchAt: new Date(anonymousCreatedAt.getTime() + 60 * 60 * 1000),
+    firstLiveMatchAt: new Date(anonymousCreatedAt.getTime() + 2 * 60 * 60 * 1000),
     firstSeasonEndAt: null,
   };
   const dayOf = (time: Date) => time.toISOString().slice(0, 10);
@@ -210,9 +214,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     const account = await signIn({ profile: otherProfile });
     createdUserIds.push(account.userId);
     const accountCreatedAt = (await db.user.findUniqueOrThrow({ where: { id: account.userId } })).createdAt;
-    // The account's own first career, earlier than the anonymous player's: it stays.
+    // The account's own first career, earlier than the anonymous player's: it stays. Its first live match, later: it goes.
     const accountFirstSave = new Date(anonymousCreatedAt.getTime() - 24 * 60 * 60 * 1000);
-    await db.user.update({ where: { id: account.userId }, data: { firstSaveAt: accountFirstSave } });
+    const accountFirstLive = new Date(anonymousCreatedAt.getTime() + 24 * 60 * 60 * 1000);
+    await db.user.update({ where: { id: account.userId }, data: { firstSaveAt: accountFirstSave, firstLiveMatchAt: accountFirstLive } });
     const challengeSave = async (ownerId: string, challengeId: string) => {
       const { id: saveId } = await db.save.create({ data: { ...bareSave("Défi", ownerId), challengeId }, select: { id: true } });
       await db.challengeEntry.create({ data: { challengeId, userId: ownerId, saveId } });
@@ -239,6 +244,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
       // Of each first step, the earliest of both.
       firstSaveAt: accountFirstSave,
       firstMatchAt: ANONYMOUS_STEPS.firstMatchAt,
+      firstLiveMatchAt: ANONYMOUS_STEPS.firstLiveMatchAt,
       firstSeasonEndAt: null,
     });
     expect(await daysOf(account.userId)).toEqual([...new Set([dayOf(anonymousCreatedAt), dayOf(new Date())])].sort());

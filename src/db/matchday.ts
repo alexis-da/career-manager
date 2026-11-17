@@ -668,7 +668,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
       if (managed !== null && !managed.live) {
         await recordChallengeScore(tx, saveId, save.challengeId);
         await refreshBoardConfidence(tx, saveId);
-        await recordFirstMatch(tx, saveId);
+        await recordFirstMatch(tx, saveId, { live: false });
       }
       // The player's first steps (src/db/activation.ts): a season over once the last date of all is played.
       await recordFirstSeasonEnd(tx, saveId);

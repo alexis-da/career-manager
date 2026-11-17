@@ -1,6 +1,7 @@
 import type { ArchivePassMode, PrismaClient } from "../generated/prisma/client";
 import { MAX_CHALLENGE_SAVES_PER_WEEK } from "../config/challenge";
 import { isoWeekKey } from "../lib/iso-week";
+import { RESUME_LINK_DAYS } from "../lib/resume-link";
 import { databaseSize } from "./db-size";
 import type { EventCleanupCounts } from "./event-cleanup";
 import type { ArchiveMode } from "./season-archiving";
@@ -47,6 +48,7 @@ export type Journey = {
   firstMatches: number; // who played a first match
   seasonEnds: number; // who played a season to its end
   medianMinutesToFirstMatch: number | null; // from the creation of the first career to the end of the first match
+  live: Share; // of those created since live matches are tracked (liveTrackedSince), those who played one live to its end
   day1: Share; // of the cohorts whose next day is over, those who came back on it
   day7: Share; // of those whose seventh day after is over, those who came back on it
 };
@@ -77,11 +79,15 @@ export type AdminDashboard = {
   first: string; // the period's first day, UTC
   last: string; // today, UTC
   trackedSince: string | null; // the first day a visit was counted
+  liveTrackedSince: string | null; // the first day a player's first live match was recorded (User.firstLiveMatchAt)
   days: AdminDay[]; // oldest first
   sources: Journey[]; // most visits first, then most players; the unknown source last
   total: Journey; // every source
   players: { anonymous: number; registered: number; fr: number; en: number; phone: number; computer: number };
   challenge: { weekKey: string; saves: number; entries: number; submitted: number; maxSaves: number } | null;
+  // The resume links of the period (src/db/resume-links.ts): created, for how many players, and used; those of a purged
+  // player gone with them.
+  resumeLinks: { created: number; creators: number; used: number };
   health: StorageHealth & {
     cleanup: CleanupPassView[]; // the event cleanup's passes of the period, the latest first, CLEANUP_PASSES_SHOWN at most
     archive: ArchivePassView[]; // the « archive » task's passes of the period, the latest first, CLEANUP_PASSES_SHOWN at most
@@ -184,6 +190,8 @@ type PlayerGroup = {
   careers: bigint;
   firstMatches: bigint;
   seasonEnds: bigint;
+  liveTracked: bigint; // created since live matches are tracked
+  livePlayers: bigint; // of them, those who played one live
   day1: bigint;
   day7: bigint;
 };
@@ -199,7 +207,23 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
 
   const growthFrom = addDays(last, -GROWTH_DAYS);
 
-  const [groups, medians, visits, [{ trackedSince }], [{ daysTrackedSince }], active, stats, challenge, bytesNow, passes, archivePasses, newPlayers] = await Promise.all([
+  const [
+    groups,
+    medians,
+    visits,
+    [{ trackedSince }],
+    [{ daysTrackedSince }],
+    [{ liveSince }],
+    active,
+    stats,
+    challenge,
+    resumeLinks,
+    bytesNow,
+    passes,
+    archivePasses,
+    newPlayers,
+  ] = await Promise.all([
+    // The players created since live matches are tracked: a player before it may have played live unrecorded.
     db.$queryRaw<PlayerGroup[]>`
       SELECT u."createdAt"::date AS day,
              coalesce(u."source", ${UNKNOWN_SOURCE}) AS source,
@@ -210,6 +234,8 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
              count(u."firstSaveAt")::bigint AS careers,
              count(u."firstMatchAt")::bigint AS "firstMatches",
              count(u."firstSeasonEndAt")::bigint AS "seasonEnds",
+             count(*) FILTER (WHERE u."createdAt" >= tracking.since)::bigint AS "liveTracked",
+             count(u."firstLiveMatchAt") FILTER (WHERE u."createdAt" >= tracking.since)::bigint AS "livePlayers",
              -- The return days bounded by the period's too: whichever way the planner joins, it reads the days of the
              -- period from UserDay's index on them, never the whole table as it grows.
              count(*) FILTER (WHERE EXISTS (
@@ -223,6 +249,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
                  AND d."day" >= ${first}::date + 7 AND d."day" < ${end}::date + 7
              ))::bigint AS day7
       FROM "User" u
+      CROSS JOIN (SELECT min("firstLiveMatchAt")::date AS since FROM "User") tracking
       WHERE u."createdAt" >= ${first}::date AND u."createdAt" < ${end}::date
       GROUP BY 1, 2, 3, 4, 5`,
     // The total's median in the row without a source (ROLLUP): every source's is a source.
@@ -240,6 +267,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
       GROUP BY 1, 2`,
     db.$queryRaw<{ trackedSince: Date | null }[]>`SELECT min("day") AS "trackedSince" FROM "VisitDay"`,
     db.$queryRaw<{ daysTrackedSince: Date | null }[]>`SELECT min("day") AS "daysTrackedSince" FROM "UserDay"`,
+    db.$queryRaw<{ liveSince: Date | null }[]>`SELECT min("firstLiveMatchAt")::date AS "liveSince" FROM "User"`,
     db.$queryRaw<{ day: Date; active: bigint }[]>`
       SELECT "day", count(*)::bigint AS active
       FROM "UserDay"
@@ -250,6 +278,14 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
       where: { weekKey },
       select: { _count: { select: { saves: true, entries: true } }, entries: { where: { submittedAt: { not: null } }, select: { id: true } } },
     }),
+    // A link is used within RESUME_LINK_DAYS of its creation: those used over the period were created at most that long
+    // before it.
+    db.$queryRaw<{ created: bigint; creators: bigint; used: bigint }[]>`
+      SELECT count(*) FILTER (WHERE "createdAt" >= ${first}::date)::bigint AS created,
+             count(DISTINCT "userId") FILTER (WHERE "createdAt" >= ${first}::date)::bigint AS creators,
+             count(*) FILTER (WHERE "usedAt" >= ${first}::date AND "usedAt" < ${end}::date)::bigint AS used
+      FROM "ResumeLink"
+      WHERE "createdAt" >= ${first}::date - ${RESUME_LINK_DAYS}::int AND "createdAt" < ${end}::date`,
     databaseSize(db),
     db.cleanupPass.findMany({
       where: { at: { gte: dateOf(first), lt: dateOf(end) } },
@@ -282,6 +318,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
     firstMatches: 0,
     seasonEnds: 0,
     medianMinutesToFirstMatch: null,
+    live: emptyShare(),
     day1: emptyShare(),
     day7: emptyShare(),
   });
@@ -313,6 +350,8 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
       journey.careers += Number(group.careers);
       journey.firstMatches += Number(group.firstMatches);
       journey.seasonEnds += Number(group.seasonEnds);
+      journey.live.whole += Number(group.liveTracked);
+      journey.live.part += Number(group.livePlayers);
       if (known(day, 1)) {
         journey.day1.whole += count;
         journey.day1.part += returned1;
@@ -390,6 +429,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
     first,
     last,
     trackedSince: tracked,
+    liveTrackedSince: liveSince === null ? null : utcDayOf(liveSince),
     days,
     sources,
     total,
@@ -404,6 +444,11 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
             submitted: challenge.entries.length,
             maxSaves: MAX_CHALLENGE_SAVES_PER_WEEK,
           },
+    resumeLinks: {
+      created: Number(resumeLinks[0]?.created ?? 0),
+      creators: Number(resumeLinks[0]?.creators ?? 0),
+      used: Number(resumeLinks[0]?.used ?? 0),
+    },
     health: {
       ...storageHealth(bytesNow, snapshots, (day) => newPlayersByDay.get(day) ?? 0),
       cleanup: passes.map((pass) => ({

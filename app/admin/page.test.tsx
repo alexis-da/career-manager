@@ -39,6 +39,7 @@ const journey = (source: string, figures: Partial<AdminDashboard["total"]> = {})
   firstMatches: 0,
   seasonEnds: 0,
   medianMinutesToFirstMatch: null,
+  live: { part: 0, whole: 0 },
   day1: { part: 0, whole: 0 },
   day7: { part: 0, whole: 0 },
   ...figures,
@@ -58,6 +59,7 @@ vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
         first: "2026-11-01",
         last: "2026-11-07",
         trackedSince: "2026-11-07",
+        liveTrackedSince: "2026-11-06",
         days: [
           day("2026-11-06", { visits: null, players: 2, registered: 1, day1: 1, active: 5, databaseBytes: 180 * MB }),
           day("2026-11-07", {
@@ -84,14 +86,25 @@ vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
             firstMatches: 6,
             seasonEnds: 1,
             medianMinutesToFirstMatch: 7.5,
+            live: { part: 2, whole: 7 },
             day1: { part: 1, whole: 4 },
           }),
           journey("(other)", { visits: 8, players: 2, careers: 2, firstMatches: 1 }),
           journey("(unknown)", { players: 2, careers: 1, medianMinutesToFirstMatch: 180 }),
         ],
-        total: journey("", { visits: 40, players: 12, careers: 11, firstMatches: 7, seasonEnds: 1, medianMinutesToFirstMatch: 9, day1: { part: 1, whole: 4 } }),
+        total: journey("", {
+          visits: 40,
+          players: 12,
+          careers: 11,
+          firstMatches: 7,
+          seasonEnds: 1,
+          medianMinutesToFirstMatch: 9,
+          live: { part: 3, whole: 10 },
+          day1: { part: 1, whole: 4 },
+        }),
         players: { anonymous: 11, registered: 1, fr: 5, en: 5, phone: 6, computer: 4 },
         challenge: { weekKey: "2026-W45", saves: 12, entries: 14, submitted: 0, maxSaves: 20 },
+        resumeLinks: { created: 9, creators: 4, used: 2 },
         // The production database of 9 November: 1 062 Mo in a day, 46 new players the day before.
         health: {
           databaseBytes: 1339.1 * MB,
@@ -211,6 +224,12 @@ describe("the administrator's dashboard", () => {
       "3 serveur · 1 navigateur",
       // Apostrophes escaped in the markup.
       "Lancements de l&#x27;appli",
+      // The players who went live, of those created since it is tracked, and the resume links of the period.
+      "Passés par le direct",
+      "3 sur 10 nouveaux joueurs depuis le 06/11",
+      ">En direct</th>",
+      "Liens de reprise",
+      "pour 4 joueurs · 2 utilisés",
       "depuis l&#x27;écran d&#x27;accueil, un par session",
       "La plus récente · 07/11 à 22:05 UTC",
       "ChunkLoadError: Loading chunk 7 failed.",
@@ -287,6 +306,10 @@ describe("the administrator's dashboard", () => {
     expect(markup).toContain('data-testid="admin-archive-mismatches"');
     // A step's share of its source's visits, under it: 6 first matches of 32 visits.
     expect(markup).toMatch(/>6<\/span><span[^>]*>19 %<\/span>/);
+    // The live share is of players, not of visits: 30 % of the total's, 2 of 7 for its source.
+    expect(markup).toMatch(/data-testid="admin-live-players"(?:(?!<\/div>).)*>30 %<\/p>/);
+    expect(markup).toMatch(/data-live="2\/7"[^>]*><span[^>]*>29 %<\/span><span[^>]*>2\/7<\/span>/);
+    expect(markup).toMatch(/data-testid="admin-resume-links"(?:(?!<\/div>).)*>9<\/p>/);
     // Before the tracking, a day's visits are not known.
     expect(markup).toMatch(/data-day="2026-11-06"[^>]*><td[^>]*>06\/11<\/td><td[^>]*>—<\/td>/);
   });
@@ -323,6 +346,10 @@ describe("the administrator's dashboard", () => {
       ">Errors</h2>",
       "12 server · 6 browser",
       "App launches",
+      "Played live",
+      "3 of 10 new players since 06/11",
+      "Resume links",
+      "for 4 players · 2 used",
       "The latest · 07/11 at 22:05 UTC",
       "Browser · error · /fr",
       "Other errors (past 200 groups in the day)",

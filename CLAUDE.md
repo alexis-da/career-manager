@@ -918,14 +918,16 @@ créé à la connexion qui absorbe un anonyme reprend sa date de création, son 
 (`moveHistory`, `src/db/accounts.ts`) : le même joueur ; un compte qui existait ne reprend que ses jours. `source` null :
 un utilisateur d'avant le suivi, ou sans le cookie.
 
-**Premiers pas des joueurs (activation).** Trois dates sur `User` (`src/db/activation.ts`), écrites une fois, à
+**Premiers pas des joueurs (activation).** Quatre dates sur `User` (`src/db/activation.ts`), écrites une fois, à
 l'horloge de la base (`now()`, jamais celle de la simulation), dans la transaction qui fait le pas : `firstSaveAt` à la
 création d'une carrière (`createSave`, défi compris), `firstMatchAt` à la fin d'un match du club dirigé, simulé
-(`playNextMatchday`) ou en direct (`advanceLiveMatch`, jamais au coup d'envoi), `firstSeasonEndAt` quand plus aucun
-match de la partie n'est à jouer, toutes compétitions (après chaque journée et chaque fin de direct). Gardées sur
-l'utilisateur plutôt que déduites : une partie part (supprimée, défi purgé) et aucune table ne date un match en temps
-réel. À la connexion Google, la plus ancienne de chaque (`moveHistory`). null : pas encore fait, ou d'avant le suivi
-(aucune reprise des parties existantes).
+(`playNextMatchday`) ou en direct (`advanceLiveMatch`, jamais au coup d'envoi), `firstLiveMatchAt` à la fin du premier
+joué en direct jusqu'au bout (`recordFirstMatch` avec `live`, la même instruction ; migration d'ajout
+`…_first_live_match`, suivie depuis le 17/11/2026), `firstSeasonEndAt` quand plus aucun match de la partie n'est à jouer,
+toutes compétitions (après chaque journée et chaque fin de direct). Gardées sur l'utilisateur plutôt que déduites : une
+partie part (supprimée, défi purgé) et aucune table ne date un match en temps réel ni ne dit qu'il a été joué en direct.
+À la connexion Google, la plus ancienne de chaque (`moveHistory`). null : pas encore fait, ou d'avant le suivi (aucune
+reprise des parties existantes).
 
 **Chiffres du jour (`DailyStat`).** Une ligne par jour UTC de ce qu'aucune autre table ne garde (`src/db/daily-stats.ts`,
 à l'horloge de la base) : les matchs d'un club dirigé joués jusqu'au bout, en direct ou simulés (`countManagedMatch`,
@@ -973,9 +975,12 @@ détaillées », et retour ; ses huit plus grosses tables avec leurs données et
 la part des mises à jour HOT, le dernier autovacuum et leur nombre, le dernier autoanalyze, `relationSizes`, compteurs de
 PostgreSQL, que Neon garde d'un démarrage de son calcul à l'autre, et le dernier démarrage du serveur, `serverStartedAt`) : sur 7 jours (`/admin`) ou 30 (`?days=30`), UTC, aujourd'hui compris. Acquisition (visites,
 nouveaux joueurs par jour et par source, langue, appareil, sans compte ou Google), Parcours (par source : carrière, 1er
-match, fin de saison, en part des visites ; médiane de la création de la carrière à la fin du premier match), Rétention
+match, fin de saison, en part des visites ; médiane de la création de la carrière à la fin du premier match ; « Passés par
+le direct », en tuile et par source, colonne masquée sous 640 px : la part des nouveaux joueurs créés depuis le premier
+`firstLiveMatchAt` de tous, `liveTrackedSince`, qui ont joué un match en direct jusqu'au bout), Rétention
 (J+1 et J+7 par jour de création et par source, sur les jours dont le retour est passé), Activité (joueurs actifs par jour
-depuis `UserDay`, matchs du jour, défi de la semaine, lancements de l'appli installée), Erreurs (règle « Erreurs du jeu »), Santé
+depuis `UserDay`, matchs du jour, défi de la semaine, lancements de l'appli installée ; liens de reprise de la période,
+créés, pour combien de joueurs, et utilisés, lus dans `ResumeLink`, ceux d'un joueur purgé partis avec lui), Erreurs (règle « Erreurs du jeu »), Santé
 (`storageHealth`, pure : taille, croissance sur les 7 derniers jours de relevés, coût de stockage estimé sur l'offre Launch
 de Neon, taille × 0,35 $ le Go par mois, `STORAGE_PRICE_PER_GB_MONTH`, et sa projection à 30 jours à ce rythme, en
 alerte au-delà de 5 $ par mois, `STORAGE_COST_ALERT_DOLLARS` ; poids par nouveau joueur, la croissance divisée par les

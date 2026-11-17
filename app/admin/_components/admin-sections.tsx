@@ -209,6 +209,16 @@ export function JourneySection({ dashboard, t, format }: SectionProps) {
           detail={t("details.medianNote")}
           testId="admin-median-first-match"
         />
+        <Tile
+          label={t("figures.livePlayers")}
+          value={format.percent(total.live.part, total.live.whole) ?? "—"}
+          detail={
+            dashboard.liveTrackedSince === null
+              ? t("details.liveNotTracked")
+              : t("details.livePlayers", { part: total.live.part, whole: total.live.whole, date: format.day(dashboard.liveTrackedSince) })
+          }
+          testId="admin-live-players"
+        />
       </Tiles>
       <Table data-testid="admin-journey-sources">
         <TableHeader>
@@ -220,6 +230,8 @@ export function JourneySection({ dashboard, t, format }: SectionProps) {
             <TableHead className={HEAD_NUMBER}>{t("columns.firstMatch")}</TableHead>
             <TableHead className={HEAD_NUMBER}>{t("columns.seasonEnd")}</TableHead>
             <TableHead className={cn(HEAD_NUMBER, "max-sm:hidden")}>{t("columns.median")}</TableHead>
+            {/* A share of the source's players created since live matches are tracked, not of its visits. */}
+            <TableHead className={cn(HEAD_NUMBER, "max-sm:hidden")}>{t("columns.liveShare")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -238,6 +250,9 @@ export function JourneySection({ dashboard, t, format }: SectionProps) {
               </TableCell>
               <TableCell className={cn(NUMBER, "max-sm:hidden")}>
                 {journey.medianMinutesToFirstMatch === null ? "—" : format.duration(journey.medianMinutesToFirstMatch)}
+              </TableCell>
+              <TableCell className={cn(NUMBER, "py-1.5 max-sm:hidden")} data-live={`${journey.live.part}/${journey.live.whole}`}>
+                <ShareCell share={journey.live} format={format} />
               </TableCell>
             </TableRow>
           ))}
@@ -334,6 +349,12 @@ export function ActivitySection({ dashboard, t, format }: SectionProps) {
           value={format.integer(launches)}
           detail={t("details.appLaunches")}
           testId="admin-app-launches"
+        />
+        <Tile
+          label={t("figures.resumeLinks")}
+          value={format.integer(dashboard.resumeLinks.created)}
+          detail={t("details.resumeLinks", { creators: dashboard.resumeLinks.creators, used: dashboard.resumeLinks.used })}
+          testId="admin-resume-links"
         />
       </Tiles>
       <p className="text-sm" data-testid="admin-challenge">

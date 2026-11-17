@@ -4,7 +4,7 @@ import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 
 /** The day this page last changed, the same in both versions: to update with their content. */
-const UPDATED_ON = new Date(Date.UTC(2026, 10, 12));
+const UPDATED_ON = new Date(Date.UTC(2026, 10, 17));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -70,7 +70,7 @@ function FrenchPrivacy() {
             <strong>À la création de ton profil de joueur</strong> (ta première partie sans compte, ou ta connexion avec
             Google) : cette origine et cette page, ta langue et ton type d&apos;appareil (téléphone ou ordinateur, déduit
             de ton navigateur, dont rien d&apos;autre n&apos;est gardé) ; puis les dates de tes premiers pas : ta
-            première carrière, ton premier match, ta première saison terminée.
+            première carrière, ton premier match, ton premier match joué en direct, ta première saison terminée.
           </li>
           <li>
             <strong>La date de ta dernière visite et la liste de tes jours de visite</strong>, pour mesurer combien de
@@ -154,7 +154,7 @@ function FrenchPrivacy() {
             where your first visit came from (a link&apos;s campaign such as ?ref=…, else the referring site&apos;s
             domain, never its address, else “direct”) and the page you landed on; when your player profile is created,
             that origin, your language and your device type (phone or computer) are kept with it, then the dates of
-            your first career, first match and first finished season. First visits are also counted by day, origin and
+            your first career, first match, first match played live and first finished season. First visits are also counted by day, origin and
             landing page, and launches of the installed app by day, as plain totals without personal data. If you play the weekly challenge, your score; signed in
             with Google, your first name (the first word of your Google account&apos;s name) is shown with it in the
             challenge&apos;s public ranking, to everyone. Comfort cookies keep the language you choose (lw_lang, one
@@ -233,7 +233,7 @@ function EnglishPrivacy() {
             <strong>When your player profile is created</strong> (your first career without an account, or signing in
             with Google): that origin and that page, your language and your device type (phone or computer, worked out
             from your browser, of which nothing else is kept); then the dates of your first steps: your first career,
-            your first match, your first finished season.
+            your first match, your first match played live, your first finished season.
           </li>
           <li>
             <strong>The date of your last visit and the list of the days you visited</strong>, to measure how many

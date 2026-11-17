@@ -97,6 +97,7 @@ model User {
   // qu'il ne les a pas faits, ou pour ceux d'avant leur suivi.
   firstSaveAt      DateTime? // création de sa première carrière, défi compris
   firstMatchAt     DateTime? // premier match d'un club qu'il dirige joué, en direct ou simulé
+  firstLiveMatchAt DateTime? // premier match d'un club qu'il dirige joué en direct jusqu'au bout (suivi depuis le 17/11/2026)
   firstSeasonEndAt DateTime? // première saison jouée jusqu'à son dernier match, toutes compétitions de la partie
   saves            Save[]
   days             UserDay[]

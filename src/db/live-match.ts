@@ -546,7 +546,7 @@ export async function advanceLiveMatch(
       await recordChallengeScore(tx, saveId, save.challengeId);
       await refreshBoardConfidence(tx, saveId);
       // The player's first steps (src/db/activation.ts): this match, and the season once it was the last of all.
-      await recordFirstMatch(tx, saveId);
+      await recordFirstMatch(tx, saveId, { live: true });
       await recordFirstSeasonEnd(tx, saveId);
       await tx.save.update({ where: { id: saveId }, data: { liveFixtureId: null } });
       return {

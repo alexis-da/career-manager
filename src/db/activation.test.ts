@@ -25,7 +25,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a player's first steps,
   const stepsOf = async (saveId: string) =>
     loaded().db.user.findUniqueOrThrow({
       where: { id: await ownerOf(saveId) },
-      select: { firstSaveAt: true, firstMatchAt: true, firstSeasonEndAt: true },
+      select: { firstSaveAt: true, firstMatchAt: true, firstLiveMatchAt: true, firstSeasonEndAt: true },
     });
 
   beforeAll(async () => {
@@ -70,17 +70,23 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a player's first steps,
 
     expect((await stepsOf(saveId)).firstMatchAt).toEqual(first);
     expect((await stepsOf(saveId)).firstSeasonEndAt).toBeNull();
+    // Simulated: never a live match.
+    expect((await stepsOf(saveId)).firstLiveMatchAt).toBeNull();
   }, PLAYING_MS);
 
-  it("dates a live first match at its end, never at its kick-off", async () => {
+  it("dates a live first match at its end, never at its kick-off, as the first live one too", async () => {
     const { matchday, support } = loaded();
     const [, saveId] = saveIds;
 
     expect((await matchday.playNextMatchday(saveId, { pauseManagedMatch: true }))?.managed?.live).toBe(true);
     expect((await stepsOf(saveId)).firstMatchAt).toBeNull();
+    expect((await stepsOf(saveId)).firstLiveMatchAt).toBeNull();
     await support.playLiveMatch(saveId, "end");
 
-    expect((await stepsOf(saveId)).firstMatchAt).toBeInstanceOf(Date);
+    const { firstMatchAt, firstLiveMatchAt } = await stepsOf(saveId);
+    expect(firstMatchAt).toBeInstanceOf(Date);
+    // The same statement dates both: the first match was the first live one.
+    expect(firstLiveMatchAt).toEqual(firstMatchAt);
   }, PLAYING_MS);
 
   it("dates the season's end once no fixture of the save is left to play, not before", async () => {

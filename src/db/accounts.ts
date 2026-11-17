@@ -45,6 +45,7 @@ export function prismaAccountStore(tx: Prisma.TransactionClient): AccountStore {
         UPDATE "User" AS account
         SET "firstSaveAt" = LEAST(account."firstSaveAt", anonymous."firstSaveAt"),
             "firstMatchAt" = LEAST(account."firstMatchAt", anonymous."firstMatchAt"),
+            "firstLiveMatchAt" = LEAST(account."firstLiveMatchAt", anonymous."firstLiveMatchAt"),
             "firstSeasonEndAt" = LEAST(account."firstSeasonEndAt", anonymous."firstSeasonEndAt")
         FROM "User" AS anonymous
         WHERE account."id" = ${toUserId} AND anonymous."id" = ${fromUserId}`;
