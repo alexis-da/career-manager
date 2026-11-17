@@ -45,6 +45,7 @@ import {
   BUDGET_STEP,
   CHOSEN_COEFFICIENT,
   CUP_COEFFICIENT,
+  EUROPE_PRIZES,
   NEUTRAL_BUDGET_COEFFICIENT,
   RANKING_COEFFICIENT,
   REPUTATION_TARGET_SHARE,
@@ -134,6 +135,7 @@ type ClubState = {
 /** A club at a season's start: right after the creation or the transition, the preseason played. */
 type ClubStart = ClubState & {
   preseasonBalance: number; // fees received less fees paid on the season's first day: the preseason's wage sales
+  europeParticipation?: number; // its European competition's participation, credited at the opening after the dotation; 0 without
   cupEntry?: number | null; // the cup round it enters at: 1 in the preliminary round, 2 exempt; null without a cup
   expected?: { scored: number; conceded: number }; // its league goals expected over the season (expectedSeasonGoals)
 };
@@ -261,6 +263,7 @@ type ClubSeason = {
   board: SeasonFinances | null; // what the transition gave it at this season's start, recomputed; null in season 1
   budget: number; // recorded at the start, after the preseason
   preseasonBalance: number;
+  europeParticipation: number; // credited at the opening, after the dotation
   wageBudget: number;
   tableWageBudget: number; // the creation's wage budget at its rank: its wage budget's ceiling, and twice its floor
   payroll: number;
@@ -406,17 +409,31 @@ async function recordStart(saveId: string): Promise<{ startYear: number; clubs: 
     console.warn(`  ${budgets.length} SeasonBudget rows for ${seasonLabel(startYear)}, one expected`);
   }
   const cupEntries = await cupEntriesOf(saveId, startYear);
+  const participation = await europeParticipationOf(saveId, startYear);
   const expected = await expectedGoalsOf(saveId, clubs, firstDay);
   return {
     startYear,
     clubs: clubs.map((club) => ({
       ...club,
       preseasonBalance: (fees.received.get(club.clubId) ?? 0) - (fees.paid.get(club.clubId) ?? 0),
+      europeParticipation: participation.get(club.slug) ?? 0,
       cupEntry: cupEntries(club),
       expected: getOrThrow(expected, club.clubSaveId, "expected goals"),
     })),
     managedBudget: budgets[0] ?? null,
   };
+}
+
+/** The participation prize each European club of a year received at the opening (EUROPE_PRIZES), by slug. */
+async function europeParticipationOf(saveId: string, startYear: number): Promise<Map<string, number>> {
+  const seasons = await prisma.season.findMany({ where: { saveId, startYear, competition: { kind: "EUROPE" } }, select: { id: true } });
+  const participation = new Map<string, number>();
+  for (const season of await europeSeasonsOf(prisma, saveId, seasons.map((row) => row.id))) {
+    for (const entrant of season.entrants) {
+      participation.set(entrant.club, EUROPE_PRIZES[season.code].participation);
+    }
+  }
+  return participation;
 }
 
 /** The cup round each club enters at in a season: 1 when it plays the preliminary round, 2 exempt; null without a cup. */
@@ -876,6 +893,7 @@ function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
         board,
         budget: club.budget,
         preseasonBalance: club.preseasonBalance,
+        europeParticipation: club.europeParticipation ?? 0,
         wageBudget: club.wageBudget,
         // At S1, the creation's table at its initial rank; then the transition's, at its dotation's rank.
         tableWageBudget: clubFinances(previous === undefined ? club.initialRank : dotationRank, club.clubCount, club.tier).wageBudget,
@@ -1033,7 +1051,7 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
   );
 
   const checked = rows.filter((row) => row.board !== null);
-  const budgetMismatches = checked.filter((row) => (row.board?.budget ?? 0) + row.preseasonBalance !== row.budget);
+  const budgetMismatches = checked.filter((row) => (row.board?.budget ?? 0) + row.preseasonBalance + row.europeParticipation !== row.budget);
   const wageMismatches = checked.filter((row) => row.board?.wageBudget !== row.wageBudget);
   const managedMismatches = rows.filter((row) => {
     const own = snapshots.find((snapshot) => snapshot.season === row.season)?.managedBudget;
@@ -1059,14 +1077,14 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
   sections.push(
     [
       `Vérifications : budget de la direction recalculé (coefficient de l'objectif de classement recalculé, report de la fin`,
-      `relevée) + ventes de la présaison = budget relevé pour ${checked.length - budgetMismatches.length} / ${checked.length}`,
+      `relevée) + ventes de la présaison + participation européenne = budget relevé pour ${checked.length - budgetMismatches.length} / ${checked.length}`,
       `clubs-saisons ; plafond recalculé = relevé pour ${checked.length - wageMismatches.length} / ${checked.length} ;`,
       `SeasonBudget du club dirigé = recalcul pour ${played - managedMismatches.length} / ${played} passages ;`,
       `${creationDiffers.length} clubs dont le budget de création diffère de clubFinances(rang initial) (ventes de la présaison`,
       "de la création).",
       ...budgetMismatches
         .slice(0, 5)
-        .map((row) => `Écart : ${seasonHeader(row)} ${row.slug}, recalcul ${millions((row.board?.budget ?? 0) + row.preseasonBalance)}, relevé ${millions(row.budget)}.`),
+        .map((row) => `Écart : ${seasonHeader(row)} ${row.slug}, recalcul ${millions((row.board?.budget ?? 0) + row.preseasonBalance + row.europeParticipation)}, relevé ${millions(row.budget)}.`),
     ].join(" "),
   );
 
