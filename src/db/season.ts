@@ -11,7 +11,9 @@ import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
 import { CUPS_ENABLED } from "../engine/cup";
+import { EUROPE_ENABLED } from "../engine/europe";
 import { cupEntrantsOf, openCups } from "./cup";
+import { cupWinnersOf, europeQualifiersOf, europeReputationBonuses, openEurope } from "./europe";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
 import { runPreseasonInTransaction, type PreseasonOptions, type PreseasonSummary } from "./preseason";
@@ -39,6 +41,7 @@ export type SeasonTransition = {
   freeAgents: number;
   fixtures: number; // of the leagues
   cupTies: number; // the cups' preliminary rounds (worldVersion 2 saves)
+  europeMatches: number; // the European competitions' league phases (worldVersion 2 saves, never a challenge save's)
   preseason: PreseasonSummary;
 };
 
@@ -70,8 +73,11 @@ type PlayerUpdate = PlayerAttributes & {
  * half of its unspent budget) and its wage budget from its payroll at the end of the season
  * (src/db/season-finances.ts), the save moves to 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created, with the managed club's dotation
  * (SeasonBudget), the cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables (when the
- * save already had cups, or the game gives them: CUPS_ENABLED), then the managed club's objectives of the new season.
- * Every cup tie must have been played too: the season ends with the cups' finals.
+ * save already had cups, or the game gives them: CUPS_ENABLED), its European competitions and their league phases, from
+ * the final tables and the cups' winners (when the save already had them, or the game gives them: EUROPE_ENABLED; never
+ * a challenge save), then the managed club's objectives of the new season. Every cup tie and European match must have
+ * been played too: the season ends with the European finals. A European run raises a club's reputation target
+ * (europeReputationBonuses).
  * PlayerSave.marketValue is read as is everywhere else: this is where it changes.
  * options.assistantContracts (the measurement scripts' and tests' mode, never the game's): the assistant manages the
  * managed club's contracts, whose expired ones stay for its preseason to renew or release as an AI club's.
@@ -80,7 +86,10 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
   const transition = await prisma.$transaction(
     async (tx) => {
       await assertNoMatchInProgress(tx, saveId);
-      const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, worldVersion: true } });
+      const save = await tx.save.findUniqueOrThrow({
+        where: { id: saveId },
+        select: { seed: true, worldVersion: true, challengeId: true },
+      });
       const seasons = await tx.season.findMany({
         where: { saveId, completed: false },
         select: { id: true, startYear: true, competitionId: true, competition: { select: { code: true, kind: true } } },
@@ -98,6 +107,7 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
       // fixtures only have to be played.
       const leagueSeasons = seasons.filter((season) => season.competition.kind === "LEAGUE");
       const cupSeasonIds = seasons.filter((season) => season.competition.kind === "CUP").map((season) => season.id);
+      const europeSeasonIds = seasons.filter((season) => season.competition.kind === "EUROPE").map((season) => season.id);
 
       const unplayed = await tx.fixture.count({ where: { saveId, seasonId: { in: seasonIds }, played: false } });
       if (unplayed > 0) {
@@ -110,7 +120,7 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
       const worldVersion = worldVersionOf(save.worldVersion);
       const tables = await readFinalTables(tx, saveId, leagueSeasons);
       const moves = worldVersion === 1 ? [] : seasonMovesOf(tables);
-      const completedSeasonId = await recordSeasonResult(tx, saveId, leagueSeasons, moves, cupSeasonIds);
+      const completedSeasonId = await recordSeasonResult(tx, saveId, leagueSeasons, moves, cupSeasonIds, europeSeasonIds);
       // The managed club's objectives of the season, closed: their coefficient goes to its next dotation.
       const managedCoefficient = await closeSeasonObjectives(tx, saveId, completedSeasonId);
 
@@ -143,7 +153,7 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
           clubSave: { select: { clubId: true, isManaged: true } },
         },
       });
-      // League minutes only: the cup keeps the managed club's players' stats alone, which would favour them.
+      // League minutes only: the cup and Europe keep the managed club's players' stats alone, which would favour them.
       const minutes = await tx.playerSeasonStats.groupBy({
         by: ["playerSaveId"],
         where: { saveId, seasonId: { in: leagueSeasons.map((season) => season.id) } },
@@ -206,7 +216,8 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
               "fitness" = ${FULL_FITNESS},
               "injuredUntil" = NULL,
               "leagueYellows" = 0,
-              "cupYellows" = 0
+              "cupYellows" = 0,
+              "europeYellows" = 0
           FROM (VALUES ${Prisma.join(
             batch.map(
               (update) => Prisma.sql`(${update.playerSaveId}::text, ${update.clubSaveId}::text, ${update.retired}::boolean,
@@ -225,10 +236,11 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
       }
 
       await tx.season.updateMany({ where: { saveId, id: { in: seasonIds } }, data: { completed: true } });
-      // The moving clubs change competition, every club's reputation follows its season, then every club gets its
-      // finances for the new season, before the preseason, whose AI clubs plan with them.
+      // The moving clubs change competition, every club's reputation follows its season (its target raised by a European
+      // run), then every club gets its finances for the new season, before the preseason, whose AI clubs plan with them.
       await applySeasonMoves(tx, saveId, worldVersion, leagueSeasons, moves);
-      const ends = await applySeasonReputations(tx, saveId, tables, moves);
+      const bonuses = await europeReputationBonuses(tx, saveId, europeSeasonIds);
+      const ends = await applySeasonReputations(tx, saveId, tables, moves, bonuses);
       const dotation = await applySeasonFinances(tx, saveId, ends, worldVersion, managedCoefficient, payrolls);
       await tx.save.update({ where: { id: saveId }, data: { currentDate: transitionDate } });
 
@@ -272,6 +284,17 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
       const cupTies = withCups
         ? await openCups(tx, { saveId, saveSeed: save.seed, startYear, entrants: cupEntrantsOf(tables) })
         : 0;
+      // The European competitions of a worldVersion 2 save that had them, or of any once the game gives them, never a
+      // challenge save's: the final tables and the cups' winners qualify their clubs.
+      const withEurope = worldVersion === 2 && save.challengeId === null && (EUROPE_ENABLED || europeSeasonIds.length > 0);
+      const europeMatches = withEurope
+        ? await openEurope(tx, {
+            saveId,
+            saveSeed: save.seed,
+            startYear,
+            qualifiers: europeQualifiersOf(tables, await cupWinnersOf(tx, saveId, cupSeasonIds, tables)),
+          })
+        : 0;
       // The managed club's objectives of the new season, once its fixtures and its cup's first round exist.
       await openSeasonObjectives(tx, saveId, { id: managedSeason.id, startYear });
 
@@ -284,6 +307,7 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
         freeAgents,
         fixtures: fixtures.length,
         cupTies,
+        europeMatches,
         preseason,
       };
     },

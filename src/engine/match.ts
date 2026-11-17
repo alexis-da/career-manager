@@ -218,8 +218,11 @@ export type MatchState = {
   events: MatchEvent[]; // in chronological order
   appearances: Appearance[]; // of the players who already went off
   injuries: Injury[];
-  // A knockout match only (cup): it cannot end level. Absent from a league match, whose state is unchanged.
+  // A knockout match only (cup, European knockout tie): it cannot end level. Absent from a league match, whose state is
+  // unchanged.
   knockout?: true;
+  // A European final only: no home advantage for either side (HOME_ADVANTAGE leaves the expected goals). Absent elsewhere.
+  neutral?: true;
   regulationTime?: number; // minute the 90 minutes ended at, stoppage time included, when extra time followed
   penalties?: Record<Side, number>; // the shoot-out's score
   // The managed club's matches only: its choice events (choices.ts), and what they leave for the segments to come.
@@ -293,6 +296,21 @@ export function matchRngSeed(
  */
 export function cupMatchRngSeed(saveSeed: string, startYear: number, round: number, homeSlug: string, awaySlug: string): string {
   return `${saveSeed}:cup:${startYear}:${round}:${homeSlug}:${awaySlug}`;
+}
+
+/**
+ * Seed of a European match: a key of its own, carrying its competition's code, so that it never replays a league or cup
+ * match between the same clubs, and that no stream of the leagues or the cups moves.
+ */
+export function europeMatchRngSeed(
+  saveSeed: string,
+  startYear: number,
+  code: string,
+  round: number,
+  homeSlug: string,
+  awaySlug: string,
+): string {
+  return `${saveSeed}:europe:${startYear}:${code}:${round}:${homeSlug}:${awaySlug}`;
 }
 
 /** Seed of one segment, or of the shoot-out: each has its own stream, so a segment replays from the state before it alone. */
@@ -418,7 +436,7 @@ export function stateExpectedGoals(
   const strengths: Record<Side, TeamStrength> = { home: liveStrength(state.home, minute), away: liveStrength(state.away, minute) };
   const expected = (side: Side): number => {
     const opponent = otherSide(side);
-    const venue = side === "home" ? HOME_ADVANTAGE : 1 / HOME_ADVANTAGE;
+    const venue = state.neutral === true ? 1 : side === "home" ? HOME_ADVANTAGE : 1 / HOME_ADVANTAGE;
     const instructed =
       expectedGoals(strengths[side], strengths[opponent], venue) *
       INSTRUCTION_EFFECTS[instructions[side]].own *
@@ -450,14 +468,16 @@ function startingTeam(lineup: Lineup, formation: FormationName): TeamLive {
 }
 
 /**
- * A match before kick-off; both lineups are in the 4-3-3 of AI clubs unless told otherwise. A knockout match (cup)
- * cannot end level: extra time, then a shoot-out.
+ * A match before kick-off; both lineups are in the 4-3-3 of AI clubs unless told otherwise. A knockout match (cup,
+ * European knockout tie) cannot end level: extra time, then a shoot-out. A match on neutral ground (a European final)
+ * gives neither side the home advantage.
  */
 export function startMatch(
   home: Lineup,
   away: Lineup,
   formations: Readonly<Record<Side, FormationName>> = { home: DEFAULT_FORMATION_NAME, away: DEFAULT_FORMATION_NAME },
   knockout: boolean = false,
+  neutral: boolean = false,
 ): MatchState {
   const state: MatchState = {
     phase: "KICK_OFF",
@@ -469,7 +489,7 @@ export function startMatch(
     appearances: [],
     injuries: [],
   };
-  return knockout ? { ...state, knockout: true } : state;
+  return { ...state, ...(knockout ? { knockout: true as const } : {}), ...(neutral ? { neutral: true as const } : {}) };
 }
 
 function compareIncidents(a: Incident, b: Incident): number {
@@ -1239,7 +1259,8 @@ export function applyAutomaticHalfTime(state: MatchState, sides: readonly Side[]
  * second half, segment by segment, each with its own stream derived from matchSeed (phaseRngSeed). A knockout match level
  * after 90 minutes goes on to extra time and a shoot-out (finishKnockout). Each side plays the instructions given, or
  * its assistant's; atBoundary runs at kick-off and between two segments where a manager may act (the managed club's
- * choice events, decided by its assistant: assistantChoices, choices.ts).
+ * choice events, decided by its assistant: assistantChoices, choices.ts). On neutral ground (a European final), neither
+ * side has the home advantage.
  */
 export function simulateMatch(
   home: Lineup,
@@ -1249,8 +1270,15 @@ export function simulateMatch(
   knockout: boolean = false,
   instructions: Instructions = {},
   atBoundary: BoundaryHook = noChoices,
+  neutral: boolean = false,
 ): MatchResult {
-  const halfTime = playPeriod(atBoundary(startMatch(home, away, formations, knockout)), matchSeed, "h1", instructions, atBoundary);
+  const halfTime = playPeriod(
+    atBoundary(startMatch(home, away, formations, knockout, neutral)),
+    matchSeed,
+    "h1",
+    instructions,
+    atBoundary,
+  );
   const regulation = playPeriod(applyAutomaticHalfTime(halfTime), matchSeed, "h2", instructions, atBoundary);
   return matchResult(finishKnockout(regulation, matchSeed, instructions, atBoundary));
 }

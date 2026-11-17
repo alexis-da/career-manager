@@ -6,6 +6,7 @@ import { FREE_AGENT_POOL_SLUG, freeAgentPlayerKey, generateFreeAgentAttributes }
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engine/generation";
 import { worldPlayerKey } from "../engine/identity";
 import { CUPS_ENABLED } from "../engine/cup";
+import { EUROPE_ENABLED } from "../engine/europe";
 import { countryOf } from "../engine/promotion";
 import { competitionTier } from "../engine/tiers";
 import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
@@ -22,6 +23,7 @@ import { visibleSavesWhere, type SaveViewer } from "./access";
 import { recordFirstSave } from "./activation";
 import { prisma } from "./client";
 import { openCups } from "./cup";
+import { openEurope } from "./europe";
 import { seasonFixtures } from "./fixtures";
 import { runPreseasonInTransaction } from "./preseason";
 import { openSeasonObjectives } from "./objectives";
@@ -38,6 +40,9 @@ export const createSaveInputSchema = z.object({
   worldVersion: z.union([z.literal(1), z.literal(2)]).default(DEFAULT_WORLD_VERSION),
   // The national cups of a worldVersion 2 save: CUPS_ENABLED (true) for the game; a test may pass either.
   cups: z.boolean().default(CUPS_ENABLED),
+  // The European competitions of a worldVersion 2 save: EUROPE_ENABLED (true) for the game, never for a challenge save;
+  // a test may pass either.
+  europe: z.boolean().default(EUROPE_ENABLED),
 });
 
 export type CreateSaveInput = z.input<typeof createSaveInputSchema>;
@@ -65,7 +70,8 @@ const CREATE_BATCH_SIZE = 1_000;
  * first divisions, or the first and second ones), a PlayerSave per player of those clubs (identity copied from Player)
  * and per free agent of the pool (without a club or a contract), the first preseason (young players), a Season per
  * competition and its fixtures; in a worldVersion 2 save with cups (CUPS_ENABLED), the national cups and their
- * preliminary rounds too. The large tables are written in batches of CREATE_BATCH_SIZE rows. Everything random
+ * preliminary rounds too, and with the European competitions (EUROPE_ENABLED), their clubs (the first divisions' source
+ * season's ranks, Club.initialRank) and league phases. The large tables are written in batches of CREATE_BATCH_SIZE rows. Everything random
  * derives from the seed, so the same seed always yields the same save; each player's stream is his own, so a first
  * division player gets the same attributes in both worlds. Reference tables (Competition, Club, Player) are only read.
  * Throws SaveLimitError, before writing anything, when the owner already has as many saves as their kind allows (their
@@ -76,8 +82,8 @@ export async function createSave(input: CreateSaveInput): Promise<{ id: string }
 }
 
 /**
- * Creates a user's save of a week's challenge: the save createSave makes in a worldVersion 2 world, cups included, with
- * the challenge's seed and club, the same for every player of the week, and no name of its own (the screens name it from
+ * Creates a user's save of a week's challenge: the save createSave makes in a worldVersion 2 world, cups included and
+ * without the European competitions (never in a challenge save, whatever the season), with the challenge's seed and club, the same for every player of the week, and no name of its own (the screens name it from
  * its week, in the player's language: SaveSummary.challengeWeek), and the user's entry
  * (ChallengeEntry) in the same transaction. Outside the save limits; before writing anything, throws
  * ChallengeEntryExistsError when the user already has an entry this week (even if they deleted its save: the entry
@@ -101,6 +107,7 @@ export async function createChallengeSave(
     ownerId,
     worldVersion: 2,
     cups: CUPS_ENABLED,
+    europe: false,
     challenge: { id: challengeId, maxSaves },
   });
 }
@@ -129,7 +136,7 @@ async function timedWriteSave(data: SaveData): Promise<{ id: string }> {
 
 /** The transaction of a creation, each phase marked on the timer for the logs. */
 async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: string }> {
-  const { name, managerName, clubId, seed, ownerId, worldVersion, cups, challenge } = data;
+  const { name, managerName, clubId, seed, ownerId, worldVersion, cups, europe, challenge } = data;
   const tiers = worldTiers(worldVersion);
 
   return prisma.$transaction(
@@ -329,9 +336,26 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
         timer.mark(`cups ${ties}`);
       }
 
-      // The managed club's first dotation, its creation finances, and its objectives, on its league season.
+      // The managed club's first dotation, its creation finances, before any prize.
       const first = await firstSeasonDotation(tx, save.id);
       await recordDotation(tx, save.id, first.seasonId, first.dotation);
+      if (worldVersion === 2 && europe) {
+        // The first divisions' places in the world's source season qualify the clubs; nobody has won a cup yet, so the
+        // cup's place goes to each country's 7th.
+        const firstDivisions = clubs
+          .filter((club) => club.tier === 1)
+          .sort((a, b) => a.initialRank - b.initialRank || (a.slug < b.slug ? -1 : 1));
+        const matches = await openEurope(tx, {
+          saveId: save.id,
+          saveSeed: save.seed,
+          startYear,
+          qualifiers: [...Map.groupBy(firstDivisions, (club) => countryOf(getOrThrow(competitionById, club.competitionId, "competition").code))].map(
+            ([country, members]) => ({ country, table: members.map((club) => club.slug), cupWinner: null }),
+          ),
+        });
+        timer.mark(`europe ${matches}`);
+      }
+      // Its objectives, on its league season, once its cup and its European competition exist.
       await openSeasonObjectives(tx, save.id, { id: first.seasonId, startYear });
       // The owner's first career, when it is: a first step (src/db/activation.ts).
       await recordFirstSave(tx, ownerId);

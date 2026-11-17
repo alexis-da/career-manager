@@ -15,6 +15,9 @@ import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import type { FinalTables, SeasonMove } from "./promotion";
 
+/** The highest reputation a club can have. */
+const MAX_REPUTATION = 99;
+
 type Db = Prisma.TransactionClient;
 
 /** The managed club's dotation for a season, as SeasonBudget keeps it: its finances and the reputation behind them. */
@@ -38,15 +41,16 @@ export type ClubSeasonEnd = {
  * Every club's reputation after the season being closed (gameplay v2, V2), inside advanceToNextSeason's transaction: a
  * share of the way to its target, the creation's reputation at its final rank in its division; a promoted or a relegated
  * club takes outright the target of its equivalent rank in its new division (rankInNextDivision, reputationTarget,
- * reputationAfterSeason). AI clubs and the managed club alike, in both worlds. Returns each club's season end, with its
- * expected rank, its reputation rank in its division as the season was played (reputationRanks): an AI club's ranking
- * objective's.
+ * reputationAfterSeason), its target raised by what a European run adds (bonuses, by club row: europeReputationBonus),
+ * within 99. AI clubs and the managed club alike, in both worlds. Returns each club's season end, with its expected rank,
+ * its reputation rank in its division as the season was played (reputationRanks): an AI club's ranking objective's.
  */
 export async function applySeasonReputations(
   tx: Db,
   saveId: string,
   tables: FinalTables,
   moves: readonly SeasonMove[],
+  bonuses: ReadonlyMap<string, number> = new Map(),
 ): Promise<ClubSeasonEnd[]> {
   const clubs = await tx.clubSave.findMany({
     where: { saveId },
@@ -82,7 +86,7 @@ export async function applySeasonReputations(
         moving: move === null ? 0 : movingBetween(move.from, move.to),
         nextClubCount: next.clubCount,
       });
-      const target = reputationTarget(rank, next.clubCount, next.tier);
+      const target = Math.min(MAX_REPUTATION, reputationTarget(rank, next.clubCount, next.tier) + (bonuses.get(clubSaveId) ?? 0));
       return {
         clubSaveId,
         code,

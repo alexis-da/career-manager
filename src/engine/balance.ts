@@ -273,10 +273,16 @@ export const SOLIDITY_OBJECTIVE_FACTOR = 0.9;
 /** The president's confidence (1–99): this, plus each objective's points for where it stands. */
 export const BOARD_CONFIDENCE_BASE = 50;
 
-/** Points of the president's confidence by objective (the ranking, the cup, the chosen one) and where it stands. */
-export const BOARD_CONFIDENCE_POINTS: Readonly<Record<"ranking" | "cup" | "chosen", Readonly<Record<ObjectiveProgress, number>>>> = {
+/**
+ * Points of the president's confidence by objective (the ranking, the cup, the European one, the chosen one) and where
+ * it stands. The European objective counts as the cup's.
+ */
+export const BOARD_CONFIDENCE_POINTS: Readonly<
+  Record<"ranking" | "cup" | "europe" | "chosen", Readonly<Record<ObjectiveProgress, number>>>
+> = {
   ranking: { EXCEEDED: 30, ACHIEVED: 20, ON_TRACK: 5, AT_RISK: -10, MISSED: -25 },
   cup: { EXCEEDED: 15, ACHIEVED: 10, ON_TRACK: 2, AT_RISK: -5, MISSED: -10 },
+  europe: { EXCEEDED: 15, ACHIEVED: 10, ON_TRACK: 2, AT_RISK: -5, MISSED: -10 },
   chosen: { EXCEEDED: 10, ACHIEVED: 10, ON_TRACK: 2, AT_RISK: -5, MISSED: -10 },
 };
 
@@ -313,6 +319,81 @@ export const CUP_ROUNDS = 6;
 export const CUP_ROUND_PRIZES: readonly number[] = [100_000, 250_000, 500_000, 1_000_000, 2_000_000];
 export const CUP_WINNER_PRIZE = 5_000_000;
 export const CUP_RUNNER_UP_PRIZE = 2_500_000;
+
+// ------------------------------------------------------------------ European competitions (worldVersion 2, docs/design/europe.md)
+// The Coupe des Lauriers (eu.1) gathers each country's first four, the Coupe des Fanions (eu.2) its 5th, 6th and cup
+// winner (src/engine/europe.ts): a league phase, then knockout ties, single-leg, the final on neutral ground.
+
+/** What a European competition pays a club, in euros, credited to its budget as it earns it. */
+export type EuropePrizes = {
+  participation: number; // at the opening
+  leagueWin: number; // each league phase win
+  quarterFinalQualification: number; // the top four of the league phase, and each play-off winner
+  quarterFinalWin: number;
+  semiFinalWin: number;
+  finalWin: number;
+  finalLoss: number;
+};
+
+/**
+ * Prizes by competition: a perfect run is worth 23.6 M€ in the Coupe des Lauriers (16 to 23 % of its clubs' creation
+ * budgets), 10 M€ in the Coupe des Fanions; a typical one, two wins and out in the play-offs, 4.2 and 2.1 M€. A national
+ * cup won by a first division club pays 8.75 M€.
+ */
+export const EUROPE_PRIZES: Readonly<Record<"eu.1" | "eu.2", EuropePrizes>> = {
+  "eu.1": {
+    participation: 3_000_000,
+    leagueWin: 600_000,
+    quarterFinalQualification: 2_000_000,
+    quarterFinalWin: 3_000_000,
+    semiFinalWin: 4_000_000,
+    finalWin: 8_000_000,
+    finalLoss: 4_000_000,
+  },
+  "eu.2": {
+    participation: 1_500_000,
+    leagueWin: 300_000,
+    quarterFinalQualification: 800_000,
+    quarterFinalWin: 1_200_000,
+    semiFinalWin: 1_800_000,
+    finalWin: 3_500_000,
+    finalLoss: 1_750_000,
+  },
+};
+
+/**
+ * What a European run adds to a club's reputation target at the end of the season (never to its reputation itself),
+ * within 99, by the stage it reached (EUROPE_STAGES: 3 quarter-finals, 5 final, 6 won): the Coupe des Lauriers +1 for its
+ * quarter-finalists, +2 for its finalists, +3 for its winner; the Coupe des Fanions +1 for its finalists, +2 for its winner.
+ */
+export const EUROPE_REPUTATION_BONUS: Readonly<Record<"eu.1" | "eu.2", readonly { stage: number; bonus: number }[]>> = {
+  "eu.1": [
+    { stage: 6, bonus: 3 },
+    { stage: 5, bonus: 2 },
+    { stage: 3, bonus: 1 },
+  ],
+  "eu.2": [
+    { stage: 6, bonus: 2 },
+    { stage: 5, bonus: 1 },
+  ],
+};
+
+/**
+ * The European objective of the managed club, by its reputation third among its competition's clubs at the opening: the
+ * stage to reach (2 play-offs, 3 quarter-finals, 4 semi-finals), exceeded EUROPE_OBJECTIVE_EXCEEDED_STAGES stages further
+ * (the title, the final, the semi-finals).
+ */
+export const EUROPE_OBJECTIVE_STAGES: readonly [number, number, number] = [4, 3, 2];
+export const EUROPE_OBJECTIVE_EXCEEDED_STAGES = 2;
+
+/** What the European objective's outcome adds to the managed club's budget coefficient, in hundredths: the cup's. */
+export const EUROPE_COEFFICIENT: Readonly<Record<ObjectiveOutcome, number>> = { EXCEEDED: 10, ACHIEVED: 5, MISSED: -5 };
+
+/**
+ * European yellow cards: this many suspend a player for the club's next European match (5 in the league and the cup,
+ * which 6 to 10 matches would hardly ever reach).
+ */
+export const EUROPE_YELLOWS_PER_SUSPENSION = 3;
 
 // ------------------------------------------------------------------ Player contracts at save creation
 

@@ -1,4 +1,5 @@
 import { cupRunOf, type CupRun } from "../engine/cup";
+import { EUROPE_STAGES } from "../engine/europe";
 import type { Position } from "../engine/positions";
 import type { MoveReason } from "../engine/promotion";
 import {
@@ -6,6 +7,7 @@ import {
   CHAMPION_TROPHY,
   clubAtDate,
   CUP_TROPHY,
+  EUROPE_TROPHY,
   type SeasonPlayerLine,
   type SeasonResultData,
 } from "../engine/season-result";
@@ -16,6 +18,7 @@ import { ageInYears } from "../lib/dates";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { getOrThrow } from "../lib/maps";
 import { prisma } from "./client";
+import { clubEuropeRun, type ClubEuropeRun } from "./europe";
 import type { SeasonMove } from "./promotion";
 import { clubOf, clubsOfSave, readArchivedSeason } from "./season-archive";
 
@@ -204,12 +207,16 @@ function seasonResultRow(
   result: SeasonResultData,
   move: MoveReason | null,
   cup: CupRun | null,
+  europe: ClubEuropeRun | null,
 ): Prisma.SeasonResultCreateManyInput {
   const { bestPlayer, trophies, ...line } = result;
   return {
     ...line,
-    trophies: cup?.won === true ? [...trophies, CUP_TROPHY] : trophies,
+    trophies: [...trophies, ...(cup?.won === true ? [CUP_TROPHY] : []), ...(europe?.won === true ? [EUROPE_TROPHY] : [])],
     cupRound: cup?.round ?? null,
+    // The stage reached, the final for its winner, who has the trophy.
+    europeCode: europe?.code ?? null,
+    europeStage: europe === null ? null : Math.min(europe.stage, EUROPE_STAGES.FINAL),
     saveId,
     seasonId: season.id,
     competitionId: season.competitionId,
@@ -258,9 +265,9 @@ async function cupRunOfClub(tx: Db, saveId: string, clubSaveId: string, slug: st
 
 /**
  * Writes the managed club's result of a season about to close, inside advanceToNextSeason's transaction, before any
- * player changes, with the club's promotion or relegation among the season's moves, and its cup run (cupRound, the
- * « cup » trophy) from the closing cup seasons. Returns the season it was written for, or null when the club plays in
- * none of these seasons.
+ * player changes, with the club's promotion or relegation among the season's moves, its cup run (cupRound, the « cup »
+ * trophy) from the closing cup seasons, and its European run (europeCode, europeStage, the « europe » trophy) from the
+ * closing European seasons. Returns the season it was written for, or null when the club plays in none of these seasons.
  */
 export async function recordSeasonResult(
   tx: Db,
@@ -268,6 +275,7 @@ export async function recordSeasonResult(
   seasons: readonly SeasonRef[],
   moves: readonly Pick<SeasonMove, "clubId" | "reason">[] = [],
   cupSeasonIds: readonly string[] = [],
+  europeSeasonIds: readonly string[] = [],
 ): Promise<string | null> {
   const managed = await managedClubOf(tx, saveId);
   const season = seasons.find((candidate) => candidate.competitionId === managed.competitionId);
@@ -280,7 +288,8 @@ export async function recordSeasonResult(
   }
   const move = moves.find((candidate) => candidate.clubId === managed.clubId)?.reason ?? null;
   const cup = await cupRunOfClub(tx, saveId, managed.id, managed.slug, cupSeasonIds);
-  await tx.seasonResult.createMany({ data: [seasonResultRow(saveId, season, result, move, cup)], skipDuplicates: true });
+  const europe = await clubEuropeRun(tx, saveId, managed.id, europeSeasonIds);
+  await tx.seasonResult.createMany({ data: [seasonResultRow(saveId, season, result, move, cup, europe)], skipDuplicates: true });
   return season.id;
 }
 
@@ -308,8 +317,8 @@ export async function ensureSeasonResults(db: Db, saveId: string): Promise<Manag
   for (const season of missing) {
     const result = await computeSeasonResult(db, saveId, managed, season);
     if (result !== null) {
-      // A rebuilt row has no move nor cup run: promoted and relegated stay false, cupRound null.
-      rows.push(seasonResultRow(saveId, season, result, null, null));
+      // A rebuilt row has no move, cup or European run: promoted and relegated stay false, cupRound and europeStage null.
+      rows.push(seasonResultRow(saveId, season, result, null, null, null));
     }
   }
   if (rows.length > 0) {
@@ -338,6 +347,11 @@ export type SeasonResultView = {
   relegated: boolean;
   cupRound: number | null; // the last cup round played (1 preliminary … 6 final); null without a cup that season
   cupWinner: boolean;
+  // The European competition played that season (« eu.1 », « eu.2 ») and the stage reached (1 league phase … 5 final);
+  // null without one.
+  europeCode: string | null;
+  europeStage: number | null;
+  europeWinner: boolean;
   points: number;
   played: number;
   won: number;
@@ -401,6 +415,9 @@ export async function getSeasonResults(saveId: string, seasonId?: string): Promi
         relegated: row.relegated,
         cupRound: row.cupRound,
         cupWinner: row.trophies.includes(CUP_TROPHY),
+        europeCode: row.europeCode,
+        europeStage: row.europeStage,
+        europeWinner: row.trophies.includes(EUROPE_TROPHY),
         points: row.points,
         played: row.played,
         won: row.won,

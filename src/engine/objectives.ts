@@ -8,6 +8,7 @@ import {
   CUP_OBJECTIVE_EXCEEDED_ROUNDS,
   CUP_OBJECTIVE_ROUNDS,
   ENTERTAINMENT_OBJECTIVE_FACTOR,
+  EUROPE_COEFFICIENT,
   EXCEEDED_OBJECTIVE_PLACES,
   EXPECTED_SEASON_GOALS_FACTOR,
   FINISH_OBJECTIVE_MARGIN_BY_TIER,
@@ -97,19 +98,28 @@ export function rankingOutcome(objective: Pick<RankingObjective, "target" | "exc
   return finalRank <= objective.exceed ? "EXCEEDED" : finalRank <= objective.target ? "ACHIEVED" : "MISSED";
 }
 
-/** The outcomes a budget coefficient reads: the ranking's for every club, the cup's and the chosen objective's. */
-export type CoefficientOutcomes = { ranking?: ObjectiveOutcome; cup?: ObjectiveOutcome; chosen?: ObjectiveOutcome };
+/**
+ * The outcomes a budget coefficient reads: the ranking's for every club, the cup's, the European one's and the chosen
+ * objective's.
+ */
+export type CoefficientOutcomes = {
+  ranking?: ObjectiveOutcome;
+  cup?: ObjectiveOutcome;
+  europe?: ObjectiveOutcome;
+  chosen?: ObjectiveOutcome;
+};
 
 /**
  * The budget coefficient of a season's objectives, in hundredths: 100, plus what each outcome is worth
- * (RANKING_COEFFICIENT, CUP_COEFFICIENT, CHOSEN_COEFFICIENT), within BUDGET_COEFFICIENT_RANGE. An AI club has its
- * ranking alone; without any objective, 100.
+ * (RANKING_COEFFICIENT, CUP_COEFFICIENT, EUROPE_COEFFICIENT, CHOSEN_COEFFICIENT), within BUDGET_COEFFICIENT_RANGE. An
+ * AI club has its ranking alone; without any objective, 100.
  */
-export function budgetCoefficient({ ranking, cup, chosen }: CoefficientOutcomes): number {
+export function budgetCoefficient({ ranking, cup, europe, chosen }: CoefficientOutcomes): number {
   const sum =
     NEUTRAL_BUDGET_COEFFICIENT +
     (ranking === undefined ? 0 : RANKING_COEFFICIENT[ranking]) +
     (cup === undefined ? 0 : CUP_COEFFICIENT[cup]) +
+    (europe === undefined ? 0 : EUROPE_COEFFICIENT[europe]) +
     (chosen === undefined ? 0 : CHOSEN_COEFFICIENT[chosen]);
   return Math.min(BUDGET_COEFFICIENT_RANGE.best, Math.max(BUDGET_COEFFICIENT_RANGE.worst, sum));
 }
@@ -120,13 +130,13 @@ export function budgetCoefficient({ ranking, cup, chosen }: CoefficientOutcomes)
 export const OPTIONAL_OBJECTIVES = ["YOUTH", "ENTERTAINMENT", "SOLIDITY", "FINANCES"] as const;
 export type OptionalObjective = (typeof OPTIONAL_OBJECTIVES)[number];
 
-/** Every objective: the ranking and the cup, imposed, and the optional ones. */
-export type ObjectiveKind = "RANKING" | "CUP" | OptionalObjective;
+/** Every objective: the ranking, the cup and the European competition, imposed, and the optional ones. */
+export type ObjectiveKind = "RANKING" | "CUP" | "EUROPE" | OptionalObjective;
 
 /** Where an objective stands during the season: on track, at risk, or already decided. */
 export type ObjectiveProgress = "ON_TRACK" | "AT_RISK" | ObjectiveOutcome;
 
-/** An objective as the rules read it: its target, and what exceeds it (ranking and cup only). */
+/** An objective as the rules read it: its target, and what exceeds it (ranking, cup and European competition only). */
 export type Objective = { kind: ObjectiveKind; target: number; exceed: number | null };
 
 /** The round a cup's winner has reached: the one after the final. */
@@ -208,6 +218,8 @@ export type SeasonProgress = {
   total: number; // league matches of the season
   rank: number; // its place in the league table now
   cup: { reached: number; out: boolean } | null; // the cup round it reached (CUP_WON_ROUND: won it), and whether it is out
+  // The European stage it reached (EUROPE_STAGES: 6 won it), and whether it is out; null without a European competition.
+  europe: { reached: number; out: boolean } | null;
   youthStarts: number; // the most league starts of a player aged YOUTH_OBJECTIVE_MAX_AGE or less on the season's first day
   scored: number; // league goals
   conceded: number;
@@ -235,12 +247,14 @@ export function objectiveProgress(objective: Objective, progress: SeasonProgress
       }
       return progress.played === 0 || progress.rank <= target ? "ON_TRACK" : "AT_RISK";
     }
-    case "CUP": {
+    case "CUP":
+    case "EUROPE": {
       const exceed = objective.exceed ?? Number.POSITIVE_INFINITY;
-      if (progress.cup === null) {
+      const run = objective.kind === "CUP" ? progress.cup : progress.europe;
+      if (run === null) {
         return progress.over ? "MISSED" : "ON_TRACK";
       }
-      const { reached, out } = progress.cup;
+      const { reached, out } = run;
       if (reached >= exceed) {
         return "EXCEEDED";
       }
@@ -321,20 +335,26 @@ export function objectiveStatus(standing: ObjectiveProgress, early: boolean): Ob
 }
 
 /**
- * Where the objectives a president's confidence reads stand: the ranking, the cup when the club plays one, the chosen
- * objective once chosen.
+ * Where the objectives a president's confidence reads stand: the ranking, the cup when the club plays one, the European
+ * one when it plays a European competition, the chosen objective once chosen.
  */
-export type ObjectivesStanding = { ranking: ObjectiveProgress; cup?: ObjectiveProgress; chosen?: ObjectiveProgress };
+export type ObjectivesStanding = {
+  ranking: ObjectiveProgress;
+  cup?: ObjectiveProgress;
+  europe?: ObjectiveProgress;
+  chosen?: ObjectiveProgress;
+};
 
 /**
  * The president's confidence (1–99): BOARD_CONFIDENCE_BASE, plus each objective's points for where it stands
- * (BOARD_CONFIDENCE_POINTS): the ranking, the cup when the club plays one, the chosen objective once chosen. Shown, never
- * acted upon: nobody is ever sacked.
+ * (BOARD_CONFIDENCE_POINTS): the ranking, the cup when the club plays one, the European objective when it plays a
+ * European competition, the chosen objective once chosen. Shown, never acted upon: nobody is ever sacked.
  */
 export function boardConfidence(standing: ObjectivesStanding): number {
   const points =
     BOARD_CONFIDENCE_POINTS.ranking[standing.ranking] +
     (standing.cup === undefined ? 0 : BOARD_CONFIDENCE_POINTS.cup[standing.cup]) +
+    (standing.europe === undefined ? 0 : BOARD_CONFIDENCE_POINTS.europe[standing.europe]) +
     (standing.chosen === undefined ? 0 : BOARD_CONFIDENCE_POINTS.chosen[standing.chosen]);
   return Math.min(99, Math.max(1, BOARD_CONFIDENCE_BASE + points));
 }
@@ -349,5 +369,10 @@ export function seasonConfidence(standing: ObjectivesStanding, early: boolean): 
     return boardConfidence(standing);
   }
   const onTrack = (status: ObjectiveProgress | undefined) => (status === undefined ? undefined : "ON_TRACK");
-  return boardConfidence({ ranking: "ON_TRACK", cup: onTrack(standing.cup), chosen: onTrack(standing.chosen) });
+  return boardConfidence({
+    ranking: "ON_TRACK",
+    cup: onTrack(standing.cup),
+    europe: onTrack(standing.europe),
+    chosen: onTrack(standing.chosen),
+  });
 }

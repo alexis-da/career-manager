@@ -578,6 +578,7 @@ function objectivesOf(start: ClubStart, end: ClubEnd, ranking: RankingObjective)
     total,
     rank: end.finalRank,
     cup: { reached, out: !end.cupWinner },
+    europe: null,
     youthStarts: end.youthStarts ?? 0,
     scored: end.goalsFor,
     conceded: end.goalsAgainst,
@@ -593,6 +594,7 @@ function objectivesOf(start: ClubStart, end: ClubEnd, ranking: RankingObjective)
   return {
     RANKING: judge("RANKING", ranking.target, ranking.exceed),
     CUP: cup === null ? null : judge("CUP", cup.target, cup.exceed),
+    EUROPE: null,
     YOUTH: end.youthStarts === undefined ? null : judge("YOUTH", optionalTarget("YOUTH", { scored: 0, conceded: 0 }), null),
     ENTERTAINMENT: expected === undefined ? null : judge("ENTERTAINMENT", optionalTarget("ENTERTAINMENT", expected), null),
     SOLIDITY: expected === undefined ? null : judge("SOLIDITY", optionalTarget("SOLIDITY", expected), null),
@@ -1330,6 +1332,7 @@ function spreadSections(snapshots: readonly SeasonSnapshot[], rows: readonly Clu
 const OBJECTIVE_NAMES: Readonly<Record<ObjectiveKind, string>> = {
   RANKING: "Classement",
   CUP: "Coupe",
+  EUROPE: "Europe",
   YOUTH: "Jeunesse",
   ENTERTAINMENT: "Spectacle",
   SOLIDITY: "Solidité",

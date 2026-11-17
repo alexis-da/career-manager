@@ -38,6 +38,7 @@ import { recordMissionMoves } from "./missions";
 import { refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
+import { progressEurope } from "./europe";
 import type { LineupPlayer } from "./lineup";
 import { parseLiveState, serializeLiveState } from "./live-state";
 import {
@@ -534,7 +535,8 @@ export async function advanceLiveMatch(
             newEvents: [], // written above
             newDecisions: [],
             managedSide,
-            knockout: isKnockout(fixture.season),
+            competition: fixture.season.competition.kind,
+            knockout: isKnockout(fixture),
             squads: {
               home: getOrThrow(squads, fixture.homeClubSaveId, "home squad"),
               away: getOrThrow(squads, fixture.awayClubSaveId, "away squad"),
@@ -545,6 +547,8 @@ export async function advanceLiveMatch(
       );
       // A cup tie: its prize, and the next round once it was the round's last tie.
       await progressCups(tx, saveId, save.seed, [fixture.id]);
+      // A European match: its prize, and the next round once it was the round's last match.
+      await progressEurope(tx, saveId, [fixture.id]);
       // A challenge save's entry and the president's confidence, now that its club's match is over.
       await recordChallengeScore(tx, saveId, save.challengeId);
       await refreshBoardConfidence(tx, saveId);

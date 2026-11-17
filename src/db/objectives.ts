@@ -1,4 +1,5 @@
 import { NEUTRAL_BUDGET_COEFFICIENT, YOUTH_OBJECTIVE_MAX_AGE } from "../engine/balance";
+import { europeObjective } from "../engine/europe";
 import { averageOpponent } from "../engine/formation-choice";
 import { formationPositions } from "../engine/formations";
 import { selectLineup, type SquadPlayer } from "../engine/lineup";
@@ -38,6 +39,7 @@ import type { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { clubEuropeRun, parseEuropeEntrants } from "./europe";
 import { parseFormation } from "./lineup";
 
 // The managed club's objectives for each season (docs/design/gameplay-v2.md, V3): opened with the season, the optional
@@ -71,11 +73,11 @@ const OBJECTIVE_SELECT = {
   outcome: true,
 } as const;
 
-/** Imposed first (the ranking, then the cup), then the optional ones in OPTIONAL_OBJECTIVES order. */
-const KIND_ORDER: readonly ObjectiveKind[] = ["RANKING", "CUP", ...OPTIONAL_OBJECTIVES];
+/** Imposed first (the ranking, the cup, the European competition), then the optional ones in OPTIONAL_OBJECTIVES order. */
+const KIND_ORDER: readonly ObjectiveKind[] = ["RANKING", "CUP", "EUROPE", ...OPTIONAL_OBJECTIVES];
 const byKind = (a: { kind: ObjectiveKind }, b: { kind: ObjectiveKind }): number => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind);
 
-const isOptional = (kind: ObjectiveKind): kind is OptionalObjective => kind !== "RANKING" && kind !== "CUP";
+const isOptional = (kind: ObjectiveKind): kind is OptionalObjective => kind !== "RANKING" && kind !== "CUP" && kind !== "EUROPE";
 
 /** The managed club, as its objectives read it. */
 async function managedClubOf(db: Db, saveId: string) {
@@ -93,13 +95,37 @@ async function cupSeasonOf(db: Db, saveId: string, leagueCode: string, startYear
   });
 }
 
+/** The European seasons of a year, when the save has them: the managed club plays one of them at most. */
+async function europeSeasonIdsOf(db: Db, saveId: string, startYear: number): Promise<string[]> {
+  const seasons = await db.season.findMany({ where: { saveId, startYear, competition: { kind: "EUROPE" } }, select: { id: true } });
+  return seasons.map((season) => season.id);
+}
+
+/**
+ * The managed club's European objective for a year, when it plays a European competition: europeObjective on its
+ * reputation third among the competition's clubs at the opening (their reputation in Season.entrants, then their slug).
+ */
+async function europeObjectiveOf(db: Db, saveId: string, managedId: string, startYear: number) {
+  const run = await clubEuropeRun(db, saveId, managedId, await europeSeasonIdsOf(db, saveId, startYear));
+  if (run === null) {
+    return null;
+  }
+  const season = await db.season.findUniqueOrThrow({ where: { id: run.seasonId }, select: { entrants: true } });
+  const managed = await db.clubSave.findUniqueOrThrow({ where: { id: managedId }, select: { club: { select: { slug: true } } } });
+  const entrants = parseEuropeEntrants(run.seasonId, season.entrants).sort(
+    (a, b) => b.reputation - a.reputation || (a.club < b.club ? -1 : a.club > b.club ? 1 : 0),
+  );
+  const rank = entrants.findIndex((entrant) => entrant.club === managed.club.slug) + 1;
+  return europeObjective(reputationThird(rank, entrants.length));
+}
+
 /**
  * Opens the managed club's objectives for a league season, at the creation of a save and at each transition, once the
  * season's fixtures and cups exist and the preseason has run: the ranking (rankingObjective on its reputation rank in
  * its division, the one its dotation was given at), the cup when its country has one this season (cupObjective on its reputation third and the round it
- * enters at), and three of the four optional objectives (proposedObjectives, the season's own stream), their targets
- * from its squad's expected goals against its division's average opponent. Sets the president's confidence of a season
- * that begins.
+ * enters at), the European competition when it plays one (europeObjectiveOf), and three of the four optional objectives
+ * (proposedObjectives, the season's own stream), their targets from its squad's expected goals against its division's
+ * average opponent. Sets the president's confidence of a season that begins.
  */
 export async function openSeasonObjectives(
   tx: Tx,
@@ -136,6 +162,7 @@ export async function openSeasonObjectives(
     });
     cup = cupObjective(tier, reputationThird(reputationRank, clubCount), preliminary > 0 ? 1 : 2);
   }
+  const europe = await europeObjectiveOf(tx, saveId, managed.id, season.startYear);
 
   // The squad's expected goals over the league season, in its formation, against its division's average opponent.
   const start = seasonStartDate(season.startYear);
@@ -172,12 +199,21 @@ export async function openSeasonObjectives(
     data: [
       { saveId, seasonId: season.id, kind: "RANKING", imposed: true, variant: ranking.variant, target: ranking.target, exceed: ranking.exceed },
       ...(cup === null ? [] : [{ saveId, seasonId: season.id, kind: "CUP" as const, imposed: true, target: cup.target, exceed: cup.exceed }]),
+      ...(europe === null
+        ? []
+        : [{ saveId, seasonId: season.id, kind: "EUROPE" as const, imposed: true, target: europe.target, exceed: europe.exceed }]),
       ...proposed.map((kind) => ({ saveId, seasonId: season.id, kind, imposed: false, target: optionalTarget(kind, expected) })),
     ],
   });
   await tx.clubSave.update({
     where: { id: managed.id, saveId },
-    data: { boardConfidence: boardConfidence({ ranking: "ON_TRACK", cup: cup === null ? undefined : "ON_TRACK" }) },
+    data: {
+      boardConfidence: boardConfidence({
+        ranking: "ON_TRACK",
+        cup: cup === null ? undefined : "ON_TRACK",
+        europe: europe === null ? undefined : "ON_TRACK",
+      }),
+    },
     select: { id: true },
   });
 }
@@ -198,8 +234,9 @@ async function currentObjectives(db: Db, saveId: string) {
 
 /**
  * What a league season has given the managed club so far (SeasonProgress): its place and goals in the league table,
- * its matches played, its cup run, the most league starts of its players aged YOUTH_OBJECTIVE_MAX_AGE or less on the
- * season's first day, its transfer balance over the season. `over` once its league matches and its cup run are done.
+ * its matches played, its cup run, its European run, the most league starts of its players aged YOUTH_OBJECTIVE_MAX_AGE
+ * or less on the season's first day, its transfer balance over the season. `over` once its league matches, its cup run
+ * and its European run are done.
  */
 export async function readSeasonProgress(
   db: Db,
@@ -250,6 +287,12 @@ export async function readSeasonProgress(
     cupDone = lost || won;
   }
 
+  // The European run: the furthest stage reached (EUROPE_STAGES.WON once the final is won), out after a tie lost or
+  // below the league phase's 12th place.
+  const europeRun = await clubEuropeRun(db, saveId, managed.id, await europeSeasonIdsOf(db, saveId, season.startYear));
+  const europe: SeasonProgress["europe"] = europeRun === null ? null : { reached: europeRun.stage, out: europeRun.out };
+  const europeDone = europeRun === null || europeRun.out || europeRun.won;
+
   // Jeunesse: the most league starts of a player of the club young enough on the season's first day.
   const start = seasonStartDate(season.startYear);
   const youngStats = await db.playerSeasonStats.findMany({
@@ -281,11 +324,12 @@ export async function readSeasonProgress(
     total: own.length,
     rank: row?.rank ?? table.length,
     cup,
+    europe,
     youthStarts,
     scored: row?.goalsFor ?? 0,
     conceded: row?.goalsAgainst ?? 0,
     balance,
-    over: played === own.length && cupDone,
+    over: played === own.length && cupDone && europeDone,
   };
 }
 
@@ -302,6 +346,7 @@ function standingOf(objectives: readonly ObjectiveRow[], progress: SeasonProgres
     {
       ranking: standings.get("RANKING") ?? "ON_TRACK",
       cup: standings.get("CUP"),
+      europe: standings.get("EUROPE"),
       chosen: chosen === undefined ? undefined : standings.get(chosen.kind),
     },
     early,
@@ -379,6 +424,7 @@ export async function closeSeasonObjectives(tx: Tx, saveId: string, seasonId: st
   return budgetCoefficient({
     ranking: outcomes.get("RANKING"),
     cup: outcomes.get("CUP"),
+    europe: outcomes.get("EUROPE"),
     chosen: chosen === undefined ? undefined : outcomes.get(chosen.kind),
   });
 }
@@ -448,7 +494,7 @@ export type ObjectiveView = {
   target: number;
   exceed: number | null;
   status: ObjectiveStatus; // where it stands, its outcome once decided, or too early to tell while undecided and `early`
-  current: number | null; // the rank, the cup round reached, the starts, the goals scored or conceded, the balance
+  current: number | null; // the rank, the cup round or European stage reached, the starts, the goals scored or conceded, the balance
 };
 
 /** The managed club's objectives of the season in progress, as the dashboard, the Club screen and the season start show them. */
@@ -474,6 +520,8 @@ function currentFigure(kind: ObjectiveKind, progress: SeasonProgress): number | 
       return progress.played === 0 ? null : progress.rank;
     case "CUP":
       return progress.cup?.reached ?? null;
+    case "EUROPE":
+      return progress.europe?.reached ?? null;
     case "YOUTH":
       return progress.youthStarts;
     case "ENTERTAINMENT":

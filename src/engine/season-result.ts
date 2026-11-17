@@ -18,6 +18,9 @@ export const CHAMPION_TROPHY = "champion";
 /** Winner of the national cup (worldVersion 2 saves). */
 export const CUP_TROPHY = "cup";
 
+/** Winner of a European competition (worldVersion 2 saves): SeasonResult.europeCode says which. */
+export const EUROPE_TROPHY = "europe";
+
 const MINUTES_PER_MATCH = 90;
 
 /** A player's season for the managed club, from PlayerSeasonStats. */

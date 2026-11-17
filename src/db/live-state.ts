@@ -142,6 +142,7 @@ const liveStateSchemaV2 = z.object({
     phase: z.enum(["IN_PLAY", "HALF_TIME", "REGULATION_END", "EXTRA_TIME_BREAK"]),
     played: minute,
     knockout: z.literal(true).optional(), // a cup tie: level after 90 minutes, extra time and a shoot-out follow
+    neutral: z.literal(true).optional(), // a European final: neither side has the home advantage
     regulationTime: minute.optional(), // the minute the 90 ended at, once extra time is reached
     fullTime: minute.nullable(),
     home: teamSchema,

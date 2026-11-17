@@ -5,8 +5,10 @@ import { fitnessAfterMatch, recoveredFitness } from "../engine/fitness";
 import { chooseFormation, monthlyFormation, type KeptFormation } from "../engine/formation-choice";
 import type { FormationName } from "../engine/formations";
 import { autoFilledSlots, resolveLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
+import { isKnockoutRound, isNeutralRound } from "../engine/europe";
 import {
   cupMatchRngSeed,
+  europeMatchRngSeed,
   eventsToPersist,
   goalTimesOf,
   knockoutWinner,
@@ -35,6 +37,7 @@ import { recordMissionMoves } from "./missions";
 import { ensureObjectiveChosen, refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
+import { progressEurope } from "./europe";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 import { serializeLiveState } from "./live-state";
 import { parseFormation, parseSavedLineup } from "./lineup";
@@ -137,6 +140,8 @@ export const PLAYER_SELECT = {
   suspendedMatches: true,
   suspendedLeagueMatches: true,
   suspendedCupMatches: true,
+  europeYellows: true,
+  suspendedEuropeMatches: true,
 } as const;
 
 type PlayerRow = Prisma.PlayerSaveGetPayload<{ select: typeof PLAYER_SELECT }>;
@@ -153,17 +158,19 @@ type TeamLineup = { lineup: Lineup; formation: FormationName; autoFilledSlots: n
  * An AI club's formation and eleven for a match: its automatic eleven, its tired players rested where a rested one is
  * hardly worse (selectRestedLineup), in the formation it chooses for its squad as it stands (chooseFormation: the most
  * points expected against the average opponent of its division). Before each match in the managed club's country, whose
- * clubs the player meets in league and cup; elsewhere at its first match of each month of the game, the formation then
- * kept on its row until the month after (monthlyFormation, ClubSave.formation and formationMonth; `toKeep`).
+ * clubs the player meets in league and cup, and before a match against the managed club (a European one: its opponent's
+ * preview is the match played); elsewhere at its first match of each month of the game, the formation then kept on its
+ * row until the month after (monthlyFormation, ClubSave.formation and formationMonth; `toKeep`).
  */
 export function aiLineupOf(
   team: AiTeam,
   squad: readonly SquadPlayer[],
   managedCountry: string,
   matchDate: Date,
+  facesManaged: boolean = false,
 ): { formation: FormationName; lineup: Lineup; toKeep: KeptFormation | null } {
   const tier = competitionTier(team.competition.tier);
-  if (team.competition.country === managedCountry) {
+  if (team.competition.country === managedCountry || facesManaged) {
     return { ...chooseFormation(squad, tier), toKeep: null };
   }
   const kept = team.formationMonth === null ? null : { formation: parseFormation(team.formation), month: team.formationMonth };
@@ -171,9 +178,15 @@ export function aiLineupOf(
 }
 
 /** The managed club plays its saved lineup, completed automatically; an AI club, aiLineupOf's. */
-function lineupOf(team: Team, squad: readonly SquadPlayer[], managedCountry: string, matchDate: Date): TeamLineup {
+function lineupOf(
+  team: Team,
+  squad: readonly SquadPlayer[],
+  managedCountry: string,
+  matchDate: Date,
+  facesManaged: boolean,
+): TeamLineup {
   if (!team.isManaged) {
-    const { formation, lineup, toKeep } = aiLineupOf(team, squad, managedCountry, matchDate);
+    const { formation, lineup, toKeep } = aiLineupOf(team, squad, managedCountry, matchDate, facesManaged);
     return { lineup, formation, autoFilledSlots: 0, toKeep };
   }
   const saved = parseSavedLineup(team.lineup);
@@ -218,6 +231,8 @@ export function squadsOf(rows: readonly PlayerRow[], matchDate: Date): {
       suspendedMatches,
       suspendedLeagueMatches,
       suspendedCupMatches,
+      europeYellows,
+      suspendedEuropeMatches,
       ...ratings
     } = row;
     stateByKey.set(playerKey, {
@@ -225,7 +240,15 @@ export function squadsOf(rows: readonly PlayerRow[], matchDate: Date): {
       form: ratings.form,
       fitness: ratings.fitness,
       injuredUntil,
-      discipline: { leagueYellows, cupYellows, suspendedMatches, suspendedLeagueMatches, suspendedCupMatches },
+      discipline: {
+        leagueYellows,
+        cupYellows,
+        europeYellows,
+        suspendedMatches,
+        suspendedLeagueMatches,
+        suspendedCupMatches,
+        suspendedEuropeMatches,
+      },
     });
     if (clubSaveId === null) {
       continue; // free agents do not play; a player who left during a paused match is only needed for his events
@@ -248,24 +271,42 @@ export function withSuspensions(
   );
 }
 
-/** What a fixture's match needs to know of its season: its year, and whether it is a cup tie, a knockout match. */
-export const FIXTURE_SEASON_SELECT = { select: { startYear: true, competition: { select: { kind: true } } } } as const;
+/**
+ * What a fixture's match needs to know of its season: its year, and its competition: a league's, a cup's or a European
+ * one's, which decide whether it is a knockout match and on neutral ground, and its seed.
+ */
+export const FIXTURE_SEASON_SELECT = { select: { startYear: true, competition: { select: { kind: true, code: true } } } } as const;
 
-type FixtureSeason = { startYear: number; competition: { kind: "LEAGUE" | "CUP" } };
+type FixtureSeason = { startYear: number; competition: { kind: CompetitionKind; code: string } };
 
-/** A cup tie is a knockout match: level after 90 minutes, it goes to extra time and a shoot-out. */
-export const isKnockout = (season: FixtureSeason): boolean => season.competition.kind === "CUP";
+/**
+ * A knockout match: a cup tie, or a European match past the league phase (isKnockoutRound). Level after 90 minutes, it goes
+ * to extra time and a shoot-out, and its winner is written.
+ */
+export const isKnockout = (fixture: { round: number; season: FixtureSeason }): boolean =>
+  isKnockoutRound(fixture.season.competition.kind, fixture.round);
+
+/** A match on neutral ground, without home advantage: a European final (isNeutralRound). */
+export const isNeutral = (fixture: { round: number; season: FixtureSeason }): boolean =>
+  isNeutralRound(fixture.season.competition.kind, fixture.round);
 
 /**
  * The seed of a fixture's match: save seed, season, matchday (or cup round) and club slugs. A cup tie has a seed of its
- * own (cupMatchRngSeed), so that it never replays the league match of the same round between the same clubs.
+ * own (cupMatchRngSeed), so that it never replays the league match of the same round between the same clubs; a European
+ * match too, with its competition's code (europeMatchRngSeed).
  */
 export function fixtureMatchSeed(
   saveSeed: string,
   fixture: { round: number; season: FixtureSeason; homeClubSave: { club: { slug: string } }; awayClubSave: { club: { slug: string } } },
 ): string {
-  const seed = isKnockout(fixture.season) ? cupMatchRngSeed : matchRngSeed;
-  return seed(saveSeed, fixture.season.startYear, fixture.round, fixture.homeClubSave.club.slug, fixture.awayClubSave.club.slug);
+  const { startYear, competition } = fixture.season;
+  const home = fixture.homeClubSave.club.slug;
+  const away = fixture.awayClubSave.club.slug;
+  if (competition.kind === "EUROPE") {
+    return europeMatchRngSeed(saveSeed, startYear, competition.code, fixture.round, home, away);
+  }
+  const seed = competition.kind === "CUP" ? cupMatchRngSeed : matchRngSeed;
+  return seed(saveSeed, startYear, fixture.round, home, away);
 }
 
 export function matchEventRows(
@@ -302,7 +343,15 @@ export function matchDecisionRows(
   }));
 }
 
-const DISCIPLINE_KEYS = ["leagueYellows", "cupYellows", "suspendedMatches", "suspendedLeagueMatches", "suspendedCupMatches"] as const;
+const DISCIPLINE_KEYS = [
+  "leagueYellows",
+  "cupYellows",
+  "europeYellows",
+  "suspendedMatches",
+  "suspendedLeagueMatches",
+  "suspendedCupMatches",
+  "suspendedEuropeMatches",
+] as const;
 
 /** Whether a match changes a player's row: his form, fitness, injury or discipline after it, against the row's. */
 export function rowChanges(
@@ -325,7 +374,10 @@ export type FinishedMatch = {
   newEvents: readonly MatchEvent[]; // the events not written yet: all of them, or those since the last pause
   newDecisions: readonly MatchDecision[]; // the managed club's decisions not written yet
   managedSide: Side | null; // a match of the managed club keeps all its events, another one its goals only
-  knockout: boolean; // a cup tie: its winner is written, and only the managed club's players get season stats
+  // Whose yellow cards and suspensions the match counts; outside the league (a cup tie, a European match), only the
+  // managed club's players get season stats.
+  competition: CompetitionKind;
+  knockout: boolean; // a cup tie or a European knockout tie: its winner is written
   squads: Readonly<Record<Side, readonly SquadPlayer[]>>; // the clubs' players, whose form and injuries change
 };
 
@@ -338,10 +390,11 @@ type SeasonStats = {
 const seasonStatsKey = (seasonId: string, playerSaveId: string): string => `${seasonId}#${playerSaveId}`;
 
 /**
- * Writes finished matches in bulk: final and half-time scores (the live state cleared), a cup tie's winner and how it
- * was decided, events not written yet (all of them for the managed club's match, none for the others, whose goals go in
- * their fixture: eventsToPersist, goalTimesOf), the managed club's instructions of its segments (Fixture.instructions), season stats (in a cup tie, the managed club's players only), form and injuries of both clubs'
- * players, these three from the whole match.
+ * Writes finished matches in bulk: final and half-time scores (the live state cleared), a knockout tie's winner and how
+ * it was decided, events not written yet (all of them for the managed club's match, none for the others, whose goals go
+ * in their fixture: eventsToPersist, goalTimesOf), the managed club's instructions of its segments
+ * (Fixture.instructions), season stats (outside the league, the managed club's players only), form, fitness, injuries
+ * and discipline of both clubs' players, these from the whole match.
  */
 export async function recordFinishedMatches(
   tx: Transaction,
@@ -360,14 +413,14 @@ export async function recordFinishedMatches(
 
   const decisions: Prisma.MatchDecisionCreateManyInput[] = [];
 
-  for (const { fixtureId, seasonId, result, newEvents, newDecisions, managedSide, knockout, squads } of matches) {
+  for (const { fixtureId, seasonId, result, newEvents, newDecisions, managedSide, competition, squads } of matches) {
     // Only the writing is filtered: the stats and injuries below come from the whole match in memory.
     events.push(...matchEventRows(fixtureId, eventsToPersist(newEvents, managedSide !== null), stateByKey));
     decisions.push(...matchDecisionRows(fixtureId, newDecisions, stateByKey));
 
     const statsByKey = new Map(playerMatchStats(result).map((stats) => [stats.playerId, stats]));
     for (const stats of statsByKey.values()) {
-      if (!knockout || stats.side === managedSide) {
+      if (competition === "LEAGUE" || stats.side === managedSide) {
         seasonStats.push({ seasonId, playerSaveId: playerSaveIdOf(stats.playerId), stats });
       }
     }
@@ -377,7 +430,6 @@ export async function recordFinishedMatches(
     for (const appearance of result.appearances) {
       spellsByKey.set(appearance.playerId, [...(spellsByKey.get(appearance.playerId) ?? []), appearance]);
     }
-    const competition: CompetitionKind = knockout ? "CUP" : "LEAGUE";
     for (const side of ["home", "away"] as const) {
       const outcome = outcomeFor(result, side);
       for (const player of squads[side]) {
@@ -400,7 +452,7 @@ export async function recordFinishedMatches(
     }
   }
 
-  // A cup tie's winner is a side of the fixture: the CASE turns it into the club's row.
+  // A knockout tie's winner is a side of the fixture: the CASE turns it into the club's row.
   await tx.$executeRaw`
     UPDATE "Fixture" AS f
     SET "played" = true, "status" = 'PLAYED'::"FixtureStatus", "liveState" = NULL, "goalTimes" = v."goalTimes",
@@ -486,18 +538,19 @@ export async function recordFinishedMatches(
     await tx.$executeRaw`
       UPDATE "PlayerSave" AS p
       SET "form" = v."form", "fitness" = v."fitness", "injuredUntil" = v."injuredUntil",
-        "leagueYellows" = v."leagueYellows", "cupYellows" = v."cupYellows", "suspendedMatches" = v."suspendedMatches",
-        "suspendedLeagueMatches" = v."suspendedLeagueMatches", "suspendedCupMatches" = v."suspendedCupMatches"
+        "leagueYellows" = v."leagueYellows", "cupYellows" = v."cupYellows", "europeYellows" = v."europeYellows",
+        "suspendedMatches" = v."suspendedMatches", "suspendedLeagueMatches" = v."suspendedLeagueMatches",
+        "suspendedCupMatches" = v."suspendedCupMatches", "suspendedEuropeMatches" = v."suspendedEuropeMatches"
       FROM (VALUES ${Prisma.join(
         playerUpdates.map(
           (update) =>
             Prisma.sql`(${update.playerSaveId}::text, ${update.form}::int, ${update.fitness}::int,
               ${update.injuredUntil?.toISOString() ?? null}::timestamp(3), ${update.leagueYellows}::int,
-              ${update.cupYellows}::int, ${update.suspendedMatches}::int, ${update.suspendedLeagueMatches}::int,
-              ${update.suspendedCupMatches}::int)`,
+              ${update.cupYellows}::int, ${update.europeYellows}::int, ${update.suspendedMatches}::int,
+              ${update.suspendedLeagueMatches}::int, ${update.suspendedCupMatches}::int, ${update.suspendedEuropeMatches}::int)`,
         ),
-      )}) AS v("id", "form", "fitness", "injuredUntil", "leagueYellows", "cupYellows", "suspendedMatches",
-        "suspendedLeagueMatches", "suspendedCupMatches")
+      )}) AS v("id", "form", "fitness", "injuredUntil", "leagueYellows", "cupYellows", "europeYellows", "suspendedMatches",
+        "suspendedLeagueMatches", "suspendedCupMatches", "suspendedEuropeMatches")
       WHERE p."id" = v."id" AND p."saveId" = ${saveId}`;
   }
 }
@@ -505,8 +558,8 @@ export async function recordFinishedMatches(
 /**
  * Plays every fixture of the next date with unplayed fixtures, in all competitions, in one transaction: first the
  * fitness every player of the save recovers over the days since the current date (recoveredFitness), then scores, match
- * events, season stats, form, fitness and injuries, the cups' prizes and next rounds (progressCups), then moves the
- * save's current date to that day.
+ * events, season stats, form, fitness and injuries, the cups' prizes and next rounds (progressCups), the European
+ * competitions' prizes and next rounds (progressEurope), then moves the save's current date to that day.
  * The managed club's match has its choice events, decided by its assistant. With pauseManagedMatch, it is played live
  * instead: its first segment only, whose events and the engine state are written, and the save waits for
  * advanceLiveMatch (Save.liveFixtureId). Refused with MatchInProgressError while a match waits. Returns null when every
@@ -602,8 +655,10 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
           away: withSuspensions(getOrThrow(squads, fixture.awayClubSaveId, "away squad"), competition, stateByKey),
         };
         const matchSeed = fixtureMatchSeed(save.seed, fixture);
-        const home = lineupOf(fixture.homeClubSave, squadsBySide.home, managedCompetition.country, matchDate);
-        const away = lineupOf(fixture.awayClubSave, squadsBySide.away, managedCompetition.country, matchDate);
+        const managedSide: Side | null = fixture.homeClubSave.isManaged ? "home" : fixture.awayClubSave.isManaged ? "away" : null;
+        const facesManaged = managedSide !== null;
+        const home = lineupOf(fixture.homeClubSave, squadsBySide.home, managedCompetition.country, matchDate, facesManaged);
+        const away = lineupOf(fixture.awayClubSave, squadsBySide.away, managedCompetition.country, matchDate, facesManaged);
         if (home.toKeep !== null) {
           kept.push({ clubSaveId: fixture.homeClubSaveId, ...home.toKeep });
         }
@@ -611,12 +666,12 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
           kept.push({ clubSaveId: fixture.awayClubSaveId, ...away.toKeep });
         }
         const formations = { home: home.formation, away: away.formation };
-        const managedSide: Side | null = fixture.homeClubSave.isManaged ? "home" : fixture.awayClubSave.isManaged ? "away" : null;
-        const knockout = isKnockout(fixture.season);
+        const knockout = isKnockout(fixture);
+        const neutral = isNeutral(fixture);
 
         if (managedSide !== null && options.pauseManagedMatch === true) {
           // Nobody can act before the first boundary: its segment is played now, the rest step by step.
-          const kickOff = withChoices(startMatch(home.lineup, away.lineup, formations, knockout), managedSide, matchSeed);
+          const kickOff = withChoices(startMatch(home.lineup, away.lineup, formations, knockout, neutral), managedSide, matchSeed);
           const live = playOn(kickOff, managedSide, matchSeed, {}, "segment");
           const updated = await tx.fixture.updateMany({
             where: { id: fixture.id, saveId, status: "SCHEDULED" },
@@ -643,6 +698,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
           knockout,
           {},
           managedSide === null ? undefined : assistantChoices(managedSide, matchSeed),
+          neutral,
         );
         if (managedSide !== null) {
           managed = {
@@ -659,6 +715,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
           newEvents: result.events,
           newDecisions: result.decisions ?? [],
           managedSide,
+          competition,
           knockout,
           squads: squadsBySide,
         });
@@ -670,7 +727,12 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         tx,
         saveId,
         save.seed,
-        finished.filter((match) => match.knockout).map((match) => match.fixtureId),
+        finished.filter((match) => match.competition === "CUP").map((match) => match.fixtureId),
+      );
+      await progressEurope(
+        tx,
+        saveId,
+        finished.filter((match) => match.competition === "EUROPE").map((match) => match.fixtureId),
       );
       // A challenge save's entry and the president's confidence, once its club's match is over: not while it waits live.
       if (managed !== null && !managed.live) {
