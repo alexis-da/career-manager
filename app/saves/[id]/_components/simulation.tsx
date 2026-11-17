@@ -219,6 +219,7 @@ function Finished({ saveId, phase, onContinue, onLeave }: FinishedProps) {
               saveId={saveId}
               appointment={summary.sessionEnd.appointment}
               word={summary.sessionEnd.word}
+              mission={summary.sessionEnd.mission}
               onNavigate={onLeave}
               className="bg-background"
             />

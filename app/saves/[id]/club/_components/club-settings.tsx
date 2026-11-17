@@ -7,8 +7,10 @@ import { signOutAction } from "@/app/actions";
 import type { CurrentUser } from "@/src/auth/current-user";
 import { publicPath } from "@/src/i18n/public-pages";
 import { maxSavesFor } from "@/src/lib/limits";
+import type { StreakView } from "@/src/lib/missions";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
+import { StreakChip } from "../../_components/daily-mission";
 import { CLUB_CARD_LINK, ClubCardTitle } from "./club-card";
 import { InstallApp } from "./install-app";
 import { SETTINGS_DETAIL as DETAIL, SETTINGS_NAME as NAME, SETTINGS_ROW as ROW } from "./settings-styles";
@@ -50,14 +52,30 @@ function Account({ user }: { user: CurrentUser }) {
   );
 }
 
+/** The player's streak of daily missions, its chip while it runs, and their record; none running says how to start one. */
+function MissionStreak({ streak }: { streak: StreakView }) {
+  const t = useTranslations("missions.settings");
+  return (
+    <div data-testid="settings-streak" data-streak={streak.current} data-best={streak.best} className={ROW}>
+      <div className="min-w-0 flex-1">
+        <p className={NAME}>{t("title")}</p>
+        {streak.current === 0 && <p className={DETAIL}>{t("none")}</p>}
+        <p className={cn(DETAIL, "tabular-nums")}>{t("record", { count: streak.best })}</p>
+      </div>
+      {streak.current > 0 && <StreakChip count={streak.current} />}
+    </div>
+  );
+}
+
 type ClubSettingsProps = {
   user: CurrentUser;
   ownedSaves: number;
+  streak?: StreakView | null; // the player's daily missions, none in a challenge save
   className?: string;
 };
 
-/** The player's settings: language, account, saves used, the installable game and privacy. */
-export function ClubSettings({ user, ownedSaves, className }: ClubSettingsProps) {
+/** The player's settings: language, account, saves used, the daily missions' streak, the installable game and privacy. */
+export function ClubSettings({ user, ownedSaves, streak = null, className }: ClubSettingsProps) {
   const t = useTranslations("settings");
   const tLanguage = useTranslations("language");
   const tFooter = useTranslations("footer");
@@ -80,6 +98,7 @@ export function ClubSettings({ user, ownedSaves, className }: ClubSettingsProps)
           {t("changeSave")}
         </Link>
       </div>
+      {streak !== null && <MissionStreak streak={streak} />}
       <InstallApp />
       <Link
         href={publicPath("privacy", locale)}

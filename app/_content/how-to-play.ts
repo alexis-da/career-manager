@@ -188,4 +188,21 @@ export const GUIDE: GuideSection[] = [
       ],
     },
   },
+  {
+    id: "missions",
+    fr: {
+      title: "La mission du jour",
+      blocks: [
+        "Chaque jour, une **Mission du jour** t'attend sur l'**Accueil**, sous ton prochain match : jouer un match en direct, faire un changement ou changer de consigne pendant le direct, gagner, garder ta cage inviolée, jouer trois matchs, titulariser un jeune. Elle compte dans toutes tes carrières, sauf celles du défi.",
+        "Chaque mission accomplie allonge ta **série** de jours d'affilée ; ton record est dans **Club**, **Réglages**. Les missions ne changent rien au jeu : ni budget, ni joueur.",
+      ],
+    },
+    en: {
+      title: "The daily mission",
+      blocks: [
+        "Every day, a **Daily mission** waits for you on **Home**, under your next match: play a match live, make a substitution or change your instruction during a live match, win, keep a clean sheet, play three matches, start a youngster. It counts in all your careers but challenge ones.",
+        "Each mission you complete makes your **streak** of days in a row longer; your record is in **Club**, **Settings**. Missions change nothing in the game: no budget, no player.",
+      ],
+    },
+  },
 ];

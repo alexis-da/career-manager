@@ -5,6 +5,7 @@ import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { ensureCurrentChallenge } from "@/src/db/challenge";
 import { getChallengePage } from "@/src/db/challenge-view";
 import { getClubFinances, getManagerName } from "@/src/db/club";
+import { getMissionStreak } from "@/src/db/missions";
 import { getSeasonObjectives } from "@/src/db/objectives";
 import { countOwnedSaves } from "@/src/db/saves";
 import { getSeasonResults } from "@/src/db/season-results";
@@ -33,9 +34,10 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
   if (user === null) {
     notFound();
   }
-  // Not simulation code: the real week.
-  const challenge = await ensureCurrentChallenge(new Date());
-  const [t, managerName, finances, view, objectives, { seasons }, ownedSaves] = await Promise.all([
+  // Not simulation code: the real week, and the real day of the player's streak.
+  const now = new Date();
+  const challenge = await ensureCurrentChallenge(now);
+  const [t, managerName, finances, view, objectives, { seasons }, ownedSaves, streak] = await Promise.all([
     getTranslations("club"),
     getManagerName(id),
     getClubFinances(id),
@@ -43,6 +45,7 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
     getSeasonObjectives(id),
     getSeasonResults(id),
     countOwnedSaves(user.id),
+    getMissionStreak(id, now),
   ]);
 
   return (
@@ -69,7 +72,7 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
       {/* Side by side only from xl: at 1024 px, the content's 704 px are for the card's preview and the seasons. */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <ClubHonours saveId={id} seasons={seasons} className="xl:col-span-2" />
-        <ClubSettings user={user} ownedSaves={ownedSaves} />
+        <ClubSettings user={user} ownedSaves={ownedSaves} streak={streak} />
       </div>
     </div>
   );

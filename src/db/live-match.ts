@@ -29,10 +29,12 @@ import { condition } from "../engine/strength";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
+import { matchFacts } from "../lib/missions";
 import { DECISIONS_SELECT, EVENTS_SELECT, toDecisionView, toEventView, type DecisionView, type MatchEventView } from "./calendar";
 import { recordFirstMatch, recordFirstSeasonEnd } from "./activation";
 import { recordChallengeScore } from "./challenge";
 import { countManagedMatch } from "./daily-stats";
+import { recordMissionMoves } from "./missions";
 import { refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
@@ -396,6 +398,7 @@ export type AdvancedMatch = {
   score: { homeGoals: number; awayGoals: number };
   state: MatchState; // as the engine left it: at the pause, or over
   managedSide: Side;
+  date: Date; // the match's
   eventsBefore: number; // the match's events written before the move: those after it are new
   decisionsBefore: number; // the same for its decisions
 };
@@ -501,7 +504,7 @@ export async function advanceLiveMatch(
       if (decisions.length > 0) {
         await tx.matchDecision.createMany({ data: decisions });
       }
-      const moved = { state, managedSide, eventsBefore: paused.events.length, decisionsBefore };
+      const moved = { state, managedSide, date: fixture.scheduledAt, eventsBefore: paused.events.length, decisionsBefore };
 
       if (state.phase !== "FULL_TIME") {
         const updated = await tx.fixture.updateMany({
@@ -563,6 +566,12 @@ export async function advanceLiveMatch(
   if (advanced.result !== null) {
     await countManagedMatch(prisma, "live");
   }
+  // The day's mission (src/db/missions.ts): the player's substitution or instruction at this pause, the match once over.
+  await recordMissionMoves(prisma, saveId, {
+    match: advanced.result === null ? null : { facts: matchFacts(advanced.result, advanced.managedSide, true), date: advanced.date },
+    substitution: (input.changes?.substitutions.length ?? 0) > 0,
+    instruction: (input.instruction ?? null) !== null,
+  });
   return advanced;
 }
 

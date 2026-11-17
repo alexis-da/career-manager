@@ -40,10 +40,10 @@ describe("the public pages' documents", () => {
 });
 
 describe("the guide", () => {
-  it("has its seven sections in both languages, each an anchor of its table of contents, and the way to the game", () => {
+  it("has its eight sections in both languages, each an anchor of its table of contents, and the way to the game", () => {
     for (const locale of LOCALES) {
       const markup = renderToStaticMarkup(<HowToPlayDocument locale={locale} />);
-      expect(GUIDE.map(({ id }) => id)).toEqual(["create", "first-match", "market", "lineup", "events", "objectives", "challenge"]);
+      expect(GUIDE.map(({ id }) => id)).toEqual(["create", "first-match", "market", "lineup", "events", "objectives", "challenge", "missions"]);
       for (const { id } of GUIDE) {
         expect(markup).toContain(`<section id="${id}"`);
         expect(markup).toContain(`href="#${id}"`);
@@ -65,6 +65,7 @@ describe("the changelog", () => {
     const days = CHANGELOG.map(({ date }) => date);
     expect([...days].sort().reverse()).toEqual(days);
     expect([...new Set(days)]).toEqual([
+      "2026-11-17",
       "2026-11-12",
       "2026-11-09",
       "2026-11-07",

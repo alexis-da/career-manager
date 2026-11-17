@@ -153,6 +153,36 @@
       "none": "No challenge this week.",
       "figures": "{saves, plural, =0 {no career} one {# career} other {# careers}} of {max} · {entries, plural, =0 {no player entered} one {# player entered} other {# players entered}} · {submitted, plural, =0 {none ranked} one {# ranked} other {# ranked}} after 10 matchdays"
     },
+    "missions": {
+      "title": "Daily missions",
+      "note": "One mission a player a UTC day, on Home in their careers but challenge ones. Proposed: shown, or taken on before they were; completed, mission by mission. Streaks running: the players whose latest completed mission is today's or yesterday's, and how long.",
+      "proposed": "Proposed",
+      "completed": "Completed",
+      "completedShare": "{share} of proposed",
+      "streaks": "Streaks running",
+      "longest": "{days, plural, =0 {none} one {the longest: # day} other {the longest: # days}}",
+      "record": "Record",
+      "recordDays": "{days, plural, one {# day} other {# days}}",
+      "recordDetail": "the longest streak a mission of the period made",
+      "lengths": "Lengths: {lengths}",
+      "length": "{days, plural, one {# day} other {# days}} × {players}",
+      "noStreak": "No streak running.",
+      "columns": {
+        "mission": "Mission",
+        "proposed": "Proposed",
+        "completed": "Completed"
+      },
+      "kinds": {
+        "PLAY_LIVE": "Live match",
+        "LIVE_SUBSTITUTION": "Live substitution",
+        "LIVE_INSTRUCTION": "Live instruction",
+        "LIVE_WIN": "Live win",
+        "WIN": "Win",
+        "CLEAN_SHEET": "Clean sheet",
+        "PLAY_MATCHES": "Matches to play",
+        "START_YOUTH": "Youngster started"
+      }
+    },
     "values": {
       "percent": "{percent}%",
       "countPercent": "{count} · {percent}%",

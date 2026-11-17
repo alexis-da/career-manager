@@ -153,6 +153,36 @@
       "none": "Pas de défi cette semaine.",
       "figures": "{saves, plural, =0 {aucune partie} one {# partie} other {# parties}} sur {max} · {entries, plural, =0 {aucun joueur inscrit} one {# joueur inscrit} other {# joueurs inscrits}} · {submitted, plural, =0 {aucun classé} one {# classé} other {# classés}} après 10 journées"
     },
+    "missions": {
+      "title": "Missions du jour",
+      "note": "Une mission par joueur et par jour UTC, sur l'Accueil de ses carrières hors défi. Proposées : montrées, ou avancées avant de l'être ; accomplies, mission par mission. Séries en cours : les joueurs dont la dernière mission accomplie est d'aujourd'hui ou d'hier, et leur longueur.",
+      "proposed": "Proposées",
+      "completed": "Accomplies",
+      "completedShare": "{share} des proposées",
+      "streaks": "Séries en cours",
+      "longest": "{days, plural, =0 {aucune} one {la plus longue : # jour} other {la plus longue : # jours}}",
+      "record": "Record",
+      "recordDays": "{days, plural, one {# jour} other {# jours}}",
+      "recordDetail": "la plus longue série d'une mission de la période",
+      "lengths": "Longueurs : {lengths}",
+      "length": "{days, plural, one {# jour} other {# jours}} × {players}",
+      "noStreak": "Aucune série en cours.",
+      "columns": {
+        "mission": "Mission",
+        "proposed": "Proposées",
+        "completed": "Accomplies"
+      },
+      "kinds": {
+        "PLAY_LIVE": "Match en direct",
+        "LIVE_SUBSTITUTION": "Changement en direct",
+        "LIVE_INSTRUCTION": "Consigne en direct",
+        "LIVE_WIN": "Victoire en direct",
+        "WIN": "Victoire",
+        "CLEAN_SHEET": "Cage inviolée",
+        "PLAY_MATCHES": "Matchs à jouer",
+        "START_YOUTH": "Jeune titulaire"
+      }
+    },
     "values": {
       "percent": "{percent} %",
       "countPercent": "{count} · {percent} %",

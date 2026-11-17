@@ -76,6 +76,28 @@ export async function deleteArchivePassesSince(since: Date): Promise<void> {
   await withTestDatabase((client) => client.query(`DELETE FROM "ArchivePass" WHERE "at" >= ($1::timestamptz AT TIME ZONE 'UTC')`, [since]));
 }
 
+/**
+ * Sets a player's mission of today, the database's UTC day, to one not done yet, and, with `streakYesterday`, a mission
+ * done yesterday ending a streak of that many days, its record: the draw is the player's and the day's, a test picks its
+ * own. Their missions before go.
+ */
+export async function setTodaysMission(userId: string, kind: string, target: number, streakYesterday = 0): Promise<void> {
+  await withTestDatabase(async (client) => {
+    await client.query(`DELETE FROM "DailyMission" WHERE "userId" = $1`, [userId]);
+    await client.query(
+      `INSERT INTO "DailyMission" ("userId", "day", "kind", "target") VALUES ($1, (now() AT TIME ZONE 'UTC')::date, $2::"MissionKind", $3)`,
+      [userId, kind, target],
+    );
+    if (streakYesterday > 0) {
+      await client.query(
+        `INSERT INTO "DailyMission" ("userId", "day", "kind", "target", "progress", "completedAt", "streak", "best")
+         VALUES ($1, (now() AT TIME ZONE 'UTC')::date - 1, 'WIN', 1, 1, (now() AT TIME ZONE 'UTC') - interval '1 day', $2, $2)`,
+        [userId, streakYesterday],
+      );
+    }
+  });
+}
+
 /** The database's clock now: what a test's rows are dated from. */
 export async function databaseNow(): Promise<Date> {
   return withTestDatabase(async (client) => (await client.query<{ now: Date }>(`SELECT now() AS now`)).rows[0].now);

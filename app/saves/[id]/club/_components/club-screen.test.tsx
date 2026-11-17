@@ -339,6 +339,20 @@ describe("the settings", () => {
     expect(render(<ClubSettings user={account} ownedSaves={2} />, "en").replace(/<[^>]+>/g, " ")).toContain("2 of 3 used");
   });
 
+  it("says the daily missions' streak running and the record, or how to start one; nothing in a challenge save", () => {
+    const running = render(<ClubSettings user={user} ownedSaves={1} streak={{ current: 3, best: 5, last: null }} />).replace(/<[^>]+>/g, " ");
+    expect(running).toContain("Missions du jour");
+    // The running streak in its chip, said once.
+    expect(running.match(/3 jours d&#x27;affilée/g)).toHaveLength(1);
+    expect(running).not.toContain("Pas de série en cours");
+    expect(running).toContain("Record : 5 jours");
+
+    const none = render(<ClubSettings user={user} ownedSaves={1} streak={{ current: 0, best: 0, last: null }} />, "en").replace(/<[^>]+>/g, " ");
+    expect(none).toContain("No streak running: the daily mission on Home starts one.");
+    expect(none).toContain("Record: not yet");
+    expect(render(<ClubSettings user={user} ownedSaves={1} />)).not.toContain('data-testid="settings-streak"');
+  });
+
   it("does not repeat an e-mail that stands in for a name", () => {
     const markup = render(<ClubSettings user={{ ...account, name: null }} ownedSaves={0} />);
 

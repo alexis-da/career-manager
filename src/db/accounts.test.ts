@@ -226,6 +226,27 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
     const anonymousFirst = await challengeSave(otherAnonymous, first.id);
     const anonymousSecond = await challengeSave(otherAnonymous, second.id);
     const accountSecond = await challengeSave(account.userId, second.id);
+    // Daily missions: the anonymous player's of the last two days, done; the account's of three days ago, done, and of
+    // yesterday, not done. Real days, not simulation code.
+    const missionDay = (days: number) => new Date(`${dayOf(new Date(Date.now() - days * 24 * 60 * 60 * 1000))}T00:00:00.000Z`);
+    const done = (userId: string, days: number, streak: number) => ({
+      userId,
+      day: missionDay(days),
+      kind: "WIN" as const,
+      target: 1,
+      progress: 1,
+      completedAt: missionDay(days),
+      streak,
+      best: streak,
+    });
+    await db.dailyMission.createMany({
+      data: [
+        done(otherAnonymous, 2, 1),
+        done(otherAnonymous, 1, 2),
+        done(account.userId, 3, 1),
+        { userId: account.userId, day: missionDay(1), kind: "PLAY_LIVE", target: 1, progress: 0 },
+      ],
+    });
 
     const result = await signIn({ profile: otherProfile, anonymousUserId: otherAnonymous });
 
@@ -248,5 +269,17 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("signing in with Google,
       firstSeasonEndAt: null,
     });
     expect(await daysOf(account.userId)).toEqual([...new Set([dayOf(anonymousCreatedAt), dayOf(new Date())])].sort());
+    // The missions follow the player: yesterday's, done by the anonymous player, takes the place of the account's not
+    // done, and the streak runs over both histories.
+    const missions = await db.dailyMission.findMany({
+      where: { userId: account.userId },
+      orderBy: { day: "asc" },
+      select: { day: true, kind: true, streak: true, best: true },
+    });
+    expect(missions).toEqual([
+      { day: missionDay(3), kind: "WIN", streak: 1, best: 1 },
+      { day: missionDay(2), kind: "WIN", streak: 2, best: 2 },
+      { day: missionDay(1), kind: "WIN", streak: 3, best: 3 },
+    ]);
   });
 });

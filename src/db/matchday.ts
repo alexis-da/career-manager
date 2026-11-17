@@ -27,9 +27,11 @@ import { playOn } from "../engine/live";
 import { competitionTier } from "../engine/tiers";
 import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
+import { matchFacts, type MatchFacts } from "../lib/missions";
 import { recordFirstMatch, recordFirstSeasonEnd } from "./activation";
 import { recordChallengeScore } from "./challenge";
 import { countManagedMatch } from "./daily-stats";
+import { recordMissionMoves } from "./missions";
 import { ensureObjectiveChosen, refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
@@ -80,8 +82,9 @@ export type MatchdaySummary = {
   fixtures: number; // fixtures played or started that day
   goals: number; // in the matches played in full
   // The managed club's match that day, with how many of its starters were picked automatically in place of the
-  // saved ones, and whether it waits to be played on live; null when it did not play.
-  managed: { fixtureId: string; autoFilledSlots: number; live: boolean } | null;
+  // saved ones, and whether it waits to be played on live; null when it did not play. Played in full, what it says to the
+  // day's mission (src/lib/missions.ts); null while it waits live.
+  managed: { fixtureId: string; autoFilledSlots: number; live: boolean; facts: MatchFacts | null } | null;
 };
 
 export type PlayNextMatchdayOptions = {
@@ -627,7 +630,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
             await tx.matchEvent.createMany({ data: events });
           }
           await tx.save.update({ where: { id: saveId }, data: { liveFixtureId: fixture.id } });
-          managed = { fixtureId: fixture.id, autoFilledSlots: (managedSide === "home" ? home : away).autoFilledSlots, live: true };
+          managed = { fixtureId: fixture.id, autoFilledSlots: (managedSide === "home" ? home : away).autoFilledSlots, live: true, facts: null };
           continue;
         }
 
@@ -642,7 +645,12 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
           managedSide === null ? undefined : assistantChoices(managedSide, matchSeed),
         );
         if (managedSide !== null) {
-          managed = { fixtureId: fixture.id, autoFilledSlots: (managedSide === "home" ? home : away).autoFilledSlots, live: false };
+          managed = {
+            fixtureId: fixture.id,
+            autoFilledSlots: (managedSide === "home" ? home : away).autoFilledSlots,
+            live: false,
+            facts: matchFacts(result, managedSide, false),
+          };
         }
         finished.push({
           fixtureId: fixture.id,
@@ -687,6 +695,13 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
   // at its end (advanceLiveMatch).
   if (summary?.managed?.live === false) {
     await countManagedMatch(prisma, "simulated");
+    // The day's mission (src/db/missions.ts), from what the match written says: nothing of it played again.
+    const { facts } = summary.managed;
+    await recordMissionMoves(prisma, saveId, {
+      match: facts === null ? null : { facts, date: summary.date },
+      substitution: false,
+      instruction: false,
+    });
   }
   return summary;
 }

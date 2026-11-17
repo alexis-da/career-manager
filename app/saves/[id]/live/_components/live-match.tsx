@@ -454,7 +454,7 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
 
       <div className="space-y-5 max-lg:px-4">
         {/* The final whistle: what comes next, and why to come back. */}
-        {over && sessionEnd !== null && <SessionEndCard saveId={saveId} appointment={sessionEnd.appointment} word={sessionEnd.word} />}
+        {over && sessionEnd !== null && <SessionEndCard saveId={saveId} appointment={sessionEnd.appointment} word={sessionEnd.word} mission={sessionEnd.mission} />}
         {kicks.length > 0 && clockDone && <LiveShootout taken={taken} />}
 
         <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-5">

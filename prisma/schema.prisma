@@ -103,6 +103,7 @@ model User {
   days             UserDay[]
   challengeEntries ChallengeEntry[]
   resumeLinks      ResumeLink[]
+  missions         DailyMission[]
 
   @@index([createdAt]) // les nouveaux joueurs d'une période (/admin)
 }
@@ -132,6 +133,26 @@ model UserDay {
 
   @@id([userId, day])
   @@index([day]) // les joueurs actifs d'un jour (/admin)
+}
+
+// La mission du jour d'un joueur (src/db/missions.ts) : une par jour UTC, tirée du jour et du joueur
+// (src/lib/missions.ts), la même dans toutes ses carrières sauf celles du défi ; écrite quand elle est montrée ou qu'elle
+// avance, avec sa progression et, une fois accomplie, la série qu'elle fait. Rien du jeu ne la lit. Supprimée avec
+// l'utilisateur.
+model DailyMission {
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  day         DateTime    @db.Date // jour UTC
+  kind        MissionKind
+  target      Int // fois où son action doit avoir lieu
+  progress    Int         @default(0) // jamais au-delà de target
+  createdAt   DateTime    @default(now()) // proposée : montrée, ou avancée avant d'être montrée
+  completedAt DateTime? // à l'horloge de la base ; null tant qu'elle n'est pas accomplie
+  streak      Int? // jours d'affilée avec une mission accomplie, celle-ci comprise ; null tant qu'elle ne l'est pas
+  best        Int? // le record du joueur à son accomplissement, celle-ci comprise
+
+  @@id([userId, day])
+  @@index([day]) // les missions d'une période et les séries en cours (/admin)
 }
 
 // Premières visites des pages publiques (proxy.ts, src/db/visits.ts) : des totaux par jour UTC, source et page
@@ -744,4 +765,17 @@ enum ObjectiveOutcome {
   EXCEEDED
   ACHIEVED
   MISSED
+}
+
+/// Les missions du jour (src/lib/missions.ts, MISSION_KINDS) : celles d'un match en direct d'abord. Un nom est gardé avec
+/// chaque mission : ne jamais en renommer un.
+enum MissionKind {
+  PLAY_LIVE
+  LIVE_SUBSTITUTION
+  LIVE_INSTRUCTION
+  LIVE_WIN
+  WIN
+  CLEAN_SHEET
+  PLAY_MATCHES
+  START_YOUTH
 }

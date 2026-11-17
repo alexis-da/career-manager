@@ -15,6 +15,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
   const day = (date: string) => new Date(`1999-03-${date}T00:00:00.000Z`);
   const NOW = at("10T12:00:00.000");
   const MB = 1024 * 1024;
+  // Each test reads /admin once or twice: a fraction of a second alone, more beside the other database tests.
+  const READING_MS = 30_000;
   const DAYS = ["02", "03", "05", "06", "08", "09", "10"].map(day);
 
   const users = [
@@ -127,6 +129,28 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
         cleanupPass("10T04:18:00.000", false, 600, 300),
       ],
     });
+    // Missions: a's on the 2nd (before the seven days), 5th, 6th, 9th (not done) and 10th; b's on the 9th, a third day in a
+    // row. On the 10th, a's streak of today and b's of yesterday run on.
+    const mission = (user: string, date: string, kind: "PLAY_LIVE" | "LIVE_WIN" | "WIN" | "CLEAN_SHEET" | "PLAY_MATCHES", streak: number | null, best: number | null) => ({
+      userId: id(user),
+      day: day(date),
+      kind,
+      target: kind === "PLAY_MATCHES" ? 3 : 1,
+      progress: streak === null ? 0 : kind === "PLAY_MATCHES" ? 3 : 1,
+      completedAt: streak === null ? null : at(`${date}T20:00:00.000`),
+      streak,
+      best,
+    });
+    await prisma.dailyMission.createMany({
+      data: [
+        mission("a", "02", "LIVE_WIN", 1, 1),
+        mission("a", "05", "PLAY_LIVE", 1, 1),
+        mission("a", "06", "WIN", 2, 2),
+        mission("a", "09", "CLEAN_SHEET", null, null),
+        mission("a", "10", "PLAY_MATCHES", 1, 2),
+        mission("b", "09", "WIN", 3, 3),
+      ],
+    });
     // Resume links: two of a's in the seven days, the first used the next day; one of b's on the 1st, used on the 5th.
     await prisma.resumeLink.createMany({
       data: [
@@ -181,7 +205,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     // The 9th: its next day, the 10th, is today, not over.
     expect(ninth).toMatchObject({ visits: 6, players: 1, day1: null, active: 1, databaseBytes: 103 * MB, growth: null });
     expect(tenth).toMatchObject({ databaseBytes: 104 * MB, growth: MB, purgedUsers: 2, purgedSaves: 3, purgedChallengeSaves: 0 });
-  });
+  }, READING_MS);
 
   it("follows each source from its visits to its players' first career, first match and season's end, the unknown last", async () => {
     const { db, dashboard } = loaded();
@@ -206,7 +230,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     expect(sources[2]).toMatchObject({ visits: 0, players: 1, careers: 0, medianMinutesToFirstMatch: null, live: { part: 0, whole: 1 } });
     expect(total).toMatchObject({ visits: 20, players: 3, careers: 2, firstMatches: 2, seasonEnds: 1, medianMinutesToFirstMatch: 20 });
     expect(players).toEqual({ anonymous: 2, registered: 1, fr: 1, en: 1, phone: 1, computer: 1 });
-  });
+  }, READING_MS);
 
   it("shares out the players who played a match live among those created since live matches are tracked", async () => {
     const { db, dashboard } = loaded();
@@ -219,7 +243,31 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     expect(week.total.live).toEqual({ part: 1, whole: 3 });
     // d, on the 2nd, came before the tracking: in the thirty days, but not in the share.
     expect(month.total).toMatchObject({ players: 4, live: { part: 1, whole: 3 } });
-  });
+  }, READING_MS);
+
+  it("counts the period's missions, proposed and completed mission by mission, and the streaks running today", async () => {
+    const { db, dashboard } = loaded();
+
+    const week = await dashboard.getAdminDashboard(db, NOW, 7);
+    const month = await dashboard.getAdminDashboard(db, NOW, 30);
+
+    expect(week.missions).toMatchObject({ proposed: 5, completed: 4, record: 3 });
+    expect(week.missions.byKind.filter((row) => row.proposed > 0)).toEqual([
+      { kind: "PLAY_LIVE", proposed: 1, completed: 1 },
+      { kind: "WIN", proposed: 2, completed: 2 },
+      { kind: "CLEAN_SHEET", proposed: 1, completed: 0 },
+      { kind: "PLAY_MATCHES", proposed: 1, completed: 1 },
+    ]);
+    // Every mission, in the catalogue's order.
+    expect(week.missions.byKind.map((row) => row.kind)).toEqual(["PLAY_LIVE", "LIVE_SUBSTITUTION", "LIVE_INSTRUCTION", "LIVE_WIN", "WIN", "CLEAN_SHEET", "PLAY_MATCHES", "START_YOUTH"]);
+    // a's streak of today, 1 day; b's of yesterday, 3.
+    expect(week.missions.streaks).toEqual([
+      { days: 1, players: 1 },
+      { days: 3, players: 1 },
+    ]);
+    // The 2nd's mission is in the thirty days.
+    expect(month.missions).toMatchObject({ proposed: 6, completed: 5 });
+  }, READING_MS);
 
   it("counts the period's resume links: created, for how many players, and used", async () => {
     const { db, dashboard } = loaded();
@@ -230,7 +278,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     // a's two links; a's first and b's, created on the 1st, used in the seven days.
     expect(week.resumeLinks).toEqual({ created: 2, creators: 1, used: 2 });
     expect(month.resumeLinks).toEqual({ created: 3, creators: 2, used: 2 });
-  });
+  }, READING_MS);
 
   it("measures the storage's growth over the last seven days of snapshots, its cost and the weight a new player adds", async () => {
     const { db, dashboard } = loaded();
@@ -250,7 +298,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     expect(health.projectedBytes).toBeCloseTo(health.databaseBytes + (30 * 4 * MB) / 7);
     expect(health.costAlert).toBe((health.projectedCost ?? 0) > 5);
     expect(challenge).toBeNull();
-  });
+  }, READING_MS);
 
   it("covers thirty days, today included", async () => {
     const { db, dashboard } = loaded();
@@ -261,7 +309,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     expect(days).toHaveLength(30);
     // The player of the 2nd and the visits of that day are in it now.
     expect(total).toMatchObject({ visits: 70, players: 4 });
-  });
+  }, READING_MS);
 
   it("lists the event cleanup's passes of the period, the latest first, with what each deleted and left", async () => {
     const { db, dashboard } = loaded();
@@ -287,7 +335,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     ]);
     // The pass of the 3rd, before the seven days, is in the thirty.
     expect(month.health.cleanup.map((pass) => pass.at)).toEqual(["1999-03-10T04:18:00.000Z", "1999-03-10T04:17:30.000Z", "1999-03-03T04:17:00.000Z"]);
-  });
+  }, READING_MS);
 
   it("lists the archive task's passes of the period, the latest first, with what each archived, deleted and left", async () => {
     const { db, dashboard } = loaded();
@@ -323,5 +371,5 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     ]);
     // The count of the 2nd, before the seven days, is in the thirty.
     expect(month.health.archive.map((pass) => pass.mode)).toEqual(["delete", "archive", "count"]);
-  });
+  }, READING_MS);
 });

@@ -105,6 +105,26 @@ vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
         players: { anonymous: 11, registered: 1, fr: 5, en: 5, phone: 6, computer: 4 },
         challenge: { weekKey: "2026-W45", saves: 12, entries: 14, submitted: 0, maxSaves: 20 },
         resumeLinks: { created: 9, creators: 4, used: 2 },
+        // Missions: 12 proposed, 5 completed; three streaks running, two of a day and one of 4.
+        missions: {
+          proposed: 12,
+          completed: 5,
+          byKind: [
+            { kind: "PLAY_LIVE", proposed: 5, completed: 3 },
+            { kind: "LIVE_SUBSTITUTION", proposed: 0, completed: 0 },
+            { kind: "LIVE_INSTRUCTION", proposed: 1, completed: 0 },
+            { kind: "LIVE_WIN", proposed: 2, completed: 0 },
+            { kind: "WIN", proposed: 1, completed: 1 },
+            { kind: "CLEAN_SHEET", proposed: 1, completed: 0 },
+            { kind: "PLAY_MATCHES", proposed: 2, completed: 1 },
+            { kind: "START_YOUTH", proposed: 0, completed: 0 },
+          ],
+          streaks: [
+            { days: 1, players: 2 },
+            { days: 4, players: 1 },
+          ],
+          record: 6,
+        },
         // The production database of 9 November: 1 062 Mo in a day, 46 new players the day before.
         health: {
           databaseBytes: 1339.1 * MB,
@@ -230,6 +250,14 @@ describe("the administrator's dashboard", () => {
       ">En direct</th>",
       "Liens de reprise",
       "pour 4 joueurs · 2 utilisés",
+      // The daily missions: proposed, completed and their share, the streaks running by length, the record.
+      ">Missions du jour</h2>",
+      "42 % des proposées",
+      "la plus longue : 4 jours",
+      "Longueurs : 1 jour × 2 · 4 jours × 1",
+      "6 jours",
+      "Match en direct",
+      "Jeune titulaire",
       "depuis l&#x27;écran d&#x27;accueil, un par session",
       "La plus récente · 07/11 à 22:05 UTC",
       "ChunkLoadError: Loading chunk 7 failed.",
@@ -310,6 +338,9 @@ describe("the administrator's dashboard", () => {
     expect(markup).toMatch(/data-testid="admin-live-players"(?:(?!<\/div>).)*>30 %<\/p>/);
     expect(markup).toMatch(/data-live="2\/7"[^>]*><span[^>]*>29 %<\/span><span[^>]*>2\/7<\/span>/);
     expect(markup).toMatch(/data-testid="admin-resume-links"(?:(?!<\/div>).)*>9<\/p>/);
+    expect(markup).toMatch(/data-testid="admin-missions-streaks"(?:(?!<\/div>).)*>3<\/p>/);
+    // Each mission's completed share of its proposed: 3 of 5 live matches.
+    expect(markup).toMatch(/data-kind="PLAY_LIVE"(?:(?!<\/tr>).)*>60 %<\/span><span[^>]*>3\/5<\/span>/);
     // Before the tracking, a day's visits are not known.
     expect(markup).toMatch(/data-day="2026-11-06"[^>]*><td[^>]*>06\/11<\/td><td[^>]*>—<\/td>/);
   });
@@ -350,6 +381,11 @@ describe("the administrator's dashboard", () => {
       "3 of 10 new players since 06/11",
       "Resume links",
       "for 4 players · 2 used",
+      ">Daily missions</h2>",
+      "42% of proposed",
+      "the longest: 4 days",
+      "Lengths: 1 day × 2 · 4 days × 1",
+      "Live match",
       "The latest · 07/11 at 22:05 UTC",
       "Browser · error · /fr",
       "Other errors (past 200 groups in the day)",

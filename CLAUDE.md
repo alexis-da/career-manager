@@ -341,6 +341,34 @@ JJ/MM » et le lien du classement ; sur toute autre partie, la même carte prés
 Accueil des parties : encart « Défi de la semaine » et marque « Défi » sur une partie de défi ; dans une partie, l'onglet
 Défi de l'entrée Club (règle « Club »), où mènent les liens de la carte, quelle que soit la partie ouverte.
 
+**Mission du jour (chantier « missions », 17/11).** Une mission par joueur et par jour UTC, la même dans toutes ses
+carrières sauf celles du défi, accomplie dans n'importe laquelle : `DailyMission` (migration d'ajout `…_daily_missions`,
+type `MissionKind`, clé `(userId, day)`, supprimée avec son utilisateur ; à la connexion Google, `moveMissions` la donne au
+compte, un jour qu'il a gardant la sienne sauf si seule celle de l'anonyme est accomplie, puis refait ses séries). Tirée du
+jour et du joueur seulement (`dailyMissionKind`, `src/lib/missions.ts`, pur : `MISSION_WEIGHTS`, 55 % des jours aux missions
+d'un match en direct, jamais celle de la veille), parmi huit (`MISSION_KINDS`, gardées par leur nom : **ne jamais en
+renommer une**) : jouer son prochain match en direct, y faire un changement ou changer de consigne (à une pause, dans
+Coaching), gagner un match en direct, gagner un match, garder sa cage inviolée, jouer 3 matchs, titulariser un joueur de 21
+ans ou moins à la date du match (`YOUTH_MAX_AGE`). Ni recrue, ni vente, ni prolongation : le mercato est fermé la plupart des
+jours. **Aucune récompense qui change le jeu, aucune simulation de plus** : la progression est marquée au moment du pas,
+**après** la transaction de `playNextMatchday` (le match simulé, `MatchdaySummary.managed.facts`, `matchFacts`) ou
+d'`advanceLiveMatch` (le changement ou la consigne du joueur à cette pause, le match à sa fin), par `recordMissionMoves`
+(`src/db/missions.ts`) : une requête lit le jour, à l'horloge de la base, et la mission ; rien n'est écrit quand le pas ne
+l'avance pas ; les dates de naissance des titulaires ne sont lues que pour la mission des jeunes ; un échec est journalisé,
+jamais lancé : il coûte un pas, jamais le match. Accomplie : `completedAt` à l'horloge de la base, `streak` (jours
+d'affilée, celle-ci comprise) et `best` (le record), d'après la dernière accomplie avant elle (`streakAfter`) ; une série vit
+tant que sa dernière mission est d'aujourd'hui ou d'hier (`streakOn`), un jour manqué la remet à zéro. Proposée quand elle
+est montrée (`getDailyMission`, `INSERT … ON CONFLICT DO NOTHING`), ou avancée avant. Écrans : la carte sous le héros de
+l'Accueil (`DailyMissionCard`, `daily-mission`, `data-kind`, `data-completed`, toute la largeur, après les premières
+actions d'une nouvelle partie) : son icône en SVG, la mission et comment la faire, l'avancement (`mission-progress`), la
+série (`mission-streak`, « 3 jours d'affilée ») ou ce qu'elle deviendra (`mission-streak-line` : passer à N, ou « Ta
+dernière série a duré 4 jours. Celle-ci en lance une nouvelle. », jamais un reproche) ; accomplie, « Mission accomplie »,
+« Demain : nouvelle mission », « C'est ton record. » ; pour la mission des jeunes, le lien de la composition
+(`mission-lineup`) ; aucune action orange. Rappelée dans la carte « À demain » (`DailyMissionLine`,
+`session-end-mission`) ; la série et le record dans Club → Réglages (`settings-streak`, `getMissionStreak`, qui ne propose
+rien). Rien dans une partie de défi : ni carte, ni ligne, ni réglage, et ses pas ne comptent pas. Zone de messages
+`missions`. `e2e/missions.spec.ts` : une mission faite par un match en direct à 390 px, celle des jeunes en anglais à 1280 px.
+
 **Navigation d'une partie.** Cinq entrées, dans `SECTIONS` (`app/saves/[id]/_lib/sections.ts`, pur et testé) : Accueil ·
 Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
 `nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement et Coupe
@@ -392,7 +420,8 @@ complet » ; l'offre et le point faible seulement après le premier match du clu
 (`LastMatchCard`, après le premier match seulement, avec le mot de l'adjoint après une défaite) et la carte du défi. **Avant
 le premier match du club** (chantier « première session », 12/11) : ses trois premières actions dans leur propre panneau
 juste sous le héros, à toutes les largeurs (`FirstActionsPanel`, `dashboard-first-steps`), aucune bulle ni carte du
-dernier match. Dans le navigateur d'une appli, l'avis des navigateurs intégrés en tête (règle « Navigateurs intégrés et
+dernier match. Juste après (le héros, ou ce panneau quand il y est), toute la largeur : la mission du jour (règle « Mission
+du jour »), sauf dans une partie de défi. Dans le navigateur d'une appli, l'avis des navigateurs intégrés en tête (règle « Navigateurs intégrés et
 lien de reprise »). Aucune offre hors mercato ni avant le premier match (`getMarketSales` non lu), le point faible n'est
 jamais une alerte. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
 couvre l'écran à 390 et 1280 px.
@@ -489,7 +518,8 @@ lui-même** (retours du 05/11). **Carte « À demain »** (`SessionEndCard`, `se
 le dialogue) : le mot de l'adjoint après une défaite, le prochain match du club (`getNextAppointment`,
 `src/db/next-appointment.ts`, lecture seule ; le direct en cours écarté) et son enjeu lu au classement (`stakeOf`,
 `src/lib/session-end.ts`, pur : coupe, premier match de championnat, concurrent direct à 3 points, places qu'une victoire
-peut faire gagner, sinon le rang de l'adversaire), « Préparer ce match », les jours qui restent au défi de la semaine (et
+peut faire gagner, sinon le rang de l'adversaire), « Préparer ce match », la mission du jour telle que ce match la laisse
+(`DailyMissionLine`, règle « Mission du jour »), les jours qui restent au défi de la semaine (et
 où en est une partie de défi), « Installer l'appli » (`InstallAppLink`, hors navigateur intégré et appli installée) ;
 seulement des liens, l'orange reste celui de l'écran. Aucune simulation de plus : une lecture par fin de direct ou de
 simulation. Carte de pause (`BreakCard`, `break-card`, `data-break`) : à la mi-temps et à la fin du
@@ -743,7 +773,8 @@ entraîneur ; tant que le choix est ouvert, les trois propositions et « Choisir
 saison) ; défi sur le bleu vif (où en est le joueur, tête du classement à partir de `lg`, « Voir le défi », seul
 orange plein de l'écran) ; les trois dernières saisons, et, à partir de `lg`, l'aperçu de la dernière carte et ses boutons
 (`HonoursCardActions` ne les monte pas en dessous : un téléphone ne télécharge pas le PNG) ; Réglages (`ClubSettings` :
-langue, compte, parties utilisées sur la limite, changer de partie, confidentialité). Défi (`/saves/[id]/challenge`) : l'écran
+langue, compte, parties utilisées sur la limite, changer de partie, série des missions du jour et record hors partie de défi,
+confidentialité). Défi (`/saves/[id]/challenge`) : l'écran
 de la page publique (`ChallengeScreen`, `app/challenge/_components`), quelle que soit la partie ouverte. Tête sur le bleu vif
 (semaine et fin, `formatParisWeekdayTime`), carte « Ta partie » (`ownChallenge`, pur : journées, score une fois soumis et
 reprise, « Jouer le défi », ou pourquoi pas ; aucun score provisoire, le jeu ne l'écrit qu'à la 10e journée, jamais de
@@ -980,7 +1011,9 @@ le direct », en tuile et par source, colonne masquée sous 640 px : la part des
 `firstLiveMatchAt` de tous, `liveTrackedSince`, qui ont joué un match en direct jusqu'au bout), Rétention
 (J+1 et J+7 par jour de création et par source, sur les jours dont le retour est passé), Activité (joueurs actifs par jour
 depuis `UserDay`, matchs du jour, défi de la semaine, lancements de l'appli installée ; liens de reprise de la période,
-créés, pour combien de joueurs, et utilisés, lus dans `ResumeLink`, ceux d'un joueur purgé partis avec lui), Erreurs (règle « Erreurs du jeu »), Santé
+créés, pour combien de joueurs, et utilisés, lus dans `ResumeLink`, ceux d'un joueur purgé partis avec lui), Missions du
+jour (`MissionsSection`, `MissionFigures` : proposées et accomplies sur la période, mission par mission ; séries en cours,
+celles dont la dernière mission accomplie est d'aujourd'hui ou d'hier, par longueur ; record de la période), Erreurs (règle « Erreurs du jeu »), Santé
 (`storageHealth`, pure : taille, croissance sur les 7 derniers jours de relevés, coût de stockage estimé sur l'offre Launch
 de Neon, taille × 0,35 $ le Go par mois, `STORAGE_PRICE_PER_GB_MONTH`, et sa projection à 30 jours à ce rythme, en
 alerte au-delà de 5 $ par mois, `STORAGE_COST_ALERT_DOLLARS` ; poids par nouveau joueur, la croissance divisée par les
@@ -1046,7 +1079,7 @@ d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4. 
   noms, assemblés par `src/i18n/messages/index.ts` (`ZONES`, puis les deux objets) : `public` (connexion, défi, 404,
   sélecteur), `home` (accueil, création, compte, limites), `world` (compétitions, pays, nationalités), `catalogs` (postes, tours,
   a.p./t.a.b., événements, lettres de résultat), `header` (en-tête, navigation, actions de jeu, simulation), `dashboard`,
-  `dashboard-hero` (héros de l'Accueil), `dashboard-todo` (« À faire »), `onboarding` (premières actions, bulles),
+  `dashboard-hero` (héros de l'Accueil), `dashboard-todo` (« À faire »), `onboarding` (premières actions, bulles), `missions` (mission du jour, série),
   `challenge-banner` (carte du défi), `squad` (effectif), `player-sheet` (fiche joueur, contrats), `lineup`,
   `market` (Acheter, confirmation), `market-sell` (Vendre), `transfers` (marché avancé), `fixtures` (calendrier,
   feuille de match), `standings` (classement), `seasons` (palmarès, bilan, carte), `cup` (coupe), `club` (écran Club,
@@ -1212,6 +1245,7 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # home.spec.ts : l'accueil, le choix du club et les pages hors partie ;
                       # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone ;
+                      # missions.spec.ts : la mission du jour faite en direct, sa série, celle des jeunes en anglais ;
                       # objectives.spec.ts : une fin de saison, la nouvelle dotation et le choix d'un objectif ;
                       # season-card-share.spec.ts : la carte d'une saison partagée en image, ou enregistrée ;
                       # install.spec.ts : le manifeste, le service worker, le bouton d'installation et les lancements ;

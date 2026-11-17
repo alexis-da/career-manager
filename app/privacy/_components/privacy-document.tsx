@@ -54,7 +54,9 @@ function FrenchPrivacy() {
             et ton identifiant Google, ainsi qu&apos;un cookie de session pour rester connecté.
           </li>
           <li>
-            <strong>Les données de jeu</strong> : tes parties, tes choix et leurs résultats.
+            <strong>Les données de jeu</strong> : tes parties, tes choix et leurs résultats ; avec ton profil de joueur,
+            tes missions du jour (la mission de chaque jour, son avancement, le moment où tu l&apos;as accomplie) et ta
+            série de jours d&apos;affilée.
           </li>
           <li>
             <strong>Si tu joues le défi de la semaine</strong> : ton score de la semaine. Connecté avec Google, ton
@@ -149,7 +151,7 @@ function FrenchPrivacy() {
             Late Winner is run by Alexis Da Cruz (<Contact />). It uses a technical cookie, lw_uid (a random id, one
             year), to link your saves to your browser, and the fingerprint of any resume link you ask for (seven days,
             used once); if you sign in with Google, your email address, name, profile
-            picture and Google id, and a session cookie; your game data; and the date of your last visit and the days
+            picture and Google id, and a session cookie; your game data, your daily missions and your streak among them; and the date of your last visit and the days
             you visited, to measure how many players come back. A first-party audience cookie, lw_src (30 days), keeps
             where your first visit came from (a link&apos;s campaign such as ?ref=…, else the referring site&apos;s
             domain, never its address, else “direct”) and the page you landed on; when your player profile is created,
@@ -217,7 +219,8 @@ function EnglishPrivacy() {
             and your Google identifier, as well as a session cookie to keep you signed in.
           </li>
           <li>
-            <strong>Game data</strong>: your careers, your choices and their results.
+            <strong>Game data</strong>: your careers, your choices and their results; with your player profile, your daily
+            missions (each day&apos;s mission, its progress, when you completed it) and your streak of days in a row.
           </li>
           <li>
             <strong>If you play the weekly challenge</strong>: your score for the week. Signed in with Google, your first

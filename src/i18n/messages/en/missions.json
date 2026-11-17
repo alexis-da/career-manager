@@ -1,0 +1,46 @@
+{
+  "missions": {
+    "title": "Daily mission",
+    "kinds": {
+      "PLAY_LIVE": "Play your next match live",
+      "LIVE_SUBSTITUTION": "Make a substitution during a live match",
+      "LIVE_INSTRUCTION": "Change your instruction during a live match",
+      "LIVE_WIN": "Win a match live",
+      "WIN": "Win a match",
+      "CLEAN_SHEET": "Keep a clean sheet",
+      "PLAY_MATCHES": "Play {target, plural, one {# match} other {# matches}}",
+      "START_YOUTH": "Start a player aged 21 or under"
+    },
+    "how": {
+      "PLAY_LIVE": "Follow it to the final whistle, even sped up.",
+      "LIVE_SUBSTITUTION": "At half-time, open Coaching and bring on a substitute.",
+      "LIVE_INSTRUCTION": "At half-time, open Coaching and pick another instruction.",
+      "LIVE_WIN": "Live to the end: a win on penalties counts too.",
+      "WIN": "Live or simulated, in the league or the cup.",
+      "CLEAN_SHEET": "A match without conceding: the Sit back instruction can help.",
+      "PLAY_MATCHES": "Live or simulated, any competition.",
+      "START_YOUTH": "Put him in your eleven, then play the match."
+    },
+    "progress": "{progress}/{target}",
+    "progressLabel": "Progress: {progress} of {target}",
+    "done": "Mission complete",
+    "tomorrow": "Tomorrow: a new mission",
+    "streak": "{count, plural, one {# day in a row} other {# days in a row}}",
+    "keepGoing": "Complete it to make it {next, plural, one {# day} other {# days}}.",
+    "start": "Complete it to start your streak.",
+    "restart": "Your last streak lasted {count, plural, one {# day} other {# days}}. This one starts a new one.",
+    "isRecord": "That's your record.",
+    "record": "Record: {count, plural, one {# day} other {# days}}",
+    "lineup": "Open the line-up",
+    "settings": {
+      "title": "Daily missions",
+      "none": "No streak running: the daily mission on Home starts one.",
+      "record": "Record: {count, plural, =0 {not yet} one {# day} other {# days}}"
+    },
+    "sessionEnd": {
+      "todo": "Daily mission: {mission}",
+      "done": "Daily mission complete",
+      "tomorrow": "Tomorrow: a new mission"
+    }
+  }
+}

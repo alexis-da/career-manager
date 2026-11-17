@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import Link from "@/src/components/link";
 import { Panel, PanelTitle } from "@/src/components/panel";
+import type { DailyMissionView } from "@/src/db/missions";
 import type { NextAppointment } from "@/src/db/next-appointment";
 import { competitionName } from "@/src/i18n/countries";
 import type { Translator } from "@/src/i18n/translator";
@@ -12,6 +13,7 @@ import { cn } from "@/src/lib/utils";
 import { InstallAppLink } from "../club/_components/install-app";
 import { stageLabel } from "../_lib/stage";
 import { AssistantWordLine } from "./assistant-word";
+import { DailyMissionLine } from "./daily-mission";
 
 /** A way on from the card: 44 px high on a phone, never a full orange (the screen keeps its own). */
 const CARD_LINK = "text-sm font-semibold text-(--club) hover:text-(--club-hover) max-sm:inline-flex max-sm:min-h-11 max-sm:items-center";
@@ -36,16 +38,18 @@ type SessionEndCardProps = {
   saveId: string;
   appointment: NextAppointment;
   word: AssistantWord | null; // after a defeat only
+  mission?: DailyMissionView | null; // the day's, none in a challenge save
   onNavigate?: () => void; // a link followed: the simulation's dialog closes
   className?: string;
 };
 
 /**
  * « À demain », after a live match and at the end of a simulation: the assistant's word after a defeat, the next match
- * and what it is worth, the week's challenge while it runs, and the installable game (never in an app's browser, nor once
- * installed). Reasons to come back, nothing to do now: links only, the screen's orange stays its own.
+ * and what it is worth, the day's mission (done: tomorrow's), the week's challenge while it runs, and the installable game
+ * (never in an app's browser, nor once installed). Reasons to come back, nothing to do now: links only, the screen's
+ * orange stays its own.
  */
-export function SessionEndCard({ saveId, appointment, word, onNavigate, className }: SessionEndCardProps) {
+export function SessionEndCard({ saveId, appointment, word, mission = null, onNavigate, className }: SessionEndCardProps) {
   const t = useTranslations("sessionEnd");
   const tWorld = useTranslations("world");
   const tStage = useTranslations("stage");
@@ -74,6 +78,7 @@ export function SessionEndCard({ saveId, appointment, word, onNavigate, classNam
           </Link>
         </div>
       )}
+      {mission !== null && <DailyMissionLine mission={mission} />}
       {challenge !== null && (
         <Link href={`/saves/${saveId}/challenge`} onClick={onNavigate} data-testid="session-end-challenge" className={CARD_LINK}>
           {challenge.own === null

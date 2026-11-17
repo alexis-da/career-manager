@@ -1,0 +1,46 @@
+{
+  "missions": {
+    "title": "Mission du jour",
+    "kinds": {
+      "PLAY_LIVE": "Joue ton prochain match en direct",
+      "LIVE_SUBSTITUTION": "Fais un changement pendant un match en direct",
+      "LIVE_INSTRUCTION": "Change de consigne pendant un match en direct",
+      "LIVE_WIN": "Gagne un match en direct",
+      "WIN": "Gagne un match",
+      "CLEAN_SHEET": "Garde ta cage inviolée",
+      "PLAY_MATCHES": "Joue {target, plural, one {# match} other {# matchs}}",
+      "START_YOUTH": "Titularise un joueur de 21 ans ou moins"
+    },
+    "how": {
+      "PLAY_LIVE": "Suis-le jusqu'au coup de sifflet final, même en accéléré.",
+      "LIVE_SUBSTITUTION": "À la mi-temps, ouvre Coaching et fais entrer un remplaçant.",
+      "LIVE_INSTRUCTION": "À la mi-temps, ouvre Coaching et choisis une autre consigne.",
+      "LIVE_WIN": "En direct jusqu'au bout : une victoire aux tirs au but compte aussi.",
+      "WIN": "En direct ou simulé, en championnat comme en coupe.",
+      "CLEAN_SHEET": "Un match sans encaisser de but : la consigne Fermer peut aider.",
+      "PLAY_MATCHES": "En direct ou simulés, toutes compétitions.",
+      "START_YOUTH": "Place-le dans ton onze, puis joue le match."
+    },
+    "progress": "{progress}/{target}",
+    "progressLabel": "Avancement : {progress} sur {target}",
+    "done": "Mission accomplie",
+    "tomorrow": "Demain : nouvelle mission",
+    "streak": "{count, plural, one {# jour d'affilée} other {# jours d'affilée}}",
+    "keepGoing": "Accomplis-la pour passer à {next, plural, one {# jour} other {# jours}}.",
+    "start": "Accomplis-la pour lancer ta série.",
+    "restart": "Ta dernière série a duré {count, plural, one {# jour} other {# jours}}. Celle-ci en lance une nouvelle.",
+    "isRecord": "C'est ton record.",
+    "record": "Record : {count, plural, one {# jour} other {# jours}}",
+    "lineup": "Ouvrir la composition",
+    "settings": {
+      "title": "Missions du jour",
+      "none": "Pas de série en cours : la mission du jour de l'Accueil en lance une.",
+      "record": "Record : {count, plural, =0 {pas encore} one {# jour} other {# jours}}"
+    },
+    "sessionEnd": {
+      "todo": "Mission du jour : {mission}",
+      "done": "Mission du jour accomplie",
+      "tomorrow": "Demain : nouvelle mission"
+    }
+  }
+}

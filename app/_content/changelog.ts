@@ -21,6 +21,25 @@ export const CHANGELOG_LABELS = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-17",
+    fr: {
+      title: "Une mission chaque jour, et ta série",
+      items: [
+        "Chaque jour, une mission t'attend sur l'Accueil, sous ton prochain match : joue un match en direct, fais un changement ou change de consigne pendant le direct, gagne un match, garde ta cage inviolée, joue trois matchs, titularise un jeune. Elle se fait en une courte session, dans n'importe laquelle de tes carrières, et sa progression s'affiche au fil de tes matchs.",
+        "Une mission accomplie allonge ta série de jours d'affilée ; ton record est gardé dans Club, Réglages. Un jour sans mission ? Ta série repart de zéro, et la suivante en lance une nouvelle. La carte « À demain » te rappelle ta mission après chaque match.",
+        "Les missions ne changent rien à ton jeu : ni budget, ni joueur, ni bonus de match. Pas de mission dans les parties du défi de la semaine.",
+      ],
+    },
+    en: {
+      title: "A mission every day, and your streak",
+      items: [
+        "Every day, a mission waits for you on Home, under your next match: play a match live, make a substitution or change your instruction during a live match, win a match, keep a clean sheet, play three matches, start a youngster. It takes a short session, in any of your careers, and its progress shows as you play your matches.",
+        "A completed mission makes your streak of days in a row one longer; your record is kept in Club, Settings. A day without a mission? Your streak starts again from zero, and the next one starts a new one. The “See you tomorrow” card reminds you of your mission after every match.",
+        "Missions change nothing in your game: no budget, no player, no match bonus. No mission in the weekly challenge's careers.",
+      ],
+    },
+  },
+  {
     date: "2026-11-12",
     fr: {
       title: "Un début plus doux, et ta carrière dans ton navigateur",

@@ -22,6 +22,7 @@ import enLineupPlan from "./en/lineup-plan.json";
 import enLive from "./en/live.json";
 import enMarket from "./en/market.json";
 import enMarketSell from "./en/market-sell.json";
+import enMissions from "./en/missions.json";
 import enObjectives from "./en/objectives.json";
 import enOnboarding from "./en/onboarding.json";
 import enPlayerSheet from "./en/player-sheet.json";
@@ -57,6 +58,7 @@ import frLineupPlan from "./fr/lineup-plan.json";
 import frLive from "./fr/live.json";
 import frMarket from "./fr/market.json";
 import frMarketSell from "./fr/market-sell.json";
+import frMissions from "./fr/missions.json";
 import frObjectives from "./fr/objectives.json";
 import frOnboarding from "./fr/onboarding.json";
 import frPlayerSheet from "./fr/player-sheet.json";
@@ -90,6 +92,7 @@ export const ZONES = {
   "dashboard-hero": { fr: frDashboardHero, en: enDashboardHero },
   "dashboard-todo": { fr: frDashboardTodo, en: enDashboardTodo },
   onboarding: { fr: frOnboarding, en: enOnboarding },
+  missions: { fr: frMissions, en: enMissions },
   "challenge-banner": { fr: frChallengeBanner, en: enChallengeBanner },
   squad: { fr: frSquad, en: enSquad },
   "player-sheet": { fr: frPlayerSheet, en: enPlayerSheet },
@@ -128,6 +131,7 @@ const fr = {
   ...frDashboardHero,
   ...frDashboardTodo,
   ...frOnboarding,
+  ...frMissions,
   ...frChallengeBanner,
   ...frSquad,
   ...frPlayerSheet,
@@ -171,6 +175,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enDashboardHero,
     ...enDashboardTodo,
     ...enOnboarding,
+    ...enMissions,
     ...enChallengeBanner,
     ...enSquad,
     ...enPlayerSheet,

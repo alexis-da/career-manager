@@ -4,6 +4,7 @@ import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { getChallengeBanner } from "@/src/db/challenge-view";
 import { getDashboard } from "@/src/db/dashboard";
 import { getManagedLineup } from "@/src/db/lineup";
+import { getDailyMission } from "@/src/db/missions";
 import { getMarketSales } from "@/src/db/market-sales";
 import { getSeasonObjectives } from "@/src/db/objectives";
 import { getOpponentPreview } from "@/src/db/opponent";
@@ -16,6 +17,7 @@ import { DashboardObjectives } from "./_components/dashboard-objectives";
 import { DashboardPills, DashboardTiles } from "./_components/dashboard-summary";
 import { DashboardTable } from "./_components/dashboard-table";
 import { DashboardTodo } from "./_components/dashboard-todo";
+import { DailyMissionCard } from "./_components/daily-mission";
 import { FirstActionsPanel, FirstStepTip, getFirstSteps } from "./_components/first-steps";
 import { NextMatchHero } from "./_components/next-match-hero";
 import { showsFirstActions, showsTip } from "./_lib/first-steps";
@@ -35,15 +37,18 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   await requireOwnedSave(id);
   const t = await getTranslations("dashboard");
   const tGame = await getTranslations("gameActions");
-  const [dashboard, lineup, opponent, user, challenge, firstSteps, objectives] = await Promise.all([
+  // Not simulation code: whether the challenge is over, and the day of the player's mission, are real time.
+  const now = new Date();
+  const [dashboard, lineup, opponent, user, challenge, firstSteps, objectives, mission] = await Promise.all([
     getDashboard(id),
     getManagedLineup(id),
     getOpponentPreview(id),
     getCurrentUser(),
-    // Not simulation code: whether the challenge is over is real time.
-    getChallengeBanner(id, new Date()),
+    getChallengeBanner(id, now),
     getFirstSteps(id),
     getSeasonObjectives(id),
+    // The day's mission, proposed the first time it is shown; none in a challenge save.
+    getDailyMission(id, now),
   ]);
   // Only an anonymous player's save is at risk: it lives in this browser's cookie.
   const askToSignIn = user?.kind === "ANONYMOUS" && (await hasPlayedMatch(id));
@@ -70,8 +75,9 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
       {/* One column the screen's width under lg (minmax(0, 1fr)): never as wide as its widest content. The small table last
           on a phone, beside the hero from xl, in the first row's last cell whatever comes between them in the page,
           the sidebar leaving no room for it before. A new save's first actions right under the hero, at every width,
-          until the club's first match; its last match's card from then on. The season's objectives under the tiles,
-          across the page: none in a save from before them. */}
+          until the club's first match; its last match's card from then on. The day's mission right after them, across
+          the page: none in a challenge save. The season's objectives under the tiles, across the page: none in a save from
+          before them. */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 xl:grid-cols-3">
         <NextMatchHero
           saveId={id}
@@ -88,6 +94,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             className={WIDE}
           />
         )}
+        {mission !== null && <DailyMissionCard saveId={id} mission={mission} className={WIDE} />}
         <DashboardTable
           saveId={id}
           dashboard={dashboard}

@@ -399,6 +399,69 @@ export function ActivitySection({ dashboard, t, format }: SectionProps) {
   );
 }
 
+/**
+ * The daily missions: proposed and completed over the period, mission by mission; the streaks running today, by length,
+ * and the longest a mission of the period made.
+ */
+export function MissionsSection({ dashboard, t, format }: SectionProps) {
+  const { missions } = dashboard;
+  const running = missions.streaks.reduce((sum, streak) => sum + streak.players, 0);
+  const longest = Math.max(0, ...missions.streaks.map((streak) => streak.days));
+  const share = format.percent(missions.completed, missions.proposed);
+  return (
+    <Section id="missions" title={t("missions.title")} note={t("missions.note")}>
+      <Tiles>
+        <Tile label={t("missions.proposed")} value={format.integer(missions.proposed)} testId="admin-missions-proposed" />
+        <Tile
+          label={t("missions.completed")}
+          value={format.integer(missions.completed)}
+          detail={share === null ? null : t("missions.completedShare", { share })}
+          testId="admin-missions-completed"
+        />
+        <Tile
+          label={t("missions.streaks")}
+          value={format.integer(running)}
+          detail={t("missions.longest", { days: longest })}
+          testId="admin-missions-streaks"
+        />
+        <Tile
+          label={t("missions.record")}
+          value={missions.record === 0 ? "—" : t("missions.recordDays", { days: missions.record })}
+          detail={t("missions.recordDetail")}
+          testId="admin-missions-record"
+        />
+      </Tiles>
+      <p className="text-sm" data-testid="admin-missions-lengths">
+        {running === 0
+          ? t("missions.noStreak")
+          : t("missions.lengths", {
+              lengths: missions.streaks.map((streak) => t("missions.length", { days: streak.days, players: streak.players })).join(" · "),
+            })}
+      </p>
+      <Table data-testid="admin-missions-kinds">
+        <TableHeader>
+          <TableRow className="border-border hover:bg-transparent">
+            <TableHead className={HEAD}>{t("missions.columns.mission")}</TableHead>
+            <TableHead className={HEAD_NUMBER}>{t("missions.columns.proposed")}</TableHead>
+            <TableHead className={HEAD_NUMBER}>{t("missions.columns.completed")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {missions.byKind.map((row) => (
+            <TableRow key={row.kind} data-kind={row.kind} className={TABLE_ROW}>
+              <TableCell className={cn(TABLE_CELL, TIGHT, "py-2 break-words whitespace-normal")}>{t(`missions.kinds.${row.kind}`)}</TableCell>
+              <TableCell className={NUMBER}>{format.integer(row.proposed)}</TableCell>
+              <TableCell className={cn(NUMBER, "py-1.5")}>
+                <ShareCell share={{ part: row.completed, whole: row.proposed }} format={format} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Section>
+  );
+}
+
 export function HealthSection({ dashboard, t, format, statsLink }: SectionProps & { statsLink: ReactNode }) {
   const { health, days } = dashboard;
   const purged = days.reduce(
