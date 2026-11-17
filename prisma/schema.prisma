@@ -18,8 +18,8 @@ model Competition {
   code          String          @unique // code OpenFootball, ex. "en.1"
   name          String
   country       String
-  tier          Int             @default(1) // 1 ou 2 pour un championnat, 0 pour une coupe
-  kind          CompetitionKind @default(LEAGUE) // championnat ou coupe nationale ("xx.cup") : les lecteurs de championnat filtrent LEAGUE
+  tier          Int             @default(1) // 1 ou 2 pour un championnat, 0 pour une coupe ou une compétition européenne
+  kind          CompetitionKind @default(LEAGUE) // championnat, coupe nationale ("xx.cup") ou compétition européenne ("eu.1", "eu.2") : les lecteurs de championnat filtrent LEAGUE
   clubs         Club[]
   clubSaves     ClubSave[]
   seasons       Season[]
@@ -359,6 +359,7 @@ model Season {
   startYear     Int // 2026 pour la saison 2026/27
   completed     Boolean             @default(false)
   movements     Json? // montées et descentes à la fin de la saison, clubs quittant cette compétition (src/db/promotion.ts, validé par Zod) ; null dans une partie worldVersion 1 et pour une saison en cours
+  entrants      Json? // une saison européenne : ses clubs, leur chemin, leur rang, leur chapeau et leur réputation à l'ouverture (src/db/europe.ts, validé par Zod) ; null ailleurs
   fixtures      Fixture[]
   stats         PlayerSeasonStats[]
   results       SeasonResult[] // au plus une : @@unique([saveId, seasonId])
@@ -477,6 +478,8 @@ model PlayerSave {
   suspendedMatches       Int                 @default(0) // après un rouge : les prochains matchs officiels du club, toute compétition
   suspendedLeagueMatches Int                 @default(0) // après 5 jaunes en championnat : ses prochains matchs de championnat
   suspendedCupMatches    Int                 @default(0) // après 5 jaunes en coupe : ses prochains matchs de coupe
+  europeYellows          Int                 @default(0) // 3 suspendent pour le prochain match européen
+  suspendedEuropeMatches Int                 @default(0) // après 3 jaunes en Europe : ses prochains matchs européens
   marketValue            Int                 @default(0) // euros
   wage                   Int                 @default(0) // euros par saison
   contractUntil          DateTime?
@@ -634,8 +637,10 @@ model SeasonResult {
   lost               Int
   goalsFor           Int
   goalsAgainst       Int
-  trophies           String[] // « champion » si rank = 1, « cup » pour la coupe gagnée
+  trophies           String[] // « champion » si rank = 1, « cup » pour la coupe gagnée, « europe » pour une compétition européenne gagnée
   cupRound           Int? // dernier tour de coupe joué (1 préliminaire … 6 finale) ; null sans coupe cette saison
+  europeCode         String? // la compétition européenne jouée cette saison (« eu.1 », « eu.2 ») ; null sans Europe
+  europeStage        Int? // le tour européen atteint : 1 phase de ligue, 2 barrages, 3 quarts, 4 demi-finale, 5 finale ; null sans Europe
   promoted           Boolean     @default(false) // monté en première division à la fin de la saison ; false pour une ligne reconstruite
   relegated          Boolean     @default(false) // descendu en deuxième division à la fin de la saison ; false pour une ligne reconstruite
   bestPlayerKey      String? // PlayerSave.playerKey ; null si aucun joueur n'a joué BEST_PLAYER_MIN_APPEARANCES matchs
@@ -825,6 +830,7 @@ enum ChoiceOption {
 enum CompetitionKind {
   LEAGUE
   CUP
+  EUROPE // les deux compétitions européennes (« eu.1 », « eu.2 »), parties worldVersion 2 seulement
 }
 
 enum DecidedBy {
@@ -861,6 +867,7 @@ enum ObjectiveKind {
   ENTERTAINMENT
   SOLIDITY
   FINANCES
+  EUROPE // imposé au club dirigé qualifié pour une compétition européenne ; ajouté en dernier (ALTER TYPE … ADD VALUE)
 }
 
 /// L'issue d'un objectif à la fin de la saison.

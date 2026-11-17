@@ -3,7 +3,16 @@ import { computeStandings } from "../../src/engine/standings";
 import { seasonLabel } from "../../src/engine/world";
 import type { PrismaClient } from "../../src/generated/prisma/client";
 import { DEFAULT_CLUB_COLORS, readClubColors, type ClubColors } from "./colors";
-import { COMPETITIONS, CUP_TIER, CUPS, type SeedCompetition, type SeedCup } from "./competitions";
+import {
+  COMPETITIONS,
+  CUP_TIER,
+  CUPS,
+  EUROPE_TIER,
+  EUROPEAN_COMPETITIONS,
+  type SeedCompetition,
+  type SeedCup,
+  type SeedEuropeanCompetition,
+} from "./competitions";
 import {
   extractClubs,
   extractScores,
@@ -90,6 +99,7 @@ export async function seedWorld(
   plan: CompetitionPlan[] = buildWorldPlan(),
   freeAgents: SeedPlayer[] = generateFreeAgentPool(NAME_BANK),
   cups: readonly SeedCup[] = CUPS,
+  europeanCompetitions: readonly SeedEuropeanCompetition[] = EUROPEAN_COMPETITIONS,
 ): Promise<SeedSummary> {
   const competitions: SeedSummary["competitions"] = [];
   const plannedPlayers: PlayerData[] = [];
@@ -128,6 +138,10 @@ export async function seedWorld(
 
   for (const { code, name, country } of cups) {
     const data = { name, country, tier: CUP_TIER, kind: "CUP" as const };
+    await prisma.competition.upsert({ where: { code }, update: data, create: { code, ...data } });
+  }
+  for (const { code, name, country } of europeanCompetitions) {
+    const data = { name, country, tier: EUROPE_TIER, kind: "EUROPE" as const };
     await prisma.competition.upsert({ where: { code }, update: data, create: { code, ...data } });
   }
 

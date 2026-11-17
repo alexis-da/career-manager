@@ -36,3 +36,18 @@ export const CUPS: readonly SeedCup[] = [
   { code: "it.cup", name: "Italie — Coupe", country: "Italie" },
   { code: "fr.cup", name: "France — Coupe", country: "France" },
 ];
+
+export type SeedEuropeanCompetition = {
+  code: string; // "eu.1", "eu.2": no OpenFootball file, its clubs qualify and its matches are drawn in the game (src/engine/europe.ts)
+  name: string; // invented, neutral: never a licensed competition's name
+  country: string;
+};
+
+// The European competitions of worldVersion 2 saves (docs/design/europe.md): the Coupe des Lauriers for the best clubs
+// of each country, the Coupe des Fanions for the next ones. Competition.kind EUROPE, tier 0: no reader of the leagues
+// ever takes them for a division, and no club belongs to them (Club.competitionId stays its league).
+export const EUROPE_TIER = 0;
+export const EUROPEAN_COMPETITIONS: readonly SeedEuropeanCompetition[] = [
+  { code: "eu.1", name: "Coupe des Lauriers", country: "Europe" },
+  { code: "eu.2", name: "Coupe des Fanions", country: "Europe" },
+];

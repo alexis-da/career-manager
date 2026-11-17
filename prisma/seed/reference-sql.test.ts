@@ -1,11 +1,17 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CUPS } from "./competitions";
-import { nationalCupsMigrationSql, referenceInsertSql, secondDivisionsMigrationSql } from "./reference-sql";
+import { CUPS, EUROPEAN_COMPETITIONS } from "./competitions";
+import {
+  europeanCompetitionsMigrationSql,
+  nationalCupsMigrationSql,
+  referenceInsertSql,
+  secondDivisionsMigrationSql,
+} from "./reference-sql";
 import { buildWorldPlan } from "./seed";
 
 const MIGRATION = new URL("../migrations/20261023120000_second_divisions/migration.sql", import.meta.url);
 const CUPS_MIGRATION = new URL("../migrations/20261024124148_national_cups/migration.sql", import.meta.url);
+const EUROPE_MIGRATION = new URL("../migrations/20261117180001_european_competitions/migration.sql", import.meta.url);
 
 describe("reference data migrations", () => {
   it("commits the second divisions' migration exactly as the generator writes it from the seed's plan", () => {
@@ -21,6 +27,14 @@ describe("reference data migrations", () => {
     expect(committed).toBe(nationalCupsMigrationSql(CUPS));
     expect(committed).toContain("('fr.cup', 'France — Coupe', 'France', 0)");
     expect(committed).toContain('ON CONFLICT ("code") DO NOTHING');
+  });
+
+  it("commits the European competitions' migration exactly as the generator writes it from the seed", () => {
+    const committed = readFileSync(EUROPE_MIGRATION, "utf8").replace(/\r\n/g, "\n");
+
+    expect(committed).toBe(europeanCompetitionsMigrationSql(EUROPEAN_COMPETITIONS));
+    expect(committed).toContain("('eu.1', 'Coupe des Lauriers', 'Europe', 0)");
+    expect(committed).toContain("'EUROPE'::\"CompetitionKind\"");
   });
 
   it("inserts each row on its natural key, doing nothing for a row already there, with quotes doubled", () => {
