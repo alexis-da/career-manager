@@ -206,6 +206,7 @@ export type SaveScreen =
   | "fixtures"
   | "standings"
   | "cup"
+  | "europe"
   | "transfers"
   | "advanced"
   | "club"
@@ -220,6 +221,7 @@ const ENTRY_OF_TAB: Partial<Record<SaveScreen, "team" | "match" | "club">> = {
   fixtures: "match",
   standings: "match",
   cup: "match",
+  europe: "match",
   challenge: "club",
   seasons: "club",
   rewards: "club",

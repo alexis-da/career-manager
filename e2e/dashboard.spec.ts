@@ -149,15 +149,17 @@ test("sets the season's objectives out, the optional one still to choose, and th
   const objectives = page.getByTestId("dashboard-objectives");
   await expect(objectives.getByRole("heading")).toHaveText("Objectifs");
 
-  // Imposed by the board, too early to tell before a ball is kicked (OBJECTIVES_JUDGED_FROM_MATCH): the league, then
-  // France's cup.
+  // Imposed by the board, too early to tell before a ball is kicked (OBJECTIVES_JUDGED_FROM_MATCH): the league, France's
+  // cup, then the Pennant Cup, which Lyon plays from its first season.
   const imposed = objectives.locator("[data-objective]");
-  await expect(imposed).toHaveCount(2);
+  await expect(imposed).toHaveCount(3);
   await expect(imposed.nth(0)).toHaveAttribute("data-objective", "RANKING");
   await expect(imposed.nth(1)).toHaveAttribute("data-objective", "CUP");
   await expect(imposed.nth(1)).toContainText(/Atteindre les (seizièmes|huitièmes|quarts) de finale/);
+  await expect(imposed.nth(2)).toHaveAttribute("data-objective", "EUROPE");
+  await expect(imposed.nth(2)).toContainText(/Atteindre (les barrages|les quarts de finale|les demi-finales) en Europe/);
   const statuses = objectives.getByTestId("objective-status");
-  await expect(statuses).toHaveText(["Trop tôt pour juger", "Trop tôt pour juger"]);
+  await expect(statuses).toHaveText(["Trop tôt pour juger", "Trop tôt pour juger", "Trop tôt pour juger"]);
   for (const status of await statuses.all()) {
     await expect(status).toHaveAttribute("data-status", "TOO_EARLY");
   }
@@ -266,7 +268,7 @@ test.describe("on a phone, in English", () => {
     // thumb high.
     const objectives = page.getByTestId("dashboard-objectives");
     await expect(objectives.getByRole("heading")).toHaveText("Objectives");
-    await expect(objectives.getByTestId("objective-status")).toHaveText(["Too early to tell", "Too early to tell"]);
+    await expect(objectives.getByTestId("objective-status")).toHaveText(["Too early to tell", "Too early to tell", "Too early to tell"]);
     await expect(objectives.getByTestId("dashboard-objectives-choose")).toContainText("Choose your objective for the season");
     await expect(objectives.getByTestId("dashboard-confidence").locator("dt")).toHaveText("Chairman's confidence");
     for (const link of ["dashboard-objectives-choose", "dashboard-objectives-detail"]) {
@@ -350,18 +352,18 @@ test("plays the match from the hero, offers only to resume it at the break, then
   await expect(page.getByTestId("dashboard-points")).toContainText(/\d/);
   await expect(page.getByTestId("dashboard-form").locator("span[title]")).toHaveCount(1);
 
-  // The optional objective chosen by kick-off, by the assistant when the player made no choice: three objectives, the
-  // choice closed, the league's judged on the club's place now.
+  // The optional objective chosen by kick-off, by the assistant when the player made no choice: four objectives with the
+  // Pennant Cup's, the choice closed, the league's judged on the club's place now.
   const objectives = page.getByTestId("dashboard-objectives");
   const inPlay = objectives.locator("[data-objective]");
-  await expect(inPlay).toHaveCount(3);
-  await expect(inPlay.nth(2)).toHaveAttribute("data-objective", /^(YOUTH|ENTERTAINMENT|SOLIDITY|FINANCES)$/);
+  await expect(inPlay).toHaveCount(4);
+  await expect(inPlay.nth(3)).toHaveAttribute("data-objective", /^(YOUTH|ENTERTAINMENT|SOLIDITY|FINANCES)$/);
   await expect(objectives.getByTestId("dashboard-objectives-choose")).toHaveCount(0);
   // The assistant's pick said, while it is too early to judge; the president's confidence held at the season's opening
-  // value, the chosen objective counted on track: 50 + 5 (league) + 2 (cup) + 2 (chosen).
-  await expect(inPlay.nth(2).getByTestId("objective-by-assistant")).toHaveText("Choisi par l'adjoint");
+  // value, the chosen objective counted on track: 50 + 5 (league) + 2 (cup) + 2 (Europe) + 2 (chosen).
+  await expect(inPlay.nth(3).getByTestId("objective-by-assistant")).toHaveText("Choisi par l'adjoint");
   await expect(objectives.getByTestId("dashboard-objectives-assistant")).toContainText("ton adjoint a pris");
-  await expect(objectives.getByTestId("dashboard-confidence").locator("dd")).toHaveText("59 · Il te laisse le temps de démarrer");
+  await expect(objectives.getByTestId("dashboard-confidence").locator("dd")).toHaveText("61 · Il te laisse le temps de démarrer");
   await expect(objectives.locator('[data-objective="RANKING"]').getByTestId("objective-current")).toHaveText(/^\d+(er|e) actuellement$/);
 
   await lastResult.getByTestId("dashboard-match-report").click();
@@ -421,9 +423,9 @@ test("leads only to the next season once this one is over, with no offer to show
 
   // Every objective has its outcome, and the card counts those met.
   const objectives = page.getByTestId("dashboard-objectives");
-  await expect(objectives.getByTestId("dashboard-objectives-met")).toHaveText(/^Saison terminée : \d objectifs? atteints? sur 3$/);
+  await expect(objectives.getByTestId("dashboard-objectives-met")).toHaveText(/^Saison terminée : \d objectifs? atteints? sur 4$/);
   const outcomes = objectives.getByTestId("objective-status");
-  await expect(outcomes).toHaveCount(3);
+  await expect(outcomes).toHaveCount(4);
   for (const outcome of await outcomes.all()) {
     await expect(outcome).toHaveAttribute("data-status", /^(ACHIEVED|EXCEEDED|MISSED)$/);
   }

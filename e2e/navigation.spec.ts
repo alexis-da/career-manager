@@ -36,7 +36,7 @@ type Stop = {
   tab?: string; // data-testid of its tab, under an entry that has several
 };
 
-const STOPS: Record<Exclude<SaveScreen, "cup">, Stop> = {
+const STOPS: Record<Exclude<SaveScreen, "cup" | "europe">, Stop> = {
   dashboard: { path: "", title: "dashboard-title", entry: "nav-dashboard" },
   squad: { path: "/squad", title: "squad-title", entry: "nav-team", tab: "nav-squad" },
   lineup: { path: "/lineup", title: "lineup-title", entry: "nav-team", tab: "nav-lineup" },
@@ -98,7 +98,8 @@ async function expectNavigationOn(page: Page, saveId: string, stop: Stop, labels
   await expect(nav.locator('[data-testid^="nav-"]')).toHaveText(labels.entries);
   await expect(nav.locator('[aria-current="page"]')).toHaveAttribute("data-testid", stop.entry);
 
-  // Tabs in the page under an entry that has several, none elsewhere; a save without a cup has no « Coupe » among them.
+  // Tabs in the page under an entry that has several, none elsewhere; a save without a cup nor Europe (a worldVersion 1
+  // save) has neither « Coupe » nor « Europe » among them.
   if (stop.tab === undefined) {
     await expect(page.getByTestId("section-tabs")).toHaveCount(0);
   } else {
@@ -109,6 +110,7 @@ async function expectNavigationOn(page: Page, saveId: string, stop: Stop, labels
     await expect(tab).toHaveText(labels.tabs[stop.tab]);
   }
   await expect(page.getByTestId("nav-cup")).toHaveCount(0);
+  await expect(page.getByTestId("nav-europe")).toHaveCount(0);
 }
 
 /**

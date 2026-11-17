@@ -1,7 +1,7 @@
 /**
  * Weight of a career, table by table (npm run measure:weight -- [--seasons=3] [--seed=S] [--club=slug] [--out=file]
- * [--keep] [--vacuum-every=N] [--archive]): creates a worldVersion 2 save on the local database (the demo club and seed unless told otherwise, cups
- * as the game gives them) and plays N complete seasons (default 3), the assistant deciding everything, the managed
+ * [--keep] [--vacuum-every=N] [--archive] [--no-europe]): creates a worldVersion 2 save on the local database (the demo club and seed unless told otherwise, cups
+ * and European competitions as the game gives them, without the European ones at any season with --no-europe, to compare) and plays N complete seasons (default 3), the assistant deciding everything, the managed
  * club's contracts included (assistantContracts), each followed by advanceToNextSeason. At the creation and after each
  * season's transition, it prints each table's rows, data, indexes and TOAST, the real size (pg_total_relation_size,
  * after a VACUUM ANALYZE: what the database keeps, the space updates left reusable included) and the compact one
@@ -66,6 +66,7 @@ function parseArgs(argv: readonly string[]) {
     out: value("out"),
     keep: argv.includes("--keep"),
     archive: argv.includes("--archive"),
+    europe: !argv.includes("--no-europe"),
     vacuumEvery,
   };
 }
@@ -247,7 +248,7 @@ function printGrowth(snapshots: readonly Snapshot[]): void {
 }
 
 async function main(): Promise<void> {
-  const { seasons, seed, club, out, keep, archive, vacuumEvery } = parseArgs(process.argv.slice(2));
+  const { seasons, seed, club, out, keep, archive, europe, vacuumEvery } = parseArgs(process.argv.slice(2));
   // The client already refuses any database but a local one, ALLOW_REMOTE_DB=1 aside: this script writes, so it refuses
   // even that.
   const url = process.env.DATABASE_URL ?? "";
@@ -260,7 +261,7 @@ async function main(): Promise<void> {
   const vacuum = vacuumEvery === 0 ? "sans VACUUM pendant la saison" : `VACUUM toutes les ${vacuumEvery} journées`;
   const archiving = archive ? ", saisons terminées archivées et leurs lignes supprimées après chaque passage" : "";
   console.log(
-    `# Poids d'une carrière : base ${new URL(url).pathname.slice(1)} (locale), graine ${seed}, club ${club}, ${seasons} saison(s), ${vacuum}${archiving}`,
+    `# Poids d'une carrière : base ${new URL(url).pathname.slice(1)} (locale), graine ${seed}, club ${club}, ${seasons} saison(s), ${vacuum}${archiving}${europe ? "" : ", sans compétitions européennes"}`,
   );
   const started = performance.now();
   await prisma.user.deleteMany({ where: { id: OWNER } });
@@ -274,6 +275,7 @@ async function main(): Promise<void> {
     seed,
     ownerId: OWNER,
     worldVersion: 2,
+    europe,
   });
   const snapshots = [await snapshot(saveId, "Création", 0, started)];
   for (let season = 1; season <= seasons; season++) {
@@ -284,7 +286,7 @@ async function main(): Promise<void> {
         await prisma.$executeRawUnsafe(`VACUUM ${VACUUMED_TABLES.map((table) => `"${table}"`).join(", ")}`);
       }
     }
-    await advanceToNextSeason(saveId, { assistantContracts: true });
+    await advanceToNextSeason(saveId, { assistantContracts: true, ...(europe ? {} : { europe: false as const }) });
     if (archive) {
       await archiveSeasons(saveId);
     }

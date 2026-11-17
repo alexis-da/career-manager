@@ -80,6 +80,16 @@ async function expectThumbTargets(page: Page): Promise<void> {
 /** An amount of the dotation, as formatMoney writes it in French: « 42 M€ », « 850 k€ », « 0 € ». */
 const AMOUNT = /^\d+(,\d)? [Mk]?€$/;
 
+/** An amount as the screens write it in French, in euros: « 45,6 M€ » is 45 600 000, « 800 k€ » 800 000. */
+function eurosOf(text: string): number {
+  const match = /^(\d+)(?:,(\d))?\s*([Mk]?)€$/.exec(text.replace(/\s+/g, " ").trim());
+  if (match === null) {
+    throw new Error(`not an amount: ${text}`);
+  }
+  const value = Number(`${match[1]}.${match[2] ?? "0"}`);
+  return Math.round(value * (match[3] === "M" ? 1_000_000 : match[3] === "k" ? 1_000 : 1));
+}
+
 /** A line of the dotation, by its test id: its label (and its detail under it), then its amount. */
 async function expectDotationLine(dotation: Locator, testId: string, label: RegExp | string, amount: RegExp | string): Promise<void> {
   const line = dotation.getByTestId(testId);
@@ -600,8 +610,12 @@ test.describe("a Google account's Lyon", () => {
     await openSave(page, "/club");
     const dotation = page.getByTestId("club-finances").getByTestId("club-dotation");
     await expect(dotation.getByRole("heading")).toHaveText("Saison 2026-27");
-    // Nothing bought or sold yet: the budget it has.
-    await expectDotationLine(dotation, "club-dotation-start", "Budget de départ", await textOf(page.getByTestId("club-budget")));
+    // Nothing bought or sold yet: the budget it has, but the participation prize of the Pennant Cup, which Lyon plays from
+    // its first season, credited after the board's dotation (EUROPE_PRIZES: €1.5m).
+    await expectDotationLine(dotation, "club-dotation-start", "Budget de départ", AMOUNT);
+    const start = eurosOf(await textOf(dotation.getByTestId("club-dotation-start").locator("dd")));
+    const budget = eurosOf(await textOf(page.getByTestId("club-budget")));
+    expect(Math.abs(budget - start - 1_500_000)).toBeLessThanOrEqual(100_000);
     await expectDotationLine(dotation, "club-dotation-wage-budget", "Plafond salarial", AMOUNT);
     for (const detail of ["club-dotation-base", "club-dotation-objectives", "club-dotation-carry-over", "club-dotation-total"]) {
       await expect(dotation.getByTestId(detail)).toHaveCount(0);
@@ -621,11 +635,11 @@ test.describe("a Google account's Lyon", () => {
     await expect(objectives.getByRole("heading", { level: 2 })).toHaveText("Objectifs du président");
     await expect(objectives).toContainText("Saison 2026-27");
 
-    // Imposed by the board, too early to tell before a ball is kicked: the league, then France's cup, each with what
-    // exceeds it.
+    // Imposed by the board, too early to tell before a ball is kicked: the league, France's cup, then the Pennant Cup, each
+    // with what exceeds it.
     const imposed = objectives.locator("[data-objective]");
-    await expect(imposed).toHaveCount(2);
-    const [ranking, cup] = [imposed.nth(0), imposed.nth(1)];
+    await expect(imposed).toHaveCount(3);
+    const [ranking, cup, europe] = [imposed.nth(0), imposed.nth(1), imposed.nth(2)];
     await expect(ranking).toHaveAttribute("data-objective", "RANKING");
     await expect(ranking).toContainText("Classement · Imposé par la direction");
     await expect(ranking).toContainText(/Dépassé (avec le titre|en finissant \d+(er|e) ou mieux)/);
@@ -633,7 +647,11 @@ test.describe("a Google account's Lyon", () => {
     await expect(cup).toContainText("Coupe · Imposé par la direction");
     await expect(cup).toContainText(/Atteindre les (seizièmes|huitièmes|quarts) de finale/);
     await expect(cup).toContainText(/Dépassé en atteignant (les|la) /);
-    await expect(objectives.getByTestId("objective-status")).toHaveText(["Trop tôt pour juger", "Trop tôt pour juger"]);
+    await expect(europe).toHaveAttribute("data-objective", "EUROPE");
+    await expect(europe).toContainText("Europe · Imposé par la direction");
+    await expect(europe).toContainText(/Atteindre (les barrages|les quarts de finale|les demi-finales) en Europe/);
+    await expect(europe).toContainText(/Dépassé en atteignant (les|la|le) /);
+    await expect(objectives.getByTestId("objective-status")).toHaveText(["Trop tôt pour juger", "Trop tôt pour juger", "Trop tôt pour juger"]);
 
     // Three of the four optional objectives, what each asks, the assistant's pick if the player makes none (Jeunesse, or
     // Spectacle when Jeunesse is not proposed), and the way to the choice, on the season's start screen.

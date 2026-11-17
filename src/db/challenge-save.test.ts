@@ -68,6 +68,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a challenge save, in th
       clubSaves: [{ clubId: challenge.clubId }],
     });
     expect(await db.season.count({ where: { saveId: challengeSaveId, competition: { kind: "CUP" } } })).toBe(5);
+    // Never a European competition in a challenge save (docs/design/europe.md): its weeks stay the same for everyone.
+    expect(await db.season.count({ where: { saveId: challengeSaveId, competition: { kind: "EUROPE" } } })).toBe(0);
     expect(await db.challengeEntry.findUnique({ where: { saveId: challengeSaveId } })).toMatchObject({
       challengeId,
       userId: player,

@@ -1,9 +1,10 @@
 import "dotenv/config";
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { CUP_ROUNDS, PROMOTION_RELEGATION, WAGE_BUDGET_MARGIN } from "../engine/balance";
+import { CUP_ROUNDS, EUROPE_PRIZES, PROMOTION_RELEGATION, WAGE_BUDGET_MARGIN } from "../engine/balance";
 import { cupDates, cupRunOf, type CupRun } from "../engine/cup";
 import { clubFinances, managedWageMargin, seasonFinances, type ClubFinances } from "../engine/economy";
+import { europeDates } from "../engine/europe";
 import { budgetCoefficient, divisionOf, rankingObjective, rankingOutcome, type ObjectiveOutcome } from "../engine/objectives";
 import type { MoveReason } from "../engine/promotion";
 import { reputationAfterSeason, reputationRanks } from "../engine/reputation";
@@ -20,12 +21,13 @@ const CUP_SIZES: Record<string, number> = { "de.cup": 36, "en.cup": 44, "es.cup"
 const PRELIMINARY_TIES: Record<string, number> = { "de.cup": 4, "en.cup": 12, "es.cup": 10, "fr.cup": 4, "it.cup": 8 };
 
 /**
- * Every league score of the demo save's first season until the eve of the first cup round, 570 matches, as a digest:
- * taken on a twin without the cups (createSave with cups false), and taken again whenever the engine changes the
- * matches. The cups change nothing before their first tie (later, their matches change form, fitness and injuries, so
- * the league goes its own way).
+ * Every league score of the demo save's first season until the eve of the first European date (16 September), 471
+ * matches, as a digest: taken on a twin without the cups nor the European competitions (createSave with cups and europe
+ * false), and taken again whenever the engine changes the matches. Neither changes anything before its first match
+ * (later, their matches change form, fitness and injuries, so the league goes its own way). Without the European
+ * competitions, the league until the eve of the first cup round, 570 matches, is 05d947bd…ccf93b77 (17/11).
  */
-const LEAGUE_DIGEST_BEFORE_CUP = "05d947bd3dd298cd887b81d821dc024a110d693b95095ae59d3e7699ccf93b77";
+const LEAGUE_DIGEST_BEFORE_EUROPE = "61a7e49caa63ddd758d44e1c7ceff1a65508a959dd2f5ee8535f52ffe2a1ee35";
 
 /** Clubs of each competition of a worldVersion 2 save: they never change, promotions and relegations included. */
 const DIVISION_SIZES: Record<string, number> = {
@@ -64,6 +66,8 @@ type TransitionCheck = {
   payrollsBefore: Map<string, number>; // by Club.id, at the end of the season closed
   financesAfter: Map<string, ClubFinances>;
   saleFees: Map<string, number>; // budget change by Club.id from the preseason's AI sales for wage bills
+  europeBonus: Map<string, number>; // what the closing season's European runs add to each club's reputation target, by Club.id
+  participation: Map<string, number>; // the next season's European participation prize, credited at its opening, by Club.id
   cups: CupCheck[]; // the closing season's cups, read before the move
   managedRun: CupRun | null; // the managed club's cup run, from those ties
   seasonResult: { cupRound: number | null; trophies: string[] } | null; // as advanceToNextSeason wrote it
@@ -173,6 +177,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     support: typeof import("./test-support"),
     standings: typeof import("./standings"),
     season: typeof import("./season"),
+    europe: typeof import("./europe"),
     startYear: number,
   ): Promise<{ matchdays: number; check: TransitionCheck }> => {
     const db = database();
@@ -195,8 +200,23 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     }
     const financesBefore = await financesOf(saveId);
     const payrollsBefore = await payrollsOf(saveId);
+    // The closing season's European runs, by club row, then by Club.id: what they add to the reputation targets.
+    const europeSeasons = await db.season.findMany({ where: { saveId, startYear, competition: { kind: "EUROPE" } }, select: { id: true } });
+    const bonuses = await europe.europeReputationBonuses(db, saveId, europeSeasons.map((row) => row.id));
+    const clubIdOfRow = new Map((await db.clubSave.findMany({ where: { saveId }, select: { id: true, clubId: true } })).map((row) => [row.id, row.clubId]));
+    const europeBonus = new Map([...bonuses].map(([clubSaveId, bonus]) => [clubIdOfRow.get(clubSaveId) ?? clubSaveId, bonus]));
 
     const transition = await season.advanceToNextSeason(saveId);
+    // The next season's European clubs, each paid its competition's participation at the opening.
+    const participation = new Map<string, number>();
+    for (const row of await db.season.findMany({
+      where: { saveId, startYear: startYear + 1, competition: { kind: "EUROPE" } },
+      select: { id: true, entrants: true, competition: { select: { code: true } } },
+    })) {
+      for (const entrant of europe.parseEuropeEntrants(row.id, row.entrants)) {
+        participation.set(clubIdBySlug.get(entrant.club) ?? entrant.club, EUROPE_PRIZES[europe.europeCodeOf(row.competition.code)].participation);
+      }
+    }
 
     const expected = closing
       .filter((row) => row.competition.tier === 1)
@@ -292,6 +312,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         payrollsBefore,
         financesAfter: await financesOf(saveId),
         saleFees: await saleFeesOn(seasonStartDate(startYear + 1)),
+        europeBonus,
+        participation,
         cups,
         managedRun,
         seasonResult,
@@ -372,23 +394,24 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
       .sort();
     return { played: lines.length, digest: createHash("sha256").update(lines.join("\n")).digest("hex") };
   };
-  let leagueBeforeCup = { played: 0, digest: "" };
+  let leagueBeforeEurope = { played: 0, digest: "" };
 
   beforeAll(async () => {
-    const [{ prisma }, support, standings, season] = await Promise.all([
+    const [{ prisma }, support, standings, season, europe] = await Promise.all([
       import("./client"),
       import("./test-support"),
       import("./standings"),
       import("./season"),
+      import("./europe"),
     ]);
     db = prisma;
     saveId = await support.createDemoTwin("Test saisons deux divisions", 2);
-    const first = await playAndAdvance(support, standings, season, FIRST_YEAR);
+    const first = await playAndAdvance(support, standings, season, europe, FIRST_YEAR);
     matchdays = first.matchdays;
     firstSeasonDates = (await seasonDates(saveId)).filter((row) => row.startYear === FIRST_YEAR);
-    leagueBeforeCup = await leagueDigestBefore(cupDates(FIRST_YEAR)[0]);
+    leagueBeforeEurope = await leagueDigestBefore(europeDates(FIRST_YEAR)[0]);
     checks.push(first.check);
-    checks.push((await playAndAdvance(support, standings, season, FIRST_YEAR + 1)).check);
+    checks.push((await playAndAdvance(support, standings, season, europe, FIRST_YEAR + 1)).check);
     demoId = await support.ensureDemoSave(2);
   }, 2_400_000);
 
@@ -408,13 +431,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     expect(firstSeasonDates.every((season) => season.unplayed === 0)).toBe(true);
     expect(new Set(leagues.map((season) => season.first))).toEqual(new Set(["2026-08-15T00:00:00.000Z"]));
     expect(new Set(leagues.map((season) => season.last))).toEqual(new Set(["2027-05-15T00:00:00.000Z"]));
-    // 40 Saturdays and the Tuesdays of the 46 and 42 matchday seasons, some shared, then the cups' five Wednesdays
-    // and their final: one playNextMatchday each.
-    expect(matchdays).toBe(52);
+    // 40 Saturdays and the Tuesdays of the 46 and 42 matchday seasons, some shared, the cups' five Wednesdays and their
+    // final, then the European competitions' nine Wednesdays and their finals, on 29 May: one playNextMatchday each.
+    expect(matchdays).toBe(62);
   });
 
-  it("plays the league exactly as before the cups until their first tie", () => {
-    expect(leagueBeforeCup).toEqual({ played: 570, digest: LEAGUE_DIGEST_BEFORE_CUP });
+  it("plays the league exactly as before the cups and the European competitions until their first match", () => {
+    expect(leagueBeforeEurope).toEqual({ played: 471, digest: LEAGUE_DIGEST_BEFORE_EUROPE });
   });
 
   it.each([0, 1])("plays each country's cup to the end: N − 1 ties, each with a winner, the final on its Saturday (season %i)", (index) => {
@@ -490,8 +513,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
     const managedCoefficient = budgetCoefficient({
       ranking: outcomeOf("RANKING"),
       cup: outcomeOf("CUP"),
+      europe: outcomeOf("EUROPE"),
       chosen: outcomeOf(counted.find((objective) => objective.chosen)?.kind ?? ""),
     });
+    // Some clubs' European runs raised their targets: their finalists' at least.
+    expect(check.europeBonus.size).toBeGreaterThanOrEqual(4);
     expect(check.nextObjectives).toBeGreaterThanOrEqual(4);
 
     // Each club's target, the creation's reputation at its rank in the division it plays next (a promoted club in the
@@ -520,7 +546,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
               : move.rank - (table.length - movingFrom(move.from));
         const target = clubFinances(rank, nextCount, tierOf(next)).reputation;
         targets.push({ code: next, target });
-        reputations.set(clubId, reputationAfterSeason(before(clubId).reputation, target, (move?.reason as MoveReason | undefined) ?? null));
+        // A European run raises the target, within 99 (europeReputationBonuses).
+        const raised = Math.min(99, target + (check.europeBonus.get(clubId) ?? 0));
+        reputations.set(clubId, reputationAfterSeason(before(clubId).reputation, raised, (move?.reason as MoveReason | undefined) ?? null));
         const expectedRank = expectedRanks.get(clubId) ?? NaN;
         const outcome = rankingOutcome(rankingObjective(expectedRank, division), place + 1);
         coefficients.set(clubId, clubId === check.managedClubId ? managedCoefficient : budgetCoefficient({ ranking: outcome }));
@@ -565,7 +593,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
           wageMargin: clubId === check.managedClubId ? managedWageMargin(managedCoefficient) : WAGE_BUDGET_MARGIN,
         });
         expect(check.financesAfter.get(clubId)).toEqual({
-          budget: finances.budget + (check.saleFees.get(clubId) ?? 0),
+          // The next season's European clubs have their participation prize on top, credited at the opening.
+          budget: finances.budget + (check.saleFees.get(clubId) ?? 0) + (check.participation.get(clubId) ?? 0),
           wageBudget: finances.wageBudget,
           reputation: reputations.get(clubId),
         });

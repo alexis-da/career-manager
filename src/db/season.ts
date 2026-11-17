@@ -52,6 +52,13 @@ export class SeasonNotFinishedError extends Error {
   }
 }
 
+/**
+ * A transition's options: the preseason's (assistantContracts), and `europe`, the measurement scripts' baseline only: false
+ * opens no European competition, whatever the game's rule (EUROPE_ENABLED), to weigh a save without them. Absent, the
+ * game's rule.
+ */
+export type SeasonTransitionOptions = PreseasonOptions & { europe?: false };
+
 type PlayerUpdate = PlayerAttributes & {
   playerSaveId: string;
   clubSaveId: string | null;
@@ -82,7 +89,7 @@ type PlayerUpdate = PlayerAttributes & {
  * options.assistantContracts (the measurement scripts' and tests' mode, never the game's): the assistant manages the
  * managed club's contracts, whose expired ones stay for its preseason to renew or release as an AI club's.
  */
-export async function advanceToNextSeason(saveId: string, options: PreseasonOptions = {}): Promise<SeasonTransition> {
+export async function advanceToNextSeason(saveId: string, options: SeasonTransitionOptions = {}): Promise<SeasonTransition> {
   const transition = await prisma.$transaction(
     async (tx) => {
       await assertNoMatchInProgress(tx, saveId);
@@ -286,7 +293,8 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
         : 0;
       // The European competitions of a worldVersion 2 save that had them, or of any once the game gives them, never a
       // challenge save's: the final tables and the cups' winners qualify their clubs.
-      const withEurope = worldVersion === 2 && save.challengeId === null && (EUROPE_ENABLED || europeSeasonIds.length > 0);
+      const withEurope =
+        worldVersion === 2 && save.challengeId === null && options.europe !== false && (EUROPE_ENABLED || europeSeasonIds.length > 0);
       const europeMatches = withEurope
         ? await openEurope(tx, {
             saveId,

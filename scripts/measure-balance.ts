@@ -16,8 +16,11 @@
  * they rest and the suspensions they serve, and the formations they play by division and by level (aiLineupOf: chosen
  * before each match in the managed club's country, once a month elsewhere);
  * the same leagues played on paper, squads frozen at kick-off, form at 50, each club in the formation it chooses, for what
- * a season's form, fatigue and injuries add; and, with --real-formations, the formations on real squads. Each save and its
- * throwaway owner are deleted at the end. Writes to the database: the local one only.
+ * a season's form, fatigue and injuries add; and, with --real-formations, the formations on real squads. Then the
+ * European competitions (docs/design/europe.md): the European clubs' league points on the Saturday after their European
+ * match against their other league matches, their starters' fitness at kick-off, rested starters and injuries against
+ * the other first division clubs', and the knockout ties. Each save and its throwaway owner are deleted at the end.
+ * Writes to the database: the local one only.
  */
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
@@ -70,6 +73,7 @@ import {
   type Segment,
   type Side,
 } from "../src/engine/match";
+import { europeDates, EUROPE_LEAGUE_ROUNDS } from "../src/engine/europe";
 import { positionGroup, ratingAt, secondaryPositions, type Position } from "../src/engine/positions";
 import { expectedGoals, formationStrength } from "../src/engine/strength";
 
@@ -1078,10 +1082,14 @@ function seasonRows(records: readonly LeagueRecord[]): string[][] {
 
 const mean = (values: readonly number[]): number => values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
 
+/** An AI club's season as the fatigue watch reads it: its starters' fitness at kick-off, its rested starters, its injuries. */
+type ClubWatch = { fitness: number[]; rotations: number; injuries: number };
+
 type FatigueRecord = {
   starters: number[]; // every AI starter's fitness at kick-off
   rotations: number; // AI starters rested for a fresher player, as selectRestedLineup does
   clubSeasons: number; // AI clubs' seasons
+  byClub: Map<string, ClubWatch>; // by ClubSave.id: unique across seeds
   byMonth: Map<string, number[]>;
   suspensions: { red: number; yellows: number }; // AI players' matches missed through suspension, by cause
   formations: Map<string, number>; // AI matches by « tier|level band|formation »
@@ -1116,6 +1124,14 @@ async function playSeasonWatchingFatigue(
     select: { competition: { select: { country: true } } },
   });
   const teamSelect = { id: true, isManaged: true, formation: true, formationMonth: true, competition: { select: { tier: true, country: true } } };
+  const watchOf = (clubSaveId: string): ClubWatch => {
+    let watch = fatigue.byClub.get(clubSaveId);
+    if (watch === undefined) {
+      watch = { fitness: [], rotations: 0, injuries: 0 };
+      fatigue.byClub.set(clubSaveId, watch);
+    }
+    return watch;
+  };
   for (;;) {
     const [save, next] = await Promise.all([
       prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
@@ -1133,7 +1149,13 @@ async function playSeasonWatchingFatigue(
       },
     });
     const clubs = fixtures
-      .flatMap((fixture) => [fixture.homeClubSave, fixture.awayClubSave].map((club) => ({ ...club, kind: fixture.season.competition.kind })))
+      .flatMap((fixture) =>
+        [fixture.homeClubSave, fixture.awayClubSave].map((club) => ({
+          ...club,
+          kind: fixture.season.competition.kind,
+          facesManaged: fixture.homeClubSave.isManaged || fixture.awayClubSave.isManaged,
+        })),
+      )
       .filter((club) => !club.isManaged);
     const rows = await prisma.playerSave.findMany({ where: { saveId, clubSaveId: { in: clubs.map((club) => club.id) } }, select: playerSelect });
     const days = Math.round((next.scheduledAt.getTime() - save.currentDate.getTime()) / 86_400_000);
@@ -1153,17 +1175,33 @@ async function playSeasonWatchingFatigue(
       // The formation it plays, as the matchday has it choose (aiLineupOf: before each match in the managed club's
       // country, once a month elsewhere), and its eleven in it.
       const tier = competitionTier(club.competition.tier);
-      const chosen = aiLineupOf(club, squad, managed.country, next.scheduledAt);
+      const chosen = aiLineupOf(club, squad, managed.country, next.scheduledAt, club.facesManaged);
       const key = `${tier}|${levelBand(averageStarterRating(chosen.lineup), tier)}|${chosen.formation}`;
       fatigue.formations.set(key, (fatigue.formations.get(key) ?? 0) + 1);
       const rested = chosen.lineup;
       const plain = new Set(selectLineup(squad, formationPositions(chosen.formation)).starters.map((starter) => starter.player.id));
-      fatigue.rotations += rested.starters.filter((starter) => !plain.has(starter.player.id)).length;
+      const rotations = rested.starters.filter((starter) => !plain.has(starter.player.id)).length;
+      fatigue.rotations += rotations;
       const fitness = rested.starters.map((starter) => starter.player.fitness);
       fatigue.starters.push(...fitness);
       fatigue.byMonth.set(month, [...(fatigue.byMonth.get(month) ?? []), ...fitness]);
+      const watch = watchOf(club.id);
+      watch.fitness.push(...fitness);
+      watch.rotations += rotations;
     }
     await playNextMatchday(saveId);
+    // The injuries the date gave the AI clubs' players: an injury running past it that was not there before.
+    const injuredBefore = new Map(rows.map((row) => [row.id, row.injuredUntil?.getTime() ?? 0]));
+    const after = await prisma.playerSave.findMany({
+      where: { saveId, id: { in: rows.map((row) => row.id) } },
+      select: { id: true, clubSaveId: true, injuredUntil: true },
+    });
+    for (const player of after) {
+      const until = player.injuredUntil?.getTime() ?? 0;
+      if (player.clubSaveId !== null && until > next.scheduledAt.getTime() && until !== injuredBefore.get(player.id)) {
+        watchOf(player.clubSaveId).injuries++;
+      }
+    }
   }
 }
 
@@ -1270,6 +1308,169 @@ function worldTables(records: readonly LeagueRecord[], frozen: readonly LeagueRe
   );
 }
 
+/** A seed's European season, as its tables read it. */
+type EuropeWatch = {
+  clubs: Map<string, string>; // the European AI clubs, by ClubSave.id, with their competition's code
+  others: Set<string>; // the other AI first division clubs
+  // The European clubs' league matches within four days after a European match of theirs, and their other ones.
+  afterEurope: { points: number; matches: number };
+  otherLeague: { points: number; matches: number };
+  knockout: { round: number; decidedBy: string | null; betterRankedWon: boolean }[];
+};
+
+const EUROPE_RECOVERY_DAYS = 4;
+
+/** A seed's season once played: the European clubs, their league points around their European matches, the knockout ties. */
+async function watchEurope(saveId: string, prisma: typeof import("../src/db/client").prisma): Promise<EuropeWatch> {
+  const seasons = await prisma.season.findMany({
+    where: { saveId, completed: false },
+    select: { id: true, competition: { select: { kind: true } } },
+  });
+  const ofKind = (kind: "LEAGUE" | "EUROPE"): string[] => seasons.filter((season) => season.competition.kind === kind).map((season) => season.id);
+  const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
+  const european = await prisma.fixture.findMany({
+    where: { saveId, seasonId: { in: ofKind("EUROPE") } },
+    select: {
+      round: true,
+      scheduledAt: true,
+      homeClubSaveId: true,
+      awayClubSaveId: true,
+      winnerClubSaveId: true,
+      decidedBy: true,
+      season: { select: { competition: { select: { code: true } } } },
+    },
+  });
+  const clubs = new Map<string, string>();
+  const matchTimes = new Map<string, number[]>();
+  for (const fixture of european) {
+    for (const id of [fixture.homeClubSaveId, fixture.awayClubSaveId]) {
+      if (id !== managed.id) {
+        clubs.set(id, fixture.season.competition.code);
+        matchTimes.set(id, [...(matchTimes.get(id) ?? []), fixture.scheduledAt.getTime()]);
+      }
+    }
+  }
+  const firstDivision = await prisma.clubSave.findMany({
+    where: { saveId, isManaged: false, competition: { kind: "LEAGUE", tier: 1 } },
+    select: { id: true },
+  });
+  const league = await prisma.fixture.findMany({
+    where: { saveId, seasonId: { in: ofKind("LEAGUE") }, played: true },
+    select: { scheduledAt: true, homeClubSaveId: true, awayClubSaveId: true, homeGoals: true, awayGoals: true },
+  });
+  const afterEurope = { points: 0, matches: 0 };
+  const otherLeague = { points: 0, matches: 0 };
+  for (const fixture of league) {
+    for (const [id, scored, conceded] of [
+      [fixture.homeClubSaveId, fixture.homeGoals ?? 0, fixture.awayGoals ?? 0],
+      [fixture.awayClubSaveId, fixture.awayGoals ?? 0, fixture.homeGoals ?? 0],
+    ] as const) {
+      const times = matchTimes.get(id);
+      if (times === undefined) {
+        continue;
+      }
+      const time = fixture.scheduledAt.getTime();
+      const after = times.some((european) => time > european && time - european <= EUROPE_RECOVERY_DAYS * 86_400_000);
+      const tally = after ? afterEurope : otherLeague;
+      tally.matches++;
+      tally.points += scored > conceded ? 3 : scored === conceded ? 1 : 0;
+    }
+  }
+  return {
+    clubs,
+    others: new Set(firstDivision.map((club) => club.id).filter((id) => !clubs.has(id))),
+    afterEurope,
+    otherLeague,
+    knockout: european
+      .filter((fixture) => fixture.round > EUROPE_LEAGUE_ROUNDS && fixture.winnerClubSaveId !== null)
+      .map((fixture) => ({
+        round: fixture.round,
+        decidedBy: fixture.decidedBy,
+        // The league phase's better ranked is the home club, the final's included.
+        betterRankedWon: fixture.winnerClubSaveId === fixture.homeClubSaveId,
+      })),
+  };
+}
+
+/** The European tables: league points around the European matches, fatigue, rotations and injuries, knockout ties. */
+function europeTables(watches: readonly EuropeWatch[], fatigue: FatigueRecord, sections: string[]): void {
+  if (watches.every((watch) => watch.clubs.size === 0)) {
+    return;
+  }
+  const perMatch = (tally: { points: number; matches: number }): number => tally.points / Math.max(1, tally.matches);
+  const sum = (pick: (watch: EuropeWatch) => { points: number; matches: number }) =>
+    watches.reduce((total, watch) => ({ points: total.points + pick(watch).points, matches: total.matches + pick(watch).matches }), { points: 0, matches: 0 });
+  const after = sum((watch) => watch.afterEurope);
+  const other = sum((watch) => watch.otherLeague);
+
+  const groupRows = (
+    [
+      ["Coupe des Lauriers", (watch: EuropeWatch, id: string) => watch.clubs.get(id) === "eu.1"],
+      ["Coupe des Fanions", (watch: EuropeWatch, id: string) => watch.clubs.get(id) === "eu.2"],
+      ["Autres clubs de D1", (watch: EuropeWatch, id: string) => watch.others.has(id)],
+    ] as const
+  ).map(([label, keep]) => {
+    const members = watches.flatMap((watch) =>
+      [...fatigue.byClub].filter(([id]) => keep(watch, id)).map(([, clubWatch]) => clubWatch),
+    );
+    const fitness = members.flatMap((member) => member.fitness);
+    return {
+      label,
+      clubSeasons: members.length,
+      fitness: mean(fitness),
+      below: percent(fitness.filter((value) => value < 75).length, Math.max(1, fitness.length)),
+      rotations: mean(members.map((member) => member.rotations)),
+      injuries: mean(members.map((member) => member.injuries)),
+    };
+  });
+  const othersInjuries = groupRows[2].injuries;
+
+  const knockout = watches.flatMap((watch) => watch.knockout);
+  const shareOf = (count: number): string => fixed(percent(count, Math.max(1, knockout.length)));
+  sections.push(
+    "## 4. European competitions (docs/design/europe.md)",
+    `### League points of the European AI clubs, ${watches.length} seasons`,
+    table(
+      ["league matches", "matches", "points/match"],
+      [
+        [`within ${EUROPE_RECOVERY_DAYS} days after a European match of theirs`, String(after.matches), fixed(perMatch(after), 2)],
+        ["their other league matches", String(other.matches), fixed(perMatch(other), 2)],
+      ],
+    ),
+    `Difference: ${fixed(perMatch(after) - perMatch(other), 2)} point a match (target: 0.1 to 0.2 less, not more).`,
+    "### Fatigue, rotations and injuries of the AI clubs, per club and season, every match",
+    table(
+      ["group", "club-seasons", "starters' fitness at kick-off", "starts below 75 %", "starters rested", "injuries", "injuries / others"],
+      groupRows.map((row) => [
+        row.label,
+        String(row.clubSeasons),
+        fixed(row.fitness),
+        fixed(row.below),
+        fixed(row.rotations),
+        fixed(row.injuries),
+        fixed(row.injuries / Math.max(0.0001, othersInjuries), 2),
+      ]),
+    ),
+    "Target: the European clubs' injuries at most 1.3 times the others'.",
+    "### European knockout ties",
+    table(
+      ["ties", "in 90 minutes %", "after extra time %", "on penalties %", "better ranked through %"],
+      [
+        [
+          String(knockout.length),
+          shareOf(knockout.filter((tie) => tie.decidedBy === "REGULATION").length),
+          shareOf(knockout.filter((tie) => tie.decidedBy === "EXTRA_TIME").length),
+          shareOf(knockout.filter((tie) => tie.decidedBy === "PENALTIES").length),
+          shareOf(knockout.filter((tie) => tie.betterRankedWon).length),
+        ],
+      ],
+    ),
+    `Dates: ${europeDates(2026)
+      .map((date) => date.toISOString().slice(5, 10))
+      .join(", ")} (2026-27).`,
+  );
+}
+
 async function measureWorld(options: Options, sections: string[]): Promise<void> {
   // Loaded here: the engine's measures need no database.
   const { prisma } = await import("../src/db/client");
@@ -1293,7 +1494,9 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
     byMonth: new Map(),
     suspensions: { red: 0, yellows: 0 },
     formations: new Map(),
+    byClub: new Map(),
   };
+  const europe: EuropeWatch[] = [];
   const frozen: LeagueRecord[] = [];
   const formationRows: string[][] = [];
   const club = await prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } });
@@ -1335,6 +1538,7 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
 
       fatigue.clubSeasons += clubs.filter((row) => !row.isManaged).length;
       await playSeasonWatchingFatigue(saveId, fatigue, prisma, squadsOf, PLAYER_SELECT, playNextMatchday, withSuspensions, aiLineupOf);
+      europe.push(await watchEurope(saveId, prisma));
 
       const final = await prisma.playerSave.findMany({
         where: { saveId, clubSaveId: { not: null } },
@@ -1378,6 +1582,7 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
 
   worldTables(records, frozen, sections);
   fatigueTables(fatigue, sections);
+  europeTables(europe, fatigue, sections);
   formationChoiceTables(fatigue, sections);
   if (options.realFormations) {
     sections.push(

@@ -15,6 +15,7 @@ import {
   type ObjectiveStatus,
   type OptionalObjective,
 } from "../engine/objectives";
+import { EUROPE_PRIZES } from "../engine/balance";
 import { creationReputationRanks } from "../engine/reputation";
 import { competitionTier } from "../engine/tiers";
 import { WORLD_START_YEAR } from "../engine/world";
@@ -74,7 +75,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
     await db?.$disconnect();
   }, 120_000);
 
-  it("opens the ranking, the cup and three proposed objectives with the save, none chosen, and its first dotation", async () => {
+  it("opens the ranking, the cup, the European objective and three proposed objectives with the save, none chosen, and its first dotation", async () => {
     const managed = await database().clubSave.findFirstOrThrow({
       where: { saveId: worldTwo, isManaged: true },
       select: {
@@ -116,6 +117,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
     const card = (await listClubsByCompetition(2)).flatMap((competition) => competition.clubs).find((club) => club.id === managed.clubId);
     expect(card?.objective).toEqual(ranking);
     expect(objectives.find((objective) => objective.kind === "CUP")).toMatchObject({ imposed: true, target: cup.target, exceed: cup.exceed });
+    // Lyon, 6th of its league in the source season, plays the Pennant Cup: an objective two stages short of its exceed.
+    const europe = objectives.find((objective) => objective.kind === "EUROPE");
+    expect(europe).toMatchObject({ imposed: true });
+    expect((europe?.exceed ?? 0) - (europe?.target ?? 0)).toBe(2);
     const optional = objectives.filter((objective) => !objective.imposed);
     expect(optional.map((objective) => objective.kind).sort()).toEqual([...proposed].sort());
     expect(objectives.every((objective) => !objective.chosen && objective.outcome === null)).toBe(true);
@@ -124,17 +129,19 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
       expect(objective.target).toBeGreaterThanOrEqual(expected[0]);
       expect(objective.target).toBeLessThanOrEqual(expected[1]);
     }
-    expect(managed.boardConfidence).toBe(boardConfidence({ ranking: "ON_TRACK", cup: "ON_TRACK" }));
+    expect(managed.boardConfidence).toBe(boardConfidence({ ranking: "ON_TRACK", cup: "ON_TRACK", europe: "ON_TRACK" }));
 
+    // Its dotation, before the Pennant Cup's participation prize, credited at its opening, right after.
     const dotation = await database().seasonBudget.findUniqueOrThrow({ where: { seasonId: season.id } });
+    const before = managed.budget - EUROPE_PRIZES["eu.2"].participation;
     expect(dotation).toMatchObject({
       saveId: worldTwo,
       reputation: managed.reputation,
       reputationRank: rank,
-      dotation: managed.budget,
+      dotation: before,
       coefficient: 100,
       carryOver: 0,
-      budget: managed.budget,
+      budget: before,
       wageBudget: managed.wageBudget,
     });
   });
@@ -153,9 +160,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
 
     // Before a ball is kicked: too early to judge, the confidence the season opened with.
     expect(before).toMatchObject({ startYear: WORLD_START_YEAR, choiceOpen: true, early: true, over: false });
-    expect(before?.objectives.map((objective) => objective.kind)).toEqual(["RANKING", "CUP", ...proposed]);
+    expect(before?.objectives.map((objective) => objective.kind)).toEqual(["RANKING", "CUP", "EUROPE", ...proposed]);
     expect(before?.objectives.every((objective) => objective.status === "TOO_EARLY")).toBe(true);
-    expect(before?.confidence).toBe(boardConfidence({ ranking: "ON_TRACK", cup: "ON_TRACK" }));
+    expect(before?.confidence).toBe(boardConfidence({ ranking: "ON_TRACK", cup: "ON_TRACK", europe: "ON_TRACK" }));
     await expect(chooseObjective(worldTwo, missing)).rejects.toMatchObject({ reason: "not-proposed" });
 
     await chooseObjective(worldTwo, second);
@@ -165,12 +172,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the managed club's seas
     expect(after?.objectives.map((objective) => [objective.kind, objective.chosen, objective.byAssistant])).toEqual([
       ["RANKING", false, false],
       ["CUP", false, false],
+      ["EUROPE", false, false],
       [second, true, false],
     ]);
     // Still too early: the chosen objective adds its points on track, written with the choice.
     expect(after?.early).toBe(true);
     expect(after?.objectives.every((objective) => objective.status === "TOO_EARLY")).toBe(true);
-    expect(after?.confidence).toBe(boardConfidence({ ranking: "ON_TRACK", cup: "ON_TRACK", chosen: "ON_TRACK" }));
+    expect(after?.confidence).toBe(boardConfidence({ ranking: "ON_TRACK", cup: "ON_TRACK", europe: "ON_TRACK", chosen: "ON_TRACK" }));
     expect(await storedConfidence(worldTwo)).toBe(after?.confidence);
   });
 

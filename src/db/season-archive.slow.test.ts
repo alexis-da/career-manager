@@ -3,11 +3,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { prisma as prismaClient } from "./client";
 
 // The proof that the archive of the completed seasons (src/db/season-archiving.ts) changes nothing a player or the
-// administrator sees, on a throwaway twin of the worldVersion 2 demo save with its cups: two seasons played and advanced
-// (thirty completed seasons, leagues and cups), then two dates of the third, so that the next opponent's recent form
+// administrator sees, on a throwaway twin of the worldVersion 2 demo save with its cups and its European competitions: two
+// seasons played and advanced (thirty-four completed seasons, leagues, cups and European competitions), then two dates of
+// the third, so that the next opponent's recent form
 // reaches back into the season before. Every screen's data is read before the task, after its count, after its archiving
 // (the rows still there, the screens reading the archives), and after its deletion of the rows, pass after pass, and
-// must not move: the honours and each season's review (result, objectives, moves, the cup's winner), every season's
+// must not move: the honours and each season's review (result, objectives, moves, the cup's and the European winners),
+// every season's
 // table, the latest tables, the cup, the players' sheets with their statistics, the moves, the opponent's preview and
 // recent form, the first steps, the sign-in banner, the dashboard, the club and its dotation, the calendar, the squad,
 // the simulation's summary, /admin and its statistics (the twin made yesterday, so that /admin/stats counts its first
@@ -52,6 +54,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
       adminDashboard,
       stats,
       errors,
+      europeResults,
     ] = await Promise.all([
       import("./client"),
       import("./test-support"),
@@ -75,6 +78,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
       import("./admin-dashboard"),
       import("./stats"),
       import("./errors"),
+      import("./europe-results"),
     ]);
     return {
       prisma: client.prisma,
@@ -99,6 +103,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
       adminDashboard,
       stats,
       errors,
+      europeResults,
     };
   }
 
@@ -144,6 +149,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
         objectives: await settled(() => m.objectives.getClosedObjectives(saveId, seasonId)),
         moves: await settled(() => m.promotion.getCountryMoves(saveId, seasonId)),
         cupWinner: await settled(() => m.cupView.getCupWinnerName(saveId, season.startYear)),
+        europeWinners: await settled(() => m.europeResults.getEuropeWinners(saveId, season.startYear)),
       });
     }
     // Every league season's table, those of the completed seasons from their archives once archived.
@@ -280,13 +286,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
     expect(before?.admin.stats.firstSteps.at(-1)).toMatchObject({ tenMatches: expect.any(Number) });
   });
 
-  it("counts the thirty completed seasons and their rows, and no screen moves", async () => {
+  it("counts the thirty-four completed seasons and their rows, and no screen moves", async () => {
     const { db, archiving } = loaded();
     const kept = await counts();
 
     counted = await archiving.runArchivePass(db, { mode: "count", saveIds: [saveId] });
 
-    expect(counted).toMatchObject({ archived: 0, deletedSeasons: 0, mismatches: 0, pending: 30, deletable: 0, deletableNow: 0 });
+    expect(counted).toMatchObject({ archived: 0, deletedSeasons: 0, mismatches: 0, pending: 34, deletable: 0, deletableNow: 0 });
     expect(counted.rowsRemaining).toBe(kept.completedFixtures + kept.completedStats);
     expect(await counts()).toEqual(kept);
     expect(await screens()).toEqual(before);
@@ -301,10 +307,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
       passes.push(await archiving.runArchivePass(db, { mode: "archive", saveIds: [saveId] }));
     } while ((passes.at(-1)?.pending ?? 0) > 0 && (passes.at(-1)?.archived ?? 0) > 0);
 
-    expect(passes.reduce((sum, pass) => sum + pass.archived, 0)).toBe(30);
+    expect(passes.reduce((sum, pass) => sum + pass.archived, 0)).toBe(34);
     expect(passes.every((pass) => pass.mismatches === 0 && pass.deletedSeasons === 0)).toBe(true);
-    expect(passes.at(-1)).toMatchObject({ pending: 0, deletable: 30, rowsRemaining: counted?.rowsRemaining });
-    expect(await counts()).toEqual({ ...kept, archives: 30 });
+    expect(passes.at(-1)).toMatchObject({ pending: 0, deletable: 34, rowsRemaining: counted?.rowsRemaining });
+    expect(await counts()).toEqual({ ...kept, archives: 34 });
     expect(await screens()).toEqual(before);
   });
 
@@ -324,7 +330,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
     expect(passes.every((pass) => pass.deleted.fixtures + pass.deleted.stats < maxRows + 1_500)).toBe(true);
     const deleted = passes.reduce((sum, pass) => sum + pass.deleted.fixtures + pass.deleted.stats, 0);
     expect(deleted).toBe(counted?.rowsRemaining);
-    expect(passes.reduce((sum, pass) => sum + pass.deletedSeasons, 0)).toBe(30);
+    expect(passes.reduce((sum, pass) => sum + pass.deletedSeasons, 0)).toBe(34);
     expect(passes.at(-1)).toMatchObject({ pending: 0, deletable: 0, deletableNow: 0, rowsRemaining: 0 });
     expect(archiving.remainingWork(passes.at(-1) ?? passes[0])).toBe(0);
     expect(await counts()).toEqual({ ...kept, completedFixtures: 0, completedStats: 0, completedEvents: 0, completedDecisions: 0 });

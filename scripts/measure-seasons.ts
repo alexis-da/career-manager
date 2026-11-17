@@ -14,7 +14,11 @@
  * typical signing; the managed club's squad and budget path at the game's coefficient and at the clamp's ends,
  * recomputed afterwards; the drifts; each division's spread of reputations, its standard deviation season by season
  * against the first; and how often each season objective is exceeded, achieved or missed, by division and reputation
- * third, with the managed club's own.
+ * third, with the managed club's own; and the European competitions (docs/design/europe.md): who qualifies, who
+ * qualifies again and who goes down, the budgets and reputations of their clubs against the other first division clubs,
+ * the European objective by reputation third, the knockout ties, and the fitness of the starters of the European clubs at
+ * kick-off against the other first division clubs' (each date's AI lineups read before it is played, as
+ * measure:balance reads them).
  *
  * --out writes the markdown there and the raw records beside it (the same name, .json), for later analyses;
  * --from reads such a JSON instead of playing, to print the report again without the database. The twin and its
@@ -25,11 +29,15 @@ import "dotenv/config";
 import { readFileSync, writeFileSync } from "node:fs";
 import { prisma } from "../src/db/client";
 import { isLocalDatabase } from "../src/db/database-url";
+import { europeFixtures, europeRunsOf, europeSeasonsOf } from "../src/db/europe";
+import { aiLineupOf, playNextMatchday, PLAYER_SELECT, squadsOf, withSuspensions } from "../src/db/matchday";
 import { createSave } from "../src/db/saves";
 import { advanceToNextSeason, type SeasonTransition } from "../src/db/season";
 import { parseFormation } from "../src/db/lineup";
 import { getStandings } from "../src/db/standings";
-import { DEMO_CLUB_SLUG, DEMO_SEED, playRemainingMatchdays } from "../src/db/test-support";
+import { DEMO_CLUB_SLUG, DEMO_SEED } from "../src/db/test-support";
+import { europeObjective, europeReputationBonus, EUROPE_LEAGUE_ROUNDS, EUROPE_STAGES, type EuropeCode } from "../src/engine/europe";
+import { recoveredFitness } from "../src/engine/fitness";
 import {
   YOUTH_OBJECTIVE_MAX_AGE,
   BUDGET_CARRY_OVER_SHARE,
@@ -40,6 +48,7 @@ import {
   NEUTRAL_BUDGET_COEFFICIENT,
   RANKING_COEFFICIENT,
   REPUTATION_TARGET_SHARE,
+  ROTATION_FITNESS,
   WAGE_BUDGET_FLOOR_SHARE,
   WAGE_BUDGET_MARGIN,
 } from "../src/engine/balance";
@@ -55,7 +64,7 @@ import {
 } from "../src/engine/economy";
 import { averageOpponent, chooseFormation } from "../src/engine/formation-choice";
 import { formationPositions } from "../src/engine/formations";
-import { selectLineup, type SquadPlayer } from "../src/engine/lineup";
+import { isAvailable, selectLineup, type SquadPlayer } from "../src/engine/lineup";
 import {
   budgetCoefficient,
   CUP_WON_ROUND,
@@ -164,6 +173,39 @@ type ManagedBudget = {
   wageBudget: number;
 };
 
+/** A club's European season, as the season's end records it. */
+type EuropeRecord = {
+  clubSaveId: string;
+  slug: string;
+  code: EuropeCode;
+  pot: number;
+  path: "RANK" | "CUP";
+  reputation: number; // at the opening
+  stage: number; // EUROPE_STAGES: 1 league phase … 6 won
+};
+
+/** A European knockout tie played: its competition, its round, how it was decided, and whether the better ranked won. */
+type KnockoutRecord = { code: EuropeCode; round: number; decidedBy: string | null; betterRankedWon: boolean };
+
+/** Starters' fitness at kick-off, summed. */
+type FitnessTally = { sum: number; count: number; below: number };
+
+/**
+ * The AI starters' fitness at kick-off of a season: the European clubs' in their league, cup and European matches, the other
+ * first division clubs' in their league matches, and both by month.
+ */
+type FitnessRecord = {
+  groups: Record<"europeLeague" | "europeCup" | "europeEurope" | "othersLeague", FitnessTally>;
+  byMonth: Record<string, Record<"europe" | "others", FitnessTally>>;
+  load?: Record<"europe" | "others", LoadTally>; // absent from records from before it
+};
+
+/**
+ * A group's AI clubs over a season, every match of theirs (league, cup, Europe): how many clubs, their starters rested
+ * for a fresher player (selectRestedLineup against selectLineup), their injuries, and their players available at kick-off.
+ */
+type LoadTally = { clubs: number; matches: number; rotations: number; injuries: number; available: number };
+
 type SeasonSnapshot = {
   season: number; // 1-based; the last one is the season the last transition opened, never played
   startYear: number;
@@ -173,6 +215,9 @@ type SeasonSnapshot = {
   playSeconds: number | null; // its matches and its transition
   transition: SeasonTransition | null; // the one that closed it
   managedObjectives?: ManagedObjective[]; // the managed club's objectives of the season, as the transition closed them
+  europe?: EuropeRecord[]; // its European clubs and how far they went; absent from records from before Europe
+  knockout?: KnockoutRecord[];
+  fitness?: FitnessRecord;
 };
 
 /** A typical signing for a club (c): how many its transfer budget pays, how many its wage room pays. */
@@ -504,14 +549,151 @@ async function recordEnd(saveId: string, startYear: number): Promise<ClubEnd[]> 
   });
 }
 
+const emptyTally = (): FitnessTally => ({ sum: 0, count: 0, below: 0 });
+const emptyLoad = (): LoadTally => ({ clubs: 0, matches: 0, rotations: 0, injuries: 0, available: 0 });
+
+function addTo(tally: FitnessTally, values: readonly number[]): void {
+  for (const value of values) {
+    tally.sum += value;
+    tally.count++;
+    tally.below += value < ROTATION_FITNESS ? 1 : 0;
+  }
+}
+
+/** The clubs of a year's European competitions, by row. */
+async function europeClubsOf(saveId: string, startYear: number): Promise<Set<string>> {
+  const seasons = await prisma.season.findMany({ where: { saveId, startYear, competition: { kind: "EUROPE" } }, select: { id: true } });
+  const fixtures = await prisma.fixture.findMany({
+    where: { saveId, seasonId: { in: seasons.map((season) => season.id) } },
+    select: { homeClubSaveId: true, awayClubSaveId: true },
+  });
+  return new Set(fixtures.flatMap((fixture) => [fixture.homeClubSaveId, fixture.awayClubSaveId]));
+}
+
+/**
+ * Plays a season's remaining dates as playRemainingMatchdays does, reading first each date's AI lineups of the European
+ * clubs and of the other first division clubs, as the matchday picks them (aiLineupOf on the squads less the suspended,
+ * their fitness recovered over the days of rest): their starters' fitness at kick-off (the other clubs' in their league
+ * matches only), and over all their matches their starters rested, their injuries and their players available.
+ */
+async function playWatchingFitness(saveId: string, startYear: number): Promise<FitnessRecord> {
+  const load = { europe: emptyLoad(), others: emptyLoad() };
+  const record: FitnessRecord = {
+    groups: { europeLeague: emptyTally(), europeCup: emptyTally(), europeEurope: emptyTally(), othersLeague: emptyTally() },
+    byMonth: {},
+    load,
+  };
+  const seen = { europe: new Set<string>(), others: new Set<string>() };
+  const europeClubs = await europeClubsOf(saveId, startYear);
+  const { competition: managed } = await prisma.clubSave.findFirstOrThrow({
+    where: { saveId, isManaged: true },
+    select: { competition: { select: { country: true } } },
+  });
+  const teamSelect = { id: true, isManaged: true, formation: true, formationMonth: true, competition: { select: { tier: true, country: true } } };
+  for (;;) {
+    const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
+    const next = await prisma.fixture.findFirst({ where: { saveId, played: false }, orderBy: { scheduledAt: "asc" }, select: { scheduledAt: true } });
+    if (next === null) {
+      load.europe.clubs = seen.europe.size;
+      load.others.clubs = seen.others.size;
+      return record;
+    }
+    const fixtures = await prisma.fixture.findMany({
+      where: { saveId, played: false, scheduledAt: next.scheduledAt },
+      select: { homeClubSave: { select: teamSelect }, awayClubSave: { select: teamSelect }, season: { select: { competition: { select: { kind: true } } } } },
+    });
+    const clubs = fixtures
+      .flatMap((fixture) =>
+        [fixture.homeClubSave, fixture.awayClubSave].map((club) => ({
+          ...club,
+          kind: fixture.season.competition.kind,
+          facesManaged: fixture.homeClubSave.isManaged || fixture.awayClubSave.isManaged,
+        })),
+      )
+      .filter((club) => !club.isManaged && (europeClubs.has(club.id) || club.competition.tier === 1));
+    const rows = await prisma.playerSave.findMany({ where: { saveId, clubSaveId: { in: clubs.map((club) => club.id) } }, select: PLAYER_SELECT });
+    const days = Math.round((next.scheduledAt.getTime() - save.currentDate.getTime()) / DAY_MS);
+    const { squads, stateByKey } = squadsOf(rows, next.scheduledAt);
+    const month = next.scheduledAt.toISOString().slice(0, 7);
+    for (const club of clubs) {
+      const squad = withSuspensions(squads.get(club.id) ?? [], club.kind, stateByKey).map((player) => ({
+        ...player,
+        fitness: recoveredFitness(player.fitness, days),
+      }));
+      const { formation, lineup } = aiLineupOf(club, squad, managed.country, next.scheduledAt, club.facesManaged);
+      const european = europeClubs.has(club.id);
+      const side = european ? "europe" : "others";
+      seen[side].add(club.id);
+      const plain = new Set(selectLineup(squad, formationPositions(formation)).starters.map((starter) => starter.player.id));
+      load[side].matches++;
+      load[side].rotations += lineup.starters.filter((starter) => !plain.has(starter.player.id)).length;
+      load[side].available += squad.filter(isAvailable).length;
+      if (!european && club.kind !== "LEAGUE") {
+        continue; // the other clubs' fitness: their league matches only
+      }
+      const values = lineup.starters.map((starter) => starter.player.fitness);
+      const group = european ? (club.kind === "EUROPE" ? "europeEurope" : club.kind === "CUP" ? "europeCup" : "europeLeague") : "othersLeague";
+      addTo(record.groups[group], values);
+      const monthly = (record.byMonth[month] ??= { europe: emptyTally(), others: emptyTally() });
+      addTo(monthly[side], values);
+    }
+    await playNextMatchday(saveId);
+    // The injuries the date gave the watched clubs' players: an injury running past it that was not there before.
+    const injuredBefore = new Map(rows.map((row) => [row.id, row.injuredUntil?.getTime() ?? 0]));
+    const after = await prisma.playerSave.findMany({
+      where: { saveId, id: { in: rows.map((row) => row.id) } },
+      select: { id: true, clubSaveId: true, injuredUntil: true },
+    });
+    for (const player of after) {
+      const until = player.injuredUntil?.getTime() ?? 0;
+      if (player.clubSaveId !== null && until > next.scheduledAt.getTime() && until !== injuredBefore.get(player.id)) {
+        load[europeClubs.has(player.clubSaveId) ? "europe" : "others"].injuries++;
+      }
+    }
+  }
+}
+
+/** A year's European clubs and how far each went, and its knockout ties, once every match is played. */
+async function europeRecordsOf(saveId: string, startYear: number): Promise<{ europe: EuropeRecord[]; knockout: KnockoutRecord[] }> {
+  const seasons = await prisma.season.findMany({ where: { saveId, startYear, competition: { kind: "EUROPE" } }, select: { id: true } });
+  const europe: EuropeRecord[] = [];
+  const knockout: KnockoutRecord[] = [];
+  for (const season of await europeSeasonsOf(prisma, saveId, seasons.map((row) => row.id))) {
+    const fixtures = await europeFixtures(prisma, saveId, season.id);
+    const runs = europeRunsOf(season.entrants, fixtures);
+    const idOf = new Map(fixtures.flatMap((fixture) => [[fixture.home, fixture.homeClubSaveId] as const, [fixture.away, fixture.awayClubSaveId] as const]));
+    for (const entrant of season.entrants) {
+      europe.push({
+        clubSaveId: getOrThrow(idOf, entrant.club, "European club"),
+        slug: entrant.club,
+        code: season.code,
+        pot: entrant.pot,
+        path: entrant.path,
+        reputation: entrant.reputation,
+        stage: runs.get(entrant.club)?.stage ?? EUROPE_STAGES.LEAGUE,
+      });
+    }
+    for (const fixture of fixtures.filter((candidate) => candidate.round > EUROPE_LEAGUE_ROUNDS && candidate.played)) {
+      const decided = await prisma.fixture.findFirst({
+        where: { saveId, seasonId: season.id, round: fixture.round, homeClubSaveId: fixture.homeClubSaveId, awayClubSaveId: fixture.awayClubSaveId },
+        select: { decidedBy: true },
+      });
+      // The better ranked of the league phase is the home club, the final's included.
+      knockout.push({ code: season.code, round: fixture.round, decidedBy: decided?.decidedBy ?? null, betterRankedWon: fixture.winner === fixture.home });
+    }
+  }
+  return { europe, knockout };
+}
+
 /** Plays the seasons, each followed by its transition, recording every club at each start and end. */
 async function playSeasons(saveId: string, seasons: number): Promise<SeasonSnapshot[]> {
   const snapshots: SeasonSnapshot[] = [];
   let start = await recordStart(saveId);
   for (let season = 1; season <= seasons; season++) {
     const began = performance.now();
-    await playRemainingMatchdays(saveId);
+    const fitness = await playWatchingFitness(saveId, start.startYear);
     const end = await recordEnd(saveId, start.startYear);
+    const { europe, knockout } = await europeRecordsOf(saveId, start.startYear);
     // Nobody would renew the managed club's contracts otherwise: its squad would melt season after season.
     const transition = await advanceToNextSeason(saveId, { assistantContracts: true });
     const playSeconds = Math.round((performance.now() - began) / 1000);
@@ -528,6 +710,9 @@ async function playSeasons(saveId: string, seasons: number): Promise<SeasonSnaps
       playSeconds,
       transition,
       managedObjectives,
+      europe,
+      knockout,
+      fitness,
     });
     console.log(
       `  season ${season} (${seasonLabel(start.startYear)}): ${playSeconds} s, ${transition.moves} clubs promoted or relegated, ${transition.preseason.wageSales} wage sales`,
@@ -1238,6 +1423,7 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
 
   sections.push(...spreadSections(snapshots, rows));
   sections.push(...objectivesSections(snapshots, rows));
+  sections.push(...europeSections(snapshots, rows));
   return sections.join("\n\n");
 }
 
@@ -1252,8 +1438,17 @@ function standardDeviation(values: readonly number[]): number {
  * the way to its target, the creation's reputation at its rank in the division it plays next (rankInNextDivision), against
  * the one recorded.
  */
-function reputationRecomputed(rows: readonly ClubSeason[]): { row: ClubSeason; expected: number; actual: number }[] {
+function reputationRecomputed(
+  rows: readonly ClubSeason[],
+  snapshots: readonly SeasonSnapshot[] = [],
+): { row: ClubSeason; expected: number; actual: number }[] {
   const at = new Map(rows.map((row) => [`${row.season}#${row.clubSaveId}`, row]));
+  // What a European run adds to a club's target (europeReputationBonus), within 99.
+  const bonusOf = new Map(
+    snapshots.flatMap((snapshot) =>
+      (snapshot.europe ?? []).map((record) => [`${snapshot.season}#${record.clubSaveId}`, europeReputationBonus(record.code, record.stage)] as const),
+    ),
+  );
   const nextCodeOf = (row: ClubSeason): string | undefined => at.get(`${row.season + 1}#${row.clubSaveId}`)?.code;
   return rows.flatMap((row) => {
     const next = at.get(`${row.season + 1}#${row.clubSaveId}`);
@@ -1272,7 +1467,7 @@ function reputationRecomputed(rows: readonly ClubSeason[]): { row: ClubSeason; e
       moving,
       nextClubCount: next.clubCount,
     });
-    const target = reputationTarget(rank, next.clubCount, next.tier);
+    const target = Math.min(99, reputationTarget(rank, next.clubCount, next.tier) + (bonusOf.get(`${row.season}#${row.clubSaveId}`) ?? 0));
     return [{ row, expected: reputationAfterSeason(row.reputation, target, row.end.move), actual: next.reputation }];
   });
 }
@@ -1297,7 +1492,7 @@ function spreadSections(snapshots: readonly SeasonSnapshot[], rows: readonly Clu
   });
   const outside = lines.filter((line) => line.drift > SPREAD_TOLERANCE);
   const tolerance = `±${fixed(100 * SPREAD_TOLERANCE, 0)} %`;
-  const recomputed = reputationRecomputed(rows);
+  const recomputed = reputationRecomputed(rows, snapshots);
   const mismatches = recomputed.filter(({ expected, actual }) => expected !== actual);
   const signedPercent = (value: number): string => `${value > 0 ? "+" : ""}${fixed(100 * value, 1)} %`;
   const last = snapshots[snapshots.length - 1];
@@ -1398,6 +1593,254 @@ function objectivesSections(snapshots: readonly SeasonSnapshot[], rows: readonly
     "### Le club dirigé, ses objectifs fermés par chaque passage",
     "Cible (dépassement) et issue ; coefficient de la dotation suivante.",
     table(["Saison", "Objectifs", "Coefficient suivant"], managedLines),
+  ];
+}
+
+const EUROPE_NAMES: Readonly<Record<EuropeCode, string>> = { "eu.1": "Coupe des Lauriers", "eu.2": "Coupe des Fanions" };
+const KNOCKOUT_ROUND_NAMES: Readonly<Record<number, string>> = { 7: "Barrages", 8: "Quarts", 9: "Demi-finales", 10: "Finales" };
+
+/**
+ * h. The European competitions (docs/design/europe.md): who qualifies, qualifies again and goes down; the budgets and
+ * reputations of their clubs against the other first division clubs; the European objective each club's run would have
+ * met, by its reputation third among its competition's clubs; the knockout ties; the starters' fitness at kick-off.
+ */
+function europeSections(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[]): string[] {
+  const played = snapshots.filter((snapshot) => snapshot.end !== null && (snapshot.europe ?? []).length > 0);
+  if (played.length === 0) {
+    return [];
+  }
+  const share = (count: number, total: number): string => (total === 0 ? "—" : `${fixed((100 * count) / total, 0)} %`);
+  const rowAt = new Map(rows.map((row) => [`${row.season}#${row.clubSaveId}`, row]));
+  const codes = ["eu.1", "eu.2"] as const;
+  const seasonName = (snapshot: SeasonSnapshot): string => `S${snapshot.season} ${seasonLabel(snapshot.startYear)}`;
+
+  // Qualified, qualified again the season after (any European competition, then the same), relegated, mean final rank.
+  const qualification = played.map((snapshot) => {
+    const next = snapshots.find((candidate) => candidate.season === snapshot.season + 1);
+    const nextCodes = new Map((next?.europe ?? []).map((record) => [record.clubSaveId, record.code]));
+    const known = next?.europe !== undefined && next.europe.length > 0;
+    return [
+      seasonName(snapshot),
+      ...codes.flatMap((code) => {
+        const clubs = (snapshot.europe ?? []).filter((record) => record.code === code);
+        const ends = clubs.flatMap((record) => {
+          const end = rowAt.get(`${snapshot.season}#${record.clubSaveId}`)?.end;
+          return end === null || end === undefined ? [] : [end];
+        });
+        return [
+          String(clubs.length),
+          known ? share(clubs.filter((record) => nextCodes.has(record.clubSaveId)).length, clubs.length) : "—",
+          known ? share(clubs.filter((record) => nextCodes.get(record.clubSaveId) === code).length, clubs.length) : "—",
+          String(ends.filter((end) => end.move === "RELEGATED").length),
+          fixed(mean(ends.map((end) => end.finalRank)), 1),
+        ];
+      }),
+    ];
+  });
+
+  // Budgets (start, end) and reputation at the start: each competition's AI clubs against the other first division ones.
+  const groupsOf = (snapshot: SeasonSnapshot) => {
+    const codeOf = new Map((snapshot.europe ?? []).map((record) => [record.clubSaveId, record.code]));
+    const members = rows.filter((row) => row.season === snapshot.season && !row.managed);
+    return {
+      "eu.1": members.filter((row) => codeOf.get(row.clubSaveId) === "eu.1"),
+      "eu.2": members.filter((row) => codeOf.get(row.clubSaveId) === "eu.2"),
+      others: members.filter((row) => row.tier === 1 && !codeOf.has(row.clubSaveId)),
+    };
+  };
+  const money = played.map((snapshot) => {
+    const groups = groupsOf(snapshot);
+    return [
+      seasonName(snapshot),
+      ...(["eu.1", "eu.2", "others"] as const).flatMap((group) => [
+        millions(mean(groups[group].map((row) => row.budget))),
+        millions(mean(groups[group].flatMap((row) => (row.end === null ? [] : [row.end.budget])))),
+        fixed(mean(groups[group].map((row) => row.reputation)), 1),
+      ]),
+    ];
+  });
+
+  // The European objective each run would have met: by its reputation third among its competition's clubs at the opening.
+  type Outcome = "EXCEEDED" | "ACHIEVED" | "MISSED";
+  const outcomes: { code: EuropeCode; third: 1 | 2 | 3; outcome: Outcome }[] = played.flatMap((snapshot) =>
+    codes.flatMap((code) => {
+      const clubs = (snapshot.europe ?? [])
+        .filter((record) => record.code === code)
+        .sort((a, b) => b.reputation - a.reputation || (a.slug < b.slug ? -1 : 1));
+      return clubs.map((record, index) => {
+        const third = reputationThird(index + 1, clubs.length);
+        const { target, exceed } = europeObjective(third);
+        const outcome: Outcome = record.stage >= exceed ? "EXCEEDED" : record.stage >= target ? "ACHIEVED" : "MISSED";
+        return { code, third, outcome };
+      });
+    }),
+  );
+  const objectiveRows = codes.flatMap((code) =>
+    ([1, 2, 3] as const).map((third) => {
+      const ofGroup = outcomes.filter((entry) => entry.code === code && entry.third === third);
+      const count = (outcome: Outcome) => ofGroup.filter((entry) => entry.outcome === outcome).length;
+      return [
+        `${EUROPE_NAMES[code]}, ${THIRD_NAMES[third]}`,
+        share(count("EXCEEDED"), ofGroup.length),
+        share(count("ACHIEVED"), ofGroup.length),
+        share(count("MISSED"), ofGroup.length),
+        share(count("EXCEEDED") + count("ACHIEVED"), ofGroup.length),
+        String(ofGroup.length),
+      ];
+    }),
+  );
+  const allMet = outcomes.filter((entry) => entry.outcome !== "MISSED").length;
+
+  // Knockout ties: how they were decided, and how often the better ranked of the league phase went through.
+  const ties = played.flatMap((snapshot) => snapshot.knockout ?? []);
+  const knockoutRows = [7, 8, 9, 10].map((round) => {
+    const ofRound = ties.filter((tie) => tie.round === round);
+    return [
+      KNOCKOUT_ROUND_NAMES[round] ?? String(round),
+      String(ofRound.length),
+      share(ofRound.filter((tie) => tie.decidedBy === "REGULATION").length, ofRound.length),
+      share(ofRound.filter((tie) => tie.decidedBy === "EXTRA_TIME").length, ofRound.length),
+      share(ofRound.filter((tie) => tie.decidedBy === "PENALTIES").length, ofRound.length),
+      share(ofRound.filter((tie) => tie.betterRankedWon).length, ofRound.length),
+    ];
+  });
+
+  // Fitness of the starters at kick-off: the European clubs' against the other first division clubs'.
+  const fitness = played.flatMap((snapshot) => (snapshot.fitness === undefined ? [] : [snapshot.fitness]));
+  const sumGroup = (group: keyof FitnessRecord["groups"]): FitnessTally =>
+    fitness.reduce(
+      (total, record) => ({
+        sum: total.sum + record.groups[group].sum,
+        count: total.count + record.groups[group].count,
+        below: total.below + record.groups[group].below,
+      }),
+      emptyTally(),
+    );
+  const tallyCells = (tally: FitnessTally): string[] => [
+    String(tally.count),
+    fixed(tally.count === 0 ? Number.NaN : tally.sum / tally.count, 1),
+    share(tally.below, tally.count),
+  ];
+  const fitnessRows = (
+    [
+      ["Clubs européens, championnat", "europeLeague"],
+      ["Clubs européens, coupe", "europeCup"],
+      ["Clubs européens, Europe", "europeEurope"],
+      ["Autres clubs de D1, championnat", "othersLeague"],
+    ] as const
+  ).map(([label, group]) => [label, ...tallyCells(sumGroup(group))]);
+  const months = [...new Set(fitness.flatMap((record) => Object.keys(record.byMonth)))].sort();
+  const monthRows = months.map((month) => {
+    const total = (group: "europe" | "others"): FitnessTally =>
+      fitness.reduce(
+        (sum, record) => {
+          const tally = record.byMonth[month]?.[group];
+          return tally === undefined ? sum : { sum: sum.sum + tally.sum, count: sum.count + tally.count, below: sum.below + tally.below };
+        },
+        emptyTally(),
+      );
+    const europe = total("europe");
+    const others = total("others");
+    return [month, ...tallyCells(europe).slice(1), ...tallyCells(others).slice(1)];
+  });
+
+  // Season by season, every match: the European clubs' starters' fitness, starters rested, injuries and players available,
+  // against the other first division clubs' (their fitness in the league only, as above).
+  const perClub = (count: number, clubs: number): string => fixed(clubs === 0 ? Number.NaN : count / clubs, 1);
+  const loadRows = played.flatMap((snapshot) => {
+    const record = snapshot.fitness;
+    if (record?.load === undefined) {
+      return [];
+    }
+    const { europe, others } = record.load;
+    const europeFitness = (["europeLeague", "europeCup", "europeEurope"] as const).reduce(
+      (total, group) => ({
+        sum: total.sum + record.groups[group].sum,
+        count: total.count + record.groups[group].count,
+        below: total.below + record.groups[group].below,
+      }),
+      emptyTally(),
+    );
+    const cells = (tally: FitnessTally, load: LoadTally): string[] => [
+      String(load.clubs),
+      ...tallyCells(tally).slice(1),
+      perClub(load.rotations, load.clubs),
+      perClub(load.injuries, load.clubs),
+      fixed(load.matches === 0 ? Number.NaN : load.available / load.matches, 1),
+    ];
+    const ratio = europe.clubs === 0 || others.clubs === 0 || others.injuries === 0 ? Number.NaN : europe.injuries / europe.clubs / (others.injuries / others.clubs);
+    return [[seasonName(snapshot), ...cells(europeFitness, europe), ...cells(record.groups.othersLeague, others), fixed(ratio, 2)]];
+  });
+
+  return [
+    "## h. Compétitions européennes",
+    [
+      "Coupe des Lauriers (les 4 premiers de chaque pays) et Coupe des Fanions (5e, 6e, vainqueur de la coupe ou 7e),",
+      "jouées par les clubs IA et par le club dirigé, l'adjoint aux commandes. Requalifiés : qualifiés la saison suivante, pour",
+      "l'une ou l'autre, puis pour la même ; relégués : descendus en D2 à la fin de la saison.",
+    ].join(" "),
+    table(
+      [
+        "Saison",
+        ...codes.flatMap((code) => [
+          `${EUROPE_NAMES[code]} : clubs`,
+          "requalifiés",
+          "même compétition",
+          "relégués",
+          "rang final moyen",
+        ]),
+      ],
+      qualification,
+    ),
+    "### Budgets et réputations (clubs IA ; M€ au début, M€ à la fin, réputation au début)",
+    table(
+      [
+        "Saison",
+        "Lauriers : budget début",
+        "fin",
+        "réputation",
+        "Fanions : budget début",
+        "fin",
+        "réputation",
+        "Autres D1 : budget début",
+        "fin",
+        "réputation",
+      ],
+      money,
+    ),
+    "### Objectif européen qu'aurait reçu chaque club, par tiers de réputation dans sa compétition",
+    `Cible : environ une fois sur deux, comme la coupe. Ensemble : ${share(allMet, outcomes.length)} atteints ou dépassés (${outcomes.length} clubs-saisons).`,
+    table(["Groupe", "Dépassé", "Atteint", "Manqué", "Atteint ou dépassé", "Clubs-saisons"], objectiveRows),
+    "### Élimination directe",
+    table(["Tour", "Matchs", "En 90 min", "Après prolongation", "Aux tirs au but", "Le mieux classé passe"], knockoutRows),
+    `### Condition des titulaires au coup d'envoi (clubs IA, sous ${ROTATION_FITNESS} : seuil de rotation)`,
+    table(["Groupe", "Titularisations", "Moyenne", `Sous ${ROTATION_FITNESS}`], fitnessRows),
+    table(["Mois", "Européens : moyenne", `sous ${ROTATION_FITNESS}`, "Autres D1 : moyenne", `sous ${ROTATION_FITNESS}`], monthRows),
+    "### Charge de chaque saison (clubs IA, tous leurs matchs ; la condition des autres clubs en championnat seulement)",
+    [
+      "Reposés : titulaires que selectRestedLineup remplace par un joueur plus frais ; blessures : nouvelles blessures au fil",
+      "des matchs ; disponibles : joueurs ni blessés ni suspendus au coup d'envoi. Cible des blessures : au plus 1,3 fois celles",
+      "des autres clubs.",
+    ].join(" "),
+    table(
+      [
+        "Saison",
+        "Européens : clubs",
+        "condition",
+        `sous ${ROTATION_FITNESS}`,
+        "reposés / club",
+        "blessures / club",
+        "disponibles / match",
+        "Autres D1 : clubs",
+        "condition",
+        `sous ${ROTATION_FITNESS}`,
+        "reposés / club",
+        "blessures / club",
+        "disponibles / match",
+        "Blessures : rapport",
+      ],
+      loadRows,
+    ),
   ];
 }
 

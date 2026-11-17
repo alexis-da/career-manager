@@ -208,7 +208,7 @@ test("leads to the table on a computer, the calendar and the cup in two fifths o
   await entry.click();
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/standings$`));
   await expect(page.getByTestId("standings-title")).toHaveText("Classement");
-  await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Calendrier", "Classement", "Coupe"]);
+  await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Calendrier", "Classement", "Coupe", "Europe"]);
   await expect(page.getByTestId("nav-standings")).toHaveAttribute("aria-current", "page");
 
   // The page asks for them once it knows its width.
@@ -618,7 +618,7 @@ test.describe("on a phone, in English", () => {
     await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/fixtures$`));
     await expect(page.getByTestId("fixtures-title")).toHaveText("Fixtures");
     await expect(page.getByTestId("fixtures-month")).toHaveText("August 2026");
-    await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Fixtures", "Table", "Cup"]);
+    await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Fixtures", "Table", "Cup", "Europe"]);
 
     // Above the tabs, in view, nothing over it, and the only orange of the screen.
     const action = page.getByTestId("next-match");
@@ -862,7 +862,9 @@ test("draws the club's tie once the preliminary round is played: the cup names i
   await expect(cupTag).toHaveCSS("color", ACTION_ORANGE);
   const leagueRow = rows.filter({ hasText: "D1 · Journée" }).first();
   await expect(leagueRow.getByText("D1", { exact: true })).toHaveCSS("color", SECOND_ACCENT);
-  await expect(rows).toHaveCount((await rows.filter({ hasText: "D1 · Journée" }).count()) + 1);
+  // The rest: the league's matches, and the Pennant Cup's, Lyon's European competition, when it plays it that month.
+  const europeRows = await rows.filter({ has: page.locator('[data-europe="eu.2"]') }).count();
+  await expect(rows).toHaveCount((await rows.filter({ hasText: "D1 · Journée" }).count()) + 1 + europeRows);
 
   // The same day in the grid.
   await page.getByTestId("fixtures-view-calendar").click();
