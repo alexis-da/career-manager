@@ -23,6 +23,25 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-17",
     fr: {
+      title: "Tes primes sur l'écran Club, et des adversaires qui font tourner",
+      items: [
+        "Sur l'écran Club, la carte Finances montre les primes reçues cette saison : celles de ta coupe d'Europe, participation comprise, et celles de la coupe.",
+        "L'objectif européen des clubs les plus réputés de leur coupe d'Europe est désormais d'atteindre les quarts de finale, comme pour les clubs du milieu : les demi-finales n'étaient atteintes qu'une saison sur trois ou quatre. Il vaut pour les saisons qui s'ouvrent ; la saison en cours garde son objectif.",
+        "Les clubs adverses engagés en Europe font davantage tourner : plus un titulaire est fatigué, plus ils acceptent de le remplacer par un joueur moins fort, et ils restent frais d'une saison à l'autre. La composition automatique de ton adjoint suit la même règle.",
+      ],
+    },
+    en: {
+      title: "Your prize money on the Club screen, and rivals who rotate",
+      items: [
+        "On the Club screen, the Finances card shows the prize money received this season: from your European cup, participation included, and from the cup.",
+        "The European objective of the most renowned clubs in their European cup is now to reach the quarter-finals, as for the clubs in the middle: they reached the semi-finals only one season in three or four. It applies to the seasons that open; the current season keeps its objective.",
+        "Rival clubs playing in Europe rotate more: the more tired a starter, the weaker the player they will bring in for him, and they stay fresh from one season to the next. Your assistant's automatic line-up follows the same rule.",
+      ],
+    },
+  },
+  {
+    date: "2026-11-17",
+    fr: {
       title: "Les coupes d'Europe : Coupe des Lauriers et Coupe des Fanions",
       items: [
         "Les quatre premiers de chaque première division jouent la Coupe des Lauriers ; les 5e et 6e et le vainqueur de la coupe, ou le 7e, la Coupe des Fanions. Dès la première saison d'une nouvelle carrière ; dans une carrière en cours, à la saison suivante, la saison en cours restant ce qu'elle est.",

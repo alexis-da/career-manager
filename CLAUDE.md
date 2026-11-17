@@ -99,8 +99,10 @@ d'envoi (`fitnessFactor`, × 1 − 0,0015 × (100 − fitness)), et l'usure, ce 
 fitness de fin de match (`recordFinishedMatches`) et chacun récupère 5 points par jour jusqu'à 100, appliqués par
 `playNextMatchday` au changement de date (`recoveredFitness`, `src/engine/fitness.ts`) ;
 sous 70, son risque de blessure croît. Les clubs IA sortent le titulaire le plus fatigué aux minutes de changement et mettent
-au repos un joueur sous 75 quand un reposé vaut au plus 5 points de moins à son poste (`selectRestedLineup`) ; le club dirigé
-garde sa composition. L'état du direct garde la fitness de chaque joueur (100 pour une pause d'avant). Les écrans montrent
+au repos un joueur sous 75 quand un reposé vaut au plus 5 points de moins à son poste, 2 de plus par point de condition sous
+75 (`maxRotationGap` : 7 à 74, 15 à 70, 25 à 65 ; `selectRestedLineup`, `src/engine/lineup.ts`, depuis le 17/11 : à 5 points
+fixes, les clubs européens, dont le banc décroche de leur onze au fil des saisons, laissaient 12 % puis 25 % de leurs
+titulaires d'octobre sous 75, 1 à 4 % depuis) ; le club dirigé garde sa composition. L'état du direct garde la fitness de chaque joueur (100 pour une pause d'avant). Les écrans montrent
 la fitness au coup d'envoi du prochain match du club (`fitnessAtKickOff`, `src/db/fitness-view.ts`), le panneau Coaching
 celle de la reprise ; vert dès 90, ambre sous 75, rouge sous 70 (`app/saves/[id]/_lib/fitness.ts`). Le moral reste dans le
 moteur, neutre, et n'est affiché nulle part.
@@ -187,7 +189,7 @@ fitness au prochain match), à côté de celles du onze probable du prochain adv
 compare les dix-sept dispositifs avec la composition de l'adjoint dans chacun, le meilleur étant le plus grand écart de buts
 attendu contre lui, les deux Équilibré. « Composition automatique » est celle de l'adjoint (`automaticState`,
 `selectRestedLineup` : sans blessé ni suspendu, un fatigué sous 75 reposé quand un reposé vaut au plus 5 points de moins
-à son poste) ; sans composition enregistrée, le match joue toujours `selectLineup`. Consigne de départ (Attaquer,
+à son poste, 2 de plus par point de condition sous 75, `maxRotationGap`) ; sans composition enregistrée, le match joue toujours `selectLineup`. Consigne de départ (Attaquer,
 Équilibré, Fermer) : choisie dans la composition, enregistrée avec elle dans `ClubSave.lineup` (`instruction`,
 facultative, Équilibré sans elle, aucune migration), jouée par le club dirigé au coup d'envoi, simulé comme en direct
 (`Lineup.instruction`, `TeamLive.startingInstruction`, absente pour Équilibré : l'état et le match d'avant) ; la règle de
@@ -338,8 +340,9 @@ IA choisit son dispositif avant un match contre le club dirigé (`aiLineupOf`, `
 étranger est le match joué. Réputation : **bonus de cible** (`europeReputationBonuses`, `EUROPE_REPUTATION_BONUS` : Lauriers
 +1 en quarts, +2 finaliste, +3 vainqueur ; Fanions +1 finaliste, +2 vainqueur ; plafond 99), ajouté à la cible, jamais à la
 réputation (`applySeasonReputations`). Objectif imposé `EUROPE` (`ObjectiveKind`, ajouté en dernier) au club dirigé
-qualifié : `europeObjective` par tiers de réputation parmi les clubs de sa compétition à l'ouverture (demies, quarts ou
-barrages, dépassé deux tours plus loin ; `EUROPE_STAGES` : 1 phase de ligue, 2 barrages, 3 quarts, 4 demies, 5 finale,
+qualifié : `europeObjective` par tiers de réputation parmi les clubs de sa compétition à l'ouverture (les quarts pour les
+deux tiers hauts, les barrages pour le bas, dépassé deux tours plus loin ; le tiers haut visait les demies jusqu'au 17/11,
+atteintes une saison sur trois ou quatre ; `EUROPE_STAGES` : 1 phase de ligue, 2 barrages, 3 quarts, 4 demies, 5 finale,
 6 vainqueur), coefficient comme la coupe (`EUROPE_COEFFICIENT`), compté par la confiance du président ; `SeasonProgress.europe`
 (`clubEuropeRun`). `SeasonResult.europeCode`, `europeStage` (1 à 5, la finale pour son vainqueur) et le trophée « europe »
 (`EUROPE_TROPHY`). Rotation du club dirigé à la main : « À faire » signale avant un match européen ses titulaires sous
@@ -866,8 +869,11 @@ terminées + 1, le titre porté et le badge mis en avant, `club-manager-title`) 
 `src/db/club.ts` : budget en grand, masse salariale en barre, marge ou dépassement, puis le détail de la dernière dotation,
 `ClubFinances.dotation` lue dans `SeasonBudget`, `club-dotation` : dotation et rang de réputation dans la division,
 objectifs de la saison passée (bonus, malus, ou ni l'un ni l'autre, × coefficient), report, budget de la saison, plafond
-salarial ; « Budget de départ » la première saison, rien pour une partie d'avant la dotation ; aucune recette, le jeu
-n'en a pas) ; les objectifs du président (`ClubObjectives`, `club-objectives`, `id="objectifs"`, toute la largeur :
+salarial ; « Budget de départ » la première saison, rien pour une partie d'avant la dotation ; puis les primes reçues de la
+saison en cours, `club-prizes` (`getSeasonPrizes`, `SeasonPrizes` : primes européennes, participation comprise,
+`club-prizes-europe`, et de la coupe, `club-prizes-cup`, chacune nommée par sa compétition, en `data-amount` ; recalculées
+des matchs joués par les fonctions qui les créditent, `europePrizesOf` et `cupPrizesOf`, sans colonne ni migration ; rien
+sans coupe ni Europe) ; aucune autre recette, le jeu n'en a pas) ; les objectifs du président (`ClubObjectives`, `club-objectives`, `id="objectifs"`, toute la largeur :
 chaque objectif, imposé ou choisi, et par qui, son but, ce qui le dépasse, son état et son chiffre ; la confiance du
 président, `club-confidence`, jauge de 0 à 99 et ses mots, affichage seulement, la direction ne renvoyant jamais son
 entraîneur ; tant que le choix est ouvert, les trois propositions et « Choisir mon objectif » vers l'écran de début de

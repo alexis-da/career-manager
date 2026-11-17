@@ -182,7 +182,9 @@ Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 %
   d'une semaine à deux matchs, 75 au 3e de trois matchs en 8 jours, frais six jours après un match entier
   (`fitness.test.ts`). La présaison remet tout le monde à 100.
 - Clubs IA : `selectRestedLineup` (`lineup.ts`) : un joueur sous `ROTATION_FITNESS` (75) laisse sa place au meilleur
-  reposé valant au plus `ROTATION_MAX_RATING_GAP` (5) de moins au poste ; le club dirigé garde `resolveLineup`.
+  reposé valant au plus `maxRotationGap` de moins au poste : `ROTATION_MAX_RATING_GAP` (5), plus
+  `ROTATION_GAP_PER_FITNESS_POINT` (2) par point de condition sous 75 (15 à 70) ; `restedLineups` suit la même règle
+  (`lineup.test.ts` les compare) ; le club dirigé garde `resolveLineup`.
 - Direct : la fitness au coup d'envoi est dans l'état stocké (`live-state.ts`, 100 par défaut pour une pause d'avant G2) ;
   le test des 600 matchs de `live-state.test.ts`, joueurs de 55 à 100, prouve simuler = regarder.
 - Calibration : base 1,23 (1,14 sans fatigue, 1,16 avec un seul coefficient sur la fitness du moment ; 1,31 depuis le choix

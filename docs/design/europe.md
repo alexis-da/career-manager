@@ -204,7 +204,8 @@ demie le risque de base). L'automne est le plus chargé : quatre mercredis en si
 
 - **Clubs IA** : la règle existe (`selectRestedLineup` : un joueur sous 75 laisse sa place au meilleur reposé qui vaut au
   plus 5 points de moins à son poste ; le plus fatigué sort aux minutes de changement). Elle jouera d'elle-même dès la
-  deuxième quinzaine. Aucun changement proposé avant la mesure (§ 9).
+  deuxième quinzaine. Aucun changement proposé avant la mesure (§ 9). **Réglée le 17/11** (§ 9 ter) : 5 points, plus 2
+  par point de condition sous 75 (`maxRotationGap`), le banc des clubs européens décrochant de leur onze au fil des saisons.
 - **Club dirigé** : il garde sa composition (règle actuelle), le joueur fait tourner. Aides : la condition au coup
   d'envoi, déjà sur la composition (ambre sous 75, rouge sous 70) ; une ligne « À faire » nouvelle (« 3 titulaires sous
   75 pour mercredi ») ; la composition automatique, qui repose déjà les fatigués ; le « Stage de forme » de la boutique.
@@ -247,11 +248,11 @@ rapportant que ses primes (point 6).
 Pour le club dirigé qualifié, un troisième objectif imposé, `EUROPE`, comme la coupe, selon le tiers de sa réputation
 parmi les clubs de sa compétition à l'ouverture, dépassé deux tours plus loin :
 
-| Tiers de réputation | Objectif                                    | Dépassé           |
-| ------------------- | ------------------------------------------- | ----------------- |
-| premier             | les demi-finales                            | le titre          |
-| deuxième            | les quarts                                  | la finale         |
-| troisième           | les barrages (top 12 de la phase de ligue)  | les demi-finales  |
+| Tiers de réputation | Objectif                                     | Dépassé           |
+| ------------------- | -------------------------------------------- | ----------------- |
+| premier             | les quarts (les demi-finales jusqu'au 17/11) | la finale         |
+| deuxième            | les quarts                                   | la finale         |
+| troisième           | les barrages (top 12 de la phase de ligue)   | les demi-finales  |
 
 Coefficient de la dotation suivante : dépassé +10, atteint +5, manqué −5 (comme la coupe), toujours entre 70 et 140
 (`budgetCoefficient`). La confiance du président le compte comme les autres, et « Trop tôt pour juger » jusqu'au 5e match
@@ -442,6 +443,41 @@ Sur des bases locales dédiées, le code de la branche `europe`.
   saison archivée (deux archives de saison de plus). Réel 6,55, 11,72, 14,51 et 15,66 Mo avec l'Europe (repère du 10/11 :
   6,2, 10,7, 12,8 et 14,0), 6,47, 20,36, 21,73 et 24,38 Mo sans : le réel varie de ±10 Mo selon l'autovacuum (la place des
   lignes mortes de `PlayerSave`), le compact est la mesure à comparer.
+
+## 9 ter. Suite du 17/11 : objectif, primes à l'écran, rotation des clubs IA
+
+Décidé après la mise en ligne, mesuré sur des bases locales dédiées.
+
+- **Objectif européen** : le tiers haut vise les quarts (`EUROPE_OBJECTIVE_STAGES` 3, 3, 2), comme le milieu, dépassé à
+  la finale ; les saisons déjà ouvertes gardent le leur. `measure:seasons -- --seasons=5` sur trois graines (la démo,
+  `europe-seed-2`, `europe-seed-3` ; 175 clubs-saisons chacune) : atteint ou dépassé 55, 56 et 52 % du temps (45 %
+  avant, graine de la démo). Par tiers, en moyenne : Lauriers 52 % (haut, les quarts ; 27 % avec les demies), 40 %
+  (milieu, les quarts) et 52 % (bas, les barrages) ; Fanions 69 % (haut, les quarts ; 32 % avec les demies), 44 % et
+  76 %. En Fanions, 8 clubs sur 15 atteignent les quarts et 12 au moins les barrages : aucune étape ne donne une saison
+  sur deux au tiers haut ni au tiers bas.
+- **Primes à l'écran** : la carte Finances de l'écran Club montre les primes reçues de la saison, européennes
+  (participation comprise) et de la coupe (`getSeasonPrizes`, `club-prizes`), recalculées des matchs joués par les
+  fonctions mêmes qui les créditent (`europePrizesOf`, `cupPrizesOf`, `wonEuropeMatch`), sans colonne ni migration.
+  La suite lente (`europe.slow.test.ts`) vérifie, sur une saison jouée en entier, primes affichées = budget − dotation.
+- **Rotation des clubs IA** : cause mesurée avant tout réglage (diagnostic sur cinq saisons, graine de la démo) : en
+  octobre, l'écart entre un titulaire européen et le meilleur autre joueur à son poste passe de 4,1 à 7,1 points en cinq
+  saisons ; aucun titulaire fatigué n'avait de reposé à 5 points ou moins, et la part de ceux dont le meilleur reposé
+  était à plus de 12 points montait de 19 à 47 %. Règle : un joueur sous 75 laisse sa place à un reposé valant au plus
+  5 points de moins, **plus 2 par point de condition sous 75** (`maxRotationGap` : 7 à 74, 15 à 70, 25 à 65). Avec 1 point
+  par point de condition, la part d'octobre faisait 3, 5, 8, 8 et 11 % : sous 15 %, mais elle grimpait encore.
+  - `measure:seasons`, part des titularisations européennes sous 75 en octobre, saison 1 à 5 : **12, 17, 21, 21, 25 %**
+    avant ; **1, 2, 3, 3, 4 %** après, sur chacune des trois graines. Condition des titulaires européens sur la saison :
+    92,8 à 91,1 avant, 94,0 à 94,6 après ; titulaires reposés par club et par saison 16,1 à 12,4 avant, 18,4 à 23,4
+    après ; blessures × 1,16 de celles des autres clubs de D1 en moyenne avant, × 1,17 après sur la même graine et
+    × 1,18 sur les trois (× 1,01 à × 1,34 selon la saison et la graine, une saison sur quinze au-dessus de × 1,3).
+  - `measure:balance -- --world-only --seeds=10`, six cibles (avant entre parenthèses) : 2,601 buts par match (2,61),
+    25,4 % de nuls (25,3), 43,6 % de victoires à domicile (43,6), 53,4 points entre le 1er et le dernier (53,7), forme
+    des onze de 31,8 à 71,9 (31,8 à 71,9), le plus faible gagne 23,6 % (23,5) : elles tiennent. Clubs européens : points
+    en championnat dans les quatre jours après un match européen 1,68 contre 1,77 (−0,09 ; −0,06 avant, cible −0,1 à
+    −0,2) ; titularisations sous 75 0,8 % en Lauriers et 0,5 % en Fanions (7,3 et 3,9 %) ; blessures × 1,20 et × 1,16
+    (× 1,24 et × 1,16).
+  - La composition automatique du club dirigé suit la même règle (`selectRestedLineup`) ; ses matchs, eux, jouent sa
+    composition enregistrée, ou `selectLineup` sans elle.
 
 ## 10. Ordre de construction
 
