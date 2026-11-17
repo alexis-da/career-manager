@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { SeasonBestPlayer, SeasonResultView } from "@/src/db/season-results";
 import type { Locale } from "@/src/i18n/locale";
 import { testTranslator } from "@/src/i18n/test-intl";
+import { frameStyleOf } from "@/src/lib/cosmetics";
 import { seasonCardFileName } from "../../../_lib/seasons";
 import {
   CARD_SIZES,
   cardBadge,
+  europeLine,
   objectivesLine,
   seasonCardResponse,
+  type CardDress,
   type CardFormat,
   type CardObjectives,
   type CardTranslators,
@@ -21,6 +24,7 @@ function translators(locale: Locale): CardTranslators {
     seasons: testTranslator(locale, "seasons"),
     seasonCard: testTranslator(locale, "seasonCard"),
     objectives: testTranslator(locale, "objectives"),
+    stage: testTranslator(locale, "stage"),
   };
 }
 
@@ -46,6 +50,9 @@ const CHAMPION: SeasonResultView = {
   relegated: false,
   cupRound: 5,
   cupWinner: false,
+  europeCode: null,
+  europeStage: null,
+  europeWinner: false,
   points: 84,
   played: 34,
   won: 26,
@@ -71,8 +78,9 @@ async function render(
   format: CardFormat,
   locale: Locale = "fr",
   objectives: CardObjectives | null = null,
+  dress?: CardDress,
 ): Promise<Buffer> {
-  const response = await seasonCardResponse(season, LYON, format, translators(locale), locale, objectives);
+  const response = await seasonCardResponse(season, LYON, format, translators(locale), locale, objectives, dress);
   expect(response.headers.get("content-type")).toBe("image/png");
   expect(response.headers.get("cache-control")).toBe("private, max-age=0");
   return Buffer.from(await response.arrayBuffer());
@@ -96,7 +104,7 @@ describe("seasonCardResponse", () => {
   }, DRAWING_TIMEOUT_MS);
 
   it("shows the double, the cup or the league, then a promotion", () => {
-    const season = { rank: 1, promoted: false, relegated: false, cupWinner: false };
+    const season = { rank: 1, promoted: false, relegated: false, cupWinner: false, europeCode: null, europeWinner: false };
     const t = translators("fr");
     expect(cardBadge({ ...season, cupWinner: true }, t)).toEqual({ badge: "DOUBLÉ", line: "Championnat et Coupe" });
     expect(cardBadge({ ...season, cupWinner: true, promoted: true }, t)).toEqual({
@@ -114,7 +122,7 @@ describe("seasonCardResponse", () => {
   });
 
   it("shows them in English too, the rank as an English ordinal", () => {
-    const season = { rank: 1, promoted: false, relegated: false, cupWinner: false };
+    const season = { rank: 1, promoted: false, relegated: false, cupWinner: false, europeCode: null, europeWinner: false };
     const t = translators("en");
     expect(cardBadge({ ...season, cupWinner: true, promoted: true }, t)).toEqual({
       badge: "DOUBLE",
@@ -130,11 +138,72 @@ describe("seasonCardResponse", () => {
     expect(cardBadge({ ...season, rank: 9 }, t)).toBeNull();
   });
 
+  it("shows a European title alone or with the league and the cup: EUROPE, DOUBLÉ, TRIPLÉ, each title named", () => {
+    const season = { rank: 1, promoted: false, relegated: false, cupWinner: false, europeCode: "eu.1", europeWinner: true };
+    const t = translators("fr");
+    expect(cardBadge({ ...season, cupWinner: true }, t)).toEqual({ badge: "TRIPLÉ", line: "Championnat, Coupe et Coupe des Lauriers" });
+    expect(cardBadge({ ...season, cupWinner: true, europeCode: "eu.2", promoted: true }, t)).toEqual({
+      badge: "TRIPLÉ",
+      line: "Championnat, Coupe et Coupe des Fanions · Promu en Division 1",
+    });
+    expect(cardBadge(season, t)).toEqual({ badge: "DOUBLÉ", line: "Championnat et Coupe des Lauriers" });
+    expect(cardBadge({ ...season, rank: 3, cupWinner: true }, t)).toEqual({ badge: "DOUBLÉ", line: "Coupe et Coupe des Lauriers · 3e place" });
+    expect(cardBadge({ ...season, rank: 5 }, t)).toEqual({ badge: "EUROPE", line: "Coupe des Lauriers · 5e place" });
+    expect(cardBadge({ ...season, rank: 2, europeCode: "eu.2", promoted: true }, t)).toEqual({
+      badge: "EUROPE",
+      line: "Coupe des Fanions · 2e place · promu",
+    });
+  });
+
+  it("shows the European titles in English too", () => {
+    const season = { rank: 1, promoted: false, relegated: false, cupWinner: true, europeCode: "eu.1", europeWinner: true };
+    const t = translators("en");
+    expect(cardBadge(season, t)).toEqual({ badge: "TREBLE", line: "League, Cup and Laurel Cup" });
+    expect(cardBadge({ ...season, cupWinner: false, europeCode: "eu.2" }, t)).toEqual({ badge: "DOUBLE", line: "League and Pennant Cup" });
+    expect(cardBadge({ ...season, rank: 4 }, t)).toEqual({ badge: "DOUBLE", line: "Cup and Laurel Cup · 4th place" });
+    expect(cardBadge({ ...season, rank: 7, cupWinner: false }, t)).toEqual({ badge: "EUROPE", line: "Laurel Cup · 7th place" });
+  });
+
+  it("changes no badge for a European run without the title, which its own line says under the competition", () => {
+    const run = { rank: 1, promoted: false, relegated: false, cupWinner: true, europeCode: "eu.1", europeWinner: false };
+    const t = translators("fr");
+    expect(cardBadge(run, t)).toEqual({ badge: "DOUBLÉ", line: "Championnat et Coupe" });
+    expect(cardBadge({ ...run, rank: 6, cupWinner: false }, t)).toBeNull();
+    expect(europeLine({ europeCode: "eu.1", europeStage: 3, europeWinner: false }, t)).toBe("Coupe des Lauriers : quarts de finale");
+    expect(europeLine({ europeCode: "eu.2", europeStage: 1, europeWinner: false }, t)).toBe("Coupe des Fanions : phase de ligue");
+    expect(europeLine({ europeCode: "eu.2", europeStage: 5, europeWinner: false }, translators("en"))).toBe("Pennant Cup: final");
+    // A title's competition is named by the badge; a season without Europe has no line.
+    expect(europeLine({ europeCode: "eu.1", europeStage: 5, europeWinner: true }, t)).toBeNull();
+    expect(europeLine({ europeCode: null, europeStage: null, europeWinner: false }, t)).toBeNull();
+  });
+
   it("draws the cards of a double and of a cup winner in both formats", async () => {
     for (const change of [{ cupWinner: true, cupRound: 6 }, { rank: 5, champion: false, cupWinner: true, cupRound: 6 }]) {
       for (const format of ["landscape", "square"] as const) {
         expect(pngSize(await render({ ...CHAMPION, ...change }, format))).toEqual(CARD_SIZES[format]);
       }
+    }
+  }, DRAWING_TIMEOUT_MS);
+
+  it("draws the European cards in both formats and languages, a run's line under the tallest headline too", async () => {
+    // The double of a promoted club with a European run under its competition: the most the headline holds.
+    const run = { ...CHAMPION, competitionCode: "fr.2", cupWinner: true, cupRound: 6, promoted: true, europeCode: "eu.2", europeStage: 4 };
+    const treble = { ...CHAMPION, cupWinner: true, cupRound: 6, europeCode: "eu.1", europeStage: 5, europeWinner: true };
+    for (const season of [run, treble]) {
+      for (const locale of ["fr", "en"] as const) {
+        for (const format of ["landscape", "square"] as const) {
+          expect(pngSize(await render(season, format, locale, { met: 3, total: 4 }))).toEqual(CARD_SIZES[format]);
+        }
+      }
+    }
+  }, DRAWING_TIMEOUT_MS);
+
+  it("draws the card in the European title's frame, its compass roses at the corners, in both formats", async () => {
+    const europe = { ...CHAMPION, rank: 5, champion: false, europeCode: "eu.1", europeStage: 5, europeWinner: true };
+    const dress: CardDress = { frame: frameStyleOf("frame-compass-rose"), title: "Tacticien" };
+    expect(dress.frame.ornament).toBe("compass");
+    for (const format of ["landscape", "square"] as const) {
+      expect(pngSize(await render(europe, format, "fr", null, dress))).toEqual(CARD_SIZES[format]);
     }
   }, DRAWING_TIMEOUT_MS);
 

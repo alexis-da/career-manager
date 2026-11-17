@@ -216,6 +216,8 @@ export async function unlockSeasonAchievements(saveId: string, seasonId: string 
       promoted: result.promoted,
       cup,
       double: champion && cup,
+      // Either European competition won (the season's league result keeps its trophy, « europe »).
+      europe: result.trophies.includes("europe"),
       roadmap: objectives.length > 0 && objectives.every(({ outcome }) => outcome === "ACHIEVED" || outcome === "EXCEEDED"),
     };
     const ids = achieved((achievement) => achievement.on === "season" && facts[achievement.what] === true);

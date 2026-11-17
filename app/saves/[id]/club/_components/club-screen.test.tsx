@@ -7,6 +7,7 @@ import type { ClubDotation } from "@/src/db/club";
 import type { SeasonResultView } from "@/src/db/season-results";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage, testTranslator } from "@/src/i18n/test-intl";
+import { SEASON_CARD_VERSION } from "../../_lib/seasons";
 import { ClubChallenge } from "./club-challenge";
 import { ClubFinancesCard } from "./club-finances";
 import { ClubHonours } from "./club-honours";
@@ -274,6 +275,9 @@ describe("the honours", () => {
     relegated: false,
     cupRound: null,
     cupWinner: false,
+    europeCode: null,
+    europeStage: null,
+    europeWinner: false,
     points: 64,
     played: 34,
     won: 19,
@@ -302,8 +306,27 @@ describe("the honours", () => {
     expect(line.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()).toBe("6e 2026-27 France — Division 1 · 64 pts Carte");
     expect(markup).toMatch(/<img alt="" [^>]*loading="lazy"[^>]*class="[^"]*max-lg:hidden/);
     // In the page's language: an address that always gives the same image, which the browser keeps.
-    expect(markup).toContain("/saves/save/seasons/season-2026/card?lang=fr&amp;v=1&amp;format=square");
+    expect(markup).toContain(`/saves/save/seasons/season-2026/card?lang=fr&amp;v=${SEASON_CARD_VERSION}&amp;format=square`);
     expect(markup).not.toContain('data-testid="club-honours-all"');
+  });
+
+  it("tells a season's promotion, cup and European run under its competition, as the palmarès does, a title in orange", () => {
+    const seasons = [
+      { ...season(2027, 1), cupRound: 6, cupWinner: true, europeCode: "eu.1", europeStage: 3 },
+      { ...season(2026, 2), competitionCode: "fr.2", promoted: true, europeCode: "eu.2", europeStage: 5, europeWinner: true },
+    ];
+    const lineOf = (markup: string, year: number): string =>
+      (new RegExp(`<a [^>]*data-testid="club-honours-season-${year}".*?</a>`).exec(markup)?.[0] ?? "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const markup = card(seasons);
+
+    expect(lineOf(markup, 2027)).toBe("Champion 2027-28 France — Division 1 · 64 pts Vainqueur de la Coupe Coupe des Lauriers : quarts de finale Carte");
+    expect(lineOf(markup, 2026)).toBe("2e 2026-27 France — Division 2 · 64 pts Promu en Division 1 Vainqueur de la Coupe des Fanions Carte");
+    expect(markup).toMatch(/data-mark="europe" class="[^"]*text-\(--club\)[^"]*">Vainqueur de la Coupe des Fanions</);
+    expect(markup).toMatch(/data-mark="europe" class="[^"]*text-muted-foreground[^"]*">Coupe des Lauriers : quarts de finale</);
+    expect(lineOf(card(seasons, "en"), 2027)).toBe("Champions 2027-28 France — Division 1 · 64 pts Cup winners Laurel Cup: quarter-finals Card");
   });
 
   it("shows the three latest seasons, and the way to the others", () => {

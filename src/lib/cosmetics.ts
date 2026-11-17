@@ -11,7 +11,7 @@ export type Achievement =
   | { on: "perfectDay" } // the three missions of a day
   | { on: "liveMatches"; count: number }
   | { on: "liveWins"; count: number }
-  | { on: "season"; what: "championD1" | "championD2" | "champion" | "promoted" | "cup" | "double" | "roadmap" }
+  | { on: "season"; what: "championD1" | "championD2" | "champion" | "promoted" | "cup" | "double" | "europe" | "roadmap" } // europe: either European competition won
   | { on: "challengePodium" };
 
 /** How a cosmetic is had: worn by default, a streak's cycles done in all, bought, or an achievement. */
@@ -75,6 +75,7 @@ export const COSMETICS = [
   { id: "frame-gold-laurels", kind: "FRAME", unlock: { by: "streak", cycle: 8 } },
   { id: "frame-laurels", kind: "FRAME", unlock: { by: "achievement", achievement: { on: "season", what: "champion" } } },
   { id: "frame-double-star", kind: "FRAME", unlock: { by: "achievement", achievement: { on: "season", what: "double" } } },
+  { id: "frame-compass-rose", kind: "FRAME", unlock: { by: "achievement", achievement: { on: "season", what: "europe" } } },
   { id: "frame-neon", kind: "FRAME", unlock: { by: "shop", price: FRAME_PRICE } },
   { id: "frame-checkerboard", kind: "FRAME", unlock: { by: "shop", price: FRAME_PRICE } },
   { id: "frame-aurora", kind: "FRAME", unlock: { by: "shop", price: FRAME_PRICE } },
@@ -131,7 +132,7 @@ export function priceOf(id: string): number | null {
 export type FrameStyle = {
   border: string; // CSS background of the border: a colour or a gradient
   width: number; // of the border, in pixels of a 1200 × 630 card
-  ornament: "none" | "star" | "laurel" | "dot"; // at each corner
+  ornament: "none" | "star" | "laurel" | "dot" | "compass"; // at each corner
   ornamentColor: string;
 };
 
@@ -143,6 +144,7 @@ export const FRAME_STYLES: Readonly<Record<Extract<CosmeticId, `frame-${string}`
   "frame-gold-laurels": { border: "linear-gradient(135deg, #B8860B, #FFD866, #B8860B)", width: 22, ornament: "laurel", ornamentColor: "#FFF2B3" },
   "frame-laurels": { border: "linear-gradient(135deg, #1E5E3A, #4CC27A, #1E5E3A)", width: 20, ornament: "laurel", ornamentColor: "#D8F5E3" },
   "frame-double-star": { border: "linear-gradient(135deg, #1F3BFF, #FF9F1C)", width: 20, ornament: "star", ornamentColor: "#FFFFFF" },
+  "frame-compass-rose": { border: "linear-gradient(135deg, #0E5C6B, #5FD3D9, #0E5C6B)", width: 20, ornament: "compass", ornamentColor: "#E6FBFC" },
   "frame-neon": { border: "linear-gradient(135deg, #00F0FF, #FF2BD6)", width: 16, ornament: "dot", ornamentColor: "#FFFFFF" },
   "frame-checkerboard": {
     border: "repeating-linear-gradient(45deg, #FFFFFF 0px, #FFFFFF 12px, #0B1340 12px, #0B1340 24px)",

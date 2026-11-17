@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { COSMETICS, COSMETIC_IDS, DEFAULT_COSMETIC, FRAME_STYLES, frameStyleOf, nextStreakLot, owns, priceOf, streakLotOf } from "./cosmetics";
+import { testTranslator } from "@/src/i18n/test-intl";
+import {
+  COSMETICS,
+  COSMETIC_IDS,
+  DEFAULT_COSMETIC,
+  FRAME_STYLES,
+  frameStyleOf,
+  nextStreakLot,
+  owns,
+  priceOf,
+  streakLotOf,
+  type Cosmetic,
+} from "./cosmetics";
 
 describe("the collection's catalogue", () => {
   it("has unique ids, each its kind's prefix, a style for every frame, and the defaults worn without being had", () => {
@@ -36,5 +48,26 @@ describe("the collection's catalogue", () => {
     expect(onSale.filter(({ kind }) => kind === "TITLE").map(({ id }) => priceOf(id))).toEqual([250, 250, 250, 250]);
     expect(onSale.filter(({ kind }) => kind === "FRAME").map(({ id }) => priceOf(id))).toEqual([400, 400, 400, 400]);
     expect(onSale.some(({ kind }) => kind === "BADGE")).toBe(false);
+  });
+
+  it("frames a European title, either competition's, in the compass rose, never on sale", () => {
+    const bySeason = (what: string) =>
+      COSMETICS.filter(({ unlock }: Cosmetic) => unlock.by === "achievement" && unlock.achievement.on === "season" && unlock.achievement.what === what).map(
+        ({ id }) => id,
+      );
+    expect(bySeason("europe")).toEqual(["frame-compass-rose"]);
+    expect(frameStyleOf("frame-compass-rose")).toMatchObject({ ornament: "compass", width: 20 });
+    expect(priceOf("frame-compass-rose")).toBeNull();
+    // The other season titles keep theirs.
+    expect(bySeason("champion")).toEqual(["frame-laurels"]);
+    expect(bySeason("double")).toEqual(["badge-double", "frame-double-star"]);
+  });
+
+  it("names the laurel frames « Couronne » and « Couronne d'or », clear of the Coupe des Lauriers, under their ids of always", () => {
+    const [fr, en] = [testTranslator("fr", "rewards"), testTranslator("en", "rewards")];
+    expect(COSMETIC_IDS.has("frame-laurels") && COSMETIC_IDS.has("frame-gold-laurels")).toBe(true);
+    expect([fr("cosmetics.frame-laurels.name"), fr("cosmetics.frame-gold-laurels.name")]).toEqual(["Couronne", "Couronne d'or"]);
+    expect([en("cosmetics.frame-laurels.name"), en("cosmetics.frame-gold-laurels.name")]).toEqual(["Wreath", "Golden wreath"]);
+    expect([fr("cosmetics.frame-compass-rose.name"), en("cosmetics.frame-compass-rose.name")]).toEqual(["Rose des vents", "Compass rose"]);
   });
 });

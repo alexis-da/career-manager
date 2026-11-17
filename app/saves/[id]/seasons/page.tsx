@@ -12,7 +12,7 @@ import { formatDecimal } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
 
-import { cupLabel, moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
+import { cupLabel, europeLabel, moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
 
 export const dynamic = "force-dynamic";
 
@@ -83,9 +83,10 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
             </TableHeader>
             <TableBody className="max-lg:block max-lg:space-y-2">
               {seasons.map((season) => {
-                const titled = season.champion || season.cupWinner;
+                const titled = season.champion || season.cupWinner || season.europeWinner;
                 const move = moveLabel(season, t);
                 const cup = cupLabel(season, tStage);
+                const europe = europeLabel(season, tStage);
                 return (
                   <TableRow key={season.seasonId} data-season={season.startYear} className={cn(TABLE_ROW, ROW, titled ? MANAGED_ROW : PLAIN_ROW)}>
                     {/* Under lg, without the header, the season, the figures and the best player say what they are. */}
@@ -119,6 +120,14 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                           className={cn("block text-xs font-semibold", season.cupWinner ? "text-(--club)" : "text-muted-foreground")}
                         >
                           {cup}
+                        </span>
+                      )}
+                      {europe !== null && (
+                        <span
+                          data-column="europe"
+                          className={cn("block text-xs font-semibold", season.europeWinner ? "text-(--club)" : "text-muted-foreground")}
+                        >
+                          {europe}
                         </span>
                       )}
                     </TableCell>

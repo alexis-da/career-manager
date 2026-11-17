@@ -130,7 +130,7 @@ Maximum d'une journée : 100 jetons, 150 un 3e jour de cycle, 250 un 7e.
 - **Les cosmétiques exclusifs** suivent les cycles accomplis, comptés au total et **jamais perdus** : une série cassée
   retarde le lot suivant, n'efface pas ceux gagnés ni le compte des cycles. Proposition de suite : cycle 1 → cadre Bronze,
   2 → titre « Assidu », 3 → cadre Argent, 4 → badge « Un mois », 5 → titre « Increvable », 6 → cadre Or, 7 → badge
-  « Sept semaines », 8 → cadre Lauriers d'or. Ensuite, les jetons seuls.
+  « Sept semaines », 8 → cadre Lauriers d'or (« Couronne d'or » depuis le 17/11). Ensuite, les jetons seuls.
 - Les jetons ne se perdent jamais : ni série cassée, ni partie supprimée, ni partie de défi.
 - **Protège-série** (décision 3) : 50 jetons, un seul en réserve, acheté une fois pour toutes, au niveau du joueur. Quand
   un jour compté suit un seul jour manqué (le dernier jour compté est l'avant-veille), le protège-série se consomme tout
@@ -271,8 +271,8 @@ partie de l'adresse de la carte (`&frame=`), pour que le cache garde une image p
 | Bronze | série : 1er cycle |
 | Argent | série : 3e cycle |
 | Or | série : 6e cycle |
-| Lauriers d'or | série : 8e cycle |
-| Lauriers | un titre de champion (D1 ou D2) |
+| Lauriers d'or (« Couronne d'or » depuis le 17/11, chantier « europe ») | série : 8e cycle |
+| Lauriers (« Couronne » depuis le 17/11) | un titre de champion (D1 ou D2) |
 | Étoile double | un doublé |
 | Néon | boutique, 400 |
 | Damier | boutique, 400 |

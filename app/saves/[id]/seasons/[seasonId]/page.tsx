@@ -1,4 +1,4 @@
-import { competitionName } from "@/src/i18n/countries";
+import { competitionName, europeKey } from "@/src/i18n/countries";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ChevronLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { buttonVariants } from "@/src/components/ui/button";
 import { getCupWinnerName } from "@/src/db/cup-view";
+import { getEuropeWinners } from "@/src/db/europe-results";
 import { getClosedObjectives } from "@/src/db/objectives";
 import { getCountryMoves } from "@/src/db/promotion";
 import { getWornCosmetics } from "@/src/db/rewards-view";
@@ -16,6 +17,7 @@ import { seasonLabel } from "@/src/engine/world";
 import { cn } from "@/src/lib/utils";
 import {
   cupLabel,
+  europeReviewLines,
   isLastCompletedSeason,
   moveLabel,
   rankLabel,
@@ -58,9 +60,14 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
   const { season } = result;
   const move = moveLabel(season, t);
   const label = seasonLabel(season.startYear);
-  // The cup's line: the managed club's run, and the winner when it is another club.
+  // The cup's line: the managed club's run, and the winner when it is another club. The European lines: the managed
+  // club's run, then each competition's winner that year.
   const cup = cupLabel(season, tStage);
-  const cupWinner = cup === null || season.cupWinner ? null : await getCupWinnerName(id, season.startYear);
+  const [cupWinner, europeWinners] = await Promise.all([
+    cup === null || season.cupWinner ? null : getCupWinnerName(id, season.startYear),
+    getEuropeWinners(id, season.startYear),
+  ]);
+  const europe = europeReviewLines(season, europeWinners, tStage, t);
   // One column, centred under lg; the whole page on a computer, for the objectives and the moves beside the card: a save
   // with one division has no moves, a season from before the objectives no objectives.
   const beside = objectives !== null || moves.length > 0;
@@ -98,6 +105,17 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
             {cupWinner === null ? cup : t("completed.cupWinner", { cup, club: cupWinner })}
           </p>
         )}
+        {europe.map((line) => (
+          <p
+            key={line.code}
+            data-season-europe={line.code}
+            data-own={line.own ? "" : undefined}
+            data-testid={`season-europe-${europeKey(line.code) ?? line.code}`}
+            className={line.won ? "text-sm font-semibold text-(--club)" : "text-sm text-muted-foreground"}
+          >
+            {line.text}
+          </p>
+        ))}
       </div>
       <div className={cn("grid grid-cols-1 items-start gap-5", beside && "lg:grid-cols-2 xl:grid-cols-[28rem_minmax(0,1fr)]")}>
         <SeasonCardPanel

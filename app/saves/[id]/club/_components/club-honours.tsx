@@ -6,7 +6,7 @@ import { seasonLabel } from "@/src/engine/world";
 import { competitionName } from "@/src/i18n/countries";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
-import { rankLabel, seasonCardFileName, seasonCardPath } from "../../_lib/seasons";
+import { cupLabel, europeLabel, moveLabel, rankLabel, seasonCardFileName, seasonCardPath } from "../../_lib/seasons";
 import { CLUB_CARD_LINK, ClubCardTitle } from "./club-card";
 import { HonoursCardActions } from "./honours-card-actions";
 
@@ -24,6 +24,7 @@ export function ClubHonours({ saveId, seasons, dress, className }: ClubHonoursPr
   const t = useTranslations("seasons");
   const tClub = useTranslations("club");
   const tWorld = useTranslations("world");
+  const tStage = useTranslations("stage");
   const locale = useLocale();
   const latest = seasons.at(0);
   const title = <ClubCardTitle id="club-honours-title">{t("title")}</ClubCardTitle>;
@@ -46,28 +47,43 @@ export function ClubHonours({ saveId, seasons, dress, className }: ClubHonoursPr
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         {title}
         <ul className="space-y-2">
-          {seasons.slice(0, LATEST_SEASONS).map((season) => (
-            <li key={season.seasonId}>
-              {/* The rank's column widens for « Champion ». */}
-              <Link
-                href={`/saves/${saveId}/seasons/${season.seasonId}`}
-                data-testid={`club-honours-season-${season.startYear}`}
-                className="grid min-h-11 grid-cols-[minmax(4rem,auto)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-background px-3.5 py-3 transition-colors hover:bg-secondary"
-              >
-                <span className={cn("font-heading leading-none", season.champion ? "text-[1.375rem] text-(--club)" : "text-[1.875rem] normal-case")}>
-                  {rankLabel(season.rank, t)}
-                </span>
-                <span className="min-w-0 leading-snug">
-                  <span className="block text-[0.9375rem] font-bold tabular-nums">{seasonLabel(season.startYear)}</span>
-                  <span className="block text-[0.8125rem] text-muted-foreground tabular-nums">
-                    {competitionName(season.competitionCode, tWorld)} ·{" "}
-                    <span className="whitespace-nowrap">{tClub("points", { points: season.points })}</span>
+          {seasons.slice(0, LATEST_SEASONS).map((season) => {
+            // As the palmarès has them: the promotion or relegation, the cup's run and the European run, a title in orange.
+            const marks = [
+              { mark: "move", text: moveLabel(season, t), won: season.promoted },
+              { mark: "cup", text: cupLabel(season, tStage), won: season.cupWinner },
+              { mark: "europe", text: europeLabel(season, tStage), won: season.europeWinner },
+            ];
+            return (
+              <li key={season.seasonId}>
+                {/* The rank's column widens for « Champion ». */}
+                <Link
+                  href={`/saves/${saveId}/seasons/${season.seasonId}`}
+                  data-testid={`club-honours-season-${season.startYear}`}
+                  className="grid min-h-11 grid-cols-[minmax(4rem,auto)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-background px-3.5 py-3 transition-colors hover:bg-secondary"
+                >
+                  <span className={cn("font-heading leading-none", season.champion ? "text-[1.375rem] text-(--club)" : "text-[1.875rem] normal-case")}>
+                    {rankLabel(season.rank, t)}
                   </span>
-                </span>
-                <span className="text-[0.8125rem] font-bold text-highlight">{t("columns.card")}</span>
-              </Link>
-            </li>
-          ))}
+                  <span className="min-w-0 leading-snug">
+                    <span className="block text-[0.9375rem] font-bold tabular-nums">{seasonLabel(season.startYear)}</span>
+                    <span className="block text-[0.8125rem] text-muted-foreground tabular-nums">
+                      {competitionName(season.competitionCode, tWorld)} ·{" "}
+                      <span className="whitespace-nowrap">{tClub("points", { points: season.points })}</span>
+                    </span>
+                    {marks.map(({ mark, text, won }) =>
+                      text === null ? null : (
+                        <span key={mark} data-mark={mark} className={cn("block text-xs font-semibold", won ? "text-(--club)" : "text-muted-foreground")}>
+                          {text}
+                        </span>
+                      ),
+                    )}
+                  </span>
+                  <span className="text-[0.8125rem] font-bold text-highlight">{t("columns.card")}</span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
         {seasons.length > LATEST_SEASONS && (
           <Link href={`/saves/${saveId}/seasons`} data-testid="club-honours-all" className={cn(CLUB_CARD_LINK, "self-start")}>

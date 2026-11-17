@@ -44,6 +44,7 @@ const drawCard = unstable_cache(
         seasons: translatorFor(locale, "seasons"),
         seasonCard: translatorFor(locale, "seasonCard"),
         objectives: translatorFor(locale, "objectives"),
+        stage: translatorFor(locale, "stage"),
       },
       locale,
       objectives,

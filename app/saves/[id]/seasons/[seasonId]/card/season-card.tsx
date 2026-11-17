@@ -15,7 +15,7 @@ import { formatDecimal } from "@/src/lib/format";
 import { faceDataUri } from "@/src/og/face-image";
 import { DISPLAY_FONT, imageFonts } from "@/src/og/fonts";
 
-import { moveLabel, rankLabel, recordLabel } from "../../../_lib/seasons";
+import { europeLabel, moveLabel, rankLabel, recordLabel } from "../../../_lib/seasons";
 
 // The shareable card of a season: the brand's midnight blue, the club's colors as accents, and never a club name, real
 // or fictional (CLAUDE.md, « Communication sortante »). The competition keeps its neutral name.
@@ -29,6 +29,7 @@ export type CardTranslators = {
   seasons: Translator<"seasons">;
   seasonCard: Translator<"seasonCard">;
   objectives: Translator<"objectives">;
+  stage: Translator<"stage">;
 };
 
 export const CARD_SIZES: Record<CardFormat, { width: number; height: number }> = {
@@ -71,6 +72,14 @@ function Ornament({ kind, color, size }: { kind: FrameStyle["ornament"]; color: 
           <ellipse cx="7.4" cy="14.4" rx="1.7" ry="3.2" fill={color} transform="rotate(-45 7.4 14.4)" />
           <ellipse cx="18.4" cy="8.5" rx="1.7" ry="3.2" fill={color} transform="rotate(25 18.4 8.5)" />
           <ellipse cx="16.6" cy="14.4" rx="1.7" ry="3.2" fill={color} transform="rotate(45 16.6 14.4)" />
+        </svg>
+      );
+    case "compass":
+      // A compass rose: the four cardinal points, long, over the four others, short and lighter.
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24">
+          <path d="M17.7 6.3L14 12l3.7 5.7L12 14l-5.7 3.7L10 12 6.3 6.3 12 10z" fill={color} fillOpacity={0.6} />
+          <path d="M12 1l1.8 9.2L23 12l-9.2 1.8L12 23l-1.8-9.2L1 12l9.2-1.8z" fill={color} />
         </svg>
       );
     case "none":
@@ -155,31 +164,56 @@ function BestPlayer({
 }
 
 /**
- * The word a card shows in place of the rank, underlined in orange, and the smaller line under it: « DOUBLÉ » for
- * the league and the cup the same season, « CHAMPION », « COUPE » for the cup alone (the rank under it), « PROMU »
- * (the rank under it); null for any other season, which shows its rank. In the player's language: « DOUBLE »,
- * « CHAMPIONS », « CUP », « PROMOTED » in English.
+ * The word a card shows in place of the rank, underlined in orange, and the smaller line under it: « TRIPLÉ » for the
+ * league, the cup and a European competition the same season, « DOUBLÉ » for two of them (named under it: « Championnat
+ * et Coupe », « Championnat et Coupe des Lauriers », « Coupe et Coupe des Fanions » and the rank), « CHAMPION »,
+ * « EUROPE » for a European competition alone (its name and the rank under it), « COUPE » for the cup alone (the rank
+ * under it), « PROMU » (the rank under it); null for any other season, which shows its rank. A champion's line names no
+ * place, and its promotion after its titles. In the player's language: « TREBLE », « DOUBLE », « CHAMPIONS », « EUROPE »,
+ * « CUP », « PROMOTED » in English.
  */
 export function cardBadge(
-  season: Pick<SeasonResultView, "rank" | "promoted" | "relegated" | "cupWinner">,
-  t: Pick<CardTranslators, "seasons" | "seasonCard">,
+  season: Pick<SeasonResultView, "rank" | "promoted" | "relegated" | "cupWinner" | "europeCode" | "europeWinner">,
+  t: Pick<CardTranslators, "seasons" | "seasonCard" | "world">,
 ): { badge: string; line: string | null } | null {
   const champion = season.rank === 1;
+  const cup = season.cupWinner;
+  // The European competition won, by its name: « Coupe des Lauriers ».
+  const europe = season.europeWinner && season.europeCode !== null ? competitionName(season.europeCode, t.world) : null;
   const promoted = season.promoted ? moveLabel(season, t.seasons) : null;
-  if (champion && season.cupWinner) {
+  const rank = rankLabel(season.rank, t.seasons);
+  if (champion) {
+    // The titles won with the league, named: « Championnat et Coupe », « Championnat, Coupe et Coupe des Lauriers ».
+    const titles = europe !== null ? t.seasonCard(cup ? "trebleLine" : "leagueEuropeLine", { europe }) : cup ? t.seasonCard("doubleLine") : null;
+    if (titles === null) {
+      return { badge: rank.toUpperCase(), line: promoted };
+    }
     return {
-      badge: t.seasonCard("double"),
-      line: promoted === null ? t.seasonCard("doubleLine") : t.seasonCard("doubleLinePromoted", { move: promoted }),
+      badge: t.seasonCard(cup && europe !== null ? "treble" : "double"),
+      line: promoted === null ? titles : t.seasonCard("withMove", { titles, move: promoted }),
     };
   }
-  if (champion) {
-    return { badge: rankLabel(1, t.seasons).toUpperCase(), line: promoted };
+  const place = t.seasonCard(season.promoted ? "placePromoted" : "place", { rank });
+  if (europe !== null) {
+    return cup
+      ? { badge: t.seasonCard("double"), line: t.seasonCard("withPlace", { titles: t.seasonCard("cupEuropeLine", { europe }), place }) }
+      : { badge: t.seasonCard("europe"), line: t.seasonCard("withPlace", { titles: europe, place }) };
   }
-  const rank = rankLabel(season.rank, t.seasons);
-  if (season.cupWinner) {
-    return { badge: t.seasonCard("cup"), line: t.seasonCard(season.promoted ? "placePromoted" : "place", { rank }) };
+  if (cup) {
+    return { badge: t.seasonCard("cup"), line: place };
   }
   return season.promoted ? { badge: t.seasonCard("promoted"), line: t.seasonCard("place", { rank }) } : null;
+}
+
+/**
+ * The line of a season's European run on its card, under its competition, in the screens' words: « Coupe des Lauriers :
+ * quarts de finale »; null without one, and for its winner, whose badge names the competition (cardBadge).
+ */
+export function europeLine(
+  season: Pick<SeasonResultView, "europeCode" | "europeStage" | "europeWinner">,
+  t: Pick<CardTranslators, "stage">,
+): string | null {
+  return season.europeWinner ? null : europeLabel(season, t.stage);
 }
 
 /**
@@ -232,6 +266,8 @@ export async function seasonCardResponse(
 
   // « Objectifs : 2/3 » in an orange pill beside the season, on its line: nothing under it moves, in either format.
   const objectivesText = objectivesLine(objectives, t);
+  // The European run under the competition, a title's being the badge's.
+  const europeText = europeLine(season, t);
   const headline = (
     <div style={column}>
       <div style={{ ...row, alignItems: "center" }}>
@@ -255,6 +291,7 @@ export async function seasonCardResponse(
         )}
       </div>
       <div style={{ marginTop: 2, fontSize: 32, color: MUTED }}>{competitionName(season.competitionCode, t.world)}</div>
+      {europeText !== null && <div style={{ marginTop: 2, fontSize: square ? 30 : 28 }}>{europeText}</div>}
       <div style={{ display: "flex", marginTop: square ? 28 : 12 }}>{rank}</div>
       <div style={{ ...row, marginTop: square ? 40 : 26 }}>
         <Stat value={String(season.points)} label={t.seasonCard("points")} size={statSize} />
