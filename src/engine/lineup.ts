@@ -1,4 +1,4 @@
-import { ROTATION_FITNESS, ROTATION_MAX_RATING_GAP } from "./balance";
+import { ROTATION_FITNESS, ROTATION_GAP_PER_FITNESS_POINT, ROTATION_MAX_RATING_GAP } from "./balance";
 import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "./formations";
 import type { AttributeName } from "./generation";
 import type { Instruction } from "./instructions";
@@ -126,7 +126,7 @@ export function selectLineup<P extends LineupCandidate>(squad: readonly P[], for
 
 /**
  * The best player for a slot, unless he is tired: below ROTATION_FITNESS, the best rested player (at ROTATION_FITNESS
- * or more) rated at most ROTATION_MAX_RATING_GAP below him in the slot plays instead, if there is one.
+ * or more) rated at most maxRotationGap below him in the slot plays instead, if there is one.
  */
 function restedFor<P extends LineupCandidate & { fitness: number }>(candidates: readonly P[], slot: Position): P | undefined {
   const best = bestFor(candidates, slot);
@@ -137,12 +137,20 @@ function restedFor<P extends LineupCandidate & { fitness: number }>(candidates: 
     candidates.filter((player) => player.fitness >= ROTATION_FITNESS),
     slot,
   );
-  return rested !== undefined && ratingAt(rested, slot) >= ratingAt(best, slot) - ROTATION_MAX_RATING_GAP ? rested : best;
+  return rested !== undefined && ratingAt(rested, slot) >= ratingAt(best, slot) - maxRotationGap(best.fitness) ? rested : best;
 }
 
 /**
- * An AI club's lineup for a match: selectLineup, except that a tired player gives way to a rested one hardly worse in
- * his slot (restedFor). The tired player may still start elsewhere, or sit on the bench.
+ * The largest rating gap in his slot a tired player gives way for: ROTATION_MAX_RATING_GAP, plus
+ * ROTATION_GAP_PER_FITNESS_POINT for each point of fitness below ROTATION_FITNESS (7 at 74, 15 at 70, 25 at 65).
+ */
+export function maxRotationGap(fitness: number): number {
+  return ROTATION_MAX_RATING_GAP + ROTATION_GAP_PER_FITNESS_POINT * Math.max(0, ROTATION_FITNESS - fitness);
+}
+
+/**
+ * An AI club's lineup for a match: selectLineup, except that a tired player gives way to a rested one not much worse in
+ * his slot, the more tired the larger the gap (restedFor). The tired player may still start elsewhere, or sit on the bench.
  */
 export function selectRestedLineup<P extends LineupCandidate & { fitness: number }>(
   squad: readonly P[],
@@ -192,7 +200,7 @@ export function restedLineups<P extends LineupCandidate & { fitness: number }>(
         best.player.fitness < ROTATION_FITNESS
           ? ranking.find(({ player }) => player.fitness >= ROTATION_FITNESS && !placed.has(player))
           : undefined;
-      const chosen = rested !== undefined && rested.rating >= best.rating - ROTATION_MAX_RATING_GAP ? rested : best;
+      const chosen = rested !== undefined && rested.rating >= best.rating - maxRotationGap(best.player.fitness) ? rested : best;
       assigned[index] = chosen.player;
       placed.add(chosen.player);
     });

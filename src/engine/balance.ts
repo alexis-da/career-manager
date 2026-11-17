@@ -793,10 +793,14 @@ export const INJURY_RISK_FITNESS_SPAN = 30;
 
 /**
  * AI clubs' lineups: a player below ROTATION_FITNESS gives way to the best rested player (at or above it) rated at most
- * ROTATION_MAX_RATING_GAP below him in the slot.
+ * ROTATION_MAX_RATING_GAP below him in the slot, plus ROTATION_GAP_PER_FITNESS_POINT for each point of fitness below
+ * ROTATION_FITNESS (maxRotationGap: 7 at 74, 15 at 70, 25 at 65). With 5 points flat until 17/11, the European clubs,
+ * whose benches fall further behind their elevens season after season, rested fewer and fewer: 12 % of their starters
+ * below 75 in October of the first season, 25 % in the fifth; 1 to 4 % since (measure:seasons).
  */
 export const ROTATION_FITNESS = 75;
 export const ROTATION_MAX_RATING_GAP = 5;
+export const ROTATION_GAP_PER_FITNESS_POINT = 2;
 
 // ------------------------------------------------------------------ End-of-season progression
 // Ages below are the player's age at the start of the next season.
