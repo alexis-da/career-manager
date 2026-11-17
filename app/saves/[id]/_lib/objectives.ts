@@ -16,6 +16,9 @@ type Named = Pick<ObjectiveView, "kind" | "variant" | "target" | "exceed">;
 /** The cup rounds the objectives name: 2 (the round of 32) to 7 (the trophy). */
 const roundKey = (round: number) => String(Math.min(7, Math.max(2, round))) as "2" | "3" | "4" | "5" | "6" | "7";
 
+/** The European stages the objectives name: 2 (the play-offs) to 6 (the title). */
+const europeStageKey = (stage: number) => String(Math.min(6, Math.max(2, stage))) as "2" | "3" | "4" | "5" | "6";
+
 /** What an objective asks: « Finir 8e ou mieux », « Atteindre les quarts de finale »… */
 export function objectiveGoal(objective: Named, t: Translator<"objectives">): string {
   switch (objective.kind) {
@@ -25,6 +28,8 @@ export function objectiveGoal(objective: Named, t: Translator<"objectives">): st
         : t(`goal.${objective.variant}`);
     case "CUP":
       return t("goal.CUP", { round: t(`round.${roundKey(objective.target)}`) });
+    case "EUROPE":
+      return t("goal.EUROPE", { round: t(`europeRound.${europeStageKey(objective.target)}`) });
     case "YOUTH":
       return t("goal.YOUTH", { starts: objective.target, age: YOUTH_OBJECTIVE_MAX_AGE });
     case "ENTERTAINMENT":
@@ -36,13 +41,16 @@ export function objectiveGoal(objective: Named, t: Translator<"objectives">): st
   }
 }
 
-/** What exceeds an objective (the ranking and the cup), or null. */
+/** What exceeds an objective (the ranking, the cup and the European competition), or null. */
 export function objectiveExceed(objective: Named, t: Translator<"objectives">): string | null {
   if (objective.exceed === null) {
     return null;
   }
   if (objective.kind === "CUP") {
     return t("exceed.CUP", { round: t(`round.${roundKey(objective.exceed)}`) });
+  }
+  if (objective.kind === "EUROPE") {
+    return t("exceed.EUROPE", { round: t(`europeRound.${europeStageKey(objective.exceed)}`) });
   }
   if (objective.kind !== "RANKING") {
     return null;
@@ -65,8 +73,8 @@ export function isDecided(status: ObjectiveStatus): status is ObjectiveOutcome {
 }
 
 /**
- * The figure an objective is judged on, in words: the place now (or at the end), the cup round reached (out or not),
- * the most starts of a young player, the goals, the transfer balance. Null before anything is known. Shown while it is
+ * The figure an objective is judged on, in words: the place now (or at the end), the cup round or the European stage
+ * reached (out or not), the most starts of a young player, the goals, the transfer balance. Null before anything is known. Shown while it is
  * too early to tell where the objective stands, too: the figure is no verdict.
  */
 export function objectiveCurrent(
@@ -87,6 +95,13 @@ export function objectiveCurrent(
         return null;
       }
       const round = t(`reached.${String(Math.min(7, current)) as "1" | "2" | "3" | "4" | "5" | "6" | "7"}`);
+      return objective.status === "MISSED" ? t("current.CUP_OUT", { round }) : t("current.CUP", { round });
+    }
+    case "EUROPE": {
+      if (current < 1) {
+        return null;
+      }
+      const round = t(`europeReached.${String(Math.min(6, current)) as "1" | "2" | "3" | "4" | "5" | "6"}`);
       return objective.status === "MISSED" ? t("current.CUP_OUT", { round }) : t("current.CUP", { round });
     }
     case "YOUTH":

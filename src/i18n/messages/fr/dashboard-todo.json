@@ -14,6 +14,9 @@
       "CUP": "{name} (coupe)",
       "BOTH": "{name} (championnat et coupe)"
     },
+    "europeBookingRisks": "{count, plural, one {Un joueur à {yellows} jaunes en Europe} other {# joueurs à {yellows} jaunes en Europe}}",
+    "tiredStarters": "{count, plural, one {Un titulaire sous {fitness} de condition} other {# titulaires sous {fitness} de condition}} avant le match européen",
+    "tiredStartersDetail": "{players} : fais tourner, ou un stage de forme dans la boutique.",
     "offers": "{club} propose {fee} pour {player}",
     "offersDetail": "{count, plural, one {# offre} other {# offres}} pour tes remplaçants",
     "weakSpot": "Ton point faible : {position}",

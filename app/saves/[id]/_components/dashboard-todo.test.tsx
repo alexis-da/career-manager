@@ -335,6 +335,43 @@ describe("the dashboard's to-do list", () => {
     );
   });
 
+  it("flags the starters below the rotation threshold before a European match only, and the European bookings apart", () => {
+    const tired = { ...starter("Las", "ST", 75), fitness: 70 };
+    const fresh = starter("Vif", "GK", 70);
+    const europeanMatch = { nextMatch: { fixture: { competitionCode: "eu.2" } } } as unknown as Partial<Dashboard>;
+    const leagueMatch = { nextMatch: { fixture: { competitionCode: "fr.1" } } } as unknown as Partial<Dashboard>;
+    const withMatch = (match: Partial<Dashboard>, rest: Partial<Pick<Dashboard, "bookingRisks">> = {}) =>
+      ({ ...dashboardWith({}, rest), ...match }) as Dashboard;
+
+    const before = lines(render({ dashboard: withMatch(europeanMatch), lineup: lineupOf([tired, fresh]) }));
+    expect(before[0]).toEqual({
+      id: "tired-starters",
+      href: `${SAVE}/lineup`,
+      text: "Un titulaire sous 75 de condition avant le match européen J. Las : fais tourner, ou un stage de forme dans la boutique.",
+    });
+    expect(idsOf(render({ dashboard: withMatch(leagueMatch), lineup: lineupOf([tired, fresh]) }))).not.toContain("tired-starters");
+    expect(lines(render({ dashboard: withMatch(europeanMatch), lineup: lineupOf([tired, fresh]) }, "en"))[0].text).toBe(
+      "A starter below 75 fitness before the European match J. Las: rotate your squad, or book a fitness camp in the shop.",
+    );
+
+    // Two European yellows: a line of their own, never counted with the league's four.
+    const risks = lines(
+      render({
+        dashboard: withMatch(europeanMatch, {
+          bookingRisks: [
+            { name: "M. Dupont", competitions: ["LEAGUE"] },
+            { name: "N. Lebrun", competitions: ["EUROPE"] },
+          ],
+        }),
+        lineup: NO_ELEVEN,
+      }),
+    );
+    expect(risks.filter(({ id }) => id.endsWith("booking-risks"))).toEqual([
+      { id: "booking-risks", href: `${SAVE}/lineup`, text: "Un joueur à 4 jaunes M. Dupont : un jaune de plus vaut une suspension." },
+      { id: "europe-booking-risks", href: `${SAVE}/lineup`, text: "Un joueur à 2 jaunes en Europe N. Lebrun : un jaune de plus vaut une suspension." },
+    ]);
+  });
+
   it("puts the market's weak spot first where nobody can play, then where a starter plays out of his line", () => {
     const weakSpotOf = (lineup: ManagedLineup, locale: Locale = "fr") =>
       lines(render({ dashboard: dashboardWith({}), lineup }, locale)).find(({ id }) => id === "weak-spot");

@@ -65,7 +65,29 @@
     },
     "otherRoundReached": "round {round}",
     "cupWinner": "Cup winners",
-    "cupReached": "Cup: {round}"
+    "cupReached": "Cup: {round}",
+    "europe": "{competition} — {round}",
+    "europeNames": {
+      "eu1": "Laurel Cup",
+      "eu2": "Pennant Cup"
+    },
+    "europeLeagueRound": "Matchday {round}",
+    "europeRounds": {
+      "7": "Play-offs",
+      "8": "Quarter-final",
+      "9": "Semi-final",
+      "10": "Final"
+    },
+    "europeReached": {
+      "1": "league phase",
+      "2": "play-offs",
+      "3": "quarter-finals",
+      "4": "semi-finals",
+      "5": "final"
+    },
+    "europeWinner": "{competition} winners",
+    "europeReachedLine": "{competition}: {round}",
+    "neutral": "Neutral ground"
   },
   "score": {
     "extraTime": "a.e.t.",

@@ -10,6 +10,7 @@ describe("a save's sections", () => {
     expect(entryOf("/fixtures")).toBe("match");
     expect(entryOf("/standings")).toBe("match");
     expect(entryOf("/cup")).toBe("match");
+    expect(entryOf("/europe")).toBe("match");
     expect(entryOf("/live")).toBe("match");
     expect(entryOf("/transfers")).toBe("transfers");
     expect(entryOf("/club")).toBe("club");
@@ -46,8 +47,16 @@ describe("a save's sections", () => {
 
   it("offers « Coupe » only with a cup", () => {
     const match = sectionAt("/fixtures");
-    expect(tabsOf(match, true)).toEqual(["fixtures", "standings", "cup"]);
-    expect(tabsOf(match, false)).toEqual(["fixtures", "standings"]);
+    expect(tabsOf(match, true, false)).toEqual(["fixtures", "standings", "cup"]);
+    expect(tabsOf(match, false, false)).toEqual(["fixtures", "standings"]);
+  });
+
+  it("offers « Europe » after « Coupe », only with a European season", () => {
+    const match = sectionAt("/fixtures");
+    expect(tabsOf(match, true, true)).toEqual(["fixtures", "standings", "cup", "europe"]);
+    expect(tabsOf(match, false, true)).toEqual(["fixtures", "standings", "europe"]);
+    expect(tabAt("/europe")).toBe("europe");
+    expect(tabTestId("europe")).toBe("nav-europe");
   });
 
   it("has five entries, each leading to one of its own screens", () => {
@@ -62,7 +71,7 @@ describe("a save's sections", () => {
     const club = sectionAt("/club");
     expect(club.home).toBe("/club");
     expect(club.computerHome).toBeUndefined();
-    expect(tabsOf(club, false)).toEqual(["club", "challenge", "seasons", "rewards"]);
+    expect(tabsOf(club, false, false)).toEqual(["club", "challenge", "seasons", "rewards"]);
     expect(tabAt("/seasons/season-1")).toBe("seasons");
     expect(sectionAt("/rewards").key).toBe("club");
   });

@@ -6,7 +6,8 @@ import { MatchSheetDialog } from "../fixtures/_components/match-sheet-dialog";
 import { UpcomingMatchSheet } from "../fixtures/_components/upcoming-match-sheet";
 import { weekdayAbbreviation } from "../fixtures/_lib/month-grid";
 import { RESULT_CLASSES } from "../_lib/results";
-import { cupRoundName, matchResultFor, stageLabel } from "../_lib/stage";
+import { europeKey } from "@/src/i18n/countries";
+import { cupRoundName, europeRoundName, matchResultFor, stageLabel } from "../_lib/stage";
 import { ScoreNotes } from "./score-notes";
 
 const ROW =
@@ -29,13 +30,24 @@ function MatchDay({ date, dense }: { date: Date; dense: boolean }) {
   );
 }
 
-/** Its competition, then its stage: « D2 · Journée 12 ». A cup tie keeps its name, « COUPE — 16es », its first word the tag. */
+/**
+ * Its competition, then its stage: « D2 · Journée 12 ». A cup tie keeps its name, « COUPE — 16es », its first word the tag;
+ * a European match its competition's short name, « LAURIERS — 3e journée », in the green of its laurels.
+ */
 function MatchStage({ fixture }: { fixture: FixtureWithEvents }) {
   const t = useTranslations("fixtures");
   const tStage = useTranslations("stage");
+  const europe = europeKey(fixture.competitionCode);
   return (
     <span className="block text-xs text-muted-foreground">
-      {fixture.cup ? (
+      {europe !== null ? (
+        <>
+          <span data-europe={fixture.competitionCode} className="font-bold text-win uppercase">
+            {t(`tag.europe.${europe}`)}
+          </span>{" "}
+          — {europeRoundName(fixture.round, tStage)}
+        </>
+      ) : fixture.cup ? (
         <>
           <span className="font-bold text-(--club) uppercase">{t("tag.cup")}</span> — {cupRoundName(fixture.round, tStage)}
         </>

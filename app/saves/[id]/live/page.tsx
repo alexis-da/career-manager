@@ -7,7 +7,7 @@ import { getLiveMatchday } from "@/src/db/calendar";
 import { getHalfTimeTeam, getLiveWaiting } from "@/src/db/live-match";
 import { formatDate } from "@/src/lib/format";
 import { readSessionEnd } from "../_lib/session-end";
-import { stageLabel } from "../_lib/stage";
+import { isNeutralStage, stageLabel, stageNamesCompetition } from "../_lib/stage";
 import { LiveMatch } from "./_components/live-match";
 import { startMinute } from "./_lib/live-pause";
 
@@ -44,12 +44,13 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
   // Once the match waits nowhere (over: the page is read again at its end), the « À demain » card's next appointment.
   // Not simulation code: the challenge's days left are real time.
   const sessionEnd = waiting === null ? await readSessionEnd(id, new Date(), match.id) : null;
-  // A cup tie names its cup in its stage: « Coupe — Finale ».
+  // A cup tie names its cup in its stage, « Coupe — Finale », a European match its competition; a European final is on
+  // neutral ground.
   const caption = [
-    ...(match.cup ? [] : [competitionName(match.competitionCode, tWorld)]),
+    ...(stageNamesCompetition(match) ? [] : [competitionName(match.competitionCode, tWorld)]),
     stageLabel(match, tStage),
     formatDate(match.scheduledAt, locale),
-    ...(stadium === null ? [] : [stadium]),
+    ...(isNeutralStage(match) ? [tStage("neutral")] : stadium === null ? [] : [stadium]),
   ].join(" · ");
 
   return (

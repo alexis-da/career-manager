@@ -15,7 +15,7 @@ import { decisionMoment, describeDecision, withDecisions, type MatchLine } from 
 import { describeInstructionChange, instructionChanges, type InstructionChange } from "../../_lib/instruction-changes";
 import { describeEvent, formatMinute, shootoutKicks } from "../../_lib/match-events";
 import { RESULT_CLASSES } from "../../_lib/results";
-import { matchResultFor, stageLabel } from "../../_lib/stage";
+import { isNeutralStage, matchResultFor, stageLabel, stageNamesCompetition } from "../../_lib/stage";
 
 type Align = "left" | "right";
 
@@ -219,8 +219,9 @@ export function MatchSheetDialog({ fixture, children, triggerClassName }: MatchS
           {fixture.home.name} {score} {fixture.away.name}
         </DialogTitle>
         <DialogDescription className="eyebrow text-center">
-          {fixture.cup ? "" : `${competitionName(fixture.competitionCode, tWorld)} · `}
+          {stageNamesCompetition(fixture) ? "" : `${competitionName(fixture.competitionCode, tWorld)} · `}
           {stageLabel(fixture, tStage)} · {formatDate(fixture.scheduledAt, locale)}
+          {isNeutralStage(fixture) ? ` · ${tStage("neutral")}` : ""}
         </DialogDescription>
 
         {/* On a phone, home, score and away one above the other: side by side, they were wider than the screen. */}

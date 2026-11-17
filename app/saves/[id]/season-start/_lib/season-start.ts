@@ -1,6 +1,6 @@
 import type { ClubDotation } from "@/src/db/club";
 import type { ClosedObjectivesView, ObjectiveView, SeasonObjectivesView } from "@/src/db/objectives";
-import { CHOSEN_COEFFICIENT, CUP_COEFFICIENT, NEUTRAL_BUDGET_COEFFICIENT, RANKING_COEFFICIENT } from "@/src/engine/balance";
+import { CHOSEN_COEFFICIENT, CUP_COEFFICIENT, EUROPE_COEFFICIENT, NEUTRAL_BUDGET_COEFFICIENT, RANKING_COEFFICIENT } from "@/src/engine/balance";
 import {
   assistantObjective,
   OPTIONAL_OBJECTIVES,
@@ -48,9 +48,9 @@ export function objectiveChoiceState(view: Pick<SeasonObjectivesView, "objective
 }
 
 /**
- * What an objective's outcome added to the coefficient of the next dotation, in hundredths: the ranking's, the cup's or
- * the chosen objective's (RANKING_COEFFICIENT, CUP_COEFFICIENT, CHOSEN_COEFFICIENT). Their sum and 100 make the
- * coefficient, within BUDGET_COEFFICIENT_RANGE, which they never leave (80 to 140).
+ * What an objective's outcome added to the coefficient of the next dotation, in hundredths: the ranking's, the cup's, the
+ * European one's or the chosen objective's (RANKING_COEFFICIENT, CUP_COEFFICIENT, EUROPE_COEFFICIENT, CHOSEN_COEFFICIENT).
+ * Their sum and 100 make the coefficient, within BUDGET_COEFFICIENT_RANGE (75 to 150 before it, 70 to 140 after).
  */
 export function objectiveContribution(kind: ObjectiveKind, outcome: ObjectiveOutcome): number {
   switch (kind) {
@@ -58,6 +58,8 @@ export function objectiveContribution(kind: ObjectiveKind, outcome: ObjectiveOut
       return RANKING_COEFFICIENT[outcome];
     case "CUP":
       return CUP_COEFFICIENT[outcome];
+    case "EUROPE":
+      return EUROPE_COEFFICIENT[outcome];
     default:
       return CHOSEN_COEFFICIENT[outcome];
   }

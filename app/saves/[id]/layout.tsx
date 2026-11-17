@@ -107,7 +107,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               {stage} · {t(header.windowOpen ? "windowOpen" : "windowClosed")}
             </p>
           </div>
-          <SectionTabs saveId={header.id} hasCup={header.hasCup} />
+          <SectionTabs saveId={header.id} hasCup={header.hasCup} hasEurope={header.hasEurope} />
           {children}
         </main>
       </div>

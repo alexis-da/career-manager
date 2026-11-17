@@ -1,5 +1,15 @@
 /** A screen of an entry that has several: its tab, named in the nav messages by this key, its path « /<key> ». */
-export type SectionTab = "squad" | "lineup" | "fixtures" | "standings" | "cup" | "club" | "challenge" | "seasons" | "rewards";
+export type SectionTab =
+  | "squad"
+  | "lineup"
+  | "fixtures"
+  | "standings"
+  | "cup"
+  | "europe"
+  | "club"
+  | "challenge"
+  | "seasons"
+  | "rewards";
 
 export type Section = {
   key: "dashboard" | "team" | "match" | "transfers" | "club"; // in the nav messages, and in its data-testid: « nav-team »
@@ -12,7 +22,7 @@ export type Section = {
 export const SECTIONS: readonly Section[] = [
   { key: "dashboard", home: "", tabs: [] },
   { key: "team", home: "/squad", computerHome: "/lineup", tabs: ["squad", "lineup"] },
-  { key: "match", home: "/fixtures", computerHome: "/standings", tabs: ["fixtures", "standings", "cup"] },
+  { key: "match", home: "/fixtures", computerHome: "/standings", tabs: ["fixtures", "standings", "cup", "europe"] },
   { key: "transfers", home: "/transfers", tabs: [] },
   { key: "club", home: "/club", tabs: ["club", "challenge", "seasons", "rewards"] },
 ];
@@ -56,7 +66,7 @@ export function sectionAt(path: string): Section {
 /** A tab's data-testid: « nav-lineup »; the tab named like its entry has its own, the entry keeping « nav-club ». */
 export const tabTestId = (tab: SectionTab): string => (tab === "club" ? "nav-club-overview" : `nav-${tab}`);
 
-/** The tabs of an entry in a save: « Coupe » only with a cup. */
-export function tabsOf(section: Section, hasCup: boolean): SectionTab[] {
-  return section.tabs.filter((tab) => hasCup || tab !== "cup");
+/** The tabs of an entry in a save: « Coupe » only with a cup, « Europe » only with a European season. */
+export function tabsOf(section: Section, hasCup: boolean, hasEurope: boolean): SectionTab[] {
+  return section.tabs.filter((tab) => (hasCup || tab !== "cup") && (hasEurope || tab !== "europe"));
 }

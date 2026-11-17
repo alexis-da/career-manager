@@ -2,6 +2,15 @@
   "world": {
     "league": "{country} — Division {tier}",
     "cup": "{country} — Coupe",
+    "europe": {
+      "eu1": "Coupe des Lauriers",
+      "eu2": "Coupe des Fanions"
+    },
+    "europeShort": {
+      "eu1": "Lauriers",
+      "eu2": "Fanions"
+    },
+    "europeCountry": "Europe",
     "countries": {
       "de": "Allemagne",
       "en": "Angleterre",

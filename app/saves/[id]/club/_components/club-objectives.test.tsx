@@ -10,6 +10,7 @@ import { ClubObjectives } from "./club-objectives";
 const ASKED: Record<ObjectiveKind, Pick<ObjectiveView, "variant" | "target" | "exceed">> = {
   RANKING: { variant: "FINISH", target: 8, exceed: 5 },
   CUP: { variant: null, target: 3, exceed: 5 },
+  EUROPE: { variant: null, target: 3, exceed: 5 },
   YOUTH: { variant: null, target: 15, exceed: null },
   ENTERTAINMENT: { variant: null, target: 55, exceed: null },
   SOLIDITY: { variant: null, target: 36, exceed: null },

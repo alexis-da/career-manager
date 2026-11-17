@@ -3,6 +3,7 @@
     "kind": {
       "RANKING": "League",
       "CUP": "Cup",
+      "EUROPE": "Europe",
       "YOUTH": "Youth",
       "ENTERTAINMENT": "Entertainment",
       "SOLIDITY": "Solidity",
@@ -14,6 +15,7 @@
       "SURVIVAL": "Stay up",
       "FINISH": "Finish {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} or higher",
       "CUP": "Reach {round}",
+      "EUROPE": "Reach {round} in Europe",
       "YOUTH": "Start a player aged {age} or under {starts} times in the league",
       "ENTERTAINMENT": "Score at least {goals} league goals",
       "SOLIDITY": "Concede at most {goals} league goals",
@@ -24,7 +26,23 @@
       "PROMOTION": "Exceeded with the Division 2 title",
       "SURVIVAL": "Exceeded by finishing {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} or higher",
       "FINISH": "Exceeded by finishing {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} or higher",
-      "CUP": "Exceeded by reaching {round}"
+      "CUP": "Exceeded by reaching {round}",
+      "EUROPE": "Exceeded by reaching {round}"
+    },
+    "europeRound": {
+      "2": "the play-offs",
+      "3": "the quarter-finals",
+      "4": "the semi-finals",
+      "5": "the final",
+      "6": "the title"
+    },
+    "europeReached": {
+      "1": "League phase",
+      "2": "Play-offs",
+      "3": "Quarter-finals",
+      "4": "Semi-finals",
+      "5": "Final",
+      "6": "European title"
     },
     "round": {
       "2": "the round of 32",

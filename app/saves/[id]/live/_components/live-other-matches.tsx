@@ -4,7 +4,7 @@ import { competitionName } from "@/src/i18n/countries";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
 import { ScoreNotes } from "../../_components/score-notes";
-import { cupRoundName } from "../../_lib/stage";
+import { cupRoundName, europeRoundName, isEuropeStage } from "../../_lib/stage";
 import { LiveCardTitle } from "./live-card-title";
 
 /** Another match of the day at the clock's minute. */
@@ -32,6 +32,7 @@ export function LiveOtherMatches({ match, scores, over }: LiveOtherMatchesProps)
       <p className="text-sm text-muted-foreground">
         {competitionName(match.competitionCode, tWorld)}
         {match.cup && ` · ${cupRoundName(match.round, tStage)}`}
+        {isEuropeStage(match) && ` · ${europeRoundName(match.round, tStage)}`}
       </p>
       <ul className="mt-3 space-y-2 text-sm leading-tight">
         {scores.map(({ match: other, home, away, recent }) => (

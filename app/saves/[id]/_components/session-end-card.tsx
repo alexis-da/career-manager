@@ -11,7 +11,7 @@ import { formatDate } from "@/src/lib/format";
 import type { AssistantWord, Stake } from "@/src/lib/session-end";
 import { cn } from "@/src/lib/utils";
 import { InstallAppLink } from "../club/_components/install-app";
-import { stageLabel } from "../_lib/stage";
+import { stageLabel, stageNamesCompetition } from "../_lib/stage";
 import { AssistantWordLine } from "./assistant-word";
 import { DailyMissionsLine } from "./daily-missions";
 
@@ -31,6 +31,18 @@ function stakeText(stake: Stake, t: Translator<"sessionEnd">): string {
       return t("stake.climb", { places: stake.places });
     case "rank":
       return t("stake.rank", { rank: stake.rank });
+    case "europeKnockout":
+      return t("stake.europeKnockout");
+    case "europeFinal":
+      return t("stake.europeFinal");
+    case "europeOpening":
+      return t("stake.europeOpening");
+    case "europeTopFour":
+      return t("stake.europeTopFour");
+    case "europeTopTwelve":
+      return t("stake.europeTopTwelve");
+    case "europeRank":
+      return t("stake.europeRank", { rank: stake.rank });
   }
 }
 
@@ -68,7 +80,11 @@ export function SessionEndCard({ saveId, appointment, word, mission = null, onNa
             {match.home ? t("home", { opponent: match.opponent }) : t("away", { opponent: match.opponent })}
           </p>
           <p className="text-sm text-muted-foreground first-letter:uppercase">
-            {[formatDate(match.scheduledAt, locale), ...(match.cup ? [] : [competitionName(match.competitionCode, tWorld)]), stageLabel(match, tStage)].join(" · ")}
+            {[
+              formatDate(match.scheduledAt, locale),
+              ...(stageNamesCompetition(match) ? [] : [competitionName(match.competitionCode, tWorld)]),
+              stageLabel(match, tStage),
+            ].join(" · ")}
           </p>
           <p data-testid="session-end-stake" data-stake={match.stake.kind} className="text-sm font-semibold text-highlight">
             {stakeText(match.stake, t)}

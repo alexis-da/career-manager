@@ -1,7 +1,9 @@
 import { displayClubName } from "../engine/club-name";
+import { EUROPE_FINAL_ROUND, EUROPE_LEAGUE_ROUNDS } from "../engine/europe";
 import { isoWeekKey, isoWeekNumber } from "../lib/iso-week";
-import { stakeOf, type Stake } from "../lib/session-end";
+import { europeStakeOf, stakeOf, type Stake } from "../lib/session-end";
 import { prisma } from "./client";
+import { europeLeagueStandings } from "./europe";
 import { getStandings } from "./standings";
 
 // The « À demain » card's reading (app/saves/[id]/_components/session-end-card.tsx), after a live match and after a
@@ -17,7 +19,7 @@ export type AppointmentMatch = {
   opponent: string;
   competitionCode: string;
   cup: boolean;
-  round: number; // a league matchday, or a cup round
+  round: number; // a league matchday, a cup round, or a European round
   stake: Stake;
 };
 
@@ -37,7 +39,8 @@ export type NextAppointment = {
 
 /**
  * What comes next for a save: the managed club's next match, in any competition of the seasons in progress (`excluded`:
- * the live match itself, still unplayed until its end), with its stake in the league table; and the week's challenge.
+ * the live match itself, still unplayed until its end), with its stake in the league table (a European match's in its
+ * league phase table); and the week's challenge.
  */
 export async function getNextAppointment(saveId: string, now: Date, excluded?: string): Promise<NextAppointment> {
   const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true, competitionId: true } });
@@ -49,6 +52,7 @@ export async function getNextAppointment(saveId: string, now: Date, excluded?: s
       select: {
         scheduledAt: true,
         round: true,
+        seasonId: true,
         homeClubSaveId: true,
         awayClubSaveId: true,
         season: { select: { competition: { select: { code: true, kind: true } } } },
@@ -75,6 +79,18 @@ export async function getNextAppointment(saveId: string, now: Date, excluded?: s
     const home = next.homeClubSaveId === managed.id;
     const [own, opponent] = home ? [next.homeClubSave.club, next.awayClubSave.club] : [next.awayClubSave.club, next.homeClubSave.club];
     const cup = next.season.competition.kind === "CUP";
+    // A European match's stake is read in its league phase table, which knows its clubs by their rows; the league's
+    // table knows them by their slug.
+    const stake =
+      next.season.competition.kind === "EUROPE"
+        ? europeStakeOf({
+            knockout: next.round > EUROPE_LEAGUE_ROUNDS,
+            final: next.round === EUROPE_FINAL_ROUND,
+            table: (await europeLeagueStandings(prisma, saveId, next.seasonId)).map((row) => ({ ...row, club: row.clubSaveId })),
+            own: managed.id,
+            opponent: home ? next.awayClubSaveId : next.homeClubSaveId,
+          })
+        : stakeOf({ cup, table, own: own.slug, opponent: opponent.slug });
     match = {
       scheduledAt: next.scheduledAt,
       home,
@@ -82,8 +98,7 @@ export async function getNextAppointment(saveId: string, now: Date, excluded?: s
       competitionCode: next.season.competition.code,
       cup,
       round: next.round,
-      // The table knows its clubs by their slug.
-      stake: stakeOf({ cup, table, own: own.slug, opponent: opponent.slug }),
+      stake,
     };
   }
 
@@ -113,6 +128,7 @@ export type LastManagedResult = {
   awayPenalties: number | null;
   home: boolean; // the managed club played at home
   cup: boolean;
+  europeKnockout: boolean; // a European knockout tie: lost, the club is out
 };
 
 /** The managed club's last match played in the seasons in progress, or null before its first. */
@@ -128,6 +144,7 @@ export async function lastManagedResult(saveId: string): Promise<LastManagedResu
       decidedBy: true,
       homePenalties: true,
       awayPenalties: true,
+      round: true,
       season: { select: { competition: { select: { kind: true } } } },
     },
   });
@@ -142,5 +159,6 @@ export async function lastManagedResult(saveId: string): Promise<LastManagedResu
     awayPenalties: last.awayPenalties,
     home: last.homeClubSaveId === managed.id,
     cup: last.season.competition.kind === "CUP",
+    europeKnockout: last.season.competition.kind === "EUROPE" && last.round > EUROPE_LEAGUE_ROUNDS,
   };
 }

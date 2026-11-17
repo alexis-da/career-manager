@@ -2,12 +2,13 @@ import { ChevronRightIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "@/src/components/link";
 import type { Dashboard, Scorer } from "@/src/db/dashboard";
+import { EUROPE_LEAGUE_ROUNDS } from "@/src/engine/europe";
 import { OBJECTIVES_JUDGED_FROM_MATCH } from "@/src/engine/objectives";
 import { assistantWordAfter } from "@/src/lib/session-end";
 import { cn } from "@/src/lib/utils";
 import { monthOf, monthParam } from "../fixtures/_lib/month-grid";
 import { RESULT_CLASSES } from "../_lib/results";
-import { matchResultFor, stageLabel } from "../_lib/stage";
+import { isEuropeStage, matchResultFor, stageLabel } from "../_lib/stage";
 import { Panel, PanelTitle } from "@/src/components/panel";
 import { AssistantWordLine } from "./assistant-word";
 import { ScoreNotes } from "./score-notes";
@@ -39,7 +40,8 @@ function LastResult({ saveId, lastResult, leaguePlayed }: LastResultProps) {
   const { home, away, homeGoals, awayGoals } = fixture;
   const result = matchResultFor({ ...fixture, homeGoals: homeGoals ?? 0, awayGoals: awayGoals ?? 0 }, home.isManaged);
   const [scored, conceded] = home.isManaged ? [homeGoals ?? 0, awayGoals ?? 0] : [awayGoals ?? 0, homeGoals ?? 0];
-  const word = assistantWordAfter({ result, scored, conceded, cup: fixture.cup }, leaguePlayed, OBJECTIVES_JUDGED_FROM_MATCH);
+  const europeKnockout = isEuropeStage(fixture) && fixture.round > EUROPE_LEAGUE_ROUNDS;
+  const word = assistantWordAfter({ result, scored, conceded, cup: fixture.cup, europeKnockout }, leaguePlayed, OBJECTIVES_JUDGED_FROM_MATCH);
   return (
     <>
       <PanelTitle>

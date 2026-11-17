@@ -235,6 +235,26 @@ export function leaguePhaseTableOf(entrants: readonly EuropeEntrant[], fixtures:
   );
 }
 
+/** A club's line in a European season's league phase, by its row: its country (its league's prefix), rank and points. */
+export type EuropeStanding = { clubSaveId: string; club: string; country: string; rank: number; points: number; played: number };
+
+/** A European season's league phase table, its clubs by row, as the dashboard and the next match's stake read it. */
+export async function europeLeagueStandings(db: Db, saveId: string, seasonId: string): Promise<EuropeStanding[]> {
+  const season = await db.season.findFirstOrThrow({ where: { id: seasonId, saveId }, select: { entrants: true } });
+  const entrants = parseEuropeEntrants(seasonId, season.entrants);
+  const fixtures = await europeFixtures(db, saveId, seasonId);
+  const clubSaveIdOf = clubSaveIds(fixtures);
+  const countryOfClub = new Map(entrants.map((entrant) => [entrant.club, entrant.country]));
+  return leaguePhaseTableOf(entrants, fixtures).map((row) => ({
+    clubSaveId: getOrThrow(clubSaveIdOf, row.club, "European club"),
+    club: row.club,
+    country: countryOfClub.get(row.club) ?? "",
+    rank: row.rank,
+    points: row.points,
+    played: row.played,
+  }));
+}
+
 /** Whether a European season's league phase is over: every match of its six rounds played. */
 export function leaguePhaseOver(fixtures: readonly EuropeFixtureRow[]): boolean {
   const league = fixtures.filter((fixture) => fixture.round <= EUROPE_LEAGUE_ROUNDS);

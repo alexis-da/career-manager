@@ -10,6 +10,9 @@
     "injuredSeparator": "; ",
     "bookingRisks": "{count, plural, one {A player on {yellows} yellow cards} other {# players on {yellows} yellow cards}}",
     "bookingRisksDetail": "{players}: one more booking means a suspension.",
+    "europeBookingRisks": "{count, plural, one {A player on {yellows} European yellow cards} other {# players on {yellows} European yellow cards}}",
+    "tiredStarters": "{count, plural, one {A starter below {fitness} fitness} other {# starters below {fitness} fitness}} before the European match",
+    "tiredStartersDetail": "{players}: rotate your squad, or book a fitness camp in the shop.",
     "bookingRiskIn": {
       "CUP": "{name} (cup)",
       "BOTH": "{name} (league and cup)"

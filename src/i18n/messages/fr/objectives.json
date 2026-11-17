@@ -3,6 +3,7 @@
     "kind": {
       "RANKING": "Classement",
       "CUP": "Coupe",
+      "EUROPE": "Europe",
       "YOUTH": "Jeunesse",
       "ENTERTAINMENT": "Spectacle",
       "SOLIDITY": "Solidité",
@@ -14,6 +15,7 @@
       "SURVIVAL": "Se maintenir",
       "FINISH": "Finir {rank, selectordinal, one {#er} other {#e}} ou mieux",
       "CUP": "Atteindre {round}",
+      "EUROPE": "Atteindre {round} en Europe",
       "YOUTH": "Titulariser {starts} fois en championnat un joueur de {age} ans ou moins",
       "ENTERTAINMENT": "Marquer au moins {goals} buts en championnat",
       "SOLIDITY": "Encaisser au plus {goals} buts en championnat",
@@ -24,7 +26,23 @@
       "PROMOTION": "Dépassé avec le titre de Division 2",
       "SURVIVAL": "Dépassé en finissant {rank, selectordinal, one {#er} other {#e}} ou mieux",
       "FINISH": "Dépassé en finissant {rank, selectordinal, one {#er} other {#e}} ou mieux",
-      "CUP": "Dépassé en atteignant {round}"
+      "CUP": "Dépassé en atteignant {round}",
+      "EUROPE": "Dépassé en atteignant {round}"
+    },
+    "europeRound": {
+      "2": "les barrages",
+      "3": "les quarts de finale",
+      "4": "les demi-finales",
+      "5": "la finale",
+      "6": "le titre"
+    },
+    "europeReached": {
+      "1": "Phase de ligue",
+      "2": "Barrages",
+      "3": "Quarts de finale",
+      "4": "Demi-finales",
+      "5": "Finale",
+      "6": "Titre européen"
     },
     "round": {
       "2": "les seizièmes de finale",

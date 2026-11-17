@@ -5,10 +5,10 @@ import { buttonVariants } from "@/src/components/ui/button";
 import type { ClubPreview, Dashboard } from "@/src/db/dashboard";
 import type { FormationName } from "@/src/engine/formations";
 import type { OpponentPreview } from "@/src/db/opponent";
-import { competitionName } from "@/src/i18n/countries";
+import { competitionName, countryName } from "@/src/i18n/countries";
 import { formatDecimal, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { stageLabel } from "../_lib/stage";
+import { isEuropeStage, isNeutralStage, stageLabel } from "../_lib/stage";
 import { GameActions } from "./game-actions";
 import { OpponentSheet } from "./opponent-sheet";
 import { ResultPill } from "./result-pill";
@@ -18,13 +18,21 @@ const ON_BLUE = "dark:border-on-blue/60 dark:bg-transparent dark:hover:bg-on-blu
 
 function HeroTeam({ team, managed, away }: { team: ClubPreview; managed: boolean; away: boolean }) {
   const t = useTranslations("dashboard");
+  const tWorld = useTranslations("world");
   const locale = useLocale();
+  const country = team.country === null ? null : countryName(team.country, tWorld);
   return (
     // A column on a phone, the name under the initials; on a computer, side by side, the away team's mirrored.
     <div className={cn("flex min-w-0 flex-col items-center gap-1.5 text-center lg:flex-row lg:gap-4", away ? "lg:flex-row-reverse lg:text-right" : "lg:text-left")}>
       <ClubInitials name={team.name} managed={managed} className="size-14 rounded-[1rem] text-2xl lg:size-20 lg:rounded-[1.25rem] lg:text-4xl" />
       <div className="min-w-0 space-y-1">
         <p className="text-[0.8125rem] leading-tight font-semibold wrap-break-word lg:text-[1.375rem] lg:font-bold">{team.name}</p>
+        {/* A European match: the club's country, its rank and points those of the league phase. */}
+        {country !== null && (
+          <p data-testid="hero-team-country" className="text-xs font-semibold text-on-blue">
+            {country}
+          </p>
+        )}
         <p className="text-xs text-on-blue tabular-nums">
           {/* No rank before a club's first match, nor for a cup opponent from another league: no points to give either. */}
           {team.rank === null ? "—" : `${t("teamRank", { rank: team.rank })} · ${t("points", { count: team.points })}`}
@@ -74,8 +82,13 @@ export function NextMatchHero({ saveId, dashboard, formation, opponent, classNam
         </h2>
         {nextMatch !== null && (
           <p>
-            {formatShortDate(nextMatch.fixture.scheduledAt, locale)} · {t(nextMatch.fixture.home.isManaged ? "home" : "away")} ·{" "}
-            {competitionName(nextMatch.fixture.competitionCode, tWorld)}
+            {[
+              formatShortDate(nextMatch.fixture.scheduledAt, locale),
+              // A European final is on neutral ground.
+              isNeutralStage(nextMatch.fixture) ? tStage("neutral") : t(nextMatch.fixture.home.isManaged ? "home" : "away"),
+              // A European match names its competition in its stage, above.
+              ...(isEuropeStage(nextMatch.fixture) ? [] : [competitionName(nextMatch.fixture.competitionCode, tWorld)]),
+            ].join(" · ")}
           </p>
         )}
       </div>

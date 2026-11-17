@@ -26,7 +26,11 @@
     },
     "tag": {
       "league": "D{tier}",
-      "cup": "Coupe"
+      "cup": "Coupe",
+      "europe": {
+        "eu1": "Lauriers",
+        "eu2": "Fanions"
+      }
     },
     "next": "Suivant",
     "upcoming": "À venir",

@@ -20,7 +20,7 @@ import {
   type SimulationTargetInput,
 } from "../actions";
 import { RESULT_CLASSES } from "../_lib/results";
-import { matchResultFor, stageLabel } from "../_lib/stage";
+import { isEuropeStage, matchResultFor, stageLabel } from "../_lib/stage";
 import { ResultPill } from "./result-pill";
 import { ScoreNotes } from "./score-notes";
 import { SessionEndCard } from "./session-end-card";
@@ -90,6 +90,8 @@ function MatchLine({ match, fresh = false }: { match: SimulatedMatch; fresh?: bo
       <span className="min-w-0 truncate max-sm:whitespace-normal">
         <span className="text-muted-foreground">{atHome ? t("home") : t("away")}</span> {opponent.name}
         {match.cup && <span className="ml-1.5 text-xs font-medium text-(--club)">{stageLabel(match, tStage)}</span>}
+        {/* A European match: its competition and round, in the green of its calendar tag. */}
+        {isEuropeStage(match) && <span className="ml-1.5 text-xs font-medium text-win">{stageLabel(match, tStage)}</span>}
       </span>
       <span className={cn("rounded-sm px-2 font-heading text-base font-bold tabular-nums", RESULT_CLASSES[result])}>
         {scored} – {conceded}

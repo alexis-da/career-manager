@@ -28,7 +28,7 @@ export async function readSessionEnd(saveId: string, now: Date, excluded?: strin
   }
   const [scored, conceded] = last.home ? [last.homeGoals, last.awayGoals] : [last.awayGoals, last.homeGoals];
   const word = assistantWordAfter(
-    { result: matchResultFor(last, last.home), scored, conceded, cup: last.cup },
+    { result: matchResultFor(last, last.home), scored, conceded, cup: last.cup, europeKnockout: last.europeKnockout },
     appointment.leaguePlayed,
     OBJECTIVES_JUDGED_FROM_MATCH,
   );

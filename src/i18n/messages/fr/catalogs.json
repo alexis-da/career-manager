@@ -65,7 +65,29 @@
     },
     "otherRoundReached": "tour {round}",
     "cupWinner": "Vainqueur de la Coupe",
-    "cupReached": "Coupe : {round}"
+    "cupReached": "Coupe : {round}",
+    "europe": "{competition} — {round}",
+    "europeNames": {
+      "eu1": "Coupe des Lauriers",
+      "eu2": "Coupe des Fanions"
+    },
+    "europeLeagueRound": "{round, selectordinal, one {#re} other {#e}} journée",
+    "europeRounds": {
+      "7": "Barrages",
+      "8": "Quarts",
+      "9": "Demi-finale",
+      "10": "Finale"
+    },
+    "europeReached": {
+      "1": "phase de ligue",
+      "2": "barrages",
+      "3": "quarts de finale",
+      "4": "demi-finale",
+      "5": "finale"
+    },
+    "europeWinner": "Vainqueur de la {competition}",
+    "europeReachedLine": "{competition} : {round}",
+    "neutral": "Terrain neutre"
   },
   "score": {
     "extraTime": "a.p.",

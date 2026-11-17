@@ -1,5 +1,6 @@
 import { displayClubName } from "../engine/club-name";
 import type { CompetitionKind } from "../engine/discipline";
+import { EUROPE_LEAGUE_ROUNDS } from "../engine/europe";
 import type { FormResult } from "../engine/standings";
 import { seasonEndDate, transferWindowAt } from "../engine/world";
 import { worldVersionOf, type WorldVersion } from "../engine/world-version";
@@ -7,6 +8,7 @@ import { ageInYears } from "../lib/dates";
 import { FIXTURE_SELECT, toFixtureView, type FixtureView } from "./calendar";
 import { prisma } from "./client";
 import { DISCIPLINE_SELECT, disciplineStatus } from "./discipline-view";
+import { europeLeagueStandings } from "./europe";
 import { managedMatchesAhead } from "./players";
 import { getStandings, type ClubStandingRow } from "./standings";
 
@@ -25,6 +27,9 @@ export type ClubPreview = {
   points: number;
   form: FormResult[]; // last matches of the season, oldest first
   averageOverall: number | null; // players under contract
+  // A European match's clubs: their league's country, by its code's prefix (« en »), and their rank, points and form
+  // in the league phase; null in a league or cup match.
+  country: string | null;
 };
 
 export type Scorer = {
@@ -122,7 +127,34 @@ async function clubPreview(
     points: row?.points ?? 0,
     form,
     averageOverall: average._avg.overall,
+    country: null,
   };
+}
+
+/**
+ * Both clubs of a European match as the hero shows them: their rank and points in the league phase (none before their
+ * first match there, nor once it is over, in the knockout rounds), their form in the competition, their country.
+ */
+async function europePreviews(saveId: string, seasonId: string, fixture: FixtureView): Promise<[ClubPreview, ClubPreview]> {
+  const standings = await europeLeagueStandings(prisma, saveId, seasonId);
+  const preview = async (team: FixtureView["home"]): Promise<ClubPreview> => {
+    const row = standings.find((candidate) => candidate.clubSaveId === team.clubSaveId);
+    const [form, average] = await Promise.all([
+      recentForm(saveId, seasonId, team.clubSaveId),
+      prisma.playerSave.aggregate({ where: { saveId, clubSaveId: team.clubSaveId }, _avg: { overall: true } }),
+    ]);
+    const inLeaguePhase = fixture.round <= EUROPE_LEAGUE_ROUNDS;
+    return {
+      clubSaveId: team.clubSaveId,
+      name: team.name,
+      rank: !inLeaguePhase || row === undefined || row.played === 0 ? null : row.rank,
+      points: row?.points ?? 0,
+      form,
+      averageOverall: average._avg.overall,
+      country: row?.country ?? null,
+    };
+  };
+  return Promise.all([preview(fixture.home), preview(fixture.away)]);
 }
 
 /** Everything the dashboard of a save shows, for its managed club. */
@@ -172,7 +204,11 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
       : prisma.fixture.findFirst({
           where: { saveId, played: false, ...inProgress, ...involving(club.id) },
           orderBy: { scheduledAt: "asc" },
-          select: { ...FIXTURE_SELECT, homeClubSave: { select: { ...FIXTURE_SELECT.homeClubSave.select, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true, stadium: true } } } } },
+          select: {
+            ...FIXTURE_SELECT,
+            seasonId: true,
+            homeClubSave: { select: { ...FIXTURE_SELECT.homeClubSave.select, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true, stadium: true } } } },
+          },
         }),
     season === null
       ? null
@@ -200,16 +236,25 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
   ]);
 
   const nextFixture = nextRow === null ? null : toFixtureView(nextRow);
+  // A European match's clubs are read in its league phase, not in the managed club's league.
   const [homePreview, awayPreview] =
-    season === null || nextFixture === null
+    season === null || nextFixture === null || nextRow === null
       ? [null, null]
-      : await Promise.all([
-          clubPreview(saveId, season.id, nextFixture.home, table),
-          clubPreview(saveId, season.id, nextFixture.away, table),
-        ]);
+      : nextRow.season.competition.kind === "EUROPE"
+        ? await europePreviews(saveId, nextRow.seasonId, nextFixture)
+        : await Promise.all([
+            clubPreview(saveId, season.id, nextFixture.home, table),
+            clubPreview(saveId, season.id, nextFixture.away, table),
+          ]);
   // The next match's preview has the managed club's form; without a next match, it is read on its own.
   const managedPreview = nextFixture?.home.isManaged ? homePreview : awayPreview;
-  const managedForm = managedPreview?.form ?? (season === null ? [] : await recentForm(saveId, season.id, club.id));
+  // Its league form: a European match's preview has its form in the competition.
+  const managedForm =
+    managedPreview !== null && managedPreview.country === null
+      ? managedPreview.form
+      : season === null
+        ? []
+        : await recentForm(saveId, season.id, club.id);
 
   const managedRow = table.find((row) => row.isManaged);
   const previousRound = lastLeagueRow === null ? null : lastLeagueRow.round - 1;

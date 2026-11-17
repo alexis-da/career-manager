@@ -1,0 +1,109 @@
+{
+  "europe": {
+    "title": "Europe",
+    "subtitle": "Season {season}",
+    "switch": "Competition shown",
+    "card": {
+      "none": "Your club in Europe"
+    },
+    "status": {
+      "in": "STILL IN",
+      "out": "KNOCKED OUT",
+      "won": "WINNERS"
+    },
+    "standing": {
+      "none": "Not qualified this season: finish in the top six or win the cup",
+      "leagueStart": "League phase: {matches, plural, one {# match} other {# matches}}, the top four to the quarter-finals, 5th to 12th to the play-offs",
+      "league": "League phase: {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}, {points, plural, one {# pt} other {# pts}}",
+      "through": {
+        "2": "Through to the play-offs",
+        "3": "Through to the quarter-finals",
+        "4": "Through to the semi-finals",
+        "5": "Through to the final"
+      },
+      "outLeague": "Knocked out in the league phase ({rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}})",
+      "out": {
+        "2": "Knocked out in the play-offs",
+        "3": "Knocked out in the quarter-finals",
+        "4": "Knocked out in the semi-finals",
+        "5": "Beaten in the final"
+      },
+      "won": "Winners"
+    },
+    "progress": "Your progress in Europe",
+    "steps": {
+      "1": "League",
+      "2": "Play-offs",
+      "3": "QF",
+      "4": "SF",
+      "5": "Final"
+    },
+    "stepState": {
+      "passed": "through",
+      "exempt": "exempt",
+      "current": "in progress",
+      "lost": "lost",
+      "upcoming": "to come",
+      "unreached": "not reached"
+    },
+    "next": {
+      "home": "vs {club} · home",
+      "away": "vs {club} · away",
+      "neutral": "vs {club} · neutral ground",
+      "undecided": "vs {club}",
+      "winnerOf": "the winners of {home} v {away}",
+      "toCome": "Opponent to be decided",
+      "tableEnd": "Your league phase matches are played: final table on {date}"
+    },
+    "prize": {
+      "league": "Prize at stake: {win} a win, {topFour} for a top-four place",
+      "playoff": "Prize at stake: {amount} for reaching the quarter-finals",
+      "quarter": "Prize at stake: {amount} for winning the quarter-final",
+      "semi": "Prize at stake: {amount} for winning the semi-final",
+      "final": "Prize at stake: {win} for the winners, {loss} for the runners-up"
+    },
+    "matches": {
+      "title": "Your matches"
+    },
+    "table": {
+      "title": "League phase",
+      "club": "Club",
+      "managed": "your club",
+      "columns": {
+        "played": "P",
+        "won": "W",
+        "drawn": "D",
+        "lost": "L",
+        "goalsFor": "GF",
+        "goalsAgainst": "GA",
+        "goalDifference": "GD",
+        "points": "Pts"
+      },
+      "columnTitles": {
+        "played": "Played",
+        "won": "Won",
+        "drawn": "Drawn",
+        "lost": "Lost",
+        "goalsFor": "Goals for",
+        "goalsAgainst": "Goals against",
+        "goalDifference": "Goal difference",
+        "points": "Points"
+      },
+      "zone": {
+        "direct": "quarter-final place",
+        "playoff": "play-off place"
+      },
+      "legend": {
+        "direct": "Quarter-finals",
+        "playoff": "Play-offs"
+      }
+    },
+    "bracket": {
+      "title": "Knockout phase",
+      "hint": "Single matches at the better-ranked club's ground, known once the league phase is over",
+      "toCome": "To be decided",
+      "winnerOf": "Winners of {home} v {away}"
+    },
+    "winner": "Winners"
+  }
+}

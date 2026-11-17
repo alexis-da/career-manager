@@ -2,6 +2,15 @@
   "world": {
     "league": "{country} — Division {tier}",
     "cup": "{country} — Cup",
+    "europe": {
+      "eu1": "Laurel Cup",
+      "eu2": "Pennant Cup"
+    },
+    "europeShort": {
+      "eu1": "Laurel",
+      "eu2": "Pennant"
+    },
+    "europeCountry": "Europe",
     "countries": {
       "de": "Germany",
       "en": "England",

@@ -1,5 +1,6 @@
 import {
   BandageIcon,
+  BatteryLowIcon,
   ChevronRightIcon,
   FileClockIcon,
   HandCoinsIcon,
@@ -14,7 +15,9 @@ import type { ComponentType, ReactNode } from "react";
 import type { Dashboard } from "@/src/db/dashboard";
 import type { ManagedLineup } from "@/src/db/lineup";
 import type { MarketSales } from "@/src/db/market-sales";
-import { YELLOWS_PER_SUSPENSION } from "@/src/engine/balance";
+import { EUROPE_YELLOWS_PER_SUSPENSION, ROTATION_FITNESS, YELLOWS_PER_SUSPENSION } from "@/src/engine/balance";
+import { isEuropeCode } from "@/src/engine/europe";
+import { isAvailable } from "@/src/engine/lineup";
 import { elevenOf, weakSpotOf, type WeakSpot } from "@/src/engine/market-proposals";
 import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
@@ -33,8 +36,10 @@ type Todo = {
   id:
     | "injured-starters"
     | "suspended-starters"
+    | "tired-starters"
     | "injured"
     | "booking-risks"
+    | "europe-booking-risks"
     | "offers"
     | "weak-spot"
     | "expiring-contracts"
@@ -160,6 +165,24 @@ function todosOf(
     });
   }
 
+  // Before a European match, the starters who would kick it off below the rotation threshold: the manager rotates his
+  // squad himself (docs/design/europe.md, § 3.3), as AI clubs rest theirs below it.
+  const nextFixture = dashboard.nextMatch?.fixture ?? null;
+  const tiredStarters =
+    nextFixture !== null && isEuropeCode(nextFixture.competitionCode)
+      ? lineup.lineup.starters.map(({ player }) => player).filter((player) => isAvailable(player) && player.fitness < ROTATION_FITNESS)
+      : [];
+  if (tiredStarters.length > 0) {
+    todos.push({
+      id: "tired-starters",
+      severity: "warning",
+      icon: BatteryLowIcon,
+      title: t("tiredStarters", { count: tiredStarters.length, fitness: ROTATION_FITNESS }),
+      detail: t("tiredStartersDetail", { players: namesAndOthers(tiredStarters.map(shortName), t) }),
+      href: lineupHref,
+    });
+  }
+
   const injured = otherInjured(dashboard.injured, injuredStarters);
   if (injured.length > 0) {
     todos.push({
@@ -174,8 +197,12 @@ function todosOf(
     });
   }
 
-  // One booking from a suspension: a matter of the matches to come, the line-up's to weigh.
-  const { bookingRisks } = dashboard;
+  // One booking from a suspension: a matter of the matches to come, the line-up's to weigh. In the league and the cup at
+  // YELLOWS_PER_SUSPENSION − 1 yellows, in Europe at EUROPE_YELLOWS_PER_SUSPENSION − 1: a line each.
+  const bookingRisks = dashboard.bookingRisks.flatMap(({ name, competitions }) => {
+    const domestic = competitions.filter((competition) => competition !== "EUROPE");
+    return domestic.length === 0 ? [] : [{ name, competitions: domestic }];
+  });
   if (bookingRisks.length > 0) {
     const names = bookingRisks.map(({ name, competitions }) =>
       competitions.includes("CUP") ? t(`bookingRiskIn.${competitions.length > 1 ? "BOTH" : "CUP"}`, { name }) : name,
@@ -186,6 +213,17 @@ function todosOf(
       icon: BookingCardIcon,
       title: t("bookingRisks", { count: bookingRisks.length, yellows: YELLOWS_PER_SUSPENSION - 1 }),
       detail: t("bookingRisksDetail", { players: namesAndOthers(names, t) }),
+      href: lineupHref,
+    });
+  }
+  const europeRisks = dashboard.bookingRisks.filter(({ competitions }) => competitions.includes("EUROPE"));
+  if (europeRisks.length > 0) {
+    todos.push({
+      id: "europe-booking-risks",
+      severity: "warning",
+      icon: BookingCardIcon,
+      title: t("europeBookingRisks", { count: europeRisks.length, yellows: EUROPE_YELLOWS_PER_SUSPENSION - 1 }),
+      detail: t("bookingRisksDetail", { players: namesAndOthers(europeRisks.map(({ name }) => name), t) }),
       href: lineupHref,
     });
   }

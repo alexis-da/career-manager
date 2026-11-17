@@ -1,0 +1,109 @@
+{
+  "europe": {
+    "title": "Europe",
+    "subtitle": "Saison {season}",
+    "switch": "Compétition affichée",
+    "card": {
+      "none": "Ton club en Europe"
+    },
+    "status": {
+      "in": "EN LICE",
+      "out": "ÉLIMINÉ",
+      "won": "VAINQUEUR"
+    },
+    "standing": {
+      "none": "Pas qualifié cette saison : finis dans les 6 premiers ou gagne la coupe",
+      "leagueStart": "Phase de ligue : {matches, plural, one {# match} other {# matchs}}, les 4 premiers en quarts, du 5e au 12e en barrages",
+      "league": "Phase de ligue : {rank, selectordinal, one {#er} other {#e}}, {points, plural, one {# pt} other {# pts}}",
+      "through": {
+        "2": "Qualifié pour les barrages",
+        "3": "Qualifié pour les quarts",
+        "4": "Qualifié pour les demi-finales",
+        "5": "Qualifié pour la finale"
+      },
+      "outLeague": "Éliminé en phase de ligue ({rank, selectordinal, one {#er} other {#e}})",
+      "out": {
+        "2": "Éliminé en barrages",
+        "3": "Éliminé en quarts",
+        "4": "Éliminé en demi-finale",
+        "5": "Battu en finale"
+      },
+      "won": "Vainqueur"
+    },
+    "progress": "Ta progression en Europe",
+    "steps": {
+      "1": "Ligue",
+      "2": "Barrages",
+      "3": "Quarts",
+      "4": "Demies",
+      "5": "Finale"
+    },
+    "stepState": {
+      "passed": "passé",
+      "exempt": "exempté",
+      "current": "en cours",
+      "lost": "perdu",
+      "upcoming": "à venir",
+      "unreached": "non disputé"
+    },
+    "next": {
+      "home": "vs {club} · domicile",
+      "away": "vs {club} · extérieur",
+      "neutral": "vs {club} · terrain neutre",
+      "undecided": "vs {club}",
+      "winnerOf": "le vainqueur de {home} – {away}",
+      "toCome": "Adversaire à déterminer",
+      "tableEnd": "Tes matchs de phase de ligue sont joués : classement final le {date}"
+    },
+    "prize": {
+      "league": "Prime en jeu : {win} par victoire, {topFour} pour une place dans les 4 premiers",
+      "playoff": "Prime en jeu : {amount} pour la qualification en quarts",
+      "quarter": "Prime en jeu : {amount} pour une victoire en quarts",
+      "semi": "Prime en jeu : {amount} pour une victoire en demi-finale",
+      "final": "Prime en jeu : {win} au vainqueur, {loss} au finaliste"
+    },
+    "matches": {
+      "title": "Tes matchs"
+    },
+    "table": {
+      "title": "Phase de ligue",
+      "club": "Club",
+      "managed": "ton club",
+      "columns": {
+        "played": "J",
+        "won": "G",
+        "drawn": "N",
+        "lost": "P",
+        "goalsFor": "BP",
+        "goalsAgainst": "BC",
+        "goalDifference": "Diff",
+        "points": "Pts"
+      },
+      "columnTitles": {
+        "played": "Joués",
+        "won": "Gagnés",
+        "drawn": "Nuls",
+        "lost": "Perdus",
+        "goalsFor": "Buts pour",
+        "goalsAgainst": "Buts contre",
+        "goalDifference": "Différence de buts",
+        "points": "Points"
+      },
+      "zone": {
+        "direct": "place en quarts de finale",
+        "playoff": "place en barrages"
+      },
+      "legend": {
+        "direct": "Quarts de finale",
+        "playoff": "Barrages"
+      }
+    },
+    "bracket": {
+      "title": "Phase finale",
+      "hint": "Matchs secs chez le mieux classé de la phase de ligue, connus dès sa fin",
+      "toCome": "À déterminer",
+      "winnerOf": "Vainqueur {home} – {away}"
+    },
+    "winner": "Vainqueur"
+  }
+}

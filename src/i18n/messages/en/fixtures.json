@@ -26,7 +26,11 @@
     },
     "tag": {
       "league": "D{tier}",
-      "cup": "Cup"
+      "cup": "Cup",
+      "europe": {
+        "eu1": "Laurel",
+        "eu2": "Pennant"
+      }
     },
     "next": "Next",
     "upcoming": "Upcoming",

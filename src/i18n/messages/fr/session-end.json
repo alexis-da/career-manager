@@ -10,7 +10,13 @@
       "opening": "Ton premier match de championnat",
       "rival": "Un concurrent direct : {gap, plural, =0 {à égalité de points} one {# point d'écart} other {# points d'écart}}",
       "climb": "Une victoire peut te faire gagner {places, plural, one {# place} other {# places}}",
-      "rank": "Face au {rank, selectordinal, one {#er} other {#e}} du classement"
+      "rank": "Face au {rank, selectordinal, one {#er} other {#e}} du classement",
+      "europeKnockout": "Élimination directe : le vainqueur passe au tour suivant",
+      "europeFinal": "La finale, sur terrain neutre : le vainqueur soulève la coupe",
+      "europeOpening": "Ton premier match de la phase de ligue",
+      "europeTopFour": "Une victoire peut te placer dans les quatre premiers, directement en quarts",
+      "europeTopTwelve": "Une victoire peut te placer dans les douze premiers, en barrages",
+      "europeRank": "Face au {rank, selectordinal, one {#er} other {#e}} de la phase de ligue"
     },
     "challenge": "Défi de la semaine : {days, plural, one {dernier jour} other {encore # jours}}",
     "challengeOwn": "Ton défi : {played}/{horizon} journées · {days, plural, one {dernier jour} other {encore # jours}}",
@@ -19,6 +25,7 @@
   "assistantWord": {
     "label": "Ton adjoint :",
     "cupExit": "On sort de la coupe. Toute l'énergie pour le championnat maintenant.",
+    "europeExit": "L'aventure européenne s'arrête là. On garde ces soirées en tête, et toute l'énergie pour le championnat.",
     "early": "Une défaite ne fait pas une saison. La direction ne jugera qu'après quelques journées : on se reprend au prochain match.",
     "narrow": "Défaite de peu. On n'est pas loin : on garde l'idée et on se reprend.",
     "heavy": "Journée difficile. Avant le prochain match, regarde la composition et la condition des joueurs.",

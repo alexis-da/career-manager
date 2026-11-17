@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assistantWordAfter, stakeOf, type StakeRow } from "./session-end";
+import { assistantWordAfter, europeStakeOf, stakeOf, type StakeRow } from "./session-end";
 
 /** A table in rank order: [club, points], all with the same matches played. */
 const table = (rows: [string, number][], played = 6): StakeRow[] =>
@@ -43,6 +43,59 @@ describe("stakeOf", () => {
   });
 });
 
+describe("europeStakeOf", () => {
+  /** A league phase after three rounds: 20 clubs, the club 7th with 4 points, the 4th with 6, the 12th with 3. */
+  const PHASE = table(
+    [
+      ["a", 9],
+      ["b", 7],
+      ["c", 7],
+      ["d", 6],
+      ["e", 6],
+      ["f", 5],
+      ["own", 4],
+      ["g", 4],
+      ["h", 4],
+      ["i", 3],
+      ["j", 3],
+      ["k", 3],
+      ["l", 2],
+      ["m", 1],
+      ["n", 1],
+      ["o", 1],
+      ["p", 0],
+      ["q", 0],
+      ["r", 0],
+      ["s", 0],
+    ],
+    3,
+  );
+  const stake = (own: string, opponent: string, knockout = false, final = false) =>
+    europeStakeOf({ knockout, final, table: PHASE, own, opponent });
+
+  it("names a knockout tie and the final before anything of a table", () => {
+    expect(stake("own", "a", true)).toEqual({ kind: "europeKnockout" });
+    expect(stake("own", "a", true, true)).toEqual({ kind: "europeFinal" });
+  });
+
+  it("in the league phase: the first match, a win into the first four or twelve, else the opponent's rank", () => {
+    const opening = table(
+      [
+        ["own", 0],
+        ["a", 0],
+      ],
+      0,
+    );
+    expect(europeStakeOf({ knockout: false, final: false, table: opening, own: "own", opponent: "a" })).toEqual({ kind: "europeOpening" });
+    // 4 points and a win make 7, past the 4th's 6.
+    expect(stake("own", "b")).toEqual({ kind: "europeTopFour" });
+    // The 14th, with 1 point: a win makes 4, past the 12th's 3, short of the 4th's 6.
+    expect(stake("m", "b")).toEqual({ kind: "europeTopTwelve" });
+    // The leader, already in the first four: the opponent's rank.
+    expect(stake("a", "own")).toEqual({ kind: "europeRank", rank: 7 });
+  });
+});
+
 describe("assistantWordAfter", () => {
   const defeat = (scored: number, conceded: number, cup = false) => ({ result: "L" as const, scored, conceded, cup });
 
@@ -53,6 +106,11 @@ describe("assistantWordAfter", () => {
 
   it("speaks of the cup after a cup defeat, a shoot-out's included", () => {
     expect(assistantWordAfter(defeat(1, 1, true), 1, 5)).toBe("cupExit");
+  });
+
+  it("speaks of Europe after a European knockout tie lost, never after a league phase defeat", () => {
+    expect(assistantWordAfter({ ...defeat(1, 2), europeKnockout: true }, 10, 5)).toBe("europeExit");
+    expect(assistantWordAfter({ ...defeat(1, 2), europeKnockout: false }, 10, 5)).toBe("narrow");
   });
 
   it("says it is too early to judge before the objectives are", () => {

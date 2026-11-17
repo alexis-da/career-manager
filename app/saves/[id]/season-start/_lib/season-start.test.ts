@@ -92,6 +92,27 @@ describe("objectiveContribution", () => {
     }
   });
 
+  it("weighs the European objective as the cup's, the bounds cutting the sum only when every objective is exceeded", () => {
+    expect(OUTCOMES.map((outcome) => objectiveContribution("EUROPE", outcome))).toEqual([10, 5, -5]);
+    for (const ranking of OUTCOMES) {
+      for (const cup of OUTCOMES) {
+        for (const europe of OUTCOMES) {
+          for (const chosen of OUTCOMES) {
+            const sum =
+              NEUTRAL_BUDGET_COEFFICIENT +
+              objectiveContribution("RANKING", ranking) +
+              objectiveContribution("CUP", cup) +
+              objectiveContribution("EUROPE", europe) +
+              objectiveContribution("YOUTH", chosen);
+            const coefficient = budgetCoefficient({ ranking, cup, europe, chosen });
+            expect(coefficient).toBe(Math.min(140, sum));
+            expect(coefficient === sum).toBe(sum <= 140);
+          }
+        }
+      }
+    }
+  });
+
   it("weighs the ranking, the cup and the chosen objective as the design does", () => {
     expect(objectiveContribution("RANKING", "EXCEEDED")).toBe(20);
     expect(objectiveContribution("RANKING", "MISSED")).toBe(-15);

@@ -58,19 +58,23 @@
       "suspendedTitle": "Suspendu pour le prochain match",
       "suspendedIn": {
         "LEAGUE": "Suspendu en championnat",
-        "CUP": "Suspendu en coupe"
+        "CUP": "Suspendu en coupe",
+        "EUROPE": "Suspendu en Europe"
       },
       "suspendedInTitle": {
         "LEAGUE": "Suspendu pour son prochain match de championnat",
-        "CUP": "Suspendu pour son prochain match de coupe"
+        "CUP": "Suspendu pour son prochain match de coupe",
+        "EUROPE": "Suspendu pour son prochain match européen"
       },
       "bookingRisk": {
         "LEAGUE": "{yellows, plural, one {# jaune} other {# jaunes}}",
-        "CUP": "{yellows, plural, one {# jaune} other {# jaunes}} en coupe"
+        "CUP": "{yellows, plural, one {# jaune} other {# jaunes}} en coupe",
+        "EUROPE": "{yellows, plural, one {# jaune} other {# jaunes}} en Europe"
       },
       "bookingRiskTitle": {
         "LEAGUE": "{yellows, plural, one {# jaune} other {# jaunes}} en championnat : un de plus vaut une suspension",
-        "CUP": "{yellows, plural, one {# jaune} other {# jaunes}} en coupe : un de plus vaut une suspension"
+        "CUP": "{yellows, plural, one {# jaune} other {# jaunes}} en coupe : un de plus vaut une suspension",
+        "EUROPE": "{yellows, plural, one {# jaune} other {# jaunes}} en Europe : un de plus vaut une suspension"
       },
       "expiring": "Expire",
       "expiringTitle": "Contrat terminé en fin de saison",

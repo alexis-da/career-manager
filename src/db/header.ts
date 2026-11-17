@@ -3,14 +3,16 @@ import { seasonStartYear, transferWindowAt } from "../engine/world";
 import { worldVersionOf, type WorldVersion } from "../engine/world-version";
 import { prisma } from "./client";
 import { hasCup } from "./cup-view";
+import { hasEurope } from "./europe-view";
 import { getSaveSummary, type SaveSummary } from "./saves";
 
 const NAMED_CLUB = { select: { club: { select: { slug: true, name: true } } } };
 
 export type SaveHeader = SaveSummary & {
   startYear: number;
-  // The managed club's next fixture: its matchday, or its cup round; null once its season is over.
-  nextStage: { round: number; cup: boolean } | null;
+  // The managed club's next fixture: its matchday, its cup round, or its European round (told by its competition's
+  // code, « eu.1 »); null once its season is over.
+  nextStage: { round: number; cup: boolean; competitionCode: string } | null;
   // The same fixture for the sidebar's card.
   nextMatch: { date: Date; atHome: boolean; opponent: string } | null;
   seasonFinished: boolean; // every fixture of the seasons in progress is played
@@ -19,6 +21,7 @@ export type SaveHeader = SaveSummary & {
   competitionCode: string; // the managed club's competition now: « fr.2 », named by the screens
   worldVersion: WorldVersion;
   hasCup: boolean; // a worldVersion 2 save with the national cups: « Coupe » in its navigation
+  hasEurope: boolean; // a save with a European season: « Europe » in its navigation
 };
 
 /** What the navigation bar of a save shows, or null when the save does not exist. */
@@ -27,7 +30,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
   if (summary === null) {
     return null;
   }
-  const [managed, seasonsInProgress, save, withCup] = await Promise.all([
+  const [managed, seasonsInProgress, save, withCup, withEurope] = await Promise.all([
     prisma.clubSave.findFirstOrThrow({
       where: { saveId, isManaged: true },
       select: { id: true, competition: { select: { code: true } } },
@@ -36,6 +39,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     prisma.season.findMany({ where: { saveId, completed: false }, select: { id: true } }),
     prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, worldVersion: true } }),
     hasCup(saveId),
+    hasEurope(saveId),
   ]);
   const inProgress = { in: seasonsInProgress.map((season) => season.id) };
   // A date is played whole (playNextMatchday): no fixture waits before the save's date. Whatever index Postgres takes,
@@ -56,7 +60,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
       homeClubSaveId: true,
       homeClubSave: NAMED_CLUB,
       awayClubSave: NAMED_CLUB,
-      season: { select: { competition: { select: { kind: true } } } },
+      season: { select: { competition: { select: { kind: true, code: true } } } },
     },
   });
   // A fixture left to play in the seasons in progress: the managed club's next one, or any other, the soonest first on
@@ -73,7 +77,14 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
   return {
     ...summary,
     startYear: seasonStartYear(summary.currentDate),
-    nextStage: nextFixture === null ? null : { round: nextFixture.round, cup: nextFixture.season.competition.kind === "CUP" },
+    nextStage:
+      nextFixture === null
+        ? null
+        : {
+            round: nextFixture.round,
+            cup: nextFixture.season.competition.kind === "CUP",
+            competitionCode: nextFixture.season.competition.code,
+          },
     nextMatch:
       nextFixture === null
         ? null
@@ -88,5 +99,6 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     competitionCode: managed.competition.code,
     worldVersion: worldVersionOf(save.worldVersion),
     hasCup: withCup,
+    hasEurope: withEurope,
   };
 }

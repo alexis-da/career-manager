@@ -10,7 +10,13 @@
       "opening": "Your first league match",
       "rival": "A direct rival: {gap, plural, =0 {level on points} one {# point apart} other {# points apart}}",
       "climb": "A win could lift you {places, plural, one {# place} other {# places}}",
-      "rank": "Against the {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} in the table"
+      "rank": "Against the {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} in the table",
+      "europeKnockout": "Knockout: the winner goes through to the next round",
+      "europeFinal": "The final, on neutral ground: the winner lifts the cup",
+      "europeOpening": "Your first match of the league phase",
+      "europeTopFour": "A win could lift you into the top four, straight into the quarter-finals",
+      "europeTopTwelve": "A win could lift you into the top twelve, into the play-offs",
+      "europeRank": "Against the {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} in the league phase"
     },
     "challenge": "Weekly challenge: {days, plural, one {last day} other {# days left}}",
     "challengeOwn": "Your challenge: {played}/{horizon} matchdays · {days, plural, one {last day} other {# days left}}",
@@ -19,6 +25,7 @@
   "assistantWord": {
     "label": "Your assistant:",
     "cupExit": "We're out of the cup. All our energy goes into the league now.",
+    "europeExit": "That's the end of our European run. We'll remember those nights, and all our energy goes into the league now.",
     "early": "One defeat doesn't make a season. The board will only judge after a few matchdays: let's bounce back next match.",
     "narrow": "A narrow defeat. We're not far off: keep the idea and we'll bounce back.",
     "heavy": "A tough day. Before the next match, check the line-up and the players' fitness.",
