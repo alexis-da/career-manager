@@ -235,9 +235,9 @@ describe("prizes, runs, bonuses and objectives", () => {
     expect([1, 2, 3, 4, 5, 6].map((stage) => europeReputationBonus("eu.2", stage))).toEqual([0, 0, 0, 0, 1, 2]);
   });
 
-  it("asks the semi-finals, the quarter-finals or the play-offs by reputation third, exceeded two stages further", () => {
+  it("asks the quarter-finals of the top two reputation thirds and the play-offs of the bottom one, exceeded two stages further", () => {
     expect([1, 2, 3].map((third) => europeObjective(third as 1 | 2 | 3))).toEqual([
-      { target: 4, exceed: 6 },
+      { target: 3, exceed: 5 },
       { target: 3, exceed: 5 },
       { target: 2, exceed: 4 },
     ]);

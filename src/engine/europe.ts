@@ -450,8 +450,8 @@ export function europeReputationBonus(code: EuropeCode, stage: number): number {
 
 /**
  * The managed club's European objective, by its reputation third among its competition's clubs at the opening: the
- * semi-finals, the quarter-finals or the play-offs (EUROPE_OBJECTIVE_STAGES), exceeded two stages further (the title,
- * the final, the semi-finals).
+ * quarter-finals for the top two thirds, the play-offs for the bottom one (EUROPE_OBJECTIVE_STAGES), exceeded two stages
+ * further (the final, the semi-finals).
  */
 export function europeObjective(third: 1 | 2 | 3): { target: number; exceed: number } {
   const target = EUROPE_OBJECTIVE_STAGES[third - 1];

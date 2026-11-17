@@ -380,10 +380,11 @@ export const EUROPE_REPUTATION_BONUS: Readonly<Record<"eu.1" | "eu.2", readonly 
 
 /**
  * The European objective of the managed club, by its reputation third among its competition's clubs at the opening: the
- * stage to reach (2 play-offs, 3 quarter-finals, 4 semi-finals), exceeded EUROPE_OBJECTIVE_EXCEEDED_STAGES stages further
- * (the title, the final, the semi-finals).
+ * stage to reach (2 play-offs, 3 quarter-finals), exceeded EUROPE_OBJECTIVE_EXCEEDED_STAGES stages further (the final,
+ * the semi-finals). The top third asked the semi-finals until 17/11, reached about one season in three or four
+ * (measure:seasons): the quarter-finals since, as the middle third.
  */
-export const EUROPE_OBJECTIVE_STAGES: readonly [number, number, number] = [4, 3, 2];
+export const EUROPE_OBJECTIVE_STAGES: readonly [number, number, number] = [3, 3, 2];
 export const EUROPE_OBJECTIVE_EXCEEDED_STAGES = 2;
 
 /** What the European objective's outcome adds to the managed club's budget coefficient, in hundredths: the cup's. */
