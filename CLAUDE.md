@@ -25,8 +25,8 @@ npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100
 npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (création et journée, direct, marché, SEO, /admin)
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
-npm run measure:seasons # budgets, plafonds, réputation (son étalement) et objectifs : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
-npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json, --archive : saisons terminées archivées ; base locale dédiée et vide)
+npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs et Europe (qualifiés, condition et charge des clubs européens, saison par saison) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
+npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json, --archive : saisons terminées archivées, --no-europe : sans compétition européenne, pour comparer ; base locale dédiée et vide)
 ```
 
 ## Règles non négociables
@@ -122,7 +122,9 @@ suspendu reste du onze, jamais proposé à la vente), `getPlayerProfiles` et `ge
 l'adversaire écarte ses suspendus. Badges (`PlayerBadges`, effectif, composition et fiche) : « Suspendu » en rouge,
 « Suspendu en coupe / en championnat », « 4 jaunes », « 4 jaunes en coupe » en ambre (« Suspended », « Cup ban »,
 « League ban », « 4 yellows », « 4 cup yellows ») ; un carton (`CardMark`) sur le terrain et le banc ; la composition
-avertit qu'un titulaire suspendu sera remplacé.
+avertit qu'un titulaire suspendu sera remplacé. Une troisième compétition, européenne, a ses jaunes et sa suspension
+(`europeYellows`, `suspendedEuropeMatches`, 3 jaunes : règle « Compétitions européennes ») : « Suspendu en Europe »,
+« 2 jaunes en Europe » (« European ban », « 2 European yellows »).
 
 **Événements à choix (gameplay v1, G4).** Pour le seul club dirigé : 1 à 3 par match (35 / 45 / 20 %), aux limites de
 15', 30', 60' et 75', et à 105' une prolongation sur deux, tirés au coup d'envoi du flux `…:events` ; à chaque limite, le
@@ -251,7 +253,8 @@ après la présaison et l'ouverture des coupes : le classement (`rankingObjectiv
 le rang de réputation : top 3, montée, maintien, ou finir à son rang attendu ou mieux, jamais la dernière place ; la marge
 du cahier, +2 et +3, ramenée à 0 par la mesure, `FINISH_OBJECTIVE_MARGIN_BY_TIER`), la coupe quand le pays en
 a une (`cupObjective` : quarts, huitièmes, seizièmes selon le tiers de réputation, au moins un tour après l'entrée ;
-dépassée deux tours plus loin), et trois des quatre objectifs au choix, tirés du flux de la saison
+dépassée deux tours plus loin), l'Europe quand le club la joue (`europeObjective`, règle « Compétitions européennes »), et
+trois des quatre objectifs au choix, tirés du flux de la saison
 (`proposedObjectives`, `objectivesRngSeed`) : Jeunesse (un joueur de 21 ans ou moins au 1er juillet, 15 titularisations
 en championnat), Spectacle (buts marqués ≥ attendus × 1,10), Solidité (buts encaissés ≤ attendus × 0,90 ; attendus :
 `expectedSeasonGoals`, l'effectif du départ dans son dispositif face à l'adversaire moyen de sa division, × 0,93, ce
@@ -289,7 +292,8 @@ tiré (`progressCups`) dans la transaction qui joue le dernier match du précéd
 après la dernière journée. Prolongation et tirs au but : skill `moteur-de-match`. Un match de coupe a sa propre graine
 (`cupMatchRngSeed`) et n'écrit de stats que pour les joueurs du club dirigé. **Tout lecteur de championnat filtre
 `competition.kind = "LEAGUE"`** (classement, montées et descentes, palmarès et carte, meilleur joueur, marché, résumé de
-simulation) ; `SeasonResult` reste une ligne de championnat, avec `cupRound` et le trophée `cup`.
+simulation), un lecteur de coupe `CUP`, d'Europe `EUROPE` ; `SeasonResult` reste une ligne de championnat, avec `cupRound`
+et le trophée `cup` (et le parcours européen, règle « Compétitions européennes »).
 
 **Écrans de la coupe.** Un match de coupe se nomme « Coupe — Tour préliminaire / 16es / 8es / Quarts / Demi-finale /
 Finale », jamais « Journée N » (`stageLabel`, `app/saves/[id]/_lib/stage.ts`) ; son score porte « a.p. » et
@@ -299,6 +303,69 @@ réglementaire » (REGULATION_END, un remplacement de plus) ; `advanceLiveMatch`
 changement le match est celui joué sans pause. Page Coupe (`app/saves/[id]/cup`, `getCupBracket`,
 `src/db/cup-view.ts`) et onglet « Coupe » sous Match pour une partie qui a une coupe ; palmarès (« Vainqueur de la
 Coupe », « Coupe : quarts de finale »), carte (« COUPE », « DOUBLÉ », `cardBadge`) et panneau « Saison terminée ».
+
+**Compétitions européennes (parties 2 seulement, chantier « europe », 17/11).** Cahier `docs/design/europe.md`, validé le
+17/11. Deux compétitions inventées (`Competition.kind = EUROPE`, niveau 0, pays « Europe », arrivées par la migration de
+données `…_european_competitions`, après la migration de schéma `…_european_competitions_schema` qui ajoute les valeurs
+d'enum) : la **Coupe des Lauriers** (`eu.1`, « Laurel Cup » : les 4 premiers de chaque première division, 4 chapeaux de 5)
+et la **Coupe des Fanions** (`eu.2`, « Pennant Cup » : ses 5e, 6e et vainqueur de coupe, 3 chapeaux ; un vainqueur déjà
+qualifié par son rang, 1er à 6e, laisse sa place au 7e, comme sans vainqueur ; un vainqueur de D2 joue l'Europe), jamais
+les deux. `EUROPE_ENABLED` (`src/engine/europe.ts`) vaut true : une nouvelle partie 2 les a dès sa saison 1, qualifiés par
+`Club.initialRank` (la place de la coupe au 7e) ; une partie 2 d'avant les reçoit à son prochain `advanceToNextSeason`
+(après les coupes, avant les objectifs, depuis les classements finaux et les vainqueurs de coupe : `europeQualifiersOf`,
+`cupWinnersOf`), sa saison en cours inchangée ; **jamais une partie de défi** (`createChallengeSave` avec `europe: false`,
+et son passage de saison n'en ouvre pas). `openEurope` (`src/db/europe.ts`) : une `Season` par compétition, ses clubs
+dans `Season.entrants` (Json validé par Zod, `parseEuropeEntrants` : chemin RANK ou CUP, division, rang, chapeau,
+réputation à l'ouverture), toute sa phase de ligue tirée (`drawLeaguePhase`, flux `{graine}:europe-draw:{année}:{code}` :
+pour chaque paire de chapeaux, un ordre des cinq pays ; jamais deux clubs d'un pays, un match reçu et un visité contre
+chaque autre chapeau, aucun nouvel essai) et la prime de participation créditée, après la dotation du club dirigé
+(`SeasonBudget` n'en tient pas compte). Phase de ligue, `round` 1 à 6 : 6 matchs par club en Lauriers, 4 en Fanions, un
+classement unique (`leaguePhaseTable` : points, différence, buts marqués, réputation à l'ouverture, slug) ; puis un
+tableau fixe (`knockoutTies`) : barrages (`round` 7 : 5e-12e, 6e-11e, 7e-10e, 8e-9e), quarts (8 : le 1er contre le
+vainqueur de 8e-9e…), demies (9), finale (10) **sur terrain neutre** (`isNeutralRound`, `MatchState.neutral`, gardé par
+l'état du direct : ni l'un ni l'autre n'a `HOME_ADVANTAGE`) ; matchs secs chez le mieux classé de la phase de ligue,
+prolongation et tirs au but comme la coupe (`isKnockout` : un match de coupe, ou européen après la phase de ligue). Chaque
+tour créé par `progressEurope` dans la transaction qui joue le dernier match du précédent, avec les primes de chaque match
+(`EUROPE_PRIZES`, `balance.ts` : participation 3 / 1,5 M€, victoire de phase de ligue 0,6 / 0,3, place en quarts 2 / 0,8,
+quart gagné 3 / 1,2, demie 4 / 1,8, finale 8 et 4 / 3,5 et 1,75), créditées sur `ClubSave.budget`. Dates pures
+(`europeDates`) : mercredis des semaines 4, 6, 8, 10, 14, 17, 24, 28 et 36 (sans tour de coupe ni mardi de D2), **finales
+le samedi 29 mai** (la semaine après la finale de coupe : une saison avec l'Europe finit une semaine plus tard). Graine d'un
+match : `europeMatchRngSeed` (son code compris : aucun flux du championnat ni de la coupe ne bouge). Discipline : jaunes
+européens à part, **3 suspendent** pour le prochain match européen (`EUROPE_YELLOWS_PER_SUSPENSION`, `PlayerSave.europeYellows`
+et `suspendedEuropeMatches`, `yellowsPerSuspension`), un rouge pour le prochain match officiel ; tout revient à 0 en fin de
+saison. Stats d'un match européen : joueurs du club dirigé seulement, comme la coupe (`FinishedMatch.competition`). Un club
+IA choisit son dispositif avant un match contre le club dirigé (`aiLineupOf`, `facesManaged`) : l'aperçu de l'adversaire
+étranger est le match joué. Réputation : **bonus de cible** (`europeReputationBonuses`, `EUROPE_REPUTATION_BONUS` : Lauriers
++1 en quarts, +2 finaliste, +3 vainqueur ; Fanions +1 finaliste, +2 vainqueur ; plafond 99), ajouté à la cible, jamais à la
+réputation (`applySeasonReputations`). Objectif imposé `EUROPE` (`ObjectiveKind`, ajouté en dernier) au club dirigé
+qualifié : `europeObjective` par tiers de réputation parmi les clubs de sa compétition à l'ouverture (demies, quarts ou
+barrages, dépassé deux tours plus loin ; `EUROPE_STAGES` : 1 phase de ligue, 2 barrages, 3 quarts, 4 demies, 5 finale,
+6 vainqueur), coefficient comme la coupe (`EUROPE_COEFFICIENT`), compté par la confiance du président ; `SeasonProgress.europe`
+(`clubEuropeRun`). `SeasonResult.europeCode`, `europeStage` (1 à 5, la finale pour son vainqueur) et le trophée « europe »
+(`EUROPE_TROPHY`). Rotation du club dirigé à la main : « À faire » signale avant un match européen ses titulaires sous
+`ROTATION_FITNESS` (75) au coup d'envoi (`tired-starters`), et ses joueurs à 2 jaunes européens (`europe-booking-risks`).
+Mesures du 17/11 (`measure:balance -- --world-only`, `measure:seasons`, `measure:weight -- --archive`) : section
+« Europe » des deux premiers, et le cahier.
+
+**Écrans de l'Europe.** Page Europe (`/saves/[id]/europe`, `getEuropeView`, `src/db/europe-view.ts` ; les dérivations,
+statut, prochain match et prime, dans `app/saves/[id]/europe/_lib/europe.ts`, pur et testé) sous Match, après Coupe : la
+dernière année européenne de la partie, la compétition du club dirigé d'abord (la Coupe des Lauriers s'il n'est pas
+qualifié ; `?c=eu.1`, `?c=eu.2`), 404 sans saison européenne. Sa carte sur le bleu vif (`europe-card`, toujours celle de la
+compétition du club : statut, cinq étapes comme la carte de la coupe, `europe-progress`, prochain match, prime en jeu),
+la bascule (`europe-switch`, `europe-switch-eu1`, `-eu2`), le vainqueur une fois la finale jouée (`europe-winner`), le
+classement de la phase de ligue (`europe-table`, `europe-table-row` avec `data-rank`, `data-managed`, `data-zone` :
+pastille bleue du 1er au 4e, neutre du 5e au 12e ; le pays de chaque club), les matchs du club à côté à partir de `xl`
+(`europe-matches`), puis le tableau (`europe-bracket`, `europe-round-7` à `10`, `europe-tie`, « À déterminer » avant la
+fin de la phase de ligue, la finale « Terrain neutre », `europe-neutral`) ; aucun orange plein, l'action de jeu reste dans
+la colonne. Partout ailleurs, un match européen se nomme par sa compétition et son tour (`stageLabel` : « Coupe des
+Lauriers — 3e journée », « Coupe des Fanions — Finale » ; `isEuropeStage`, `stageNamesCompetition`, `isNeutralStage`) :
+calendrier (étiquette « LAURIERS » ou « FANIONS » en vert, `data-europe`), feuille de match, direct (« Terrain neutre » à la
+place du stade pour la finale ; les autres matchs, ceux de la même compétition ce jour-là), en-tête (`nextStage` avec son
+code), résumé de simulation, héros de l'Accueil (le pays de chaque club, son rang et ses points de phase de ligue,
+`europePreviews`), enjeu de « À demain » (`europeStakeOf` : élimination directe, finale, premier match de la phase de
+ligue, une victoire pour les quatre ou les douze premiers, le rang de l'adversaire) et mot de l'adjoint après une
+élimination (`europeExit`). `e2e/europe.spec.ts` couvre la page à 1280, 390 et 360 px, le calendrier, et une finale jouée
+en direct jusqu'aux tirs au but (`e2e/europe-final-save.mts`, un jumeau 1 de la démo, Lyon-Naples le 12 août).
 
 **Défi de la semaine.** Un défi par semaine ISO en UTC (`Challenge`, `weekKey` « 2026-W45 », `src/lib/iso-week.ts`),
 écrit une fois par `ensureChallenge` (`src/db/challenge.ts`) : par `POST /api/maintenance/challenge` le lundi (même
@@ -310,7 +377,7 @@ club est tiré par la graine parmi la deuxième division et les 12e à 18e de pr
 semaine précédente (`drawChallengeClub`, `src/engine/challenge.ts`). Règles dans `src/config/challenge.ts` : horizon de
 10 journées, `MAX_CHALLENGE_SAVES_PER_WEEK` = 20 (une partie de défi pèse 7,7 Mo compactée, 25,9 Mo réels à la
 10e journée), parties gardées 24 h après la fin du défi. Une partie de défi
-(`Save.challengeId`, `createChallengeSave`, `src/db/saves.ts`) est une partie 2 avec la graine et le club du défi, les
+(`Save.challengeId`, `createChallengeSave`, `src/db/saves.ts`) est une partie 2, sans compétition européenne, avec la graine et le club du défi, les
 mêmes pour tous, sans nom stocké (`Save.name` vide) : l'écran la nomme depuis sa semaine, dans la langue du joueur
 (« Défi — semaine 45 », « Challenge — week 45 », `SaveSummary.challengeWeek`) ; les noms stockés par les parties
 d'avant restent en base, plus affichés ; **hors des limites de parties**, mais une par joueur et par semaine
@@ -383,6 +450,9 @@ par carrière) ; **un jeune prometteur ne se vend ni ne se libère pendant son p
 par la série, achetés ou débloqués par des accomplissements (missions, journée parfaite, matchs et victoires en direct,
 palmarès et objectifs d'une saison à `advanceToNextSeason`, `unlockSeasonAchievements`, podium du défi vu au classement de
 la semaine passée, `unlockChallengePodium`) ; un de chaque sorte porté (`User.title`, `badge`, `frame`, `wearCosmetic`).
+Cadres renommés le 17/11 (libellés seuls, identifiants inchangés) : `frame-laurels` « Couronne », `frame-gold-laurels`
+« Couronne d'or », pour laisser « Lauriers » à la Coupe des Lauriers ; `frame-compass-rose` « Rose des vents » pour une
+compétition européenne gagnée (accomplissement de saison `europe`).
 Le titre porté s'affiche sur la pastille du manager (Club, `club-manager-title`), sur la carte de fin de saison (pied,
 « MANAGER : … ») et à côté du prénom dans le classement du défi (`ChallengeRankingRow.title`) ; le cadre habille la carte,
 dans son adresse (`seasonCardPath`, `frame=`, `title=`, que la route ne dessine que pour leur propriétaire,
@@ -399,15 +469,15 @@ montre les jetons et la collection, et pourquoi. /admin : sections « Missions d
 
 **Navigation d'une partie.** Cinq entrées, dans `SECTIONS` (`app/saves/[id]/_lib/sections.ts`, pur et testé) : Accueil ·
 Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
-`nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement et Coupe
-(seulement avec une coupe), Club a Club, Défi, Palmarès et Récompenses ; le direct est sous Match et l'écran de début de saison sous Club,
+`nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement, Coupe
+(seulement avec une coupe) et Europe (seulement avec une saison européenne, `hasEurope`), Club a Club, Défi, Palmarès et Récompenses ; le direct est sous Match et l'écran de début de saison sous Club,
 sans onglet l'un et l'autre (`SCREENS_WITHOUT_TAB`) ; l'entrée Match mène au Calendrier sous 1024 px, au
 Classement à partir de là, où il a le calendrier et la coupe à côté ; l'entrée Équipe à l'Effectif sous 1024 px, à la
 Composition à partir de là, où elle a l'effectif et la fiche à côté (`computerHome`, choisi par `SaveNav` après
 l'hydratation) ; l'entrée Club mène à `/club` à toutes les largeurs. Ces sous-onglets sont une bascule
 en tête de contenu (`SectionTabs`, `SegmentedLinks`,
 `src/components/segmented.tsx`), testids `nav-squad`, `nav-lineup`, `nav-fixtures`, `nav-standings`, `nav-cup`,
-`nav-club-overview` (`tabTestId` : l'onglet Club, l'entrée gardant `nav-club`), `nav-challenge`, `nav-seasons`, `nav-rewards`, présents
+`nav-europe`, `nav-club-overview` (`tabTestId` : l'onglet Club, l'entrée gardant `nav-club`), `nav-challenge`, `nav-seasons`, `nav-rewards`, présents
 sur les seuls écrans de leur entrée (`openScreen`, `e2e/helpers.ts`, passe par elle). Les entrées ne touchent pas aux
 adresses : chaque écran garde la sienne (`/squad`, `/standings`…). Une seule navigation dans le DOM (`SaveNav`,
 `save-nav`, `<nav>` libellé « Navigation de la partie » ; la bascule et la pagination du marché sont d'autres `<nav>`,
@@ -810,8 +880,14 @@ de la page publique (`ChallengeScreen`, `app/challenge/_components`), quelle que
 (semaine et fin, `formatParisWeekdayTime`), carte « Ta partie » (`ownChallenge`, pur : journées, score une fois soumis et
 reprise, « Jouer le défi », ou pourquoi pas ; aucun score provisoire, le jeu ne l'écrit qu'à la 10e journée, jamais de
 « Relancer »), classements (`RankingTable`, partagée : ta ligne en bleu, l'anonyme toujours grisé). Palmarès (`/seasons`) : des
-cartes sous 1024 px, toute la carte menant à la saison, le tableau au-dessus. Bilan (`/seasons/[seasonId]`) : la carte PNG
-(avec, pour une saison qui a des objectifs, la pastille « Objectifs : 2/3 », `objectivesLine`, à côté de la saison),
+cartes sous 1024 px, toute la carte menant à la saison, le tableau au-dessus ; une saison européenne y a sa ligne
+(« Coupe des Lauriers : quarts de finale », « Vainqueur de la Coupe des Lauriers », `europeLabel`), comme la coupe et les
+montées, que les trois dernières saisons de l'écran Club montrent aussi (`club-honours`, `data-mark`). Bilan
+(`/seasons/[seasonId]`) : la ligne européenne du club et le vainqueur de chaque compétition européenne de l'année
+(`getEuropeWinners`, `src/db/europe-results.ts`, l'archive d'une saison archivée ; `season-europe-eu1`, `-eu2`) ; la carte PNG
+(badges `cardBadge` : « EUROPE » pour un titre européen, « DOUBLÉ » pour deux titres parmi championnat, coupe et Europe,
+« TRIPLÉ » pour les trois, et la ligne européenne d'un parcours sans titre ; `SEASON_CARD_VERSION` 2 ; pour une saison
+qui a des objectifs, la pastille « Objectifs : 2/3 », `objectivesLine`, à côté de la saison),
 `SeasonCardActions` : où le navigateur partage des fichiers (`navigator.canShare({ files })`), « Partager » en orange
 envoie le PNG carré lui-même, seul (`navigator.share({ files })`, sans titre ni texte, que perdent ou refusent Instagram,
 TikTok et Snap), le fichier lu d'avance ; ailleurs (navigateur d'une appli, la plupart des ordinateurs) ou quand le
@@ -1260,7 +1336,7 @@ app/                  # routes App Router, à la racine ; UI en français et en 
   api/                # Auth.js, les routes de maintenance (purge, défi de la semaine, nettoyage des événements, archivage des saisons) et les erreurs des navigateurs
                       # (client-errors), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
-                      # club (club/ : finances, réglages), début de saison (season-start/ : dotation, choix de
+                      # club (club/ : finances, réglages), Europe (europe/ : compétitions européennes), début de saison (season-start/ : dotation, choix de
                       # l'objectif), défi (challenge/), palmarès (seasons/, et
                       # seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club), récompenses
                       # (rewards/ : jetons, série, boutique, collection)
@@ -1271,6 +1347,7 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # admin.spec.ts : /admin, 404 pour tout autre, ses sections à 1280, 390 et 360 px, FR et EN,
                       # une erreur provoquée dans un navigateur, montrée dans sa section ;
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
+                      # europe.spec.ts : la page Europe, le calendrier et une finale européenne en direct ;
                       # live.spec.ts : le direct et le panneau Coaching ; live-choices.spec.ts : un direct avec une
                       # décision du joueur, un changement et un arrêt demandé ; team.spec.ts : Effectif, Composition et fiche ;
                       # lineup-candidates.spec.ts : le changement en un toucher sur téléphone ; starting-instruction.spec.ts :
@@ -1295,7 +1372,7 @@ docs/                 # design/ : cahiers des chantiers ; restauration.md : rest
 src/
   components/         # composants partagés : panneau, visage du joueur, initiales du club, bascule, styles de tableau
     ui/               # composants shadcn/ui (Base UI), générés par la CLI
-  engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes, coupes, défi ;
+  engine/             # simulation pure : match, progression, transferts, IA des clubs, jeunes, coupes, Europe, défi ;
                       # club-name.ts : nom affiché des clubs (CLUB_NAMES)
     data/names/       # listes de noms, importées statiquement
   db/                 # accès Prisma, toujours scopé par saveId ; *.slow.test.ts via npm run test:slow

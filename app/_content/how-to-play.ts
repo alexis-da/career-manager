@@ -1,5 +1,6 @@
 // The « How to play » guide (app/how-to-play, app/fr/comment-jouer), in French and English: from the creation of a career
-// to its first match, then the market, the line-up, the match events, the objectives and the weekly challenge. In a
+// to its first match, then the market, the line-up, the match events, the objectives, the European competitions, the
+// weekly challenge and the daily missions. In a
 // string, **…** marks a label of the game's screens, as they read, shown in bold (GuideText, app/_components/documents).
 export type GuideBlock = string | string[]; // a paragraph, or the items of a list
 export type GuideText = { title: string; blocks: GuideBlock[] };
@@ -12,8 +13,8 @@ export const GUIDE_LABELS = {
 } as const;
 
 export const GUIDE_INTRO: { fr: string; en: string } = {
-  fr: "Late Winner est un jeu de carrière de football gratuit, dans ton navigateur : 198 clubs de cinq pays, deux divisions et une coupe par pays. Voici l'essentiel, du choix de ton club à ta première saison.",
-  en: "Late Winner is a free football career game in your browser: 198 clubs from five countries, each with two divisions and a cup. Here are the essentials, from choosing your club to your first season.",
+  fr: "Late Winner est un jeu de carrière de football gratuit, dans ton navigateur : 198 clubs de cinq pays, deux divisions et une coupe par pays, et deux coupes d'Europe. Voici l'essentiel, du choix de ton club à ta première saison.",
+  en: "Late Winner is a free football career game in your browser: 198 clubs from five countries, each with two divisions and a cup, and two European cups. Here are the essentials, from choosing your club to your first season.",
 };
 
 export const GUIDE: GuideSection[] = [
@@ -168,6 +169,27 @@ export const GUIDE: GuideSection[] = [
         "**Chairman's confidence** follows your objectives, but the board never sacks its manager.",
         "At the end of the season, **Move on to next season** leads to the review, then to your funding: the budget for your reputation rank, multiplied by 0.80 to 1.40 depending on your objectives, plus half your unspent budget.",
         "Three clubs go up and three go down in England, Spain and Italy, two in Germany and France. Each country has its **Cup**, a knockout between its two divisions.",
+      ],
+    },
+  },
+  {
+    id: "europe",
+    fr: {
+      title: "Les coupes d'Europe",
+      blocks: [
+        "Les quatre premiers de chaque première division jouent la **Coupe des Lauriers** la saison suivante ; les 5e et 6e et le vainqueur de la coupe, ou le 7e, la **Coupe des Fanions**. Dès ta première saison, d'après le classement réel de la saison précédente.",
+        "D'abord une phase de ligue : six matchs (quatre en Coupe des Fanions) contre des clubs des autres pays, un seul classement. Les quatre premiers vont en quarts, du 5e au 12e en barrages ; puis des matchs secs jusqu'à la finale, sur terrain neutre, avec prolongation et tirs au but.",
+        "On joue le mercredi : fais tourner ton effectif. **À faire**, sur l'**Accueil**, signale tes titulaires fatigués avant un match européen. Trois jaunes en Europe valent un match de suspension.",
+        "Chaque victoire et chaque tour rapportent une prime, jusqu'à 23,6 M€ pour un parcours parfait en Coupe des Lauriers ; la direction te fixe un objectif européen, et un beau parcours fait grandir la réputation de ton club. Classement, tableau et matchs dans **Match**, **Europe**. Pas d'Europe dans une partie de défi.",
+      ],
+    },
+    en: {
+      title: "The European cups",
+      blocks: [
+        "Each first division's top four play the **Laurel Cup** the following season; its 5th and 6th and its cup winners, or its 7th, the **Pennant Cup**. From your first season, based on the real table of the season before.",
+        "First a league phase: six matches (four in the Pennant Cup) against clubs from other countries, in a single table. The top four go into the quarter-finals, 5th to 12th into the play-offs; then single-leg ties up to the final, on neutral ground, with extra time and penalties.",
+        "European matches are on Wednesdays: rotate your squad. **To do**, on **Home**, flags your tired starters before a European match. Three yellow cards in Europe mean a one-match ban.",
+        "Every win and every round brings prize money, up to €23.6m for a perfect run in the Laurel Cup; the board sets you a European objective, and a good run raises your club's reputation. Table, bracket and matches under **Match**, **Europe**. No Europe in a challenge career.",
       ],
     },
   },

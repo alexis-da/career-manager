@@ -2,7 +2,7 @@
 
 > Late Winner is a free football career game you play in your browser, in English and French: take over a club, pick your line-up, make the calls during live matches, sign players and chase promotion. No download and no account needed, on a phone as on a computer.
 
-The game has 198 clubs in five countries, each country with two divisions and a national cup; players are generated. A weekly challenge gives everyone the same club for ten league matchdays, with a ranking.
+The game has 198 clubs in five countries, each country with two divisions and a national cup; players are generated. Each first division's best clubs also play two invented European cups, the Laurel Cup and the Pennant Cup: a league phase, then knockout ties up to a final on neutral ground. A weekly challenge gives everyone the same club for ten league matchdays, with a ranking.
 
 ## Pages
 

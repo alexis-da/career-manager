@@ -402,6 +402,47 @@ après chaque changement (règle « Équilibrage des deux divisions »). Cibles 
 Leviers si la mesure déçoit, dans cet ordre : le seuil de rotation des clubs IA (`ROTATION_FITNESS`, 75) la semaine
 d'une date européenne, les primes, le bonus de réputation.
 
+## 9 bis. Mesures du 17/11, avant la mise en ligne
+
+Sur des bases locales dédiées, le code de la branche `europe`.
+
+- **Six cibles** (`measure:balance -- --world-only --seeds=10`, dix saisons complètes d'une partie 2 avec l'Europe) :
+  2,61 buts par match (2,65 en D1), 25,3 % de nuls, 43,6 % de victoires à domicile, 53,7 points entre le 1er et le
+  dernier, forme des onze de 31,8 à 71,9, le plus faible gagne 23,5 % ; le 06/11, sans l'Europe : 2,64, 25,1 %, 43,6 %,
+  55,2, 35,3 à 75,3 et 23,2 %. Les six tiennent.
+- **Europe, même mesure** : points par match des clubs IA européens en championnat dans les quatre jours qui suivent leur
+  match européen 1,71, contre 1,77 pour leurs autres matchs (−0,06 ; cible −0,1 à −0,2, pas davantage). Condition des
+  titulaires au coup d'envoi : 91,8 en Coupe des Lauriers (7,3 % des titularisations sous 75), 93,5 en Coupe des Fanions
+  (3,9 %), 98,0 pour les autres clubs de D1 (0,4 %) ; titulaires reposés par club et par saison 19,1, 11,7 et 1,3 ;
+  blessures par club et par saison 5,8, 5,5 et 4,7, soit × 1,24 et × 1,16 (cible : au plus × 1,3 ; sur trois saisons
+  seulement, × 1,37 en Lauriers : le bruit). Élimination directe, 220 matchs : 75,9 % en 90 minutes, 11,4 % après
+  prolongation, 12,7 % aux tirs au but, le mieux classé passe 56,4 % du temps. Aucun réglage nécessaire.
+- **Cinq saisons** (`measure:seasons -- --seasons=5`, graine de la démo) : requalifiés la saison suivante, Lauriers 65 à
+  95 % (pour la même compétition 45 à 65 %), Fanions 60 à 67 % (20 à 33 %) ; relégués en fin de saison : un club des
+  Lauriers et deux des Fanions en quatre saisons ; rang final moyen 3,6 à 5,8 en Lauriers, 5,9 à 7,7 en Fanions. Budgets
+  moyens des clubs IA au début : 128 à 137 M€ en Lauriers, 75 à 83 M€ en Fanions, 24 à 28 M€ pour les autres clubs de D1
+  (+5 à 7, +3 à 4 et +0,2 à 0,7 M€ sur la saison, primes et ventes comprises). Réputations stables (84 à 87, 77 à 81,
+  65 à 67), étalement de chaque division à ±10 % (7,7 % au plus), réputation recalculée avec le bonus égale à la relevée
+  pour 990 clubs-saisons sur 990. Objectif européen qu'aurait reçu chaque club : 45 % atteint ou dépassé (175
+  clubs-saisons) ; par tiers, Lauriers 27 % (haut, les demies), 43 % (milieu) et 43 % (bas), Fanions 32 %, 52 % et 76 %.
+  Condition des titulaires des clubs européens au coup d'envoi : 92,7 en championnat (7 % sous 75), 89,1 en Europe
+  (8 %), contre 98,3 (0 %) pour les autres clubs de D1 ; d'octobre à décembre, 84 à 90 de moyenne, et en octobre 12 %
+  des titularisations sous 75 la première saison, puis 17, 21, 21 et 25 %. Saison par saison, tous leurs matchs (section
+  « Charge de chaque saison ») : la part sous 75 passe de 5 à 10 % et les titulaires reposés de 16,1 à 12,4 par club,
+  les joueurs disponibles restant 24,2 à 24,4 par match (un club IA trouve moins souvent un remplaçant à 5 points) ;
+  blessures 5,6 à 6,0 par club et par saison, contre 4,8 à 5,2 pour les autres clubs de D1, soit × 1,08 à × 1,25 (cible :
+  au plus × 1,3). À surveiller au-delà de cinq saisons.
+- **CPU** (`process.cpuUsage()` autour de chaque date d'une saison complète, deux graines, pas de 15,6 ms sous Windows) :
+  une date européenne 27 à 36 ms en moyenne (0 à 94 ms selon la date), soit 0,27 à 0,36 s pour les dix dates d'une
+  saison ; un samedi 158 à 182 ms ; la saison entière 8,5 à 9,5 s avec ou sans l'Europe, l'écart dans le bruit de la
+  mesure ; création +25 à 46 ms (« europe 90 » du minuteur), passage de saison 1,1 à 1,3 s, inchangé.
+- **Poids** (`measure:weight -- --archive`, trois saisons, l'une après l'autre sur deux bases vides, avec puis sans
+  l'Europe à toute saison, `--no-europe`) : compact (lignes vivantes et leurs index) 6,28, 6,97, 7,71 et 8,48 Mo avec
+  l'Europe, 6,22, 6,90, 7,63 et 8,40 Mo sans : +0,06 Mo à la création (90 matchs de phase de ligue), puis +0,01 Mo par
+  saison archivée (deux archives de saison de plus). Réel 6,55, 11,72, 14,51 et 15,66 Mo avec l'Europe (repère du 10/11 :
+  6,2, 10,7, 12,8 et 14,0), 6,47, 20,36, 21,73 et 24,38 Mo sans : le réel varie de ±10 Mo selon l'autovacuum (la place des
+  lignes mortes de `PlayerSave`), le compact est la mesure à comparer.
+
 ## 10. Ordre de construction
 
 1. Moteur, pur et testé : dates (`europeDates`), tirage de la phase de ligue, classement, tableau, primes, objectif,

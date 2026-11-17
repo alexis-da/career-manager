@@ -23,6 +23,27 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-17",
     fr: {
+      title: "Les coupes d'Europe : Coupe des Lauriers et Coupe des Fanions",
+      items: [
+        "Les quatre premiers de chaque première division jouent la Coupe des Lauriers ; les 5e et 6e et le vainqueur de la coupe, ou le 7e, la Coupe des Fanions. Dès la première saison d'une nouvelle carrière ; dans une carrière en cours, à la saison suivante, la saison en cours restant ce qu'elle est.",
+        "Une phase de ligue contre des clubs des autres pays, un seul classement, puis barrages, quarts, demies et finale sur terrain neutre, en matchs secs avec prolongation et tirs au but. Le mercredi : pense à faire tourner, À faire te signale tes titulaires fatigués avant un match européen.",
+        "Primes à chaque victoire et à chaque tour, un objectif européen de la direction, un bonus de réputation pour les beaux parcours, trois jaunes européens pour une suspension, et la nouvelle page Europe sous Match. Palmarès et carte de fin de saison montrent ton parcours et tes titres.",
+        "Les cadres Lauriers et Lauriers d'or de la collection s'appellent désormais Couronne et Couronne d'or ; ceux qui les possèdent les gardent.",
+      ],
+    },
+    en: {
+      title: "European cups: the Laurel Cup and the Pennant Cup",
+      items: [
+        "Each first division's top four play the Laurel Cup; its 5th and 6th and its cup winners, or its 7th, the Pennant Cup. From the first season of a new career; in a career already under way, from next season, the current season staying as it is.",
+        "A league phase against clubs from other countries, a single table, then play-offs, quarter-finals, semi-finals and a final on neutral ground, single-leg with extra time and penalties. On Wednesdays: rotate your squad, To do flags your tired starters before a European match.",
+        "Prize money for every win and every round, a European objective from the board, a reputation boost for a good run, a ban after three European yellow cards, and the new Europe page under Match. Honours and the season card show your run and your titles.",
+        "The Laurels and Golden laurels frames in the collection are now called Wreath and Golden wreath; whoever owns them keeps them.",
+      ],
+    },
+  },
+  {
+    date: "2026-11-17",
+    fr: {
       title: "Une composition plus lisible",
       items: [
         "Dans la Composition, la liste à côté du terrain, et sous le banc sur téléphone, ne montre plus que tes remplaçants et les joueurs non retenus : tes titulaires sont sur le terrain. Toucher un poste propose toujours tout l'effectif, titulaires compris, pour un échange.",

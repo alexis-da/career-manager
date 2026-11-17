@@ -196,9 +196,10 @@ Au découpage, sur 10 000 matchs : 2,85 → 2,84 buts par match, 45,7 → 46,1 %
 ## Discipline (G3)
 
 `src/engine/discipline.ts`, pur ; constantes `YELLOWS_PER_SUSPENSION` (5) et `SUSPENSION_MATCHES` (1) dans `balance.ts`.
-`Discipline`, ce que stockent cinq colonnes de `PlayerSave` : `leagueYellows` et `cupYellows` (jaunes depuis la dernière
-suspension dans la compétition ou le début de saison), `suspendedMatches` (après un rouge : prochains matchs officiels du
-club, toute compétition), `suspendedLeagueMatches` et `suspendedCupMatches` (après le 5e jaune : prochains matchs de la
+`Discipline`, ce que stockent sept colonnes de `PlayerSave` : `leagueYellows`, `cupYellows` et `europeYellows` (jaunes
+depuis la dernière suspension dans la compétition ou le début de saison), `suspendedMatches` (après un rouge : prochains
+matchs officiels du club, toute compétition), `suspendedLeagueMatches`, `suspendedCupMatches` et `suspendedEuropeMatches`
+(après le 5e jaune, le 3e en Europe, `EUROPE_YELLOWS_PER_SUSPENSION`, `yellowsPerSuspension` : prochains matchs de la
 compétition).
 
 - `disciplineAfterMatch(discipline, competition, cards)` : un joueur suspendu pour ce match le purge (un match de moins à
@@ -208,7 +209,7 @@ compétition).
 - `isSuspended(discipline, competition)` ; `disciplineForNewSeason` remet les jaunes à 0, une suspension se reporte
   (`advanceToNextSeason` le fait en SQL).
 - `recordFinishedMatches` l'applique à tous les joueurs des deux clubs, clubs IA compris, avec la forme, la fitness et les
-  blessures (`"CUP"` pour un match à élimination). Avant le match, `withSuspensions(squad, competition, stateByKey)`
+  blessures (`FinishedMatch.competition` : `"LEAGUE"`, `"CUP"` ou `"EUROPE"`). Avant le match, `withSuspensions(squad, competition, stateByKey)`
   (`matchday.ts`) marque `suspended` les joueurs retenus pour la compétition du match, et `isAvailable` (`lineup.ts` : ni
   blessé ni suspendu) les écarte de `selectLineup`, `selectRestedLineup`, `resolveLineup` (onze et banc) et
   `changeFormation`. Le moteur de match ne lit pas la discipline : seuls les cartons qu'il tire, inchangés, la font bouger.
@@ -275,7 +276,13 @@ nouveau avec les segments). Toute modification des tirages des segments la casse
   `simulateMatch` (`match-knockout.test.ts`, `cup.test.ts`).
 - Graines : `phaseRngSeed(matchSeed, "e1" | "e2" | "shootout")`, une par phase. La graine d'un match de coupe est
   `cupMatchRngSeed(save.seed, startYear, round, home, away)` (`…:cup:…`), jamais celle du match de championnat de la
-  même journée entre les mêmes clubs (`fixtureMatchSeed`, `src/db/matchday.ts`, la choisit selon la compétition).
+  même journée entre les mêmes clubs ; celle d'un match européen `europeMatchRngSeed(save.seed, startYear, code, round,
+  home, away)` (`…:europe:…:eu.1:…`, son code compris) (`fixtureMatchSeed`, `src/db/matchday.ts`, la choisit selon la
+  compétition).
+- Matchs européens (docs/design/europe.md) : à élimination après la phase de ligue seulement (`isKnockoutRound`,
+  `src/engine/europe.ts` : une coupe, ou un tour européen au-delà du 6e) ; la finale (tour 10) sur terrain neutre
+  (`isNeutralRound`) : `startMatch(…, knockout, neutral)`, `simulateMatch(…, atBoundary, neutral)`, `MatchState.neutral`
+  (gardé dans `Fixture.liveState`), et `stateExpectedGoals` donne à chaque côté un facteur 1 au lieu de `HOME_ADVANTAGE`.
 - Prolongation : 15/90 des buts, cartons et blessures attendus par période, buts multipliés par
   `EXTRA_TIME_INTENSITY` (1 : autant qu'en temps réglementaire) ; un remplacement de plus (`EXTRA_TIME_SUBSTITUTIONS`,
   plafond `MAX_SUBSTITUTIONS + 1`), utilisé en `e1` ; un blessé est remplacé aussitôt. Événements marqués

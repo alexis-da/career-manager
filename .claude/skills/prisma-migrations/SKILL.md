@@ -124,7 +124,10 @@ npx tsx scripts/generate-reference-migration.ts prisma/migrations/<horodatage>_n
 - Le générateur choisit le contenu d'après le suffixe du dossier ; une nouvelle donnée de référence y ajoute le sien.
 - Première : `20261023120000_second_divisions` (5 compétitions, 102 clubs, 2 346 joueurs, environ 220 Ko). Deuxième :
   `20261024124148_national_cups` (les 5 coupes, `kind = CUP`, niveau 0, depuis `CUPS`, `prisma/seed/competitions.ts`),
-  après la migration de schéma `20261024124147_national_cup` qui crée `Competition.kind`.
+  après la migration de schéma `20261024124147_national_cup` qui crée `Competition.kind`. Troisième :
+  `20261117180001_european_competitions` (les 2 compétitions européennes, `kind = EUROPE`, niveau 0, depuis
+  `EUROPEAN_COMPETITIONS`), après `20261117180000_european_competitions_schema` qui ajoute la valeur d'enum : une valeur
+  ajoutée par `ALTER TYPE … ADD VALUE` ne peut servir que dans une migration suivante.
 
 ## Compétition d'un club et monde d'une partie
 
