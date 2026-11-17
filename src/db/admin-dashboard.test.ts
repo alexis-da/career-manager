@@ -314,6 +314,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     expect(week.tokens).toMatchObject({ earned: 200, spent: 40 });
     expect(week.tokens.days.at(-1)).toEqual({ day: "1999-03-10", earned: 200, spent: 40 });
     expect(week.tokens.days).toHaveLength(7);
+    // A day without spending, an item never bought: 0, never -0 (shown « -0 »).
+    expect(Object.is(week.tokens.days[0].spent, 0)).toBe(true);
+    expect(Object.is(week.tokens.purchases.find(({ item }) => item === "COSMETIC")?.tokens, 0)).toBe(true);
     expect(week.tokens.sources).toEqual([
       { reason: "MISSION", tokens: 50 },
       { reason: "ALL_THREE", tokens: 0 },

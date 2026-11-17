@@ -134,7 +134,8 @@ export async function missionsAndTokens(
     return {
       day,
       earned: rows.filter((row) => Number(row.tokens) > 0).reduce((sum, row) => sum + Number(row.tokens), 0),
-      spent: -rows.filter((row) => Number(row.tokens) < 0).reduce((sum, row) => sum + Number(row.tokens), 0),
+      // Subtracted from 0, never negated: a day without spending is 0, not -0 (« -0 » on the screen).
+      spent: rows.filter((row) => Number(row.tokens) < 0).reduce((sum, row) => sum - Number(row.tokens), 0),
     };
   });
   const purchases = SHOP_ITEMS.map((item) => {
@@ -142,7 +143,7 @@ export async function missionsAndTokens(
     return {
       item,
       purchases: rows.reduce((sum, row) => sum + Number(row.entries), 0),
-      tokens: -rows.reduce((sum, row) => sum + Number(row.tokens), 0),
+      tokens: rows.reduce((sum, row) => sum - Number(row.tokens), 0),
     };
   });
 
