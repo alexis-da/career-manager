@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { MISSION_KINDS } from "../lib/missions";
 import type { prisma as prismaClient } from "./client";
 
 // The figures of /admin, against DATABASE_URL: visits, players, their days and the day's figures of March 1999, earlier
@@ -151,6 +152,39 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
         mission("b", "09", "WIN", 3, 3),
       ],
     });
+    // Missions v2: c's three of the 10th, two done, one changed; the day counted, the seventh of a streak, a cycle done.
+    // c's tokens of the 10th: two missions, the seventh day's bonus, a fitness camp bought.
+    const task = (tier: "EASY" | "MEDIUM" | "HARD", kind: "PLAY_MATCH" | "WIN" | "LIVE_WIN", done: boolean) => ({
+      userId: id("c"),
+      day: day("10"),
+      tier,
+      kind,
+      target: 1,
+      progress: done ? 1 : 0,
+      completedAt: done ? at("10T20:00:00.000") : null,
+    });
+    await prisma.missionTask.createMany({ data: [task("EASY", "PLAY_MATCH", true), task("MEDIUM", "WIN", false), task("HARD", "LIVE_WIN", true)] });
+    await prisma.missionDay.create({
+      data: { userId: id("c"), day: day("10"), done: 2, countedAt: at("10T20:00:00.000"), changedAt: at("10T19:00:00.000"), streak: 7, best: 7, cycles: 1 },
+    });
+    const entry = (key: string, reason: "MISSION" | "STREAK" | "PURCHASE", amount: number, item: "FITNESS_CAMP" | null = null) => ({
+      id: id(key),
+      userId: id("c"),
+      key,
+      reason,
+      amount,
+      item,
+      createdAt: at("10T20:00:00.000"),
+    });
+    await prisma.tokenEntry.createMany({
+      data: [
+        entry("mission:1999-03-10:EASY", "MISSION", 10),
+        entry("mission:1999-03-10:HARD", "MISSION", 40),
+        entry("streak:1999-03-10", "STREAK", 150),
+        entry("purchase:camp", "PURCHASE", -40, "FITNESS_CAMP"),
+      ],
+    });
+    await prisma.user.update({ where: { id: id("c") }, data: { tokens: 160 } });
     // Resume links: two of a's in the seven days, the first used the next day; one of b's on the 1st, used on the 5th.
     await prisma.resumeLink.createMany({
       data: [
@@ -251,22 +285,42 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the administrator's das
     const week = await dashboard.getAdminDashboard(db, NOW, 7);
     const month = await dashboard.getAdminDashboard(db, NOW, 30);
 
-    expect(week.missions).toMatchObject({ proposed: 5, completed: 4, record: 3 });
+    // v1's five of the seven days and v2's three, counted with their kind's.
+    expect(week.missions).toMatchObject({ proposed: 8, completed: 6, record: 7, perfectDays: 0, changes: 1, cycles: 1 });
     expect(week.missions.byKind.filter((row) => row.proposed > 0)).toEqual([
-      { kind: "PLAY_LIVE", proposed: 1, completed: 1 },
-      { kind: "WIN", proposed: 2, completed: 2 },
-      { kind: "CLEAN_SHEET", proposed: 1, completed: 0 },
-      { kind: "PLAY_MATCHES", proposed: 1, completed: 1 },
+      { kind: "PLAY_LIVE", tier: "MEDIUM", proposed: 1, completed: 1 },
+      { kind: "LIVE_WIN", tier: "HARD", proposed: 1, completed: 1 },
+      { kind: "WIN", tier: "MEDIUM", proposed: 3, completed: 2 },
+      { kind: "CLEAN_SHEET", tier: "MEDIUM", proposed: 1, completed: 0 },
+      { kind: "PLAY_MATCHES", tier: "EASY", proposed: 1, completed: 1 },
+      { kind: "PLAY_MATCH", tier: "EASY", proposed: 1, completed: 1 },
+    ]);
+    expect(week.missions.byTier).toEqual([
+      { tier: "EASY", proposed: 1, completed: 1 },
+      { tier: "MEDIUM", proposed: 1, completed: 0 },
+      { tier: "HARD", proposed: 1, completed: 1 },
     ]);
     // Every mission, in the catalogue's order.
-    expect(week.missions.byKind.map((row) => row.kind)).toEqual(["PLAY_LIVE", "LIVE_SUBSTITUTION", "LIVE_INSTRUCTION", "LIVE_WIN", "WIN", "CLEAN_SHEET", "PLAY_MATCHES", "START_YOUTH"]);
-    // a's streak of today, 1 day; b's of yesterday, 3.
+    expect(week.missions.byKind.map((row) => row.kind)).toEqual([...MISSION_KINDS]);
+    // a's streak of today, 1 day; b's of yesterday, 3; c's of today, v2's, 7.
     expect(week.missions.streaks).toEqual([
       { days: 1, players: 1 },
       { days: 3, players: 1 },
+      { days: 7, players: 1 },
     ]);
     // The 2nd's mission is in the thirty days.
-    expect(month.missions).toMatchObject({ proposed: 6, completed: 5 });
+    expect(month.missions).toMatchObject({ proposed: 9, completed: 7 });
+    // c's tokens of the 10th: 200 earned, 40 spent on a camp.
+    expect(week.tokens).toMatchObject({ earned: 200, spent: 40 });
+    expect(week.tokens.days.at(-1)).toEqual({ day: "1999-03-10", earned: 200, spent: 40 });
+    expect(week.tokens.days).toHaveLength(7);
+    expect(week.tokens.sources).toEqual([
+      { reason: "MISSION", tokens: 50 },
+      { reason: "ALL_THREE", tokens: 0 },
+      { reason: "STREAK", tokens: 150 },
+      { reason: "WELCOME", tokens: 0 },
+    ]);
+    expect(week.tokens.purchases.find(({ item }) => item === "FITNESS_CAMP")).toEqual({ item: "FITNESS_CAMP", purchases: 1, tokens: 40 });
   }, READING_MS);
 
   it("counts the period's resume links: created, for how many players, and used", async () => {

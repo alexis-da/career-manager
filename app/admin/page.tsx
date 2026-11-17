@@ -17,6 +17,7 @@ import {
   HealthSection,
   JourneySection,
   MissionsSection,
+  TokensSection,
   RetentionSection,
   type AdminFormats,
 } from "./_components/admin-sections";
@@ -107,6 +108,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
           <ActivitySection {...sections} />
         </div>
         <MissionsSection {...sections} />
+        <TokensSection {...sections} />
         <ErrorsSection errors={errors} t={t} format={format} />
         <HealthSection
           {...sections}

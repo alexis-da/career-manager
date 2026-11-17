@@ -18,6 +18,7 @@ import { runPreseasonInTransaction, type PreseasonOptions, type PreseasonSummary
 import { closeSeasonObjectives, openSeasonObjectives } from "./objectives";
 import { applySeasonMoves, readFinalTables, seasonMovesOf } from "./promotion";
 import { applySeasonFinances, applySeasonReputations, payrollsOf, recordDotation } from "./season-finances";
+import { unlockSeasonAchievements } from "./rewards";
 import { recordSeasonResult } from "./season-results";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
@@ -76,7 +77,7 @@ type PlayerUpdate = PlayerAttributes & {
  * managed club's contracts, whose expired ones stay for its preseason to renew or release as an AI club's.
  */
 export async function advanceToNextSeason(saveId: string, options: PreseasonOptions = {}): Promise<SeasonTransition> {
-  return prisma.$transaction(
+  const transition = await prisma.$transaction(
     async (tx) => {
       await assertNoMatchInProgress(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, worldVersion: true } });
@@ -288,4 +289,8 @@ export async function advanceToNextSeason(saveId: string, options: PreseasonOpti
     },
     { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: TRANSACTION_TIMEOUT_MS },
   );
+  // The season's palmarès and objectives unlock their cosmetics for the save's owner (missions v2), once it is written:
+  // a failure costs a badge, never the season.
+  await unlockSeasonAchievements(saveId, transition.completedSeasonId);
+  return transition;
 }

@@ -1,8 +1,8 @@
 import type { ArchivePassMode, PrismaClient } from "../generated/prisma/client";
 import { MAX_CHALLENGE_SAVES_PER_WEEK } from "../config/challenge";
 import { isoWeekKey } from "../lib/iso-week";
-import { MISSION_KINDS, type MissionKind } from "../lib/missions";
 import { RESUME_LINK_DAYS } from "../lib/resume-link";
+import { missionsAndTokens, type MissionFigures, type TokenFigures } from "./admin-missions";
 import { databaseSize } from "./db-size";
 import type { EventCleanupCounts } from "./event-cleanup";
 import type { ArchiveMode } from "./season-archiving";
@@ -54,18 +54,7 @@ export type Journey = {
   day7: Share; // of those whose seventh day after is over, those who came back on it
 };
 
-/**
- * The daily missions of the period (src/db/missions.ts): proposed (shown, or taken on before) and completed, mission by
- * mission in the catalogue's order; the streaks running today (the player's latest completed mission today's or
- * yesterday's), how many players at each length; the longest streak a mission of the period made.
- */
-export type MissionFigures = {
-  proposed: number;
-  completed: number;
-  byKind: { kind: MissionKind; proposed: number; completed: number }[];
-  streaks: { days: number; players: number }[]; // shortest first
-  record: number; // 0 without a completed mission
-};
+export type { MissionFigures, TokenFigures } from "./admin-missions";
 
 /** One UTC day of the period. */
 export type AdminDay = {
@@ -102,7 +91,8 @@ export type AdminDashboard = {
   // The resume links of the period (src/db/resume-links.ts): created, for how many players, and used; those of a purged
   // player gone with them.
   resumeLinks: { created: number; creators: number; used: number };
-  missions: MissionFigures;
+  missions: MissionFigures; // missions v2 (src/db/admin-missions.ts), v1's counted before the switch
+  tokens: TokenFigures;
   health: StorageHealth & {
     cleanup: CleanupPassView[]; // the event cleanup's passes of the period, the latest first, CLEANUP_PASSES_SHOWN at most
     archive: ArchivePassView[]; // the « archive » task's passes of the period, the latest first, CLEANUP_PASSES_SHOWN at most
@@ -233,8 +223,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
     stats,
     challenge,
     resumeLinks,
-    missionKinds,
-    runningStreaks,
+    rewards,
     bytesNow,
     passes,
     archivePasses,
@@ -303,23 +292,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
              count(*) FILTER (WHERE "usedAt" >= ${first}::date AND "usedAt" < ${end}::date)::bigint AS used
       FROM "ResumeLink"
       WHERE "createdAt" >= ${first}::date - ${RESUME_LINK_DAYS}::int AND "createdAt" < ${end}::date`,
-    db.$queryRaw<{ kind: string; proposed: bigint; completed: bigint; best: number | null }[]>`
-      SELECT "kind"::text AS kind, count(*)::bigint AS proposed, count("completedAt")::bigint AS completed, max("best") AS best
-      FROM "DailyMission"
-      WHERE "day" >= ${first}::date AND "day" <= ${last}::date
-      GROUP BY 1`,
-    // Each player's latest completed mission of today or yesterday: their streak runs on.
-    db.$queryRaw<{ days: number; players: bigint }[]>`
-      SELECT "streak" AS days, count(*)::bigint AS players
-      FROM (
-        SELECT DISTINCT ON ("userId") "streak"
-        FROM "DailyMission"
-        WHERE "completedAt" IS NOT NULL AND "day" >= ${last}::date - 1 AND "day" <= ${last}::date
-        ORDER BY "userId", "day" DESC
-      ) running
-      WHERE "streak" IS NOT NULL
-      GROUP BY 1
-      ORDER BY 1`,
+    missionsAndTokens(db, first, last, end),
     databaseSize(db),
     db.cleanupPass.findMany({
       where: { at: { gte: dateOf(first), lt: dateOf(end) } },
@@ -478,16 +451,8 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
             submitted: challenge.entries.length,
             maxSaves: MAX_CHALLENGE_SAVES_PER_WEEK,
           },
-    missions: {
-      proposed: missionKinds.reduce((sum, row) => sum + Number(row.proposed), 0),
-      completed: missionKinds.reduce((sum, row) => sum + Number(row.completed), 0),
-      byKind: MISSION_KINDS.map((kind) => {
-        const row = missionKinds.find((figures) => figures.kind === kind);
-        return { kind, proposed: Number(row?.proposed ?? 0), completed: Number(row?.completed ?? 0) };
-      }),
-      streaks: runningStreaks.map((row) => ({ days: row.days, players: Number(row.players) })),
-      record: Math.max(0, ...missionKinds.map((row) => row.best ?? 0)),
-    },
+    missions: rewards.missions,
+    tokens: rewards.tokens,
     resumeLinks: {
       created: Number(resumeLinks[0]?.created ?? 0),
       creators: Number(resumeLinks[0]?.creators ?? 0),

@@ -1,0 +1,188 @@
+{
+  "rewards": {
+    "title": "Récompenses",
+    "challenge": "Partie de défi : ni missions ni boutique ici, pour que le défi reste le même pour tous. Tes jetons et ta collection te suivent dans tes autres carrières.",
+    "tokens": {
+      "title": "Tes jetons",
+      "balance": "{count, plural, one {# jeton} other {# jetons}}",
+      "about": "Gagnés par les missions du jour, gardés par toi dans toutes tes carrières : ils ne se perdent jamais.",
+      "empty": "Pas encore de jeton : les missions du jour de l'Accueil en rapportent.",
+      "all": "Tout le journal",
+      "less": "Réduire",
+      "today": "auj.",
+      "yesterday": "hier",
+      "entries": {
+        "mission": "{mission}",
+        "missionTiers": {
+          "EASY": "Mission facile",
+          "MEDIUM": "Mission moyenne",
+          "HARD": "Mission difficile",
+          "none": "Mission"
+        },
+        "allThree": "Les trois missions du jour",
+        "streak": "Série : bonus du jour {day}",
+        "welcome": "Bienvenue : tes missions d'avant",
+        "purchase": "{item}"
+      }
+    },
+    "streak": {
+      "title": "Série",
+      "days": "{count, plural, =0 {Pas de série en cours} one {# jour d'affilée} other {# jours d'affilée}}",
+      "record": "Record : {count, plural, =0 {pas encore} one {# jour} other {# jours}}",
+      "cycles": "{count, plural, =0 {Aucun cycle de 7 jours accompli} one {# cycle de 7 jours accompli} other {# cycles de 7 jours accomplis}}",
+      "nextLot": "Au 7e jour du {cycle, selectordinal, one {#er} other {#e}} cycle : 150 jetons et {lot}.",
+      "allLots": "Tous les lots de série sont à toi : chaque 7e jour rapporte encore 150 jetons.",
+      "shield": "Protège-série en réserve : il pardonnera un jour manqué.",
+      "noShield": "Pas de protège-série en réserve."
+    },
+    "shop": {
+      "title": "Boutique · saison {season}",
+      "about": "Payée en jetons, pour cette carrière.",
+      "playerTitle": "Pour toi",
+      "playerAbout": "Pour toutes tes carrières.",
+      "live": "Un match t'attend en direct : la boutique de la carrière rouvre à son coup de sifflet final.",
+      "price": "{price, plural, one {# jeton} other {# jetons}}",
+      "buy": "Acheter",
+      "seasonLeft": "{left} sur {limit} cette saison",
+      "careerLeft": "{left} sur {limit} dans la carrière",
+      "items": {
+        "FITNESS_CAMP": {
+          "name": "Stage de forme",
+          "about": "Toute l'équipe à 100 de condition, tout de suite."
+        },
+        "EXPRESS_CARE": {
+          "name": "Soin express",
+          "about": "Un blessé revient deux fois plus vite, à partir de 4 jours d'absence."
+        },
+        "BUDGET_TOP_UP": {
+          "name": "Rallonge de budget",
+          "about": "+{amount} au budget transferts."
+        },
+        "PROMISING_YOUTH": {
+          "name": "Jeune prometteur",
+          "about": "Un joueur de 17 ans, note {overall}, au potentiel élevé, invendable pendant son premier contrat."
+        },
+        "STREAK_SHIELD": {
+          "name": "Protège-série",
+          "about": "Pardonne tout seul un jour manqué. Un seul en réserve."
+        },
+        "COSMETIC": {
+          "name": "Cosmétique",
+          "about": "Un titre ou un cadre de ta collection."
+        }
+      },
+      "refusals": {
+        "challenge": "Pas de boutique dans une partie de défi.",
+        "live": "Un match t'attend en direct : achète après son coup de sifflet final.",
+        "season_limit": "Limite de la saison atteinte : elle repart à la prochaine.",
+        "career_limit": "Limite de la carrière atteinte.",
+        "tokens": "Il te manque {missing, plural, one {# jeton} other {# jetons}}.",
+        "not_injured": "Aucun blessé avec au moins 4 jours d'absence.",
+        "camp_today": "Un stage par jour : reviens après le prochain match.",
+        "full_fitness": "Toute l'équipe est déjà à 100 de condition.",
+        "wage_budget": "Son salaire, {wage}, dépasse ta marge de {wageRoom} : vends ou libère un joueur, ou attends la saison prochaine.",
+        "wageBudgetAny": "Aucun jeune ne tient dans ta marge salariale de {wageRoom} : vends ou libère un joueur, ou attends la saison prochaine.",
+        "shield_held": "Tu as déjà un protège-série en réserve.",
+        "owned": "Déjà dans ta collection.",
+        "not_for_sale": "Pas en vente.",
+        "failed": "L'achat n'a pas pu se faire. Réessaie dans un instant."
+      },
+      "confirm": {
+        "balance": "Solde après : {balance, plural, one {# jeton} other {# jetons}}",
+        "pay": "Confirmer · {price}",
+        "paying": "Achat…",
+        "cancel": "Annuler",
+        "choosePlayer": "Quel blessé ?",
+        "careDays": "{days, plural, one {# jour} other {# jours}} d'absence → {after, plural, one {# jour} other {# jours}}",
+        "chooseLine": "Sa ligne",
+        "lines": {
+          "GK": "Gardien",
+          "DF": "Défense",
+          "MF": "Milieu",
+          "FW": "Attaque"
+        },
+        "youth": "{name}, 17 ans · note {overall} · potentiel {potential}",
+        "youthWage": "Salaire {wage} par saison, contrat de 3 saisons, compté dans ton plafond salarial.",
+        "youthRoom": "Marge salariale : {wageRoom}",
+        "tooExpensive": "Hors de ta marge",
+        "campPlayers": "{count, plural, one {# joueur sous 100 de condition} other {# joueurs sous 100 de condition}}",
+        "topUp": "Ton budget transferts passe à {budget}."
+      },
+      "done": {
+        "FITNESS_CAMP": "Stage de forme : {count, plural, one {# joueur} other {# joueurs}} à 100 de condition.",
+        "EXPRESS_CARE": "Soin express : {name} revient le {date}.",
+        "BUDGET_TOP_UP": "Rallonge : +{amount} au budget transferts.",
+        "PROMISING_YOUTH": "{name} rejoint ton effectif.",
+        "STREAK_SHIELD": "Protège-série en réserve.",
+        "COSMETIC": "« {name} » rejoint ta collection."
+      }
+    },
+    "shortcuts": {
+      "care": "Soin express · {price} jetons · {left, plural, one {# restant} other {# restants}} cette saison",
+      "camp": "Stage de forme · {price} jetons · {left, plural, one {# restant} other {# restants}} cette saison"
+    },
+    "collection": {
+      "title": "Collection",
+      "kinds": {
+        "TITLE": "Titres",
+        "BADGE": "Badges",
+        "FRAME": "Cadres"
+      },
+      "about": {
+        "TITLE": "Ton titre s'affiche sur l'écran Club, sur ta carte de fin de saison et dans le classement du défi.",
+        "BADGE": "Le badge mis en avant s'affiche à côté de ton titre.",
+        "FRAME": "Le cadre habille la carte de fin de saison que tu partages."
+      },
+      "count": "{owned} sur {total}",
+      "wear": "Équiper",
+      "worn": "Équipé",
+      "takeOff": "Retirer",
+      "wornDone": "« {name} » équipé.",
+      "takenOff": "Badge retiré.",
+      "locked": "À débloquer",
+      "streakLot": "Série : {cycle, selectordinal, one {#er} other {#e}} cycle",
+      "wearRefused": "Ce cosmétique n'est pas dans ta collection."
+    },
+    "cosmetics": {
+      "title-rookie": { "name": "Novice", "how": "Par défaut" },
+      "title-regular": { "name": "Assidu", "how": "Série : 2e cycle accompli" },
+      "title-relentless": { "name": "Increvable", "how": "Série : 5e cycle accompli" },
+      "title-live-master": { "name": "Maître du direct", "how": "50 matchs joués en direct jusqu'au bout" },
+      "title-tactician": { "name": "Tacticien", "how": "25 missions de consigne ou de changement en direct" },
+      "title-youth-coach": { "name": "Formateur", "how": "30 missions « Titularise un joueur de 21 ans ou moins »" },
+      "title-champion": { "name": "Champion", "how": "Un titre de champion de Division 1" },
+      "title-cup-king": { "name": "Roi de coupe", "how": "Une coupe nationale gagnée" },
+      "title-professor": { "name": "Le Professeur", "how": "Boutique" },
+      "title-strategist": { "name": "Le Stratège", "how": "Boutique" },
+      "title-unsinkable": { "name": "L'Insubmersible", "how": "Boutique" },
+      "title-builder": { "name": "Le Bâtisseur", "how": "Boutique" },
+      "badge-first-mission": { "name": "Première mission", "how": "Une mission faite" },
+      "badge-perfect-day": { "name": "Journée parfaite", "how": "Les trois missions d'un même jour" },
+      "badge-centurion": { "name": "Centurion", "how": "100 missions faites" },
+      "badge-one-week": { "name": "Une semaine", "how": "Série : 1er cycle accompli" },
+      "badge-one-month": { "name": "Un mois", "how": "Série : 4e cycle accompli" },
+      "badge-seven-weeks": { "name": "Sept semaines", "how": "Série : 7e cycle accompli" },
+      "badge-live": { "name": "En direct", "how": "Un premier match joué en direct jusqu'au bout" },
+      "badge-ten-live-wins": { "name": "Dix en direct", "how": "10 victoires en direct" },
+      "badge-wall": { "name": "Muraille", "how": "10 missions de cage inviolée" },
+      "badge-champion-d1": { "name": "Champion de D1", "how": "Un titre de champion de Division 1" },
+      "badge-champion-d2": { "name": "Champion de D2", "how": "Un titre de champion de Division 2" },
+      "badge-promoted": { "name": "Promu", "how": "Une montée en Division 1" },
+      "badge-cup": { "name": "Coupe", "how": "Une coupe nationale gagnée" },
+      "badge-double": { "name": "Doublé", "how": "Le championnat et la coupe la même saison" },
+      "badge-roadmap": { "name": "Feuille de route", "how": "Tous les objectifs d'une saison atteints ou dépassés" },
+      "badge-challenge-podium": { "name": "Podium du défi", "how": "Top 10 du défi de la semaine, avec un compte Google" },
+      "frame-night": { "name": "Nuit", "how": "Par défaut" },
+      "frame-bronze": { "name": "Bronze", "how": "Série : 1er cycle accompli" },
+      "frame-silver": { "name": "Argent", "how": "Série : 3e cycle accompli" },
+      "frame-gold": { "name": "Or", "how": "Série : 6e cycle accompli" },
+      "frame-gold-laurels": { "name": "Lauriers d'or", "how": "Série : 8e cycle accompli" },
+      "frame-laurels": { "name": "Lauriers", "how": "Un titre de champion, en Division 1 ou 2" },
+      "frame-double-star": { "name": "Étoile double", "how": "Un doublé championnat et coupe" },
+      "frame-neon": { "name": "Néon", "how": "Boutique" },
+      "frame-checkerboard": { "name": "Damier", "how": "Boutique" },
+      "frame-aurora": { "name": "Aurore", "how": "Boutique" },
+      "frame-stripes": { "name": "Rayures", "how": "Boutique" }
+    }
+  }
+}

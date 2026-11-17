@@ -77,24 +77,43 @@ export async function deleteArchivePassesSince(since: Date): Promise<void> {
 }
 
 /**
- * Sets a player's mission of today, the database's UTC day, to one not done yet, and, with `streakYesterday`, a mission
- * done yesterday ending a streak of that many days, its record: the draw is the player's and the day's, a test picks its
- * own. Their missions before go.
+ * Sets a player's missions of today (missions v2): those of each tier given, not started; with a streak of
+ * `streakYesterday` days counted yesterday. Everything of their missions and tokens before goes.
  */
-export async function setTodaysMission(userId: string, kind: string, target: number, streakYesterday = 0): Promise<void> {
+export async function setTodaysMissions(
+  userId: string,
+  tasks: Partial<Record<"EASY" | "MEDIUM" | "HARD", { kind: string; target?: number }>>,
+  streakYesterday = 0,
+): Promise<void> {
   await withTestDatabase(async (client) => {
+    await client.query(`DELETE FROM "MissionTask" WHERE "userId" = $1`, [userId]);
+    await client.query(`DELETE FROM "MissionDay" WHERE "userId" = $1`, [userId]);
     await client.query(`DELETE FROM "DailyMission" WHERE "userId" = $1`, [userId]);
-    await client.query(
-      `INSERT INTO "DailyMission" ("userId", "day", "kind", "target") VALUES ($1, (now() AT TIME ZONE 'UTC')::date, $2::"MissionKind", $3)`,
-      [userId, kind, target],
-    );
+    for (const [tier, { kind, target = 1 }] of Object.entries(tasks)) {
+      await client.query(
+        `INSERT INTO "MissionTask" ("userId", "day", "tier", "kind", "target")
+         VALUES ($1, (now() AT TIME ZONE 'UTC')::date, $2::"MissionTier", $3::"MissionKind", $4)`,
+        [userId, tier, kind, target],
+      );
+    }
     if (streakYesterday > 0) {
       await client.query(
-        `INSERT INTO "DailyMission" ("userId", "day", "kind", "target", "progress", "completedAt", "streak", "best")
-         VALUES ($1, (now() AT TIME ZONE 'UTC')::date - 1, 'WIN', 1, 1, (now() AT TIME ZONE 'UTC') - interval '1 day', $2, $2)`,
+        `INSERT INTO "MissionDay" ("userId", "day", "done", "countedAt", "streak", "best", "cycles")
+         VALUES ($1, (now() AT TIME ZONE 'UTC')::date - 1, 1, (now() AT TIME ZONE 'UTC') - interval '1 day', $2, $2, 0)`,
         [userId, streakYesterday],
       );
     }
+  });
+}
+
+/** Gives a player tokens, through their journal as the game would: the balance and its entry together. */
+export async function giveTokens(userId: string, amount: number): Promise<void> {
+  await withTestDatabase(async (client) => {
+    await client.query(
+      `INSERT INTO "TokenEntry" ("id", "userId", "key", "reason", "amount") VALUES (gen_random_uuid()::text, $1, $2, 'WELCOME', $3)`,
+      [userId, `e2e:${Date.now()}:${amount}`, amount],
+    );
+    await client.query(`UPDATE "User" SET "tokens" = "tokens" + $2 WHERE "id" = $1`, [userId, amount]);
   });
 }
 

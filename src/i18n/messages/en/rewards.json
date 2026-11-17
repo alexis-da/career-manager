@@ -1,0 +1,188 @@
+{
+  "rewards": {
+    "title": "Rewards",
+    "challenge": "Challenge career: no missions and no shop here, so the challenge stays the same for everyone. Your tokens and your collection go with you in your other careers.",
+    "tokens": {
+      "title": "Your tokens",
+      "balance": "{count, plural, one {# token} other {# tokens}}",
+      "about": "Earned by the daily missions, kept by you across all your careers: they are never lost.",
+      "empty": "No tokens yet: the daily missions on the Home screen earn them.",
+      "all": "Full history",
+      "less": "Show less",
+      "today": "today",
+      "yesterday": "yesterday",
+      "entries": {
+        "mission": "{mission}",
+        "missionTiers": {
+          "EASY": "Easy mission",
+          "MEDIUM": "Medium mission",
+          "HARD": "Hard mission",
+          "none": "Mission"
+        },
+        "allThree": "All three missions of the day",
+        "streak": "Streak: day {day} bonus",
+        "welcome": "Welcome: your earlier missions",
+        "purchase": "{item}"
+      }
+    },
+    "streak": {
+      "title": "Streak",
+      "days": "{count, plural, =0 {No streak running} one {# day in a row} other {# days in a row}}",
+      "record": "Record: {count, plural, =0 {not yet} one {# day} other {# days}}",
+      "cycles": "{count, plural, =0 {No 7-day cycle complete} one {# 7-day cycle complete} other {# 7-day cycles complete}}",
+      "nextLot": "On day 7 of your {cycle, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} cycle: 150 tokens and {lot}.",
+      "allLots": "Every streak reward is yours: each day 7 still earns 150 tokens.",
+      "shield": "Streak shield in reserve: it will forgive a missed day.",
+      "noShield": "No streak shield in reserve."
+    },
+    "shop": {
+      "title": "Shop · {season} season",
+      "about": "Paid in tokens, for this career.",
+      "playerTitle": "For you",
+      "playerAbout": "For all your careers.",
+      "live": "A match is waiting live: the career's shop reopens at its final whistle.",
+      "price": "{price, plural, one {# token} other {# tokens}}",
+      "buy": "Buy",
+      "seasonLeft": "{left} of {limit} this season",
+      "careerLeft": "{left} of {limit} in the career",
+      "items": {
+        "FITNESS_CAMP": {
+          "name": "Fitness camp",
+          "about": "The whole squad at 100 fitness, right away."
+        },
+        "EXPRESS_CARE": {
+          "name": "Express care",
+          "about": "An injured player is back twice as fast, from 4 days out."
+        },
+        "BUDGET_TOP_UP": {
+          "name": "Budget top-up",
+          "about": "+{amount} to the transfer budget."
+        },
+        "PROMISING_YOUTH": {
+          "name": "Promising youngster",
+          "about": "A 17-year-old rated {overall}, with high potential, who can't be sold during his first contract."
+        },
+        "STREAK_SHIELD": {
+          "name": "Streak shield",
+          "about": "Forgives a missed day by itself. One in reserve at most."
+        },
+        "COSMETIC": {
+          "name": "Cosmetic",
+          "about": "A title or a frame for your collection."
+        }
+      },
+      "refusals": {
+        "challenge": "No shop in a challenge career.",
+        "live": "A match is waiting live: buy after its final whistle.",
+        "season_limit": "Season limit reached: it resets next season.",
+        "career_limit": "Career limit reached.",
+        "tokens": "You are {missing, plural, one {# token} other {# tokens}} short.",
+        "not_injured": "No injured player out for 4 days or more.",
+        "camp_today": "One camp a day: come back after the next match.",
+        "full_fitness": "The whole squad is already at 100 fitness.",
+        "wage_budget": "His wage, {wage}, is over your margin of {wageRoom}: sell or release a player, or wait for next season.",
+        "wageBudgetAny": "No youngster fits your wage margin of {wageRoom}: sell or release a player, or wait for next season.",
+        "shield_held": "You already have a streak shield in reserve.",
+        "owned": "Already in your collection.",
+        "not_for_sale": "Not for sale.",
+        "failed": "The purchase didn't go through. Try again in a moment."
+      },
+      "confirm": {
+        "balance": "Balance after: {balance, plural, one {# token} other {# tokens}}",
+        "pay": "Confirm · {price}",
+        "paying": "Buying…",
+        "cancel": "Cancel",
+        "choosePlayer": "Which injured player?",
+        "careDays": "{days, plural, one {# day} other {# days}} out → {after, plural, one {# day} other {# days}}",
+        "chooseLine": "His line",
+        "lines": {
+          "GK": "Goalkeeper",
+          "DF": "Defence",
+          "MF": "Midfield",
+          "FW": "Attack"
+        },
+        "youth": "{name}, 17 · rated {overall} · potential {potential}",
+        "youthWage": "Wage {wage} a season, 3-season contract, counted in your wage cap.",
+        "youthRoom": "Wage margin: {wageRoom}",
+        "tooExpensive": "Over your margin",
+        "campPlayers": "{count, plural, one {# player under 100 fitness} other {# players under 100 fitness}}",
+        "topUp": "Your transfer budget goes up to {budget}."
+      },
+      "done": {
+        "FITNESS_CAMP": "Fitness camp: {count, plural, one {# player} other {# players}} at 100 fitness.",
+        "EXPRESS_CARE": "Express care: {name} is back on {date}.",
+        "BUDGET_TOP_UP": "Top-up: +{amount} to the transfer budget.",
+        "PROMISING_YOUTH": "{name} joins your squad.",
+        "STREAK_SHIELD": "Streak shield in reserve.",
+        "COSMETIC": "“{name}” joins your collection."
+      }
+    },
+    "shortcuts": {
+      "care": "Express care · {price} tokens · {left} left this season",
+      "camp": "Fitness camp · {price} tokens · {left} left this season"
+    },
+    "collection": {
+      "title": "Collection",
+      "kinds": {
+        "TITLE": "Titles",
+        "BADGE": "Badges",
+        "FRAME": "Frames"
+      },
+      "about": {
+        "TITLE": "Your title shows on the Club screen, on your end-of-season card and in the challenge table.",
+        "BADGE": "Your featured badge shows next to your title.",
+        "FRAME": "The frame dresses the end-of-season card you share."
+      },
+      "count": "{owned} of {total}",
+      "wear": "Use",
+      "worn": "In use",
+      "takeOff": "Remove",
+      "wornDone": "“{name}” in use.",
+      "takenOff": "Badge removed.",
+      "locked": "Locked",
+      "streakLot": "Streak: {cycle, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} cycle",
+      "wearRefused": "This cosmetic isn't in your collection."
+    },
+    "cosmetics": {
+      "title-rookie": { "name": "Rookie", "how": "By default" },
+      "title-regular": { "name": "Regular", "how": "Streak: 2nd cycle complete" },
+      "title-relentless": { "name": "Relentless", "how": "Streak: 5th cycle complete" },
+      "title-live-master": { "name": "Live master", "how": "50 matches played live to the end" },
+      "title-tactician": { "name": "Tactician", "how": "25 live instruction or substitution missions" },
+      "title-youth-coach": { "name": "Youth coach", "how": "30 “Start a player aged 21 or under” missions" },
+      "title-champion": { "name": "Champion", "how": "A Division 1 title" },
+      "title-cup-king": { "name": "Cup king", "how": "A national cup won" },
+      "title-professor": { "name": "The Professor", "how": "Shop" },
+      "title-strategist": { "name": "The Strategist", "how": "Shop" },
+      "title-unsinkable": { "name": "The Unsinkable", "how": "Shop" },
+      "title-builder": { "name": "The Builder", "how": "Shop" },
+      "badge-first-mission": { "name": "First mission", "how": "One mission done" },
+      "badge-perfect-day": { "name": "Perfect day", "how": "All three missions of a day" },
+      "badge-centurion": { "name": "Centurion", "how": "100 missions done" },
+      "badge-one-week": { "name": "One week", "how": "Streak: 1st cycle complete" },
+      "badge-one-month": { "name": "One month", "how": "Streak: 4th cycle complete" },
+      "badge-seven-weeks": { "name": "Seven weeks", "how": "Streak: 7th cycle complete" },
+      "badge-live": { "name": "Live", "how": "A first match played live to the end" },
+      "badge-ten-live-wins": { "name": "Ten live wins", "how": "10 live wins" },
+      "badge-wall": { "name": "The Wall", "how": "10 clean sheet missions" },
+      "badge-champion-d1": { "name": "Division 1 champion", "how": "A Division 1 title" },
+      "badge-champion-d2": { "name": "Division 2 champion", "how": "A Division 2 title" },
+      "badge-promoted": { "name": "Promoted", "how": "Promotion to Division 1" },
+      "badge-cup": { "name": "Cup", "how": "A national cup won" },
+      "badge-double": { "name": "Double", "how": "The league and the cup in the same season" },
+      "badge-roadmap": { "name": "Roadmap", "how": "Every objective of a season met or beaten" },
+      "badge-challenge-podium": { "name": "Challenge top 10", "how": "Top 10 of the weekly challenge, with a Google account" },
+      "frame-night": { "name": "Night", "how": "By default" },
+      "frame-bronze": { "name": "Bronze", "how": "Streak: 1st cycle complete" },
+      "frame-silver": { "name": "Silver", "how": "Streak: 3rd cycle complete" },
+      "frame-gold": { "name": "Gold", "how": "Streak: 6th cycle complete" },
+      "frame-gold-laurels": { "name": "Golden laurels", "how": "Streak: 8th cycle complete" },
+      "frame-laurels": { "name": "Laurels", "how": "A league title, Division 1 or 2" },
+      "frame-double-star": { "name": "Double star", "how": "A league and cup double" },
+      "frame-neon": { "name": "Neon", "how": "Shop" },
+      "frame-checkerboard": { "name": "Checkerboard", "how": "Shop" },
+      "frame-aurora": { "name": "Aurora", "how": "Shop" },
+      "frame-stripes": { "name": "Stripes", "how": "Shop" }
+    }
+  }
+}

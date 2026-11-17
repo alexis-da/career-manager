@@ -98,6 +98,7 @@
       "purchase": "Arrivé il y a moins d'un an : les clubs ne paieront pas beaucoup plus que ton prix d'achat.",
       "free": "Arrivé libre il y a moins d'un an : les clubs ne paieront pas plus de la moitié de sa valeur."
     },
+    "academyUntil": "Jeune prometteur : ni vente ni libération avant le {date}, fin de son premier contrat.",
     "selling": "Transfert…",
     "acceptOffer": "Accepter l'offre",
     "closedActions": "prolongations, ventes et libérations",

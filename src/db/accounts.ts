@@ -1,7 +1,8 @@
 import type { AccountStore } from "../auth/google";
 import type { Prisma } from "../generated/prisma/client";
 import { prisma } from "./client";
-import { moveMissions } from "./missions";
+import { moveMissionDays, moveMissions } from "./missions";
+import { moveRewards } from "./rewards";
 import { recordUserDay } from "./user-days";
 
 const ACCOUNT_SELECT = { id: true, kind: true } as const;
@@ -36,13 +37,16 @@ export function prismaAccountStore(tx: Prisma.TransactionClient): AccountStore {
       return { moved: moved.count, dropped: dropped.count };
     },
     // The account's own days stay: a day both came is one day. Of each first step, the earliest of both (LEAST leaves
-    // out a null). The daily missions and their streaks too (moveMissions).
+    // out a null). The daily missions and their streaks too, v1's then v2's (moveMissions, moveMissionDays), and the
+    // rewards: tokens, collection, shield (moveRewards).
     moveHistory: async (fromUserId, toUserId, { arrival }) => {
       await tx.$executeRaw`
         INSERT INTO "UserDay" ("userId", "day")
         SELECT ${toUserId}, "day" FROM "UserDay" WHERE "userId" = ${fromUserId}
         ON CONFLICT DO NOTHING`;
       await moveMissions(tx, fromUserId, toUserId);
+      await moveMissionDays(tx, fromUserId, toUserId);
+      await moveRewards(tx, fromUserId, toUserId);
       await tx.$executeRaw`
         UPDATE "User" AS account
         SET "firstSaveAt" = LEAST(account."firstSaveAt", anonymous."firstSaveAt"),

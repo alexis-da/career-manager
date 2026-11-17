@@ -26,7 +26,8 @@
     "standings": "Classement",
     "cup": "Coupe",
     "challenge": "Défi",
-    "seasons": "Palmarès"
+    "seasons": "Palmarès",
+    "rewards": "Récompenses"
   },
   "gameActions": {
     "simulate": "Simuler jusqu'à…",

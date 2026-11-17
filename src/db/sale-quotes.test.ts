@@ -194,6 +194,7 @@ function referenceImplementation(db: typeof prismaClient, getManagedLineup: type
             renewalMinimumWage: evaluateRenewal(referenceOfferPlayer(player, save.currentDate), 0).minimumWage,
             releaseCost: referenceReleaseCompensation(player, save.currentDate),
             sale,
+            academyUntil: null,
           },
         ];
       }),

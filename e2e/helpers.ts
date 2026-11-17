@@ -210,7 +210,8 @@ export type SaveScreen =
   | "advanced"
   | "club"
   | "challenge"
-  | "seasons";
+  | "seasons"
+  | "rewards";
 
 /** The entry of each tab: a tab exists only on the screens of its entry. */
 const ENTRY_OF_TAB: Partial<Record<SaveScreen, "team" | "match" | "club">> = {
@@ -221,6 +222,7 @@ const ENTRY_OF_TAB: Partial<Record<SaveScreen, "team" | "match" | "club">> = {
   cup: "match",
   challenge: "club",
   seasons: "club",
+  rewards: "club",
 };
 
 /**

@@ -1,5 +1,5 @@
 /** A screen of an entry that has several: its tab, named in the nav messages by this key, its path « /<key> ». */
-export type SectionTab = "squad" | "lineup" | "fixtures" | "standings" | "cup" | "club" | "challenge" | "seasons";
+export type SectionTab = "squad" | "lineup" | "fixtures" | "standings" | "cup" | "club" | "challenge" | "seasons" | "rewards";
 
 export type Section = {
   key: "dashboard" | "team" | "match" | "transfers" | "club"; // in the nav messages, and in its data-testid: « nav-team »
@@ -14,7 +14,7 @@ export const SECTIONS: readonly Section[] = [
   { key: "team", home: "/squad", computerHome: "/lineup", tabs: ["squad", "lineup"] },
   { key: "match", home: "/fixtures", computerHome: "/standings", tabs: ["fixtures", "standings", "cup"] },
   { key: "transfers", home: "/transfers", tabs: [] },
-  { key: "club", home: "/club", tabs: ["club", "challenge", "seasons"] },
+  { key: "club", home: "/club", tabs: ["club", "challenge", "seasons", "rewards"] },
 ];
 
 const LIVE_PATH = "/live";

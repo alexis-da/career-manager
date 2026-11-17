@@ -26,7 +26,8 @@
     "standings": "Table",
     "cup": "Cup",
     "challenge": "Challenge",
-    "seasons": "Honours"
+    "seasons": "Honours",
+    "rewards": "Rewards"
   },
   "gameActions": {
     "simulate": "Simulate until…",

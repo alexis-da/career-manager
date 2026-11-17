@@ -155,7 +155,21 @@
     },
     "missions": {
       "title": "Missions du jour",
-      "note": "Une mission par joueur et par jour UTC, sur l'Accueil de ses carrières hors défi. Proposées : montrées, ou avancées avant de l'être ; accomplies, mission par mission. Séries en cours : les joueurs dont la dernière mission accomplie est d'aujourd'hui ou d'hier, et leur longueur.",
+      "note": "Trois missions par joueur et par jour UTC (facile, moyenne, difficile), sur l'Accueil de ses carrières hors défi ; avant la v2, une seule, comptée avec sa mission. Proposées : montrées, ou avancées avant de l'être ; faites, mission par mission. Séries en cours : les joueurs dont le dernier jour compté est d'aujourd'hui ou d'hier, et leur longueur.",
+      "perfectDays": "Journées parfaites",
+      "perfectDaysDetail": "les trois missions d'un jour",
+      "changes": "Changements",
+      "changesDetail": "« Changer de mission » utilisé",
+      "cycles": "Cycles de série",
+      "cyclesDetail": "7e jours atteints sur la période",
+      "shields": "Protège-séries",
+      "shieldsValue": "{bought} achetés",
+      "shieldsDetail": "{used} utilisés · {held} en réserve",
+      "tiers": {
+        "EASY": "Facile",
+        "MEDIUM": "Moyenne",
+        "HARD": "Difficile"
+      },
       "proposed": "Proposées",
       "completed": "Accomplies",
       "completedShare": "{share} des proposées",
@@ -169,6 +183,7 @@
       "noStreak": "Aucune série en cours.",
       "columns": {
         "mission": "Mission",
+        "tier": "Palier",
         "proposed": "Proposées",
         "completed": "Accomplies"
       },
@@ -180,7 +195,44 @@
         "WIN": "Victoire",
         "CLEAN_SHEET": "Cage inviolée",
         "PLAY_MATCHES": "Matchs à jouer",
-        "START_YOUTH": "Jeune titulaire"
+        "START_YOUTH": "Jeune titulaire",
+        "PLAY_MATCH": "Un match",
+        "SCORE": "Marquer",
+        "SAVE_LINEUP": "Composition enregistrée",
+        "LIVE_DECISION": "Décision en direct",
+        "LIVE_WIN_COACHED": "Victoire en direct avec changement",
+        "LIVE_SCORE_TWO": "Deux buts en direct",
+        "LIVE_CLEAN_SHEET": "Cage inviolée en direct"
+      }
+    },
+    "tokens": {
+      "title": "Jetons",
+      "note": "Gagnés par les missions, les trois du jour, la série et la bienvenue des joueurs de la v1 ; dépensés en boutique. Soldes : les joueurs qui en ont, aujourd'hui. Contrôle : la somme du journal de chaque joueur égale son solde.",
+      "earned": "Gagnés",
+      "spent": "Dépensés",
+      "spentShare": "{share} des gagnés",
+      "balances": "Solde médian",
+      "balancesDetail": "90e centile {p90} · max {max} · {holders} joueurs",
+      "integrity": "Contrôle",
+      "integrityOk": "juste",
+      "integrityDetail": "{checked} joueurs vérifiés",
+      "integrityAlert": "{count, plural, one {# solde} other {# soldes}} sans son journal",
+      "sources": "Sources : missions {MISSION} · les trois {ALL_THREE} · série {STREAK} · bienvenue {WELCOME}",
+      "columns": {
+        "day": "Jour",
+        "earned": "Gagnés",
+        "spent": "Dépensés",
+        "item": "Article",
+        "purchases": "Achats",
+        "tokens": "Jetons"
+      },
+      "items": {
+        "FITNESS_CAMP": "Stage de forme",
+        "EXPRESS_CARE": "Soin express",
+        "BUDGET_TOP_UP": "Rallonge de budget",
+        "PROMISING_YOUTH": "Jeune prometteur",
+        "STREAK_SHIELD": "Protège-série",
+        "COSMETIC": "Cosmétiques"
       }
     },
     "values": {

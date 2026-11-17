@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import Link from "@/src/components/link";
 import { Panel, PanelTitle } from "@/src/components/panel";
-import type { DailyMissionView } from "@/src/db/missions";
+import type { DailyMissionsView } from "@/src/db/missions";
 import type { NextAppointment } from "@/src/db/next-appointment";
 import { competitionName } from "@/src/i18n/countries";
 import type { Translator } from "@/src/i18n/translator";
@@ -13,7 +13,7 @@ import { cn } from "@/src/lib/utils";
 import { InstallAppLink } from "../club/_components/install-app";
 import { stageLabel } from "../_lib/stage";
 import { AssistantWordLine } from "./assistant-word";
-import { DailyMissionLine } from "./daily-mission";
+import { DailyMissionsLine } from "./daily-missions";
 
 /** A way on from the card: 44 px high on a phone, never a full orange (the screen keeps its own). */
 const CARD_LINK = "text-sm font-semibold text-(--club) hover:text-(--club-hover) max-sm:inline-flex max-sm:min-h-11 max-sm:items-center";
@@ -38,7 +38,7 @@ type SessionEndCardProps = {
   saveId: string;
   appointment: NextAppointment;
   word: AssistantWord | null; // after a defeat only
-  mission?: DailyMissionView | null; // the day's, none in a challenge save
+  mission?: DailyMissionsView | null; // the day's missions, none in a challenge save
   onNavigate?: () => void; // a link followed: the simulation's dialog closes
   className?: string;
 };
@@ -78,7 +78,7 @@ export function SessionEndCard({ saveId, appointment, word, mission = null, onNa
           </Link>
         </div>
       )}
-      {mission !== null && <DailyMissionLine mission={mission} />}
+      {mission !== null && <DailyMissionsLine missions={mission} />}
       {challenge !== null && (
         <Link href={`/saves/${saveId}/challenge`} onClick={onNavigate} data-testid="session-end-challenge" className={CARD_LINK}>
           {challenge.own === null

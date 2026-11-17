@@ -9,6 +9,7 @@ import { buttonVariants } from "@/src/components/ui/button";
 import { getCupWinnerName } from "@/src/db/cup-view";
 import { getClosedObjectives } from "@/src/db/objectives";
 import { getCountryMoves } from "@/src/db/promotion";
+import { getWornCosmetics } from "@/src/db/rewards-view";
 import { getSaveSummary } from "@/src/db/saves";
 import { getSeasonResult } from "@/src/db/season-results";
 import { seasonLabel } from "@/src/engine/world";
@@ -36,18 +37,20 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seasons/[seasonId]">) {
   const { id, seasonId } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
-  await requireOwnedSave(id);
+  const { ownerId } = await requireOwnedSave(id);
   const [t, tWorld, tStage, locale] = await Promise.all([
     getTranslations("seasons"),
     getTranslations("world"),
     getTranslations("stage"),
     getLocale(),
   ]);
-  const [result, moves, save, objectives] = await Promise.all([
+  const [result, moves, save, objectives, dress] = await Promise.all([
     getSeasonResult(id, seasonId),
     getCountryMoves(id, seasonId),
     getSaveSummary(id),
     getClosedObjectives(id, seasonId),
+    // The frame and title the player wears, on the card's address (missions v2).
+    getWornCosmetics(ownerId),
   ]);
   if (result === null || save === null) {
     notFound();
@@ -98,8 +101,8 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
       </div>
       <div className={cn("grid grid-cols-1 items-start gap-5", beside && "lg:grid-cols-2 xl:grid-cols-[28rem_minmax(0,1fr)]")}>
         <SeasonCardPanel
-          square={{ url: seasonCardPath(id, seasonId, locale, "square"), fileName: seasonCardFileName(season.startYear, "square", t) }}
-          landscape={{ url: seasonCardPath(id, seasonId, locale), fileName: seasonCardFileName(season.startYear, "landscape", t) }}
+          square={{ url: seasonCardPath(id, seasonId, locale, "square", dress), fileName: seasonCardFileName(season.startYear, "square", t) }}
+          landscape={{ url: seasonCardPath(id, seasonId, locale, "landscape", dress), fileName: seasonCardFileName(season.startYear, "landscape", t) }}
           shareTitle={t("completed.shareTitle", { season: label })}
         />
         <div className="space-y-5 empty:hidden">

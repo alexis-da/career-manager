@@ -78,7 +78,7 @@ const saleRow = (lastName: string, sale: SaleQuote): SaleRow => ({
   overall: 65,
   marketValue: 1_000_000,
   clubColors: { primary: "#000000", secondary: "#ffffff" },
-  terms: { renewalMinimumWage: 0, releaseCost: 0, sale },
+  terms: { renewalMinimumWage: 0, releaseCost: 0, sale, academyUntil: null },
 });
 
 const salesOf = (...rows: SaleRow[]): MarketSales => ({ rows, offers: rows.filter((row) => row.terms.sale.ok).length });

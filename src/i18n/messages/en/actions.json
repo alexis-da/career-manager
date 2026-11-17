@@ -56,6 +56,7 @@
     "notAvailableMarket": "This player is no longer available: he has changed clubs or left football.",
     "notAvailableSquad": "This player is no longer in your squad.",
     "boughtThisWindow": "You've only just signed him in this window: he can't leave before the next one.",
+    "academy": "Promising youngster: he can be neither sold nor released during his first contract.",
     "insufficientBudget": "Insufficient budget: your transfer budget doesn't cover this deal.",
     "insufficientBudgetFor": "Insufficient budget: the fee of {fee} exceeds your transfer budget of {budget}.",
     "wageBudgetExceeded": "Wage bill exceeded: this wage would take you over your wage budget.",

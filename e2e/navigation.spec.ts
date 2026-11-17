@@ -26,7 +26,7 @@ const MAX_COLUMN_WIDTH = 260;
 const MAIN_ACTION = "play-matchday";
 
 /** How many tabs an entry has, without a cup. */
-const TABS_OF_ENTRY: Record<string, number> = { "nav-team": 2, "nav-match": 2, "nav-club": 3 };
+const TABS_OF_ENTRY: Record<string, number> = { "nav-team": 2, "nav-match": 2, "nav-club": 4 };
 
 /** Where a screen is, and how the navigation shows it. */
 type Stop = {
@@ -47,6 +47,7 @@ const STOPS: Record<Exclude<SaveScreen, "cup">, Stop> = {
   club: { path: "/club", title: "club-title", entry: "nav-club", tab: "nav-club-overview" },
   challenge: { path: "/challenge", title: "challenge-title", entry: "nav-club", tab: "nav-challenge" },
   seasons: { path: "/seasons", title: "seasons-title", entry: "nav-club", tab: "nav-seasons" },
+  rewards: { path: "/rewards", title: "rewards-title", entry: "nav-club", tab: "nav-rewards" },
 };
 
 /** The market's tab of sales: the same address but for its query, known by its list rather than by the screen's title. */
@@ -66,6 +67,7 @@ const FRENCH: Labels = {
     "nav-club-overview": "Club",
     "nav-challenge": "Défi",
     "nav-seasons": "Palmarès",
+    "nav-rewards": "Récompenses",
   },
 };
 
@@ -80,6 +82,7 @@ const ENGLISH: Labels = {
     "nav-club-overview": "Club",
     "nav-challenge": "Challenge",
     "nav-seasons": "Honours",
+    "nav-rewards": "Rewards",
   },
 };
 

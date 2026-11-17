@@ -18,6 +18,12 @@ import { contractEndDate, marketValueFor, wageFor } from "./economy";
 import { clampRating, generateAttributes, shiftToOverall, type PlayerAttributes } from "./generation";
 import { drawBirthDate, drawNameList, drawUniqueName, type PlayerIdentity } from "./identity";
 import type { NameBank } from "./names";
+import {
+  PROMISING_YOUTH_AGE,
+  PROMISING_YOUTH_CONTRACT_YEARS,
+  PROMISING_YOUTH_OVERALL_BONUS,
+  PROMISING_YOUTH_POTENTIAL_GAP,
+} from "./shop";
 import { roleOf, type Position } from "./positions";
 import type { CompetitionTier } from "./tiers";
 import { seasonStartDate } from "./world";
@@ -140,5 +146,58 @@ export function generateYouthPlayer(input: YouthPlayerInput, names: NameBank, rn
     wage: wageFor(contractProfile),
     marketValue: marketValueFor(contractProfile),
     contractUntil: contractEndDate(arrival, YOUTH_CONTRACT_YEARS),
+  };
+}
+
+/** A promising youth of the shop: the club, his position in the line the player chose, the purchase's date and rank. */
+export type PromisingYouthInput = {
+  club: YouthClub;
+  position: Position;
+  date: Date; // the save's, the purchase's
+  index: number; // 1-based rank of the purchase among the career's promising youths
+  takenNames: Set<string>; // full names already in the squad, updated with the new one
+};
+
+/** Prefix of the promising youths' keys: only they can be held by their first contract (src/db/shop.ts, academyLocks). */
+export const PROMISING_YOUTH_KEY_PREFIX = "shop-youth:";
+
+/** Stable key of a promising youth in the save, apart from the preseason's young players. */
+export function promisingYouthKey(index: number): string {
+  return `${PROMISING_YOUTH_KEY_PREFIX}${index}`;
+}
+
+export function promisingYouthRngSeed(saveSeed: string, index: number): string {
+  return `${saveSeed}:shop-youth:${index}`;
+}
+
+/**
+ * A promising youth joining the club from the shop (src/engine/shop.ts): as a young player of the preseason, but aged
+ * PROMISING_YOUTH_AGE, rated at the top of his division's range plus PROMISING_YOUTH_OVERALL_BONUS (63 in the first, 58
+ * in the second), with a potential PROMISING_YOUTH_POTENTIAL_GAP above, on a first contract of
+ * PROMISING_YOUTH_CONTRACT_YEARS seasons from the purchase. Pass the stream of promisingYouthRngSeed: the same purchases
+ * give the same youths.
+ */
+export function generatePromisingYouth(input: PromisingYouthInput, names: NameBank, rng: Rng): YouthPlayer {
+  const { club, position, date, index, takenNames } = input;
+  const nameList = drawNameList(rng, names, club.country, YOUTH_HOME_NATIONALITY_SHARE);
+  const { firstName, lastName } = drawUniqueName(rng, nameList, takenNames);
+  const age = PROMISING_YOUTH_AGE;
+  const birthDate = drawBirthDate(rng, date, age);
+  const overall = YOUTH_OVERALL_BY_TIER[club.tier].best + PROMISING_YOUTH_OVERALL_BONUS;
+  const attributes = shiftToOverall(position, generateAttributes({ position, age }, overall, rng), overall);
+  const potential = clampRating(attributes.overall + randomInt(rng, PROMISING_YOUTH_POTENTIAL_GAP.min, PROMISING_YOUTH_POTENTIAL_GAP.max));
+  const contractProfile = { age, overall: attributes.overall, potential };
+  return {
+    key: promisingYouthKey(index),
+    firstName,
+    lastName,
+    birthDate,
+    nationality: nameList.nationality,
+    position,
+    ...attributes,
+    potential,
+    wage: wageFor(contractProfile),
+    marketValue: marketValueFor(contractProfile),
+    contractUntil: contractEndDate(date, PROMISING_YOUTH_CONTRACT_YEARS),
   };
 }

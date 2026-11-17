@@ -67,6 +67,7 @@
     "noBestPlayer": "No player with 10 appearances",
     "playerGoals": "GOALS",
     "playerAssists": "ASSISTS",
-    "playerRating": "RATING"
+    "playerRating": "RATING",
+    "manager": "MANAGER: {title}"
   }
 }

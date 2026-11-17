@@ -32,7 +32,7 @@ const render = (sale: SaleQuote, locale: Locale = "fr"): string =>
       <SquadPlayerActions
         saveId="save-1"
         player={PLAYER}
-        terms={{ renewalMinimumWage: 1_000_000, releaseCost: 0, sale }}
+        terms={{ renewalMinimumWage: 1_000_000, releaseCost: 0, sale, academyUntil: null }}
         currentDate={new Date(Date.UTC(2027, 0, 12))}
         windowOpen
         nextWindowOpensOn={new Date(Date.UTC(2027, 6, 1))}

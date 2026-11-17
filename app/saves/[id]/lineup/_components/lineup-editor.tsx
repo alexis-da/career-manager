@@ -14,6 +14,7 @@ import { BENCH_SIZE, changeFormation, isAvailable, resolveLineup, type Lineup, t
 import type { Position } from "@/src/engine/positions";
 import { COMPUTER_QUERY, useMediaQuery } from "@/src/hooks/use-media-query";
 import { cn } from "@/src/lib/utils";
+import type { ShopShortcuts } from "@/src/db/shop";
 import { SquadPlayerActions } from "../../_components/contract-actions";
 import { FitnessStrip } from "../../_components/fitness-gauge";
 import { Panel, PanelTitle } from "@/src/components/panel";
@@ -104,15 +105,18 @@ type LineupScreenProps = {
   editor: LineupEditorView;
   squad: SquadView;
   opponent: PanelOpponent | null; // the next match's, his likely eleven's strength: the page's, the same object across renders
+  care?: ShopShortcuts["care"]; // express care in the shop, for the sheet of an injured player
 };
 
 /** The screen around the editor: what it has to keep when the editor starts again, the player last chosen. */
-export function LineupScreen({ saveId, editor, squad, opponent }: LineupScreenProps) {
+export function LineupScreen({ saveId, editor, squad, opponent, care = null }: LineupScreenProps) {
   const [chosen, setChosen] = useState<string | null>(null);
   // A new key after each save, and after a sale or a release: the editor starts again from what is now saved, with no
   // key left of a player gone.
   const key = `${editor.formation}:${JSON.stringify(editor.saved)}:${editor.players.map((player) => player.id).join()}`;
-  return <LineupEditor key={key} saveId={saveId} editor={editor} squad={squad} opponent={opponent} chosen={chosen} onChoose={setChosen} />;
+  return (
+    <LineupEditor key={key} saveId={saveId} editor={editor} squad={squad} opponent={opponent} care={care} chosen={chosen} onChoose={setChosen} />
+  );
 }
 
 type LineupEditorProps = LineupScreenProps & {
@@ -127,7 +131,7 @@ type LineupEditorProps = LineupScreenProps & {
  * clicked with no slot selected shows the player's sheet instead, with the actions of the squad screen: over the page
  * under xl, in the third column from there, which also follows the selected slot and is never empty.
  */
-function LineupEditor({ saveId, editor, squad, opponent, chosen, onChoose }: LineupEditorProps) {
+function LineupEditor({ saveId, editor, squad, opponent, care = null, chosen, onChoose }: LineupEditorProps) {
   const { formation, saved, clubColors, players } = editor;
   const t = useTranslations("lineup");
   const tPlayer = useTranslations("player");
@@ -539,6 +543,7 @@ function LineupEditor({ saveId, editor, squad, opponent, chosen, onChoose }: Lin
                 windowOpen={squad.windowOpen}
                 nextWindowOpensOn={squad.nextWindowOpensOn}
                 primary={false}
+                care={care}
               />
             }
           />

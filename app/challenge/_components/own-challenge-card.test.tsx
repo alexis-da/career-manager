@@ -13,6 +13,7 @@ vi.mock("./play-challenge-form", () => ({
 const ranked = (rank: number, points: number, isViewer: boolean): ChallengeRankingRow => ({
   rank,
   name: "Camille",
+  title: null,
   points,
   goalDiff: 4,
   goalsFor: 12,

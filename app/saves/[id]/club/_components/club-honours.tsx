@@ -15,11 +15,12 @@ const LATEST_SEASONS = 3;
 type ClubHonoursProps = {
   saveId: string;
   seasons: readonly SeasonResultView[]; // most recent first
+  dress?: { frame: string | null; title: string | null }; // the frame and title the player wears on the card
   className?: string;
 };
 
 /** The club's latest seasons, each leading to its card; from 1024 px, the last one's card, to share or download. */
-export function ClubHonours({ saveId, seasons, className }: ClubHonoursProps) {
+export function ClubHonours({ saveId, seasons, dress, className }: ClubHonoursProps) {
   const t = useTranslations("seasons");
   const tClub = useTranslations("club");
   const tWorld = useTranslations("world");
@@ -37,7 +38,7 @@ export function ClubHonours({ saveId, seasons, className }: ClubHonoursProps) {
       </Panel>
     );
   }
-  const card = seasonCardPath(saveId, latest.seasonId, locale, "square");
+  const card = seasonCardPath(saveId, latest.seasonId, locale, "square", dress);
   return (
     <Panel aria-labelledby="club-honours-title" data-testid="club-honours" className={cn("flex gap-5.5", className)}>
       {/* Its season is named by the first line beside it. Lazy and hidden, a phone never fetches it. */}

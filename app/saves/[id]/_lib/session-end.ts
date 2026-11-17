@@ -1,5 +1,5 @@
 import "server-only";
-import { getDailyMission, type DailyMissionView } from "@/src/db/missions";
+import { getDailyMissions, type DailyMissionsView } from "@/src/db/missions";
 import { getNextAppointment, lastManagedResult, type NextAppointment } from "@/src/db/next-appointment";
 import { OBJECTIVES_JUDGED_FROM_MATCH } from "@/src/engine/objectives";
 import { assistantWordAfter, type AssistantWord } from "@/src/lib/session-end";
@@ -9,7 +9,7 @@ import { matchResultFor } from "./stage";
  * What the « À demain » card shows: the next appointment, the assistant's word on the club's last match, and the day's
  * mission (none in a challenge save).
  */
-export type SessionEnd = { appointment: NextAppointment; word: AssistantWord | null; mission: DailyMissionView | null };
+export type SessionEnd = { appointment: NextAppointment; word: AssistantWord | null; mission: DailyMissionsView | null };
 
 /**
  * The « À demain » card's data, read once the matches are played (the live match over, the simulation finished): the
@@ -21,7 +21,7 @@ export async function readSessionEnd(saveId: string, now: Date, excluded?: strin
   const [appointment, last, mission] = await Promise.all([
     getNextAppointment(saveId, now, excluded),
     lastManagedResult(saveId),
-    getDailyMission(saveId, now),
+    getDailyMissions(saveId, now),
   ]);
   if (last === null) {
     return { appointment, word: null, mission };

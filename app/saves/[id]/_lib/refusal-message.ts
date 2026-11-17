@@ -51,6 +51,8 @@ export function refusalMessage(
     }
     case "no_offer":
       return t("noOffer");
+    case "academy":
+      return t("academy");
     case "player_refused":
       if (refusals.includes("club_reputation_too_low")) {
         return t("playerRefusedReputation");

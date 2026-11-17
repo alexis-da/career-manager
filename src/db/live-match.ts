@@ -566,11 +566,14 @@ export async function advanceLiveMatch(
   if (advanced.result !== null) {
     await countManagedMatch(prisma, "live");
   }
-  // The day's mission (src/db/missions.ts): the player's substitution or instruction at this pause, the match once over.
+  // The day's missions (src/db/missions.ts): the player's substitution, instruction or decision on a choice event at this
+  // pause, the match once over (coached: a substitution of theirs in it, TeamLive.manual).
+  const coached = advanced.state[advanced.managedSide].manual === true;
   await recordMissionMoves(prisma, saveId, {
-    match: advanced.result === null ? null : { facts: matchFacts(advanced.result, advanced.managedSide, true), date: advanced.date },
+    match: advanced.result === null ? null : { facts: matchFacts(advanced.result, advanced.managedSide, true, coached), date: advanced.date },
     substitution: (input.changes?.substitutions.length ?? 0) > 0,
     instruction: (input.instruction ?? null) !== null,
+    decision: (input.decision ?? null) !== null,
   });
   return advanced;
 }

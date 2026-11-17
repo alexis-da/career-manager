@@ -1,7 +1,9 @@
 "use client";
 
+import { HeartPulseIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
+import Link from "@/src/components/link";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -14,7 +16,9 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import type { PlayerProfile } from "@/src/db/players";
+import type { ShopShortcuts } from "@/src/db/shop";
 import type { ContractTerms } from "@/src/db/transfers";
+import { EXPRESS_CARE_MIN_DAYS, daysLeft } from "@/src/engine/shop";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { refusalMessage } from "../_lib/refusal-message";
 import { releasePlayerAction, renewContractAction, sellPlayerAction } from "../squad/actions";
@@ -245,6 +249,7 @@ type SquadPlayerActionsProps = {
   windowOpen: boolean;
   nextWindowOpensOn: Date;
   primary?: boolean; // the renewal in orange; false where the screen's orange is another action
+  care?: ShopShortcuts["care"]; // express care in the shop, for an injured player: null or absent, none now
 };
 
 /**
@@ -260,16 +265,37 @@ export function SquadPlayerActions({
   windowOpen,
   nextWindowOpensOn,
   primary = true,
+  care = null,
 }: SquadPlayerActionsProps) {
   const t = useTranslations("contract");
+  const tShortcuts = useTranslations("rewards.shortcuts");
+  // Express care (missions v2): an injured player out for long enough, while the shop has some left this season.
+  const careable = care !== null && player.injuredUntil !== null && daysLeft(player.injuredUntil, currentDate) >= EXPRESS_CARE_MIN_DAYS;
   const tRefusals = useTranslations("refusals");
   const locale = useLocale();
   const disabled = !windowOpen;
   const { sale } = terms;
+  // A promising youth of the shop stays through his first contract: neither sold nor released, whatever the window.
+  const academy = terms.academyUntil !== null;
   return (
     <>
+      {careable && care !== null && (
+        <Link
+          href={`/saves/${saveId}/rewards?buy=EXPRESS_CARE&player=${player.id}`}
+          data-testid="player-express-care"
+          className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-(--club) hover:text-(--club-hover)"
+        >
+          <HeartPulseIcon aria-hidden className="size-4 shrink-0" />
+          {tShortcuts("care", { price: care.price, left: care.left })}
+        </Link>
+      )}
+      {terms.academyUntil !== null && (
+        <p className="text-xs text-muted-foreground" data-testid="player-academy">
+          {t("academyUntil", { date: formatDate(terms.academyUntil, locale) })}
+        </p>
+      )}
       {disabled && <ClosedWindowNote actions={t("closedActions")} reopensOn={nextWindowOpensOn} />}
-      {windowOpen && !sale.ok && (
+      {windowOpen && !sale.ok && !academy && (
         <p className="text-xs text-muted-foreground" data-testid="player-sale-refusal">
           {refusalMessage(sale.reason, tRefusals, locale)}
         </p>
@@ -294,7 +320,7 @@ export function SquadPlayerActions({
           saveId={saveId}
           player={player}
           terms={terms}
-          disabled={disabled}
+          disabled={disabled || academy}
           triggerClassName="h-10 w-full text-loss hover:text-loss"
         />
       </div>

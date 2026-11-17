@@ -8,6 +8,7 @@ import { getManagedClubFixtureOn } from "@/src/db/calendar";
 import { advanceLiveMatch, getLiveStep, NoMatchInProgressError, PauseMismatchError, type LiveStep } from "@/src/db/live-match";
 import { formationSchema } from "@/src/db/lineup";
 import { MatchInProgressError, playNextMatchday } from "@/src/db/matchday";
+import { changeMission } from "@/src/db/missions";
 import { chooseObjective, ObjectiveChoiceError } from "@/src/db/objectives";
 import { getOpponentPreview, type OpponentPreview } from "@/src/db/opponent";
 import { advanceToNextSeason, SeasonNotFinishedError } from "@/src/db/season";
@@ -29,6 +30,7 @@ import { OPTIONAL_OBJECTIVES, type OptionalObjective } from "@/src/engine/object
 import { seasonLabel } from "@/src/engine/world";
 import type { Translator } from "@/src/i18n/translator";
 import { formatDate } from "@/src/lib/format";
+import { MISSION_TIERS } from "@/src/lib/missions";
 import type { ActionResult } from "./_lib/action-result";
 import { halfTimeRefusalMessage } from "./_lib/live-match";
 import { readSessionEnd, type SessionEnd } from "./_lib/session-end";
@@ -169,6 +171,26 @@ export async function chooseObjectiveAction(saveId: string, kind: OptionalObject
     revalidatePath(`/saves/${id}${screen}`);
   }
   return { ok: true, message: t("chosen", { objective: tObjectives(`kind.${parsed.data}`) }) };
+}
+
+/**
+ * « Changer de mission » (missions v2): the day's mission of a tier replaced by another of its tier, once a day for the
+ * player, never one started. The real day, not the save's.
+ */
+export async function changeMissionAction(saveId: string, tier: string): Promise<ActionResult> {
+  const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
+  const t = await getTranslations("missions.change");
+  const parsed = z.enum(MISSION_TIERS).safeParse(tier);
+  if (!parsed.success) {
+    return { ok: false, message: t("refusals.started") };
+  }
+  // Not simulation code: the player's missions follow the real day.
+  const result = await changeMission(id, parsed.data, new Date());
+  if (!result.ok) {
+    return { ok: false, message: t(`refusals.${result.reason}`) };
+  }
+  revalidatePath(`/saves/${id}`);
+  return { ok: true, message: t("changed") };
 }
 
 /**

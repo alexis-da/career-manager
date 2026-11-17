@@ -191,17 +191,19 @@ export const GUIDE: GuideSection[] = [
   {
     id: "missions",
     fr: {
-      title: "La mission du jour",
+      title: "Les missions du jour et les jetons",
       blocks: [
-        "Chaque jour, une **Mission du jour** t'attend sur l'**Accueil**, sous ton prochain match : jouer un match en direct, faire un changement ou changer de consigne pendant le direct, gagner, garder ta cage inviolée, jouer trois matchs, titulariser un jeune. Elle compte dans toutes tes carrières, sauf celles du défi.",
-        "Chaque mission accomplie allonge ta **série** de jours d'affilée ; ton record est dans **Club**, **Réglages**. Les missions ne changent rien au jeu : ni budget, ni joueur.",
+        "Chaque jour, trois **Missions du jour** t'attendent sur l'**Accueil**, sous ton prochain match : une facile (10 jetons), une moyenne (20) et une difficile (40), et 30 de plus pour les trois. Elles comptent dans toutes tes carrières, sauf celles du défi. Une mission ne te plaît pas ? **Changer de mission**, une fois par jour, sur une mission pas encore commencée.",
+        "Chaque jour avec une mission faite allonge ta **série** : 50 jetons au 3e jour de chaque cycle de 7, 150 et un cosmétique exclusif au 7e. Le **protège-série** pardonne tout seul un jour manqué.",
+        "Tes jetons se dépensent dans **Club**, **Récompenses** : stage de forme, soin express, rallonge de budget et jeune prometteur pour ta carrière, avec des limites par saison ; titres et cadres pour ta **Collection**. Ils te suivent dans toutes tes carrières et ne se perdent jamais.",
       ],
     },
     en: {
-      title: "The daily mission",
+      title: "Daily missions and tokens",
       blocks: [
-        "Every day, a **Daily mission** waits for you on **Home**, under your next match: play a match live, make a substitution or change your instruction during a live match, win, keep a clean sheet, play three matches, start a youngster. It counts in all your careers but challenge ones.",
-        "Each mission you complete makes your **streak** of days in a row longer; your record is in **Club**, **Settings**. Missions change nothing in the game: no budget, no player.",
+        "Every day, three **Daily missions** wait for you on **Home**, under your next match: an easy one (10 tokens), a medium one (20) and a hard one (40), and 30 more for all three. They count in all your careers but challenge ones. Don't like a mission? **Change mission**, once a day, on one not started yet.",
+        "Each day with a mission done makes your **streak** longer: 50 tokens on day 3 of each 7-day cycle, 150 and an exclusive cosmetic on day 7. The **streak shield** forgives a missed day by itself.",
+        "Spend your tokens in **Club**, **Rewards**: fitness camp, express care, budget top-up and promising youngster for your career, with limits each season; titles and frames for your **Collection**. They follow you across all your careers and are never lost.",
       ],
     },
   },

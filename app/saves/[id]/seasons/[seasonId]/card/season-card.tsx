@@ -10,6 +10,7 @@ import { competitionName } from "@/src/i18n/countries";
 import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
 import { clubAccentsOn, type ClubColors } from "@/src/lib/color";
+import { frameStyleOf, type FrameStyle } from "@/src/lib/cosmetics";
 import { formatDecimal } from "@/src/lib/format";
 import { faceDataUri } from "@/src/og/face-image";
 import { DISPLAY_FONT, imageFonts } from "@/src/og/fonts";
@@ -37,6 +38,45 @@ export const CARD_SIZES: Record<CardFormat, { width: number; height: number }> =
 
 /** What a card says of a season's objectives: how many were met, out of how many counted. */
 export type CardObjectives = Pick<ClosedObjectivesView, "met" | "total">;
+
+/**
+ * What the player wears on the card (missions v2, docs/design/missions-v2.md § 3.3): a frame of the collection around it,
+ * and the manager's title in words when one is chosen. The night frame and no title: the card as it was.
+ */
+export type CardDress = { frame: FrameStyle; title: string | null };
+
+export const PLAIN_DRESS: CardDress = { frame: frameStyleOf(null), title: null };
+
+/** A frame's ornament, at each corner of the card, in SVG. */
+function Ornament({ kind, color, size }: { kind: FrameStyle["ornament"]; color: string; size: number }) {
+  switch (kind) {
+    case "dot":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="7" fill={color} />
+        </svg>
+      );
+    case "star":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24">
+          <path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.7 7-6.3-3.8-6.3 3.8 1.7-7L2 9.5l7.1-.6z" fill={color} />
+        </svg>
+      );
+    case "laurel":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24">
+          <path d="M12 21C6 18 4 12 5 4" stroke={color} strokeWidth="1.6" fill="none" />
+          <path d="M12 21C18 18 20 12 19 4" stroke={color} strokeWidth="1.6" fill="none" />
+          <ellipse cx="5.6" cy="8.5" rx="1.7" ry="3.2" fill={color} transform="rotate(-25 5.6 8.5)" />
+          <ellipse cx="7.4" cy="14.4" rx="1.7" ry="3.2" fill={color} transform="rotate(-45 7.4 14.4)" />
+          <ellipse cx="18.4" cy="8.5" rx="1.7" ry="3.2" fill={color} transform="rotate(25 18.4 8.5)" />
+          <ellipse cx="16.6" cy="14.4" rx="1.7" ry="3.2" fill={color} transform="rotate(45 16.6 14.4)" />
+        </svg>
+      );
+    case "none":
+      return null;
+  }
+}
 
 const MIDNIGHT_BLUE = "#0B1340";
 const FACE_BACKGROUND = "#1A2560";
@@ -152,7 +192,7 @@ export function objectivesLine(objectives: CardObjectives | null, t: Pick<CardTr
 
 /**
  * The card of a season as a PNG response, 1200 × 630 or 1080 × 1080, in the player's language, with its objectives
- * (getClosedObjectives) when it had some.
+ * (getClosedObjectives) when it had some, in the frame the player wears and with their title (CardDress).
  */
 export async function seasonCardResponse(
   season: SeasonResultView,
@@ -161,6 +201,7 @@ export async function seasonCardResponse(
   t: CardTranslators,
   locale: Locale,
   objectives: CardObjectives | null,
+  dress: CardDress = PLAIN_DRESS,
 ): Promise<ImageResponse> {
   const [fonts, logo] = await Promise.all([imageFonts(), brandIcon()]);
   const square = format === "square";
@@ -223,12 +264,22 @@ export async function seasonCardResponse(
     </div>
   );
 
+  // The manager's title, when one is chosen, at the footer's end: nothing above it moves.
   const footer = (
     <div style={{ ...row, alignItems: "center" }}>
       <img src={logo} width={48} height={48} alt="" />
       <div style={{ marginLeft: 14, fontSize: 32, letterSpacing: 1 }}>latewinner.app</div>
+      {dress.title !== null && (
+        <div style={{ marginLeft: "auto", paddingLeft: 24, fontSize: square ? 30 : 26, color: accent }}>
+          {t.seasonCard("manager", { title: dress.title.toLocaleUpperCase(locale) })}
+        </div>
+      )}
     </div>
   );
+  // The frame's border takes its room from the card's margins: the content keeps its size. Its ornaments sit on the
+  // border's inner corners, whole.
+  const inset = dress.frame.width;
+  const ornamentSize = inset * 2;
 
   const player = (
     <BestPlayer
@@ -244,6 +295,7 @@ export async function seasonCardResponse(
 
   return new ImageResponse(
     (
+      <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", background: dress.frame.border, padding: inset }}>
       <div
         style={{
           width: "100%",
@@ -263,13 +315,20 @@ export async function seasonCardResponse(
           <div style={{ position: "absolute", left: 18, top: 0, bottom: 0, width: 8, background: secondary }} />
         )}
         {square ? (
-          <div style={{ ...column, justifyContent: "space-between", flex: 1, padding: "64px 64px 56px 90px" }}>
+          <div
+            style={{
+              ...column,
+              justifyContent: "space-between",
+              flex: 1,
+              padding: `${64 - inset}px ${64 - inset}px ${56 - inset}px ${90 - inset}px`,
+            }}
+          >
             {headline}
             {player}
             {footer}
           </div>
         ) : (
-          <div style={{ ...row, flex: 1, padding: "48px 56px 40px 82px" }}>
+          <div style={{ ...row, flex: 1, padding: `${48 - inset}px ${56 - inset}px ${40 - inset}px ${82 - inset}px` }}>
             <div style={{ ...column, justifyContent: "space-between", flex: 1 }}>
               {headline}
               {footer}
@@ -277,6 +336,19 @@ export async function seasonCardResponse(
             <div style={{ ...column, justifyContent: "center", width: 400 }}>{player}</div>
           </div>
         )}
+      </div>
+      {/* The frame's ornament at each inner corner of its border. */}
+      {dress.frame.ornament !== "none" &&
+        ([
+          { left: inset - ornamentSize / 2, top: inset - ornamentSize / 2 },
+          { right: inset - ornamentSize / 2, top: inset - ornamentSize / 2 },
+          { left: inset - ornamentSize / 2, bottom: inset - ornamentSize / 2 },
+          { right: inset - ornamentSize / 2, bottom: inset - ornamentSize / 2 },
+        ] as const).map((corner, index) => (
+          <div key={index} style={{ position: "absolute", display: "flex", ...corner }}>
+            <Ornament kind={dress.frame.ornament} color={dress.frame.ornamentColor} size={ornamentSize} />
+          </div>
+        ))}
       </div>
     ),
     {

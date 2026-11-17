@@ -1,46 +1,105 @@
 {
   "missions": {
-    "title": "Daily mission",
+    "title": "Daily missions",
+    "tiers": {
+      "EASY": "Easy",
+      "MEDIUM": "Medium",
+      "HARD": "Hard"
+    },
+    "tierLabel": "{tier} · +{tokens}",
     "kinds": {
       "PLAY_LIVE": "Play your next match live",
       "LIVE_SUBSTITUTION": "Make a substitution during a live match",
       "LIVE_INSTRUCTION": "Change your instruction during a live match",
-      "LIVE_WIN": "Win a match live",
+      "LIVE_WIN": "Win a live match",
       "WIN": "Win a match",
       "CLEAN_SHEET": "Keep a clean sheet",
       "PLAY_MATCHES": "Play {target, plural, one {# match} other {# matches}}",
-      "START_YOUTH": "Start a player aged 21 or under"
+      "START_YOUTH": "Start a player aged 21 or under",
+      "PLAY_MATCH": "Play a match",
+      "SCORE": "Score at least one goal",
+      "SAVE_LINEUP": "Save your line-up",
+      "LIVE_DECISION": "Make a live event's call yourself",
+      "LIVE_WIN_COACHED": "Win a live match with a substitution of yours",
+      "LIVE_SCORE_TWO": "Score two goals in a live match",
+      "LIVE_CLEAN_SHEET": "Keep a clean sheet in a live match"
     },
     "how": {
       "PLAY_LIVE": "Follow it to the final whistle, even sped up.",
-      "LIVE_SUBSTITUTION": "At half-time, open Coaching and bring on a substitute.",
-      "LIVE_INSTRUCTION": "At half-time, open Coaching and pick another instruction.",
+      "LIVE_SUBSTITUTION": "At a break, open Coaching and bring a substitute on.",
+      "LIVE_INSTRUCTION": "At a break, open Coaching and pick another instruction.",
       "LIVE_WIN": "Live to the end: a win on penalties counts too.",
       "WIN": "Live or simulated, in the league or the cup.",
       "CLEAN_SHEET": "A match without conceding: the Sit back instruction can help.",
       "PLAY_MATCHES": "Live or simulated, any competition.",
-      "START_YOUTH": "Put him in your eleven, then play the match."
+      "START_YOUTH": "Put him in your eleven, then play the match.",
+      "PLAY_MATCH": "Live or simulated, any competition.",
+      "SCORE": "Live or simulated: one goal of your team is enough.",
+      "SAVE_LINEUP": "Open the line-up and tap “Save”.",
+      "LIVE_DECISION": "On a live event's card, pick your call and confirm it.",
+      "LIVE_WIN_COACHED": "Make at least one substitution at a break, then win.",
+      "LIVE_SCORE_TWO": "Two goals of your team, extra time included.",
+      "LIVE_CLEAN_SHEET": "To the end without conceding: the Sit back instruction can help."
     },
     "progress": "{progress}/{target}",
     "progressLabel": "Progress: {progress} of {target}",
+    "taskDone": "Done",
     "done": "Mission complete",
-    "tomorrow": "Tomorrow: a new mission",
+    "tokens": "{count, plural, one {# token} other {# tokens}}",
     "streak": "{count, plural, one {# day in a row} other {# days in a row}}",
-    "keepGoing": "Complete it to make it {next, plural, one {# day} other {# days}}.",
-    "start": "Complete it to start your streak.",
-    "restart": "Your last streak lasted {count, plural, one {# day} other {# days}}. This one starts a new one.",
-    "isRecord": "That's your record.",
-    "record": "Record: {count, plural, one {# day} other {# days}}",
+    "allThree": "All three: +{tokens}",
+    "allThreeDone": "All three: +{tokens} earned",
+    "tomorrow": "Tomorrow: three new missions",
+    "cycle": {
+      "label": "Streak: day {day} of 7 in the cycle",
+      "bonus": "D{day}: +{tokens}",
+      "earned": "D{day}: +{tokens} earned",
+      "lot": "D7: +{tokens} and {lot}",
+      "lotEarned": "D7: +{tokens} and {lot} earned"
+    },
+    "streakLine": {
+      "start": "One mission today starts your streak.",
+      "keepGoing": "One mission today takes you to {next, plural, one {# day} other {# days}}.",
+      "shielded": "You missed yesterday: one mission today, and your streak shield keeps your streak.",
+      "restart": "Your last streak lasted {count, plural, one {# day} other {# days}}. One mission today starts a new one.",
+      "counted": "Today counts for your streak.",
+      "isRecord": "It's your record."
+    },
+    "change": {
+      "open": "Change mission",
+      "about": "Once a day, on a mission not started yet.",
+      "confirm": "Change “{mission}”?",
+      "yes": "Change",
+      "no": "Keep",
+      "pending": "Changing…",
+      "changed": "Mission changed.",
+      "refusals": {
+        "challenge": "No missions in a challenge career.",
+        "used": "You have already changed a mission today.",
+        "started": "This mission has already started."
+      }
+    },
+    "changedFrom": "Replaces “{mission}”",
+    "welcome": "Welcome to the new missions: +{tokens} tokens for your earlier missions.",
+    "rewards": "Rewards",
+    "lotItems": {
+      "TITLE": "“{name}” title",
+      "BADGE": "“{name}” badge",
+      "FRAME": "{name} frame"
+    },
     "lineup": "Open the line-up",
     "settings": {
       "title": "Daily missions",
-      "none": "No streak running: the daily mission on Home starts one.",
-      "record": "Record: {count, plural, =0 {not yet} one {# day} other {# days}}"
+      "none": "No streak running: a daily mission on the Home screen starts one.",
+      "record": "Record: {count, plural, =0 {not yet} one {# day} other {# days}}",
+      "rewards": "Rewards"
     },
     "sessionEnd": {
-      "todo": "Daily mission: {mission}",
-      "done": "Daily mission complete",
-      "tomorrow": "Tomorrow: a new mission"
+      "earned": "+{tokens} today · balance {balance}",
+      "count": "Missions {done}/3",
+      "left": "left: {missions}",
+      "allDone": "All three missions done. Tomorrow: three new ones.",
+      "streak": "{count, plural, one {# day in a row} other {# days in a row}}"
     }
   }
 }

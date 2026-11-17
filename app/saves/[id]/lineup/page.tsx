@@ -1,9 +1,13 @@
+import { DumbbellIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getLineupEditor } from "@/src/db/lineup";
 import { getOpponentPreview } from "@/src/db/opponent";
+import { getShopShortcuts } from "@/src/db/shop";
 import { getSquadView } from "@/src/db/squad";
+import Link from "@/src/components/link";
+import { ROTATION_FITNESS } from "@/src/engine/balance";
 import { formatShortDate } from "@/src/lib/format";
 import { FirstStepTip, getFirstSteps } from "../_components/first-steps";
 import { MarkSeen } from "../_components/mark-seen";
@@ -22,14 +26,17 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const [t, locale] = await Promise.all([getTranslations("lineup"), getLocale()]);
-  const [editor, squad, opponent, firstSteps] = await Promise.all([
+  const [t, tShortcuts, locale] = await Promise.all([getTranslations("lineup"), getTranslations("rewards.shortcuts"), getLocale()]);
+  const [editor, squad, opponent, firstSteps, shortcuts] = await Promise.all([
     getLineupEditor(id),
     getSquadView(id),
     getOpponentPreview(id),
     getFirstSteps(id),
+    getShopShortcuts(id),
   ]);
   const date = formatShortDate(editor.matchDate, locale);
+  // A fitness camp (missions v2), while the shop has one today and a player of the squad is tired at kick-off.
+  const camp = shortcuts.camp !== null && editor.players.some((player) => player.fitness < ROTATION_FITNESS) ? shortcuts.camp : null;
 
   return (
     <div className="space-y-5">
@@ -41,6 +48,16 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
         <p className="text-sm text-muted-foreground first-letter:uppercase" data-testid="lineup-instructions">
           <PointerText touch={t("instructions.touch", { date })} click={t("instructions.click", { date })} />
         </p>
+        {camp !== null && (
+          <Link
+            href={`/saves/${id}/rewards?buy=FITNESS_CAMP`}
+            data-testid="lineup-camp"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-(--club) hover:text-(--club-hover) max-sm:min-h-11"
+          >
+            <DumbbellIcon aria-hidden className="size-4 shrink-0" />
+            {tShortcuts("camp", { price: camp.price, left: camp.left })}
+          </Link>
+        )}
         {/* Next to my eleven: adjust it while looking at his. */}
         {opponent !== null && (
           <div className="ml-auto">
@@ -59,6 +76,7 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
             ? null
             : { name: opponent.clubName, formation: opponent.formation, strength: opponent.strength, atHome: opponent.atHome }
         }
+        care={shortcuts.care}
       />
     </div>
   );

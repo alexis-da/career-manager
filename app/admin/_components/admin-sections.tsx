@@ -400,8 +400,9 @@ export function ActivitySection({ dashboard, t, format }: SectionProps) {
 }
 
 /**
- * The daily missions: proposed and completed over the period, mission by mission; the streaks running today, by length,
- * and the longest a mission of the period made.
+ * The daily missions (missions v2, v1's before the switch): proposed and completed over the period, by tier and mission by
+ * mission; the perfect days and the missions changed; the streaks running today, by length, the longest a day of the
+ * period made, the cycles completed, the shields.
  */
 export function MissionsSection({ dashboard, t, format }: SectionProps) {
   const { missions } = dashboard;
@@ -430,6 +431,30 @@ export function MissionsSection({ dashboard, t, format }: SectionProps) {
           detail={t("missions.recordDetail")}
           testId="admin-missions-record"
         />
+        <Tile
+          label={t("missions.perfectDays")}
+          value={format.integer(missions.perfectDays)}
+          detail={t("missions.perfectDaysDetail")}
+          testId="admin-missions-perfect"
+        />
+        <Tile
+          label={t("missions.changes")}
+          value={format.integer(missions.changes)}
+          detail={t("missions.changesDetail")}
+          testId="admin-missions-changes"
+        />
+        <Tile
+          label={t("missions.cycles")}
+          value={format.integer(missions.cycles)}
+          detail={t("missions.cyclesDetail")}
+          testId="admin-missions-cycles"
+        />
+        <Tile
+          label={t("missions.shields")}
+          value={t("missions.shieldsValue", { bought: format.integer(missions.shields.bought) })}
+          detail={t("missions.shieldsDetail", { used: format.integer(missions.shields.used), held: format.integer(missions.shields.held) })}
+          testId="admin-missions-shields"
+        />
       </Tiles>
       <p className="text-sm" data-testid="admin-missions-lengths">
         {running === 0
@@ -438,6 +463,26 @@ export function MissionsSection({ dashboard, t, format }: SectionProps) {
               lengths: missions.streaks.map((streak) => t("missions.length", { days: streak.days, players: streak.players })).join(" · "),
             })}
       </p>
+      <Table data-testid="admin-missions-tiers">
+        <TableHeader>
+          <TableRow className="border-border hover:bg-transparent">
+            <TableHead className={HEAD}>{t("missions.columns.tier")}</TableHead>
+            <TableHead className={HEAD_NUMBER}>{t("missions.columns.proposed")}</TableHead>
+            <TableHead className={HEAD_NUMBER}>{t("missions.columns.completed")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {missions.byTier.map((row) => (
+            <TableRow key={row.tier} data-tier={row.tier} className={TABLE_ROW}>
+              <TableCell className={cn(TABLE_CELL, TIGHT, "py-2")}>{t(`missions.tiers.${row.tier}`)}</TableCell>
+              <TableCell className={NUMBER}>{format.integer(row.proposed)}</TableCell>
+              <TableCell className={cn(NUMBER, "py-1.5")}>
+                <ShareCell share={{ part: row.completed, whole: row.proposed }} format={format} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
       <Table data-testid="admin-missions-kinds">
         <TableHeader>
           <TableRow className="border-border hover:bg-transparent">
@@ -449,7 +494,10 @@ export function MissionsSection({ dashboard, t, format }: SectionProps) {
         <TableBody>
           {missions.byKind.map((row) => (
             <TableRow key={row.kind} data-kind={row.kind} className={TABLE_ROW}>
-              <TableCell className={cn(TABLE_CELL, TIGHT, "py-2 break-words whitespace-normal")}>{t(`missions.kinds.${row.kind}`)}</TableCell>
+              <TableCell className={cn(TABLE_CELL, TIGHT, "py-2 break-words whitespace-normal")}>
+                <span className="block">{t(`missions.kinds.${row.kind}`)}</span>
+                <span className="block text-[0.6875rem] text-muted-foreground">{t(`missions.tiers.${row.tier}`)}</span>
+              </TableCell>
               <TableCell className={NUMBER}>{format.integer(row.proposed)}</TableCell>
               <TableCell className={cn(NUMBER, "py-1.5")}>
                 <ShareCell share={{ part: row.completed, whole: row.proposed }} format={format} />
@@ -458,6 +506,93 @@ export function MissionsSection({ dashboard, t, format }: SectionProps) {
           ))}
         </TableBody>
       </Table>
+    </Section>
+  );
+}
+
+/**
+ * The tokens (missions v2): earned and spent over the period, day by day, by source and by item; the balances today; the
+ * check that every player's journal adds up to their balance, in the warning colour when one does not.
+ */
+export function TokensSection({ dashboard, t, format }: SectionProps) {
+  const { tokens } = dashboard;
+  const spentShare = format.percent(tokens.spent, tokens.earned);
+  const sourceOf = (reason: (typeof tokens.sources)[number]["reason"]): string =>
+    format.integer(tokens.sources.find((source) => source.reason === reason)?.tokens ?? 0);
+  return (
+    <Section id="tokens" title={t("tokens.title")} note={t("tokens.note")}>
+      <Tiles>
+        <Tile label={t("tokens.earned")} value={format.integer(tokens.earned)} testId="admin-tokens-earned" />
+        <Tile
+          label={t("tokens.spent")}
+          value={format.integer(tokens.spent)}
+          detail={spentShare === null ? null : t("tokens.spentShare", { share: spentShare })}
+          testId="admin-tokens-spent"
+        />
+        <Tile
+          label={t("tokens.balances")}
+          value={format.integer(tokens.balances.median)}
+          detail={t("tokens.balancesDetail", {
+            p90: format.integer(tokens.balances.p90),
+            max: format.integer(tokens.balances.max),
+            holders: format.integer(tokens.balances.holders),
+          })}
+          testId="admin-tokens-balances"
+        />
+        <Tile
+          label={t("tokens.integrity")}
+          value={tokens.integrity.mismatched === 0 ? t("tokens.integrityOk") : format.integer(tokens.integrity.mismatched)}
+          detail={t("tokens.integrityDetail", { checked: format.integer(tokens.integrity.checked) })}
+          alert={tokens.integrity.mismatched === 0 ? null : t("tokens.integrityAlert", { count: tokens.integrity.mismatched })}
+          testId="admin-tokens-integrity"
+        />
+      </Tiles>
+      <p className="text-sm" data-testid="admin-tokens-sources">
+        {t("tokens.sources", {
+          MISSION: sourceOf("MISSION"),
+          ALL_THREE: sourceOf("ALL_THREE"),
+          STREAK: sourceOf("STREAK"),
+          WELCOME: sourceOf("WELCOME"),
+        })}
+      </p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Table data-testid="admin-tokens-days">
+          <TableHeader>
+            <TableRow className="border-border hover:bg-transparent">
+              <TableHead className={HEAD}>{t("tokens.columns.day")}</TableHead>
+              <TableHead className={HEAD_NUMBER}>{t("tokens.columns.earned")}</TableHead>
+              <TableHead className={HEAD_NUMBER}>{t("tokens.columns.spent")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {[...tokens.days].reverse().map((day) => (
+              <TableRow key={day.day} data-day={day.day} className={TABLE_ROW}>
+                <TableCell className={cn(TABLE_CELL, TIGHT)}>{format.day(day.day)}</TableCell>
+                <TableCell className={NUMBER}>{format.integer(day.earned)}</TableCell>
+                <TableCell className={NUMBER}>{format.integer(day.spent)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <Table data-testid="admin-tokens-purchases">
+          <TableHeader>
+            <TableRow className="border-border hover:bg-transparent">
+              <TableHead className={HEAD}>{t("tokens.columns.item")}</TableHead>
+              <TableHead className={HEAD_NUMBER}>{t("tokens.columns.purchases")}</TableHead>
+              <TableHead className={HEAD_NUMBER}>{t("tokens.columns.tokens")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tokens.purchases.map((row) => (
+              <TableRow key={row.item} data-item={row.item} className={TABLE_ROW}>
+                <TableCell className={cn(TABLE_CELL, TIGHT, "py-2 break-words whitespace-normal")}>{t(`tokens.items.${row.item}`)}</TableCell>
+                <TableCell className={NUMBER}>{format.integer(row.purchases)}</TableCell>
+                <TableCell className={NUMBER}>{format.integer(row.tokens)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </Section>
   );
 }

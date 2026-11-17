@@ -5,6 +5,7 @@ import { ownChallenge } from "./own-challenge";
 const line = (rank: number | null, points: number, isViewer = false): ChallengeRankingRow => ({
   rank,
   name: rank === null ? null : "Camille",
+  title: null,
   points,
   goalDiff: 4,
   goalsFor: 12,

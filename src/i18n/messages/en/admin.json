@@ -155,7 +155,21 @@
     },
     "missions": {
       "title": "Daily missions",
-      "note": "One mission a player a UTC day, on Home in their careers but challenge ones. Proposed: shown, or taken on before they were; completed, mission by mission. Streaks running: the players whose latest completed mission is today's or yesterday's, and how long.",
+      "note": "Three missions a player a UTC day (easy, medium, hard), on Home in their careers but challenge ones; before v2, one, counted with its mission. Proposed: shown, or taken on before they were; completed, mission by mission. Streaks running: the players whose latest counted day is today or yesterday, and how long.",
+      "perfectDays": "Perfect days",
+      "perfectDaysDetail": "all three missions of a day",
+      "changes": "Changes",
+      "changesDetail": "“Change mission” used",
+      "cycles": "Streak cycles",
+      "cyclesDetail": "days 7 reached over the period",
+      "shields": "Streak shields",
+      "shieldsValue": "{bought} bought",
+      "shieldsDetail": "{used} used · {held} in reserve",
+      "tiers": {
+        "EASY": "Easy",
+        "MEDIUM": "Medium",
+        "HARD": "Hard"
+      },
       "proposed": "Proposed",
       "completed": "Completed",
       "completedShare": "{share} of proposed",
@@ -169,6 +183,7 @@
       "noStreak": "No streak running.",
       "columns": {
         "mission": "Mission",
+        "tier": "Tier",
         "proposed": "Proposed",
         "completed": "Completed"
       },
@@ -180,7 +195,44 @@
         "WIN": "Win",
         "CLEAN_SHEET": "Clean sheet",
         "PLAY_MATCHES": "Matches to play",
-        "START_YOUTH": "Youngster started"
+        "START_YOUTH": "Youngster started",
+        "PLAY_MATCH": "One match",
+        "SCORE": "Score",
+        "SAVE_LINEUP": "Line-up saved",
+        "LIVE_DECISION": "Live decision",
+        "LIVE_WIN_COACHED": "Live win with a substitution",
+        "LIVE_SCORE_TWO": "Two live goals",
+        "LIVE_CLEAN_SHEET": "Live clean sheet"
+      }
+    },
+    "tokens": {
+      "title": "Tokens",
+      "note": "Earned by the missions, the day's three, the streak and the v1 players' welcome; spent in the shop. Balances: the players who have some, today. Check: each player's journal adds up to their balance.",
+      "earned": "Earned",
+      "spent": "Spent",
+      "spentShare": "{share} of earned",
+      "balances": "Median balance",
+      "balancesDetail": "90th percentile {p90} · max {max} · {holders} players",
+      "integrity": "Check",
+      "integrityOk": "right",
+      "integrityDetail": "{checked} players checked",
+      "integrityAlert": "{count, plural, one {# balance} other {# balances}} off their journal",
+      "sources": "Sources: missions {MISSION} · all three {ALL_THREE} · streak {STREAK} · welcome {WELCOME}",
+      "columns": {
+        "day": "Day",
+        "earned": "Earned",
+        "spent": "Spent",
+        "item": "Item",
+        "purchases": "Purchases",
+        "tokens": "Tokens"
+      },
+      "items": {
+        "FITNESS_CAMP": "Fitness camp",
+        "EXPRESS_CARE": "Express care",
+        "BUDGET_TOP_UP": "Budget top-up",
+        "PROMISING_YOUTH": "Promising youngster",
+        "STREAK_SHIELD": "Streak shield",
+        "COSMETIC": "Cosmetics"
       }
     },
     "values": {

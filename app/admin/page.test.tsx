@@ -109,21 +109,56 @@ vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
         missions: {
           proposed: 12,
           completed: 5,
-          byKind: [
-            { kind: "PLAY_LIVE", proposed: 5, completed: 3 },
-            { kind: "LIVE_SUBSTITUTION", proposed: 0, completed: 0 },
-            { kind: "LIVE_INSTRUCTION", proposed: 1, completed: 0 },
-            { kind: "LIVE_WIN", proposed: 2, completed: 0 },
-            { kind: "WIN", proposed: 1, completed: 1 },
-            { kind: "CLEAN_SHEET", proposed: 1, completed: 0 },
-            { kind: "PLAY_MATCHES", proposed: 2, completed: 1 },
-            { kind: "START_YOUTH", proposed: 0, completed: 0 },
+          byTier: [
+            { tier: "EASY", proposed: 2, completed: 1 },
+            { tier: "MEDIUM", proposed: 8, completed: 4 },
+            { tier: "HARD", proposed: 2, completed: 0 },
           ],
+          byKind: [
+            { kind: "PLAY_LIVE", tier: "MEDIUM", proposed: 5, completed: 3 },
+            { kind: "LIVE_SUBSTITUTION", tier: "MEDIUM", proposed: 0, completed: 0 },
+            { kind: "LIVE_INSTRUCTION", tier: "MEDIUM", proposed: 1, completed: 0 },
+            { kind: "LIVE_WIN", tier: "HARD", proposed: 2, completed: 0 },
+            { kind: "WIN", tier: "MEDIUM", proposed: 1, completed: 1 },
+            { kind: "CLEAN_SHEET", tier: "MEDIUM", proposed: 1, completed: 0 },
+            { kind: "PLAY_MATCHES", tier: "EASY", proposed: 2, completed: 1 },
+            { kind: "START_YOUTH", tier: "EASY", proposed: 0, completed: 0 },
+            { kind: "LIVE_DECISION", tier: "MEDIUM", proposed: 0, completed: 0 },
+          ],
+          perfectDays: 1,
+          changes: 2,
           streaks: [
             { days: 1, players: 2 },
             { days: 4, players: 1 },
           ],
           record: 6,
+          cycles: 1,
+          shields: { bought: 3, used: 1, held: 2 },
+        },
+        // Tokens: 640 earned, 410 spent; one balance off its journal.
+        tokens: {
+          earned: 640,
+          spent: 410,
+          days: [
+            { day: "2026-11-08", earned: 140, spent: 0 },
+            { day: "2026-11-09", earned: 500, spent: 410 },
+          ],
+          sources: [
+            { reason: "MISSION", tokens: 380 },
+            { reason: "ALL_THREE", tokens: 60 },
+            { reason: "STREAK", tokens: 100 },
+            { reason: "WELCOME", tokens: 100 },
+          ],
+          purchases: [
+            { item: "FITNESS_CAMP", purchases: 1, tokens: 40 },
+            { item: "EXPRESS_CARE", purchases: 0, tokens: 0 },
+            { item: "BUDGET_TOP_UP", purchases: 0, tokens: 0 },
+            { item: "PROMISING_YOUTH", purchases: 1, tokens: 350 },
+            { item: "STREAK_SHIELD", purchases: 0, tokens: 0 },
+            { item: "COSMETIC", purchases: 0, tokens: 0 },
+          ],
+          balances: { holders: 7, median: 30, p90: 210, max: 480, total: 900 },
+          integrity: { checked: 9, mismatched: 1 },
         },
         // The production database of 9 November: 1 062 Mo in a day, 46 new players the day before.
         health: {
@@ -258,6 +293,16 @@ describe("the administrator's dashboard", () => {
       "6 jours",
       "Match en direct",
       "Jeune titulaire",
+      "Décision en direct",
+      "Journées parfaites",
+      "3 achetés",
+      "1 utilisés · 2 en réserve",
+      ">Jetons</h2>",
+      "90e centile 210 · max 480 · 7 joueurs",
+      "1 solde sans son journal",
+      "Sources : missions 380 · les trois 60 · série 100 · bienvenue 100",
+      "Jeune prometteur",
+      "64 % des gagnés",
       "depuis l&#x27;écran d&#x27;accueil, un par session",
       "La plus récente · 07/11 à 22:05 UTC",
       "ChunkLoadError: Loading chunk 7 failed.",
@@ -339,6 +384,9 @@ describe("the administrator's dashboard", () => {
     expect(markup).toMatch(/data-live="2\/7"[^>]*><span[^>]*>29 %<\/span><span[^>]*>2\/7<\/span>/);
     expect(markup).toMatch(/data-testid="admin-resume-links"(?:(?!<\/div>).)*>9<\/p>/);
     expect(markup).toMatch(/data-testid="admin-missions-streaks"(?:(?!<\/div>).)*>3<\/p>/);
+    // The check of the journals in the warning colour: one balance off.
+    expect(markup).toMatch(/data-testid="admin-tokens-integrity" data-alert="true"/);
+    expect(markup).toMatch(/data-tier="MEDIUM"(?:(?!<\/tr>).)*>50 %<\/span><span[^>]*>4\/8<\/span>/);
     // Each mission's completed share of its proposed: 3 of 5 live matches.
     expect(markup).toMatch(/data-kind="PLAY_LIVE"(?:(?!<\/tr>).)*>60 %<\/span><span[^>]*>3\/5<\/span>/);
     // Before the tracking, a day's visits are not known.

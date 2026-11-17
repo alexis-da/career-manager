@@ -26,6 +26,7 @@ import { addYears, ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { academyLocks } from "./shop";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
 const MAX_DATABASE_INT = 2_147_483_647;
@@ -56,7 +57,8 @@ export type TransferRefusal =
   | "wage_budget_exceeded"
   | "club_refused"
   | "player_refused"
-  | "no_offer";
+  | "no_offer"
+  | "academy"; // a promising youth of the shop, on his first contract: neither sold nor released (src/db/shop.ts)
 
 export type TransferOutcome =
   | {
@@ -81,13 +83,14 @@ export type TransferQuote = {
  */
 export type SaleQuote =
   | { ok: true; fee: number; wage: number; years: number; buyerName: string; resaleCap?: ResaleCap["kind"] }
-  | { ok: false; reason: Extract<TransferRefusal, "window_closed" | "bought_this_window" | "no_offer"> };
+  | { ok: false; reason: Extract<TransferRefusal, "window_closed" | "bought_this_window" | "no_offer" | "academy"> };
 
 /** What each action would take today for a player of the managed club. */
 export type ContractTerms = {
   renewalMinimumWage: number; // euros per season
   releaseCost: number; // euros paid to the player
   sale: SaleQuote;
+  academyUntil: Date | null; // a promising youth of the shop: the end of his first contract, before which he stays
 };
 
 type Tx = Prisma.TransactionClient;
@@ -342,8 +345,14 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
   );
   const arrivalsOf = (player: SquadPlayer): ClubArrival[] => arrivals.get(player.id) ?? [];
   const bought = new Set(players.filter((player) => arrivedThisWindow(arrivalsOf(player), save.currentDate)).map(({ id }) => id));
+  const academy = await academyLocks(
+    prisma,
+    saveId,
+    save.currentDate,
+    players.map((player) => player.playerKey),
+  );
   const onSale = players
-    .filter((player) => !bought.has(player.id))
+    .filter((player) => !bought.has(player.id) && !academy.has(player.playerKey))
     .map((player) => ({ player, cap: resaleCap(arrivalsOf(player), offerPlayer(player, save.currentDate), save.currentDate) }));
   const caps = new Map(onSale.map(({ player, cap }) => [player.id, cap]));
   const bids = windowOpen ? await bestSaleBids(prisma, saveId, save, club, onSale) : new Map<string, BestBid | null>();
@@ -351,7 +360,9 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
   return new Map(
     players.map((player) => {
       let sale: SaleQuote = { ok: false, reason: "window_closed" };
-      if (windowOpen && bought.has(player.id)) {
+      if (academy.has(player.playerKey)) {
+        sale = { ok: false, reason: "academy" };
+      } else if (windowOpen && bought.has(player.id)) {
         sale = { ok: false, reason: "bought_this_window" };
       } else if (windowOpen) {
         const best = getOrThrow(bids, player.id, "best sale bid");
@@ -374,6 +385,7 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
           renewalMinimumWage: evaluateRenewal(offerPlayer(player, save.currentDate), 0).minimumWage,
           releaseCost: releaseCompensation(player, save.currentDate),
           sale,
+          academyUntil: academy.get(player.playerKey) ?? null,
         },
       ];
     }),
@@ -506,6 +518,9 @@ export async function releasePlayer(input: PlayerActionInput): Promise<TransferO
     if (player === null) {
       return refused("not_available");
     }
+    if ((await academyLocks(tx, saveId, save.currentDate, [player.playerKey])).size > 0) {
+      return refused("academy");
+    }
     const compensation = releaseCompensation(player, save.currentDate);
     if (compensation > club.budget) {
       return refused("insufficient_budget");
@@ -541,6 +556,9 @@ export async function sellPlayer(input: PlayerActionInput): Promise<TransferOutc
     const player = await tx.playerSave.findFirst({ where: { id: playerSaveId, saveId, clubSaveId: club.id }, select: PLAYER_SELECT });
     if (player === null) {
       return refused("not_available");
+    }
+    if ((await academyLocks(tx, saveId, save.currentDate, [player.playerKey])).size > 0) {
+      return refused("academy");
     }
     const arrivals = (await recentArrivals(tx, saveId, club.clubId, save.currentDate, [player.id])).get(player.id) ?? [];
     if (arrivedThisWindow(arrivals, save.currentDate)) {

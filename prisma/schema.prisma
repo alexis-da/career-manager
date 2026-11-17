@@ -99,11 +99,25 @@ model User {
   firstMatchAt     DateTime? // premier match d'un club qu'il dirige joué, en direct ou simulé
   firstLiveMatchAt DateTime? // premier match d'un club qu'il dirige joué en direct jusqu'au bout (suivi depuis le 17/11/2026)
   firstSeasonEndAt DateTime? // première saison jouée jusqu'à son dernier match, toutes compétitions de la partie
+  // Missions v2 (docs/design/missions-v2.md, src/db/rewards.ts) : le solde de jetons, tenu avec chaque ligne du journal
+  // (TokenEntry) dans sa transaction, jamais négatif ; les cosmétiques équipés (identifiants de src/lib/cosmetics.ts, null :
+  // celui par défaut) ; le protège-série en réserve ; les compteurs des accomplissements.
+  tokens           Int              @default(0)
+  title            String?
+  badge            String?
+  frame            String?
+  streakShield     Boolean          @default(false)
+  liveMatches      Int              @default(0) // matchs joués en direct jusqu'au bout, depuis le 17/11/2026
+  liveWins         Int              @default(0) // dont gagnés
   saves            Save[]
   days             UserDay[]
   challengeEntries ChallengeEntry[]
   resumeLinks      ResumeLink[]
   missions         DailyMission[]
+  missionTasks     MissionTask[]
+  missionDays      MissionDay[]
+  tokenEntries     TokenEntry[]
+  cosmetics        PlayerCosmetic[]
 
   @@index([createdAt]) // les nouveaux joueurs d'une période (/admin)
 }
@@ -153,6 +167,93 @@ model DailyMission {
 
   @@id([userId, day])
   @@index([day]) // les missions d'une période et les séries en cours (/admin)
+}
+
+// Une des trois missions d'un jour d'un joueur (missions v2, docs/design/missions-v2.md) : une par palier, tirée du jour,
+// du joueur et du palier (src/lib/missions.ts), écrite quand elle est montrée ou qu'elle avance ; la même dans toutes ses
+// carrières sauf celles du défi. Supprimée avec l'utilisateur. DailyMission reste l'historique de la v1.
+model MissionTask {
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  day         DateTime     @db.Date // jour UTC
+  tier        MissionTier
+  kind        MissionKind
+  target      Int // fois où son action doit avoir lieu
+  progress    Int          @default(0) // jamais au-delà de target
+  changedFrom MissionKind? // la mission remplacée par « Changer de mission », une fois par jour et par joueur
+  createdAt   DateTime     @default(now()) // proposée : montrée, ou avancée avant d'être montrée
+  completedAt DateTime? // à l'horloge de la base
+
+  @@id([userId, day, tier])
+  @@index([day]) // les missions d'une période (/admin)
+}
+
+// Le jour d'un joueur (missions v2) : ses missions faites, la série qu'il fait quand il compte (une mission faite au
+// moins), le changement de mission utilisé, ou un jour manqué pardonné par le protège-série. Supprimé avec l'utilisateur.
+model MissionDay {
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  day        DateTime  @db.Date // jour UTC
+  done       Int       @default(0) // missions faites, 0 à 3
+  countedAt  DateTime? // la première faite : le jour compte pour la série
+  allDoneAt  DateTime? // la troisième
+  streak     Int? // jours d'affilée à ce jour, celui-ci compris
+  best       Int? // le record du joueur à ce jour
+  cycles     Int? // cycles de 7 jours accomplis au total à ce jour, jamais perdus
+  changedAt  DateTime? // « Changer de mission » utilisé ce jour
+  shieldedAt DateTime? // jour manqué pardonné par le protège-série
+
+  @@id([userId, day])
+  @@index([day]) // les jours d'une période et les séries en cours (/admin)
+}
+
+// Le journal des jetons (missions v2) : chaque gain ou dépense, une ligne, une clé unique par joueur (« mission:2026-11-18:
+// HARD », « purchase:<uuid> ») qui interdit tout double crédit ; User.tokens en est la somme. Supprimé avec l'utilisateur.
+model TokenEntry {
+  id        String      @id @default(cuid())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  key       String
+  reason    TokenReason
+  amount    Int // gain positif, dépense négative
+  day       DateTime?   @db.Date // le jour UTC d'une mission ou d'un bonus
+  save      Save?       @relation(fields: [saveId], references: [id], onDelete: SetNull)
+  saveId    String? // la carrière d'un achat
+  item      ShopItem? // l'article d'un achat
+  cosmetic  String? // le cosmétique acheté
+  createdAt DateTime    @default(now())
+
+  @@unique([userId, key])
+  @@index([createdAt]) // les jetons d'une période (/admin)
+  @@index([saveId]) // la suppression d'une partie (SetNull), sans relire tout le journal
+}
+
+// Un achat de la boutique dans une carrière (missions v2) : ses limites par saison et par carrière, et ce qu'il a fait
+// (effect, validé par Zod à la lecture : le joueur, les jours, le montant). id : l'identifiant de la demande, venu du
+// navigateur, sur lequel bute un double envoi. Supprimé avec sa partie.
+model ShopPurchase {
+  id              String   @id
+  save            Save     @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId          String
+  item            ShopItem
+  seasonStartYear Int
+  price           Int
+  effect          Json
+  createdAt       DateTime @default(now())
+
+  @@index([saveId, item, seasonStartYear])
+}
+
+// Ce qu'un joueur possède de la collection (titres, badges, cadres, missions v2) ; le catalogue est dans le code
+// (src/lib/cosmetics.ts). Supprimé avec l'utilisateur.
+model PlayerCosmetic {
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  cosmetic   String
+  source     CosmeticSource
+  unlockedAt DateTime       @default(now())
+
+  @@id([userId, cosmetic])
 }
 
 // Premières visites des pages publiques (proxy.ts, src/db/visits.ts) : des totaux par jour UTC, source et page
@@ -242,6 +343,8 @@ model Save {
   objectives     SeasonObjective[]
   challengeEntry ChallengeEntry?
   seasonArchives SeasonArchive[]
+  shopPurchases  ShopPurchase[]
+  tokenEntries   TokenEntry[]
 
   @@index([ownerId])
   @@index([challengeId])
@@ -778,4 +881,44 @@ enum MissionKind {
   CLEAN_SHEET
   PLAY_MATCHES
   START_YOUTH
+  PLAY_MATCH
+  SCORE
+  SAVE_LINEUP
+  LIVE_DECISION
+  LIVE_WIN_COACHED
+  LIVE_SCORE_TWO
+  LIVE_CLEAN_SHEET
+}
+
+/// Les paliers des trois missions du jour (missions v2).
+enum MissionTier {
+  EASY
+  MEDIUM
+  HARD
+}
+
+/// Pourquoi des jetons sont gagnés ou dépensés.
+enum TokenReason {
+  MISSION
+  ALL_THREE
+  STREAK
+  WELCOME
+  PURCHASE
+}
+
+/// Les articles de la boutique : ceux d'une carrière, puis ceux du joueur.
+enum ShopItem {
+  FITNESS_CAMP
+  EXPRESS_CARE
+  BUDGET_TOP_UP
+  PROMISING_YOUTH
+  STREAK_SHIELD
+  COSMETIC
+}
+
+/// Comment un cosmétique a été obtenu.
+enum CosmeticSource {
+  STREAK
+  SHOP
+  ACHIEVEMENT
 }

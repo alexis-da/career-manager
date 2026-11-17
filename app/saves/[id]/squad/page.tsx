@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
+import { getShopShortcuts } from "@/src/db/shop";
 import { getSquadView } from "@/src/db/squad";
 import { formatMillions } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
@@ -21,7 +22,7 @@ export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
   const [t, locale] = await Promise.all([getTranslations("squad"), getLocale()]);
-  const [squad, firstSteps] = await Promise.all([getSquadView(id), getFirstSteps(id)]);
+  const [squad, firstSteps, shortcuts] = await Promise.all([getSquadView(id), getFirstSteps(id), getShopShortcuts(id)]);
   const players = squad.players.length;
   const goalkeepers = squad.players.filter((player) => player.position === "GK").length;
 
@@ -62,6 +63,7 @@ export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad
         startYear={squad.startYear}
         windowOpen={squad.windowOpen}
         nextWindowOpensOn={squad.nextWindowOpensOn}
+        care={shortcuts.care}
       />
     </div>
   );

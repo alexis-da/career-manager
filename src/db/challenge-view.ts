@@ -3,9 +3,11 @@ import { challengeSavesPurgedAt, rankAmong, rankChallengeEntries, rankingName } 
 import { displayClubName } from "../engine/club-name";
 import { competitionTier, type CompetitionTier } from "../engine/tiers";
 import { competitionCountry, type Country } from "../i18n/countries";
+import { cosmeticOf } from "../lib/cosmetics";
 import { isoWeekNumber, previousIsoWeekKey } from "../lib/iso-week";
 import type { ChallengeSummary } from "./challenge";
 import { prisma } from "./client";
+import { unlockChallengePodium } from "./rewards";
 
 // What the weekly challenge's screens show: the public page /challenge, its tab in a save and a challenge save's
 // banner. The rankings read the entries of all of a challenge's saves by challengeId, the one read across saves
@@ -18,6 +20,7 @@ export type ChallengeViewer = { id: string; kind: "ANONYMOUS" | "REGISTERED" } |
 export type ChallengeRankingRow = {
   rank: number | null; // null: the viewer's own entry outside the public ranking, an anonymous player's (« Toi »)
   name: string | null; // the Google account's first name; null without one (« Anonyme »), and on the viewer's own line
+  title: string | null; // the manager's title worn (missions v2, a cosmetic's id); null for none chosen, and on an anonymous line
   points: number;
   goalDiff: number;
   goalsFor: number;
@@ -29,11 +32,15 @@ type SubmittedEntry = {
   userId: string;
   userKind: "ANONYMOUS" | "REGISTERED";
   userName: string | null;
+  userTitle: string | null;
   points: number;
   goalDiff: number;
   goalsFor: number;
   submittedAt: Date;
 };
+
+/** The weekly challenge's podium (a cosmetic): a rank of its public ranking at most this, once the week is over. */
+const PODIUM_RANKS = 10;
 
 /** A challenge's entries submitted before its end: those a ranking may show. */
 async function entriesInTime(challenge: { id: string; endsAt: Date }): Promise<SubmittedEntry[]> {
@@ -46,13 +53,24 @@ async function entriesInTime(challenge: { id: string; endsAt: Date }): Promise<S
       goalDiff: true,
       goalsFor: true,
       submittedAt: true,
-      user: { select: { kind: true, name: true } },
+      user: { select: { kind: true, name: true, title: true } },
     },
   });
   return rows.flatMap(({ points, goalDiff, goalsFor, submittedAt, user, ...entry }) =>
     points === null || goalDiff === null || goalsFor === null || submittedAt === null
       ? []
-      : [{ ...entry, userKind: user.kind, userName: user.name, points, goalDiff, goalsFor, submittedAt }],
+      : [
+          {
+            ...entry,
+            userKind: user.kind,
+            userName: user.name,
+            userTitle: cosmeticOf(user.title)?.kind === "TITLE" ? user.title : null,
+            points,
+            goalDiff,
+            goalsFor,
+            submittedAt,
+          },
+        ],
   );
 }
 
@@ -65,9 +83,10 @@ const ranked = (entries: readonly SubmittedEntry[]) => rankChallengeEntries(entr
  */
 function rankingOf(entries: readonly SubmittedEntry[], viewer: ChallengeViewer): ChallengeRankingRow[] {
   const ranking = ranked(entries);
-  const rows: ChallengeRankingRow[] = ranking.map(({ rank, userName, userId, points, goalDiff, goalsFor }) => ({
+  const rows: ChallengeRankingRow[] = ranking.map(({ rank, userName, userTitle, userId, points, goalDiff, goalsFor }) => ({
     rank,
     name: rankingName(userName),
+    title: userTitle,
     points,
     goalDiff,
     goalsFor,
@@ -78,7 +97,7 @@ function rankingOf(entries: readonly SubmittedEntry[], viewer: ChallengeViewer):
     return rows;
   }
   const at = rankAmong(own, ranking) - 1;
-  const ownRow = { rank: null, name: null, points: own.points, goalDiff: own.goalDiff, goalsFor: own.goalsFor, isViewer: true };
+  const ownRow = { rank: null, name: null, title: null, points: own.points, goalDiff: own.goalDiff, goalsFor: own.goalsFor, isViewer: true };
   return [...rows.slice(0, at), ownRow, ...rows.slice(at)];
 }
 
@@ -132,6 +151,11 @@ export async function getChallengePage(challenge: ChallengeSummary, viewer: Chal
     }),
   ]);
   const previousEntries = previous === null ? null : await entriesInTime(previous);
+  const previousRanking = previous === null || previousEntries === null ? null : rankingOf(previousEntries, viewer);
+  // The podium of last week's challenge, over: a Google account in its first ten unlocks its badge on seeing it.
+  if (viewer?.kind === "REGISTERED" && previousRanking?.some((row) => row.isViewer && row.rank !== null && row.rank <= PODIUM_RANKS)) {
+    await unlockChallengePodium(viewer.id);
+  }
 
   return {
     weekKey: challenge.weekKey,
@@ -149,10 +173,7 @@ export async function getChallengePage(challenge: ChallengeSummary, viewer: Chal
     full: saves >= MAX_CHALLENGE_SAVES_PER_WEEK,
     own: own === null ? null : { saveId: own.saveId, matchdaysPlayed: own.matchdaysPlayed, submitted: own.submittedAt !== null },
     ranking: rankingOf(entries, viewer),
-    previous:
-      previous === null || previousEntries === null
-        ? null
-        : { weekNumber: isoWeekNumber(previous.weekKey), ranking: rankingOf(previousEntries, viewer) },
+    previous: previous === null || previousRanking === null ? null : { weekNumber: isoWeekNumber(previous.weekKey), ranking: previousRanking },
   };
 }
 

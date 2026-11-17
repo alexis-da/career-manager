@@ -27,6 +27,7 @@ import enObjectives from "./en/objectives.json";
 import enOnboarding from "./en/onboarding.json";
 import enPlayerSheet from "./en/player-sheet.json";
 import enPublic from "./en/public.json";
+import enRewards from "./en/rewards.json";
 import enSeasonStart from "./en/season-start.json";
 import enSeasons from "./en/seasons.json";
 import enSessionEnd from "./en/session-end.json";
@@ -63,6 +64,7 @@ import frObjectives from "./fr/objectives.json";
 import frOnboarding from "./fr/onboarding.json";
 import frPlayerSheet from "./fr/player-sheet.json";
 import frPublic from "./fr/public.json";
+import frRewards from "./fr/rewards.json";
 import frSeasonStart from "./fr/season-start.json";
 import frSeasons from "./fr/seasons.json";
 import frSessionEnd from "./fr/session-end.json";
@@ -93,6 +95,7 @@ export const ZONES = {
   "dashboard-todo": { fr: frDashboardTodo, en: enDashboardTodo },
   onboarding: { fr: frOnboarding, en: enOnboarding },
   missions: { fr: frMissions, en: enMissions },
+  rewards: { fr: frRewards, en: enRewards },
   "challenge-banner": { fr: frChallengeBanner, en: enChallengeBanner },
   squad: { fr: frSquad, en: enSquad },
   "player-sheet": { fr: frPlayerSheet, en: enPlayerSheet },
@@ -132,6 +135,7 @@ const fr = {
   ...frDashboardTodo,
   ...frOnboarding,
   ...frMissions,
+  ...frRewards,
   ...frChallengeBanner,
   ...frSquad,
   ...frPlayerSheet,
@@ -176,6 +180,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enDashboardTodo,
     ...enOnboarding,
     ...enMissions,
+    ...enRewards,
     ...enChallengeBanner,
     ...enSquad,
     ...enPlayerSheet,

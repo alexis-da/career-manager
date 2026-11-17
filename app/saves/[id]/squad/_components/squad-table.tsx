@@ -12,6 +12,7 @@ import type { SquadPlayerView } from "@/src/db/squad";
 import { HOVER_POINTER_QUERY, useMediaQuery } from "@/src/hooks/use-media-query";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import type { ShopShortcuts } from "@/src/db/shop";
 import { SquadPlayerActions } from "../../_components/contract-actions";
 import { FitnessGauge } from "../../_components/fitness-gauge";
 import { hasPlayerBadges, PlayerBadges } from "../../_components/player-badges";
@@ -170,9 +171,10 @@ type SquadTableProps = {
   startYear: number;
   windowOpen: boolean;
   nextWindowOpensOn: Date;
+  care?: ShopShortcuts["care"]; // express care in the shop, for the sheet of an injured player
 };
 
-export function SquadTable({ saveId, header, players, currentDate, startYear, windowOpen, nextWindowOpensOn }: SquadTableProps) {
+export function SquadTable({ saveId, header, players, currentDate, startYear, windowOpen, nextWindowOpensOn, care = null }: SquadTableProps) {
   const t = useTranslations("squad");
   const tWorld = useTranslations("world");
   const tPositions = useTranslations("positions");
@@ -434,6 +436,7 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
               currentDate={currentDate}
               windowOpen={windowOpen}
               nextWindowOpensOn={nextWindowOpensOn}
+              care={care}
             />
           }
         />

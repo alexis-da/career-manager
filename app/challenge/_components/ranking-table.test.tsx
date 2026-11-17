@@ -7,6 +7,7 @@ import { RankingTable } from "./ranking-table";
 const line = (rank: number | null, name: string | null, isViewer = false): ChallengeRankingRow => ({
   rank,
   name,
+  title: null,
   points: 14,
   goalDiff: 4,
   goalsFor: 12,

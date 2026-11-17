@@ -6,9 +6,12 @@ import { ensureCurrentChallenge } from "@/src/db/challenge";
 import { getChallengePage } from "@/src/db/challenge-view";
 import { getClubFinances, getManagerName } from "@/src/db/club";
 import { getMissionStreak } from "@/src/db/missions";
+import { getWornCosmetics } from "@/src/db/rewards-view";
 import { getSeasonObjectives } from "@/src/db/objectives";
 import { countOwnedSaves } from "@/src/db/saves";
 import { getSeasonResults } from "@/src/db/season-results";
+import { DEFAULT_COSMETIC, isCosmeticId } from "@/src/lib/cosmetics";
+import { BadgeMark } from "../_components/cosmetic-sign";
 import { ClubChallenge } from "./_components/club-challenge";
 import { ClubFinancesCard } from "./_components/club-finances";
 import { ClubHonours } from "./_components/club-honours";
@@ -37,8 +40,9 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
   // Not simulation code: the real week, and the real day of the player's streak.
   const now = new Date();
   const challenge = await ensureCurrentChallenge(now);
-  const [t, managerName, finances, view, objectives, { seasons }, ownedSaves, streak] = await Promise.all([
+  const [t, tCosmetics, managerName, finances, view, objectives, { seasons }, ownedSaves, streak, worn] = await Promise.all([
     getTranslations("club"),
+    getTranslations("rewards.cosmetics"),
     getManagerName(id),
     getClubFinances(id),
     getChallengePage(challenge, { id: user.id, kind: user.kind }),
@@ -46,7 +50,10 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
     getSeasonResults(id),
     countOwnedSaves(user.id),
     getMissionStreak(id, now),
+    getWornCosmetics(user.id),
   ]);
+  // The manager's title and featured badge (missions v2): the collection's, the rookie's by default.
+  const title = isCosmeticId(worn.title) ? worn.title : (DEFAULT_COSMETIC.TITLE ?? "title-rookie");
 
   return (
     <div className="space-y-5">
@@ -55,8 +62,15 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
           {t("title")}
         </h1>
         {/* A pill on one line; a long name goes to the next ones, never past the screen. */}
-        <p data-testid="club-manager" className="max-w-full rounded-[1.25rem] bg-card px-3.5 py-2.5 text-sm font-bold wrap-break-word">
-          {t("manager", { manager: managerName, season: seasons.length + 1 })}
+        <p
+          data-testid="club-manager"
+          className="flex max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-[1.25rem] bg-card px-3.5 py-2.5 text-sm font-bold wrap-break-word"
+        >
+          <span>{t("manager", { manager: managerName, season: seasons.length + 1 })}</span>
+          <span data-testid="club-manager-title" data-title={title} className="inline-flex items-center gap-1 text-highlight">
+            {isCosmeticId(worn.badge) && <BadgeMark id={worn.badge} label={tCosmetics(`${worn.badge}.name`)} className="size-4 shrink-0" />}
+            {tCosmetics(`${title}.name`)}
+          </span>
         </p>
       </div>
 
@@ -71,7 +85,7 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
 
       {/* Side by side only from xl: at 1024 px, the content's 704 px are for the card's preview and the seasons. */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <ClubHonours saveId={id} seasons={seasons} className="xl:col-span-2" />
+        <ClubHonours saveId={id} seasons={seasons} dress={worn} className="xl:col-span-2" />
         <ClubSettings user={user} ownedSaves={ownedSaves} streak={streak} />
       </div>
     </div>

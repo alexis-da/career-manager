@@ -2,6 +2,7 @@ import { useTranslations } from "next-intl";
 import { TABLE_HEAD } from "@/src/components/table-styles";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import type { ChallengeRankingRow } from "@/src/db/challenge-view";
+import { isCosmeticId } from "@/src/lib/cosmetics";
 import { formatGoalDifference } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 
@@ -16,6 +17,7 @@ const CELL = "px-3 py-1 max-sm:px-2";
  */
 export function RankingTable({ rows, empty, label }: { rows: ChallengeRankingRow[]; empty: string; label: string }) {
   const t = useTranslations("challenge.table");
+  const tCosmetics = useTranslations("rewards.cosmetics");
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">{empty}</p>;
   }
@@ -55,6 +57,12 @@ export function RankingTable({ rows, empty, label }: { rows: ChallengeRankingRow
               </TableCell>
               <TableCell className={cn(CELL, "whitespace-normal wrap-anywhere")}>
                 {outside ? t("you") : (row.name ?? t("anonymous"))}
+                {/* The manager's title worn, beside the first name (missions v2); none chosen, none shown. */}
+                {!outside && isCosmeticId(row.title) && (
+                  <span data-testid="ranking-title" className={cn("ml-1.5 text-xs font-normal", !row.isViewer && "text-muted-foreground")}>
+                    {tCosmetics(`${row.title}.name`)}
+                  </span>
+                )}
                 {/* On a line of its own: on a phone, the scores stay in view. */}
                 {outside && <span className="block text-xs not-italic">{t("signInToRank")}</span>}
               </TableCell>

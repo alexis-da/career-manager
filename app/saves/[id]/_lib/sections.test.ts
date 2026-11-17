@@ -58,12 +58,13 @@ describe("a save's sections", () => {
     }
   });
 
-  it("leads Club to its overview at every width, with the challenge and the honours beside it", () => {
+  it("leads Club to its overview at every width, with the challenge, the honours and the rewards beside it", () => {
     const club = sectionAt("/club");
     expect(club.home).toBe("/club");
     expect(club.computerHome).toBeUndefined();
-    expect(tabsOf(club, false)).toEqual(["club", "challenge", "seasons"]);
+    expect(tabsOf(club, false)).toEqual(["club", "challenge", "seasons", "rewards"]);
     expect(tabAt("/seasons/season-1")).toBe("seasons");
+    expect(sectionAt("/rewards").key).toBe("club");
   });
 
   it("never gives a tab the test id of an entry", () => {

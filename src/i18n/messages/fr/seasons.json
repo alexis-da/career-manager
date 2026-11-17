@@ -67,6 +67,7 @@
     "noBestPlayer": "Aucun joueur à 10 matchs",
     "playerGoals": "BUTS",
     "playerAssists": "PASSES",
-    "playerRating": "NOTE"
+    "playerRating": "NOTE",
+    "manager": "MANAGER : {title}"
   }
 }

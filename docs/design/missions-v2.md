@@ -593,3 +593,18 @@ Chaque étape est en ligne seule, comme les compteurs de la v1.
 
 Tous, à la validation du 17/11 : voir « Décisions de la validation » en tête du cahier. Le cahier vaut référence pour
 le chantier « missions v2 » ; ce qui s'en écarte en le codant y est noté.
+
+## 10. Écarts au codage (17/11)
+
+- **Jeune prometteur** : clé `shop-youth:{n}` et flux `{Save.seed}:shop-youth:{n}` (au lieu de `shop-{saison}-{n}`), n le rang
+  de l'achat dans la carrière ; le verrou lit la fin du premier contrat gardée dans l'achat (`effect.contractUntil`), et ne
+  coûte aucune requête tant qu'aucun joueur du club n'a une clé `shop-youth:`.
+- **Carte de fin de saison** : le titre est au pied de la carte (« MANAGER : LE TACTICIEN »), à droite de l'adresse du jeu,
+  plutôt que sous la saison : rien au-dessus ne bouge, dans les deux formats. `SEASON_CARD_VERSION` n'est pas augmentée : la
+  carte par défaut (cadre Nuit, sans titre) est inchangée, et un cadre ou un titre sont dans l'adresse (`frame=`, `title=`),
+  dessinés seulement pour leur propriétaire.
+- **Index** : `TokenEntry(saveId)`, pour qu'une partie supprimée (SetNull) ne relise pas tout le journal.
+- **Mise en ligne** : en une fois plutôt qu'en cinq étapes (§ 8), sur décision de la validation.
+- **Raccourcis** : vers l'onglet Récompenses, la confirmation ouverte sur l'article (`?buy=EXPRESS_CARE&player=…`,
+  `?buy=FITNESS_CAMP`) ; « Stage de forme » dans la composition dès qu'un joueur est sous 75 de condition au coup d'envoi.
+- **Badge mis en avant** : sur la pastille du manager (écran Club), à côté du titre.

@@ -4,7 +4,9 @@ import { getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import * as z from "zod";
 import { requireOwnedSave } from "@/src/auth/current-user";
+import { prisma } from "@/src/db/client";
 import { lineupInputSchema, lineupIssueOf, LineupPlayerNotInSquadError, saveManagedLineup } from "@/src/db/lineup";
+import { recordMissionMoves } from "@/src/db/missions";
 import type { ActionResult } from "../_lib/action-result";
 
 const saveIdSchema = z.string().min(1);
@@ -25,6 +27,8 @@ export async function saveLineupAction(saveId: string, input: unknown): Promise<
     }
     throw error;
   }
+  // The day's missions (SAVE_LINEUP), once the line-up is written.
+  await recordMissionMoves(prisma, id, { lineup: true });
   revalidatePath(`/saves/${id}`, "layout");
   const tFormations = await getTranslations("formations");
   return { ok: true, message: t("saved", { formation: tFormations(`label.${parsed.data.formation}`) }) };

@@ -23,6 +23,29 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-17",
     fr: {
+      title: "Trois missions par jour, des jetons et une boutique",
+      items: [
+        "Chaque jour, trois missions t'attendent sur l'Accueil : une facile, une moyenne et une difficile. Elles rapportent des jetons (10, 20 et 40), et 30 de plus quand tu fais les trois. Une mission ne te plaît pas ? « Changer de mission », une fois par jour, sur une mission pas encore commencée.",
+        "Ta série de jours d'affilée paie aussi : 50 jetons au 3e jour de chaque cycle de 7, 150 et un cosmétique exclusif au 7e. Le protège-série pardonne tout seul un jour manqué.",
+        "Nouvel onglet Club, Récompenses : stage de forme, soin express, rallonge de budget et jeune prometteur pour ta carrière, avec des limites par saison ; titres et cadres pour ta collection. Raccourcis depuis la fiche d'un blessé et la composition.",
+        "Ta collection : un titre sur l'écran Club, sur ta carte de fin de saison et dans le classement du défi, des badges d'accomplissement, et des cadres pour la carte que tu partages.",
+        "Tes jetons te suivent dans toutes tes carrières et à la connexion Google, et ne se perdent jamais ; tes missions d'avant te valent des jetons de bienvenue. Toujours ni missions ni boutique dans les parties du défi de la semaine.",
+      ],
+    },
+    en: {
+      title: "Three missions a day, tokens and a shop",
+      items: [
+        "Every day, three missions wait for you on Home: an easy one, a medium one and a hard one. They earn tokens (10, 20 and 40), and 30 more when you do all three. Don't like a mission? “Change mission”, once a day, on one not started yet.",
+        "Your streak of days in a row pays too: 50 tokens on day 3 of each 7-day cycle, 150 and an exclusive cosmetic on day 7. The streak shield forgives a missed day by itself.",
+        "New Club tab, Rewards: fitness camp, express care, budget top-up and promising youngster for your career, with limits each season; titles and frames for your collection. Shortcuts from an injured player's sheet and the line-up.",
+        "Your collection: a title on the Club screen, on your end-of-season card and in the challenge table, achievement badges, and frames for the card you share.",
+        "Your tokens follow you across all your careers and when you sign in with Google, and are never lost; your earlier missions earn you welcome tokens. Still no missions and no shop in the weekly challenge's careers.",
+      ],
+    },
+  },
+  {
+    date: "2026-11-17",
+    fr: {
       title: "Une mission chaque jour, et ta série",
       items: [
         "Chaque jour, une mission t'attend sur l'Accueil, sous ton prochain match : joue un match en direct, fais un changement ou change de consigne pendant le direct, gagne un match, garde ta cage inviolée, joue trois matchs, titularise un jeune. Elle se fait en une courte session, dans n'importe laquelle de tes carrières, et sa progression s'affiche au fil de tes matchs.",

@@ -98,6 +98,7 @@
       "purchase": "Joined less than a year ago: clubs won't pay much more than you paid for him.",
       "free": "Joined on a free less than a year ago: clubs won't pay more than half his value."
     },
+    "academyUntil": "Promising youngster: he can be neither sold nor released before {date}, when his first contract ends.",
     "selling": "Selling…",
     "acceptOffer": "Accept offer",
     "closedActions": "extensions, sales and releases",

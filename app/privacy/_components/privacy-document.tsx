@@ -54,14 +54,17 @@ function FrenchPrivacy() {
             et ton identifiant Google, ainsi qu&apos;un cookie de session pour rester connecté.
           </li>
           <li>
-            <strong>Les données de jeu</strong> : tes parties, tes choix et leurs résultats ; avec ton profil de joueur,
-            tes missions du jour (la mission de chaque jour, son avancement, le moment où tu l&apos;as accomplie) et ta
-            série de jours d&apos;affilée.
+            <strong>Les données de jeu</strong> : tes parties, tes choix et leurs résultats, dont tes achats en boutique
+            dans chaque carrière ; avec ton profil de joueur, tes missions du jour (les trois missions de chaque jour,
+            leur avancement, le moment où tu les as accomplies, une mission changée), ta série de jours d&apos;affilée et
+            ton protège-série, tes jetons et leur journal (chaque gain et chaque dépense), ta collection de titres,
+            badges et cadres avec ceux que tu portes, et le nombre de tes matchs joués et gagnés en direct.
           </li>
           <li>
             <strong>Si tu joues le défi de la semaine</strong> : ton score de la semaine. Connecté avec Google, ton
-            prénom (le premier mot du nom de ton compte Google) apparaît avec ce score dans le classement public du
-            défi, visible de tous ; sans compte, ton score n&apos;y apparaît pas.
+            prénom (le premier mot du nom de ton compte Google), et le titre de manager que tu portes si tu en as
+            choisi un, apparaissent avec ce score dans le classement public du défi, visible de tous ; sans compte, ton
+            score n&apos;y apparaît pas.
           </li>
           <li>
             <strong>Un cookie de mesure d&apos;audience, lw_src</strong> : à ta première visite, d&apos;où tu viens (le nom
@@ -151,15 +154,15 @@ function FrenchPrivacy() {
             Late Winner is run by Alexis Da Cruz (<Contact />). It uses a technical cookie, lw_uid (a random id, one
             year), to link your saves to your browser, and the fingerprint of any resume link you ask for (seven days,
             used once); if you sign in with Google, your email address, name, profile
-            picture and Google id, and a session cookie; your game data, your daily missions and your streak among them; and the date of your last visit and the days
+            picture and Google id, and a session cookie; your game data, your daily missions, your streak, your tokens and their history, your purchases and your collection among them; and the date of your last visit and the days
             you visited, to measure how many players come back. A first-party audience cookie, lw_src (30 days), keeps
             where your first visit came from (a link&apos;s campaign such as ?ref=…, else the referring site&apos;s
             domain, never its address, else “direct”) and the page you landed on; when your player profile is created,
             that origin, your language and your device type (phone or computer) are kept with it, then the dates of
             your first career, first match, first match played live and first finished season. First visits are also counted by day, origin and
             landing page, and launches of the installed app by day, as plain totals without personal data. If you play the weekly challenge, your score; signed in
-            with Google, your first name (the first word of your Google account&apos;s name) is shown with it in the
-            challenge&apos;s public ranking, to everyone. Comfort cookies keep the language you choose (lw_lang, one
+            with Google, your first name (the first word of your Google account&apos;s name), and the manager title you
+            wear if you chose one, are shown with it in the challenge&apos;s public ranking, to everyone. Comfort cookies keep the language you choose (lw_lang, one
             year), the closing of the banner inviting you to sign in (seven days) and what you have seen of a
             career&apos;s first steps (lw_seen_…, thirty days). Errors the game meets, on the server or in your browser,
             are counted by day with the page (without its identifiers) and a cleaned message, nothing that points to
@@ -219,13 +222,17 @@ function EnglishPrivacy() {
             and your Google identifier, as well as a session cookie to keep you signed in.
           </li>
           <li>
-            <strong>Game data</strong>: your careers, your choices and their results; with your player profile, your daily
-            missions (each day&apos;s mission, its progress, when you completed it) and your streak of days in a row.
+            <strong>Game data</strong>: your careers, your choices and their results, your shop purchases in each career
+            among them; with your player profile, your daily missions (each day&apos;s three missions, their progress,
+            when you completed them, a mission changed), your streak of days in a row and your streak shield, your
+            tokens and their history (each gain and each spending), your collection of titles, badges and frames with
+            those you wear, and how many matches you played and won live.
           </li>
           <li>
             <strong>If you play the weekly challenge</strong>: your score for the week. Signed in with Google, your first
-            name (the first word of your Google account&apos;s name) appears with this score in the challenge&apos;s public
-            ranking, visible to everyone; without an account, your score does not appear there.
+            name (the first word of your Google account&apos;s name), and the manager title you wear if you chose one,
+            appear with this score in the challenge&apos;s public ranking, visible to everyone; without an account, your
+            score does not appear there.
           </li>
           <li>
             <strong>An audience measurement cookie, lw_src</strong>: on your first visit, where you came from (the

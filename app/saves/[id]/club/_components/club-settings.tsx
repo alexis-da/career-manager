@@ -10,7 +10,7 @@ import { maxSavesFor } from "@/src/lib/limits";
 import type { StreakView } from "@/src/lib/missions";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
-import { StreakChip } from "../../_components/daily-mission";
+import { StreakChip } from "../../_components/mission-chips";
 import { CLUB_CARD_LINK, ClubCardTitle } from "./club-card";
 import { InstallApp } from "./install-app";
 import { SETTINGS_DETAIL as DETAIL, SETTINGS_NAME as NAME, SETTINGS_ROW as ROW } from "./settings-styles";

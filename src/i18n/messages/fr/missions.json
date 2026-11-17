@@ -1,6 +1,12 @@
 {
   "missions": {
-    "title": "Mission du jour",
+    "title": "Missions du jour",
+    "tiers": {
+      "EASY": "Facile",
+      "MEDIUM": "Moyenne",
+      "HARD": "Difficile"
+    },
+    "tierLabel": "{tier} · +{tokens}",
     "kinds": {
       "PLAY_LIVE": "Joue ton prochain match en direct",
       "LIVE_SUBSTITUTION": "Fais un changement pendant un match en direct",
@@ -9,38 +15,91 @@
       "WIN": "Gagne un match",
       "CLEAN_SHEET": "Garde ta cage inviolée",
       "PLAY_MATCHES": "Joue {target, plural, one {# match} other {# matchs}}",
-      "START_YOUTH": "Titularise un joueur de 21 ans ou moins"
+      "START_YOUTH": "Titularise un joueur de 21 ans ou moins",
+      "PLAY_MATCH": "Joue un match",
+      "SCORE": "Marque au moins un but",
+      "SAVE_LINEUP": "Enregistre ta composition",
+      "LIVE_DECISION": "Décide toi-même d'un événement du direct",
+      "LIVE_WIN_COACHED": "Gagne un match en direct en faisant un changement",
+      "LIVE_SCORE_TWO": "Marque deux buts dans un match en direct",
+      "LIVE_CLEAN_SHEET": "Garde ta cage inviolée en direct"
     },
     "how": {
       "PLAY_LIVE": "Suis-le jusqu'au coup de sifflet final, même en accéléré.",
-      "LIVE_SUBSTITUTION": "À la mi-temps, ouvre Coaching et fais entrer un remplaçant.",
-      "LIVE_INSTRUCTION": "À la mi-temps, ouvre Coaching et choisis une autre consigne.",
+      "LIVE_SUBSTITUTION": "À une pause, ouvre Coaching et fais entrer un remplaçant.",
+      "LIVE_INSTRUCTION": "À une pause, ouvre Coaching et choisis une autre consigne.",
       "LIVE_WIN": "En direct jusqu'au bout : une victoire aux tirs au but compte aussi.",
       "WIN": "En direct ou simulé, en championnat comme en coupe.",
       "CLEAN_SHEET": "Un match sans encaisser de but : la consigne Fermer peut aider.",
       "PLAY_MATCHES": "En direct ou simulés, toutes compétitions.",
-      "START_YOUTH": "Place-le dans ton onze, puis joue le match."
+      "START_YOUTH": "Place-le dans ton onze, puis joue le match.",
+      "PLAY_MATCH": "En direct ou simulé, toutes compétitions.",
+      "SCORE": "En direct ou simulé : un but de ton équipe suffit.",
+      "SAVE_LINEUP": "Ouvre la composition et touche « Enregistrer ».",
+      "LIVE_DECISION": "Sur une carte d'événement du direct, choisis puis valide.",
+      "LIVE_WIN_COACHED": "Fais au moins un remplacement à une pause, puis gagne.",
+      "LIVE_SCORE_TWO": "Deux buts de ton équipe, prolongation comprise.",
+      "LIVE_CLEAN_SHEET": "Jusqu'au bout sans encaisser : la consigne Fermer peut aider."
     },
     "progress": "{progress}/{target}",
     "progressLabel": "Avancement : {progress} sur {target}",
+    "taskDone": "Faite",
     "done": "Mission accomplie",
-    "tomorrow": "Demain : nouvelle mission",
+    "tokens": "{count, plural, one {# jeton} other {# jetons}}",
     "streak": "{count, plural, one {# jour d'affilée} other {# jours d'affilée}}",
-    "keepGoing": "Accomplis-la pour passer à {next, plural, one {# jour} other {# jours}}.",
-    "start": "Accomplis-la pour lancer ta série.",
-    "restart": "Ta dernière série a duré {count, plural, one {# jour} other {# jours}}. Celle-ci en lance une nouvelle.",
-    "isRecord": "C'est ton record.",
-    "record": "Record : {count, plural, one {# jour} other {# jours}}",
+    "allThree": "Les trois : +{tokens}",
+    "allThreeDone": "Les trois : +{tokens} gagnés",
+    "tomorrow": "Demain : trois nouvelles missions",
+    "cycle": {
+      "label": "Série : jour {day} sur 7 du cycle",
+      "bonus": "J{day} : +{tokens}",
+      "earned": "J{day} : +{tokens} gagné",
+      "lot": "J7 : +{tokens} et {lot}",
+      "lotEarned": "J7 : +{tokens} et {lot} gagnés"
+    },
+    "streakLine": {
+      "start": "Une mission aujourd'hui lance ta série.",
+      "keepGoing": "Une mission aujourd'hui pour passer à {next, plural, one {# jour} other {# jours}}.",
+      "shielded": "Hier manqué : une mission aujourd'hui, et ton protège-série garde ta série.",
+      "restart": "Ta dernière série a duré {count, plural, one {# jour} other {# jours}}. Une mission aujourd'hui en lance une nouvelle.",
+      "counted": "Aujourd'hui compte pour ta série.",
+      "isRecord": "C'est ton record."
+    },
+    "change": {
+      "open": "Changer de mission",
+      "about": "Une fois par jour, sur une mission pas encore commencée.",
+      "confirm": "Changer « {mission} » ?",
+      "yes": "Changer",
+      "no": "Garder",
+      "pending": "Changement…",
+      "changed": "Mission changée.",
+      "refusals": {
+        "challenge": "Pas de missions dans une partie de défi.",
+        "used": "Tu as déjà changé une mission aujourd'hui.",
+        "started": "Cette mission est déjà commencée."
+      }
+    },
+    "changedFrom": "Remplace « {mission} »",
+    "welcome": "Bienvenue dans les nouvelles missions : +{tokens} jetons pour tes missions d'avant.",
+    "rewards": "Récompenses",
+    "lotItems": {
+      "TITLE": "titre « {name} »",
+      "BADGE": "badge « {name} »",
+      "FRAME": "cadre {name}"
+    },
     "lineup": "Ouvrir la composition",
     "settings": {
       "title": "Missions du jour",
-      "none": "Pas de série en cours : la mission du jour de l'Accueil en lance une.",
-      "record": "Record : {count, plural, =0 {pas encore} one {# jour} other {# jours}}"
+      "none": "Pas de série en cours : une mission du jour de l'Accueil en lance une.",
+      "record": "Record : {count, plural, =0 {pas encore} one {# jour} other {# jours}}",
+      "rewards": "Récompenses"
     },
     "sessionEnd": {
-      "todo": "Mission du jour : {mission}",
-      "done": "Mission du jour accomplie",
-      "tomorrow": "Demain : nouvelle mission"
+      "earned": "+{tokens} aujourd'hui · solde {balance}",
+      "count": "Missions {done}/3",
+      "left": "reste : {missions}",
+      "allDone": "Les trois missions sont faites. Demain : trois nouvelles.",
+      "streak": "{count, plural, one {# jour d'affilée} other {# jours d'affilée}}"
     }
   }
 }

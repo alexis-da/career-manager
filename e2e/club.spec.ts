@@ -161,8 +161,10 @@ async function expectDemoObjectives(page: Page): Promise<void> {
  */
 async function expectClubScreen(page: Page): Promise<void> {
   await expect(page.getByTestId("club-title")).toHaveText("Club");
-  await expect(page.getByTestId("club-manager")).toHaveText("Manager : Test · 2e saison");
-  await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Club", "Défi", "Palmarès"]);
+  // The manager's title beside the pill's line: the rookie's until one is chosen (missions v2).
+  await expect(page.getByTestId("club-manager")).toContainText("Manager : Test · 2e saison");
+  await expect(page.getByTestId("club-manager-title")).toHaveText("Novice");
+  await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Club", "Défi", "Palmarès", "Récompenses"]);
   await expect(page.getByTestId("nav-club-overview")).toHaveAttribute("aria-current", "page");
 
   const finances = page.getByTestId("club-finances");
@@ -488,8 +490,9 @@ test.describe("in English, at 390 px", () => {
   test("names the tabs, the manager's season, the money and the settings as a British player reads them", async ({ page }) => {
     await openDemo(page, "/club");
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Club", "Challenge", "Honours"]);
-    await expect(page.getByTestId("club-manager")).toHaveText("Manager: Test · 2nd season");
+    await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Club", "Challenge", "Honours", "Rewards"]);
+    await expect(page.getByTestId("club-manager")).toContainText("Manager: Test · 2nd season");
+    await expect(page.getByTestId("club-manager-title")).toHaveText("Rookie");
     await expect(page.getByTestId("club-budget")).toHaveText(/^€\d+(\.\d+)?m$/);
     await expect(page.getByTestId("club-payroll")).toHaveText(/^€\d+\.\d+m \/ €\d+\.\d+m$/);
     await expect(page.getByTestId("club-challenge-link")).toHaveText("See the challenge");
@@ -582,7 +585,7 @@ test.describe("a Google account's Lyon", () => {
     await expect(page.getByTestId("google-sign-in")).toHaveCount(0);
     await expect(page.getByTestId("settings-saves")).toContainText("1 sur 3 utilisée");
 
-    await expect(page.getByTestId("club-manager")).toHaveText("Manager : Test E2E · 1re saison");
+    await expect(page.getByTestId("club-manager")).toContainText("Manager : Test E2E · 1re saison");
     await expect(page.getByTestId("club-honours-empty")).toBeVisible();
     await expect(page.getByTestId("club-honours").locator("img")).toHaveCount(0);
     await expect(page.getByTestId("season-card-download")).toHaveCount(0);
