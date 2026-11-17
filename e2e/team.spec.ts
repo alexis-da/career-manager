@@ -151,11 +151,17 @@ const elevenOf = (page: Page): Promise<string[]> =>
 const benchOf = (page: Page): Promise<string[]> =>
   page.getByTestId("lineup-bench-player").evaluateAll((players) => players.map((player) => player.getAttribute("data-bench-player-key") ?? ""));
 
-/** The lines of the line-up's list: those of the players outside the eleven and, from 1024 px, those of the starters. */
+/** The lines of the line-up's list: the players outside the eleven only, at every width (the pitch has the starters). */
 const linesOf = (page: Page): Locator => page.getByTestId("lineup-reserves").locator("ul button");
 
-/** A player's line, wherever he stands. */
-const lineOf = (page: Page, key: string): Locator => page.locator(`[data-starter-key="${key}"], [data-player-key="${key}"]`);
+/** A player's line in the list: a substitute's or a player left out's; none for a starter. */
+const lineOf = (page: Page, key: string): Locator => page.locator(`[data-testid="lineup-reserve"][data-player-key="${key}"]`);
+
+/** The name of a slot's player, as its label gives it: « Avant-centre : Prénom Nom, … ». */
+async function slotNameOf(slot: Locator): Promise<string> {
+  const label = (await slot.getAttribute("aria-label")) ?? "";
+  return /^[^:]+:\s*([^,]+)/.exec(label)?.[1].trim() ?? "";
+}
 
 /** A player among the selected slot's candidates: over the page under 1024 px, in the list's place from there. */
 const candidateOf = (page: Page, key: string): Locator =>
@@ -164,8 +170,19 @@ const candidateOf = (page: Page, key: string): Locator =>
 /** The name a line of the list gives. */
 const nameOn = (line: Locator): Promise<string> => textOf(line.locator("span.block"));
 
-/** The starters' lines a width shows: none under 1024 px, where the pitch is right above the list. */
-const visibleStartersOf = (page: Page): Locator => page.locator('[data-testid="lineup-starter"]:visible');
+/** None of the eleven has a line in the list, whatever the width: the pitch has them. */
+async function expectNoStarterInList(page: Page): Promise<void> {
+  await expect(page.getByTestId("lineup-starter")).toHaveCount(0);
+  for (const key of await elevenOf(page)) {
+    await expect(lineOf(page, key)).toHaveCount(0);
+  }
+}
+
+/** A slot's candidates, wherever they show: every player of the squad but the slot's own, the other ten starters too. */
+async function expectEveryCandidate(page: Page, listed: number): Promise<void> {
+  await expect(page.getByTestId("lineup-candidate")).toHaveCount(listed + 10);
+  await expect(page.locator('[data-testid="lineup-candidate"][data-candidate-place="starter"]')).toHaveCount(10);
+}
 
 /** A target a thumb can hit, to the hundredth of a pixel: a sheet still opening leaves a 44 px button at 43.99998. */
 async function expectThumbTarget(target: Locator): Promise<void> {
@@ -356,8 +373,7 @@ for (const { name, locale, viewport, says } of PHONES) {
       await expect(substitute).toHaveText(/^\d{2}/);
       await expect(substitute).toHaveAttribute("title", says.substitute);
       await expect(substitute.locator("[data-position]")).toBeVisible();
-      await expect(page.getByTestId("lineup-starter")).toHaveCount(11);
-      await expect(visibleStartersOf(page)).toHaveCount(0);
+      await expectNoStarterInList(page);
       await expectNoSidewaysScroll(page, "line-up");
 
       // The bench stays in sight along the list; it holds at the top of the screen, and the navigation at its foot.
@@ -395,9 +411,12 @@ for (const { name, locale, viewport, says } of PHONES) {
       // line is the computer's. The sheet of candidates gives way to his, and comes back once it is closed.
       const slot = slots.first();
       const candidates = page.getByTestId("lineup-candidates-sheet");
+      const listed = await reserves.count();
       await slot.tap();
       await expect(slot).toHaveAttribute("aria-pressed", "true");
       await expect(candidates).toBeVisible();
+      // The list leaves the starters out; the slot's candidates never do.
+      await expectEveryCandidate(page, listed);
       await expect(sheet).toHaveCount(0);
       await expectThumbTarget(page.getByTestId("lineup-open-sheet"));
       await expectThumbTarget(page.getByTestId("lineup-send-to-bench"));
@@ -512,7 +531,7 @@ test.describe("at 768 px", () => {
     await expect(slotsOf(page)).toHaveCount(11);
     await expect(sheetOf(page)).toHaveCount(0);
     await expectPitchBenchList(page);
-    await expect(visibleStartersOf(page)).toHaveCount(0);
+    await expectNoStarterInList(page);
     await expectNoSidewaysScroll(page, "line-up");
 
     await page.getByTestId("lineup-reserve").first().click();
@@ -550,7 +569,7 @@ test.describe("at 1100 px", () => {
     await openSave(page, "/lineup");
     await expect(slotsOf(page)).toHaveCount(11);
     expectBeside(await boxOf(page.getByTestId("lineup-reserves")), await boxOf(page.getByTestId("pitch")));
-    await expect(visibleStartersOf(page)).toHaveCount(11);
+    await expectNoStarterInList(page);
     const sheet = sheetOf(page);
     await expect(sheet).toHaveCount(0);
     await expectNoSidewaysScroll(page, "line-up");
@@ -579,7 +598,7 @@ test.describe("at 1100 px", () => {
     // A slot alone opens no sheet: its candidates take the list's place, over nothing; its button opens the starter's
     // sheet, which its cross closes.
     const slot = slotAt(page, FORWARD_SLOT);
-    const starterName = await nameOn(lineOf(page, (await elevenOf(page))[FORWARD_SLOT]));
+    const starterName = await slotNameOf(slot);
     await slot.click();
     await expect(slot).toHaveAttribute("aria-pressed", "true");
     await expect(sheet).toHaveCount(0);
@@ -612,23 +631,25 @@ test("leads to the line-up once hydrated, in three columns: the list, the pitch 
   await expect(page.getByTestId("nav-lineup")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("nav-squad")).not.toHaveAttribute("aria-current", "page");
 
-  // Side by side, in this order, every player in the list.
+  // Side by side, in this order, the players outside the eleven in the list.
   const sheet = sheetOf(page);
   await expect(sheet).toBeVisible();
-  await expect(visibleStartersOf(page)).toHaveCount(11);
+  await expectNoStarterInList(page);
   const list = await boxOf(page.getByTestId("lineup-reserves"));
   const pitch = await boxOf(page.getByTestId("pitch"));
   expectBeside(list, pitch);
   expectBeside(pitch, await boxOf(sheet));
   await expectNoSidewaysScroll(page, "line-up");
 
-  // Never empty and not to be closed: the sheet of the best rated, whose line is lit.
+  // Never empty and not to be closed: the sheet of the best rated of the squad, as good as anyone in the list; his line
+  // lit when he has one, none when he starts, on the pitch.
   await expect(page.getByTestId("player-sheet-close")).toBeHidden();
   const ratings = await linesOf(page).locator("> span:first-child").allTextContents();
-  await expect(sheet.getByTitle("Note", { exact: true })).toHaveText(String(Math.max(...ratings.map(Number))));
+  expect(Number(await textOf(sheet.getByTitle("Note", { exact: true })))).toBeGreaterThanOrEqual(Math.max(...ratings.map(Number)));
+  const sheetName = await textOf(sheetNameOf(page));
+  const starts = (await Promise.all((await slotsOf(page).all()).map(slotNameOf))).includes(sheetName);
   const lit = page.getByTestId("lineup-reserves").locator('button[aria-current="true"]');
-  await expect(lit).toHaveCount(1);
-  await expect(lit).toContainText(await textOf(sheetNameOf(page)));
+  await expect(lit).toHaveCount(starts ? 0 : 1);
   await expect(sheet.getByTestId("player-attributes")).toBeVisible();
 
   // Nothing to save: no orange on the screen, not the renewal, not the sidebar's action.
@@ -649,7 +670,7 @@ test("keeps the sheet on the player last touched, a slot or a line, and needs no
 
   // A slot: the sheet follows it, and stays once it is let go.
   const slot = slotAt(page, FORWARD_SLOT);
-  const forwardName = await nameOn(lineOf(page, eleven[FORWARD_SLOT]));
+  const forwardName = await slotNameOf(slot);
   await slot.click();
   await expect(slot).toHaveAttribute("aria-pressed", "true");
   await expect(sheetNameOf(page)).toHaveText(forwardName);
@@ -673,17 +694,12 @@ test("keeps the sheet on the player last touched, a slot or a line, and needs no
   await expect(slot).toHaveAttribute("aria-pressed", "false");
   await expect(candidates).toHaveCount(0);
 
-  // No slot selected, a line changes nothing but the sheet, and lights up: a reserve's, a starter's.
+  // No slot selected, a line changes nothing but the sheet, and lights up; a starter has none, the pitch has him.
   const reserve = page.getByTestId("lineup-reserve").first();
   await reserve.click();
   await expect(sheetNameOf(page)).toHaveText(await nameOn(reserve));
   await expect(reserve).toHaveAttribute("aria-current", "true");
-
-  const starter = lineOf(page, eleven[KEEPER_SLOT]);
-  await starter.click();
-  await expect(sheetNameOf(page)).toHaveText(await nameOn(starter));
-  await expect(starter).toHaveAttribute("aria-current", "true");
-  await expect(reserve).not.toHaveAttribute("aria-current", "true");
+  await expect(lineOf(page, eleven[KEEPER_SLOT])).toHaveCount(0);
 
   expect(await elevenOf(page)).toEqual(eleven);
   await expect(page.getByTestId("lineup-save")).toBeDisabled();
@@ -756,20 +772,22 @@ test("replaces a starter by a reserve, exchanges two starters, and finds all of 
   await expectOrangeActions(page, ["lineup-save"]);
 
   // A slot, then a reserve among its candidates: he takes it, the sheet follows him, the slot lets go, and the starter
-  // leaves for the bench. The list has its lines again, the newcomer's with his slot.
+  // leaves for the bench. The list has its lines again: the newcomer's gone to the pitch, the outgoing one's on the bench.
   const slot = slotAt(page, FORWARD_SLOT);
   const outgoing = (await elevenOf(page))[FORWARD_SLOT];
   const reserve = page.getByTestId("lineup-group-fw").getByTestId("lineup-reserve").first();
   const incoming = (await reserve.getAttribute("data-player-key")) ?? "";
   const incomingName = await nameOn(reserve);
+  const listed = await page.getByTestId("lineup-reserve").count();
   await slot.click();
+  // The list leaves the starters out; the slot's candidates, in its place, never do.
+  await expectEveryCandidate(page, listed);
   await expect(candidateOf(page, incoming)).not.toHaveAttribute("data-candidate-place", "starter");
   await candidateOf(page, incoming).click();
   await expect(slot).toHaveAttribute("data-slot-player-key", incoming);
   await expect(slot).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(`[data-starter-key="${incoming}"]`)).toBeVisible();
-  await expect(page.locator(`[data-starter-key="${incoming}"] [data-starter-slot]`)).toHaveAttribute("data-starter-slot", "ST");
-  await expect(page.locator(`[data-player-key="${outgoing}"]`)).toHaveAttribute("data-bench", "true");
+  await expect(lineOf(page, incoming)).toHaveCount(0);
+  await expect(lineOf(page, outgoing)).toHaveAttribute("data-bench", "true");
   await expect(sheetNameOf(page)).toHaveText(incomingName);
 
   // A slot, then a starter among its candidates: the two exchange their slots, and the bench does not move.
@@ -784,8 +802,8 @@ test("replaces a starter by a reserve, exchanges two starters, and finds all of 
   await expect(slot).toHaveAttribute("aria-pressed", "false");
   expect(await benchOf(page)).toEqual(bench);
 
-  // Dragged from his line, a starter does the same, from his slot.
-  await page.locator(`[data-starter-key="${incoming}"]`).dragTo(slot);
+  // Dragged from his slot on the pitch, a starter does the same.
+  await other.dragTo(slot);
   await expect(slot).toHaveAttribute("data-slot-player-key", incoming);
   await expect(other).toHaveAttribute("data-slot-player-key", otherKey);
 
@@ -834,7 +852,7 @@ test("releases a starter from the line-up's sheet: he leaves the list, and the p
   const eleven = await elevenOf(page);
 
   const released = eleven[RIGHT_BACK_SLOT];
-  const releasedName = await nameOn(lineOf(page, released));
+  const releasedName = await slotNameOf(slotAt(page, RIGHT_BACK_SLOT));
   await slotAt(page, RIGHT_BACK_SLOT).click();
   await expect(sheetNameOf(page)).toHaveText(releasedName);
   await sheetOf(page).getByTestId("release-player").click();
@@ -851,7 +869,7 @@ test("releases a starter from the line-up's sheet: he leaves the list, and the p
   expect(new Set(now).size).toBe(11);
   expect(now).not.toContain("");
   for (const key of now) {
-    await expect(lineOf(page, key)).toHaveCount(1);
+    await expect(lineOf(page, key)).toHaveCount(0);
   }
   await expect(page.locator("[data-bench-player-key]")).toHaveCount(7);
   await expect(page.locator(`[data-bench-player-key="${released}"]`)).toHaveCount(0);

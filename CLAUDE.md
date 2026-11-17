@@ -608,11 +608,13 @@ surimpression, à partir de 1280 px l'effectif, le terrain et la fiche sur une p
 du poste sélectionné, sinon le dernier joueur choisi, sinon le mieux noté (`pinnedSheetKey`). Chaque joueur placé a sa
 note au poste et l'écart à sa note (« 71 → 65 », `RatingGap`, la flèche en SVG) dès qu'il y en a un, et un libellé
 (`FitLabel`, `positions.fit` : À son poste, Poste secondaire, Dépanne en ambre, Hors poste en rouge) : sur le terrain,
-l'écart sous le nom, le libellé dans le détail et le nom lu, 88 px n'en laissant pas la place ; dans la liste à partir de
-`lg`, sur la ligne de chaque titulaire ; le résumé compte les quatre. Toucher un poste le sélectionne et ouvre ses
+l'écart sous le nom, le libellé dans le détail et le nom lu, 88 px n'en laissant pas la place ; le résumé compte les
+quatre. **La liste de l'effectif (`LineupSquad`, à côté du terrain, sous le banc sur téléphone) ne montre jamais les
+titulaires** (17/11), à toutes les largeurs : les remplaçants, avec leur numéro, et les non-retenus, par ligne du terrain ;
+les titulaires sont sur le terrain, où chacun se glisse depuis son poste. Toucher un poste le sélectionne et ouvre ses
 candidats (`slotCandidates`, `app/saves/[id]/lineup/_lib/candidates.ts` : tout l'effectif sauf le joueur du poste, triés
 par note à ce poste, les blessés et suspendus après ; note au poste, libellé, condition, forme en flèche, `FormArrow`,
-états, place actuelle ; `lineup-candidate`) : sous 1024 px dans une feuille sur la page (`lineup-candidates-sheet`), au-dessus
+états, place actuelle ; `lineup-candidate`), **toujours complets**, titulaires compris : sous 1024 px dans une feuille sur la page (`lineup-candidates-sheet`), au-dessus
 à la place de la liste de l'effectif (`PanelCandidates`, que « Tout l'effectif » ou Échap rendent) ; un toucher y place le
 joueur ou échange deux titulaires (`placeInSlot`), et le glisser-déposer reste ; `lineup-open-sheet` et
 `lineup-send-to-bench` avec le joueur du poste ; sans poste sélectionné, une ligne ouvre la fiche. Choix du dispositif

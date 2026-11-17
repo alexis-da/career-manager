@@ -480,7 +480,6 @@ function LineupEditor({ saveId, editor, squad, opponent, care = null, chosen, on
 
         <LineupSquad
           players={players}
-          slots={slots}
           starters={state.starters}
           bench={state.bench}
           position={selectedPosition}

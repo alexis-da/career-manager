@@ -23,6 +23,21 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-17",
     fr: {
+      title: "Une composition plus lisible",
+      items: [
+        "Dans la Composition, la liste à côté du terrain, et sous le banc sur téléphone, ne montre plus que tes remplaçants et les joueurs non retenus : tes titulaires sont sur le terrain. Toucher un poste propose toujours tout l'effectif, titulaires compris, pour un échange.",
+      ],
+    },
+    en: {
+      title: "A clearer line-up",
+      items: [
+        "In the Line-up, the list beside the pitch, and under the bench on a phone, now shows only your substitutes and the players left out: your starters are on the pitch. Tapping a position still offers the whole squad, starters included, for a swap.",
+      ],
+    },
+  },
+  {
+    date: "2026-11-17",
+    fr: {
       title: "Trois missions par jour, des jetons et une boutique",
       items: [
         "Chaque jour, trois missions t'attendent sur l'Accueil : une facile, une moyenne et une difficile. Elles rapportent des jetons (10, 20 et 40), et 30 de plus quand tu fais les trois. Une mission ne te plaît pas ? « Changer de mission », une fois par jour, sur une mission pas encore commencée.",
