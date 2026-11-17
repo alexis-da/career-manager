@@ -7,6 +7,7 @@ import {
   europeDrawRngSeed,
   europeMatchPrize,
   europeObjective,
+  europePrizesOf,
   europeReputationBonus,
   europeRunOf,
   EUROPE_COUNTRIES,
@@ -19,6 +20,7 @@ import {
   type CountryQualifiers,
   type EuropeEntrant,
   type PlayedEuropeTie,
+  wonEuropeMatch,
 } from "./europe";
 import { matchdayDates } from "./schedule";
 
@@ -217,6 +219,40 @@ describe("prizes, runs, bonuses and objectives", () => {
     }
     expect(europeMatchPrize("eu.1", 3, false)).toBe(0);
     expect(europeMatchPrize("eu.1", 10, false)).toBe(4_000_000);
+  });
+
+  it("adds up what a club earned in a season: participation, its matches won, the first four's quarter-finals place", () => {
+    const match = (round: number, home: string, away: string, homeGoals: number, awayGoals: number, winner: string | null = null) => ({
+      round,
+      played: true,
+      home,
+      away,
+      homeGoals,
+      awayGoals,
+      winner,
+    });
+    const prizes = { participation: 1_500_000, leagueWin: 300_000, quarterPlace: 800_000, quarterWin: 1_200_000, semiWin: 1_800_000 };
+    const season = [
+      match(1, "a", "b", 2, 0), // won at home
+      match(2, "c", "a", 1, 1), // a draw
+      match(3, "d", "a", 0, 1), // won away
+      match(4, "a", "e", 0, 2), // lost
+      { ...match(5, "a", "f", 0, 0), played: false }, // not played yet
+      match(1, "b", "c", 3, 0), // not its match
+    ];
+    expect(europePrizesOf("eu.2", "a", [], false)).toBe(prizes.participation);
+    expect(europePrizesOf("eu.2", "a", season, false)).toBe(prizes.participation + 2 * prizes.leagueWin);
+    expect(europePrizesOf("eu.2", "a", season, true)).toBe(prizes.participation + 2 * prizes.leagueWin + prizes.quarterPlace);
+    // Past the league phase, the tie's winner, whatever the score after 90 minutes: a quarter-final won on penalties.
+    const knockout = [...season, match(8, "a", "g", 1, 1, "a"), match(9, "h", "a", 2, 1, "h")];
+    expect(europePrizesOf("eu.2", "a", knockout, true)).toBe(prizes.participation + 2 * prizes.leagueWin + prizes.quarterPlace + prizes.quarterWin);
+    expect(europePrizesOf("eu.2", "h", knockout, false)).toBe(prizes.participation + prizes.semiWin);
+    expect([wonEuropeMatch(3, 2, 1, false), wonEuropeMatch(3, 1, 1, true), wonEuropeMatch(8, 1, 1, true), wonEuropeMatch(8, 3, 0, false)]).toEqual([
+      true,
+      false,
+      true,
+      false,
+    ]);
   });
 
   it("reads a club's stage from the league phase's ranking and its knockout ties", () => {

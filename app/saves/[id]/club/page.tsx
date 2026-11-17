@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { ensureCurrentChallenge } from "@/src/db/challenge";
 import { getChallengePage } from "@/src/db/challenge-view";
-import { getClubFinances, getManagerName } from "@/src/db/club";
+import { getClubFinances, getManagerName, getSeasonPrizes } from "@/src/db/club";
 import { getMissionStreak } from "@/src/db/missions";
 import { getWornCosmetics } from "@/src/db/rewards-view";
 import { getSeasonObjectives } from "@/src/db/objectives";
@@ -40,11 +40,12 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
   // Not simulation code: the real week, and the real day of the player's streak.
   const now = new Date();
   const challenge = await ensureCurrentChallenge(now);
-  const [t, tCosmetics, managerName, finances, view, objectives, { seasons }, ownedSaves, streak, worn] = await Promise.all([
+  const [t, tCosmetics, managerName, finances, prizes, view, objectives, { seasons }, ownedSaves, streak, worn] = await Promise.all([
     getTranslations("club"),
     getTranslations("rewards.cosmetics"),
     getManagerName(id),
     getClubFinances(id),
+    getSeasonPrizes(id),
     getChallengePage(challenge, { id: user.id, kind: user.kind }),
     getSeasonObjectives(id),
     getSeasonResults(id),
@@ -76,7 +77,7 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
 
       {/* Each card at its own height: the finances, with their dotation, run longer than the challenge. */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        <ClubFinancesCard finances={finances} />
+        <ClubFinancesCard finances={finances} prizes={prizes} />
         <ClubChallenge saveId={id} view={view} />
       </div>
 

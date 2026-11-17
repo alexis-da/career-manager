@@ -190,6 +190,8 @@ async function expectClubScreen(page: Page): Promise<void> {
   // The money is read only here: nothing of what comes in.
   await expect(page.getByRole("main")).not.toContainText(/recette/i);
   await expectDemoDotation(finances);
+  // A worldVersion 1 save: neither a cup nor a European competition, no prize money.
+  await expect(finances.getByTestId("club-prizes")).toHaveCount(0);
 
   const challenge = page.getByTestId("club-challenge");
   await expect(challenge).toHaveCSS("background-color", BRIGHT_BLUE);
@@ -606,7 +608,7 @@ test.describe("a Google account's Lyon", () => {
     await expectThumbTargets(page);
   });
 
-  test("gives its first season's budget in one line, the one it started with, and its wage cap, down to 360 px", async ({ page }) => {
+  test("gives its first season's budget in one line, the one it started with, its wage cap and its prize money, down to 360 px", async ({ page }) => {
     await openSave(page, "/club");
     const dotation = page.getByTestId("club-finances").getByTestId("club-dotation");
     await expect(dotation.getByRole("heading")).toHaveText("Saison 2026-27");
@@ -620,11 +622,19 @@ test.describe("a Google account's Lyon", () => {
     for (const detail of ["club-dotation-base", "club-dotation-objectives", "club-dotation-carry-over", "club-dotation-total"]) {
       await expect(dotation.getByTestId(detail)).toHaveCount(0);
     }
+    // The season's prize money: that participation, nothing from the cup yet.
+    const prizes = page.getByTestId("club-finances").getByTestId("club-prizes");
+    await expect(prizes.getByRole("heading")).toHaveText("Primes reçues · saison 2026-27");
+    await expect(prizes.getByTestId("club-prizes-europe")).toHaveText(/^Primes européennes\s*Coupe des Fanions\s*1,5 M€$/);
+    await expect(prizes.getByTestId("club-prizes-europe").locator("dd")).toHaveAttribute("data-amount", "1500000");
+    await expect(prizes.getByTestId("club-prizes-cup")).toHaveText(/^Primes de la coupe\s*France — Coupe\s*0 €$/);
+    await expect(prizes.getByTestId("club-prizes-cup").locator("dd")).toHaveAttribute("data-amount", "0");
     await expectOrangeActions(page, ["club-challenge-link"]);
 
     for (const viewport of [PHONE, SMALL_PHONE]) {
       await page.setViewportSize(viewport);
       await expect(dotation).toBeVisible();
+      await expect(prizes).toBeVisible();
       await expectNoSidewaysScroll(page, `dotation at ${viewport.width} px`);
     }
   });

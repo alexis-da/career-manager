@@ -21,6 +21,11 @@
       "total": "Budget de la saison",
       "wageBudget": "Plafond salarial"
     },
+    "prizes": {
+      "title": "Primes reçues · saison {season}",
+      "europe": "Primes européennes",
+      "cup": "Primes de la coupe"
+    },
     "challengeWeek": "S{week}",
     "challengeScenario": "{club} · {horizon} journées",
     "challengeScore": "{points, plural, one {# point} other {# points}}",

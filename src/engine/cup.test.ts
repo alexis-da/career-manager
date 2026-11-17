@@ -6,6 +6,7 @@ import {
   cupDates,
   cupDrawRngSeed,
   cupPrize,
+  cupPrizesOf,
   cupRunOf,
   drawTies,
   nextRoundTies,
@@ -141,6 +142,22 @@ describe("cup prizes and runs", () => {
     // A second division club from the preliminary round to the semi-finals: some 3.9 M€.
     expect([1, 2, 3, 4].reduce((sum, round) => sum + cupPrize(round, true), 0)).toBe(1_850_000);
     expect([1, 2, 3, 4, 5].reduce((sum, round) => sum + cupPrize(round, true), 0) + CUP_RUNNER_UP_PRIZE).toBe(6_350_000);
+  });
+
+  it("adds up what a club earned from its ties, as they are credited", () => {
+    const played = playCup(entrantsOf("it"), "it");
+    const final = played.find((tie) => tie.round === CUP_ROUNDS);
+    if (final === undefined) {
+      throw new Error("No final");
+    }
+    for (const club of [final.home, final.away, played.find((tie) => tie.round === 1)?.away ?? ""]) {
+      const own = played.filter((tie) => tie.home === club || tie.away === club);
+      expect(cupPrizesOf(played, club)).toBe(own.reduce((sum, tie) => sum + cupPrize(tie.round, tie.winner === club), 0));
+    }
+    // The winner entered in the round of 32 at the latest: every round from it won, and the final.
+    expect(cupPrizesOf(played, final.home)).toBeGreaterThanOrEqual(CUP_ROUND_PRIZES.slice(1).reduce((sum, prize) => sum + prize, 0) + CUP_WINNER_PRIZE);
+    expect(cupPrizesOf(played, played.find((tie) => tie.round === 1)?.away ?? "")).toBe(0);
+    expect(cupPrizesOf(played, "no-such-club")).toBe(0);
   });
 
   it("records the last round each club played, and the winner", () => {

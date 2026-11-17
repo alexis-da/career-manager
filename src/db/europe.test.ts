@@ -158,6 +158,32 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the European competitio
       expect((afterQuarterPlaces.get(row.homeClubSaveId) ?? 0) - (after.get(row.homeClubSaveId) ?? 0)).toBe(prizes.quarterFinalQualification);
     }
   });
+
+  it("shows on the Club screen the prizes its matches earned, none from the cup yet", async () => {
+    const db = database();
+    const { getSeasonPrizes } = await import("./club");
+    const { europeFixtures, leaguePhaseTableOf, parseEuropeEntrants } = europeModule();
+    const managed = await db.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true, club: { select: { slug: true } } } });
+    const season = await seasonOf("eu.2");
+    const fixtures = await europeFixtures(db, saveId, season.id);
+    const ranking = leaguePhaseTableOf(parseEuropeEntrants(season.id, season.entrants), fixtures).map((row) => row.club);
+    // Every home club won its match above, its play-off too: the managed club's wins are its home matches played.
+    const homeWins = (rounds: (round: number) => boolean) =>
+      fixtures.filter((fixture) => fixture.played && rounds(fixture.round) && fixture.homeClubSaveId === managed.id).length;
+    const prizes = EUROPE_PRIZES["eu.2"];
+    const expected =
+      prizes.participation +
+      homeWins((round) => round <= 6) * prizes.leagueWin +
+      (ranking.slice(0, 4).includes(managed.club.slug) ? prizes.quarterFinalQualification : 0) +
+      homeWins((round) => round === 7) * prizes.quarterFinalQualification;
+
+    expect(await getSeasonPrizes(saveId)).toEqual({
+      startYear: WORLD_START_YEAR,
+      cup: { code: "fr.cup", amount: 0 },
+      europe: { code: "eu.2", amount: expected },
+    });
+    expect(expected).toBeGreaterThan(prizes.participation);
+  });
 });
 
 const FINAL_DATE = new Date(Date.UTC(WORLD_START_YEAR, 7, 12)); // a Wednesday before the first matchday

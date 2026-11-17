@@ -84,6 +84,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("European seasons", () =
   let tables = new Map<string, { code: string; tier: number; rows: ReturnType<typeof computeStandings> }>();
   let reputationsBefore = new Map<string, { reputation: number; slug: string; code: string }>();
   let runBefore: Awaited<ReturnType<typeof import("./europe").clubEuropeRun>> = null;
+  let prizesAtEnd: Awaited<ReturnType<typeof import("./club").getSeasonPrizes>> = null;
+  let budgetGained = 0;
   let cupWinners = new Map<string, string>(); // country prefix → slug of the season's cup winner
   const fixturesOfFirstSeason: { code: string; round: number; date: string; home: string; away: string; played: boolean; winner: string | null; decidedBy: string | null }[] = [];
 
@@ -139,6 +141,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("European seasons", () =
     reputationsBefore = new Map(clubs.map((club) => [club.id, { reputation: club.reputation, slug: club.club.slug, code: club.competition.code }]));
     const europeSeasons = await prisma.season.findMany({ where: { saveId, startYear: FIRST_YEAR, competition: { kind: "EUROPE" } }, select: { id: true } });
     runBefore = await europe.clubEuropeRun(prisma, saveId, managedId, europeSeasons.map((row) => row.id));
+    // The Club screen's prize money at the season's end, against what the budget received since the dotation.
+    prizesAtEnd = await (await import("./club")).getSeasonPrizes(saveId);
+    const [{ budget }, dotation] = await Promise.all([
+      prisma.clubSave.findUniqueOrThrow({ where: { id: managedId, saveId }, select: { budget: true } }),
+      prisma.seasonBudget.findFirstOrThrow({ where: { saveId, season: { startYear: FIRST_YEAR } }, select: { budget: true } }),
+    ]);
+    budgetGained = budget - dotation.budget;
     const finals = await prisma.fixture.findMany({
       where: { saveId, round: 6, played: true, season: { startYear: FIRST_YEAR, competition: { kind: "CUP" } } },
       select: { season: { select: { competition: { select: { code: true } } } }, winnerClubSave: { select: { club: { select: { slug: true } } } } },
@@ -188,6 +197,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("European seasons", () =
         expect(sorted[index] - sorted[index - 2]).toBeGreaterThanOrEqual(7 * DAY_MS);
       }
     }
+  });
+
+  it("shows on the Club screen, at the season's end, every cup and European prize its budget received", () => {
+    expect(prizesAtEnd?.startYear).toBe(FIRST_YEAR);
+    expect(prizesAtEnd?.europe?.code).toBe(runBefore?.code);
+    expect(prizesAtEnd?.cup?.code).toBe("fr.cup");
+    expect((prizesAtEnd?.cup?.amount ?? 0) + (prizesAtEnd?.europe?.amount ?? 0)).toBe(budgetGained);
   });
 
   it("writes the managed club's European run in its season result, the trophy for a title", async () => {

@@ -1,5 +1,9 @@
 import { NEUTRAL_BUDGET_COEFFICIENT } from "../engine/balance";
+import { cupCode, cupPrizesOf } from "../engine/cup";
+import type { EuropeCode } from "../engine/europe";
+import { countryOf } from "../engine/promotion";
 import { prisma } from "./client";
+import { clubEuropePrizes } from "./europe";
 
 /**
  * The board's last dotation to the managed club, as SeasonBudget keeps it on the league season it opened (gameplay v2,
@@ -86,6 +90,63 @@ async function getLatestDotation(saveId: string): Promise<ClubDotation | null> {
     objectivesAmount: dotation.budget - dotation.carryOver - dotation.dotation,
     first: earlierSeasons === 0 && dotation.carryOver === 0 && dotation.coefficient === NEUTRAL_BUDGET_COEFFICIENT,
   };
+}
+
+/** The prize money the managed club has received this season, from its country's cup and its European competition. */
+export type SeasonPrizes = {
+  startYear: number; // of the season
+  cup: { code: string; amount: number } | null; // euros; null without a cup this season
+  europe: { code: EuropeCode; amount: number } | null; // euros, its participation included; null when it plays none
+};
+
+/**
+ * The prize money of the managed club's current season (its latest league season's year), as its budget received it:
+ * each cup tie's (cupPrizesOf, as progressCups credits it) and its European season's (clubEuropePrizes); null without a
+ * cup nor a European season, as in a worldVersion 1 save.
+ */
+export async function getSeasonPrizes(saveId: string): Promise<SeasonPrizes | null> {
+  const club = await prisma.clubSave.findFirstOrThrow({
+    where: { saveId, isManaged: true },
+    select: { id: true, competition: { select: { code: true } } },
+  });
+  const latest = await prisma.season.findFirst({
+    where: { saveId, competition: { kind: "LEAGUE" } },
+    orderBy: { startYear: "desc" },
+    select: { startYear: true },
+  });
+  if (latest === null) {
+    return null;
+  }
+  const { startYear } = latest;
+  const seasons = await prisma.season.findMany({
+    where: { saveId, startYear, competition: { kind: { in: ["CUP", "EUROPE"] } } },
+    select: { id: true, competition: { select: { code: true, kind: true } } },
+  });
+  const cupSeason = seasons.find((season) => season.competition.code === cupCode(countryOf(club.competition.code)));
+  const ties =
+    cupSeason === undefined
+      ? []
+      : await prisma.fixture.findMany({
+          where: { saveId, seasonId: cupSeason.id, played: true, OR: [{ homeClubSaveId: club.id }, { awayClubSaveId: club.id }] },
+          select: { round: true, homeClubSaveId: true, awayClubSaveId: true, winnerClubSaveId: true },
+        });
+  const cup =
+    cupSeason === undefined
+      ? null
+      : {
+          code: cupSeason.competition.code,
+          amount: cupPrizesOf(
+            ties.map((tie) => ({ round: tie.round, home: tie.homeClubSaveId, away: tie.awayClubSaveId, winner: tie.winnerClubSaveId ?? "" })),
+            club.id,
+          ),
+        };
+  const europe = await clubEuropePrizes(
+    prisma,
+    saveId,
+    club.id,
+    seasons.filter((season) => season.competition.kind === "EUROPE").map((season) => season.id),
+  );
+  return cup === null && europe === null ? null : { startYear, cup, europe };
 }
 
 /** The name the player manages the save under. */

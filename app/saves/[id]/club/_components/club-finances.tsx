@@ -1,7 +1,8 @@
 import { useLocale, useTranslations } from "next-intl";
-import type { ClubDotation, ClubFinances } from "@/src/db/club";
+import type { ClubDotation, ClubFinances, SeasonPrizes } from "@/src/db/club";
 import { NEUTRAL_BUDGET_COEFFICIENT } from "@/src/engine/balance";
 import { seasonLabel } from "@/src/engine/world";
+import { competitionName } from "@/src/i18n/countries";
 import type { Locale } from "@/src/i18n/locale";
 import { formatHundredths, formatMillionsAmount, formatMoney, millionsFigure } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
@@ -19,19 +20,22 @@ type DotationLineProps = {
   label: string;
   detail?: string; // under the label, smaller
   amount: string;
+  amountValue?: number; // euros, in data-amount
   amountClassName?: string;
   className?: string;
 };
 
 /** A line of the dotation: what it is, its detail under it, and its amount at the right, on the label's first line. */
-function DotationLine({ testId, label, detail, amount, amountClassName, className }: DotationLineProps) {
+function DotationLine({ testId, label, detail, amount, amountValue, amountClassName, className }: DotationLineProps) {
   return (
     <div data-testid={testId} className={cn("flex items-baseline justify-between gap-x-3", className)}>
       <dt className="min-w-0 wrap-break-word">
         {label}
         {detail !== undefined && <span className="block text-[0.8125rem] text-muted-foreground">{detail}</span>}
       </dt>
-      <dd className={cn("shrink-0 text-right font-bold tabular-nums", amountClassName)}>{amount}</dd>
+      <dd data-amount={amountValue} className={cn("shrink-0 text-right font-bold tabular-nums", amountClassName)}>
+        {amount}
+      </dd>
     </div>
   );
 }
@@ -109,10 +113,48 @@ function DotationDetail({ dotation }: { dotation: ClubDotation }) {
 }
 
 /**
- * The club's money, read only: its transfer budget, its payroll against its wage budget and what that leaves, then the
- * board's last dotation, for a save made since the season budgets (gameplay v2, V2).
+ * The prize money the club has received this season, on top of its dotation: its European competition's, participation
+ * included, then its cup's, each named by its competition.
  */
-export function ClubFinancesCard({ finances }: { finances: ClubFinances }) {
+function PrizesDetail({ prizes }: { prizes: SeasonPrizes }) {
+  const t = useTranslations("club.prizes");
+  const tWorld = useTranslations("world");
+  const locale = useLocale();
+  return (
+    <section aria-labelledby="club-prizes-title" data-testid="club-prizes" className="space-y-2.5 border-t pt-4">
+      <h3 id="club-prizes-title" className="eyebrow">
+        {t("title", { season: seasonLabel(prizes.startYear) })}
+      </h3>
+      <dl className="space-y-2.5 text-sm">
+        {prizes.europe !== null && (
+          <DotationLine
+            testId="club-prizes-europe"
+            label={t("europe")}
+            detail={competitionName(prizes.europe.code, tWorld)}
+            amount={formatMoney(prizes.europe.amount, locale)}
+            amountValue={prizes.europe.amount}
+          />
+        )}
+        {prizes.cup !== null && (
+          <DotationLine
+            testId="club-prizes-cup"
+            label={t("cup")}
+            detail={competitionName(prizes.cup.code, tWorld)}
+            amount={formatMoney(prizes.cup.amount, locale)}
+            amountValue={prizes.cup.amount}
+          />
+        )}
+      </dl>
+    </section>
+  );
+}
+
+/**
+ * The club's money, read only: its transfer budget, its payroll against its wage budget and what that leaves, then the
+ * board's last dotation, for a save made since the season budgets (gameplay v2, V2), and the prize money of the season,
+ * for a save with a cup or a European competition.
+ */
+export function ClubFinancesCard({ finances, prizes = null }: { finances: ClubFinances; prizes?: SeasonPrizes | null }) {
   const t = useTranslations("club");
   const locale = useLocale();
   const { budget, wageBudget, payroll, wageRoom, dotation } = finances;
@@ -156,6 +198,7 @@ export function ClubFinancesCard({ finances }: { finances: ClubFinances }) {
         </div>
       </div>
       {dotation !== null && <DotationDetail dotation={dotation} />}
+      {prizes !== null && <PrizesDetail prizes={prizes} />}
     </Panel>
   );
 }

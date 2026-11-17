@@ -395,6 +395,41 @@ export function europeMatchPrize(code: EuropeCode, round: number, won: boolean):
   }
 }
 
+/** Whether a club won a European match it played: by its score in the league phase, by going through past it. */
+export function wonEuropeMatch(round: number, scored: number | null, conceded: number | null, through: boolean): boolean {
+  return round <= EUROPE_LEAGUE_ROUNDS ? (scored ?? 0) > (conceded ?? 0) : through;
+}
+
+/** A European match, its clubs by key, as a club's prizes read it. */
+export type EuropePrizeMatch = {
+  round: number;
+  played: boolean;
+  home: string;
+  away: string;
+  homeGoals: number | null;
+  awayGoals: number | null;
+  winner: string | null; // a knockout tie's club through
+};
+
+/**
+ * What a club has earned in a European season, in euros, as openEurope and progressEurope credit it: its participation,
+ * what each match it played earned (europeMatchPrize), and the quarter-finals' place of the league phase's first four
+ * once it is over (`directPlace`).
+ */
+export function europePrizesOf(code: EuropeCode, club: string, matches: readonly EuropePrizeMatch[], directPlace: boolean): number {
+  const prizes = europePrizes(code);
+  let total = prizes.participation + (directPlace ? prizes.quarterFinalQualification : 0);
+  for (const match of matches) {
+    if (!match.played || (match.home !== club && match.away !== club)) {
+      continue;
+    }
+    const home = match.home === club;
+    const [scored, conceded] = home ? [match.homeGoals, match.awayGoals] : [match.awayGoals, match.homeGoals];
+    total += europeMatchPrize(code, match.round, wonEuropeMatch(match.round, scored, conceded, match.winner === club));
+  }
+  return total;
+}
+
 /** The stage a knockout round brings its clubs to (EUROPE_STAGES). */
 export function stageOfRound(round: number): number {
   switch (round) {

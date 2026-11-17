@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/src/auth/current-user";
 import type { ChallengePageView, ChallengeRankingRow } from "@/src/db/challenge-view";
-import type { ClubDotation } from "@/src/db/club";
+import type { ClubDotation, SeasonPrizes } from "@/src/db/club";
 import type { SeasonResultView } from "@/src/db/season-results";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage, testTranslator } from "@/src/i18n/test-intl";
@@ -393,5 +393,48 @@ describe("the settings", () => {
     expect(markup).toMatch(/aria-pressed="false"[^>]*data-testid="language-en"/);
     expect(markup).toMatch(/data-testid="settings-change-save"[^>]*href="\/fr"/);
     expect(markup).toMatch(/data-testid="settings-privacy"[^>]*href="\/fr\/confidentialite"/);
+  });
+});
+
+describe("the season's prize money", () => {
+  const FINANCES = { budget: 24_500_000, wageBudget: 70_000_000, payroll: 61_000_000, wageRoom: 9_000_000, dotation: null };
+  const PRIZES: SeasonPrizes = { startYear: 2026, cup: { code: "fr.cup", amount: 350_000 }, europe: { code: "eu.2", amount: 2_400_000 } };
+
+  const card = (prizes: SeasonPrizes | null, locale?: Locale): string => render(<ClubFinancesCard finances={FINANCES} prizes={prizes} />, locale);
+
+  /** The texts of a line, by its test id: its label, its detail, then its amount; and the amount in euros. */
+  const lineOf = (markup: string, testId: string): string[] | null => {
+    const line = new RegExp(`<div data-testid="${testId}"[^>]*>(.*?</dd>)</div>`).exec(markup)?.[1];
+    return line === undefined ? null : [...line.matchAll(/>([^<]+)</g)].map(([, text]) => text.replaceAll("&#x27;", "'"));
+  };
+  const amountOf = (markup: string, testId: string): string | null =>
+    new RegExp(`<div data-testid="${testId}"[^>]*>.*?<dd data-amount="([^"]*)"`).exec(markup)?.[1] ?? null;
+
+  it("shows what the European competition and the cup paid this season, each by its name", () => {
+    const markup = card(PRIZES);
+
+    expect(markup).toContain('<h3 id="club-prizes-title" class="eyebrow">Primes reçues · saison 2026-27</h3>');
+    expect(lineOf(markup, "club-prizes-europe")).toEqual(["Primes européennes", "Coupe des Fanions", "2,4 M€"]);
+    expect(lineOf(markup, "club-prizes-cup")).toEqual(["Primes de la coupe", "France — Coupe", "350 k€"]);
+    expect([amountOf(markup, "club-prizes-europe"), amountOf(markup, "club-prizes-cup")]).toEqual(["2400000", "350000"]);
+    // The Europe line first, then the cup's.
+    expect(markup.indexOf("club-prizes-europe")).toBeLessThan(markup.indexOf("club-prizes-cup"));
+  });
+
+  it("shows only the competitions the club plays, and nothing without any", () => {
+    const cupOnly = card({ ...PRIZES, cup: { code: "fr.cup", amount: 0 }, europe: null });
+
+    expect(lineOf(cupOnly, "club-prizes-cup")).toEqual(["Primes de la coupe", "France — Coupe", "0 €"]);
+    expect(lineOf(cupOnly, "club-prizes-europe")).toBeNull();
+    expect(card(null)).not.toContain("club-prizes");
+    expect(render(<ClubFinancesCard finances={FINANCES} />)).not.toContain("club-prizes");
+  });
+
+  it("says it in British English", () => {
+    const markup = card(PRIZES, "en");
+
+    expect(markup).toContain(">Prize money · 2026-27 season</h3>");
+    expect(lineOf(markup, "club-prizes-europe")).toEqual(["European prize money", "Pennant Cup", "€2.4m"]);
+    expect(lineOf(markup, "club-prizes-cup")).toEqual(["Cup prize money", "France — Cup", "€350k"]);
   });
 });

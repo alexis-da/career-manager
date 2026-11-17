@@ -116,6 +116,11 @@ export function cupPrize(round: number, won: boolean): number {
   return won ? prize : 0;
 }
 
+/** What a club has earned in a cup from the ties it played (any order): each tie's cupPrize, as progressCups credits it. */
+export function cupPrizesOf(ties: readonly PlayedTie[], club: string): number {
+  return ties.reduce((sum, tie) => (tie.home === club || tie.away === club ? sum + cupPrize(tie.round, tie.winner === club) : sum), 0);
+}
+
 /** A club's cup: the last round it played, and whether it won the cup. */
 export type CupRun = { round: number; won: boolean };
 

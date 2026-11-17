@@ -21,6 +21,11 @@
       "total": "Season budget",
       "wageBudget": "Wage cap"
     },
+    "prizes": {
+      "title": "Prize money · {season} season",
+      "europe": "European prize money",
+      "cup": "Cup prize money"
+    },
     "challengeWeek": "W{week}",
     "challengeScenario": "{club} · {horizon} matchdays",
     "challengeScore": "{points, plural, one {# point} other {# points}}",

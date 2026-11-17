@@ -6,6 +6,7 @@ import {
   europeDrawRngSeed,
   europeMatchPrize,
   europePrizes,
+  europePrizesOf,
   europeReputationBonus,
   europeRunOf,
   EUROPE_DIRECT_PLACES,
@@ -22,6 +23,7 @@ import {
   type EuropeRun,
   type EuropeTableRow,
   type EuropeTie,
+  wonEuropeMatch,
 } from "../engine/europe";
 import { countryOf } from "../engine/promotion";
 import { Prisma } from "../generated/prisma/client";
@@ -303,7 +305,7 @@ export async function progressEurope(tx: Db, saveId: string, fixtureIds: readonl
       [match.homeClubSaveId, match.homeGoals, match.awayGoals],
       [match.awayClubSaveId, match.awayGoals, match.homeGoals],
     ] as const) {
-      const won = match.round <= EUROPE_LEAGUE_ROUNDS ? (scored ?? 0) > (conceded ?? 0) : match.winnerClubSaveId === clubSaveId;
+      const won = wonEuropeMatch(match.round, scored, conceded, match.winnerClubSaveId === clubSaveId);
       prizes.push({ clubSaveId, prize: europeMatchPrize(code, match.round, won) });
     }
   }
@@ -440,6 +442,33 @@ export async function clubEuropeRun(db: Db, saveId: string, clubSaveId: string, 
     if (run !== undefined) {
       return { code: season.code, seasonId: season.id, stage: run.stage, out: run.out, won: run.stage === EUROPE_STAGES.WON };
     }
+  }
+  return null;
+}
+
+/**
+ * What a club has received from its European season among some seasons of a save (europePrizesOf: what openEurope and
+ * progressEurope credited it so far), by its row, with the competition; null when it plays none of them.
+ */
+export async function clubEuropePrizes(
+  db: Db,
+  saveId: string,
+  clubSaveId: string,
+  seasonIds: readonly string[],
+): Promise<{ code: EuropeCode; amount: number } | null> {
+  for (const season of await europeSeasonsOf(db, saveId, seasonIds)) {
+    const fixtures = await europeFixtures(db, saveId, season.id);
+    const slug = fixtures.find((fixture) => fixture.homeClubSaveId === clubSaveId)?.home ?? fixtures.find((fixture) => fixture.awayClubSaveId === clubSaveId)?.away;
+    if (slug === undefined) {
+      continue;
+    }
+    // The league phase's first four were paid the quarter-finals' place when it ended (progressEurope).
+    const directPlace =
+      leaguePhaseOver(fixtures) &&
+      leaguePhaseTableOf(season.entrants, fixtures)
+        .slice(0, EUROPE_DIRECT_PLACES)
+        .some((row) => row.club === slug);
+    return { code: season.code, amount: europePrizesOf(season.code, slug, fixtures, directPlace) };
   }
   return null;
 }
