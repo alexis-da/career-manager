@@ -132,15 +132,40 @@ describe("the History tab", () => {
     expect(partOf(render(<CareerRecords history={HISTORY} />, "en"), "record-top-scorer")).toMatch(/^All-time top scorer 56 goals Karim Diallo · ST · still at the club/);
   });
 
-  it("names the legends, and the players at the club on their way", () => {
+  it("names the legends, and the players at the club above 75 points on their way", () => {
     const markup = render(<CareerLegends history={HISTORY} />);
 
     // Karim Diallo: 84 matches, 56 goals, 2 assists, the 2026 promotion (no title) and the 2027 title with him.
-    expect(partOf(markup, "legend")).toMatch(/^Karim Diallo BU 228 pts 2026-27 → 2027-28 · 84 matchs · 56 buts · 2 passes 1 trophée En route/);
-    // One season at the club: its label alone.
-    expect(partOf(markup, "on-the-way")).toMatch(/^Enzo Faure MC 43 pts 2027-28 · 18 matchs · 2 buts · 1 passe 1 trophée · encore 107 pts/);
-    expect(markup).not.toContain('data-key="lyon#4" data-testid="on-the-way"');
+    expect(partOf(markup, "legend")).toMatch(/^Karim Diallo BU 228 pts 2026-27 → 2027-28 · 84 matchs · 56 buts · 2 passes 1 trophée/);
+    // Enzo Faure, 43 points: not on his way yet, more than 75 are needed.
+    expect(HISTORY.onTheWay).toEqual([]);
+    expect(markup).not.toContain('data-testid="on-the-way"');
+    // At 80 points, he is; one season at the club: its label alone.
+    const faure = { playerKey: "youth:2027:lyon:1", index: 80, matches: 18, goals: 2, assists: 1, firstYear: 2027, lastYear: 2027, titles: 1, awards: 0 };
+    const onHisWay = render(<CareerLegends history={{ ...HISTORY, onTheWay: [faure] }} />);
+    expect(partOf(onHisWay, "on-the-way")).toMatch(/^Enzo Faure MC 80 pts 2027-28 · 18 matchs · 2 buts · 1 passe 1 trophée · encore 70 pts/);
     expect(textOf(render(<CareerLegends history={{ ...HISTORY, legends: [] }} />))).toContain("Aucune légende pour l'instant");
+  });
+
+  it("shows five legends, and the others on demand", () => {
+    const paths = { some: "/saves/s/seasons", all: "/saves/s/seasons?legends=all" };
+    const [karim] = HISTORY.legends;
+    const seven = Array.from({ length: 7 }, (_, index) => ({ ...karim, playerKey: `lyon#${20 + index}`, index: 160 - index }));
+    const history = { ...HISTORY, legends: seven };
+
+    const five = render(<CareerLegends history={history} paths={paths} />);
+    expect(five.match(/data-testid="legend"/g)).toHaveLength(5);
+    expect(partOf(five, "career-legends-all")).toMatch(/^Voir toutes les légendes \(7\) /);
+    expect(five).toContain('href="/saves/s/seasons?legends=all#legendes"');
+
+    const all = render(<CareerLegends history={history} paths={paths} showAll />);
+    expect(all.match(/data-testid="legend"/g)).toHaveLength(7);
+    expect(partOf(all, "career-legends-all")).toMatch(/^Voir moins /);
+    expect(all).toContain('href="/saves/s/seasons#legendes"');
+    expect(partOf(render(<CareerLegends history={history} paths={paths} />, "en"), "career-legends-all")).toMatch(/^See all legends \(7\) /);
+
+    // Five or fewer: no link.
+    expect(render(<CareerLegends history={HISTORY} paths={paths} />)).not.toContain("career-legends-all");
   });
 
   it("sums the career up in its head, with the card's way out from a completed season", () => {

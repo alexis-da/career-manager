@@ -577,10 +577,13 @@ for (const viewport of [COMPUTER, PHONE, SMALL_PHONE]) {
     await expect(records.getByTestId("record-points-d1")).toContainText("2026-27");
     await expect(records.getByTestId("record-top-scorer")).toContainText(/\d+ buts?/);
     await expect(records.getByTestId("record-most-capped")).toContainText(/\d+ matchs?/);
-    // One season: no legend yet, the players at the club on their way.
+    // One season: no legend yet, the players at the club on their way, above 75 points, three at most.
     const legends = page.getByTestId("career-legends");
     await expect(legends.getByTestId("career-legends-none")).toBeVisible();
-    await expect(legends.getByTestId("on-the-way")).toHaveCount(3);
+    const onTheWay = await legends.getByTestId("on-the-way").evaluateAll((items) => items.map((item) => Number(item.getAttribute("data-index"))));
+    expect(onTheWay.length).toBeLessThanOrEqual(3);
+    expect(onTheWay.every((index) => index > 75)).toBe(true);
+    await expect(legends.getByTestId("career-legends-all")).toHaveCount(0);
     await expect(page.getByTestId("history-current")).toContainText("Saison 2027-28 · en cours");
     await expect(page.locator('tr[data-season="2026"]')).toContainText(/Buteur : .+ · \d+ buts?/);
     await expectNoSidewaysScroll(page, "history");

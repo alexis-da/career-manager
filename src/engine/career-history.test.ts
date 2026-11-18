@@ -8,6 +8,7 @@ import {
   LEGEND_POINTS,
   LEGEND_THRESHOLD,
   legendLines,
+  ON_THE_WAY_THRESHOLD,
   legends,
   mostCappedRecord,
   playerTotals,
@@ -259,14 +260,22 @@ describe("legends", () => {
     expect(ranking[1]).toMatchObject({ playerKey: "bench", index: 12 + LEGEND_POINTS.cup, titles: 1 });
   });
 
-  it("makes legends from the threshold, and puts the best players still at the club below it on their way", () => {
+  it("makes legends from the threshold, every one of them, and puts the players still at the club above 75 points on their way", () => {
     const ranking = legendLines(
-      [line("gone", 2026, LEGEND_THRESHOLD), line("here", 2026, LEGEND_THRESHOLD - 1), line("here-too", 2026, 20), line("left", 2026, 100)],
+      [
+        ...Array.from({ length: 7 }, (_, index) => line(`legend-${index}`, 2026, LEGEND_THRESHOLD + index)),
+        line("here", 2026, LEGEND_THRESHOLD - 1),
+        line("above", 2026, ON_THE_WAY_THRESHOLD + 1),
+        line("at-threshold", 2026, ON_THE_WAY_THRESHOLD),
+        line("left", 2026, 100),
+      ],
       [],
     );
-    const { legends: shown, onTheWay } = legends(ranking, new Set(["here", "here-too"]));
-    expect(shown.map((legend) => legend.playerKey)).toEqual(["gone"]);
-    expect(onTheWay.map((player) => player.playerKey)).toEqual(["here", "here-too"]);
+    const { legends: shown, onTheWay } = legends(ranking, new Set(["here", "above", "at-threshold"]));
+    // Seven legends, all of them: the screen shows five and the rest on demand.
+    expect(shown.map((legend) => legend.playerKey)).toEqual(["legend-6", "legend-5", "legend-4", "legend-3", "legend-2", "legend-1", "legend-0"]);
+    // 76 points are on the way, 75 are not; a player who left never is.
+    expect(onTheWay.map((player) => player.playerKey)).toEqual(["here", "above"]);
   });
 
   it("knows the club's academy and the shop's young players, and picks the most successful", () => {

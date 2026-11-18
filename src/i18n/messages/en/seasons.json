@@ -110,7 +110,9 @@
         "titles": "{count, plural, one {# trophy} other {# trophies}}",
         "awards": "Player of the season ×{count}",
         "onTheWay": "On the road to legend",
-        "missing": "{points} pts to go"
+        "missing": "{points} pts to go",
+        "all": "See all legends ({count})",
+        "fewer": "Show fewer"
       },
       "current": {
         "title": "{season} season · under way",

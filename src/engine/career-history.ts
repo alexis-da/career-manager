@@ -25,8 +25,11 @@ export const LEGEND_POINTS = {
 } as const;
 /** A legend: this index or more, some three seasons as a starter, two for a scorer. */
 export const LEGEND_THRESHOLD = 150;
+/** The legends shown before « Voir toutes les légendes ». */
 export const LEGENDS_SHOWN = 5;
 export const ON_THE_WAY_SHOWN = 3;
+/** On the way to a legend: a player still at the club above this index (and below LEGEND_THRESHOLD). */
+export const ON_THE_WAY_THRESHOLD = 75;
 /** Matches for the club a season that make its trophies his. */
 export const TROPHY_SEASON_MIN_APPEARANCES = 10;
 /** A player still at the club this close to a player record says so. */
@@ -410,11 +413,16 @@ export function legendLines(lines: readonly HistoryLine[], seasons: readonly His
     .sort((a, b) => b.index - a.index || b.matches - a.matches || byKey(a, b));
 }
 
-/** The legends (index LEGEND_THRESHOLD or more, the first LEGENDS_SHOWN) and the players on their way, still at the club. */
+/**
+ * Every legend (index LEGEND_THRESHOLD or more), best first: the screen shows LEGENDS_SHOWN of them, the others on demand;
+ * and the players on their way, still at the club, above ON_THE_WAY_THRESHOLD, the first ON_THE_WAY_SHOWN.
+ */
 export function legends(lines: readonly LegendLine[], atClub: ReadonlySet<string>): { legends: LegendLine[]; onTheWay: LegendLine[] } {
   return {
-    legends: lines.filter((line) => line.index >= LEGEND_THRESHOLD).slice(0, LEGENDS_SHOWN),
-    onTheWay: lines.filter((line) => line.index < LEGEND_THRESHOLD && atClub.has(line.playerKey)).slice(0, ON_THE_WAY_SHOWN),
+    legends: lines.filter((line) => line.index >= LEGEND_THRESHOLD),
+    onTheWay: lines
+      .filter((line) => line.index > ON_THE_WAY_THRESHOLD && line.index < LEGEND_THRESHOLD && atClub.has(line.playerKey))
+      .slice(0, ON_THE_WAY_SHOWN),
   };
 }
 

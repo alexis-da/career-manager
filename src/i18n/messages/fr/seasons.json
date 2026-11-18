@@ -110,7 +110,9 @@
         "titles": "{count, plural, one {# trophée} other {# trophées}}",
         "awards": "Joueur de la saison ×{count}",
         "onTheWay": "En route vers la légende",
-        "missing": "encore {points} pts"
+        "missing": "encore {points} pts",
+        "all": "Voir toutes les légendes ({count})",
+        "fewer": "Voir moins"
       },
       "current": {
         "title": "Saison {season} · en cours",

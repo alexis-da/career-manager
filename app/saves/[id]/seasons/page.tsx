@@ -45,8 +45,10 @@ export async function generateMetadata(): Promise<Metadata> {
  * The History tab (docs/design/historique.md): the career in a few figures and its card, the trophy room, the records
  * and the legends, then the season in progress and the completed ones, most recent first, each with a link to its card.
  */
-export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/seasons">) {
+export default async function SeasonsPage({ params, searchParams }: PageProps<"/saves/[id]/seasons">) {
   const { id } = await params;
+  // « Voir toutes les légendes »: every legend instead of the first LEGENDS_SHOWN.
+  const showAllLegends = (await searchParams).legends === "all";
   // Another player's save, or one that does not exist: 404, before anything is read.
   const { ownerId } = await requireOwnedSave(id);
   const [t, tWorld, tPositions, tStage, locale] = await Promise.all([
@@ -78,7 +80,11 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
       <TrophyRoom room={history.trophyRoom} />
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
         <CareerRecords history={history} />
-        <CareerLegends history={history} />
+        <CareerLegends
+          history={history}
+          showAll={showAllLegends}
+          paths={{ some: `/saves/${id}/seasons`, all: `/saves/${id}/seasons?legends=all` }}
+        />
       </div>
       {history.current !== null && <CurrentSeasonLine season={history.current} />}
 
