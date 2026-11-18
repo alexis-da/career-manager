@@ -55,6 +55,9 @@ describe("a save's sections", () => {
     const match = sectionAt("/fixtures");
     expect(tabsOf(match, true, true)).toEqual(["fixtures", "standings", "cup", "europe"]);
     expect(tabsOf(match, false, true)).toEqual(["fixtures", "standings", "europe"]);
+    // « Sélections » only in a save with national teams.
+    expect(tabsOf(match, true, true, true)).toEqual(["fixtures", "standings", "cup", "europe", "internationals"]);
+    expect(tabsOf(match, false, false, true)).toEqual(["fixtures", "standings", "internationals"]);
     expect(tabAt("/europe")).toBe("europe");
     expect(tabTestId("europe")).toBe("nav-europe");
   });

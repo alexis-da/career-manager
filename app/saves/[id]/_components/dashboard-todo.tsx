@@ -3,6 +3,7 @@ import {
   BatteryLowIcon,
   ChevronRightIcon,
   FileClockIcon,
+  FlagIcon,
   HandCoinsIcon,
   ShieldAlertIcon,
   TargetIcon,
@@ -14,6 +15,7 @@ import Link from "@/src/components/link";
 import type { ComponentType, ReactNode } from "react";
 import type { Dashboard } from "@/src/db/dashboard";
 import type { ManagedLineup } from "@/src/db/lineup";
+import type { ManagedBreak } from "@/src/db/nations-view";
 import type { MarketSales } from "@/src/db/market-sales";
 import { EUROPE_YELLOWS_PER_SUSPENSION, ROTATION_FITNESS, YELLOWS_PER_SUSPENSION } from "@/src/engine/balance";
 import { isEuropeCode } from "@/src/engine/europe";
@@ -37,7 +39,9 @@ type Todo = {
     | "injured-starters"
     | "suspended-starters"
     | "tired-starters"
+    | "international-returns"
     | "injured"
+    | "international-callups"
     | "booking-risks"
     | "europe-booking-risks"
     | "offers"
@@ -79,6 +83,8 @@ type DashboardTodoProps = {
   // Whether the club has played a match: before its first, the dashboard has its first steps to show, and the market
   // waits (no offer, no weak spot).
   firstMatchPlayed: boolean;
+  // An international break about to be played (its call-ups) or just played (who comes back injured or tired).
+  internationalBreak: ManagedBreak | null;
   className?: string;
 };
 
@@ -130,7 +136,7 @@ function weakSpotDetail({ reason, rating }: WeakSpot, t: Translator<"dashboardTo
 }
 
 function todosOf(
-  { saveId, dashboard, lineup, sales, firstMatchPlayed }: DashboardTodoProps,
+  { saveId, dashboard, lineup, sales, firstMatchPlayed, internationalBreak }: DashboardTodoProps,
   t: Translator<"dashboardTodo">,
   tPositions: Translator<"positions">,
   locale: Locale,
@@ -183,6 +189,32 @@ function todosOf(
     });
   }
 
+  // Back from an international break, before the club's next match: those injured with their national team, those
+  // tired at its kick-off (docs/design/selections.md § 6.7); a word that all are well otherwise.
+  if (internationalBreak?.state === "back" && internationalBreak.players.length > 0) {
+    const injuredAbroad = internationalBreak.players.filter((player) => player.injuredUntil !== null);
+    const tiredAbroad = internationalBreak.players.filter((player) => player.injuredUntil === null && player.fitness < ROTATION_FITNESS);
+    const details = [
+      ...injuredAbroad.map((player) =>
+        t("returnsInjuredPlayer", { name: player.name, date: formatDayMonth(player.injuredUntil ?? internationalBreak.to, locale) }),
+      ),
+      ...(tiredAbroad.length === 0
+        ? []
+        : [t("returnsTiredPlayers", { players: namesAndOthers(tiredAbroad.map((player) => player.name), t), fitness: ROTATION_FITNESS })]),
+    ];
+    todos.push({
+      id: "international-returns",
+      severity: injuredAbroad.length > 0 || tiredAbroad.length > 0 ? "warning" : "ok",
+      icon: FlagIcon,
+      title:
+        injuredAbroad.length > 0 || tiredAbroad.length > 0
+          ? t("returns", { injured: injuredAbroad.length, tired: tiredAbroad.length, fitness: ROTATION_FITNESS })
+          : t("returnsWell", { count: internationalBreak.players.length }),
+      detail: details.length > 0 ? details.join(t("injuredSeparator")) : t("returnsWellDetail"),
+      href: lineupHref,
+    });
+  }
+
   const injured = otherInjured(dashboard.injured, injuredStarters);
   if (injured.length > 0) {
     todos.push({
@@ -193,6 +225,27 @@ function todosOf(
       detail: injured
         .map((player) => t("injuredPlayer", { name: player.name, date: formatDayMonth(player.until, locale) }))
         .join(t("injuredSeparator")),
+      href: squadHref,
+    });
+  }
+
+  // Before an international break: the club's players its nations call, by name and nation.
+  if (internationalBreak?.state === "upcoming" && internationalBreak.players.length > 0) {
+    todos.push({
+      id: "international-callups",
+      severity: "neutral",
+      icon: FlagIcon,
+      title: t("callUps", {
+        count: internationalBreak.players.length,
+        from: formatDayMonth(internationalBreak.from, locale),
+        to: formatDayMonth(internationalBreak.to, locale),
+      }),
+      detail: t("callUpsDetail", {
+        players: namesAndOthers(
+          internationalBreak.players.map((player) => `${player.name} (${player.nation})`),
+          t,
+        ),
+      }),
       href: squadHref,
     });
   }

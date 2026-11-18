@@ -17,6 +17,13 @@
       "CUP": "{name} (cup)",
       "BOTH": "{name} (league and cup)"
     },
+    "callUps": "Break from {from} to {to}: {count, plural, one {# player called up} other {# players called up}}",
+    "callUpsDetail": "{players}: back on Tuesday, tired if they played.",
+    "returns": "Back from international duty: {injured, plural, =0 {} one {# injured} other {# injured}}{injured, plural, =0 {} other {{tired, plural, =0 {} other {, }}}}{tired, plural, =0 {} one {# player under {fitness}} other {# players under {fitness}}}",
+    "returnsInjuredPlayer": "{name} injured, back {date}",
+    "returnsTiredPlayers": "{players} under {fitness} at kick-off",
+    "returnsWell": "Back from international duty: {count, plural, one {your player is fine} other {your # players are fine}}",
+    "returnsWellDetail": "No injury, all fit for the next match.",
     "offers": "{club} offers {fee} for {player}",
     "offersDetail": "{count, plural, one {# offer} other {# offers}} for your substitutes",
     "weakSpot": "Your weak spot: {position}",

@@ -166,7 +166,7 @@ async function forEachTable(page: Page, check: (table: string) => Promise<void>)
 /** Every screen of the entry, the calendar in both its views, every table in both its forms: never wider than the window. */
 async function expectMatchScreensWithinWidth(page: Page): Promise<void> {
   // The first matches, and the month of the cup's tie once it is drawn.
-  for (const month of ["2026-08", "2026-11"]) {
+  for (const month of ["2026-08", "2026-12"]) {
     await openSave(page, `/fixtures?mois=${month}`);
     await expect(listRowsOf(page).first()).toBeVisible();
     await expectNoSidewaysScroll(page, `list of ${month}`);
@@ -208,7 +208,7 @@ test("leads to the table on a computer, the calendar and the cup in two fifths o
   await entry.click();
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/standings$`));
   await expect(page.getByTestId("standings-title")).toHaveText("Classement");
-  await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Calendrier", "Classement", "Coupe", "Europe"]);
+  await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Calendrier", "Classement", "Coupe", "Europe", "Sélections"]);
   await expect(page.getByTestId("nav-standings")).toHaveAttribute("aria-current", "page");
 
   // The page asks for them once it knows its width.
@@ -618,7 +618,7 @@ test.describe("on a phone, in English", () => {
     await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/fixtures$`));
     await expect(page.getByTestId("fixtures-title")).toHaveText("Fixtures");
     await expect(page.getByTestId("fixtures-month")).toHaveText("August 2026");
-    await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Fixtures", "Table", "Cup", "Europe"]);
+    await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Fixtures", "Table", "Cup", "Europe", "Internationals"]);
 
     // Above the tabs, in view, nothing over it, and the only orange of the screen.
     const action = page.getByTestId("next-match");
@@ -844,17 +844,20 @@ test("draws the club's tie once the preliminary round is played: the cup names i
   await expect(page.getByTestId("cup-run")).toContainText("Exempté du tour préliminaire · En lice : 16es de finale");
   expect(await fullOrangeActions(page)).toEqual(["next-match"]);
 
-  // The list opens on the next match, in October; November has the tie among the league's matches, each with its tag.
+  // The list opens on the next match, in October; December has the tie among the league's matches, each with its tag
+  // (the round of 32 on 2 December, the November break taking the week it had).
   await openScreen(page, "fixtures");
   const month = page.getByTestId("fixtures-month");
   await expect(month).toHaveText("octobre 2026");
   await expect(page.getByTestId("fixtures-list").locator("[data-next]")).toHaveCount(1);
   await page.getByTestId("fixtures-next-month").click();
   await expect(month).toHaveText("novembre 2026");
+  await page.getByTestId("fixtures-next-month").click();
+  await expect(month).toHaveText("décembre 2026");
   const rows = listRowsOf(page);
   const cupRow = rows.filter({ hasText: "Coupe — 16es" });
   await expect(cupRow).toHaveCount(1);
-  await expect(cupRow).toContainText(/^mer11/);
+  await expect(cupRow).toContainText(/^mer2\D/);
   await expect(cupRow).toContainText(opponent);
   await expect(cupRow).toContainText(atHome ? "Dom." : "Ext.");
   const cupTag = cupRow.getByText("Coupe", { exact: true });
@@ -868,8 +871,8 @@ test("draws the club's tie once the preliminary round is played: the cup names i
 
   // The same day in the grid.
   await page.getByTestId("fixtures-view-calendar").click();
-  await expect(page).toHaveURL(/\/fixtures\?vue=grille&mois=2026-11$/);
-  await expect(page.locator('[data-day="2026-11-11"] [data-cup-stage]')).toHaveText("Coupe — 16es");
+  await expect(page).toHaveURL(/\/fixtures\?vue=grille&mois=2026-12$/);
+  await expect(page.locator('[data-day="2026-12-02"] [data-cup-stage]')).toHaveText("Coupe — 16es");
 
   // Lyon's league results, month by month: its row sums them up, its form is their last five, oldest first.
   const results = await seasonResultsOf(page, ["2026-08", "2026-09"]);

@@ -51,7 +51,15 @@
       "signedFree": "Signe libre à {club}",
       "retirement": "Fin de carrière"
     },
+    "international": {
+      "title": "Sélection",
+      "caps": "{nation} · {caps, plural, =0 {pas encore sélectionné} one {# sélection} other {# sélections}} · {goals, plural, one {# but} other {# buts}}",
+      "calledUp": "Appelé pour la trêve du {from} au {to}",
+      "injuredWith": "Blessé avec {nation} le {date}"
+    },
     "badges": {
+      "calledUp": "En sélection · {nation}",
+      "calledUpTitle": "Appelé avec {nation} pour la trêve du {from} au {to}",
       "injured": "Blessé · {date}",
       "injuredTitle": "Blessé jusqu'au {date}",
       "suspended": "Suspendu",

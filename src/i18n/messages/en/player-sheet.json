@@ -51,7 +51,15 @@
       "signedFree": "Signed for {club} on a free",
       "retirement": "Retired"
     },
+    "international": {
+      "title": "International",
+      "caps": "{nation} · {caps, plural, =0 {not capped yet} one {# cap} other {# caps}} · {goals, plural, one {# goal} other {# goals}}",
+      "calledUp": "Called up for the break from {from} to {to}",
+      "injuredWith": "Injured with {nation} on {date}"
+    },
     "badges": {
+      "calledUp": "Called up · {nation}",
+      "calledUpTitle": "Called up by {nation} for the break from {from} to {to}",
       "injured": "Injured · {date}",
       "injuredTitle": "Injured until {date}",
       "suspended": "Suspended",

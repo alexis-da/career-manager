@@ -22,6 +22,10 @@ export type SaveHeader = SaveSummary & {
   worldVersion: WorldVersion;
   hasCup: boolean; // a worldVersion 2 save with the national cups: « Coupe » in its navigation
   hasEurope: boolean; // a save with a European season: « Europe » in its navigation
+  hasNations: boolean; // a save with national teams (Save.breaksFrom): « Sélections » in its navigation
+  // The first date of an international break the save plays before the managed club's next match: « Prochain match »
+  // stops after it (playUntilNextMatch), and says so; null otherwise.
+  nextBreak: Date | null;
 };
 
 /** What the navigation bar of a save shows, or null when the save does not exist. */
@@ -37,7 +41,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     }),
     // By their ids, not by a filter on Season: Postgres would read the seasons in progress of every save.
     prisma.season.findMany({ where: { saveId, completed: false }, select: { id: true } }),
-    prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, worldVersion: true } }),
+    prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, worldVersion: true, breaksFrom: true } }),
     hasCup(saveId),
     hasEurope(saveId),
   ]);
@@ -73,6 +77,20 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
       select: { id: true },
     })) !== null;
 
+  // The next international break, when the save has some: before the managed club's next match, the next step.
+  const nextInternational =
+    save.breaksFrom === null
+      ? null
+      : await prisma.internationalMatch.findFirst({
+          where: { saveId, played: false, scheduledAt: ahead },
+          orderBy: { scheduledAt: "asc" },
+          select: { scheduledAt: true },
+        });
+  const nextBreak =
+    nextInternational !== null && (nextFixture === null || nextInternational.scheduledAt < nextFixture.scheduledAt)
+      ? nextInternational.scheduledAt
+      : null;
+
   const atHome = nextFixture?.homeClubSaveId === managed.id;
   return {
     ...summary,
@@ -100,5 +118,7 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     worldVersion: worldVersionOf(save.worldVersion),
     hasCup: withCup,
     hasEurope: withEurope,
+    hasNations: save.breaksFrom !== null,
+    nextBreak,
   };
 }

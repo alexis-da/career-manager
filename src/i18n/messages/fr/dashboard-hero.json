@@ -6,6 +6,8 @@
     "seasonOver": "La saison est terminée.",
     "noUpcomingMatch": "Aucun match à venir.",
     "formation": "Onze en {formation}",
+    "breakAhead": "Trêve internationale du {from} au {to} avant ce match · {count, plural, =0 {aucun de tes joueurs appelé} one {# de tes joueurs appelé} other {# de tes joueurs appelés}}",
+    "afterBreak": "Après la trêve internationale",
     "prepare": "Préparer"
   }
 }

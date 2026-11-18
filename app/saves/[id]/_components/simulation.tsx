@@ -10,7 +10,7 @@ import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/src/components/ui/dialog";
 import { ProgressIndicator, ProgressLabel, ProgressTrack } from "@/src/components/ui/progress";
 import type { SimulatedMatch, SimulationSummary } from "@/src/db/simulation";
-import { formatDate, formatShortDate } from "@/src/lib/format";
+import { formatDate, formatDayMonth, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import {
   planSimulationAction,
@@ -189,7 +189,10 @@ function Finished({ saveId, phase, onContinue, onLeave }: FinishedProps) {
                 <ul className="space-y-1 text-sm">
                   {summary.injuries.map((injury, index) => (
                     <li key={`${injury.playerName}-${index}`} className="flex justify-between gap-3">
-                      <span className="font-medium">{injury.playerName}</span>
+                      <span className="font-medium">
+                        {injury.playerName}
+                        {injury.nation !== null && <span className="font-normal text-muted-foreground"> · {t("injuredWith", { nation: injury.nation })}</span>}
+                      </span>
                       <span className="text-muted-foreground tabular-nums">
                         {formatShortDate(injury.date, locale)}
                         {injury.injuredUntil !== null && injury.injuredUntil > injury.date
@@ -201,6 +204,32 @@ function Finished({ saveId, phase, onContinue, onLeave }: FinishedProps) {
                 </ul>
               )}
             </SummarySection>
+
+            {summary.breaks.length > 0 && (
+              <SummarySection title={t("breaks")}>
+                <ul className="space-y-2 text-sm" data-simulation="breaks">
+                  {summary.breaks.map((entry) => (
+                    <li key={entry.from.toISOString()} className="space-y-0.5">
+                      <p className="font-medium">
+                        {t("breakTitle", { from: formatDayMonth(entry.from, locale), to: formatDayMonth(entry.to, locale) })}
+                      </p>
+                      {entry.players.length === 0 ? (
+                        <p className="text-muted-foreground">{t("noBreakPlayer")}</p>
+                      ) : (
+                        entry.players.map((player) => (
+                          <p key={player.playerName} className="flex justify-between gap-3">
+                            <span>{player.playerName}</span>
+                            <span className="text-muted-foreground tabular-nums">
+                              {t("breakPlayer", { nation: player.nation, matches: player.matches, goals: player.goals })}
+                            </span>
+                          </p>
+                        ))
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </SummarySection>
+            )}
 
             <SummarySection title={t("expiredContracts")}>
               {summary.expiredContracts.length === 0 ? (

@@ -26,6 +26,7 @@
     "standings": "Classement",
     "cup": "Coupe",
     "europe": "Europe",
+    "internationals": "Sélections",
     "challenge": "Défi",
     "seasons": "Histoire",
     "rewards": "Récompenses"
@@ -49,6 +50,8 @@
     "kickOff": "Coup d'envoi…",
     "playMatchday": "Jouer la journée",
     "simulating": "Simulation…",
+    "playBreak": "Passer la trêve",
+    "breakPlayed": "Trêve internationale jouée : regarde qui revient avant ton match.",
     "intermediatePlayed": "{count, plural, one {# journée intermédiaire jouée.} other {# journées intermédiaires jouées.}}",
     "failed": "L'action a échoué. Réessaie."
   },
@@ -78,6 +81,11 @@
     "injuries": "Blessures",
     "noInjuries": "Aucune blessure dans ton effectif.",
     "outUntil": "absent jusqu'au {date}",
+    "injuredWith": "en sélection ({nation})",
+    "breaks": "Trêves internationales",
+    "breakTitle": "Trêve du {from} au {to}",
+    "breakPlayer": "{nation} · {matches, plural, =0 {sur le banc} one {# match} other {# matchs}}{goals, plural, =0 {} one { · # but} other { · # buts}}",
+    "noBreakPlayer": "Aucun de tes joueurs appelé.",
     "expiredContracts": "Contrats arrivés à expiration",
     "noExpiredContracts": "Aucun contrat n'a expiré.",
     "continue": "Continuer",

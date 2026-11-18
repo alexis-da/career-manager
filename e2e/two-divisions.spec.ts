@@ -41,16 +41,20 @@ test("creates a save with a second division club, plays the dates in between wit
     await expect(page.getByText(/Journée 1 · 15 août 2026$/)).toBeVisible();
     await finishLiveMatch(page);
 
-    // 22 and 29 August, then Paris FC rests on 5 September: the 20-club first divisions play that Saturday, and the
-    // English and Spanish second divisions the Tuesday after.
+    // 22 and 29 August, and the English second division's Tuesdays (24 clubs, 46 matchdays), 18 and 25 August. Then the
+    // first international break, 4 to 8 September, comes before Paris FC's match of 12 September: « Passer la trêve »
+    // plays the Tuesday before it, 1 September, and the break, and stops there; « Prochain match » then has nothing in
+    // between.
     await page.getByTestId("simulate-menu").click();
     await page.getByRole("menuitem", { name: "Fin du mois" }).click();
     const dialog = page.locator('[data-simulation="dialog"]');
-    await expect(dialog.getByText("2 journées jouées · jusqu'au 31 août 2026")).toBeVisible();
+    await expect(dialog.getByText("4 journées jouées · jusqu'au 31 août 2026")).toBeVisible();
     await dialog.getByRole("button", { name: "Continuer" }).click();
 
+    await expect(page.getByTestId("next-match")).toHaveText("Passer la trêve");
     await page.getByTestId("next-match").click();
-    await expect(page.getByText("2 journées intermédiaires jouées.")).toBeVisible();
+    await expect(page.getByTestId("hero-break")).toHaveAttribute("data-state", "back", { timeout: 60_000 });
+    await page.getByTestId("next-match").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
     await expect(page.getByText(/Journée 4 · 12 septembre 2026$/)).toBeVisible();
     await finishLiveMatch(page);
@@ -65,15 +69,15 @@ test("creates a save with a second division club, plays the dates in between wit
     await expect(frenchSecond.locator('td[data-column="played"]')).toHaveText(Array.from({ length: 18 }, () => "4"));
     await expect(frenchSecond.locator('tr[data-zone="promotion"]')).toHaveCount(2);
 
-    // England: the first division played the Saturday Paris FC rested, the second division the Tuesday as well.
+    // England: the first division played the same four Saturdays, the second division three Tuesdays as well.
     await page.getByRole("tab", { name: "Angleterre" }).click();
     await page.getByRole("tab", { name: "Division 1" }).click();
     const englishFirst = page.getByRole("tabpanel", { name: "Division 1" });
-    await expect(englishFirst.locator('td[data-column="played"]')).toHaveText(Array.from({ length: 20 }, () => "5"));
+    await expect(englishFirst.locator('td[data-column="played"]')).toHaveText(Array.from({ length: 20 }, () => "4"));
     await expect(englishFirst.locator('tr[data-zone="relegation"]')).toHaveCount(3);
     await page.getByRole("tab", { name: "Division 2" }).click();
     const englishSecond = page.getByRole("tabpanel", { name: "Division 2" });
-    await expect(englishSecond.locator('td[data-column="played"]')).toHaveText(Array.from({ length: 24 }, () => "6"));
+    await expect(englishSecond.locator('td[data-column="played"]')).toHaveText(Array.from({ length: 24 }, () => "7"));
   } finally {
     // Even when a step failed: a leftover save would pollute the database.
     await deleteSave(page, name);

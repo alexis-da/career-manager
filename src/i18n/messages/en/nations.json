@@ -1,0 +1,20 @@
+{
+  "nations": {
+    "title": "Internationals",
+    "subtitle": "The 14 nations of your players",
+    "nextBreak": "Next international break",
+    "noBreak": "No break left this season",
+    "breakDates": "From {from} to {to}",
+    "explain": "Two matches a break, on Friday and Tuesday: no club match, your internationals come back tired if they played, sometimes injured.",
+    "nations": "The 14 national teams",
+    "nationsExplain": "Ranked by strength: their 23 if called up today, from our clubs or outside our leagues. Tap a nation to see its squad.",
+    "eleven": "eleven",
+    "outside": "{count, plural, =0 {all from our clubs} one {# outside our leagues} other {# outside our leagues}}",
+    "yours": "{count, plural, one {# of your players} other {# of your players}}",
+    "outsideLeagues": "Outside our leagues",
+    "caps": "{count, plural, =0 {no cap} one {# cap} other {# caps}}",
+    "lastBreak": "Last break",
+    "lastBreakDates": "Last break · {from} – {to}",
+    "noResults": "No international match played yet."
+  }
+}

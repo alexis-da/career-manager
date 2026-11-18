@@ -24,6 +24,7 @@ import enLive from "./en/live.json";
 import enMarket from "./en/market.json";
 import enMarketSell from "./en/market-sell.json";
 import enMissions from "./en/missions.json";
+import enNations from "./en/nations.json";
 import enObjectives from "./en/objectives.json";
 import enOnboarding from "./en/onboarding.json";
 import enPlayerSheet from "./en/player-sheet.json";
@@ -62,6 +63,7 @@ import frLive from "./fr/live.json";
 import frMarket from "./fr/market.json";
 import frMarketSell from "./fr/market-sell.json";
 import frMissions from "./fr/missions.json";
+import frNations from "./fr/nations.json";
 import frObjectives from "./fr/objectives.json";
 import frOnboarding from "./fr/onboarding.json";
 import frPlayerSheet from "./fr/player-sheet.json";
@@ -110,6 +112,7 @@ export const ZONES = {
   standings: { fr: frStandings, en: enStandings },
   cup: { fr: frCup, en: enCup },
   europe: { fr: frEurope, en: enEurope },
+  nations: { fr: frNations, en: enNations },
   seasons: { fr: frSeasons, en: enSeasons },
   club: { fr: frClub, en: enClub },
   objectives: { fr: frObjectives, en: enObjectives },
@@ -151,6 +154,7 @@ const fr = {
   ...frStandings,
   ...frCup,
   ...frEurope,
+  ...frNations,
   ...frSeasons,
   ...frClub,
   ...frObjectives,
@@ -197,6 +201,7 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enStandings,
     ...enCup,
     ...enEurope,
+  ...enNations,
     ...enSeasons,
     ...enClub,
     ...enObjectives,

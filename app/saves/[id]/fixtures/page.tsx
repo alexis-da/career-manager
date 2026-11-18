@@ -8,10 +8,11 @@ import type { ReactNode } from "react";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { SegmentedLinks } from "@/src/components/segmented";
 import { getManagedClubCalendar, type FixtureWithEvents } from "@/src/db/calendar";
+import { getSeasonBreaks, type SeasonBreak } from "@/src/db/nations-view";
 import { getSaveSummary } from "@/src/db/saves";
 import { seasonEndDate, seasonLabel, seasonStartYear, transferWindowBounds } from "@/src/engine/world";
 import type { Translator } from "@/src/i18n/translator";
-import { formatMonth, formatShortDate } from "@/src/lib/format";
+import { formatDayMonth, formatMonth, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { FixtureRow } from "../_components/fixture-row";
 import { Panel } from "@/src/components/panel";
@@ -203,32 +204,71 @@ function MonthLandmarks({
   );
 }
 
-/** The month's matches, one row each, then its landmarks. */
+/**
+ * An international break among the month's matches (docs/design/selections.md § 9.4): its dates, then the club's players
+ * its nations called and those injured, or that the call-ups come the week of the break; it leads to the nations' tab.
+ */
+function BreakRow({ saveId, entry }: { saveId: string; entry: SeasonBreak }) {
+  const t = useTranslations("fixtures");
+  const locale = useLocale();
+  const details =
+    entry.called === null
+      ? [t("break.pending")]
+      : [t("break.called", { count: entry.called }), ...(entry.injured > 0 ? [t("break.injured", { count: entry.injured })] : [])];
+  return (
+    <li>
+      <Link
+        href={`/saves/${saveId}/internationals`}
+        data-testid="fixtures-break"
+        data-played={entry.played}
+        className="block rounded-lg border border-dashed border-info/50 px-3.5 py-2.5 transition-colors hover:bg-muted max-sm:min-h-11"
+      >
+        <span className="block text-xs font-bold tracking-wider text-info uppercase">
+          {t("break.title", { from: formatDayMonth(entry.from, locale), to: formatDayMonth(entry.to, locale) })}
+        </span>
+        <span className="block text-[0.8125rem] text-muted-foreground">{details.join(" · ")}</span>
+      </Link>
+    </li>
+  );
+}
+
+/** The month's matches, one row each, with its international breaks among them, then its landmarks. */
 function MonthList({
   saveId,
   month,
   fixtures,
+  breaks,
   next,
   startYear,
 }: {
   saveId: string;
   month: Month;
   fixtures: FixtureWithEvents[];
+  breaks: SeasonBreak[];
   next: FixtureWithEvents | undefined;
   startYear: number;
 }) {
   const t = useTranslations("fixtures");
   const monthFixtures = fixtures.filter((fixture) => sameMonth(monthOf(fixture.scheduledAt), month));
+  const monthBreaks = breaks.filter((entry) => sameMonth(monthOf(entry.from), month));
+  const rows = [
+    ...monthFixtures.map((fixture) => ({ date: fixture.scheduledAt, fixture, entry: null })),
+    ...monthBreaks.map((entry) => ({ date: entry.from, fixture: null, entry })),
+  ].sort((a, b) => a.date.getTime() - b.date.getTime());
   return (
     <>
       <div data-testid="fixtures-list">
-        {monthFixtures.length === 0 ? (
+        {rows.length === 0 ? (
           <Panel className="text-center text-muted-foreground">{t("noMatches")}</Panel>
         ) : (
           <ol className="space-y-2">
-            {monthFixtures.map((fixture) => (
-              <FixtureRow key={fixture.id} saveId={saveId} fixture={fixture} next={fixture.id === next?.id} />
-            ))}
+            {rows.map(({ fixture, entry }) =>
+              fixture !== null ? (
+                <FixtureRow key={fixture.id} saveId={saveId} fixture={fixture} next={fixture.id === next?.id} />
+              ) : entry !== null ? (
+                <BreakRow key={`break-${entry.from.toISOString()}`} saveId={saveId} entry={entry} />
+              ) : null,
+            )}
           </ol>
         )}
       </div>
@@ -347,6 +387,8 @@ export default async function FixturesPage({ params, searchParams }: PageProps<"
   if (save === null) {
     notFound();
   }
+  // The season's international breaks: none in a save without nations.
+  const breaks = await getSeasonBreaks(id, calendar.startYear ?? seasonStartYear(save.currentDate));
 
   const view: View = single(query.vue) === "grille" ? "grid" : "list";
   const startYear = calendar.startYear ?? seasonStartYear(save.currentDate);
@@ -398,7 +440,7 @@ export default async function FixturesPage({ params, searchParams }: PageProps<"
       <div className="space-y-3">
         <MonthHeader saveId={id} view={view} month={month} months={months} />
         {view === "list" ? (
-          <MonthList saveId={id} month={month} fixtures={calendar.fixtures} next={next} startYear={startYear} />
+          <MonthList saveId={id} month={month} fixtures={calendar.fixtures} breaks={breaks} next={next} startYear={startYear} />
         ) : (
           <MonthCalendar
             saveId={id}

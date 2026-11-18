@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Dashboard } from "@/src/db/dashboard";
 import type { ClubLineupPlayer, ManagedLineup } from "@/src/db/lineup";
 import type { MarketSales, SaleRow } from "@/src/db/market-sales";
+import type { ManagedBreak } from "@/src/db/nations-view";
 import type { SaleQuote } from "@/src/db/transfers";
 import { formationPositions } from "@/src/engine/formations";
 import type { Position } from "@/src/engine/positions";
@@ -83,13 +84,26 @@ const saleRow = (lastName: string, sale: SaleQuote): SaleRow => ({
 
 const salesOf = (...rows: SaleRow[]): MarketSales => ({ rows, offers: rows.filter((row) => row.terms.sale.ok).length });
 
-type Props = { dashboard: Dashboard; lineup: ManagedLineup; sales?: MarketSales | null; firstMatchPlayed?: boolean };
+type Props = {
+  dashboard: Dashboard;
+  lineup: ManagedLineup;
+  sales?: MarketSales | null;
+  firstMatchPlayed?: boolean;
+  internationalBreak?: ManagedBreak | null;
+};
 
 /** The list of a club that has played, unless told otherwise. */
-const render = ({ dashboard, lineup, sales = null, firstMatchPlayed = true }: Props, locale: Locale = "fr"): string =>
+const render = ({ dashboard, lineup, sales = null, firstMatchPlayed = true, internationalBreak = null }: Props, locale: Locale = "fr"): string =>
   renderToStaticMarkup(
     inLanguage(
-      <DashboardTodo saveId="save-1" dashboard={dashboard} lineup={lineup} sales={sales} firstMatchPlayed={firstMatchPlayed} />,
+      <DashboardTodo
+        saveId="save-1"
+        dashboard={dashboard}
+        lineup={lineup}
+        sales={sales}
+        firstMatchPlayed={firstMatchPlayed}
+        internationalBreak={internationalBreak}
+      />,
       locale,
     ),
   );
@@ -395,5 +409,54 @@ describe("the dashboard's to-do list", () => {
       "Your weak spot: left winger Empty, nobody available to play there · see the market",
     );
     expect(weakSpotOf(heldUpFront, "en")?.text).toBe("Your weak spot: striker Played out of position, rated 54 · see the market");
+  });
+
+  it("names the players called up before an international break, and who comes back injured or tired after it", () => {
+    const from = new Date(Date.UTC(2026, 8, 4));
+    const to = new Date(Date.UTC(2026, 8, 8));
+    const player = (name: string, nation: "SEN" | "FRA" | "BRA", extra: Partial<ManagedBreak["players"][number]> = {}) => ({
+      playerSaveId: name,
+      playerKey: name,
+      name,
+      nation,
+      matches: 0,
+      goals: 0,
+      injuredUntil: null,
+      fitness: 100,
+      ...extra,
+    });
+    const before: ManagedBreak = { state: "upcoming", from, to, players: [player("K. Diallo", "SEN"), player("M. Roy", "FRA")] };
+    const callUps = lines(render({ dashboard: dashboardWith({}), lineup: lineupOf([]), internationalBreak: before })).find(
+      ({ id }) => id === "international-callups",
+    );
+    expect(callUps).toEqual({
+      id: "international-callups",
+      href: `${SAVE}/squad`,
+      text: "Trêve du 4 sept. au 8 sept. : 2 joueurs appelés en sélection K. Diallo (SEN), M. Roy (FRA) : ils reviendront le mardi, fatigués s'ils ont joué.",
+    });
+
+    const after: ManagedBreak = {
+      state: "back",
+      from,
+      to,
+      players: [
+        player("K. Diallo", "SEN", { matches: 2, injuredUntil: new Date(Date.UTC(2026, 8, 25)) }),
+        player("M. Roy", "FRA", { matches: 2, fitness: 72 }),
+        player("L. Silva", "BRA", { matches: 1, fitness: 90 }),
+      ],
+    };
+    const returns = (internationalBreak: ManagedBreak, locale: Locale = "fr") =>
+      lines(render({ dashboard: dashboardWith({}), lineup: lineupOf([]), internationalBreak }, locale)).find(({ id }) => id === "international-returns");
+    expect(returns(after)).toEqual({
+      id: "international-returns",
+      href: `${SAVE}/lineup`,
+      text: "Retour de sélection : 1 blessé, 1 joueur sous 75 K. Diallo blessé, retour 25 sept. ; M. Roy sous 75 au coup d'envoi",
+    });
+    expect(returns(after, "en")?.text).toBe("Back from international duty: 1 injured, 1 player under 75 K. Diallo injured, back 25 Sept; M. Roy under 75 at kick-off");
+    // All well: a line that says so, in green.
+    const well = returns({ ...after, players: [player("L. Silva", "BRA", { matches: 1, fitness: 90 })] });
+    expect(well?.text).toBe("Retour de sélection : ton joueur va bien Aucun blessé, tous en forme pour le prochain match.");
+    // Neither line without a break.
+    expect(idsOf(render({ dashboard: dashboardWith({}), lineup: lineupOf([]) }))).not.toContain("international-callups");
   });
 });

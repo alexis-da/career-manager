@@ -26,6 +26,7 @@
     "standings": "Table",
     "cup": "Cup",
     "europe": "Europe",
+    "internationals": "Internationals",
     "challenge": "Challenge",
     "seasons": "History",
     "rewards": "Rewards"
@@ -49,6 +50,8 @@
     "kickOff": "Kick-off…",
     "playMatchday": "Play matchday",
     "simulating": "Simulating…",
+    "playBreak": "Play the break",
+    "breakPlayed": "International break played: see who comes back before your match.",
     "intermediatePlayed": "{count, plural, one {# intermediate matchday played.} other {# intermediate matchdays played.}}",
     "failed": "The action failed. Try again."
   },
@@ -78,6 +81,11 @@
     "injuries": "Injuries",
     "noInjuries": "No injuries in your squad.",
     "outUntil": "out until {date}",
+    "injuredWith": "on international duty ({nation})",
+    "breaks": "International breaks",
+    "breakTitle": "Break from {from} to {to}",
+    "breakPlayer": "{nation} · {matches, plural, =0 {on the bench} one {# match} other {# matches}}{goals, plural, =0 {} one { · # goal} other { · # goals}}",
+    "noBreakPlayer": "None of your players called up.",
     "expiredContracts": "Expired contracts",
     "noExpiredContracts": "No contracts expired.",
     "continue": "Continue",

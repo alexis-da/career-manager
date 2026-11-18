@@ -92,6 +92,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               seasonFinished={header.seasonFinished}
               liveMatch={header.liveMatch}
               worldVersion={header.worldVersion}
+              nextBreak={header.nextBreak !== null}
             />
           </div>
         </header>
@@ -107,7 +108,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               {stage} · {t(header.windowOpen ? "windowOpen" : "windowClosed")}
             </p>
           </div>
-          <SectionTabs saveId={header.id} hasCup={header.hasCup} hasEurope={header.hasEurope} />
+          <SectionTabs saveId={header.id} hasCup={header.hasCup} hasEurope={header.hasEurope} hasNations={header.hasNations} />
           {children}
         </main>
       </div>

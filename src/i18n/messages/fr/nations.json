@@ -1,0 +1,20 @@
+{
+  "nations": {
+    "title": "Sélections",
+    "subtitle": "Les 14 nations de tes joueurs",
+    "nextBreak": "Prochaine trêve internationale",
+    "noBreak": "Plus de trêve cette saison",
+    "breakDates": "Du {from} au {to}",
+    "explain": "Deux matchs par trêve, le vendredi et le mardi : aucun match de club, tes internationaux reviennent fatigués s'ils ont joué, parfois blessés.",
+    "nations": "Les 14 sélections",
+    "nationsExplain": "Classées par force : leurs 23 s'ils étaient appelés aujourd'hui, de nos clubs ou hors championnats. Touche une nation pour voir sa liste.",
+    "eleven": "onze",
+    "outside": "{count, plural, =0 {tous de nos clubs} one {# hors championnats} other {# hors championnats}}",
+    "yours": "{count, plural, one {# de tes joueurs} other {# de tes joueurs}}",
+    "outsideLeagues": "Hors championnats",
+    "caps": "{count, plural, =0 {aucune sélection} one {# sélection} other {# sélections}}",
+    "lastBreak": "Dernière trêve",
+    "lastBreakDates": "Dernière trêve · {from} – {to}",
+    "noResults": "Aucun match international joué pour l'instant."
+  }
+}

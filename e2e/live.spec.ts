@@ -7,6 +7,7 @@ import {
   expectNoSidewaysScroll,
   expectOrangeActions,
   expectUncovered,
+  passInternationalBreak,
   pinnedToScreen,
   saveIdOf,
   sidewaysOverflow,
@@ -125,6 +126,8 @@ async function reachBreak(page: Page): Promise<void> {
   const play = hero.getByTestId("next-match");
   await expect(play.or(hero.getByTestId("resume-match"))).toBeVisible();
   if (await play.isVisible()) {
+    // The first international break, early in September, comes before the club's fourth match.
+    await passInternationalBreak(page);
     await play.click();
     await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/live\\?rejouer=1$`), { timeout: 120_000 });
   } else {

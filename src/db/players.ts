@@ -7,6 +7,8 @@ import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
+import type { NationCode } from "../engine/nations";
+import { getManagedBreak, internationalInjuries } from "./nations-view";
 import { DISCIPLINE_SELECT, disciplineStatus, matchesAhead, type DisciplineStatus, type MatchesAhead } from "./discipline-view";
 import { fitnessAtKickOff } from "./fitness-view";
 
@@ -79,9 +81,28 @@ export type PlayerProfile = {
   attributes: Record<AttributeName, number>;
   seasonStats: SeasonStatsView;
   transfers: TransferHistoryItem[]; // most recent first
+  // His national team (docs/design/selections.md): caps and goals over his career; for a player of the managed club, the
+  // break his nation calls him for (from the club's last match before it) and the injury he came back with from one.
+  international: {
+    caps: number;
+    goals: number;
+    calledFor: { nation: NationCode; from: Date; to: Date } | null;
+    injuredWith: { nation: NationCode; on: Date } | null;
+  };
 };
 
 const EMPTY_STATS: SeasonStatsView = { appearances: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 };
+
+/** The injury a player came back with from a break, while it is the one he is out with: its end is his injury's. */
+function injuredWithOf(
+  player: { injuredUntil: Date | null },
+  abroad: { nation: NationCode; on: Date; until: Date } | undefined,
+  currentDate: Date,
+): PlayerProfile["international"]["injuredWith"] {
+  return abroad !== undefined && player.injuredUntil !== null && player.injuredUntil > currentDate && player.injuredUntil.getTime() === abroad.until.getTime()
+    ? { nation: abroad.nation, on: abroad.on }
+    : null;
+}
 
 /**
  * Profiles of the save's players matching `where`: identity, ratings, condition, contract, statistics of the
@@ -116,6 +137,8 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       wage: true,
       contractUntil: true,
       injuredUntil: true,
+      caps: true,
+      internationalGoals: true,
       ...DISCIPLINE_SELECT,
       clubSave: {
         select: { isManaged: true, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
@@ -126,8 +149,17 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
 
   // The managed club's players are picked for its next match: their fitness and their suspensions are that match's. Read
   // only when one of them is among the players.
-  const ahead = players.some((player) => player.clubSave?.isManaged === true) ? await managedMatchesAhead(saveId) : null;
+  const managedAmong = players.some((player) => player.clubSave?.isManaged === true);
+  const ahead = managedAmong ? await managedMatchesAhead(saveId) : null;
   const nextMatchDay = ahead?.next?.date ?? null;
+  // Their international break, about to be played, and the injuries they came back with from the season's.
+  const managedBreak = managedAmong ? await getManagedBreak(saveId) : null;
+  const injuriesAbroad = managedAmong ? await internationalInjuries(saveId, startYear) : new Map<string, { nation: NationCode; on: Date; until: Date }>();
+  const calledFor = new Map(
+    managedBreak?.state === "upcoming"
+      ? managedBreak.players.map((player) => [player.playerKey, { nation: player.nation, from: managedBreak.from, to: managedBreak.to }] as const)
+      : [],
+  );
 
   const [stats, transfers] = await Promise.all([
     prisma.playerSeasonStats.groupBy({
@@ -186,6 +218,12 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
         defending: player.defending,
         physical: player.physical,
         goalkeeping: player.goalkeeping,
+      },
+      international: {
+        caps: player.caps,
+        goals: player.internationalGoals,
+        calledFor: managed ? (calledFor.get(player.playerKey) ?? null) : null,
+        injuredWith: injuredWithOf(player, injuriesAbroad.get(player.playerKey), save.currentDate),
       },
       seasonStats:
         playerStats === undefined

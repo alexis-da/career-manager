@@ -13,6 +13,12 @@
     "previousMonth": "Mois précédent",
     "nextMonth": "Mois suivant",
     "monthGrid": "Calendrier de {month}",
+    "break": {
+      "title": "Trêve internationale · {from} – {to}",
+      "called": "{count, plural, =0 {aucun de tes joueurs appelé} one {# joueur appelé} other {# joueurs appelés}}",
+      "injured": "{count, plural, one {# blessé} other {# blessés}}",
+      "pending": "Convocations la semaine de la trêve"
+    },
     "noMatches": "Aucun match ce mois-ci.",
     "allFixtures": "Tout le calendrier",
     "landmarks": {

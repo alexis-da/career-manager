@@ -109,7 +109,9 @@ function StatusBadge({ tone, title, testId, onBlue, children }: StatusBadgeProps
 }
 
 type PlayerBadgesProps = {
-  player: Pick<PlayerProfile, "injuredUntil" | "discipline" | "contractExpiring" | "arrivedThisSeason">;
+  player: Pick<PlayerProfile, "injuredUntil" | "discipline" | "contractExpiring" | "arrivedThisSeason"> & {
+    international?: Pick<PlayerProfile["international"], "calledFor">; // none: a player no break concerns
+  };
   onBlue?: boolean; // on the bright blue rather than on a card
 };
 
@@ -118,6 +120,7 @@ export function hasPlayerBadges(player: PlayerBadgesProps["player"]): boolean {
   const { discipline } = player;
   return (
     player.injuredUntil !== null ||
+    (player.international?.calledFor ?? null) !== null ||
     player.contractExpiring ||
     player.arrivedThisSeason ||
     (discipline !== null && (discipline.suspended || discipline.suspendedLater !== null || discipline.bookingRisks.length > 0))
@@ -127,7 +130,9 @@ export function hasPlayerBadges(player: PlayerBadgesProps["player"]): boolean {
 /** Injury, suspensions and yellow cards at risk, expiring contract and young arrival, in their fixed colors. */
 export function PlayerBadges({ player, onBlue = false }: PlayerBadgesProps) {
   const t = useTranslations("player");
+  const tWorld = useTranslations("world");
   const locale = useLocale();
+  const calledFor = player.international?.calledFor ?? null;
   return (
     <>
       {player.injuredUntil !== null && (
@@ -145,6 +150,20 @@ export function PlayerBadges({ player, onBlue = false }: PlayerBadgesProps) {
           {label}
         </StatusBadge>
       ))}
+      {calledFor !== null && (
+        <StatusBadge
+          tone="info"
+          title={t("badges.calledUpTitle", {
+            nation: tWorld(`nationalities.${calledFor.nation}`),
+            from: formatDayMonth(calledFor.from, locale),
+            to: formatDayMonth(calledFor.to, locale),
+          })}
+          testId="player-badge-called-up"
+          onBlue={onBlue}
+        >
+          {t("badges.calledUp", { nation: calledFor.nation })}
+        </StatusBadge>
+      )}
       {player.contractExpiring && (
         <StatusBadge tone="warning" title={t("badges.expiringTitle")} testId="player-badge-expiring" onBlue={onBlue}>
           {t("badges.expiring")}

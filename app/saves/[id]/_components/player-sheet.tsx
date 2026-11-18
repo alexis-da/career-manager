@@ -9,7 +9,7 @@ import type { PlayerProfile, TransferHistoryItem } from "@/src/db/players";
 import { seasonLabel } from "@/src/engine/world";
 import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
-import { formatDate, formatMoney } from "@/src/lib/format";
+import { formatDate, formatDayMonth, formatMoney } from "@/src/lib/format";
 import { playerInitials } from "@/src/lib/player-initials";
 import { cn } from "@/src/lib/utils";
 
@@ -33,6 +33,38 @@ function transferLabel(transfer: TransferHistoryItem, t: Translator<"player">, l
     case "RETIREMENT":
       return t("transfer.retirement");
   }
+}
+
+/**
+ * His national team (docs/design/selections.md § 9.1): his caps and goals, the break his nation calls him for, the injury
+ * he came back with. Nothing for a player never capped and nowhere called.
+ */
+function InternationalLine({ profile }: { profile: PlayerProfile }) {
+  const t = useTranslations("player");
+  const tWorld = useTranslations("world");
+  const locale = useLocale();
+  const { caps, goals, calledFor, injuredWith } = profile.international;
+  if (caps === 0 && calledFor === null && injuredWith === null) {
+    return null;
+  }
+  return (
+    <section aria-label={t("international.title")} data-testid="player-sheet-international" className="space-y-1 rounded-lg bg-background p-3.5">
+      <p className="eyebrow text-muted-foreground">{t("international.title")}</p>
+      <p data-testid="player-caps" className="font-semibold tabular-nums">
+        {t("international.caps", { nation: nationalityName(profile.nationality, tWorld), caps, goals })}
+      </p>
+      {calledFor !== null && (
+        <p data-testid="player-called-up" className="text-info">
+          {t("international.calledUp", { from: formatDayMonth(calledFor.from, locale), to: formatDayMonth(calledFor.to, locale) })}
+        </p>
+      )}
+      {injuredWith !== null && (
+        <p data-testid="player-injured-abroad" className="text-loss">
+          {t("international.injuredWith", { nation: tWorld(`nationalities.${injuredWith.nation}`), date: formatDayMonth(injuredWith.on, locale) })}
+        </p>
+      )}
+    </section>
+  );
 }
 
 function StatTile({ label, value }: { label: string; value: number }) {
@@ -179,6 +211,8 @@ export function PlayerSheet({ profile, startYear, footer, onClose, pinned = fals
               })}
             </p>
           </section>
+
+          <InternationalLine profile={profile} />
 
           <AttributeBars position={profile.position} attributes={profile.attributes} />
 

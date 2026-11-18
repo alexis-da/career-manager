@@ -4,9 +4,10 @@ import { ClubInitials } from "@/src/components/club-initials";
 import { buttonVariants } from "@/src/components/ui/button";
 import type { ClubPreview, Dashboard } from "@/src/db/dashboard";
 import type { FormationName } from "@/src/engine/formations";
+import type { ManagedBreak } from "@/src/db/nations-view";
 import type { OpponentPreview } from "@/src/db/opponent";
 import { competitionName, countryName } from "@/src/i18n/countries";
-import { formatDecimal, formatShortDate } from "@/src/lib/format";
+import { formatDayMonth, formatDecimal, formatShortDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { isEuropeStage, isNeutralStage, stageLabel } from "../_lib/stage";
 import { GameActions } from "./game-actions";
@@ -55,6 +56,8 @@ type NextMatchHeroProps = {
   dashboard: Dashboard;
   formation: FormationName;
   opponent: OpponentPreview | null;
+  // An international break before the match (« Passer la trêve » first), or just played (« Après la trêve »).
+  internationalBreak: ManagedBreak | null;
   className?: string;
 };
 
@@ -62,7 +65,7 @@ type NextMatchHeroProps = {
  * The dashboard's lead card, in the bright blue: the next match, and what to do about it. The game's main action is here,
  * the screen's only full orange one, with « Préparer » and « Simuler » beside it; the sidebar's card leaves them to it.
  */
-export function NextMatchHero({ saveId, dashboard, formation, opponent, className }: NextMatchHeroProps) {
+export function NextMatchHero({ saveId, dashboard, formation, opponent, internationalBreak, className }: NextMatchHeroProps) {
   const t = useTranslations("dashboardHero");
   const tFormations = useTranslations("formations");
   const tStage = useTranslations("stage");
@@ -91,6 +94,17 @@ export function NextMatchHero({ saveId, dashboard, formation, opponent, classNam
             ].join(" · ")}
           </p>
         )}
+        {internationalBreak !== null && (
+          <p data-testid="hero-break" data-state={internationalBreak.state} className="pt-1 text-[0.8125rem] font-semibold tracking-normal text-primary-foreground normal-case">
+            {internationalBreak.state === "upcoming"
+              ? t("breakAhead", {
+                  from: formatDayMonth(internationalBreak.from, locale),
+                  to: formatDayMonth(internationalBreak.to, locale),
+                  count: internationalBreak.players.length,
+                })
+              : t("afterBreak")}
+          </p>
+        )}
       </div>
 
       {nextMatch === null ? (
@@ -112,6 +126,7 @@ export function NextMatchHero({ saveId, dashboard, formation, opponent, classNam
         liveMatch={dashboard.liveMatch}
         worldVersion={dashboard.worldVersion}
         hero
+        nextBreak={internationalBreak?.state === "upcoming"}
         prepare={
           // Nothing to prepare once the season is over, or with a match already under way.
           nextMatch !== null &&

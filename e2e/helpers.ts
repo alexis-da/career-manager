@@ -174,6 +174,20 @@ export async function createSave(page: Page, name: string, clubName: string, see
   await expect(page.getByTestId("dashboard-title")).toBeVisible();
 }
 
+/**
+ * On the dashboard, an international break before the managed club's next match (a worldVersion 2 save, from its first
+ * season): « Passer la trêve » plays it as a step of its own and stops at its Tuesday. Plays it when there is one, so that
+ * the hero's main action is then the match's.
+ */
+export async function passInternationalBreak(page: Page): Promise<void> {
+  const line = page.getByTestId("hero-break");
+  if ((await line.count()) === 0 || (await line.getAttribute("data-state")) !== "upcoming") {
+    return;
+  }
+  await page.getByTestId("dashboard-next-match").getByTestId("next-match").click();
+  await expect(line).toHaveAttribute("data-state", "back", { timeout: 120_000 });
+}
+
 /** The card of a save in the home page's list, by the name it was created with. */
 export function saveRow(page: Page, name: string): Locator {
   return page.locator(`[data-save-name="${name}"]`);

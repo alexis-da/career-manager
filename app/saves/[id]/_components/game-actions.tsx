@@ -83,10 +83,13 @@ type GameActionsProps = {
   worldVersion: WorldVersion; // 2: « Prochain match », which plays the other competitions' dates in between
   hero?: boolean; // in the dashboard's hero: larger, « Jouer le match », with `prepare` next to « Simuler »
   prepare?: ReactNode;
+  // An international break comes before the managed club's next match: « Prochain match » plays it and stops there, the
+  // manager seeing who comes back before his match; the button says « Passer la trêve ».
+  nextBreak?: boolean;
 };
 
 /** The game's main action, in orange, with the quick simulation menu during a season. */
-export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion, hero = false, prepare }: GameActionsProps) {
+export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion, hero = false, prepare, nextBreak = false }: GameActionsProps) {
   const [pending, startTransition] = useTransition();
   const [intermediate, setIntermediate] = useState(0); // dates played so far by « Prochain match »
   const [kickOff, setKickOff] = useState(false); // « Prochain match » is playing the managed club's date
@@ -118,20 +121,31 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion, h
     });
 
   // « Prochain match »: the dates before the managed club's match, a few per call to stay well within a request's
-  // time limit, then its date as « Jouer la journée » plays it, on to the replay.
+  // time limit, then its date as « Jouer la journée » plays it, on to the replay. An international break on the way
+  // stops it: the page shows who comes back from it before the match.
   const playToNextMatch = () =>
     startTransition(async () => {
       try {
         let played = 0;
+        let breakPlayed = false;
         setIntermediate(0);
         setKickOff(false);
         for (;;) {
           const batch = await playUntilNextMatchAction(saveId);
           played += batch.played;
           setIntermediate(played);
+          if (batch.breakPlayed) {
+            breakPlayed = true;
+            break;
+          }
           if (batch.done) {
             break;
           }
+        }
+        if (breakPlayed) {
+          toast.success(t("breakPlayed"));
+          router.refresh();
+          return;
         }
         if (played > 0) {
           toast.info(t("intermediatePlayed", { count: played }));
@@ -178,7 +192,11 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion, h
       ) : (
         <PlayIcon data-icon="inline-start" className="fill-current" />
       )}
-      {pending ? (kickOff ? t("kickOff") : `${t("intermediate")}${intermediate > 0 ? ` ${intermediate}` : ""}`) : t(hero ? "playMatch" : "nextMatch")}
+      {pending
+        ? kickOff
+          ? t("kickOff")
+          : `${t("intermediate")}${intermediate > 0 ? ` ${intermediate}` : ""}`
+        : t(nextBreak ? "playBreak" : hero ? "playMatch" : "nextMatch")}
     </Button>
   ) : (
     <Button variant={variant} className={className} disabled={pending} onClick={() => run(playMatchdayAction)} data-testid="play-matchday">

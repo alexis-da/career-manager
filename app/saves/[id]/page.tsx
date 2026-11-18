@@ -6,6 +6,7 @@ import { getDashboard } from "@/src/db/dashboard";
 import { getManagedLineup } from "@/src/db/lineup";
 import { getDailyMissions } from "@/src/db/missions";
 import { getMarketSales } from "@/src/db/market-sales";
+import { getManagedBreak } from "@/src/db/nations-view";
 import { getSeasonObjectives } from "@/src/db/objectives";
 import { getOpponentPreview } from "@/src/db/opponent";
 import { hasPlayedMatch } from "@/src/db/saves";
@@ -39,7 +40,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   const tGame = await getTranslations("gameActions");
   // Not simulation code: whether the challenge is over, and the day of the player's missions, are real time.
   const now = new Date();
-  const [dashboard, lineup, opponent, user, challenge, firstSteps, objectives, missions] = await Promise.all([
+  const [dashboard, lineup, opponent, user, challenge, firstSteps, objectives, missions, internationalBreak] = await Promise.all([
     getDashboard(id),
     getManagedLineup(id),
     getOpponentPreview(id),
@@ -49,6 +50,8 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
     getSeasonObjectives(id),
     // The day's missions, proposed the first time they are shown; none in a challenge save.
     getDailyMissions(id, now),
+    // An international break about to be played or just played: who goes, who comes back.
+    getManagedBreak(id),
   ]);
   // Only an anonymous player's save is at risk: it lives in this browser's cookie.
   const askToSignIn = user?.kind === "ANONYMOUS" && (await hasPlayedMatch(id));
@@ -84,6 +87,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           dashboard={dashboard}
           formation={lineup.formation}
           opponent={opponent}
+          internationalBreak={internationalBreak}
           className="lg:col-span-2 xl:self-stretch"
         />
         {!firstMatchPlayed && (
@@ -111,6 +115,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           lineup={lineup}
           sales={sales}
           firstMatchPlayed={firstMatchPlayed}
+          internationalBreak={internationalBreak}
         />
         {firstMatchPlayed && <LastMatchCard saveId={id} dashboard={dashboard} />}
         {/* Without the last match's card, the rest of the list's row. */}

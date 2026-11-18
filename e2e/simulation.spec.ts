@@ -42,13 +42,13 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
     await expect(today).toHaveAttribute("data-day", "2026-08-15");
     await expect(today.locator("[data-result]")).toHaveCount(1);
 
-    // 22 and 29 August are left in the month.
+    // 22 and 29 August are left in the month, and the English second division's Tuesdays, 18 and 25 August.
     await page.getByTestId("simulate-menu").click();
     await page.getByRole("menuitem", { name: "Fin du mois" }).click();
 
     const dialog = page.locator('[data-simulation="dialog"]');
     await expect(dialog.getByRole("heading", { name: "Simulation terminée" })).toBeVisible();
-    await expect(dialog.getByText("2 journées jouées · jusqu'au 31 août 2026")).toBeVisible();
+    await expect(dialog.getByText("4 journées jouées · jusqu'au 31 août 2026")).toBeVisible();
     await expect(dialog.locator('[data-simulation="matches"] > li')).toHaveCount(2);
     await expect(dialog.locator('[data-simulation="rank"]')).toContainText(`sur ${FRENCH_CLUBS}`);
     await expect(dialog.getByRole("heading", { name: "Blessures" })).toBeVisible();
