@@ -31,7 +31,22 @@ import { prisma } from "../src/db/client";
 import { isLocalDatabase } from "../src/db/database-url";
 import { europeFixtures, europeRunsOf, europeSeasonsOf } from "../src/db/europe";
 import { aiLineupOf, playNextMatchday, PLAYER_SELECT, squadsOf, withSuspensions } from "../src/db/matchday";
-import { readCallUps } from "../src/db/nations";
+import { playSummerTournament, readCallUps, readStrengths } from "../src/db/nations";
+import { internationalMatchRngSeed, internationalSession, nationFormation, playLightMatch } from "../src/engine/international";
+import {
+  cycleQualifiers,
+  drawTournament,
+  HEMISPHERES_CUP,
+  internationalTable,
+  OLD_CONTINENT_CUP,
+  playTournament,
+  QUALIFIER_EUROPE,
+  QUALIFIER_WORLD,
+  tournamentDates,
+  tournamentEnding,
+  zoneNations,
+  type Cycle,
+} from "../src/engine/tournaments";
 import { createSave } from "../src/db/saves";
 import { advanceToNextSeason, type SeasonTransition } from "../src/db/season";
 import { parseFormation } from "../src/db/lineup";
@@ -250,7 +265,93 @@ type SeasonSnapshot = {
   europe?: EuropeRecord[]; // its European clubs and how far they went; absent from records from before Europe
   knockout?: KnockoutRecord[];
   fitness?: FitnessRecord;
+  tournament?: TournamentRecord; // the summer tournament its transition played; absent from records from before them
 };
+
+/** Full runs of a cycle (qualifiers and tournament) played from one state, for the credibility of the winners (§ 11). */
+const CREDIBILITY_RUNS = 50;
+
+/** A summer tournament (docs/design/selections.md § 3.3), as the transition that closed its season played it. */
+type TournamentRecord = {
+  tournament: string;
+  year: number;
+  winner: string;
+  runnerUp: string;
+  groups: string[][];
+  cpuMs: number; // the tournament alone, played once more in a transaction rolled back
+  wallMs: number;
+  players: number; // players of our clubs who played in it
+  firstMatch: { date: string; fitness: number; injured: number; othersFitness: number }; // theirs at the next season's first league match, and the other players'
+  credibility: { tournament: string; runs: number; winners: Record<string, number> }[]; // CREDIBILITY_RUNS whole cycles from the state of its June
+};
+
+/** Thrown to roll a measuring transaction back. */
+class Rollback extends Error {}
+
+/** The CPU and the time the tournament ending the season takes, played in a transaction rolled back: the transition plays it. */
+async function tournamentCost(saveId: string, startYear: number): Promise<{ cpuMs: number; wallMs: number }> {
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, currentDate: true, cyclesFrom: true } });
+  let cost = { cpuMs: 0, wallMs: 0 };
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        const cpu = process.cpuUsage();
+        const wall = performance.now();
+        await playSummerTournament(tx, { id: saveId, ...save }, startYear);
+        const used = process.cpuUsage(cpu);
+        cost = { cpuMs: (used.user + used.system) / 1000, wallMs: performance.now() - wall };
+        throw new Rollback();
+      },
+      { timeout: 120_000 },
+    );
+  } catch (error) {
+    if (!(error instanceof Rollback)) {
+      throw error;
+    }
+  }
+  return cost;
+}
+
+/**
+ * CREDIBILITY_RUNS whole cycles of each tournament, light, from the squads the nations would call for the tournament now
+ * (at full fitness): each run its qualifiers, its draw and its tournament on a stream of its own. How often each nation wins.
+ */
+async function tournamentCredibility(saveId: string, cycle: Cycle): Promise<TournamentRecord["credibility"]> {
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, currentDate: true } });
+  const dates = tournamentDates(cycle.tournamentYear);
+  const called = await readCallUps(prisma, saveId, dates[0], save.currentDate);
+  const strengths = await readStrengths(prisma, saveId);
+  const rested = new Map([...called].map(([code, players]) => [code, players.map((player) => ({ ...player, fitness: 100, injured: false }))] as const));
+  const teams = new Map([...rested].map(([code, players]) => [code, { code, players, formation: nationFormation(players) }] as const));
+  const team = (code: string) => {
+    const found = teams.get(code as never);
+    if (found === undefined) {
+      throw new Error(`No squad for ${code}`);
+    }
+    return found;
+  };
+  return ([OLD_CONTINENT_CUP, HEMISPHERES_CUP] as const).map((tournament) => {
+    const winners: Record<string, number> = {};
+    for (let run = 0; run < CREDIBILITY_RUNS; run++) {
+      const seed = `${save.seed}:credibility:${run}`;
+      const results = cycleQualifiers(seed, { startYear: cycle.startYear, tournament }).map((match) => {
+        const played = playLightMatch(team(match.home), team(match.away), `${seed}:${match.competition}:${match.round}:${match.home}`, {
+          neutral: false,
+          knockout: false,
+        });
+        return { competition: match.competition, home: match.home, away: match.away, homeGoals: played.homeGoals, awayGoals: played.awayGoals };
+      });
+      const europe = internationalTable(zoneNations("EUROPE"), results.filter((result) => result.competition === QUALIFIER_EUROPE), strengths);
+      const world =
+        tournament === HEMISPHERES_CUP ? internationalTable(zoneNations("WORLD"), results.filter((result) => result.competition === QUALIFIER_WORLD), strengths) : [];
+      const groups = drawTournament({ tournament, europe, world, strengths, saveSeed: seed, year: cycle.tournamentYear });
+      const session = internationalSession(new Map(groups.flat().map((code) => [code, rested.get(code) ?? []] as const)), dates[0]);
+      const played = playTournament({ session, groups, dates, strengths, seedOf: (date, home, away) => `${seed}:${internationalMatchRngSeed(save.seed, date, home, away)}` });
+      winners[played.winner] = (winners[played.winner] ?? 0) + 1;
+    }
+    return { tournament, runs: CREDIBILITY_RUNS, winners };
+  });
+}
 
 /** A typical signing for a club (c): how many its transfer budget pays, how many its wage room pays. */
 type Signing = {
@@ -869,8 +970,52 @@ async function playSeasons(saveId: string, seasons: number): Promise<SeasonSnaps
     const fitness = await playWatchingFitness(saveId, start.startYear);
     const end = await recordEnd(saveId, start.startYear);
     const { europe, knockout } = await europeRecordsOf(saveId, start.startYear);
+    // The summer tournament ending the season's cycle, if it ends one: its cost and its credibility from the state of its
+    // June, and the caps of our clubs' players, to know who played in it.
+    const { cyclesFrom } = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { cyclesFrom: true } });
+    const ending = tournamentEnding(cyclesFrom, start.startYear);
+    const before =
+      ending === null
+        ? null
+        : {
+            cost: await tournamentCost(saveId, start.startYear),
+            credibility: await tournamentCredibility(saveId, ending),
+            caps: new Map((await prisma.playerSave.findMany({ where: { saveId, retired: false }, select: { id: true, caps: true } })).map((row) => [row.id, row.caps])),
+          };
     // Nobody would renew the managed club's contracts otherwise: its squad would melt season after season.
     const transition = await advanceToNextSeason(saveId, { assistantContracts: true });
+    let tournament: TournamentRecord | undefined;
+    if (before !== null && transition.tournament !== null) {
+      // Who played in it, and their condition at the next season's first league match, against the other players of our clubs.
+      const after = await prisma.playerSave.findMany({
+        where: { saveId, retired: false, clubSaveId: { not: null } },
+        select: { id: true, caps: true, fitness: true, injuredUntil: true },
+      });
+      const [save, first] = [
+        await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
+        await prisma.fixture.findFirstOrThrow({ where: { saveId, played: false, season: { competition: { kind: "LEAGUE" } } }, orderBy: { scheduledAt: "asc" }, select: { scheduledAt: true } }),
+      ];
+      const days = Math.round((first.scheduledAt.getTime() - save.currentDate.getTime()) / DAY_MS);
+      const atKickOff = (row: (typeof after)[number]) => recoveredFitness(row.fitness, days);
+      const played = after.filter((row) => row.caps > (before.caps.get(row.id) ?? row.caps));
+      const others = after.filter((row) => row.caps <= (before.caps.get(row.id) ?? row.caps));
+      tournament = {
+        tournament: transition.tournament.tournament,
+        year: transition.tournament.year,
+        winner: transition.tournament.winner,
+        runnerUp: transition.tournament.runnerUp,
+        groups: transition.tournament.groups.map((group) => [...group]),
+        ...before.cost,
+        players: played.length,
+        firstMatch: {
+          date: first.scheduledAt.toISOString().slice(0, 10),
+          fitness: mean(played.map(atKickOff)),
+          injured: played.filter((row) => row.injuredUntil !== null && row.injuredUntil > first.scheduledAt).length,
+          othersFitness: mean(others.map(atKickOff)),
+        },
+        credibility: before.credibility,
+      };
+    }
     const playSeconds = Math.round((performance.now() - began) / 1000);
     const managedObjectives = await prisma.seasonObjective.findMany({
       where: { saveId, season: { startYear: start.startYear } },
@@ -888,6 +1033,7 @@ async function playSeasons(saveId: string, seasons: number): Promise<SeasonSnaps
       europe,
       knockout,
       fitness,
+      tournament,
     });
     console.log(
       `  season ${season} (${seasonLabel(start.startYear)}): ${playSeconds} s, ${transition.moves} clubs promoted or relegated, ${transition.preseason.wageSales} wage sales`,
@@ -1601,6 +1747,7 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
   sections.push(...objectivesSections(snapshots, rows));
   sections.push(...europeSections(snapshots, rows));
   sections.push(...nationsSections(snapshots, rows));
+  sections.push(...tournamentSections(snapshots));
   return sections.join("\n\n");
 }
 
@@ -2105,7 +2252,7 @@ function nationsSections(snapshots: readonly SeasonSnapshot[], rows: readonly Cl
   return [
     "## i. Sélections nationales (docs/design/selections.md)",
     [
-      "Quatre trêves par saison, deux matchs amicaux chacune, en simulation légère ; chaque trêve jouée comme une étape de la",
+      "Quatre trêves par saison, deux matchs chacune (éliminatoires et matchs amicaux), en simulation légère ; chaque trêve jouée comme une étape de la",
       "partie. Appelés : joueurs de nos clubs dans les 23 de leur nation ; par club : moyenne des clubs de D1 (et de D2), et le",
       "plus grand nombre d'un club. Condition au retour : celle, au dernier jour de la trêve, des joueurs de nos clubs qui ont",
       "joué. CPU : ms de calcul de l'étape de la trêve (moyenne / max), durée en ms, base comprise.",
@@ -2128,6 +2275,54 @@ function nationsSections(snapshots: readonly SeasonSnapshot[], rows: readonly Cl
       ["Saison", "Gros prêteurs : en club", "en sélection", "total", "Autres européens : en club", "en sélection", "total", "Autres D1 : en club", "en sélection", "total"],
       injuryRows,
     ),
+  ];
+}
+
+/** The summer tournaments the transitions played: winners, cost, their players' condition after, credibility of the winners. */
+function tournamentSections(snapshots: readonly SeasonSnapshot[]): string[] {
+  const played = snapshots.filter((snapshot) => snapshot.tournament !== undefined);
+  if (played.length === 0) {
+    return [];
+  }
+  const name = (code: string) => (code === OLD_CONTINENT_CUP ? "Coupe du Vieux Continent" : "Coupe des Hémisphères");
+  const rows = played.map((snapshot) => {
+    const record = snapshot.tournament as TournamentRecord;
+    return [
+      `${name(record.tournament)} ${record.year}`,
+      record.groups.map((group, index) => `${index === 0 ? "A" : "B"} : ${group.join(", ")}`).join(" · "),
+      `${record.winner} (finale contre ${record.runnerUp})`,
+      String(record.players),
+      `${record.firstMatch.date} : ${fixed(record.firstMatch.fitness, 1)} (autres ${fixed(record.firstMatch.othersFitness, 1)})`,
+      String(record.firstMatch.injured),
+      `${fixed(record.cpuMs, 0)} / ${fixed(record.wallMs, 0)}`,
+    ];
+  });
+  const big = ["GER", "ENG", "ESP", "FRA", "ITA", "POR", "BRA", "ARG"];
+  const credibilityRows = played.flatMap((snapshot) =>
+    (snapshot.tournament as TournamentRecord).credibility.map((entry) => {
+      const wins = Object.entries(entry.winners).sort(([a, x], [b, y]) => y - x || (a < b ? -1 : 1));
+      const bigShare = wins.filter(([code]) => big.includes(code)).reduce((sum, [, count]) => sum + count, 0) / entry.runs;
+      const [top] = wins;
+      return [
+        `${name(entry.tournament)}, état de juin ${(snapshot.tournament as TournamentRecord).year}`,
+        `${fixed(100 * bigShare, 0)} %`,
+        top === undefined ? "—" : `${top[0]} ${fixed((100 * top[1]) / entry.runs, 0)} %`,
+        wins.map(([code, count]) => `${code} ${count}`).join(" · "),
+      ];
+    }),
+  );
+  return [
+    "## j. Tournois d'été (docs/design/selections.md § 3.3)",
+    [
+      "Joués en simulation légère au début du passage de saison qui suit la deuxième saison d'un cycle. Condition au premier",
+      "match : celle, au coup d'envoi du premier match de championnat de la saison suivante, des joueurs de nos clubs qui ont",
+      "joué le tournoi, et des autres ; le passage de saison rend à chacun sa pleine condition et le guérit. CPU : ms de calcul",
+      "du tournoi seul / durée en ms, base comprise.",
+    ].join(" "),
+    table(["Tournoi", "Groupes", "Vainqueur", "Joueurs de nos clubs", "Condition au 1er match", "Blessés au 1er match", "CPU / durée (ms)"], rows),
+    `### Crédibilité : ${CREDIBILITY_RUNS} cycles complets (éliminatoires et tournoi) depuis l'état de juin, pour chaque tournoi`,
+    "Cible : les cinq grandes, le Brésil, l'Argentine et le Portugal font environ 80 % des titres, aucune nation plus de 30 %.",
+    table(["Tournoi", "Huit grandes", "Plus titrée", "Vainqueurs"], credibilityRows),
   ];
 }
 
