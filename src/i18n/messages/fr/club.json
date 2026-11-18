@@ -31,7 +31,8 @@
     "challengeScore": "{points, plural, one {# point} other {# points}}",
     "challengeRank": "{points, plural, one {# point} other {# points}} · {rank, selectordinal, one {#er} other {#e}} provisoire",
     "points": "{points, plural, one {# pt} other {# pts}}",
-    "allHonours": "Tout le palmarès",
+    "allHonours": "Toute l'histoire",
+    "trophies": "{count, plural, =0 {Aucun trophée} one {# trophée} other {# trophées}}",
     "objectives": {
       "title": "Objectifs du président",
       "season": "Saison {season}",

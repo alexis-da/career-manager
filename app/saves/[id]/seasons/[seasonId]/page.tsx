@@ -25,7 +25,10 @@ import {
   seasonCardFileName,
   seasonCardPath,
 } from "../../_lib/seasons";
+import { recordsSetIn } from "@/src/engine/career-history";
+import { NewRecordsPanel } from "../_components/new-records-panel";
 import { SeasonCardPanel } from "../_components/season-card-panel";
+import { getCareerHistoryCached } from "../_lib/history-cache";
 import { SeasonMovesPanel } from "../_components/season-moves-panel";
 import { SeasonObjectivesPanel } from "../_components/season-objectives-panel";
 
@@ -46,13 +49,15 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
     getTranslations("stage"),
     getLocale(),
   ]);
-  const [result, moves, save, objectives, dress] = await Promise.all([
+  const [result, moves, save, objectives, dress, history] = await Promise.all([
     getSeasonResult(id, seasonId),
     getCountryMoves(id, seasonId),
     getSaveSummary(id),
     getClosedObjectives(id, seasonId),
     // The frame and title the player wears, on the card's address (missions v2).
     getWornCosmetics(ownerId),
+    // The career's records, for the ones this season broke.
+    getCareerHistoryCached(id),
   ]);
   if (result === null || save === null) {
     notFound();
@@ -70,7 +75,8 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
   const europe = europeReviewLines(season, europeWinners, tStage, t);
   // One column, centred under lg; the whole page on a computer, for the objectives and the moves beside the card: a save
   // with one division has no moves, a season from before the objectives no objectives.
-  const beside = objectives !== null || moves.length > 0;
+  const records = recordsSetIn(history, season.startYear);
+  const beside = objectives !== null || moves.length > 0 || records.length > 0;
 
   return (
     <div className={cn("mx-auto max-w-xl space-y-5 lg:mx-0 lg:max-w-md", beside && "lg:max-w-none")}>
@@ -124,6 +130,7 @@ export default async function SeasonPage({ params }: PageProps<"/saves/[id]/seas
           shareTitle={t("completed.shareTitle", { season: label })}
         />
         <div className="space-y-5 empty:hidden">
+          {records.length > 0 && <NewRecordsPanel records={records} />}
           {objectives !== null && <SeasonObjectivesPanel objectives={objectives} />}
           {moves.length > 0 && <SeasonMovesPanel moves={moves} />}
           {/* The next season has begun: the way on to its start screen, in the blue, the screen's orange being the card's. */}

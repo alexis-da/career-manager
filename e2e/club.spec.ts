@@ -174,7 +174,7 @@ async function expectClubScreen(page: Page): Promise<void> {
   // The manager's title beside the pill's line: the rookie's until one is chosen (missions v2).
   await expect(page.getByTestId("club-manager")).toContainText("Manager : Test · 2e saison");
   await expect(page.getByTestId("club-manager-title")).toHaveText("Novice");
-  await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Club", "Défi", "Palmarès", "Récompenses"]);
+  await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Club", "Défi", "Histoire", "Récompenses"]);
   await expect(page.getByTestId("nav-club-overview")).toHaveAttribute("aria-current", "page");
 
   const finances = page.getByTestId("club-finances");
@@ -317,12 +317,12 @@ test("switches the language from the settings and back, keeps it in its cookie, 
   const honoursTab = page.getByTestId("nav-seasons");
   const chosenCookie = async () => (await context.cookies()).find((cookie) => cookie.name === "lw_lang");
   await expect(language).toHaveAttribute("lang", "fr");
-  await expect(honoursTab).toHaveText("Palmarès");
+  await expect(honoursTab).toHaveText("Histoire");
   expect(await chosenCookie()).toBeUndefined();
 
   await english.click();
   await expect(language).toHaveAttribute("lang", "en");
-  await expect(honoursTab).toHaveText("Honours");
+  await expect(honoursTab).toHaveText("History");
   await expect(english).toHaveAttribute("aria-pressed", "true");
   await expect(french).toHaveAttribute("aria-pressed", "false");
   await expect(page).toHaveURL((url) => url.pathname === `/saves/${demo}/club`);
@@ -337,7 +337,7 @@ test("switches the language from the settings and back, keeps it in its cookie, 
 
   await french.click();
   await expect(language).toHaveAttribute("lang", "fr");
-  await expect(honoursTab).toHaveText("Palmarès");
+  await expect(honoursTab).toHaveText("Histoire");
   await expect(french).toHaveAttribute("aria-pressed", "true");
   await expect(english).toHaveAttribute("aria-pressed", "false");
   expect((await chosenCookie())?.value).toBe("fr");
@@ -502,7 +502,7 @@ test.describe("in English, at 390 px", () => {
   test("names the tabs, the manager's season, the money and the settings as a British player reads them", async ({ page }) => {
     await openDemo(page, "/club");
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Club", "Challenge", "Honours", "Rewards"]);
+    await expect(page.getByTestId("section-tabs").getByRole("link")).toHaveText(["Club", "Challenge", "History", "Rewards"]);
     await expect(page.getByTestId("club-manager")).toContainText("Manager: Test · 2nd season");
     await expect(page.getByTestId("club-manager-title")).toHaveText("Rookie");
     await expect(page.getByTestId("club-budget")).toHaveText(/^€\d+(\.\d+)?m$/);
@@ -527,8 +527,12 @@ test.describe("in English, at 390 px", () => {
     await expectNoSidewaysScroll(page, "challenge");
 
     await openScreen(page, "seasons");
-    await expect(page.getByTestId("seasons-title")).toHaveText("Honours");
-    await expectNoSidewaysScroll(page, "honours");
+    await expect(page.getByTestId("seasons-title")).toHaveText("History");
+    await expect(page.getByTestId("trophy-room").getByRole("heading")).toHaveText("Trophy room");
+    await expect(page.getByTestId("career-records").getByRole("heading", { level: 2 })).toHaveText("Records");
+    await expect(page.getByTestId("career-legends").getByRole("heading", { level: 2 })).toHaveText("Legends");
+    await expect(page.getByTestId("history-current")).toContainText("2027-28 season · under way");
+    await expectNoSidewaysScroll(page, "history");
   });
 });
 
@@ -554,6 +558,41 @@ for (const locale of ["fr-FR", "en-GB"]) {
       await expect(page.getByTestId("season-card-image")).toBeVisible();
       await expectNoSidewaysScroll(page, "season");
     });
+  });
+}
+
+for (const viewport of [COMPUTER, PHONE, SMALL_PHONE]) {
+  test(`tells the demo's career at ${viewport.width} px: its trophies, records and players on their way, the season under way, its card`, async ({ page, request }) => {
+    await page.setViewportSize(viewport);
+    await openDemo(page, "/seasons");
+    await expect(page.getByTestId("seasons-title")).toHaveText("Histoire");
+    await expect(page.getByTestId("history-seasons")).toHaveText("1 saison terminée · 2026-27 → 2026-27");
+    // A save of the first divisions only: the league's title alone, won or to conquer.
+    const tiles = page.getByTestId("trophy-room").getByTestId("trophy-tile");
+    await expect(tiles).toHaveCount(1);
+    await expect(tiles.first()).toHaveAttribute("data-kind", "championD1");
+    const records = page.getByTestId("career-records");
+    await expect(records.getByTestId("record-biggest-win")).toContainText(/^Plus large victoire\s*\d+-\d+\s*contre /);
+    await expect(records.getByTestId("record-unbeaten")).toContainText(/^Plus longue invincibilité\s*\d+ match/);
+    await expect(records.getByTestId("record-points-d1")).toContainText("2026-27");
+    await expect(records.getByTestId("record-top-scorer")).toContainText(/\d+ buts?/);
+    await expect(records.getByTestId("record-most-capped")).toContainText(/\d+ matchs?/);
+    // One season: no legend yet, the players at the club on their way.
+    const legends = page.getByTestId("career-legends");
+    await expect(legends.getByTestId("career-legends-none")).toBeVisible();
+    await expect(legends.getByTestId("on-the-way")).toHaveCount(3);
+    await expect(page.getByTestId("history-current")).toContainText("Saison 2027-28 · en cours");
+    await expect(page.locator('tr[data-season="2026"]')).toContainText(/Buteur : .+ · \d+ buts?/);
+    await expectNoSidewaysScroll(page, "history");
+
+    // The career's card for one completed season: a PNG for its owner, 404 for a visitor and for another count.
+    const landscape = await hrefOf(page.getByTestId("history-head").getByTestId("career-card-landscape"));
+    expect(landscape).toMatch(/^\/saves\/[^/]+\/seasons\/card\?lang=fr&v=\d+&n=1$/);
+    const owned = await page.request.get(landscape);
+    expect(owned.status()).toBe(200);
+    expect(owned.headers()["content-type"]).toBe("image/png");
+    expect((await request.get(landscape)).status()).toBe(404);
+    expect((await page.request.get(landscape.replace("n=1", "n=2"))).status()).toBe(404);
   });
 }
 
@@ -606,6 +645,28 @@ test.describe("a Google account's Lyon", () => {
     await page.setViewportSize(SMALL_PHONE);
     await expectNoSidewaysScroll(page, "account");
     await expectThumbTargets(page);
+  });
+
+  test("shows a new career's History tab: every trophy still to conquer, no record yet, no card", async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await openSave(page, "/seasons");
+    await expect(page.getByTestId("history-seasons")).toHaveText("Première saison en cours");
+    // Lyon, in the first division of a world with its cups and Europe: no second division's title nor promotion to win.
+    const tiles = page.getByTestId("trophy-room").getByTestId("trophy-tile");
+    await expect(tiles).toHaveCount(4);
+    for (const [index, kind] of ["championD1", "cup", "eu1", "eu2"].entries()) {
+      await expect(tiles.nth(index)).toHaveAttribute("data-kind", kind);
+      await expect(tiles.nth(index)).toHaveAttribute("data-to-conquer", "true");
+      await expect(tiles.nth(index)).toContainText("À conquérir");
+    }
+    await expect(page.getByTestId("career-records-empty")).toBeVisible();
+    await expect(page.getByTestId("career-legends-none")).toBeVisible();
+    await expect(page.getByTestId("history-current")).toContainText("Pas encore de match de championnat");
+    await expect(page.getByTestId("seasons-empty")).toBeVisible();
+    await expect(page.getByTestId("career-card-landscape")).toHaveCount(0);
+    await expectNoSidewaysScroll(page, "history at 390 px");
+    await page.setViewportSize(SMALL_PHONE);
+    await expectNoSidewaysScroll(page, "history at 360 px");
   });
 
   test("gives its first season's budget in one line, the one it started with, its wage cap and its prize money, down to 360 px", async ({ page }) => {

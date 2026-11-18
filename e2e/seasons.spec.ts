@@ -37,7 +37,7 @@ test("shows the demo save's palmarès, its completed season and the season's car
 
   await page.goto(`/saves/${saveId}`);
   await openScreen(page, "seasons");
-  await expect(page.getByRole("heading", { name: "Palmarès" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Histoire", level: 1 })).toBeVisible();
   const season = page.locator('tr[data-season="2026"]');
   await expect(season).toContainText("2026-27");
   await expect(season).toContainText("France — Division 1");

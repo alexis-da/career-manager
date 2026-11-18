@@ -92,18 +92,19 @@ export async function readArchivedSeason(db: Db, saveId: string, seasonId: strin
 }
 
 /**
- * The save's archived seasons whose clubs include a club, decoded without their statistics, with their start year,
- * most recent first: the matches a club played in completed seasons.
+ * The save's archived seasons whose clubs include a club, decoded (their statistics only when asked for), with their
+ * start year, most recent first: the matches a club played in completed seasons.
  */
 export async function readArchivedSeasonsOfClub(
   db: Db,
   saveId: string,
   clubSaveId: string,
+  { stats = false } = {},
 ): Promise<{ seasonId: string; startYear: number; season: DecodedSeason }[]> {
   const rows = await db.seasonArchive.findMany({
     where: { saveId, clubSaveIds: { has: clubSaveId } },
     orderBy: { season: { startYear: "desc" } },
-    select: { ...FIXTURES_SELECT, season: { select: { startYear: true } } },
+    select: { ...(stats ? WITH_STATS_SELECT : FIXTURES_SELECT), season: { select: { startYear: true } } },
   });
   return rows.map((row) => ({ seasonId: row.seasonId, startYear: row.season.startYear, season: decodeSeason(encodedOf(row)) }));
 }

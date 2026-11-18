@@ -55,6 +55,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
       stats,
       errors,
       europeResults,
+      careerHistory,
     ] = await Promise.all([
       import("./client"),
       import("./test-support"),
@@ -79,6 +80,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
       import("./stats"),
       import("./errors"),
       import("./europe-results"),
+      import("./career-history"),
     ]);
     return {
       prisma: client.prisma,
@@ -104,6 +106,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
       stats,
       errors,
       europeResults,
+      careerHistory,
     };
   }
 
@@ -186,6 +189,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
       playedBanner: await settled(() => m.saves.hasPlayedMatch(saveId)),
       dashboard: await settled(() => m.dashboard.getDashboard(saveId)),
       club: await settled(() => m.club.getClubFinances(saveId)),
+      prizes: await settled(() => m.club.getSeasonPrizes(saveId)),
+      // The History tab: its completed part reads the archives, as its cache would keep it.
+      history: await settled(() => m.careerHistory.getCareerHistory(m.db, saveId)),
       objectivesNow: await settled(() => m.objectives.getSeasonObjectives(saveId)),
       calendar: await settled(() => m.calendar.getManagedClubCalendar(saveId)),
       squad: await settled(() => m.squad.getSquadView(saveId)),
@@ -350,5 +356,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the archive of the comp
     expect(without.opponent).not.toEqual(before?.opponent);
     expect(without.firstSteps).not.toEqual(before?.firstSteps);
     expect(without.admin.stats).not.toEqual(before?.admin.stats);
+    // The career's matches and players' lines of the completed seasons are gone with them.
+    expect(without.history).not.toEqual(before?.history);
   });
 });

@@ -19,7 +19,10 @@ type ClubHonoursProps = {
   className?: string;
 };
 
-/** The club's latest seasons, each leading to its card; from 1024 px, the last one's card, to share or download. */
+/**
+ * The club's latest seasons, each leading to its card, its trophies counted and the way to its whole history; from
+ * 1024 px, the last one's card, to share or download.
+ */
 export function ClubHonours({ saveId, seasons, dress, className }: ClubHonoursProps) {
   const t = useTranslations("seasons");
   const tClub = useTranslations("club");
@@ -85,11 +88,15 @@ export function ClubHonours({ saveId, seasons, dress, className }: ClubHonoursPr
             );
           })}
         </ul>
-        {seasons.length > LATEST_SEASONS && (
-          <Link href={`/saves/${saveId}/seasons`} data-testid="club-honours-all" className={cn(CLUB_CARD_LINK, "self-start")}>
-            {tClub("allHonours")}
-          </Link>
-        )}
+        {/* The career's titles (league, cup, Europe) in a line, then the way to its whole history. */}
+        <p data-testid="club-honours-trophies" className="text-sm text-muted-foreground tabular-nums">
+          {tClub("trophies", {
+            count: seasons.reduce((sum, season) => sum + Number(season.champion) + Number(season.cupWinner) + Number(season.europeWinner), 0),
+          })}
+        </p>
+        <Link href={`/saves/${saveId}/seasons`} data-testid="club-honours-all" className={cn(CLUB_CARD_LINK, "self-start")}>
+          {tClub("allHonours")}
+        </Link>
         <HonoursCardActions
           square={{ url: card, fileName: seasonCardFileName(latest.startYear, "square", t) }}
           shareTitle={t("completed.shareTitle", { season: seasonLabel(latest.startYear) })}

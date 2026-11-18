@@ -66,7 +66,7 @@ const FRENCH: Labels = {
     "nav-standings": "Classement",
     "nav-club-overview": "Club",
     "nav-challenge": "Défi",
-    "nav-seasons": "Palmarès",
+    "nav-seasons": "Histoire",
     "nav-rewards": "Récompenses",
   },
 };
@@ -81,7 +81,7 @@ const ENGLISH: Labels = {
     "nav-standings": "Table",
     "nav-club-overview": "Club",
     "nav-challenge": "Challenge",
-    "nav-seasons": "Honours",
+    "nav-seasons": "History",
     "nav-rewards": "Rewards",
   },
 };

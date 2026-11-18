@@ -307,7 +307,9 @@ describe("the honours", () => {
     expect(markup).toMatch(/<img alt="" [^>]*loading="lazy"[^>]*class="[^"]*max-lg:hidden/);
     // In the page's language: an address that always gives the same image, which the browser keeps.
     expect(markup).toContain(`/saves/save/seasons/season-2026/card?lang=fr&amp;v=${SEASON_CARD_VERSION}&amp;format=square`);
-    expect(markup).not.toContain('data-testid="club-honours-all"');
+    // The way to the whole history, always, under the career's trophies.
+    expect(markup).toMatch(/data-testid="club-honours-trophies"[^>]*>Aucun trophée</);
+    expect(markup).toMatch(/data-testid="club-honours-all"[^>]*href="\/saves\/save\/seasons">Toute l&#x27;histoire</);
   });
 
   it("tells a season's promotion, cup and European run under its competition, as the palmarès does, a title in orange", () => {
@@ -334,6 +336,8 @@ describe("the honours", () => {
 
     expect([...markup.matchAll(/club-honours-season-(\d+)/g)].map((match) => match[1])).toEqual(["2029", "2028", "2027"]);
     expect(markup).toContain('data-testid="club-honours-all"');
+    // One title, the 2029 league: the trophies of every season, not only the three shown.
+    expect(markup).toMatch(/data-testid="club-honours-trophies"[^>]*>1 trophée</);
     expect(markup.replace(/<[^>]+>/g, " ")).toContain("Champion");
     expect(card([season(2029, 1)], "en").replace(/<[^>]+>/g, " ")).toContain("Champions");
   });

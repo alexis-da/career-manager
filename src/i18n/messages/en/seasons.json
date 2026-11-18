@@ -1,6 +1,6 @@
 {
   "seasons": {
-    "title": "Honours",
+    "title": "History",
     "empty": "No completed season yet: each season's record will show here.",
     "columns": {
       "season": "Season",
@@ -49,6 +49,88 @@
       "relegated": "Relegated to Division 2",
       "rankIn": "{rank} in {competition}",
       "managed": "your club"
+    },
+    "history": {
+      "head": {
+        "title": "Your career",
+        "seasons": "{count, plural, =0 {First season under way} one {# season completed} other {# seasons completed}}",
+        "span": "{first} → {last}",
+        "titles": "{count, plural, =0 {No trophy yet} one {# trophy} other {# trophies}}",
+        "promotions": "{count, plural, one {# promotion} other {# promotions}}",
+        "objectives": "Objectives met: {met}/{total}",
+        "shareTitle": "My career"
+      },
+      "trophies": {
+        "title": "Trophy room",
+        "championD1": "First division champions",
+        "championD2": "Second division champions",
+        "cup": "Cup",
+        "promotion": "Promotion",
+        "toConquer": "Still to win",
+        "lostFinals": "{count, plural, one {# final lost} other {# finals lost}}"
+      },
+      "records": {
+        "title": "Records",
+        "empty": "Your records will build up match after match.",
+        "biggestWin": "Biggest win",
+        "biggestWinDetail": "against {club} · {competition} · {season}",
+        "unbeaten": "Longest unbeaten run",
+        "matches": "{count, plural, one {# match} other {# matches}}",
+        "unbeatenDetail": "{from} to {to}",
+        "unbeatenOngoing": "since {from} · ongoing",
+        "currentRun": "Current run: {count, plural, one {# match} other {# matches}}",
+        "points": "Most points · Division {tier}",
+        "pointsValue": "{points} pts",
+        "pointsDetail": "{season} · {rank} · {played, plural, one {# match} other {# matches}}",
+        "topScorer": "All-time top scorer",
+        "goals": "{count, plural, one {# goal} other {# goals}}",
+        "mostCapped": "Most appearances",
+        "playerDetail": "{name} · {position}",
+        "stillHere": "still at the club",
+        "chaserGoals": "{name} {gap, plural, one {# goal} other {# goals}} behind",
+        "chaserMatches": "{name} {gap, plural, one {# match} other {# matches}} behind",
+        "biggestIn": "Record signing",
+        "biggestOut": "Record sale",
+        "transferIn": "{name} · from {club} · {season}",
+        "transferOut": "{name} · to {club} · {season}",
+        "elsewhere": "a club outside the game",
+        "bestYouth": "Best academy graduate",
+        "youthDetail": "{name} · {origin} · {matches} · rated {overall}",
+        "academy": "academy {year}",
+        "shop": "Shop"
+      },
+      "legends": {
+        "title": "Legends",
+        "explain": "Legend index: 1 point a match for the club, 2 a goal, 1 an assist, 15 for each player of the season award, 10 to 20 for each trophy won with him. A legend from {threshold}.",
+        "none": "No legend yet: it takes some three full seasons at the club.",
+        "index": "{index, plural, one {# pt} other {# pts}}",
+        "years": "{from} → {to}",
+        "figures": "{matches} · {goals} · {assists}",
+        "assists": "{count, plural, one {# assist} other {# assists}}",
+        "titles": "{count, plural, one {# trophy} other {# trophies}}",
+        "awards": "Player of the season ×{count}",
+        "onTheWay": "On the road to legend",
+        "missing": "{points} pts to go"
+      },
+      "current": {
+        "title": "{season} season · under way",
+        "rank": "{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} · {points, plural, one {# point} other {# points}}",
+        "noMatch": "No league match yet",
+        "out": "out"
+      },
+      "seasonObjectives": "Objectives {met}/{total}",
+      "budget": "Budget {amount}",
+      "budgetEnd": "Budget {start} → {end}",
+      "topScorer": "Top scorer: {name} · {goals, plural, one {# goal} other {# goals}}",
+      "hatTricks": "{count, plural, one {# hat-trick} other {# hat-tricks}}",
+      "newRecords": {
+        "title": "Records broken this season",
+        "points": "{points} points: a Division {tier} record",
+        "biggestWin": "Biggest win: {score}",
+        "unbeaten": "Record unbeaten run: {count, plural, one {# match} other {# matches}}"
+      },
+      "cardFile": "late-winner-career.png",
+      "cardFileLandscape": "late-winner-career-landscape.png"
     }
   },
   "seasonCard": {
@@ -75,6 +157,26 @@
     "playerGoals": "GOALS",
     "playerAssists": "ASSISTS",
     "playerRating": "RATING",
+    "manager": "MANAGER: {title}"
+  },
+  "careerCard": {
+    "title": "CAREER",
+    "span": "{first} → {last} · {count, plural, one {# SEASON} other {# SEASONS}}",
+    "firstSeason": "FIRST SEASON UNDER WAY",
+    "championD1": "{count, plural, one {# D1 TITLE} other {# D1 TITLES}}",
+    "championD2": "{count, plural, one {# D2 TITLE} other {# D2 TITLES}}",
+    "cup": "{count, plural, one {# CUP} other {# CUPS}}",
+    "eu1": "{count, plural, one {# LAUREL CUP} other {# LAUREL CUPS}}",
+    "eu2": "{count, plural, one {# PENNANT CUP} other {# PENNANT CUPS}}",
+    "promotion": "{count, plural, one {# PROMOTION} other {# PROMOTIONS}}",
+    "noTrophy": "TROPHIES TO WIN",
+    "biggestWin": "BIGGEST WIN",
+    "unbeaten": "UNBEATEN RUN",
+    "matches": "{count, plural, one {# MATCH} other {# MATCHES}}",
+    "legend": "LEGEND",
+    "topScorer": "TOP SCORER",
+    "playerFigures": "{matches, plural, one {# match} other {# matches}} · {goals, plural, one {# goal} other {# goals}}",
+    "objectives": "Objectives {met}/{total}",
     "manager": "MANAGER: {title}"
   }
 }

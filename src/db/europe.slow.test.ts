@@ -86,6 +86,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("European seasons", () =
   let runBefore: Awaited<ReturnType<typeof import("./europe").clubEuropeRun>> = null;
   let prizesAtEnd: Awaited<ReturnType<typeof import("./club").getSeasonPrizes>> = null;
   let budgetGained = 0;
+  let budgetAtEnd = 0;
+  let squadAtEnd = 0;
   let cupWinners = new Map<string, string>(); // country prefix → slug of the season's cup winner
   const fixturesOfFirstSeason: { code: string; round: number; date: string; home: string; away: string; played: boolean; winner: string | null; decidedBy: string | null }[] = [];
 
@@ -148,6 +150,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("European seasons", () =
       prisma.seasonBudget.findFirstOrThrow({ where: { saveId, season: { startYear: FIRST_YEAR } }, select: { budget: true } }),
     ]);
     budgetGained = budget - dotation.budget;
+    budgetAtEnd = budget;
+    squadAtEnd = await prisma.playerSave.count({ where: { saveId, clubSaveId: managedId } });
     const finals = await prisma.fixture.findMany({
       where: { saveId, round: 6, played: true, season: { startYear: FIRST_YEAR, competition: { kind: "CUP" } } },
       select: { season: { select: { competition: { select: { code: true } } } }, winnerClubSave: { select: { club: { select: { slug: true } } } } },
@@ -204,6 +208,41 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("European seasons", () =
     expect(prizesAtEnd?.europe?.code).toBe(runBefore?.code);
     expect(prizesAtEnd?.cup?.code).toBe("fr.cup");
     expect((prizesAtEnd?.cup?.amount ?? 0) + (prizesAtEnd?.europe?.amount ?? 0)).toBe(budgetGained);
+  });
+
+  it("keeps the season's highlights on its result: the club's budget, its exact scorers, its squad; the History tab reads them", async () => {
+    const db = database();
+    const [{ parseSeasonHighlights }, { getCareerHistory }] = await Promise.all([import("./season-highlights"), import("./career-history")]);
+    const result = await db.seasonResult.findFirstOrThrow({ where: { saveId, season: { startYear: FIRST_YEAR } }, select: { highlights: true } });
+    const highlights = parseSeasonHighlights(result.highlights);
+
+    expect(highlights).not.toBeNull();
+    expect(highlights?.budget).toBe(budgetAtEnd);
+    expect(highlights?.squad).toHaveLength(squadAtEnd);
+    const scorers = highlights?.scorers ?? [];
+    expect(scorers.length).toBeGreaterThan(0);
+    expect(scorers.map((scorer) => scorer.goals)).toEqual(scorers.map((scorer) => scorer.goals).sort((a, b) => b - a));
+    // The top scorer's goals: his lines of the year's competitions, written from the same matches.
+    const [top] = scorers;
+    const lines = await db.playerSeasonStats.findMany({
+      where: { saveId, season: { startYear: FIRST_YEAR }, playerSave: { playerKey: top.playerKey } },
+      select: { goals: true },
+    });
+    expect(lines.reduce((sum, line) => sum + line.goals, 0)).toBe(top.goals);
+    for (const hatTrick of highlights?.hatTricks ?? []) {
+      expect(hatTrick.goals).toBeGreaterThanOrEqual(3);
+    }
+
+    const history = await getCareerHistory(db, saveId);
+    expect(history.summary.seasons).toBe(1);
+    expect(history.seasons[0]).toMatchObject({
+      startYear: FIRST_YEAR,
+      topScorer: { playerKey: top.playerKey, goals: top.goals },
+      hatTricks: highlights?.hatTricks.length ?? 0,
+      endBudget: budgetAtEnd,
+    });
+    // The second season under way, its first league match not played yet.
+    expect(history.current).toMatchObject({ startYear: FIRST_YEAR + 1, played: 0 });
   });
 
   it("writes the managed club's European run in its season result, the trophy for a title", async () => {

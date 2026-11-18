@@ -31,7 +31,8 @@
     "challengeScore": "{points, plural, one {# point} other {# points}}",
     "challengeRank": "{points, plural, one {# point} other {# points}} · {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} so far",
     "points": "{points, plural, one {# pt} other {# pts}}",
-    "allHonours": "All honours",
+    "allHonours": "Full history",
+    "trophies": "{count, plural, =0 {No trophy yet} one {# trophy} other {# trophies}}",
     "objectives": {
       "title": "Chairman's objectives",
       "season": "{season} season",

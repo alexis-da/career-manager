@@ -6,13 +6,20 @@ import { requireOwnedSave } from "@/src/auth/current-user";
 import { PlayerFace } from "@/src/components/player-face";
 import { MANAGED_ROW, TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
-import { getSeasonResults } from "@/src/db/season-results";
+import { getWornCosmetics } from "@/src/db/rewards-view";
 import { seasonLabel } from "@/src/engine/world";
-import { formatDecimal } from "@/src/lib/format";
+import { formatDecimal, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
 
 import { cupLabel, europeLabel, moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
+import { CareerLegends } from "./_components/career-legends";
+import { CareerRecords } from "./_components/career-records";
+import { CurrentSeasonLine } from "./_components/current-season";
+import { HistoryHead } from "./_components/history-head";
+import { TrophyRoom } from "./_components/trophy-room";
+import { careerCardFileName, careerCardPath } from "./_lib/career";
+import { getCareerHistoryCached } from "./_lib/history-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -34,11 +41,14 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getTranslations("seasons"))("title") };
 }
 
-/** The managed club's completed seasons, most recent first, each with a link to its card. */
+/**
+ * The History tab (docs/design/historique.md): the career in a few figures and its card, the trophy room, the records
+ * and the legends, then the season in progress and the completed ones, most recent first, each with a link to its card.
+ */
 export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/seasons">) {
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
-  await requireOwnedSave(id);
+  const { ownerId } = await requireOwnedSave(id);
   const [t, tWorld, tPositions, tStage, locale] = await Promise.all([
     getTranslations("seasons"),
     getTranslations("world"),
@@ -46,13 +56,31 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
     getTranslations("stage"),
     getLocale(),
   ]);
-  const { clubColors, seasons } = await getSeasonResults(id);
+  const [history, dress] = await Promise.all([getCareerHistoryCached(id), getWornCosmetics(ownerId)]);
+  const { clubColors, seasons } = history;
+  // The career card from a completed season on, never in a challenge save (its card is its season's).
+  const completedSeasons = history.summary.seasons;
+  const card =
+    history.challenge || completedSeasons === 0
+      ? null
+      : {
+          square: { url: careerCardPath(id, locale, completedSeasons, "square", dress), fileName: careerCardFileName("square", t) },
+          landscape: { url: careerCardPath(id, locale, completedSeasons, "landscape", dress), fileName: careerCardFileName("landscape", t) },
+        };
 
   return (
     <div className="space-y-5">
       <h1 data-testid="seasons-title" className="font-heading text-4xl font-bold">
         {t("title")}
       </h1>
+
+      <HistoryHead history={history} card={card} />
+      <TrophyRoom room={history.trophyRoom} />
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+        <CareerRecords history={history} />
+        <CareerLegends history={history} />
+      </div>
+      {history.current !== null && <CurrentSeasonLine season={history.current} />}
 
       {seasons.length === 0 ? (
         <Panel>
@@ -130,6 +158,20 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                           {europe}
                         </span>
                       )}
+                      {(season.objectives !== null || season.budget !== null) && (
+                        <span data-column="objectives" className="block text-xs text-muted-foreground">
+                          {[
+                            season.objectives === null ? null : t("history.seasonObjectives", season.objectives),
+                            season.budget === null
+                              ? null
+                              : season.endBudget === null
+                                ? t("history.budget", { amount: formatMoney(season.budget, locale) })
+                                : t("history.budgetEnd", { start: formatMoney(season.budget, locale), end: formatMoney(season.endBudget, locale) }),
+                          ]
+                            .filter((part) => part !== null)
+                            .join(" · ")}
+                        </span>
+                      )}
                     </TableCell>
                     {/* « Champion » in the capitals of a title, « 16e » as it is written; too long a word for the card's large figures. */}
                     <TableCell
@@ -161,6 +203,12 @@ export default async function SeasonsPage({ params }: PageProps<"/saves/[id]/sea
                       <span className="text-muted-foreground lg:hidden"> {t("columns.record")}</span>
                     </TableCell>
                     <TableCell className={cn(CELL, "whitespace-normal max-lg:col-span-4 max-lg:row-start-4 max-lg:mt-2.5 max-lg:border-t max-lg:pt-2.5")}>
+                      {season.topScorer !== null && (
+                        <span data-column="scorer" className="mb-1.5 block text-xs text-muted-foreground">
+                          {t("history.topScorer", { name: season.topScorer.name, goals: season.topScorer.goals })}
+                          {season.hatTricks > 0 && ` · ${t("history.hatTricks", { count: season.hatTricks })}`}
+                        </span>
+                      )}
                       {season.bestPlayer === null ? (
                         <span className="text-muted-foreground">
                           <span className="eyebrow lg:hidden">{t("columns.bestPlayer")} </span>—
