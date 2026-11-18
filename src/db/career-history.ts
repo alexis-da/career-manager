@@ -26,6 +26,7 @@ import { ageInYears } from "../lib/dates";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { clubEuropeRun } from "./europe";
 import { readArchivedSeasonsOfClub } from "./season-archive";
+import type { HighlightTitle } from "../engine/season-highlights";
 import { parseSeasonHighlights } from "./season-highlights";
 import { ensureSeasonResults } from "./season-results";
 
@@ -503,6 +504,7 @@ export type CareerHistoryView = CareerHistory & {
   challenge: boolean;
   players: Map<string, HistoryPlayer & { age: number }>;
   clubNames: Map<string, string>;
+  internationalTitles: HighlightTitle[]; // the summer tournaments the club's players won, from the completed seasons, oldest first
 };
 
 /** The history from its two parts. */
@@ -524,6 +526,9 @@ export function careerHistoryView(completed: CompletedCareer, live: LiveCareer):
     challenge: live.challenge,
     players: new Map(live.players.map((player) => [player.playerKey, player])),
     clubNames: live.clubNames,
+    internationalTitles: completed.seasons
+      .flatMap((season) => season.highlights?.internationalTitles ?? [])
+      .sort((a, b) => a.year - b.year),
   };
 }
 

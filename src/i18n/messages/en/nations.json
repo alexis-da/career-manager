@@ -15,6 +15,55 @@
     "caps": "{count, plural, =0 {no cap} one {# cap} other {# caps}}",
     "lastBreak": "Last break",
     "lastBreakDates": "Last break · {from} – {to}",
-    "noResults": "No international match played yet."
+    "noResults": "No international match played yet.",
+    "tournaments": {
+      "eu": "Old Continent Cup",
+      "world": "Hemispheres Cup"
+    },
+    "tournamentYear": "{name} {year}",
+    "stages": {
+      "friendly": "Friendly",
+      "qualifier": "Qualifiers, matchday {round}",
+      "group": "Group {group}, matchday {round}",
+      "semiFinal": "Semi-final",
+      "final": "Final"
+    },
+    "campaign": {
+      "eyebrow": "Next tournament",
+      "progress": "Qualifiers · {played, plural, =0 {no break played} one {# break played} other {# breaks played}} of {total}",
+      "drawn": "Qualifiers over · groups drawn",
+      "title": "Qualifiers",
+      "zone": {
+        "EUROPE": "Europe zone",
+        "WORLD": "World zone"
+      },
+      "places": "{count, plural, one {The top nation qualifies} other {The top # qualify}}",
+      "friendliesOnly": "The World zone plays friendlies: the Old Continent Cup is European.",
+      "qualified": "Qualified"
+    },
+    "table": {
+      "nation": "Nation",
+      "played": "P",
+      "playedTitle": "Matches played",
+      "difference": "GD",
+      "differenceTitle": "Goal difference",
+      "points": "Pts",
+      "pointsTitle": "Points"
+    },
+    "tournament": {
+      "dates": "From {from} to {to}, on neutral ground",
+      "toPlay": "Played in June, as the season turns: two groups, then the semi-finals and the final.",
+      "group": "Group {group}",
+      "knockouts": "Knockout stage",
+      "groupMatches": "Group matches",
+      "winner": "Winner",
+      "winnerLine": "{nation} win the {name} {year}",
+      "runnerUp": "Runners-up: {nation}",
+      "last": "Last tournament",
+      "yours": "Your players",
+      "yourLine": "{nation} · {matches, plural, =0 {did not play} one {# match} other {# matches}} · {goals, plural, =0 {no goals} one {# goal} other {# goals}}",
+      "champion": "Champion",
+      "noneOfYours": "None of your players took part."
+    }
   }
 }

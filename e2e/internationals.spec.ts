@@ -89,6 +89,14 @@ test("plays the first international break of a new save as a step of its own: wh
     await expect(page.getByTestId("nav-internationals")).toHaveText("Sélections");
     await expect(page.getByTestId("internationals-nation")).toHaveCount(14);
     await expect(page.getByTestId("internationals-last").getByTestId("internationals-result")).toHaveCount(14);
+    // The cycle's qualifiers: Europe's first matchday played, the Old Continent Cup 2028's six places.
+    await expect(page.getByTestId("internationals-campaign-line")).toContainText("Coupe du Vieux Continent 2028 · Éliminatoires · 1 trêve jouée sur 8");
+    const zone = page.getByTestId("internationals-zone");
+    await expect(zone).toHaveCount(1);
+    await expect(zone.getByTestId("internationals-zone-row")).toHaveCount(9);
+    await expect(zone.locator('[data-testid="internationals-zone-row"][data-qualified="true"]')).toHaveCount(6);
+    await expect(page.getByTestId("internationals-last").getByText("Éliminatoires, 1re journée").first()).toBeVisible();
+    await expect(page.getByTestId("internationals-last").getByText("Match amical").first()).toBeVisible();
     await expectNoSidewaysScroll(page, "internationals, 1280");
 
     for (const [viewport, label] of [

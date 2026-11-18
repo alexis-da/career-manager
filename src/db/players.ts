@@ -8,6 +8,7 @@ import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
 import type { NationCode } from "../engine/nations";
+import { parseTitleKey, type TournamentCode } from "../engine/tournaments";
 import { getManagedBreak, internationalInjuries } from "./nations-view";
 import { DISCIPLINE_SELECT, disciplineStatus, matchesAhead, type DisciplineStatus, type MatchesAhead } from "./discipline-view";
 import { fitnessAtKickOff } from "./fitness-view";
@@ -88,6 +89,7 @@ export type PlayerProfile = {
     goals: number;
     calledFor: { nation: NationCode; from: Date; to: Date } | null;
     injuredWith: { nation: NationCode; on: Date } | null;
+    titles: { tournament: TournamentCode; year: number }[]; // the summer tournaments he won with his nation, oldest first
   };
 };
 
@@ -139,6 +141,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       injuredUntil: true,
       caps: true,
       internationalGoals: true,
+      internationalTitles: true,
       ...DISCIPLINE_SELECT,
       clubSave: {
         select: { isManaged: true, club: { select: { slug: true, name: true, primaryColor: true, secondaryColor: true } } },
@@ -224,6 +227,12 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
         goals: player.internationalGoals,
         calledFor: managed ? (calledFor.get(player.playerKey) ?? null) : null,
         injuredWith: injuredWithOf(player, injuriesAbroad.get(player.playerKey), save.currentDate),
+        titles: player.internationalTitles
+          .flatMap((key) => {
+            const title = parseTitleKey(key);
+            return title === null ? [] : [title];
+          })
+          .sort((a, b) => a.year - b.year),
       },
       seasonStats:
         playerStats === undefined

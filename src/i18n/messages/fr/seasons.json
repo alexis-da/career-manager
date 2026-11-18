@@ -99,6 +99,16 @@
         "academy": "formé en {year}",
         "shop": "Boutique"
       },
+      "internationals": {
+        "title": "Sélections",
+        "titles": "Les titres de tes joueurs",
+        "noTitle": "Aucun de tes joueurs n'a encore gagné de tournoi d'été avec sa sélection.",
+        "titleLine": "{year} · {name} : {players} ({nation})",
+        "players": "Tes internationaux",
+        "playerLine": "{caps, plural, one {# sélection} other {# sélections}} · {goals, plural, =0 {aucun but} one {# but} other {# buts}}",
+        "none": "Aucun de tes joueurs n'a encore joué en sélection.",
+        "explain": "Leurs sélections et leurs buts pendant qu'ils jouaient pour ton club."
+      },
       "legends": {
         "title": "Légendes",
         "explain": "Indice de légende : 1 point par match pour le club, 2 par but, 1 par passe décisive, 15 par élection comme joueur de la saison, 10 à 20 par trophée gagné avec lui. Légende dès {threshold}.",

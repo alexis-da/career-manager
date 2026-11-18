@@ -13,6 +13,8 @@ import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
 
 import { cupLabel, europeLabel, moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
+import { getClubInternationals } from "@/src/db/nations-view";
+import { CareerInternationals } from "./_components/career-internationals";
 import { CareerLegends } from "./_components/career-legends";
 import { CareerRecords } from "./_components/career-records";
 import { CurrentSeasonLine } from "./_components/current-season";
@@ -22,6 +24,9 @@ import { careerCardFileName, careerCardPath } from "./_lib/career";
 import { getCareerHistoryCached } from "./_lib/history-cache";
 
 export const dynamic = "force-dynamic";
+
+/** The club's most capped internationals the History names. */
+const CLUB_INTERNATIONALS_SHOWN = 5;
 
 /**
  * Under lg, a row is a card: the rank in large on the left, the season in the middle with its competition and figures, the
@@ -58,7 +63,11 @@ export default async function SeasonsPage({ params, searchParams }: PageProps<"/
     getTranslations("stage"),
     getLocale(),
   ]);
-  const [history, dress] = await Promise.all([getCareerHistoryCached(id), getWornCosmetics(ownerId)]);
+  const [history, dress, internationals] = await Promise.all([
+    getCareerHistoryCached(id),
+    getWornCosmetics(ownerId),
+    getClubInternationals(id, CLUB_INTERNATIONALS_SHOWN),
+  ]);
   const { clubColors, seasons } = history;
   // The career card from a completed season on, never in a challenge save (its card is its season's).
   const completedSeasons = history.summary.seasons;
@@ -86,6 +95,8 @@ export default async function SeasonsPage({ params, searchParams }: PageProps<"/
           paths={{ some: `/saves/${id}/seasons`, all: `/saves/${id}/seasons?legends=all` }}
         />
       </div>
+      {/* A save with nations, never a challenge's: its players with their national teams. */}
+      {internationals !== null && <CareerInternationals history={history} internationals={internationals} />}
       {history.current !== null && <CurrentSeasonLine season={history.current} />}
 
       {seasons.length === 0 ? (

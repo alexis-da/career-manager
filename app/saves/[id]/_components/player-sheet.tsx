@@ -43,8 +43,9 @@ function InternationalLine({ profile }: { profile: PlayerProfile }) {
   const t = useTranslations("player");
   const tWorld = useTranslations("world");
   const locale = useLocale();
-  const { caps, goals, calledFor, injuredWith } = profile.international;
-  if (caps === 0 && calledFor === null && injuredWith === null) {
+  const tNations = useTranslations("nations");
+  const { caps, goals, calledFor, injuredWith, titles } = profile.international;
+  if (caps === 0 && calledFor === null && injuredWith === null && titles.length === 0) {
     return null;
   }
   return (
@@ -57,6 +58,15 @@ function InternationalLine({ profile }: { profile: PlayerProfile }) {
         <p data-testid="player-called-up" className="text-info">
           {t("international.calledUp", { from: formatDayMonth(calledFor.from, locale), to: formatDayMonth(calledFor.to, locale) })}
         </p>
+      )}
+      {titles.length > 0 && (
+        <ul data-testid="player-international-titles" className="space-y-0.5">
+          {titles.map((title) => (
+            <li key={`${title.tournament}-${title.year}`} className="font-semibold text-(--club)">
+              {t("international.won", { name: tNations(title.tournament === "int.eu" ? "tournaments.eu" : "tournaments.world"), year: title.year })}
+            </li>
+          ))}
+        </ul>
       )}
       {injuredWith !== null && (
         <p data-testid="player-injured-abroad" className="text-loss">

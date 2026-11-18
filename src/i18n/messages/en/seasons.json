@@ -99,6 +99,16 @@
         "academy": "academy {year}",
         "shop": "Shop"
       },
+      "internationals": {
+        "title": "Internationals",
+        "titles": "Your players' titles",
+        "noTitle": "None of your players has won a summer tournament with his nation yet.",
+        "titleLine": "{year} · {name}: {players} ({nation})",
+        "players": "Your internationals",
+        "playerLine": "{caps, plural, one {# cap} other {# caps}} · {goals, plural, =0 {no goals} one {# goal} other {# goals}}",
+        "none": "None of your players has played for his nation yet.",
+        "explain": "Their caps and goals while they played for your club."
+      },
       "legends": {
         "title": "Legends",
         "explain": "Legend index: 1 point a match for the club, 2 a goal, 1 an assist, 15 for each player of the season award, 10 to 20 for each trophy won with him. A legend from {threshold}.",

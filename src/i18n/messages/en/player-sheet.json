@@ -55,7 +55,8 @@
       "title": "International",
       "caps": "{nation} · {caps, plural, =0 {not capped yet} one {# cap} other {# caps}} · {goals, plural, one {# goal} other {# goals}}",
       "calledUp": "Called up for the break from {from} to {to}",
-      "injuredWith": "Injured with {nation} on {date}"
+      "injuredWith": "Injured with {nation} on {date}",
+      "won": "Winner of the {name} {year}"
     },
     "badges": {
       "calledUp": "Called up · {nation}",

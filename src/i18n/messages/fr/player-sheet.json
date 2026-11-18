@@ -55,7 +55,8 @@
       "title": "Sélection",
       "caps": "{nation} · {caps, plural, =0 {pas encore sélectionné} one {# sélection} other {# sélections}} · {goals, plural, one {# but} other {# buts}}",
       "calledUp": "Appelé pour la trêve du {from} au {to}",
-      "injuredWith": "Blessé avec {nation} le {date}"
+      "injuredWith": "Blessé avec {nation} le {date}",
+      "won": "Vainqueur de la {name} {year}"
     },
     "badges": {
       "calledUp": "En sélection · {nation}",

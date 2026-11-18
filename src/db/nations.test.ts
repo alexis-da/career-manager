@@ -60,17 +60,28 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the national teams of a
     await db?.$disconnect();
   }, 120_000);
 
-  it("opens the 14 nations, their reserves and the 56 friendlies of the first season's breaks, no club playing on them", async () => {
-    const save = await database().save.findUniqueOrThrow({ where: { id: saveId }, select: { breaksFrom: true } });
+  it("opens the 14 nations, their reserves, their strengths and the 56 matches of the first season's breaks, no club playing on them", async () => {
+    const save = await database().save.findUniqueOrThrow({ where: { id: saveId }, select: { breaksFrom: true, cyclesFrom: true } });
     expect(save.breaksFrom).toBe(WORLD_START_YEAR);
-    const nations = await database().nationSave.findMany({ where: { saveId }, select: { code: true, reserve: true, reserveCaps: true } });
+    // Its first cycle with its first season: the Old Continent Cup in June two years on.
+    expect(save.cyclesFrom).toBe(WORLD_START_YEAR);
+    const nations = await database().nationSave.findMany({ where: { saveId }, select: { code: true, reserve: true, reserveCaps: true, strength: true } });
     expect(nations).toHaveLength(14);
     for (const nation of nations) {
       expect(loaded().nations.parseReserve(nation.reserve)).toHaveLength(23);
       expect(nation.reserveCaps).toEqual(Array.from({ length: 23 }, () => 0));
+      expect(nation.strength).toBeGreaterThan(0);
     }
-    const matches = await database().internationalMatch.findMany({ where: { saveId }, select: { scheduledAt: true, home: true, away: true, played: true } });
+    const matches = await database().internationalMatch.findMany({
+      where: { saveId },
+      select: { scheduledAt: true, competition: true, round: true, home: true, away: true, played: true },
+    });
     expect(matches).toHaveLength(56);
+    // Europe's first four matchdays of qualifiers on the four Fridays, friendlies around them.
+    const qualifiers = matches.filter((match) => match.competition === "int.qual.eu");
+    expect(qualifiers).toHaveLength(16);
+    expect([...new Set(qualifiers.map((match) => match.round))].sort()).toEqual([1, 2, 3, 4]);
+    expect(matches.filter((match) => match.competition === "int.friendly")).toHaveLength(40);
     expect([...new Set(matches.map((match) => DAY(match.scheduledAt)))].sort()).toEqual(
       breakWindows(WORLD_START_YEAR).flatMap((window) => window.dates.map(DAY)),
     );
@@ -153,6 +164,12 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the national teams of a
     expect(nations?.nations).toHaveLength(14);
     expect(nations?.nations.every((nation) => nation.players.length === 23)).toBe(true);
     expect(nations?.lastBreak?.results).toHaveLength(14);
+    // The cycle's first break: Europe's first matchday of qualifiers, its table, no draw yet.
+    expect(nations?.campaign).toMatchObject({ tournament: "int.eu", year: WORLD_START_YEAR + 2, breaksPlayed: 1, draw: null });
+    expect(nations?.campaign?.zones.map((zone) => zone.zone)).toEqual(["EUROPE"]);
+    expect(nations?.campaign?.zones[0].rows.filter((row) => row.played === 1)).toHaveLength(8);
+    expect(nations?.lastTournament).toBeNull();
+    expect(nations?.lastBreak?.results.filter((result) => result.competition === "int.qual.eu")).toHaveLength(4);
 
     // The next step is the clubs' Saturday after the break.
     const next = await matchday.playNextMatchday(saveId);

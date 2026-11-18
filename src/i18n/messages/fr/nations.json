@@ -15,6 +15,55 @@
     "caps": "{count, plural, =0 {aucune sélection} one {# sélection} other {# sélections}}",
     "lastBreak": "Dernière trêve",
     "lastBreakDates": "Dernière trêve · {from} – {to}",
-    "noResults": "Aucun match international joué pour l'instant."
+    "noResults": "Aucun match international joué pour l'instant.",
+    "tournaments": {
+      "eu": "Coupe du Vieux Continent",
+      "world": "Coupe des Hémisphères"
+    },
+    "tournamentYear": "{name} {year}",
+    "stages": {
+      "friendly": "Match amical",
+      "qualifier": "Éliminatoires, {round, selectordinal, one {#re} other {#e}} journée",
+      "group": "Groupe {group}, {round, selectordinal, one {#re} other {#e}} journée",
+      "semiFinal": "Demi-finale",
+      "final": "Finale"
+    },
+    "campaign": {
+      "eyebrow": "Prochain tournoi",
+      "progress": "Éliminatoires · {played, plural, =0 {aucune trêve jouée} one {# trêve jouée} other {# trêves jouées}} sur {total}",
+      "drawn": "Éliminatoires terminées · groupes tirés",
+      "title": "Éliminatoires",
+      "zone": {
+        "EUROPE": "Zone Europe",
+        "WORLD": "Zone Monde"
+      },
+      "places": "{count, plural, one {Le premier est qualifié} other {Les # premiers sont qualifiés}}",
+      "friendliesOnly": "La zone Monde joue des matchs amicaux : la Coupe du Vieux Continent est européenne.",
+      "qualified": "Qualifié"
+    },
+    "table": {
+      "nation": "Nation",
+      "played": "J",
+      "playedTitle": "Matchs joués",
+      "difference": "Diff",
+      "differenceTitle": "Différence de buts",
+      "points": "Pts",
+      "pointsTitle": "Points"
+    },
+    "tournament": {
+      "dates": "Du {from} au {to}, sur terrain neutre",
+      "toPlay": "Se joue en juin, au passage à la saison suivante : deux groupes, puis les demi-finales et la finale.",
+      "group": "Groupe {group}",
+      "knockouts": "Phase finale",
+      "groupMatches": "Les matchs des groupes",
+      "winner": "Vainqueur",
+      "winnerLine": "{nation} gagne la {name} {year}",
+      "runnerUp": "Finaliste : {nation}",
+      "last": "Dernier tournoi",
+      "yours": "Tes joueurs",
+      "yourLine": "{nation} · {matches, plural, =0 {sans jouer} one {# match} other {# matchs}} · {goals, plural, =0 {aucun but} one {# but} other {# buts}}",
+      "champion": "Champion",
+      "noneOfYours": "Aucun de tes joueurs n'y était."
+    }
   }
 }
