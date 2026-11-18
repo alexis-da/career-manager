@@ -23,6 +23,29 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-18",
     fr: {
+      title: "Éliminatoires et tournois d'été",
+      items: [
+        "Les trêves comptent désormais : les nations d'Europe y jouent les éliminatoires de la Coupe du Vieux Continent, une poule de neuf dont les six premières se qualifient ; au cycle suivant, celles de la Coupe des Hémisphères, avec la zone Monde en matchs aller et retour. Les nations libres ce jour-là jouent des matchs amicaux.",
+        "Un été sur deux, le tournoi se joue au passage à la saison suivante : deux groupes, puis les demi-finales et la finale, avec prolongation et tirs au but. Tes internationaux y partent, puis reprennent la saison suivante pleinement reposés, comme tout le monde.",
+        "Sous Match, l'onglet Sélections suit le tournoi : le classement des éliminatoires et ses places qualificatives, les groupes une fois tirés, puis le tableau final, le vainqueur et tes joueurs. Chaque match de la dernière trêve dit aussi son étape.",
+        "La fiche d'un joueur garde les tournois qu'il a gagnés avec sa sélection ; dans l'Histoire, une section Sélections montre tes internationaux et les titres de tes joueurs gagnés pendant qu'ils étaient au club.",
+        "Le premier tournoi arrive deux saisons après le début des éliminatoires : en juin 2028 pour une carrière commencée maintenant, un an plus tard pour une carrière déjà en cours, qui commence ses éliminatoires à sa saison suivante. Jamais dans une partie du défi.",
+      ],
+    },
+    en: {
+      title: "Qualifiers and summer tournaments",
+      items: [
+        "The breaks now count: Europe's nations play the Old Continent Cup's qualifiers there, a group of nine whose top six qualify; the cycle after, the Hemispheres Cup's, the World zone playing home and away. The nations free on the day play friendlies.",
+        "Every other summer, the tournament is played as the season turns: two groups, then the semi-finals and the final, with extra time and penalties. Your internationals go, then start the next season fully rested, like everyone else.",
+        "Under Match, the Internationals tab follows the tournament: the qualifiers' table and its qualifying places, the groups once drawn, then the knockout stage, the winner and your players. Each match of the last break also says its stage.",
+        "A player's sheet keeps the tournaments he won with his nation; in History, an Internationals section shows your internationals and the titles your players won while at the club.",
+        "The first tournament comes two seasons after the qualifiers start: in June 2028 for a career started now, a year later for a career already under way, which starts its qualifiers at its next season. Never in a challenge career.",
+      ],
+    },
+  },
+  {
+    date: "2026-11-18",
+    fr: {
       title: "Les sélections nationales et leurs trêves",
       items: [
         "Tes joueurs partent en sélection : quatre trêves internationales par saison, début septembre, mi-octobre, mi-novembre et fin mars, deux matchs chacune. Aucun match de club pendant une trêve ; tes internationaux reviennent fatigués s'ils ont joué, parfois blessés, et comptent leurs sélections et leurs buts.",

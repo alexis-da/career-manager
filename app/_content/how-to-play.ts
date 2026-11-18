@@ -203,6 +203,7 @@ export const GUIDE: GuideSection[] = [
         "Quatre fois par saison, début septembre, mi-octobre, mi-novembre et fin mars, une **trêve internationale** arrête tous les championnats et les coupes : les nations jouent deux matchs, le vendredi et le mardi. Chacune appelle ses 23 meilleurs joueurs, de nos clubs ou d'ailleurs, hors de nos championnats.",
         "Avant la trêve, **À faire**, sur l'**Accueil**, te dit lesquels de tes joueurs sont appelés, et ta fiche d'effectif les marque **En sélection**. **Passer la trêve** la joue seule : à son retour, **À faire** te signale ceux qui reviennent blessés ou fatigués, avant ton prochain match.",
         "La fiche d'un joueur compte ses sélections et ses buts avec sa nation ; le **Calendrier** montre les trêves, et **Match**, **Sélections** classe les 14 nations par force, avec leurs 23 et les résultats de la dernière trêve. Pas de trêve dans une partie de défi.",
+        "Les trêves mènent à un tournoi d'été, un été sur deux : les nations d'Europe y jouent les **éliminatoires** de la **Coupe du Vieux Continent** (les six premières d'une poule de neuf), puis, au cycle suivant, celles de la **Coupe des Hémisphères** (cinq européennes et trois de la zone Monde). Le tournoi se joue en juin, au passage à la saison suivante, et tes joueurs en reviennent reposés ; **Sélections** montre le classement, les groupes, le tableau final et le vainqueur, et la fiche d'un joueur garde ses titres.",
       ],
     },
     en: {
@@ -211,6 +212,7 @@ export const GUIDE: GuideSection[] = [
         "Four times a season, early September, mid-October, mid-November and late March, an **international break** stops every league and cup: the nations play two matches, on Friday and Tuesday. Each calls its 23 best players, from our clubs or from elsewhere, outside our leagues.",
         "Before the break, **To do**, on **Home**, tells you which of your players are called up, and your squad marks them **Called up**. **Play the break** plays it on its own: when it is over, **To do** flags those who come back injured or tired, before your next match.",
         "A player's sheet counts his caps and goals for his nation; the **Fixtures** show the breaks, and **Match**, **Internationals** ranks the 14 nations by strength, with their squads and the last break's results. No breaks in a challenge career.",
+        "The breaks lead to a summer tournament, every other summer: Europe's nations play the **qualifiers** of the **Old Continent Cup** (the top six of a group of nine), then, the cycle after, those of the **Hemispheres Cup** (five European nations and three from the World zone). The tournament is played in June, as the season turns, and your players come back rested; **Internationals** shows the table, the groups, the knockout stage and the winner, and a player's sheet keeps his titles.",
       ],
     },
   },

@@ -23,9 +23,9 @@ npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
 npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (création et journée, direct, marché, SEO, /admin)
-npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
+npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (-- --seasons=3 : trois saisons de chaque graine, le premier tournoi d'été compris ; base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
-npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs, Europe (qualifiés, condition et charge des clubs européens, saison par saison) et sélections (trêves, appelés, blessures, force des 14 nations, CPU) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
+npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs, Europe (qualifiés, condition et charge des clubs européens, saison par saison), sélections (trêves, appelés, blessures, force des 14 nations, CPU) et tournois d'été (condition au premier match, crédibilité sur 50 cycles) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
 npm run measure:history # coût d'un affichage de l'onglet Histoire : requêtes et CPU, à froid et en cache, d'une carrière archivée de 5 et 10 saisons (-- --seasons=10 --at=5,10 ; base locale seulement)
 npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json, --archive : saisons terminées archivées, --no-europe : sans compétition européenne, pour comparer ; base locale dédiée et vide)
 ```
@@ -372,7 +372,7 @@ ligue, une victoire pour les quatre ou les douze premiers, le rang de l'adversai
 en direct jusqu'aux tirs au but (`e2e/europe-final-save.mts`, un jumeau 1 de la démo, Lyon-Naples le 12 août).
 
 **Sélections nationales (chantier « sélections », N1 et N2, 18/11).** Cahier `docs/design/selections.md`, validé le 18/11
-(les tournois, N3, et le sélectionneur, N4, viendront après validation des mesures). **Les 14 nations** sont les 14
+(les éliminatoires et les tournois, N3, règle suivante ; le sélectionneur, N4, viendra après validation des mesures). **Les 14 nations** sont les 14
 nationalités du jeu, une par liste de noms (`NATIONS`, `NATION_CODES`, `src/engine/nations.ts`, pur : 9 d'Europe, 5 du
 reste du monde ; `nationOfNationality` lit `PlayerSave.nationality`) ; aucune autre n'existe, aucune n'est ajoutée.
 Chacune a sa **réserve « hors championnats »** : 23 joueurs que le jeu ne fait jouer qu'en sélection, tirés à l'ouverture
@@ -425,6 +425,53 @@ qu'à sa saison suivante, deux jumeaux jouent la même trêve) ; mesures dans la
 `npm run measure:seasons` et au § 14 du cahier (18/11 : 2,60 buts par match comme avant ; environ 210 joueurs de nos clubs
 appelés par trêve, 2,2 par club de D1, 13 au plus ; un international rentre vers 75 le mardi, 95 au samedi ; titulaires
 sous 75 en octobre : 1 à 4 % chez les clubs européens qui prêtent le plus ; 20 à 24 ms de CPU par trêve ; 35 Ko par saison).
+
+**Éliminatoires et tournois d'été (chantier « sélections », N3, 18/11).** Cahier § 3.3, 3.4, 4 et § 15 (mise en œuvre et
+mesures). Moteur pur `src/engine/tournaments.ts`. **Un cycle** : deux saisons d'éliminatoires aux trêves, puis un tournoi
+en juin, la **Coupe du Vieux Continent** (`int.eu`, « Old Continent Cup ») d'abord, puis la **Coupe des Hémisphères**
+(`int.world`, « Hemispheres Cup »), en alternance (`cycleOf`, `tournamentEnding`) ; `Save.cyclesFrom` (migration d'ajout
+`…_international_tournaments`) : la première saison avec trêves d'une partie créée depuis (tournoi en juin 2028), la
+saison suivante d'une partie d'avant (`cyclesFromFor`, `src/db/nations.ts` : juin 2029), jamais un défi ni une partie 1.
+**Éliminatoires** (`cycleQualifiers`, ordre des nations tiré une fois par cycle, flux `{graine}:int-qual:{code}:{année}`) :
+l'Europe (9) en une poule de matchs simples, 9 journées, 4 à domicile chacune, une nation au repos par journée
+(`int.qual.eu`) ; la zone Monde (5) en aller-retour, 10 journées, en cycle Hémisphères seulement (`int.qual.world`) ; une
+journée par trêve le vendredi, les journées de plus le mardi des dernières trêves (`QUALIFIER_DATES`). Les nations libres
+d'une date jouent des **matchs amicaux** (`pairFriendlies` : les paires qui ne se sont pas vues depuis le plus longtemps,
+puis les forces les plus proches ; à domicile celle qui a le moins reçu), toujours 7 matchs par date
+(`seasonInternationalMatches`, à l'ouverture de chaque saison, `openNations`, sur l'historique des matchs de la partie).
+Classements (`internationalTable`) : points, différence, buts, force à l'ouverture du cycle (`NationSave.strength`,
+millièmes de point attendu, `rankFormations` du 23 de la première trêve), code. **Qualifiés** : les 6 premiers d'Europe
+pour le Vieux Continent ; 5 d'Europe et 3 du Monde pour les Hémisphères. **Tirage** (`drawTournament`, flux
+`{graine}:int-draw:{code}:{année}`) par chapeaux de deux ; deux groupes de 3 ou de 4, trois journées
+(`groupFixtures`), demi-finales (1er contre 2e de l'autre groupe) et finale, **terrain neutre**, prolongation (le tiers des
+buts attendus, `LIGHT_EXTRA_TIME_GOAL_SHARE`) et tirs au but en simulation légère (`playLightMatch` avec `knockout`) ;
+5 dates en juin, à partir du vendredi qui suit la semaine des finales européennes (`tournamentDates` : 9, 13, 17, 21 et
+25 juin 2028). **Tout match léger** a 5 changements à la 60e (`LIGHT_SUBSTITUTIONS`), éliminatoires et tournoi compris
+(trois, de la 60e à la 80e, portaient les blessures des clubs de la Coupe des Lauriers à 1,31 fois celles des autres).
+**Le tournoi se joue au passage de saison** (`playSummerTournament`, au début d'`advanceToNextSeason`, avant
+`recordSeasonResult`) : ses matchs ne sont écrits qu'une fois joués (`InternationalMatch`, `startYear` de la saison qui
+finit, `neutral`, `decidedBy`, tirs au but, `winner`) : aucune mécanique des trêves (bouton, simulation, calendrier) ne
+les voit avant ; avant lui, l'écran calcule le tirage dès les éliminatoires finies. Le vainqueur : ses joueurs de nos
+clubs qui ont joué le tournoi reçoivent le titre (`PlayerSave.internationalTitles`, « int.eu:2028 », `titleKey`) ; ceux du club dirigé vont dans le relevé
+de la saison (`SeasonResult.highlights.internationalTitles`, champ facultatif, la version 1 gardée : un relevé d'avant reste
+lu). **Règle de récupération** : le passage de saison rend à chaque joueur sa pleine condition et le guérit (règle de
+toujours) ; un joueur du tournoi commence donc la saison suivante à 100, comme les autres, aucune blessure de juin ne passe
+l'été. **Écrans** : l'onglet Sélections (`getNationsView` : `campaign`, `lastTournament`, `freshTournament`) dit le tournoi
+du cycle dans la carte bleue (`internationals-campaign-line`), le classement des éliminatoires par zone
+(`internationals-campaign`, `internationals-zone`, `internationals-zone-row` avec `data-qualified`), le tournoi tiré puis
+joué (`internationals-tournament` avec `data-state` « drawn » ou « played » : `internationals-winner`, `internationals-group`,
+`internationals-group-row`, `internationals-bracket`, `internationals-yours`), celui de juin d'abord la saison qui suit, et
+l'étape de chaque match (« Éliminatoires, 3e journée », « Match amical », « Groupe A, 2e journée », « Demi-finale »,
+« Finale ») ; la fiche, les titres (`player-international-titles`) ; l'Histoire, une section Sélections
+(`history-internationals` : les titres de tes joueurs gagnés au club, `history-international-titles`, et tes
+internationaux, leurs sélections et buts au club lus dans `managedPlayers`, `getClubInternationals`). Noms interdits :
+`FORBIDDEN_NAMES` reçoit les compétitions officielles des sélections et les sigles des 14 fédérations. Tests :
+`tournaments.test.ts`, `tournaments.slow.test.ts` (un cycle complet, son tournoi au passage de saison), `e2e/tournaments.spec.ts`
+(`e2e/tournament-save.mts`). Mesures : section « Tournois d'été » de `npm run measure:seasons` et `npm run measure:balance --
+--world-only --seasons=3` (18/11 : 2,60 buts par match ; blessures des clubs de la Coupe des Lauriers à 1,29 fois celles des
+autres sur une saison, 1,26 sur trois, tournoi compris ; joueurs du tournoi à 100 de condition au premier match de la
+saison suivante, aucun blessé ; les huit grandes nations font 76 à 88 % des titres de 50 cycles, aucune plus de 24 % ;
+15 ms de CPU par tournoi ; environ 33 Ko par saison).
 
 **Défi de la semaine.** Un défi par semaine ISO en UTC (`Challenge`, `weekKey` « 2026-W45 », `src/lib/iso-week.ts`),
 écrit une fois par `ensureChallenge` (`src/db/challenge.ts`) : par `POST /api/maintenance/challenge` le lundi (même

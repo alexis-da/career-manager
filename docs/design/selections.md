@@ -1003,3 +1003,71 @@ joueurs de nos clubs sont rarement assez bons ; les cinq grandes n'en appellent 
   et 3 saisons, contre 6,32, 7,02, 7,76 et 8,54 sans les sélections : +0,05 Mo à la création (les réserves, les matchs de
   la saison), puis environ 35 Ko par saison, 4 à 5 % de la croissance d'une carrière archivée (cible : moins de 50 Ko).
   Les deux colonnes de `PlayerSave`, ajoutées sans réécrire la table, sont dans les deux mesures.
+
+## 15. Mise en œuvre et mesures (18/11, N3)
+
+Livré en une mise en ligne : les cycles, les éliminatoires, les matchs amicaux autour d'eux, les deux tournois d'été,
+leurs écrans, les titres des joueurs. Écarts au cahier, tous mesurés :
+
+1. **Cinq changements à la 60e dans tout match léger**, éliminatoires et tournoi compris (§ 4.7 en donnait trois, à la
+   60e, à la 70e et à la 80e, à un match qui compte) : avec trois, les clubs de la Coupe des Lauriers montaient à 1,31
+   fois les blessures des autres clubs de D1 (`measure:balance -- --world-only`, une saison), au-dessus de la limite de
+   1,3 ; avec cinq, 1,29. C'est le réglage que prévoyait le § 11 (« le nombre de changements de la simulation légère »).
+2. **Le tournoi n'est écrit qu'une fois joué**, au passage de saison : avant, l'onglet Sélections calcule son tirage dès
+   les éliminatoires finies (pur, le même que celui du passage). Aucune mécanique des trêves (« Prochain match »,
+   « Simuler jusqu'à… », calendrier, alertes) ne peut ainsi prendre ses matchs pour une trêve.
+3. **Aucune blessure de juin ne passe l'été** (§ 3.3 en laissait courir jusqu'en août) : le passage de saison rend à
+   chaque joueur sa pleine condition et le guérit, règle de toujours, que le tournoi, joué au début du passage, suit.
+4. **Une seule force par cycle**, celle de son ouverture (`NationSave.strength`, millièmes de point attendu du 23 de la
+   première trêve, `rankFormations`) : elle départage les éliminatoires, les groupes du tournoi (§ 4.4 voulait la force au
+   tirage) et apparie les matchs amicaux.
+5. **Le relevé de fin de saison garde sa version 1**, un champ facultatif de plus (`internationalTitles`) : la version 2
+   du § 10 aurait rendu illisibles les relevés déjà écrits, que le lecteur refuse dans une autre version.
+6. **Deux colonnes de plus que le § 10** : `NationSave.strength` (écart 4) et `PlayerSave.internationalTitles` (les tournois
+   gagnés par chaque joueur, pour sa fiche, quel que soit son club ; « int.eu:2028 »). Le titre va aux joueurs du vainqueur
+   qui ont joué le tournoi, une minute au moins : un appelé resté sur le banc n'en a pas (sa fiche aurait dit « pas encore
+   sélectionné » à côté de son titre).
+
+### Les six cibles (`measure:balance -- --world-only`, 3 graines)
+
+| | Buts / match | Domicile | Nuls | Extérieur |
+| --- | --- | --- | --- | --- |
+| Une saison (éliminatoires) | 2,60 | 43,6 % | 25,3 % | 31,1 % |
+| Premières divisions | 2,64 | 43,5 % | 25,7 % | 30,8 % |
+| Deuxièmes divisions | 2,58 | 43,8 % | 24,9 % | 31,3 % |
+| Trois saisons (le tournoi de 2028 compris) | 2,60 | 43,6 % | 25,2 % | 31,2 % |
+
+Les buts restent à 2,60 : la base des buts reste à 1,31. **Blessures des clubs européens** (matchs de club, par club et
+par saison, comme au 17/11) : 1,29 fois celles des autres clubs de D1 en Coupe des Lauriers et 1,23 en Coupe des Fanions
+sur une saison ; 1,26 et 1,22 sur trois saisons, tournoi d'été compris (la mesure compte désormais par club et par saison :
+un club européen une saison ne l'est pas toujours la suivante). Limite : 1,3. −0,16 point en championnat dans les quatre
+jours qui suivent un match européen.
+
+### Cinq saisons (`measure:seasons -- --seasons=5`, jumeau 2 de la démo)
+
+| Tournoi | Groupes | Vainqueur | Joueurs de nos clubs | Condition au 1er match de championnat | Blessés au 1er match | CPU / durée |
+| --- | --- | --- | --- | --- | --- | --- |
+| Coupe du Vieux Continent 2028 | A : FRA, CRO, POR · B : GER, ITA, BEL | Portugal, contre la France | 81 | 100,0 (les autres 100,0) | 0 | 16 / 32 ms |
+| Coupe des Hémisphères 2030 | A : BRA, NED, SEN, POR · B : ITA, ENG, ARG, ESP | Italie, contre l'Argentine | 95 | 100,0 (les autres 100,0) | 0 | 15 / 36 ms |
+
+**Règle de récupération** : le tournoi se joue au début du passage de saison, qui rend ensuite à chaque joueur sa pleine
+condition et le guérit ; le premier match de championnat vient sept semaines plus tard. Ses joueurs commencent la saison
+à 100 de condition, comme les autres, et aucun n'est blessé.
+
+**Crédibilité** (§ 11) : 50 cycles complets, éliminatoires et tournoi, depuis l'état de juin, pour chaque tournoi. Les
+cinq grandes, le Brésil, l'Argentine et le Portugal font 80 et 88 % des titres de la Coupe du Vieux Continent (états de
+2028 et 2030), 76 et 78 % de ceux de la Coupe des Hémisphères ; la nation la plus titrée en fait 16 à 24 % (l'Allemagne,
+puis la France en 2030 aux Hémisphères), aucune plus de 30 %.
+
+**Trêves** : 202 à 220 joueurs de nos clubs appelés par trêve, 2,1 à 2,3 par club de D1 ; titulaires sous 75 en octobre,
+1 à 5 % chez les clubs européens qui prêtent le plus. Blessés en sélection : 11 à 20 par saison sur cette graine (5 à 12
+dans la mesure du 18/11 de N2). Même espérance avec le programme de N3 qu'avec celui de N2, 2,4 à 2,7 blessés de nos
+clubs par trêve (400 tirages de chaque trêve d'une saison, mêmes appelés) : l'écart tient au tirage.
+
+### Coût
+
+- **CPU** : 15 à 16 ms par tournoi (32 à 36 ms de durée avec la base), une fois tous les deux ans au passage de saison ;
+  une trêve d'éliminatoires coûte ce que coûtait une trêve de matchs amicaux.
+- **Poids** (`measure:weight -- --archive`, trois saisons, avec et sans sélections, compact) : 6,46, 7,19, 7,94 et
+  8,75 Mo à la création puis après 1, 2 et 3 saisons, contre 6,41, 7,11, 7,81 et 8,60 sans les sélections : environ 33 Ko
+  par saison, le tournoi de 2028 et ses 9 matchs compris.
