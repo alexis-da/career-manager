@@ -23,6 +23,29 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-18",
     fr: {
+      title: "Les sélections nationales et leurs trêves",
+      items: [
+        "Tes joueurs partent en sélection : quatre trêves internationales par saison, début septembre, mi-octobre, mi-novembre et fin mars, deux matchs chacune. Aucun match de club pendant une trêve ; tes internationaux reviennent fatigués s'ils ont joué, parfois blessés, et comptent leurs sélections et leurs buts.",
+        "« À faire » te dit qui part avant la trêve, et qui revient blessé ou fatigué après ; « Prochain match » s'arrête après la trêve, pour que tu prépares ton match. La fiche d'un joueur montre ses sélections, le calendrier les trêves.",
+        "Sous Match, l'onglet Sélections classe les 14 nations de tes joueurs par force, avec leurs 23 et les résultats de la dernière trêve. Le Brésil, l'Argentine ou le Portugal appellent aussi leurs joueurs qui évoluent hors de nos championnats.",
+        "Les trêves arrivent dans une carrière déjà commencée à sa saison suivante, jamais dans une partie du défi. Pour leur faire de la place, les championnats à 20 clubs jouent deux mardis, fin décembre et mi-mars, et un tour de coupe et deux journées européennes changent de date.",
+        "Dans l'Histoire, « Voir toutes les légendes » montre toutes celles de ton club, et « En route vers la légende » ne garde que les joueurs à plus de 75 points.",
+      ],
+    },
+    en: {
+      title: "National teams and their breaks",
+      items: [
+        "Your players go on international duty: four international breaks a season, early September, mid-October, mid-November and late March, two matches each. No club match during a break; your internationals come back tired if they played, sometimes injured, and count their caps and goals.",
+        "To do tells you who goes before the break, and who comes back injured or tired after it; Next match stops after the break so that you can prepare your match. A player's sheet shows his caps, the calendar the breaks.",
+        "Under Match, the Internationals tab ranks the 14 nations of your players by strength, with their squads and the last break's results. Brazil, Argentina or Portugal also call their players who play outside our leagues.",
+        "The breaks reach a career already under way at its next season, never a challenge career. To make room for them, the 20-club leagues play two Tuesdays, in late December and mid-March, and a cup round and two European matchdays move.",
+        "In History, See all legends shows every legend of your club, and On the road to legend keeps only the players above 75 points.",
+      ],
+    },
+  },
+  {
+    date: "2026-11-18",
+    fr: {
       title: "L'histoire de ta carrière",
       items: [
         "Sous Club, l'onglet Palmarès devient Histoire. Ta salle des trophées y range tes championnats, tes coupes, tes Coupes des Lauriers et des Fanions et tes montées, avec leurs saisons, et garde la place de ceux qui restent à conquérir.",

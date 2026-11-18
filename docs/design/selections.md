@@ -930,3 +930,76 @@ règle de `CLAUDE.md`. N1 peut partir avec N2 si une étape sans match paraît t
    sous l'objectif ; amicaux laissés à l'adjoint par défaut (recommandé).
 10. **N1 seule, ou avec N2** (recommandé : avec N2, une étape sans match étant mince).
 11. **Indice de légende** : rien pour les sélections (recommandé), ou +10 par tournoi gagné en étant au club.
+
+## 14. Mise en œuvre et mesures (18/11, N0, N1 et N2)
+
+Livré en une mise en ligne : la retouche de l'Histoire (§ 0), les nations et leurs réserves (N1), les trêves et leurs
+matchs amicaux (N2). Écarts au cahier, tous mesurés :
+
+1. **Une trêve est une étape de la partie**, qui s'arrête le mardi de la trêve (§ 7.2 la jouait dans la date des clubs
+   d'après) : l'alerte « Retour de sélection » doit venir avant le match du club, pas après. « Prochain match » s'arrête
+   après une trêve (« Passer la trêve ») ; « Simuler jusqu'à… » la traverse. Elle ne coûte presque rien de plus : la
+   récupération des joueurs se fait à la trêve au lieu du samedi suivant, qui n'a plus que les internationaux à écrire.
+2. **Le potentiel d'un réserviste ne passe jamais la borne haute de sa nation** : sans ce plafond, la première mesure a
+   vu le onze du Brésil passer de 79,1 à 83,4 en cinq saisons (2e nation en S4), les réservistes de 21 ans grandissant
+   vers des potentiels sans limite.
+3. **La convocation à venir** se lit dès le dernier match du club avant la trêve, même si d'autres clubs jouent encore
+   (un mardi de D2) : elle ne dépend que des blessures et des clubs, que rien ne change pour les joueurs du club d'ici là.
+4. **`InternationalMatch.managedPlayers`** (non prévu au § 10) : les joueurs du club dirigé de chaque match, leurs minutes,
+   buts et blessures, pour l'alerte de retour, le résumé d'une simulation, la fiche et le calendrier.
+5. **Les compteurs des réserves** s'écrivent en une seule requête pour les 14 nations, et la trêve ne relit pas les réserves
+   que sa convocation a lues.
+6. **Les mardis des saisons avec trêves** (§ 3 : 19, 29, 10, 22, 34, 16, 2, 7, 25, 37) : sept suivaient une semaine de coupe
+   ou d'Europe, où un club aurait joué mercredi, samedi et mardi, trois matchs en six jours, ce que la règle de l'Europe
+   refuse (`europe.slow.test.ts`, « jamais trois fois en une semaine », l'a vu : un club de D1 à 20 clubs, Europe le
+   3 mars, championnat les 6 et 9 mars). Ce sont désormais les dix seules semaines qui la respectent, dans l'ordre 19, 30,
+   2, 22, 35, 38, 0, 1, 23 et 31 : les D1 à 20 clubs jouent le 29 décembre et le 16 mars (au lieu du 9), la D2 espagnole
+   en plus les 1er septembre, 19 janvier, 20 avril et 11 mai, la D2 anglaise en plus les 18 et 25 août, 26 janvier et
+   23 mars. `breaks.test.ts` vérifie la règle pour un club de chaque taille de championnat, coupe et Europe comprises.
+   Les mesures ci-dessous sont celles de ce calendrier.
+
+### Les six cibles (`measure:balance -- --world-only`, 3 graines, une saison chacune, Europe et trêves)
+
+| | Buts / match | Domicile | Nuls | Extérieur |
+| --- | --- | --- | --- | --- |
+| Toutes divisions | 2,60 | 43,6 % | 25,3 % | 31,1 % |
+| Premières divisions | 2,63 | 43,4 % | 25,8 % | 30,8 % |
+| Deuxièmes divisions | 2,58 | 43,7 % | 24,9 % | 31,3 % |
+
+Les buts n'ont pas baissé (2,60 comme avant les trêves) : la base des buts reste à 1,31. Clubs européens : 1,29 fois les
+blessures des autres clubs de D1 en Coupe des Lauriers, 1,22 en Coupe des Fanions (cible : 1,3 au plus) ; −0,16 point par
+match de championnat dans les 4 jours après un match européen (cible : 0,1 à 0,2). La calibration du moteur
+(`match.test.ts`, `match-season.test.ts`) passe telle quelle.
+
+### Cinq saisons (`measure:seasons -- --seasons=5`, jumeau 2 de la démo)
+
+| Saison | Appelés de nos clubs / trêve | Par club de D1 (max) | Par club de D2 | Ont joué / trêve | Blessés en sélection (jours) | Condition au retour (mardi) |
+| --- | --- | --- | --- | --- | --- | --- |
+| S1 | 220 | 2,29 (13) | 0,00 | 172 | 7 (15 j) | 76,3 |
+| S2 | 219 | 2,27 (12) | 0,01 | 169 | 12 (19 j) | 75,7 |
+| S3 | 219 | 2,23 (11) | 0,04 | 171 | 7 (18 j) | 75,9 |
+| S4 | 212 | 2,20 (11) | 0,01 | 165 | 5 (24 j) | 75,6 |
+| S5 | 202 | 2,07 (10) | 0,04 | 155 | 5 (20 j) | 74,8 |
+
+Un international revient le mardi vers 75 ou 76 de condition et retrouve son club le samedi vers 95 (+20 en quatre jours) :
+cinq changements à la 60e en match amical le ménagent. **Titulaires sous 75 en octobre** (cible : moins de 15 %) : 1 à
+4 % chez les gros prêteurs (clubs européens dont les nations appellent 6 joueurs ou plus, 14 à 17 par saison), 1 à 2 %
+chez les autres européens, 0 % ailleurs. **Blessures par club et par saison** : 5,5 à 7,6 chez les gros prêteurs (6,0 en
+moyenne sur cinq saisons), dont 0,1 à 0,5 en sélection ; 5,4 à 6,2 chez les autres européens (5,8) ; 4,6 à 5,1 chez les
+autres clubs de D1 (4,8).
+
+**Force des 14 sélections** (moyenne du onze, entre parenthèses ses réservistes parmi les 23), au début de S1 :
+Allemagne 81,7 (0), Angleterre 81,2 (0), Italie 80,1 (0), France 79,7 (0), Espagne 80,0 (0), Portugal 79,5 (15),
+Argentine 80,4 (13), Brésil 79,1 (17), Croatie 78,3 (11), Pays-Bas 77,9 (9), Belgique 76,3 (12), Côte d'Ivoire 76,1 (6),
+Maroc 76,0 (8), Sénégal 74,7 (10). Rangs sur cinq saisons : Brésil 8, 7, 7, 7, 7 ; Argentine 7, 9, 6, 6, 5 ; Portugal
+6, 8, 8, 8, 8 (ils étaient 12e et 13e sans réserve, § 1.3). Ces trois nations appellent 11 à 21 réservistes : leurs
+joueurs de nos clubs sont rarement assez bons ; les cinq grandes n'en appellent aucun.
+
+### Coût
+
+- **CPU** : 20 à 24 ms par trêve en moyenne, 32 au plus, 50 à 56 ms de durée avec la base (deux saisons au calme) ;
+  environ 90 ms par saison, +1 % d'une saison de 8,5 à 9,5 s. Repère : un samedi complet, environ 164 ms.
+- **Poids** (`measure:weight -- --archive`, trois saisons, avec et sans sélections, compact) : 6,37, 7,10, 7,88 et 8,69 Mo à la création puis après 1, 2
+  et 3 saisons, contre 6,32, 7,02, 7,76 et 8,54 sans les sélections : +0,05 Mo à la création (les réserves, les matchs de
+  la saison), puis environ 35 Ko par saison, 4 à 5 % de la croissance d'une carrière archivée (cible : moins de 50 Ko).
+  Les deux colonnes de `PlayerSave`, ajoutées sans réécrire la table, sont dans les deux mesures.

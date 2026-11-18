@@ -196,6 +196,25 @@ export const GUIDE: GuideSection[] = [
     },
   },
   {
+    id: "internationals",
+    fr: {
+      title: "Les sélections nationales",
+      blocks: [
+        "Quatre fois par saison, début septembre, mi-octobre, mi-novembre et fin mars, une **trêve internationale** arrête tous les championnats et les coupes : les nations jouent deux matchs, le vendredi et le mardi. Chacune appelle ses 23 meilleurs joueurs, de nos clubs ou d'ailleurs, hors de nos championnats.",
+        "Avant la trêve, **À faire**, sur l'**Accueil**, te dit lesquels de tes joueurs sont appelés, et ta fiche d'effectif les marque **En sélection**. **Passer la trêve** la joue seule : à son retour, **À faire** te signale ceux qui reviennent blessés ou fatigués, avant ton prochain match.",
+        "La fiche d'un joueur compte ses sélections et ses buts avec sa nation ; le **Calendrier** montre les trêves, et **Match**, **Sélections** classe les 14 nations par force, avec leurs 23 et les résultats de la dernière trêve. Pas de trêve dans une partie de défi.",
+      ],
+    },
+    en: {
+      title: "National teams",
+      blocks: [
+        "Four times a season, early September, mid-October, mid-November and late March, an **international break** stops every league and cup: the nations play two matches, on Friday and Tuesday. Each calls its 23 best players, from our clubs or from elsewhere, outside our leagues.",
+        "Before the break, **To do**, on **Home**, tells you which of your players are called up, and your squad marks them **Called up**. **Play the break** plays it on its own: when it is over, **To do** flags those who come back injured or tired, before your next match.",
+        "A player's sheet counts his caps and goals for his nation; the **Fixtures** show the breaks, and **Match**, **Internationals** ranks the 14 nations by strength, with their squads and the last break's results. No breaks in a challenge career.",
+      ],
+    },
+  },
+  {
     id: "challenge",
     fr: {
       title: "Le défi de la semaine",

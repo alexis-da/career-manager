@@ -40,10 +40,10 @@ describe("the public pages' documents", () => {
 });
 
 describe("the guide", () => {
-  it("has its nine sections in both languages, each an anchor of its table of contents, and the way to the game", () => {
+  it("has its ten sections in both languages, each an anchor of its table of contents, and the way to the game", () => {
     for (const locale of LOCALES) {
       const markup = renderToStaticMarkup(<HowToPlayDocument locale={locale} />);
-      expect(GUIDE.map(({ id }) => id)).toEqual(["create", "first-match", "market", "lineup", "events", "objectives", "europe", "challenge", "missions"]);
+      expect(GUIDE.map(({ id }) => id)).toEqual(["create", "first-match", "market", "lineup", "events", "objectives", "europe", "internationals", "challenge", "missions"]);
       for (const { id } of GUIDE) {
         expect(markup).toContain(`<section id="${id}"`);
         expect(markup).toContain(`href="#${id}"`);

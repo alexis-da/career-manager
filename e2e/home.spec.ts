@@ -740,7 +740,7 @@ const PUBLIC_PAGES: PublicPage[] = [
     status: 200,
     title: { fr: "Comment jouer", en: "How to play" },
     orange: ["how-to-play-start"],
-    expectOwnContent: (page) => expect(page.locator("article section")).toHaveCount(9),
+    expectOwnContent: (page) => expect(page.locator("article section")).toHaveCount(10),
   },
   {
     paths: CHANGELOG_PATHS,

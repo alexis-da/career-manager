@@ -25,7 +25,7 @@ npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100
 npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (création et journée, direct, marché, SEO, /admin)
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
-npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs et Europe (qualifiés, condition et charge des clubs européens, saison par saison) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
+npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs, Europe (qualifiés, condition et charge des clubs européens, saison par saison) et sélections (trêves, appelés, blessures, force des 14 nations, CPU) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
 npm run measure:history # coût d'un affichage de l'onglet Histoire : requêtes et CPU, à froid et en cache, d'une carrière archivée de 5 et 10 saisons (-- --seasons=10 --at=5,10 ; base locale seulement)
 npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json, --archive : saisons terminées archivées, --no-europe : sans compétition européenne, pour comparer ; base locale dédiée et vide)
 ```
@@ -371,6 +371,61 @@ ligue, une victoire pour les quatre ou les douze premiers, le rang de l'adversai
 élimination (`europeExit`). `e2e/europe.spec.ts` couvre la page à 1280, 390 et 360 px, le calendrier, et une finale jouée
 en direct jusqu'aux tirs au but (`e2e/europe-final-save.mts`, un jumeau 1 de la démo, Lyon-Naples le 12 août).
 
+**Sélections nationales (chantier « sélections », N1 et N2, 18/11).** Cahier `docs/design/selections.md`, validé le 18/11
+(les tournois, N3, et le sélectionneur, N4, viendront après validation des mesures). **Les 14 nations** sont les 14
+nationalités du jeu, une par liste de noms (`NATIONS`, `NATION_CODES`, `src/engine/nations.ts`, pur : 9 d'Europe, 5 du
+reste du monde ; `nationOfNationality` lit `PlayerSave.nationality`) ; aucune autre n'existe, aucune n'est ajoutée.
+Chacune a sa **réserve « hors championnats »** : 23 joueurs que le jeu ne fait jouer qu'en sélection, tirés à l'ouverture
+des nations de la partie (`generateReserve`, flux `{graine}:nation-reserve:{code}:{année}`), notés dans la plage de leur
+nation (`NATION_RESERVE_LEVELS`, `balance.ts` : 62-70 pour les cinq grandes, 72-81 pour le Brésil, l'Argentine et le
+Portugal, 69-77 pour les Pays-Bas, la Belgique et la Croatie, 66-74 pour le Maroc, le Sénégal et la Côte d'Ivoire),
+leur potentiel jamais au-dessus de sa borne haute, vieillis à chaque passage de saison (`reserveAfterSeason` :
+`progressPlayer` en titulaire, retraite à 34 ans et un joueur de 21 ans à sa place) ; gardée dans `NationSave` (migration
+d'ajout `…_national_teams`, une ligne par nation et par partie, `reserve` validé par Zod, sélections et buts des
+réservistes dans `reserveCaps` et `reserveGoals`, à part du JSON). **Une convocation** (`callUp`, pur) : les 3 meilleurs
+gardiens, 7 défenseurs, 7 milieux et 4 attaquants de la nationalité, disponibles (ni blessés, ni libres, ni retraités),
+de nos clubs ou de la réserve, puis les 2 meilleurs joueurs de champ restants ; un réserviste seulement là où il vaut mieux
+(`readCallUps`, `src/db/nations.ts`, une requête `ROW_NUMBER` par nationalité et par ligne). La force d'une sélection est
+celle d'un club IA : `rankFormations` sur ses 23, au niveau de la D1. **Les trêves** : 4 par saison, semaines 3, 8, 13 et 32
+(`BREAK_WEEKS`, `breakWindows`, `src/engine/schedule.ts` : en 2026-27, 4-8 septembre, 9-13 octobre, 13-17 novembre,
+26-30 mars), deux matchs, le vendredi et le mardi ; aucun match de club du mercredi d'avant au mercredi de la trêve. Une
+saison avec trêves (`withBreaks`, `Save.breaksFrom` : posé à la création d'une partie 2, au prochain passage de saison
+d'une partie 2 d'avant, jamais pour un défi ni une partie 1, `nationsFor`) a son propre calendrier : 36 samedis de club au
+lieu de 40, puis les mardis de `BREAK_SEASON_TUESDAY_WEEKS` (19, 30, 2, 22, 35, 38, 0, 1, 23, 31 : deux pour les 38
+journées, 29 décembre et 16 mars, six pour les 42, dix pour les 46 ; jamais la semaine d'un mercredi de coupe ou d'Europe
+ni celle d'après, où un club jouerait mercredi, samedi et mardi), la coupe (`cupDates(…, true)` : seizièmes en semaine 15)
+et l'Europe (`europeDates(…, true)` : 3e et 4e journées en semaines 9 et 11) déplacées ; toujours 62 dates de club ; les
+lecteurs de ces dates (`seasonFixtures`, `openCups`, `progressCups`, `openEurope`, `progressEurope`, `getCupBracket`,
+`getEuropeView`) prennent `seasonHasBreaks(breaksFrom, startYear)`, la saison en cours d'une partie d'avant ne bouge pas.
+**Les matchs internationaux** sont dans `InternationalMatch` (même migration ; hors de `Fixture` et de `Season` : aucun
+lecteur des matchs de club ne les voit), créés à l'ouverture de chaque saison (`openNations` : 56 matchs amicaux, une
+journée d'un tourniquet des 14 nations par date, `friendliesOfRound`, qui continue de saison en saison). **Une trêve est
+une étape de la partie** : `playNextMatchday` la joue d'un bloc quand elle vient avant la prochaine date des clubs
+(`playInternationalBreak` : convocations à sa première date, dispositif choisi une fois, chaque match en **simulation
+légère**, `playLightFriendly`, `src/engine/international.ts`, pur : buts attendus du moteur, Poisson par quart d'heure,
+buteurs pondérés comme le moteur, 5 changements à la 60e, condition perdue comme en match, blessures au taux du moteur ;
+graine `internationalMatchRngSeed`), puis en quelques requêtes ses résultats (`goalTimes`, `scorers`, et les joueurs du
+club dirigé dans `managedPlayers`), la récupération des autres joueurs, les lignes de ceux qui ont joué (condition au
+dernier jour, blessure, `PlayerSave.caps` et `internationalGoals`), et la date de la partie, le mardi. « Prochain match »
+s'arrête après une trêve (`playUntilNextMatch`, `breakPlayed`) : le bouton dit alors « Passer la trêve »
+(`SaveHeader.nextBreak`) ; « Simuler jusqu'à… » les traverse, et son résumé les raconte (`SimulationSummary.breaks`).
+Un E2E qui mène une partie neuve au-delà du 3 septembre passe la trêve avant son match (`passInternationalBreak`,
+`e2e/helpers.ts`).
+Rien ne change à la forme ni à la valeur des joueurs. **Écrans** : `getManagedBreak` (`src/db/nations-view.ts`) dit la trêve
+du club dirigé, « upcoming » dès son dernier match avant elle (ses appelés, la convocation même de la trêve) ou « back »
+le jour de son retour ; l'Accueil en tire la ligne du héros (`hero-break`) et deux lignes d'« À faire »
+(`international-callups`, puis `international-returns` : blessés en sélection et titulaires sous 75 au coup d'envoi) ;
+l'effectif marque les appelés (« En sélection · SEN », `player-badge-called-up`) ; la fiche a sa section Sélection
+(`player-sheet-international` : sélections et buts, convocation, blessure en sélection) ; le calendrier a une ligne par
+trêve (`fixtures-break`, `getSeasonBreaks`) ; l'onglet **Sélections** sous Match (`/saves/[id]/internationals`,
+`nav-internationals`, `getNationsView`, 404 sans nations) classe les 14 nations par force, avec leurs 23, la prochaine
+trêve et les résultats de la dernière. Zone de messages `nations`. `e2e/internationals.spec.ts` passe la première trêve
+d'une partie neuve à 1280, 390 et 360 px ; `nations.test.ts` et `nations.slow.test.ts` (une partie d'avant n'a ses trêves
+qu'à sa saison suivante, deux jumeaux jouent la même trêve) ; mesures dans la section « Sélections nationales » de
+`npm run measure:seasons` et au § 14 du cahier (18/11 : 2,60 buts par match comme avant ; environ 210 joueurs de nos clubs
+appelés par trêve, 2,2 par club de D1, 13 au plus ; un international rentre vers 75 le mardi, 95 au samedi ; titulaires
+sous 75 en octobre : 1 à 4 % chez les clubs européens qui prêtent le plus ; 20 à 24 ms de CPU par trêve ; 35 Ko par saison).
+
 **Défi de la semaine.** Un défi par semaine ISO en UTC (`Challenge`, `weekKey` « 2026-W45 », `src/lib/iso-week.ts`),
 écrit une fois par `ensureChallenge` (`src/db/challenge.ts`) : par `POST /api/maintenance/challenge` le lundi (même
 secret et mêmes réponses 404 que la purge) ou, à défaut, à la première visite d'un de ses écrans ; jamais modifié ni
@@ -474,14 +529,14 @@ montre les jetons et la collection, et pourquoi. /admin : sections « Missions d
 **Navigation d'une partie.** Cinq entrées, dans `SECTIONS` (`app/saves/[id]/_lib/sections.ts`, pur et testé) : Accueil ·
 Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
 `nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement, Coupe
-(seulement avec une coupe) et Europe (seulement avec une saison européenne, `hasEurope`), Club a Club, Défi, Histoire et Récompenses ; le direct est sous Match et l'écran de début de saison sous Club,
+(seulement avec une coupe), Europe (seulement avec une saison européenne, `hasEurope`) et Sélections (seulement avec des nations, `hasNations`), Club a Club, Défi, Histoire et Récompenses ; le direct est sous Match et l'écran de début de saison sous Club,
 sans onglet l'un et l'autre (`SCREENS_WITHOUT_TAB`) ; l'entrée Match mène au Calendrier sous 1024 px, au
 Classement à partir de là, où il a le calendrier et la coupe à côté ; l'entrée Équipe à l'Effectif sous 1024 px, à la
 Composition à partir de là, où elle a l'effectif et la fiche à côté (`computerHome`, choisi par `SaveNav` après
 l'hydratation) ; l'entrée Club mène à `/club` à toutes les largeurs. Ces sous-onglets sont une bascule
 en tête de contenu (`SectionTabs`, `SegmentedLinks`,
 `src/components/segmented.tsx`), testids `nav-squad`, `nav-lineup`, `nav-fixtures`, `nav-standings`, `nav-cup`,
-`nav-europe`, `nav-club-overview` (`tabTestId` : l'onglet Club, l'entrée gardant `nav-club`), `nav-challenge`, `nav-seasons`, `nav-rewards`, présents
+`nav-europe`, `nav-internationals`, `nav-club-overview` (`tabTestId` : l'onglet Club, l'entrée gardant `nav-club`), `nav-challenge`, `nav-seasons`, `nav-rewards`, présents
 sur les seuls écrans de leur entrée (`openScreen`, `e2e/helpers.ts`, passe par elle). Les entrées ne touchent pas aux
 adresses : chaque écran garde la sienne (`/squad`, `/standings`…). Une seule navigation dans le DOM (`SaveNav`,
 `save-nav`, `<nav>` libellé « Navigation de la partie » ; la bascule et la pagination du marché sont d'autres `<nav>`,
@@ -1383,7 +1438,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
   api/                # Auth.js, les routes de maintenance (purge, défi de la semaine, nettoyage des événements, archivage des saisons) et les erreurs des navigateurs
                       # (client-errors), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
-                      # club (club/ : finances, réglages), Europe (europe/ : compétitions européennes), début de saison (season-start/ : dotation, choix de
+                      # club (club/ : finances, réglages), Europe (europe/ : compétitions européennes), sélections (internationals/ : les
+                      # 14 nations, leurs 23, la dernière trêve), début de saison (season-start/ : dotation, choix de
                       # l'objectif), défi (challenge/), histoire (seasons/ : trophées, records, légendes, saisons ;
                       # seasons/card : carte de carrière ; seasons/[seasonId]/card : carte PNG de fin de saison, sans nom
                       # de club), récompenses
@@ -1396,6 +1452,7 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # une erreur provoquée dans un navigateur, montrée dans sa section ;
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
                       # europe.spec.ts : la page Europe, le calendrier et une finale européenne en direct ;
+                      # internationals.spec.ts : la première trêve internationale d'une partie neuve, ses alertes, sa fiche, son calendrier ;
                       # live.spec.ts : le direct et le panneau Coaching ; live-choices.spec.ts : un direct avec une
                       # décision du joueur, un changement et un arrêt demandé ; team.spec.ts : Effectif, Composition et fiche ;
                       # lineup-candidates.spec.ts : le changement en un toucher sur téléphone ; starting-instruction.spec.ts :
