@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { NATION_CODES } from "../engine/nations";
 import { SEASON_HIGHLIGHTS_VERSION, seasonHighlights, type SeasonHighlights } from "../engine/season-highlights";
 import type { Prisma } from "../generated/prisma/client";
 
@@ -15,6 +16,12 @@ const hatTrickSchema = z.object({
   opponentClubSaveId: z.string(),
 });
 const squadPlayerSchema = z.object({ playerKey: z.string(), overall: z.number().int(), value: z.number().int() });
+const titleSchema = z.object({
+  tournament: z.enum(["int.eu", "int.world"]),
+  year: z.number().int(),
+  nation: z.enum(NATION_CODES),
+  players: z.array(z.object({ playerKey: z.string(), name: z.string() })),
+});
 
 export const seasonHighlightsSchema = z.object({
   version: z.literal(SEASON_HIGHLIGHTS_VERSION),
@@ -22,6 +29,7 @@ export const seasonHighlightsSchema = z.object({
   scorers: z.array(scorerSchema),
   hatTricks: z.array(hatTrickSchema),
   squad: z.array(squadPlayerSchema),
+  internationalTitles: z.array(titleSchema).optional(),
 });
 
 /** SeasonResult.highlights read back: null for a season without them, or written in another format. */

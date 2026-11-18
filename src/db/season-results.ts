@@ -22,6 +22,7 @@ import { prisma } from "./client";
 import { clubEuropeRun, type ClubEuropeRun } from "./europe";
 import type { SeasonMove } from "./promotion";
 import { clubOf, clubsOfSave, readArchivedSeason } from "./season-archive";
+import type { TournamentSummary } from "./nations";
 import { seasonHighlightsOf } from "./season-highlights";
 
 type Db = Prisma.TransactionClient;
@@ -281,6 +282,7 @@ export async function recordSeasonResult(
   moves: readonly Pick<SeasonMove, "clubId" | "reason">[] = [],
   cupSeasonIds: readonly string[] = [],
   europeSeasonIds: readonly string[] = [],
+  tournament: TournamentSummary | null = null,
 ): Promise<string | null> {
   const managed = await managedClubOf(tx, saveId);
   const season = seasons.find((candidate) => candidate.competitionId === managed.competitionId);
@@ -296,6 +298,17 @@ export async function recordSeasonResult(
   const europe = await clubEuropeRun(tx, saveId, managed.id, europeSeasonIds);
   // What the season's matches' events will not keep: its scorers and hat-tricks, its squad's ratings, its budget now.
   const highlights = await seasonHighlightsOf(tx, saveId, managed.id, [season.id, ...cupSeasonIds, ...europeSeasonIds]);
+  // The summer tournament its players won, played at the start of the transition: what the Histoire tells of it.
+  if (tournament !== null && tournament.managedTitles.length > 0) {
+    highlights.internationalTitles = [
+      {
+        tournament: tournament.tournament,
+        year: tournament.year,
+        nation: tournament.winner,
+        players: tournament.managedTitles.map(({ playerKey, name }) => ({ playerKey, name })),
+      },
+    ];
+  }
   await tx.seasonResult.createMany({ data: [seasonResultRow(saveId, season, result, move, cup, europe, highlights)], skipDuplicates: true });
   return season.id;
 }

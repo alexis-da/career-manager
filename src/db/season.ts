@@ -16,7 +16,7 @@ import { cupEntrantsOf, openCups } from "./cup";
 import { cupWinnersOf, europeQualifiersOf, europeReputationBonuses, openEurope } from "./europe";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
-import { nationsFor, openNations, playInternationalBreak, seasonHasBreaks } from "./nations";
+import { cyclesFromFor, nationsFor, openNations, playInternationalBreak, playSummerTournament, seasonHasBreaks, type TournamentSummary } from "./nations";
 import { runPreseasonInTransaction, type PreseasonOptions, type PreseasonSummary } from "./preseason";
 import { closeSeasonObjectives, openSeasonObjectives } from "./objectives";
 import { applySeasonMoves, readFinalTables, seasonMovesOf } from "./promotion";
@@ -43,7 +43,8 @@ export type SeasonTransition = {
   fixtures: number; // of the leagues
   cupTies: number; // the cups' preliminary rounds (worldVersion 2 saves)
   europeMatches: number; // the European competitions' league phases (worldVersion 2 saves, never a challenge save's)
-  internationalMatches: number; // the friendlies of the new season's breaks (worldVersion 2 saves, never a challenge save's)
+  internationalMatches: number; // the new season's qualifiers and friendlies (worldVersion 2 saves, never a challenge save's)
+  tournament: TournamentSummary | null; // the summer tournament the closing season's cycle ended with, played light first
   preseason: PreseasonSummary;
 };
 
@@ -98,7 +99,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       await assertNoMatchInProgress(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({
         where: { id: saveId },
-        select: { seed: true, worldVersion: true, challengeId: true, breaksFrom: true, currentDate: true },
+        select: { seed: true, worldVersion: true, challengeId: true, breaksFrom: true, cyclesFrom: true, currentDate: true },
       });
       const seasons = await tx.season.findMany({
         where: { saveId, completed: false },
@@ -123,8 +124,10 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       if (unplayed > 0) {
         throw new SeasonNotFinishedError(unplayed);
       }
-      // International matches of the season still to play, after its clubs' last date: played light first.
+      // International matches of the season still to play, after its clubs' last date: played light first. Then the summer
+      // tournament that ends the season's cycle, if it ends one, before any player progresses, retires or leaves.
       await playInternationalBreak(tx, { id: saveId, seed: save.seed, currentDate: save.currentDate }, null);
+      const tournament = await playSummerTournament(tx, { id: saveId, seed: save.seed, currentDate: save.currentDate, cyclesFrom: save.cyclesFrom }, completedStartYear);
 
       // The final tables, which every club's reputation follows; promotion and relegation from them (worldVersion 2
       // saves only: a worldVersion 1 save has one division a country); then the managed club's result and cup run,
@@ -132,7 +135,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       const worldVersion = worldVersionOf(save.worldVersion);
       const tables = await readFinalTables(tx, saveId, leagueSeasons);
       const moves = worldVersion === 1 ? [] : seasonMovesOf(tables);
-      const completedSeasonId = await recordSeasonResult(tx, saveId, leagueSeasons, moves, cupSeasonIds, europeSeasonIds);
+      const completedSeasonId = await recordSeasonResult(tx, saveId, leagueSeasons, moves, cupSeasonIds, europeSeasonIds, tournament);
       // The managed club's objectives of the season, closed: their coefficient goes to its next dotation.
       const managedCoefficient = await closeSeasonObjectives(tx, saveId, completedSeasonId);
 
@@ -141,8 +144,10 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       // The national teams and the breaks of a worldVersion 2 save from its next season on, never a challenge's: a save
       // from before them gets them now (docs/design/selections.md § 3.5).
       const breaksFrom = options.nations !== false && nationsFor(save) ? (save.breaksFrom ?? startYear) : save.breaksFrom;
-      if (breaksFrom !== save.breaksFrom) {
-        await tx.save.update({ where: { id: saveId }, data: { breaksFrom } });
+      // Its cycles of qualifiers and summer tournaments with its breaks, from its next season for a save from before them.
+      const cyclesFrom = cyclesFromFor(save, breaksFrom, startYear);
+      if (breaksFrom !== save.breaksFrom || cyclesFrom !== save.cyclesFrom) {
+        await tx.save.update({ where: { id: saveId }, data: { breaksFrom, cyclesFrom } });
       }
       const withBreaks = seasonHasBreaks(breaksFrom, startYear);
       const lastContractDay = seasonEndDate(completedStartYear);
@@ -317,9 +322,10 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
             qualifiers: europeQualifiersOf(tables, await cupWinnersOf(tx, saveId, cupSeasonIds, tables)),
           })
         : 0;
-      // The nations, their reserves a season older, and the friendlies of the new season's breaks.
-      const internationalMatches =
-        withBreaks && breaksFrom !== null ? await openNations(tx, { saveId, saveSeed: save.seed, breaksFrom, startYear }) : 0;
+      // The nations, their reserves a season older, and the new season's international matches: qualifiers and friendlies.
+      const internationalMatches = withBreaks
+        ? await openNations(tx, { saveId, saveSeed: save.seed, cyclesFrom, startYear, currentDate: transitionDate })
+        : 0;
       // The managed club's objectives of the new season, once its fixtures and its cup's first round exist.
       await openSeasonObjectives(tx, saveId, { id: managedSeason.id, startYear });
 
@@ -334,6 +340,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
         cupTies,
         europeMatches,
         internationalMatches,
+        tournament,
         preseason,
       };
     },

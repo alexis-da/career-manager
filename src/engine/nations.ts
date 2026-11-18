@@ -1,5 +1,5 @@
 import { ageInYears } from "../lib/dates";
-import { makeRng, randomInt, shuffle, type Rng } from "../lib/rng";
+import { makeRng, randomInt, type Rng } from "../lib/rng";
 import {
   CALL_UP_BY_GROUP,
   CALL_UP_SIZE,
@@ -223,42 +223,10 @@ export function callUp<P extends CallUpCandidate>(candidates: readonly P[]): P[]
   return called;
 }
 
-// ------------------------------------------------------------------ The friendlies of the breaks (§ 4.3)
+// ------------------------------------------------------------------ The international dates (§ 3.1)
 
 /** International dates a season: two at each of its four breaks. */
 export const INTERNATIONAL_DATES_PER_SEASON = 8;
 
+/** Two nations meeting: the first at home, unless on neutral ground. */
 export type Pairing = { home: NationCode; away: NationCode };
-
-/** Seed of the stream that places the nations in the friendlies' round-robin of a save. */
-export function friendliesRngSeed(saveSeed: string): string {
-  return `${saveSeed}:friendlies`;
-}
-
-/**
- * The friendlies of a save's `round`-th international date since its first season with nations (0 for the first date of
- * that season): a round of a round-robin of the 14 nations, circle method, on an order the save's seed shuffles once,
- * one round a date and on from season to season, so that two nations meet again only once each has met every other.
- * Each pass of the 13 rounds swaps the venues of the one before. Every nation plays at every date: 7 matches.
- */
-export function friendliesOfRound(saveSeed: string, round: number): Pairing[] {
-  const placed = shuffle(makeRng(friendliesRngSeed(saveSeed)), NATION_CODES);
-  const count = placed.length;
-  const rotating = count - 1;
-  const inRound = round % rotating;
-  const swapped = Math.floor(round / rotating) % 2 === 1;
-  const pairs: Pairing[] = [
-    inRound % 2 === 0 ? { home: placed[inRound], away: placed[count - 1] } : { home: placed[count - 1], away: placed[inRound] },
-  ];
-  for (let k = 1; k < count / 2; k++) {
-    const a = placed[(inRound + k) % rotating];
-    const b = placed[(inRound - k + rotating) % rotating];
-    pairs.push(k % 2 === 1 ? { home: a, away: b } : { home: b, away: a });
-  }
-  return swapped ? pairs.map(({ home, away }) => ({ home: away, away: home })) : pairs;
-}
-
-/** The round of the round-robin a season's international date plays: its dates follow those of the seasons before. */
-export function friendlyRoundOf(breaksFrom: number, startYear: number, dateIndex: number): number {
-  return (startYear - breaksFrom) * INTERNATIONAL_DATES_PER_SEASON + dateIndex;
-}

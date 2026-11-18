@@ -2,15 +2,12 @@ import { describe, expect, it } from "vitest";
 import { ageInYears } from "../lib/dates";
 import { CALL_UP_SIZE, NATION_RESERVE_AGE, NATION_RESERVE_LEVELS, NATION_RESERVE_RETIREMENT_AGE } from "./balance";
 import { overallFor } from "./generation";
-import { playLightFriendly, internationalMatchRngSeed, nationFormation, type NationTeam } from "./international";
+import { internationalMatchRngSeed, nationFormation, playLightFriendly, playLightMatch, type NationTeam } from "./international";
 import type { SquadPlayer } from "./lineup";
 import { NAME_BANK } from "./names";
 import {
   callUp,
-  friendliesOfRound,
-  friendlyRoundOf,
   generateReserve,
-  NATION_CODES,
   NATIONS,
   nationByCode,
   nationOfNationality,
@@ -109,31 +106,6 @@ describe("callUp", () => {
   });
 });
 
-describe("friendliesOfRound", () => {
-  it("makes every nation play once a date, and each pair meet once in 13 dates, venues swapped the 13 after", () => {
-    const pairs = new Map<string, number>();
-    for (let round = 0; round < NATION_CODES.length - 1; round++) {
-      const matches = friendliesOfRound("seed-a", round);
-      expect(matches).toHaveLength(7);
-      expect(matches.flatMap((match) => [match.home, match.away]).sort()).toEqual([...NATION_CODES].sort());
-      for (const { home, away } of matches) {
-        const key = [home, away].sort().join("-");
-        pairs.set(key, (pairs.get(key) ?? 0) + 1);
-      }
-      const next = friendliesOfRound("seed-a", round + 13);
-      expect(next).toEqual(matches.map(({ home, away }) => ({ home: away, away: home })));
-    }
-    expect(pairs.size).toBe((14 * 13) / 2);
-    expect([...pairs.values()].every((count) => count === 1)).toBe(true);
-  });
-
-  it("goes on from season to season: a season's first date follows the last one's", () => {
-    expect(friendlyRoundOf(2026, 2026, 0)).toBe(0);
-    expect(friendlyRoundOf(2026, 2027, 0)).toBe(8);
-    expect(friendlyRoundOf(2027, 2028, 7)).toBe(15);
-  });
-});
-
 describe("playLightFriendly", () => {
   /** A nation's 23 of the template, every player rated `level`, rested. */
   const squad = (code: string, level: number): SquadPlayer[] =>
@@ -199,5 +171,61 @@ describe("playLightFriendly", () => {
     const croatia = match.appearances.filter((appearance) => appearance.side === "home");
     expect(croatia.map((appearance) => appearance.playerId)).not.toContain("CRO#2");
     expect(croatia.length).toBeLessThanOrEqual(12);
+  });
+
+  it("plays every light match, a qualifier's as a friendly's, with five substitutions at the hour, the most tired leaving", () => {
+    const tired = squad("FRA", 80).map((player, index) => ({ ...player, fitness: 100 - index }));
+    const match = playLightMatch({ code: "FRA", players: tired, formation: nationFormation(tired) }, team("SEN", 72), "qualifier", {
+      neutral: false,
+      knockout: false,
+    });
+    const france = match.appearances.filter((appearance) => appearance.side === "home");
+    expect(france).toHaveLength(16);
+    expect(france.filter((appearance) => appearance.from > 0).map((appearance) => appearance.from)).toEqual([60, 60, 60, 60, 60]);
+    // The five most tired outfield starters made way.
+    const out = france.filter((appearance) => appearance.from === 0 && appearance.to === 60).map((appearance) => appearance.playerId);
+    const outfieldStarters = france.filter((appearance) => appearance.from === 0 && appearance.slot !== "GK");
+    const fitnessOf = (id: string) => tired.find((player) => player.id === id)?.fitness ?? 0;
+    const tiredest = [...outfieldStarters].sort((a, b) => fitnessOf(a.playerId) - fitnessOf(b.playerId)).slice(0, 5).map((appearance) => appearance.playerId);
+    expect(out.sort()).toEqual(tiredest.sort());
+    expect(match.decidedBy).toBeNull();
+    expect(match.winner).toBeNull();
+  });
+
+  it("decides a knockout match level after 90 minutes by extra time, then a shoot-out, its players on to 120'", () => {
+    const decided = { REGULATION: 0, EXTRA_TIME: 0, PENALTIES: 0 };
+    for (let index = 0; index < 400; index++) {
+      const match = playLightMatch(team("ITA", 78), team("ESP", 78), `knockout:${index}`, { neutral: true, knockout: true });
+      expect(match.winner).not.toBeNull();
+      expect(match.decidedBy).not.toBeNull();
+      if (match.decidedBy === null || match.winner === null) {
+        continue;
+      }
+      decided[match.decidedBy]++;
+      const regulation = match.goals.filter((goal) => goal.minute <= 90);
+      const level = regulation.filter((goal) => goal.side === "home").length === regulation.filter((goal) => goal.side === "away").length;
+      expect(level).toBe(match.decidedBy !== "REGULATION");
+      if (match.decidedBy === "PENALTIES") {
+        expect(match.homeGoals).toBe(match.awayGoals);
+        expect(match.penalties?.home).not.toBe(match.penalties?.away);
+        expect(match.winner).toBe((match.penalties?.home ?? 0) > (match.penalties?.away ?? 0) ? "home" : "away");
+      } else {
+        expect(match.penalties).toBeNull();
+        expect(match.winner).toBe(match.homeGoals > match.awayGoals ? "home" : "away");
+      }
+      if (match.decidedBy !== "REGULATION") {
+        expect(match.appearances.filter((appearance) => appearance.to === 120)).toHaveLength(22);
+      }
+    }
+    // Two equal nations: about a quarter of their matches level after 90 minutes, most of those still level after 120.
+    expect(decided.REGULATION).toBeGreaterThan(250);
+    expect(decided.EXTRA_TIME).toBeGreaterThan(10);
+    expect(decided.PENALTIES).toBeGreaterThan(40);
+  });
+
+  it("plays a friendly as before: five changes at the hour, never extra time", () => {
+    const match = playLightFriendly(team("FRA", 80), team("FRA", 80), "friendly");
+    expect(match.appearances.filter((appearance) => appearance.from > 0).every((appearance) => appearance.from === 60)).toBe(true);
+    expect(match.decidedBy).toBeNull();
   });
 });

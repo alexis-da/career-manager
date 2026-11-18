@@ -25,7 +25,7 @@ import { recordFirstSave } from "./activation";
 import { prisma } from "./client";
 import { openCups } from "./cup";
 import { openEurope } from "./europe";
-import { openNations } from "./nations";
+import { cyclesFromFor, openNations } from "./nations";
 import { seasonFixtures } from "./fixtures";
 import { runPreseasonInTransaction } from "./preseason";
 import { openSeasonObjectives } from "./objectives";
@@ -146,6 +146,8 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
   // A worldVersion 2 save has its international breaks and its national teams from its first season, never a challenge's.
   const breaksFrom = worldVersion === 2 && nations && challenge === null ? seasonStartYear(WORLD_START_DATE) : null;
   const withBreaks = breaksFrom !== null;
+  // Its first cycle of qualifiers starts with its first season with breaks (the Old Continent Cup in June two years on).
+  const cyclesFrom = cyclesFromFor({ cyclesFrom: null }, breaksFrom, seasonStartYear(WORLD_START_DATE));
   const tiers = worldTiers(worldVersion);
 
   return prisma.$transaction(
@@ -218,7 +220,7 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
       }
 
       const save = await tx.save.create({
-        data: { name, managerName, seed, ownerId, worldVersion, currentDate: WORLD_START_DATE, challengeId: challenge?.id ?? null, breaksFrom },
+        data: { name, managerName, seed, ownerId, worldVersion, currentDate: WORLD_START_DATE, challengeId: challenge?.id ?? null, breaksFrom, cyclesFrom },
         select: { id: true, seed: true, currentDate: true },
       });
       if (challenge !== null) {
@@ -368,8 +370,8 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
         timer.mark(`europe ${matches}`);
       }
       if (breaksFrom !== null) {
-        // The nations, their reserves, and the friendlies of the season's breaks.
-        const matches = await openNations(tx, { saveId: save.id, saveSeed: save.seed, breaksFrom, startYear });
+        // The nations, their reserves, and the season's international matches: its cycle's qualifiers and friendlies.
+        const matches = await openNations(tx, { saveId: save.id, saveSeed: save.seed, cyclesFrom, startYear, currentDate: WORLD_START_DATE });
         timer.mark(`nations ${matches}`);
       }
       // Its objectives, on its league season, once its cup and its European competition exist.

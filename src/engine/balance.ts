@@ -430,9 +430,15 @@ export const NATION_RESERVE_SEASON_MINUTES = 2500;
 /** A nation calls, for a break, the best of its players at each line, then the best outfield players left. */
 export const CALL_UP_BY_GROUP: Readonly<Record<PositionGroup, number>> = { GK: 3, DF: 7, MF: 7, FW: 4 };
 export const CALL_UP_SIZE = 23;
-/** A friendly's changes, all at this minute: the most tired outfield starters make way for the best of the bench. */
-export const FRIENDLY_SUBSTITUTIONS = 5;
-export const FRIENDLY_SUBSTITUTION_MINUTE = 60;
+/**
+ * A light match's changes (§ 4.7), friendly, qualifier or tournament, all at this minute: the most tired outfield starters
+ * make way for the best of the bench. Five, not the three at 60', 70' and 80' the cahier gave a match that counts: with
+ * them, the Laurel Cup's clubs had 1.31 times the other clubs' injuries (measure:balance, 18/11), above the 1.3 aimed at.
+ */
+export const LIGHT_SUBSTITUTIONS = 5;
+export const LIGHT_SUBSTITUTION_MINUTE = 60;
+/** A light knockout match's extra time (§ 4.6): this share of the 90 minutes' expected goals, over its two periods. */
+export const LIGHT_EXTRA_TIME_GOAL_SHARE = 1 / 3;
 
 // ------------------------------------------------------------------ Player contracts at save creation
 

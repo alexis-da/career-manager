@@ -319,34 +319,35 @@ model CleanupPass {
 }
 
 model Save {
-  id             String              @id @default(cuid())
-  owner          User?               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  ownerId        String? // null = partie « héritée », d'avant les propriétaires, rattachée plus tard au compte administrateur
-  name           String
-  managerName    String
-  seed           String // graine de tout l'aléatoire de la partie
-  worldVersion   Int // monde de la partie : 1 = premières divisions seules (parties d'avant les deuxièmes), 2 = premières et deuxièmes divisions ; sans défaut, createSave le donne toujours
-  currentDate    DateTime // date "en jeu", jamais l'horloge système
-  liveFixtureId  String? // match du club dirigé en suspens à la mi-temps ; sans clé étrangère, pour ne pas croiser la cascade depuis Save
-  challenge      Challenge?          @relation(fields: [challengeId], references: [id], onDelete: Restrict)
-  challengeId    String? // partie du défi de la semaine (graine, club et nom imposés, hors des limites de parties, purgée 24 h après la fin du défi) ; null pour une partie normale
-  breaksFrom     Int? // première saison avec trêves internationales et sélections (docs/design/selections.md) : la création d'une partie 2, ou la saison qui suit la mise en ligne ; null pour une partie 1, une partie du défi, ou une partie d'avant jusqu'à sa saison suivante
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  clubSaves      ClubSave[]
-  playerSaves    PlayerSave[]
-  seasons        Season[]
-  fixtures       Fixture[]
-  transfers      Transfer[]
-  stats          PlayerSeasonStats[]
-  seasonResults  SeasonResult[]
-  seasonBudgets  SeasonBudget[]
-  objectives     SeasonObjective[]
-  challengeEntry ChallengeEntry?
-  seasonArchives SeasonArchive[]
-  shopPurchases  ShopPurchase[]
-  tokenEntries   TokenEntry[]
-  nations        NationSave[]
+  id                   String               @id @default(cuid())
+  owner                User?                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId              String? // null = partie « héritée », d'avant les propriétaires, rattachée plus tard au compte administrateur
+  name                 String
+  managerName          String
+  seed                 String // graine de tout l'aléatoire de la partie
+  worldVersion         Int // monde de la partie : 1 = premières divisions seules (parties d'avant les deuxièmes), 2 = premières et deuxièmes divisions ; sans défaut, createSave le donne toujours
+  currentDate          DateTime // date "en jeu", jamais l'horloge système
+  liveFixtureId        String? // match du club dirigé en suspens à la mi-temps ; sans clé étrangère, pour ne pas croiser la cascade depuis Save
+  challenge            Challenge?           @relation(fields: [challengeId], references: [id], onDelete: Restrict)
+  challengeId          String? // partie du défi de la semaine (graine, club et nom imposés, hors des limites de parties, purgée 24 h après la fin du défi) ; null pour une partie normale
+  breaksFrom           Int? // première saison avec trêves internationales et sélections (docs/design/selections.md) : la création d'une partie 2, ou la saison qui suit la mise en ligne ; null pour une partie 1, une partie du défi, ou une partie d'avant jusqu'à sa saison suivante
+  cyclesFrom           Int? // première saison du premier cycle d'éliminatoires (deux saisons, puis un tournoi d'été) : la première saison avec trêves d'une partie créée depuis, ou la suivante d'une partie d'avant ; null sans sélections
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  clubSaves            ClubSave[]
+  playerSaves          PlayerSave[]
+  seasons              Season[]
+  fixtures             Fixture[]
+  transfers            Transfer[]
+  stats                PlayerSeasonStats[]
+  seasonResults        SeasonResult[]
+  seasonBudgets        SeasonBudget[]
+  objectives           SeasonObjective[]
+  challengeEntry       ChallengeEntry?
+  seasonArchives       SeasonArchive[]
+  shopPurchases        ShopPurchase[]
+  tokenEntries         TokenEntry[]
+  nations              NationSave[]
   internationalMatches InternationalMatch[]
 
   @@index([ownerId])
@@ -430,6 +431,7 @@ model NationSave {
   reserve      Json // ses 23 joueurs hors championnats (validés par Zod, src/db/nations.ts)
   reserveCaps  Int[]    @default([]) // leurs sélections, dans l'ordre de reserve, à part du JSON : une trêve n'écrit qu'eux
   reserveGoals Int[]    @default([])
+  strength     Int? // sa force à l'ouverture du cycle en cours, en millièmes de point attendu (rankFormations) : départage des classements, appariement des matchs amicaux ; null avant le premier cycle
   createdAt    DateTime @default(now())
 
   @@unique([saveId, code]) // sert aussi les lectures et la cascade par saveId
@@ -530,6 +532,7 @@ model PlayerSave {
   suspendedEuropeMatches Int                 @default(0) // après 3 jaunes en Europe : ses prochains matchs européens
   caps                   Int                 @default(0) // sélections en équipe nationale, sur toute sa carrière (docs/design/selections.md)
   internationalGoals     Int                 @default(0) // buts en équipe nationale, sur toute sa carrière
+  internationalTitles    String[]            @default([]) // tournois gagnés avec sa sélection, « int.eu:2028 » (titleKey, src/engine/tournaments.ts)
   marketValue            Int                 @default(0) // euros
   wage                   Int                 @default(0) // euros par saison
   contractUntil          DateTime?

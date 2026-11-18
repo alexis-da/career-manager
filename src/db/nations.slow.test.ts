@@ -81,8 +81,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("national teams in a sav
       expect(await database().playerSave.count({ where: { saveId: id, caps: { gt: 0 } } })).toBe(0);
       await season.advanceToNextSeason(id);
 
-      const after = await database().save.findUniqueOrThrow({ where: { id }, select: { breaksFrom: true } });
+      const after = await database().save.findUniqueOrThrow({ where: { id }, select: { breaksFrom: true, cyclesFrom: true } });
       expect(after.breaksFrom).toBe(WORLD_START_YEAR + 1);
+      // Its first cycle of qualifiers with its first season with breaks: its first tournament two summers on.
+      expect(after.cyclesFrom).toBe(WORLD_START_YEAR + 1);
+      expect(await database().internationalMatch.count({ where: { saveId: id, competition: "int.qual.eu" } })).toBe(16);
       expect(await database().nationSave.count({ where: { saveId: id } })).toBe(14);
       expect(await database().internationalMatch.count({ where: { saveId: id, startYear: WORLD_START_YEAR + 1 } })).toBe(56);
       const nextEnglish = await database().fixture.groupBy({

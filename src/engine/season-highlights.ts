@@ -1,3 +1,5 @@
+import type { NationCode } from "./nations";
+
 // The managed club's season highlights (chantier « historique », docs/design/historique.md § 7.4 A): what the end of a
 // season keeps of it before the event cleanup or the archiving takes its matches' events away: the club's exact
 // scorers and hat-tricks, its squad's ratings and values, its budget. Pure: src/db/season-highlights.ts reads the rows
@@ -39,12 +41,24 @@ export type HighlightHatTrick = {
 
 export type HighlightSquadPlayer = { playerKey: string; overall: number; value: number };
 
+/**
+ * A summer tournament won by players of the managed club, in the winner's squad (docs/design/selections.md § 9.9): written
+ * by the transition that played it, absent before the national teams' cycles (a field of its own, the format kept).
+ */
+export type HighlightTitle = {
+  tournament: "int.eu" | "int.world";
+  year: number;
+  nation: NationCode;
+  players: { playerKey: string; name: string }[];
+};
+
 export type SeasonHighlights = {
   version: number;
   budget: number; // euros: the club's transfer budget at the season's end, before the next dotation
   scorers: HighlightScorer[]; // its top HIGHLIGHT_SCORERS, every competition
   hatTricks: HighlightHatTrick[]; // by date
   squad: HighlightSquadPlayer[]; // its players at the season's end, by key
+  internationalTitles?: HighlightTitle[]; // the summer tournament its players won, when the season ended a cycle
 };
 
 const byKey = (a: { playerKey: string }, b: { playerKey: string }): number => (a.playerKey < b.playerKey ? -1 : a.playerKey > b.playerKey ? 1 : 0);
