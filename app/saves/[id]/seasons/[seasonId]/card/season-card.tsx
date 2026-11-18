@@ -49,7 +49,7 @@ export type CardDress = { frame: FrameStyle; title: string | null };
 export const PLAIN_DRESS: CardDress = { frame: frameStyleOf(null), title: null };
 
 /** A frame's ornament, at each corner of the card, in SVG. */
-function Ornament({ kind, color, size }: { kind: FrameStyle["ornament"]; color: string; size: number }) {
+export function Ornament({ kind, color, size }: { kind: FrameStyle["ornament"]; color: string; size: number }) {
   switch (kind) {
     case "dot":
       return (
@@ -87,24 +87,24 @@ function Ornament({ kind, color, size }: { kind: FrameStyle["ornament"]; color: 
   }
 }
 
-const MIDNIGHT_BLUE = "#0B1340";
-const FACE_BACKGROUND = "#1A2560";
-const ORANGE = "#FF9F1C";
-const MUTED = "rgba(255, 255, 255, 0.68)";
+export const MIDNIGHT_BLUE = "#0B1340";
+export const FACE_BACKGROUND = "#1A2560";
+export const ORANGE = "#FF9F1C";
+export const MUTED = "rgba(255, 255, 255, 0.68)";
 
 let icon: Promise<string> | undefined;
 
-function brandIcon(): Promise<string> {
+export function brandIcon(): Promise<string> {
   icon ??= readFile(join(process.cwd(), "public/brand/late-winner-icone.svg"), "base64").then(
     (data) => `data:image/svg+xml;base64,${data}`,
   );
   return icon;
 }
 
-const column: CSSProperties = { display: "flex", flexDirection: "column" };
-const row: CSSProperties = { display: "flex", flexDirection: "row" };
+export const column: CSSProperties = { display: "flex", flexDirection: "column" };
+export const row: CSSProperties = { display: "flex", flexDirection: "row" };
 
-function Stat({ value, label, size }: { value: string; label: string; size: number }) {
+export function Stat({ value, label, size }: { value: string; label: string; size: number }) {
   return (
     <div style={{ ...column, marginRight: size * 0.75 }}>
       <div style={{ fontSize: size, lineHeight: 1 }}>{value}</div>
