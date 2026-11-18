@@ -31,6 +31,7 @@ import { prisma } from "../src/db/client";
 import { isLocalDatabase } from "../src/db/database-url";
 import { europeFixtures, europeRunsOf, europeSeasonsOf } from "../src/db/europe";
 import { aiLineupOf, playNextMatchday, PLAYER_SELECT, squadsOf, withSuspensions } from "../src/db/matchday";
+import { readCallUps } from "../src/db/nations";
 import { createSave } from "../src/db/saves";
 import { advanceToNextSeason, type SeasonTransition } from "../src/db/season";
 import { parseFormation } from "../src/db/lineup";
@@ -63,7 +64,8 @@ import {
   wageFor,
   type SeasonFinances,
 } from "../src/engine/economy";
-import { averageOpponent, chooseFormation } from "../src/engine/formation-choice";
+import { averageOpponent, chooseFormation, rankFormations } from "../src/engine/formation-choice";
+import { breakWindows } from "../src/engine/schedule";
 import { formationPositions } from "../src/engine/formations";
 import { isAvailable, selectLineup, type SquadPlayer } from "../src/engine/lineup";
 import {
@@ -200,7 +202,35 @@ type FitnessRecord = {
   groups: Record<"europeLeague" | "europeCup" | "europeEurope" | "othersLeague", FitnessTally>;
   byMonth: Record<string, Record<"europe" | "others", FitnessTally>>;
   load?: Record<"europe" | "others", LoadTally>; // absent from records from before it
+  nations?: NationsRecord; // absent from records from before the national teams
 };
+
+/** A break of a season (docs/design/selections.md): what it cost, whom it took, what it did to them. */
+type BreakRecord = {
+  from: string;
+  cpuMs: number;
+  wallMs: number;
+  calledByClub: Record<string, number>; // clubSaveId: its players the nations called
+  played: number; // players of our clubs who played
+  injuryDays: number[]; // the injuries of our clubs' players in the break
+  fitnessAfter: number; // the mean fitness, on the break's last date, of our clubs' players who played
+};
+
+/** The groups of first division clubs the breaks are compared on: the European clubs lending the most players, the other European clubs, the rest. */
+type LendingGroup = "lenders" | "europeOthers" | "others";
+
+/** A season's national teams: their strength at its start, the European clubs that lend the most, its breaks, and their effects. */
+type NationsRecord = {
+  strength: { code: string; eleven: number; outside: number; points: number }[]; // strongest first
+  lenders: string[]; // European clubs whose players the nations call LENDER_CALL_UPS times or more at the first break
+  tier1: number; // first division clubs
+  breaks: BreakRecord[];
+  byMonth: Record<string, Record<"lenders" | "europeOthers", FitnessTally>>; // European clubs' starters, every match
+  injuries: Record<LendingGroup, { club: number; breaks: number }>; // in the clubs' matches, in the breaks
+};
+
+/** A European club lending this many players to the nations at the season's first break is a « big lender ». */
+const LENDER_CALL_UPS = 6;
 
 /**
  * A group's AI clubs over a season, every match of theirs (league, cup, Europe): how many clubs, their starters rested
@@ -588,6 +618,112 @@ async function europeClubsOf(saveId: string, startYear: number): Promise<Set<str
 }
 
 /**
+ * The national teams of a season about to be played: each nation's 23 today and its strength (rankFormations, as an AI
+ * club ranks its formations), and the European clubs whose players the nations call LENDER_CALL_UPS times or more at the
+ * season's first break (readCallUps, from today's squads). Empty in a save without nations.
+ */
+async function nationsAtStart(saveId: string, startYear: number, europeClubs: ReadonlySet<string>): Promise<NationsRecord> {
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true, breaksFrom: true } });
+  const tier1 = await prisma.clubSave.count({ where: { saveId, competition: { kind: "LEAGUE", tier: 1 } } });
+  const record: NationsRecord = {
+    strength: [],
+    lenders: [],
+    tier1,
+    breaks: [],
+    byMonth: {},
+    injuries: { lenders: { club: 0, breaks: 0 }, europeOthers: { club: 0, breaks: 0 }, others: { club: 0, breaks: 0 } },
+  };
+  if (save.breaksFrom === null || save.breaksFrom > startYear) {
+    return record;
+  }
+  const today = await readCallUps(prisma, saveId, save.currentDate, save.currentDate);
+  record.strength = [...today]
+    .map(([code, players]) => {
+      const [best] = rankFormations(players, 1);
+      return {
+        code,
+        eleven: round(mean(best.lineup.starters.map(({ player }) => player.overall)), 1),
+        outside: players.filter((player) => player.playerSaveId === null).length,
+        points: best.points,
+      };
+    })
+    .sort((a, b) => b.points - a.points);
+  const [first] = breakWindows(startYear);
+  const called = await readCallUps(prisma, saveId, first.dates[0], save.currentDate);
+  const byClub = new Map<string, number>();
+  for (const player of [...called.values()].flat()) {
+    if (player.clubSaveId !== null) {
+      byClub.set(player.clubSaveId, (byClub.get(player.clubSaveId) ?? 0) + 1);
+    }
+  }
+  record.lenders = [...byClub].filter(([club, count]) => europeClubs.has(club) && count >= LENDER_CALL_UPS).map(([club]) => club);
+  return record;
+}
+
+/** The group of a first division club: a big lender, another European club, or another. */
+function lendingGroup(clubSaveId: string, nations: NationsRecord, europeClubs: ReadonlySet<string>): LendingGroup {
+  return nations.lenders.includes(clubSaveId) ? "lenders" : europeClubs.has(clubSaveId) ? "europeOthers" : "others";
+}
+
+/**
+ * Plays a break, the save's next step (playNextMatchday), and records it: its CPU and wall time, the players of each club
+ * its nations call (readCallUps: the break's own call-up), and what it did to those of our clubs: who played, who got
+ * injured (the first division clubs' injuries counted by group), their fitness on its last date.
+ */
+async function playBreakWatching(
+  saveId: string,
+  currentDate: Date,
+  first: Date,
+  nations: NationsRecord,
+  europeClubs: ReadonlySet<string>,
+  tier1Clubs: ReadonlySet<string>,
+): Promise<BreakRecord> {
+  const called = await readCallUps(prisma, saveId, first, currentDate);
+  const calledByClub: Record<string, number> = {};
+  const ids: string[] = [];
+  for (const player of [...called.values()].flat()) {
+    if (player.clubSaveId !== null && player.playerSaveId !== null) {
+      calledByClub[player.clubSaveId] = (calledByClub[player.clubSaveId] ?? 0) + 1;
+      ids.push(player.playerSaveId);
+    }
+  }
+  const before = new Map(
+    (await prisma.playerSave.findMany({ where: { saveId, id: { in: ids } }, select: { id: true, caps: true, injuredUntil: true } })).map((row) => [row.id, row]),
+  );
+  const cpu = process.cpuUsage();
+  const wall = performance.now();
+  const summary = await playNextMatchday(saveId);
+  const used = process.cpuUsage(cpu);
+  const wallMs = performance.now() - wall;
+  if (summary === null || summary.internationalBreak === undefined) {
+    throw new Error(`The step after ${first.toISOString()} was no break`);
+  }
+  const after = await prisma.playerSave.findMany({
+    where: { saveId, id: { in: ids } },
+    select: { id: true, caps: true, fitness: true, injuredUntil: true, clubSaveId: true },
+  });
+  const played = after.filter((row) => row.caps > (before.get(row.id)?.caps ?? 0));
+  const injured = after.filter(
+    (row) =>
+      row.injuredUntil !== null && row.injuredUntil > summary.date && row.injuredUntil.getTime() !== before.get(row.id)?.injuredUntil?.getTime(),
+  );
+  for (const row of injured) {
+    if (row.clubSaveId !== null && tier1Clubs.has(row.clubSaveId)) {
+      nations.injuries[lendingGroup(row.clubSaveId, nations, europeClubs)].breaks++;
+    }
+  }
+  return {
+    from: first.toISOString().slice(0, 10),
+    cpuMs: (used.user + used.system) / 1000,
+    wallMs,
+    calledByClub,
+    played: played.length,
+    injuryDays: injured.map((row) => Math.round(((row.injuredUntil?.getTime() ?? 0) - summary.date.getTime()) / DAY_MS)),
+    fitnessAfter: round(mean(played.map((row) => row.fitness)), 1),
+  };
+}
+
+/**
  * Plays a season's remaining dates as playRemainingMatchdays does, reading first each date's AI lineups of the European
  * clubs and of the other first division clubs, as the matchday picks them (aiLineupOf on the squads less the suspended,
  * their fitness recovered over the days of rest): their starters' fitness at kick-off (the other clubs' in their league
@@ -602,6 +738,12 @@ async function playWatchingFitness(saveId: string, startYear: number): Promise<F
   };
   const seen = { europe: new Set<string>(), others: new Set<string>() };
   const europeClubs = await europeClubsOf(saveId, startYear);
+  // The national teams of the season, and its breaks played as they come, each a step of its own.
+  const nations = await nationsAtStart(saveId, startYear, europeClubs);
+  record.nations = nations;
+  const tier1Clubs = new Set(
+    (await prisma.clubSave.findMany({ where: { saveId, competition: { kind: "LEAGUE", tier: 1 } }, select: { id: true } })).map((club) => club.id),
+  );
   const { competition: managed } = await prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
     select: { competition: { select: { country: true } } },
@@ -614,6 +756,15 @@ async function playWatchingFitness(saveId: string, startYear: number): Promise<F
       load.europe.clubs = seen.europe.size;
       load.others.clubs = seen.others.size;
       return record;
+    }
+    const pendingBreak = await prisma.internationalMatch.findFirst({
+      where: { saveId, played: false },
+      orderBy: { scheduledAt: "asc" },
+      select: { scheduledAt: true },
+    });
+    if (pendingBreak !== null && pendingBreak.scheduledAt < next.scheduledAt) {
+      nations.breaks.push(await playBreakWatching(saveId, save.currentDate, pendingBreak.scheduledAt, nations, europeClubs, tier1Clubs));
+      continue;
     }
     const fixtures = await prisma.fixture.findMany({
       where: { saveId, played: false, scheduledAt: next.scheduledAt },
@@ -653,6 +804,10 @@ async function playWatchingFitness(saveId: string, startYear: number): Promise<F
       addTo(record.groups[group], values);
       const monthly = (record.byMonth[month] ??= { europe: emptyTally(), others: emptyTally() });
       addTo(monthly[side], values);
+      if (european) {
+        const lending = (nations.byMonth[month] ??= { lenders: emptyTally(), europeOthers: emptyTally() });
+        addTo(lending[nations.lenders.includes(club.id) ? "lenders" : "europeOthers"], values);
+      }
     }
     await playNextMatchday(saveId);
     // The injuries the date gave the watched clubs' players: an injury running past it that was not there before.
@@ -665,6 +820,9 @@ async function playWatchingFitness(saveId: string, startYear: number): Promise<F
       const until = player.injuredUntil?.getTime() ?? 0;
       if (player.clubSaveId !== null && until > next.scheduledAt.getTime() && until !== injuredBefore.get(player.id)) {
         load[europeClubs.has(player.clubSaveId) ? "europe" : "others"].injuries++;
+        if (tier1Clubs.has(player.clubSaveId)) {
+          nations.injuries[lendingGroup(player.clubSaveId, nations, europeClubs)].club++;
+        }
       }
     }
   }
@@ -1442,6 +1600,7 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
   sections.push(...spreadSections(snapshots, rows));
   sections.push(...objectivesSections(snapshots, rows));
   sections.push(...europeSections(snapshots, rows));
+  sections.push(...nationsSections(snapshots, rows));
   return sections.join("\n\n");
 }
 
@@ -1858,6 +2017,116 @@ function europeSections(snapshots: readonly SeasonSnapshot[], rows: readonly Clu
         "Blessures : rapport",
       ],
       loadRows,
+    ),
+  ];
+}
+
+// ------------------------------------------------------------------ National teams
+
+/**
+ * The national teams (docs/design/selections.md): each season's breaks, whom they took and what they did to them, their
+ * cost; the nations' strength at each season's start; the starters' fitness at kick-off of the European clubs lending the
+ * most players against the others; the injuries per club by group.
+ */
+function nationsSections(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[]): string[] {
+  const played = snapshots.filter((snapshot) => snapshot.fitness?.nations !== undefined && snapshot.fitness.nations.breaks.length > 0);
+  if (played.length === 0) {
+    return [];
+  }
+  const tierOf = new Map(rows.map((row) => [`${row.season}|${row.clubSaveId}`, row.tier]));
+  const seasonName = (snapshot: SeasonSnapshot): string => `S${snapshot.season} (${seasonLabel(snapshot.startYear)})`;
+  const breakRows = played.map((snapshot) => {
+    const nations = snapshot.fitness?.nations as NationsRecord;
+    const perBreak = nations.breaks.map((entry) => {
+      const counts = Object.entries(entry.calledByClub);
+      const ofTier = (tier: number) => counts.filter(([club]) => tierOf.get(`${snapshot.season}|${club}`) === tier).map(([, count]) => count);
+      return { total: counts.reduce((sum, [, count]) => sum + count, 0), d1: ofTier(1), d2: ofTier(2) };
+    });
+    const tier1Clubs = nations.tier1;
+    const d1Mean = mean(perBreak.map((entry) => entry.d1.reduce((sum, count) => sum + count, 0) / Math.max(1, tier1Clubs)));
+    const d1Max = Math.max(...perBreak.flatMap((entry) => entry.d1));
+    const d2Mean = mean(perBreak.map((entry) => entry.d2.reduce((sum, count) => sum + count, 0) / Math.max(1, 102)));
+    const injuries = nations.breaks.flatMap((entry) => entry.injuryDays);
+    const cpu = nations.breaks.map((entry) => entry.cpuMs);
+    return [
+      seasonName(snapshot),
+      String(nations.breaks.length),
+      fixed(mean(perBreak.map((entry) => entry.total)), 0),
+      fixed(d1Mean, 2),
+      String(d1Max),
+      fixed(d2Mean, 2),
+      fixed(mean(nations.breaks.map((entry) => entry.played)), 0),
+      `${injuries.length} (${fixed(mean(injuries), 0)} j)`,
+      fixed(mean(nations.breaks.map((entry) => entry.fitnessAfter)), 1),
+      `${fixed(mean(cpu), 0)} / ${fixed(Math.max(...cpu), 0)}`,
+      fixed(mean(nations.breaks.map((entry) => entry.wallMs)), 0),
+    ];
+  });
+  const strengthRows = played.map((snapshot) => {
+    const nations = snapshot.fitness?.nations as NationsRecord;
+    return [seasonName(snapshot), nations.strength.map((nation, index) => `${index + 1}. ${nation.code} ${fixed(nation.eleven, 1)} (${nation.outside})`).join(" · ")];
+  });
+  const rankOf = (code: string) =>
+    played.map((snapshot) => {
+      const index = (snapshot.fitness?.nations as NationsRecord).strength.findIndex((nation) => nation.code === code);
+      return index === -1 ? "—" : String(index + 1);
+    });
+  const watched = ["BRA", "ARG", "POR"];
+  const share = (count: number, total: number): string => (total === 0 ? "—" : `${fixed((100 * count) / total, 0)} %`);
+  const monthCells = (tally: FitnessTally | undefined): string[] =>
+    tally === undefined || tally.count === 0 ? ["—", "—"] : [fixed(tally.sum / tally.count, 1), share(tally.below, tally.count)];
+  const octoberRows = played.map((snapshot) => {
+    const month = `${snapshot.startYear}-10`;
+    const nations = snapshot.fitness?.nations as NationsRecord;
+    const lending = nations.byMonth[month];
+    return [
+      seasonName(snapshot),
+      String(nations.lenders.length),
+      ...monthCells(lending?.lenders),
+      ...monthCells(lending?.europeOthers),
+      ...monthCells(snapshot.fitness?.byMonth[month]?.others),
+    ];
+  });
+  const injuryRows = played.map((snapshot) => {
+    const nations = snapshot.fitness?.nations as NationsRecord;
+    const europeClubs = (snapshot.fitness?.load?.europe.clubs ?? 0);
+    const clubs: Record<LendingGroup, number> = {
+      lenders: nations.lenders.length,
+      europeOthers: Math.max(0, europeClubs - nations.lenders.length),
+      others: Math.max(0, nations.tier1 - europeClubs),
+    };
+    const cells = (group: LendingGroup): string[] => {
+      const { club, breaks } = nations.injuries[group];
+      const per = (count: number) => fixed(clubs[group] === 0 ? Number.NaN : count / clubs[group], 1);
+      return [per(club), per(breaks), per(club + breaks)];
+    };
+    return [seasonName(snapshot), ...cells("lenders"), ...cells("europeOthers"), ...cells("others")];
+  });
+  return [
+    "## i. Sélections nationales (docs/design/selections.md)",
+    [
+      "Quatre trêves par saison, deux matchs amicaux chacune, en simulation légère ; chaque trêve jouée comme une étape de la",
+      "partie. Appelés : joueurs de nos clubs dans les 23 de leur nation ; par club : moyenne des clubs de D1 (et de D2), et le",
+      "plus grand nombre d'un club. Condition au retour : celle, au dernier jour de la trêve, des joueurs de nos clubs qui ont",
+      "joué. CPU : ms de calcul de l'étape de la trêve (moyenne / max), durée en ms, base comprise.",
+    ].join(" "),
+    table(
+      ["Saison", "Trêves", "Appelés / trêve", "Par club de D1", "Max d'un club", "Par club de D2", "Ont joué / trêve", "Blessés (jours)", "Condition au retour", "CPU (ms)", "Durée (ms)"],
+      breakRows,
+    ),
+    "### Force des sélections au début de chaque saison (moyenne du onze, entre parenthèses ses joueurs hors championnats)",
+    table(["Saison", "Ordre"], strengthRows),
+    table(["Nation", ...played.map(seasonName)], watched.map((code) => [code, ...rankOf(code)])),
+    `### Condition des titulaires en octobre (clubs IA de D1, tous leurs matchs pour les européens ; sous ${ROTATION_FITNESS} : seuil de rotation)`,
+    [
+      `Gros prêteurs : clubs européens dont les nations appellent ${LENDER_CALL_UPS} joueurs ou plus à la première trêve de la`,
+      "saison. Cible : moins de 15 % de titulaires sous le seuil.",
+    ].join(" "),
+    table(["Saison", "Gros prêteurs", "moyenne", `sous ${ROTATION_FITNESS}`, "Autres européens : moyenne", `sous ${ROTATION_FITNESS}`, "Autres D1 : moyenne", `sous ${ROTATION_FITNESS}`], octoberRows),
+    "### Blessures par club et par saison (clubs de D1 : en club, en sélection, total)",
+    table(
+      ["Saison", "Gros prêteurs : en club", "en sélection", "total", "Autres européens : en club", "en sélection", "total", "Autres D1 : en club", "en sélection", "total"],
+      injuryRows,
     ),
   ];
 }

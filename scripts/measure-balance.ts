@@ -1140,6 +1140,16 @@ async function playSeasonWatchingFatigue(
     if (next === null) {
       return;
     }
+    // An international break before the clubs' next date is a step of its own (docs/design/selections.md).
+    const pendingBreak = await prisma.internationalMatch.findFirst({
+      where: { saveId, played: false },
+      orderBy: { scheduledAt: "asc" },
+      select: { scheduledAt: true },
+    });
+    if (pendingBreak !== null && pendingBreak.scheduledAt < next.scheduledAt) {
+      await playNextMatchday(saveId);
+      continue;
+    }
     const fixtures = await prisma.fixture.findMany({
       where: { saveId, played: false, scheduledAt: next.scheduledAt },
       select: {
@@ -1465,7 +1475,7 @@ function europeTables(watches: readonly EuropeWatch[], fatigue: FatigueRecord, s
         ],
       ],
     ),
-    `Dates: ${europeDates(2026)
+    `Dates: ${europeDates(2026, true)
       .map((date) => date.toISOString().slice(5, 10))
       .join(", ")} (2026-27).`,
   );
