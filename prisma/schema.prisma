@@ -650,6 +650,10 @@ model SeasonResult {
   bestPlayerAssists  Int?
   bestPlayerRating   Float? // note de saison sur 10, une décimale (seasonRating, src/engine/season-result.ts)
   formation          String // dispositif du club dirigé à la fin de la saison
+  // Relevé de fin de saison (chantier « historique », 18/11) : budget, buteurs et triplés exacts, note et valeur de
+  // l'effectif, écrits par recordSeasonResult avant que nettoyage ou archivage n'emportent les événements des matchs ;
+  // validé par Zod à la lecture (src/db/season-highlights.ts) ; null pour une saison terminée avant, ou reconstruite
+  highlights         Json?
   createdAt          DateTime    @default(now())
 
   @@unique([saveId, seasonId])

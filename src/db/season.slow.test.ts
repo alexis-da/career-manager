@@ -53,6 +53,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
   type FirstSteps = { firstSaveAt: Date | null; firstMatchAt: Date | null; firstSeasonEndAt: Date | null };
   const steps: FirstSteps[] = [];
   let writtenResults: unknown[] = [];
+  let writtenHighlights: unknown[] = [];
   let rebuiltResults: unknown[] = [];
 
   const database = (): typeof prismaClient => {
@@ -251,8 +252,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
 
     // The rows advanceToNextSeason wrote, then the same seasons rebuilt from the database once the rows are gone, as
     // for a save from before SeasonResult: three seasons of transfers later, the rebuilding must find the same squads.
+    // A rebuilt row has no highlights (its matches' events are gone by then): they are compared apart.
     const resultsWithoutIdentity = (): Promise<unknown[]> =>
-      prisma.seasonResult.findMany({ where: { saveId }, orderBy: { seasonId: "asc" }, omit: { id: true, createdAt: true } });
+      prisma.seasonResult.findMany({ where: { saveId }, orderBy: { seasonId: "asc" }, omit: { id: true, createdAt: true, highlights: true } });
+    writtenHighlights = (await prisma.seasonResult.findMany({ where: { saveId }, select: { highlights: true } })).map((row) => row.highlights);
     writtenResults = await resultsWithoutIdentity();
     await prisma.seasonResult.deleteMany({ where: { saveId } });
     await seasonResults.getSeasonResults(saveId);
@@ -385,6 +388,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       expect.arrayContaining([expect.objectContaining({ played: 34, bestPlayerKey: expect.any(String) })]),
     );
     expect(rebuiltResults).toEqual(writtenResults);
+    // Every season it closed kept its highlights; a rebuilt row has none.
+    expect(writtenHighlights.every((highlights) => highlights !== null && typeof highlights === "object")).toBe(true);
+    const rebuilt = await database().seasonResult.findMany({ where: { saveId }, select: { highlights: true } });
+    expect(rebuilt.every((row) => row.highlights === null)).toBe(true);
   });
 
   it("deletes the whole save, played matches, transfers and results included", async () => {

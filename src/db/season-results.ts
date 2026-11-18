@@ -12,6 +12,7 @@ import {
   type SeasonResultData,
 } from "../engine/season-result";
 import { computeStandings } from "../engine/standings";
+import type { SeasonHighlights } from "../engine/season-highlights";
 import { seasonEndDate } from "../engine/world";
 import type { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
@@ -21,6 +22,7 @@ import { prisma } from "./client";
 import { clubEuropeRun, type ClubEuropeRun } from "./europe";
 import type { SeasonMove } from "./promotion";
 import { clubOf, clubsOfSave, readArchivedSeason } from "./season-archive";
+import { seasonHighlightsOf } from "./season-highlights";
 
 type Db = Prisma.TransactionClient;
 
@@ -208,10 +210,12 @@ function seasonResultRow(
   move: MoveReason | null,
   cup: CupRun | null,
   europe: ClubEuropeRun | null,
+  highlights: SeasonHighlights | null = null,
 ): Prisma.SeasonResultCreateManyInput {
   const { bestPlayer, trophies, ...line } = result;
   return {
     ...line,
+    ...(highlights === null ? {} : { highlights: highlights as unknown as Prisma.InputJsonValue }),
     trophies: [...trophies, ...(cup?.won === true ? [CUP_TROPHY] : []), ...(europe?.won === true ? [EUROPE_TROPHY] : [])],
     cupRound: cup?.round ?? null,
     // The stage reached, the final for its winner, who has the trophy.
@@ -267,7 +271,8 @@ async function cupRunOfClub(tx: Db, saveId: string, clubSaveId: string, slug: st
  * Writes the managed club's result of a season about to close, inside advanceToNextSeason's transaction, before any
  * player changes, with the club's promotion or relegation among the season's moves, its cup run (cupRound, the « cup »
  * trophy) from the closing cup seasons, and its European run (europeCode, europeStage, the « europe » trophy) from the
- * closing European seasons. Returns the season it was written for, or null when the club plays in none of these seasons.
+ * closing European seasons, and its highlights (seasonHighlightsOf). Returns the season it was written for, or null when
+ * the club plays in none of these seasons.
  */
 export async function recordSeasonResult(
   tx: Db,
@@ -289,7 +294,9 @@ export async function recordSeasonResult(
   const move = moves.find((candidate) => candidate.clubId === managed.clubId)?.reason ?? null;
   const cup = await cupRunOfClub(tx, saveId, managed.id, managed.slug, cupSeasonIds);
   const europe = await clubEuropeRun(tx, saveId, managed.id, europeSeasonIds);
-  await tx.seasonResult.createMany({ data: [seasonResultRow(saveId, season, result, move, cup, europe)], skipDuplicates: true });
+  // What the season's matches' events will not keep: its scorers and hat-tricks, its squad's ratings, its budget now.
+  const highlights = await seasonHighlightsOf(tx, saveId, managed.id, [season.id, ...cupSeasonIds, ...europeSeasonIds]);
+  await tx.seasonResult.createMany({ data: [seasonResultRow(saveId, season, result, move, cup, europe, highlights)], skipDuplicates: true });
   return season.id;
 }
 
