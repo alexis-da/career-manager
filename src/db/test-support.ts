@@ -90,12 +90,18 @@ export async function deleteSavelessTestOwners(): Promise<number> {
  * tests can play and advance seasons without touching the demo save itself. cups and europe: the national cups and the
  * European competitions of a worldVersion 2 save, as the game gives them (CUPS_ENABLED, EUROPE_ENABLED) when left out.
  */
-export async function createDemoTwin(name: string, worldVersion: WorldVersion = 1, cups?: boolean, europe?: boolean): Promise<string> {
+export async function createDemoTwin(
+  name: string,
+  worldVersion: WorldVersion = 1,
+  cups?: boolean,
+  europe?: boolean,
+  nations?: boolean, // false: a save from before the national teams, its breaks from its next season
+): Promise<string> {
   const [club, ownerId] = await Promise.all([
     prisma.club.findUniqueOrThrow({ where: { slug: DEMO_CLUB_SLUG }, select: { id: true } }),
     createTestOwner(),
   ]);
-  const { id } = await createSave({ name, managerName: "Test", clubId: club.id, seed: DEMO_SEED, ownerId, worldVersion, cups, europe });
+  const { id } = await createSave({ name, managerName: "Test", clubId: club.id, seed: DEMO_SEED, ownerId, worldVersion, cups, europe, nations });
   return id;
 }
 

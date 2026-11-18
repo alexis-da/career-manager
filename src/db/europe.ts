@@ -29,6 +29,7 @@ import { countryOf } from "../engine/promotion";
 import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
+import { seasonHasBreaks } from "./nations";
 import type { FinalTables } from "./promotion";
 
 // The European competitions of a worldVersion 2 save (docs/design/europe.md): a Season for each and each year, its
@@ -112,6 +113,7 @@ export type OpenEuropeInput = {
   saveId: string;
   saveSeed: string;
   startYear: number;
+  withBreaks: boolean; // a season with international breaks: its rounds on europeDates' weeks of such a season
   qualifiers: readonly CountryQualifiers[];
 };
 
@@ -121,7 +123,7 @@ export type OpenEuropeInput = {
  * their reputation now breaks the league phase's last ties), its whole league phase drawn (drawLeaguePhase, the season's
  * own stream for each competition), and each club's participation prize credited. Returns the number of matches drawn.
  */
-export async function openEurope(tx: Db, { saveId, saveSeed, startYear, qualifiers }: OpenEuropeInput): Promise<number> {
+export async function openEurope(tx: Db, { saveId, saveSeed, startYear, withBreaks, qualifiers }: OpenEuropeInput): Promise<number> {
   const competitions = await tx.competition.findMany({ where: { kind: "EUROPE" }, orderBy: { code: "asc" }, select: { id: true, code: true } });
   const slugs = qualifiers.flatMap((country) => country.table.slice(0, 7).concat(country.cupWinner === null ? [] : [country.cupWinner.club]));
   const clubs = await tx.clubSave.findMany({
@@ -133,7 +135,7 @@ export async function openEurope(tx: Db, { saveId, saveSeed, startYear, qualifie
 
   const fixtures: Prisma.FixtureCreateManyInput[] = [];
   const prizes: { clubSaveId: string; prize: number }[] = [];
-  const dates = europeDates(startYear);
+  const dates = europeDates(startYear, withBreaks);
   for (const competition of competitions) {
     if (!isEuropeCode(competition.code)) {
       throw new Error(`Unknown European competition ${competition.code}`);
@@ -338,7 +340,10 @@ export async function progressEurope(tx: Db, saveId: string, fixtureIds: readonl
       }
     }
     const ties = knockoutTies(next, ranking, playedTies(fixtures));
-    await tx.fixture.createMany({ data: tieRows(saveId, season.id, next, europeDates(season.startYear)[next - 1], ties, clubSaveIdOf) });
+    // The round's date: that of a season with or without international breaks (Save.breaksFrom).
+    const { breaksFrom } = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { breaksFrom: true } });
+    const date = europeDates(season.startYear, seasonHasBreaks(breaksFrom, season.startYear))[next - 1];
+    await tx.fixture.createMany({ data: tieRows(saveId, season.id, next, date, ties, clubSaveIdOf) });
   }
   await creditPrizes(tx, saveId, prizes);
 }

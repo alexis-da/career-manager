@@ -330,6 +330,7 @@ model Save {
   liveFixtureId  String? // match du club dirigé en suspens à la mi-temps ; sans clé étrangère, pour ne pas croiser la cascade depuis Save
   challenge      Challenge?          @relation(fields: [challengeId], references: [id], onDelete: Restrict)
   challengeId    String? // partie du défi de la semaine (graine, club et nom imposés, hors des limites de parties, purgée 24 h après la fin du défi) ; null pour une partie normale
+  breaksFrom     Int? // première saison avec trêves internationales et sélections (docs/design/selections.md) : la création d'une partie 2, ou la saison qui suit la mise en ligne ; null pour une partie 1, une partie du défi, ou une partie d'avant jusqu'à sa saison suivante
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   clubSaves      ClubSave[]
@@ -345,6 +346,8 @@ model Save {
   seasonArchives SeasonArchive[]
   shopPurchases  ShopPurchase[]
   tokenEntries   TokenEntry[]
+  nations        NationSave[]
+  internationalMatches InternationalMatch[]
 
   @@index([ownerId])
   @@index([challengeId])
@@ -416,6 +419,51 @@ model ArchivePass {
   @@index([at])
 }
 
+// Une nation dans une partie (docs/design/selections.md) : sa réserve « hors championnats », 23 joueurs que le jeu ne fait
+// jouer qu'en sélection, et leurs sélections et buts. Écrite à la première saison avec trêves de la partie, vieillie à
+// chaque passage de saison.
+model NationSave {
+  id           String   @id @default(cuid())
+  save         Save     @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId       String
+  code         String // « POR » (NATION_CODES, src/engine/nations.ts)
+  reserve      Json // ses 23 joueurs hors championnats (validés par Zod, src/db/nations.ts)
+  reserveCaps  Int[]    @default([]) // leurs sélections, dans l'ordre de reserve, à part du JSON : une trêve n'écrit qu'eux
+  reserveGoals Int[]    @default([])
+  createdAt    DateTime @default(now())
+
+  @@unique([saveId, code]) // sert aussi les lectures et la cascade par saveId
+}
+
+// Un match international d'une partie (docs/design/selections.md) : créé à l'ouverture de sa saison, joué avec sa trêve,
+// en simulation légère. Hors de Fixture et de Season : aucun lecteur des matchs de club ne le voit.
+model InternationalMatch {
+  id             String     @id @default(cuid())
+  save           Save       @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId         String
+  startYear      Int // la saison du match
+  competition    String // int.friendly (match amical) ; les éliminatoires et les tournois viendront (N3)
+  round          Int // la date internationale de la saison, à partir de 1 ; en tournoi, son tour
+  pool           Int? // le groupe d'un tournoi ; null ailleurs
+  scheduledAt    DateTime
+  home           String // code de la nation
+  away           String
+  neutral        Boolean    @default(false)
+  played         Boolean    @default(false)
+  homeGoals      Int?
+  awayGoals      Int?
+  decidedBy      DecidedBy? // un match à élimination directe (N3)
+  homePenalties  Int?
+  awayPenalties  Int?
+  winner         String? // le qualifié d'un match à élimination directe (N3)
+  goalTimes      Int[]      @default([]) // la minute de chaque but, négative pour l'équipe à l'extérieur, comme Fixture.goalTimes
+  scorers        String[]   @default([]) // la clé de son buteur (playerKey, ou « reserve:POR:7 »), même ordre
+  managedPlayers Json? // les joueurs du club dirigé dans les deux sélections du match : [{ playerKey, side, minutes, goals, injuryDays }]
+
+  @@index([saveId, scheduledAt])
+  @@index([saveId, competition, startYear])
+}
+
 model ClubSave {
   id              String       @id @default(cuid())
   save            Save         @relation(fields: [saveId], references: [id], onDelete: Cascade)
@@ -480,6 +528,8 @@ model PlayerSave {
   suspendedCupMatches    Int                 @default(0) // après 5 jaunes en coupe : ses prochains matchs de coupe
   europeYellows          Int                 @default(0) // 3 suspendent pour le prochain match européen
   suspendedEuropeMatches Int                 @default(0) // après 3 jaunes en Europe : ses prochains matchs européens
+  caps                   Int                 @default(0) // sélections en équipe nationale, sur toute sa carrière (docs/design/selections.md)
+  internationalGoals     Int                 @default(0) // buts en équipe nationale, sur toute sa carrière
   marketValue            Int                 @default(0) // euros
   wage                   Int                 @default(0) // euros par saison
   contractUntil          DateTime?

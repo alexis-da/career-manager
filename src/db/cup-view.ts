@@ -4,6 +4,7 @@ import { cupCode, cupDates } from "../engine/cup";
 import { countryOf } from "../engine/promotion";
 import { FIXTURE_SELECT, toFixtureView, type FixtureView, type TeamView } from "./calendar";
 import { prisma } from "./client";
+import { seasonHasBreaks } from "./nations";
 import { clubOf, clubsOfSave, readArchivedSeason } from "./season-archive";
 
 // What the screens show of a cup: the bracket of the managed club's country, and a season's line on it. Reads only.
@@ -77,7 +78,8 @@ export async function getCupBracket(saveId: string): Promise<CupBracket | null> 
   });
   const ties = rows.map((row): CupTieView => ({ ...toFixtureView(row), winnerClubSaveId: row.winnerClubSaveId }));
   const involves = (tie: FixtureView): boolean => tie.home.clubSaveId === clubSaveId || tie.away.clubSaveId === clubSaveId;
-  const dates = cupDates(season.startYear);
+  const { breaksFrom } = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { breaksFrom: true } });
+  const dates = cupDates(season.startYear, seasonHasBreaks(breaksFrom, season.startYear));
 
   const rounds = dates.map((date, index): CupRoundView => {
     const round = index + 1;

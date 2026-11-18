@@ -23,13 +23,50 @@ export const SEASON_SATURDAYS = 40;
 const MIDWEEK_DAYS_AFTER_SATURDAY = 3;
 
 /**
+ * The weeks of a season's international breaks (docs/design/selections.md § 3), counted from its first matchday (week 0):
+ * early September, mid-October, mid-November, late March. No club plays on their Saturday, nor on their Tuesday or
+ * Wednesday, nor on the Wednesday of the week before.
+ */
+export const BREAK_WEEKS: readonly number[] = [3, 8, 13, 32];
+
+/** A break's two international dates, in days from its Saturday: the Friday before, the Tuesday after. */
+const BREAK_DATE_OFFSETS: readonly [number, number] = [-1, 3];
+
+/**
+ * The Tuesdays of the leagues of more than 36 matchdays in a season with breaks, in the order they are used: the 38
+ * matchdays take the first two (29 December and 16 March for 2026-27), the 42 the first six, the 46 all ten. Never in a
+ * week with a cup or European Wednesday (cupDates, europeDates), nor in the week after one: Wednesday, Saturday and
+ * Tuesday would be three matches in six days, for a club of the cup or of Europe (a second division's cup winner plays
+ * it). Nor in a break's week. The only ten weeks left.
+ */
+export const BREAK_SEASON_TUESDAY_WEEKS: readonly number[] = [19, 30, 2, 22, 35, 38, 0, 1, 23, 31];
+
+/** A season's international break: its index (0 to 3), its week, and its two dates, Friday and Tuesday. */
+export type BreakWindow = { index: number; week: number; dates: readonly [Date, Date] };
+
+/** The international breaks of the season starting in startYear, in order. No draw. */
+export function breakWindows(startYear: number): BreakWindow[] {
+  const first = firstMatchdayDate(startYear).getTime();
+  return BREAK_WEEKS.map((week, index) => {
+    const saturday = first + week * DAYS_BETWEEN_MATCHDAYS * DAY_MS;
+    const [before, after] = BREAK_DATE_OFFSETS;
+    return { index, week, dates: [new Date(saturday + before * DAY_MS), new Date(saturday + after * DAY_MS)] as const };
+  });
+}
+
+/**
  * Dates of the matchdays of a season in a worldVersion 2 save, in order: every competition starts on the first of the
  * SEASON_SATURDAYS Saturdays and ends on the last, whatever its size. Up to 40 matchdays, Saturdays spread evenly,
  * first and last included, the others rest weeks (34 matchdays: 6 Saturdays off); beyond, every Saturday plus a
- * Tuesday for each matchday more, spread evenly between the first and the last (46 matchdays: 6 Tuesdays). No draw:
- * the same number of matchdays always gets the same dates.
+ * Tuesday for each matchday more, spread evenly between the first and the last (46 matchdays: 6 Tuesdays). With the
+ * international breaks (withBreaks: a season of a save with nations, Save.breaksFrom), the same first and last
+ * Saturdays without those of BREAK_WEEKS: up to 36 matchdays on Saturdays spread evenly, beyond, every Saturday and the
+ * first Tuesdays of BREAK_SEASON_TUESDAY_WEEKS. No draw: the same number of matchdays always gets the same dates.
  */
-export function matchdayDates(roundCount: number, startYear: number): Date[] {
+export function matchdayDates(roundCount: number, startYear: number, withBreaks: boolean = false): Date[] {
+  if (withBreaks) {
+    return matchdayDatesWithBreaks(roundCount, startYear);
+  }
   if (!Number.isInteger(roundCount) || roundCount < 2 || roundCount > 2 * SEASON_SATURDAYS - 1) {
     throw new RangeError(`A season of 2 to ${2 * SEASON_SATURDAYS - 1} matchdays, got ${roundCount}`);
   }
@@ -47,6 +84,25 @@ export function matchdayDates(roundCount: number, startYear: number): Date[] {
   );
   const saturdays = Array.from({ length: SEASON_SATURDAYS }, (_, index) => saturday(index));
   return [...saturdays, ...tuesdays].sort((a, b) => a - b).map((time) => new Date(time));
+}
+
+/** matchdayDates of a season with breaks: the Saturdays outside BREAK_WEEKS, then its Tuesdays. */
+function matchdayDatesWithBreaks(roundCount: number, startYear: number): Date[] {
+  const first = firstMatchdayDate(startYear).getTime();
+  const saturday = (week: number): number => first + week * DAYS_BETWEEN_MATCHDAYS * DAY_MS;
+  const saturdays = Array.from({ length: SEASON_SATURDAYS }, (_, week) => week).filter((week) => !BREAK_WEEKS.includes(week));
+  const most = saturdays.length + BREAK_SEASON_TUESDAY_WEEKS.length;
+  if (!Number.isInteger(roundCount) || roundCount < 2 || roundCount > most) {
+    throw new RangeError(`A season with breaks has 2 to ${most} matchdays, got ${roundCount}`);
+  }
+  if (roundCount <= saturdays.length) {
+    const gaps = saturdays.length - 1;
+    return Array.from({ length: roundCount }, (_, index) => new Date(saturday(saturdays[Math.round((index * gaps) / (roundCount - 1))])));
+  }
+  const tuesdays = BREAK_SEASON_TUESDAY_WEEKS.slice(0, roundCount - saturdays.length).map(
+    (week) => saturday(week) + MIDWEEK_DAYS_AFTER_SATURDAY * DAY_MS,
+  );
+  return [...saturdays.map(saturday), ...tuesdays].sort((a, b) => a - b).map((time) => new Date(time));
 }
 
 /**

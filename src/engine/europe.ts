@@ -80,13 +80,19 @@ const EUROPE_DAYS_AFTER_SATURDAY = 4;
 const EUROPE_ROUND_WEEKS: readonly number[] = [4, 6, 8, 10, 14, 17, 24, 28, 36];
 
 /**
+ * The same in a season with international breaks (docs/design/selections.md § 3.2): the 3rd and 4th league phase
+ * matchdays move from weeks 8 (the October break) and 10 to weeks 9 and 11 (21 October and 4 November for 2026-27).
+ */
+const EUROPE_ROUND_WEEKS_WITH_BREAKS: readonly number[] = [4, 6, 9, 11, 14, 17, 24, 28, 36];
+
+/**
  * Dates of a season's European rounds, 1 to 10, the same for both competitions: Wednesdays (16 and 30 September, 14 and
  * 28 October, 25 November, 16 December, 3 February, 3 March, 28 April for 2026-27), then the finals on the Saturday a
- * week after the cups' (29 May 2027). No draw.
+ * week after the cups' (29 May 2027). With the international breaks (withBreaks), EUROPE_ROUND_WEEKS_WITH_BREAKS. No draw.
  */
-export function europeDates(startYear: number): Date[] {
+export function europeDates(startYear: number, withBreaks: boolean = false): Date[] {
   const first = firstMatchdayDate(startYear).getTime();
-  const rounds = EUROPE_ROUND_WEEKS.map((week) => new Date(first + week * WEEK_MS + EUROPE_DAYS_AFTER_SATURDAY * DAY_MS));
+  const rounds = (withBreaks ? EUROPE_ROUND_WEEKS_WITH_BREAKS : EUROPE_ROUND_WEEKS).map((week) => new Date(first + week * WEEK_MS + EUROPE_DAYS_AFTER_SATURDAY * DAY_MS));
   return [...rounds, new Date(first + (SEASON_SATURDAYS + 1) * WEEK_MS)];
 }
 

@@ -25,6 +25,12 @@ const CUP_DAYS_AFTER_SATURDAY = 4;
  */
 const CUP_ROUND_WEEKS: readonly number[] = [5, 12, 20, 26, 33];
 
+/**
+ * The same in a season with international breaks (docs/design/selections.md § 3.2): the round of 32 moves from week 12,
+ * the Wednesday before the November break, to week 15 (2 December for 2026-27).
+ */
+const CUP_ROUND_WEEKS_WITH_BREAKS: readonly number[] = [5, 15, 20, 26, 33];
+
 /** Code of a country's cup: "fr.cup". */
 export function cupCode(country: string): string {
   return `${country}.cup`;
@@ -33,11 +39,12 @@ export function cupCode(country: string): string {
 /**
  * Dates of a season's cup rounds, 1 (preliminary) to 6 (final): Wednesdays in weeks without a midweek matchday
  * (23 September, 11 November, 6 January, 17 February and 7 April for 2026-27), then the Saturday after the last
- * matchday (22 May 2027). The same for every country; no draw.
+ * matchday (22 May 2027). With the international breaks (withBreaks), CUP_ROUND_WEEKS_WITH_BREAKS. The same for every
+ * country; no draw.
  */
-export function cupDates(startYear: number): Date[] {
+export function cupDates(startYear: number, withBreaks: boolean = false): Date[] {
   const first = firstMatchdayDate(startYear).getTime();
-  const rounds = CUP_ROUND_WEEKS.map((week) => new Date(first + week * WEEK_MS + CUP_DAYS_AFTER_SATURDAY * DAY_MS));
+  const rounds = (withBreaks ? CUP_ROUND_WEEKS_WITH_BREAKS : CUP_ROUND_WEEKS).map((week) => new Date(first + week * WEEK_MS + CUP_DAYS_AFTER_SATURDAY * DAY_MS));
   return [...rounds, new Date(first + SEASON_SATURDAYS * WEEK_MS)];
 }
 

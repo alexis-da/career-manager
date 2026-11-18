@@ -17,6 +17,7 @@ export type SeasonFixturesInput = {
   seasonId: string;
   competitionCode: string;
   startYear: number;
+  withBreaks: boolean; // a season with international breaks (worldVersion 2 only): matchdayDates without their Saturdays
   clubs: readonly SeasonClub[];
 };
 
@@ -37,7 +38,7 @@ export function seasonFixtures(input: SeasonFixturesInput): Prisma.FixtureCreate
     firstMatchdayDate(input.startYear),
     makeRng(scheduleRngSeed(input.saveSeed, input.competitionCode, input.startYear)),
   );
-  const dates = input.worldVersion === 1 ? null : matchdayDates(2 * (clubs.length - 1), input.startYear);
+  const dates = input.worldVersion === 1 ? null : matchdayDates(2 * (clubs.length - 1), input.startYear, input.withBreaks);
   return schedule.map((match) => ({
     saveId: input.saveId,
     seasonId: input.seasonId,

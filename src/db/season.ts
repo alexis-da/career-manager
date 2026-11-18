@@ -16,6 +16,7 @@ import { cupEntrantsOf, openCups } from "./cup";
 import { cupWinnersOf, europeQualifiersOf, europeReputationBonuses, openEurope } from "./europe";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
+import { nationsFor, openNations, playInternationalBreak, seasonHasBreaks } from "./nations";
 import { runPreseasonInTransaction, type PreseasonOptions, type PreseasonSummary } from "./preseason";
 import { closeSeasonObjectives, openSeasonObjectives } from "./objectives";
 import { applySeasonMoves, readFinalTables, seasonMovesOf } from "./promotion";
@@ -42,6 +43,7 @@ export type SeasonTransition = {
   fixtures: number; // of the leagues
   cupTies: number; // the cups' preliminary rounds (worldVersion 2 saves)
   europeMatches: number; // the European competitions' league phases (worldVersion 2 saves, never a challenge save's)
+  internationalMatches: number; // the friendlies of the new season's breaks (worldVersion 2 saves, never a challenge save's)
   preseason: PreseasonSummary;
 };
 
@@ -57,7 +59,8 @@ export class SeasonNotFinishedError extends Error {
  * opens no European competition, whatever the game's rule (EUROPE_ENABLED), to weigh a save without them. Absent, the
  * game's rule.
  */
-export type SeasonTransitionOptions = PreseasonOptions & { europe?: false };
+// europe: false, nations: false: a measure's save without them, to compare (scripts/measure-career-weight.ts).
+export type SeasonTransitionOptions = PreseasonOptions & { europe?: false; nations?: false };
 
 type PlayerUpdate = PlayerAttributes & {
   playerSaveId: string;
@@ -95,7 +98,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       await assertNoMatchInProgress(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({
         where: { id: saveId },
-        select: { seed: true, worldVersion: true, challengeId: true },
+        select: { seed: true, worldVersion: true, challengeId: true, breaksFrom: true, currentDate: true },
       });
       const seasons = await tx.season.findMany({
         where: { saveId, completed: false },
@@ -120,6 +123,8 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       if (unplayed > 0) {
         throw new SeasonNotFinishedError(unplayed);
       }
+      // International matches of the season still to play, after its clubs' last date: played light first.
+      await playInternationalBreak(tx, { id: saveId, seed: save.seed, currentDate: save.currentDate }, null);
 
       // The final tables, which every club's reputation follows; promotion and relegation from them (worldVersion 2
       // saves only: a worldVersion 1 save has one division a country); then the managed club's result and cup run,
@@ -133,6 +138,13 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
 
       const startYear = completedStartYear + 1;
       const transitionDate = seasonStartDate(startYear);
+      // The national teams and the breaks of a worldVersion 2 save from its next season on, never a challenge's: a save
+      // from before them gets them now (docs/design/selections.md § 3.5).
+      const breaksFrom = options.nations !== false && nationsFor(save) ? (save.breaksFrom ?? startYear) : save.breaksFrom;
+      if (breaksFrom !== save.breaksFrom) {
+        await tx.save.update({ where: { id: saveId }, data: { breaksFrom } });
+      }
+      const withBreaks = seasonHasBreaks(breaksFrom, startYear);
       const lastContractDay = seasonEndDate(completedStartYear);
 
       // Every club's payroll at the end of the season, before any player retires or leaves: its next wage budget's base.
@@ -279,6 +291,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
           seasonId: season.id,
           competitionCode: getOrThrow(codeByCompetition, season.competitionId, "competition code"),
           startYear,
+          withBreaks,
           clubs: clubSaves
             .filter((clubSave) => clubSave.competitionId === season.competitionId)
             .map((clubSave) => ({ slug: clubSave.club.slug, clubSaveId: clubSave.id })),
@@ -289,7 +302,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       // cups included): the final tables rank the entrants.
       const withCups = worldVersion === 2 && (CUPS_ENABLED || cupSeasonIds.length > 0);
       const cupTies = withCups
-        ? await openCups(tx, { saveId, saveSeed: save.seed, startYear, entrants: cupEntrantsOf(tables) })
+        ? await openCups(tx, { saveId, saveSeed: save.seed, startYear, withBreaks, entrants: cupEntrantsOf(tables) })
         : 0;
       // The European competitions of a worldVersion 2 save that had them, or of any once the game gives them, never a
       // challenge save's: the final tables and the cups' winners qualify their clubs.
@@ -300,9 +313,13 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
             saveId,
             saveSeed: save.seed,
             startYear,
+            withBreaks,
             qualifiers: europeQualifiersOf(tables, await cupWinnersOf(tx, saveId, cupSeasonIds, tables)),
           })
         : 0;
+      // The nations, their reserves a season older, and the friendlies of the new season's breaks.
+      const internationalMatches =
+        withBreaks && breaksFrom !== null ? await openNations(tx, { saveId, saveSeed: save.seed, breaksFrom, startYear }) : 0;
       // The managed club's objectives of the new season, once its fixtures and its cup's first round exist.
       await openSeasonObjectives(tx, saveId, { id: managedSeason.id, startYear });
 
@@ -316,6 +333,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
         fixtures: fixtures.length,
         cupTies,
         europeMatches,
+        internationalMatches,
         preseason,
       };
     },

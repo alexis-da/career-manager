@@ -38,6 +38,7 @@ import { ensureObjectiveChosen, refreshBoardConfidence } from "./objectives";
 import { prisma } from "./client";
 import { progressCups } from "./cup";
 import { progressEurope } from "./europe";
+import { playInternationalBreak, type BreakSummary } from "./nations";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 import { serializeLiveState } from "./live-state";
 import { parseFormation, parseSavedLineup } from "./lineup";
@@ -88,6 +89,8 @@ export type MatchdaySummary = {
   // saved ones, and whether it waits to be played on live; null when it did not play. Played in full, what it says to the
   // day's mission (src/lib/missions.ts); null while it waits live.
   managed: { fixtureId: string; autoFilledSlots: number; live: boolean; facts: MatchFacts | null } | null;
+  // An international break played as this step instead of a date of the clubs (src/db/nations.ts): no club match then.
+  internationalBreak?: BreakSummary;
 };
 
 export type PlayNextMatchdayOptions = {
@@ -581,6 +584,19 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         orderBy: { scheduledAt: "asc" },
         select: { scheduledAt: true },
       });
+      // An international break before the clubs' next date is a step of its own: the manager sees who comes back tired
+      // or injured before his club plays again (docs/design/selections.md § 6.7).
+      const nextBreak = await tx.internationalMatch.findFirst({
+        where: { saveId, played: false },
+        orderBy: { scheduledAt: "asc" },
+        select: { scheduledAt: true },
+      });
+      if (nextBreak !== null && (next === null || nextBreak.scheduledAt < next.scheduledAt)) {
+        const played = await playInternationalBreak(tx, { id: saveId, seed: save.seed, currentDate: save.currentDate }, next?.scheduledAt ?? null);
+        if (played !== null) {
+          return { date: played.to, fixtures: 0, goals: 0, managed: null, internationalBreak: played };
+        }
+      }
       if (next === null) {
         return null;
       }

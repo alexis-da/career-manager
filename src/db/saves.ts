@@ -7,6 +7,7 @@ import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engi
 import { worldPlayerKey } from "../engine/identity";
 import { CUPS_ENABLED } from "../engine/cup";
 import { EUROPE_ENABLED } from "../engine/europe";
+import { NATIONS_ENABLED } from "../engine/nations";
 import { countryOf } from "../engine/promotion";
 import { competitionTier } from "../engine/tiers";
 import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
@@ -24,6 +25,7 @@ import { recordFirstSave } from "./activation";
 import { prisma } from "./client";
 import { openCups } from "./cup";
 import { openEurope } from "./europe";
+import { openNations } from "./nations";
 import { seasonFixtures } from "./fixtures";
 import { runPreseasonInTransaction } from "./preseason";
 import { openSeasonObjectives } from "./objectives";
@@ -43,6 +45,9 @@ export const createSaveInputSchema = z.object({
   // The European competitions of a worldVersion 2 save: EUROPE_ENABLED (true) for the game, never for a challenge save;
   // a test may pass either.
   europe: z.boolean().default(EUROPE_ENABLED),
+  // The national teams and the international breaks of a worldVersion 2 save from its first season (Save.breaksFrom):
+  // NATIONS_ENABLED (true) for the game, never for a challenge save; a test may pass either.
+  nations: z.boolean().default(NATIONS_ENABLED),
 });
 
 export type CreateSaveInput = z.input<typeof createSaveInputSchema>;
@@ -108,6 +113,7 @@ export async function createChallengeSave(
     worldVersion: 2,
     cups: CUPS_ENABLED,
     europe: false,
+    nations: false,
     challenge: { id: challengeId, maxSaves },
   });
 }
@@ -136,7 +142,10 @@ async function timedWriteSave(data: SaveData): Promise<{ id: string }> {
 
 /** The transaction of a creation, each phase marked on the timer for the logs. */
 async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: string }> {
-  const { name, managerName, clubId, seed, ownerId, worldVersion, cups, europe, challenge } = data;
+  const { name, managerName, clubId, seed, ownerId, worldVersion, cups, europe, nations, challenge } = data;
+  // A worldVersion 2 save has its international breaks and its national teams from its first season, never a challenge's.
+  const breaksFrom = worldVersion === 2 && nations && challenge === null ? seasonStartYear(WORLD_START_DATE) : null;
+  const withBreaks = breaksFrom !== null;
   const tiers = worldTiers(worldVersion);
 
   return prisma.$transaction(
@@ -209,7 +218,7 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
       }
 
       const save = await tx.save.create({
-        data: { name, managerName, seed, ownerId, worldVersion, currentDate: WORLD_START_DATE, challengeId: challenge?.id ?? null },
+        data: { name, managerName, seed, ownerId, worldVersion, currentDate: WORLD_START_DATE, challengeId: challenge?.id ?? null, breaksFrom },
         select: { id: true, seed: true, currentDate: true },
       });
       if (challenge !== null) {
@@ -309,6 +318,7 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
           seasonId: season.id,
           competitionCode: competition.code,
           startYear,
+          withBreaks,
           clubs: clubs
             .filter((club) => club.competitionId === competition.id)
             .map((club) => ({ slug: club.slug, clubSaveId: getOrThrow(clubSaveIdByClubId, club.id, "club save") })),
@@ -325,6 +335,7 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
           saveId: save.id,
           saveSeed: save.seed,
           startYear,
+          withBreaks,
           entrants: clubs.map((club) => ({
             club: club.slug,
             tier: club.tier,
@@ -349,11 +360,17 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
           saveId: save.id,
           saveSeed: save.seed,
           startYear,
+          withBreaks,
           qualifiers: [...Map.groupBy(firstDivisions, (club) => countryOf(getOrThrow(competitionById, club.competitionId, "competition").code))].map(
             ([country, members]) => ({ country, table: members.map((club) => club.slug), cupWinner: null }),
           ),
         });
         timer.mark(`europe ${matches}`);
+      }
+      if (breaksFrom !== null) {
+        // The nations, their reserves, and the friendlies of the season's breaks.
+        const matches = await openNations(tx, { saveId: save.id, saveSeed: save.seed, breaksFrom, startYear });
+        timer.mark(`nations ${matches}`);
       }
       // Its objectives, on its league season, once its cup and its European competition exist.
       await openSeasonObjectives(tx, save.id, { id: first.seasonId, startYear });

@@ -20,6 +20,7 @@ import {
   type FixtureWithEvents,
 } from "./calendar";
 import { prisma } from "./client";
+import { seasonHasBreaks } from "./nations";
 import { europeCodeOf, leaguePhaseOver, leaguePhaseTableOf, parseEuropeEntrants, type EuropeFixtureRow } from "./europe";
 
 // What the screens show of the European competitions (docs/design/europe.md § 6): the save's latest year of them, each
@@ -126,7 +127,7 @@ async function managedMatchesIn(saveId: string, seasonId: string | null, clubSav
  * 1 save, a challenge save, a save from before the European competitions until its next season).
  */
 export async function getEuropeView(saveId: string): Promise<EuropeView | null> {
-  const [managed, recent] = await Promise.all([
+  const [managed, recent, save] = await Promise.all([
     prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true, club: { select: { slug: true } } } }),
     // A year has a season of each competition: the latest year's, eu.1 first.
     prisma.season.findMany({
@@ -135,6 +136,8 @@ export async function getEuropeView(saveId: string): Promise<EuropeView | null> 
       take: EUROPE_CODES.length,
       select: { id: true, startYear: true, entrants: true, competition: { select: { code: true } } },
     }),
+    // The dates of the rounds still to draw: those of a season with or without international breaks.
+    prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { breaksFrom: true } }),
   ]);
   const startYear = recent.at(0)?.startYear;
   if (startYear === undefined) {
@@ -187,7 +190,7 @@ export async function getEuropeView(saveId: string): Promise<EuropeView | null> 
     const winner = final === undefined ? undefined : table.find((row) => row.clubSaveId === final.winnerClubSaveId);
     return {
       code: season.code,
-      dates: europeDates(startYear),
+      dates: europeDates(startYear, seasonHasBreaks(save.breaksFrom, startYear)),
       leagueMatches: leagueMatchesOf(season.entrants),
       table,
       leaguePhaseOver: leaguePhaseOver(fixtures),

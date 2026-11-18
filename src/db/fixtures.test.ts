@@ -6,7 +6,7 @@ import { seasonFixtures } from "./fixtures";
 const plan = buildWorldPlan();
 
 /** The fixtures of a competition's season with a fixed seed, club save ids standing for the slugs. */
-function fixturesOf(code: string, startYear: number, worldVersion: 1 | 2) {
+function fixturesOf(code: string, startYear: number, worldVersion: 1 | 2, withBreaks: boolean = false) {
   const competition = plan.find((candidate) => candidate.competition.code === code);
   if (competition === undefined) {
     throw new Error(`No competition ${code}`);
@@ -18,6 +18,7 @@ function fixturesOf(code: string, startYear: number, worldVersion: 1 | 2) {
     seasonId: code,
     competitionCode: code,
     startYear,
+    withBreaks,
     clubs: competition.clubs.map((club) => ({ slug: club.slug, clubSaveId: club.slug })),
   });
 }

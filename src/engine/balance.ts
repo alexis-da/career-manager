@@ -3,6 +3,7 @@ import type { Curve } from "./curves";
 import type { FormationName } from "./formations";
 import type { AttributeName } from "./generation";
 import type { Instruction, Outcome } from "./match";
+import type { NationCode } from "./nations";
 import type { ObjectiveOutcome, ObjectiveProgress } from "./objectives";
 import type { Position, PositionGroup } from "./positions";
 import type { CompetitionTier } from "./tiers";
@@ -395,6 +396,43 @@ export const EUROPE_COEFFICIENT: Readonly<Record<ObjectiveOutcome, number>> = { 
  * which 6 to 10 matches would hardly ever reach).
  */
 export const EUROPE_YELLOWS_PER_SUSPENSION = 3;
+
+// ------------------------------------------------------------------ National teams (worldVersion 2, docs/design/selections.md)
+// The 14 nations of the game's nationalities (src/engine/nations.ts) call their best players at each international
+// break, from our clubs or from their reserve, the players they have outside our five countries' leagues.
+
+/**
+ * The ratings of a nation's reserve players are drawn in its range (§ 2.3): what the nation has outside our leagues. Our
+ * five countries keep most of their best players at home, a low reserve; Brazil, Argentina and Portugal have a strong one.
+ */
+export const NATION_RESERVE_LEVELS: Readonly<Record<NationCode, RankRange>> = {
+  GER: { worst: 62, best: 70 },
+  ENG: { worst: 62, best: 70 },
+  ESP: { worst: 62, best: 70 },
+  FRA: { worst: 62, best: 70 },
+  ITA: { worst: 62, best: 70 },
+  POR: { worst: 72, best: 81 },
+  NED: { worst: 69, best: 77 },
+  BEL: { worst: 69, best: 77 },
+  CRO: { worst: 69, best: 77 },
+  BRA: { worst: 72, best: 81 },
+  ARG: { worst: 72, best: 81 },
+  MAR: { worst: 66, best: 74 },
+  SEN: { worst: 66, best: 74 },
+  CIV: { worst: 66, best: 74 },
+};
+/** A reserve player's age when he is drawn: from his first years as a professional to his last. */
+export const NATION_RESERVE_AGE: RankRange = { worst: 21, best: 33 };
+/** At this age, at a season's start, a reserve player retires and a 21-year-old of his position takes his place. */
+export const NATION_RESERVE_RETIREMENT_AGE = 34;
+/** The minutes a reserve player is deemed to play in a season, for his progression: a regular of his league. */
+export const NATION_RESERVE_SEASON_MINUTES = 2500;
+/** A nation calls, for a break, the best of its players at each line, then the best outfield players left. */
+export const CALL_UP_BY_GROUP: Readonly<Record<PositionGroup, number>> = { GK: 3, DF: 7, MF: 7, FW: 4 };
+export const CALL_UP_SIZE = 23;
+/** A friendly's changes, all at this minute: the most tired outfield starters make way for the best of the bench. */
+export const FRIENDLY_SUBSTITUTIONS = 5;
+export const FRIENDLY_SUBSTITUTION_MINUTE = 60;
 
 // ------------------------------------------------------------------ Player contracts at save creation
 

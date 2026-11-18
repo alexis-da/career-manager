@@ -78,7 +78,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the European competitio
   });
 
   it("draws both league phases on their Wednesdays, 60 and 30 matches, and pays the managed club its participation", async () => {
-    const dates = europeDates(WORLD_START_YEAR).map(DAY);
+    // A new save has its international breaks from its first season: the European rounds of such a season.
+    const dates = europeDates(WORLD_START_YEAR, true).map(DAY);
     for (const [code, matches] of [
       ["eu.1", 60],
       ["eu.2", 30],

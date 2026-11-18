@@ -169,7 +169,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("European seasons", () =
   }, 120_000);
 
   it("plays 71 and 41 matches, each round on its date, the finals on 29 May, every knockout tie decided", () => {
-    const dates = europeDates(FIRST_YEAR).map(DAY);
+    // A save created since the national teams: its first season has the international breaks, and their dates.
+    const dates = europeDates(FIRST_YEAR, true).map(DAY);
     for (const [code, total] of [
       ["eu.1", 71],
       ["eu.2", 41],

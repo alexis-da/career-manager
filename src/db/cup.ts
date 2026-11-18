@@ -4,6 +4,7 @@ import { countryOf } from "../engine/promotion";
 import { Prisma } from "../generated/prisma/client";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
+import { seasonHasBreaks } from "./nations";
 import type { FinalTables } from "./promotion";
 
 // The national cups of a worldVersion 2 save: a Season per cup and per year, opened with its preliminary round, then a
@@ -32,6 +33,7 @@ export type OpenCupsInput = {
   saveId: string;
   saveSeed: string;
   startYear: number;
+  withBreaks: boolean; // a season with international breaks: its rounds on cupDates' weeks of such a season
   entrants: readonly CupEntrantRow[];
 };
 
@@ -57,7 +59,7 @@ function tieRows(
  * Opens the season's cups, inside createSave's or advanceToNextSeason's transaction: a Season for each cup competition,
  * and its preliminary round between the country's lowest clubs. Returns the number of ties created.
  */
-export async function openCups(tx: Db, { saveId, saveSeed, startYear, entrants }: OpenCupsInput): Promise<number> {
+export async function openCups(tx: Db, { saveId, saveSeed, startYear, withBreaks, entrants }: OpenCupsInput): Promise<number> {
   const cups = await tx.competition.findMany({ where: { kind: "CUP" }, orderBy: { code: "asc" }, select: { id: true, code: true } });
   const seasons = await tx.season.createManyAndReturn({
     data: cups.map((cup) => ({ saveId, competitionId: cup.id, startYear })),
@@ -66,7 +68,7 @@ export async function openCups(tx: Db, { saveId, saveSeed, startYear, entrants }
   const codeById = new Map(cups.map((cup) => [cup.id, cup.code]));
   const entrantsByCountry = Map.groupBy(entrants, (entrant) => entrant.country);
   const clubSaveIdBySlug = new Map(entrants.map((entrant) => [entrant.club, entrant.clubSaveId]));
-  const [preliminaryDate] = cupDates(startYear);
+  const [preliminaryDate] = cupDates(startYear, withBreaks);
 
   const fixtures = seasons.flatMap((season) => {
     const code = getOrThrow(codeById, season.competitionId, "cup");
@@ -87,6 +89,7 @@ async function drawRound(
   saveSeed: string,
   season: { id: string; startYear: number; code: string },
   round: number,
+  withBreaks: boolean,
 ): Promise<void> {
   // One after the other: the transaction's queries share its connection. The country's clubs: a club changes division
   // only at the end of the season, after the final.
@@ -116,7 +119,7 @@ async function drawRound(
   );
   const clubSaveIdBySlug = new Map(clubs.map((club) => [club.club.slug, club.id]));
   await tx.fixture.createMany({
-    data: tieRows(saveId, season.id, round, cupDates(season.startYear)[round - 1], ties, clubSaveIdBySlug),
+    data: tieRows(saveId, season.id, round, cupDates(season.startYear, withBreaks)[round - 1], ties, clubSaveIdBySlug),
   });
 }
 
@@ -170,7 +173,10 @@ export async function progressCups(tx: Db, saveId: string, saveSeed: string, fix
     const unplayed = await tx.fixture.count({ where: { saveId, seasonId: season.id, round, played: false } });
     const drawn = await tx.fixture.count({ where: { saveId, seasonId: season.id, round: round + 1 } });
     if (unplayed === 0 && drawn === 0) {
-      await drawRound(tx, saveId, saveSeed, { id: season.id, startYear: season.startYear, code: season.competition.code }, round + 1);
+      // The round's date: that of a season with or without international breaks (Save.breaksFrom).
+      const { breaksFrom } = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { breaksFrom: true } });
+      const code = season.competition.code;
+      await drawRound(tx, saveId, saveSeed, { id: season.id, startYear: season.startYear, code }, round + 1, seasonHasBreaks(breaksFrom, season.startYear));
     }
   }
 }

@@ -405,7 +405,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
       import("./europe"),
     ]);
     db = prisma;
-    saveId = await support.createDemoTwin("Test saisons deux divisions", 2);
+    // A twin from before the national teams: its first season keeps the calendar without breaks (the challenge's saves'
+    // for good), the digest below, and 62 dates; its second has the breaks.
+    saveId = await support.createDemoTwin("Test saisons deux divisions", 2, undefined, undefined, false);
     const first = await playAndAdvance(support, standings, season, europe, FIRST_YEAR);
     matchdays = first.matchdays;
     firstSeasonDates = (await seasonDates(saveId)).filter((row) => row.startYear === FIRST_YEAR);
@@ -442,7 +444,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
 
   it.each([0, 1])("plays each country's cup to the end: N − 1 ties, each with a winner, the final on its Saturday (season %i)", (index) => {
     const check = checks[index];
-    const dates = cupDates(FIRST_YEAR + index).map((date) => [date.toISOString()]);
+    // The second season has the international breaks: its round of 32 a few weeks later.
+    const dates = cupDates(FIRST_YEAR + index, index === 1).map((date) => [date.toISOString()]);
 
     expect(check.cups.map((cup) => [cup.code, cup.ties])).toEqual(Object.entries(CUP_SIZES).map(([code, size]) => [code, size - 1]));
     for (const cup of check.cups) {

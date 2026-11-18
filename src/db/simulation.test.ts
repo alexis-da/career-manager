@@ -86,7 +86,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("simulateMatchdays, firs
 
     for (let call = 0; call < 2; call++) {
       const batch = await sim().simulateMatchdays(saveId, untilJulyEnd);
-      expect(batch).toEqual({ played: 0, nextDate: FIRST, done: true, matches: [] });
+      expect(batch).toEqual({ played: 0, nextDate: FIRST, done: true, matches: [], breakPlayed: false });
     }
     expect(await state()).toEqual(before);
   });
@@ -124,7 +124,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("simulateMatchdays, firs
     }
 
     // Called again up to the same day: nothing left, nothing written.
-    expect(await simulateMatchdays(saveId, third)).toEqual({ played: 0, nextDate: fourth, done: true, matches: [] });
+    expect(await simulateMatchdays(saveId, third)).toEqual({ played: 0, nextDate: fourth, done: true, matches: [], breakPlayed: false });
     expect(await state()).toEqual(after);
   }, 60_000);
 
