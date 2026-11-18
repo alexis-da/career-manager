@@ -160,6 +160,7 @@ export const GUIDE: GuideSection[] = [
         "La **Confiance du président** suit tes objectifs, mais la direction ne renvoie jamais son entraîneur.",
         "En fin de saison, **Passer à la saison suivante** mène au bilan, puis à ta dotation : le budget de ton rang de réputation, multiplié par 0,80 à 1,40 selon tes objectifs, plus la moitié du budget restant.",
         "Trois clubs montent et trois descendent en Angleterre, en Espagne et en Italie, deux en Allemagne et en France. Chaque pays a sa **Coupe**, à élimination directe entre ses deux divisions.",
+        "Ta carrière se raconte dans **Club**, **Histoire** : la salle des trophées et ceux qui restent à conquérir, tes records, les légendes de ton club et une carte de carrière à partager.",
       ],
     },
     en: {
@@ -169,6 +170,7 @@ export const GUIDE: GuideSection[] = [
         "**Chairman's confidence** follows your objectives, but the board never sacks its manager.",
         "At the end of the season, **Move on to next season** leads to the review, then to your funding: the budget for your reputation rank, multiplied by 0.80 to 1.40 depending on your objectives, plus half your unspent budget.",
         "Three clubs go up and three go down in England, Spain and Italy, two in Germany and France. Each country has its **Cup**, a knockout between its two divisions.",
+        "Your career's story is under **Club**, **History**: the trophy room and the trophies still to win, your records, your club's legends and a career card to share.",
       ],
     },
   },

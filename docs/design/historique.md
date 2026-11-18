@@ -407,3 +407,24 @@ Rien à migrer ni à recalculer à l'avance : le premier affichage lit ce qui ex
    défi, pas de carte (recommandé).
 8. **À garder à l'avenir** (§ 7.4) : A, le relevé de fin de saison (recommandé), B, les buts du club dans l'archive, ou
    rien.
+
+## 13. Mise en œuvre et mesures (18/11)
+
+- **Relevé de fin de saison** : `SeasonResult.highlights` (migration d'ajout `20261118120000_season_highlights`, une
+  colonne `JSONB` nullable), écrit par `recordSeasonResult` dans la transaction d'`advanceToNextSeason` ; la suite lente
+  vérifie, sur une saison jouée, que le meilleur buteur relevé a autant de buts que ses lignes de statistiques.
+- **Coût d'un affichage** (`npm run measure:history -- --seasons=10 --at=5,10 --repeat=20` : un jumeau 2 de la démo joué
+  dix saisons, ses saisons terminées archivées et leurs lignes supprimées comme en production, CPU et durée moyennés sur 20
+  affichages, poste local) :
+
+  | Saisons terminées | À froid : requêtes | CPU | durée | En cache : requêtes | CPU | durée | Partie gardée |
+  | ----------------- | ------------------ | --- | ----- | ------------------- | --- | ----- | ------------- |
+  | 5                 | 50                 | 30 ms | 40 ms | 26                | 10 ms | 12 ms | 84 Ko        |
+  | 10                | 50                 | 40 ms | 53 ms | 26                | 8 ms  | 12 ms | 161 Ko       |
+
+  Plus de requêtes que la dizaine estimée au § 8 : Prisma lit chaque relation par une requête à part (le club et sa
+  compétition, les clubs d'un match…) ; leur nombre ne grandit pas avec la carrière. Le parcours européen de la saison en
+  cours en coûte 9 quand le club joue l'Europe (`clubEuropeRun`, partagé avec les objectifs). Le CPU reste autour de 10 ms
+  par affichage une fois la partie terminée en cache, le rendu de la page en plus.
+- **Carte de carrière** : 155 ms de CPU pour la dessiner en carré, 95 ms en paysage (moyenne de 10 dessins après un
+  premier, poste local), une fois par nombre de saisons terminées, format, langue, cadre et titre, puis gardée.

@@ -21,6 +21,27 @@ export const CHANGELOG_LABELS = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-18",
+    fr: {
+      title: "L'histoire de ta carrière",
+      items: [
+        "Sous Club, l'onglet Palmarès devient Histoire. Ta salle des trophées y range tes championnats, tes coupes, tes Coupes des Lauriers et des Fanions et tes montées, avec leurs saisons, et garde la place de ceux qui restent à conquérir.",
+        "Tes records : plus large victoire, plus longue invincibilité, meilleur total de points en Division 1 et en Division 2, meilleur buteur et joueur le plus capé du club, plus gros achat, plus grosse vente et jeune formé le plus réussi. Le bilan de chaque saison dit ceux qu'elle a battus.",
+        "Les légendes de ton club, classées par un indice qui compte les matchs, les buts, les passes, les élections de joueur de la saison et les trophées gagnés avec lui, et les joueurs en route vers la légende.",
+        "Une carte de carrière à partager, dans les cadres de ta collection. Saison par saison, tes objectifs atteints, ton budget et ton meilleur buteur ; chaque fin de saison garde désormais tes buteurs exacts, tes triplés et la note de tes joueurs.",
+      ],
+    },
+    en: {
+      title: "Your career's story",
+      items: [
+        "Under Club, the Honours tab becomes History. Your trophy room holds your league titles, cups, Laurel and Pennant Cups and promotions, with their seasons, and keeps a place for those still to win.",
+        "Your records: biggest win, longest unbeaten run, most points in Division 1 and in Division 2, the club's top scorer and most capped player, record signing, record sale and best academy graduate. Each season's review names the ones it broke.",
+        "Your club's legends, ranked by an index counting matches, goals, assists, player of the season awards and trophies won with them, and the players on the road to legend.",
+        "A career card to share, in the frames of your collection. Season by season, your objectives met, your budget and your top scorer; each season's end now keeps your exact scorers, your hat-tricks and your players' ratings.",
+      ],
+    },
+  },
+  {
     date: "2026-11-17",
     fr: {
       title: "Tes primes sur l'écran Club, et des adversaires qui font tourner",

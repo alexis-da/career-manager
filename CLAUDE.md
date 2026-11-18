@@ -26,6 +26,7 @@ npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (créat
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
 npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs et Europe (qualifiés, condition et charge des clubs européens, saison par saison) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
+npm run measure:history # coût d'un affichage de l'onglet Histoire : requêtes et CPU, à froid et en cache, d'une carrière archivée de 5 et 10 saisons (-- --seasons=10 --at=5,10 ; base locale seulement)
 npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json, --archive : saisons terminées archivées, --no-europe : sans compétition européenne, pour comparer ; base locale dédiée et vide)
 ```
 
@@ -473,7 +474,7 @@ montre les jetons et la collection, et pourquoi. /admin : sections « Missions d
 **Navigation d'une partie.** Cinq entrées, dans `SECTIONS` (`app/saves/[id]/_lib/sections.ts`, pur et testé) : Accueil ·
 Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
 `nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement, Coupe
-(seulement avec une coupe) et Europe (seulement avec une saison européenne, `hasEurope`), Club a Club, Défi, Palmarès et Récompenses ; le direct est sous Match et l'écran de début de saison sous Club,
+(seulement avec une coupe) et Europe (seulement avec une saison européenne, `hasEurope`), Club a Club, Défi, Histoire et Récompenses ; le direct est sous Match et l'écran de début de saison sous Club,
 sans onglet l'un et l'autre (`SCREENS_WITHOUT_TAB`) ; l'entrée Match mène au Calendrier sous 1024 px, au
 Classement à partir de là, où il a le calendrier et la coupe à côté ; l'entrée Équipe à l'Effectif sous 1024 px, à la
 Composition à partir de là, où elle a l'effectif et la fiche à côté (`computerHome`, choisi par `SaveNav` après
@@ -863,7 +864,7 @@ quota, maintenance comprise (65). Sur GitHub (`CI`), Playwright relance une fois
 dans un rapport HTML, artefact de 7 jours. Sauvegardes : instantané hebdomadaire programmé dans la console Neon,
 procédure de restauration dans `docs/restauration.md`, aucune copie des données hors de Neon.
 
-**Club.** Quatre onglets, Club, Défi, Palmarès et Récompenses (règle « Missions du jour, jetons et récompenses ») ; l'action
+**Club.** Quatre onglets, Club, Défi, Histoire et Récompenses (règle « Missions du jour, jetons et récompenses ») ; l'action
 de jeu de la colonne y est secondaire (`OWN_ORANGE_ACTION`). Club (`/club`) : pastille du manager (`club-manager`, saisons
 terminées + 1, le titre porté et le badge mis en avant, `club-manager-title`) ; finances en lecture seule (`getClubFinances`,
 `src/db/club.ts` : budget en grand, masse salariale en barre, marge ou dépassement, puis le détail de la dernière dotation,
@@ -885,8 +886,8 @@ confidentialité). Défi (`/saves/[id]/challenge`) : l'écran
 de la page publique (`ChallengeScreen`, `app/challenge/_components`), quelle que soit la partie ouverte. Tête sur le bleu vif
 (semaine et fin, `formatParisWeekdayTime`), carte « Ta partie » (`ownChallenge`, pur : journées, score une fois soumis et
 reprise, « Jouer le défi », ou pourquoi pas ; aucun score provisoire, le jeu ne l'écrit qu'à la 10e journée, jamais de
-« Relancer »), classements (`RankingTable`, partagée : ta ligne en bleu, l'anonyme toujours grisé). Palmarès (`/seasons`) : des
-cartes sous 1024 px, toute la carte menant à la saison, le tableau au-dessus ; une saison européenne y a sa ligne
+« Relancer »), classements (`RankingTable`, partagée : ta ligne en bleu, l'anonyme toujours grisé). Histoire (`/seasons`, l'ancien
+Palmarès, règle « Histoire de la carrière ») : ses saisons terminées en cartes sous 1024 px, toute la carte menant à la saison, le tableau au-dessus ; une saison européenne y a sa ligne
 (« Coupe des Lauriers : quarts de finale », « Vainqueur de la Coupe des Lauriers », `europeLabel`), comme la coupe et les
 montées, que les trois dernières saisons de l'écran Club montrent aussi (`club-honours`, `data-mark`). Bilan
 (`/seasons/[seasonId]`) : la ligne européenne du club et le vainqueur de chaque compétition européenne de l'année
@@ -908,6 +909,46 @@ objectifs (`season-objectives`, `getClosedObjectives` : « Objectifs : 2/3 », c
 pour la dernière saison terminée (`isLastCompletedSeason`), « Cap sur la saison 2027-28 » vers l'écran de début de saison
 (règle « Début de saison ») : `advanceSeasonAction` mène ici une fois la saison suivante commencée. `e2e/club.spec.ts` couvre
 ces écrans à 1280, 390 et 360 px.
+
+**Histoire de la carrière (chantier « historique », 18/11).** Cahier `docs/design/historique.md`, validé le 18/11.
+L'onglet Palmarès devient **« Histoire »** (« History »), même adresse (`/saves/[id]/seasons`, `nav-seasons`) : la tête sur le
+bleu vif (`history-head` : saisons terminées, divisions traversées « D2 → D1 », trophées, montées, objectifs atteints, et la
+carte de carrière, son seul orange), la salle des trophées (`trophy-room`, `trophy-tile` avec `data-kind`, `data-count`,
+`data-to-conquer` : champion de D1, de D2, coupe, Coupe des Lauriers, Coupe des Fanions, montée, chacun avec ses saisons ; un
+trophée encore gagnable reste, éteint, « À conquérir » ; les finales perdues comptées), les records (`career-records`,
+`record-*`), les légendes (`career-legends`, `legend`, `on-the-way`), la saison en cours (`history-current`), puis les
+saisons terminées (le tableau du Palmarès, avec objectifs, budget de la saison et de fin de saison, meilleur buteur et
+triplés). Moteur pur `src/engine/career-history.ts` : records (plus large victoire au score après prolongation ;
+invincibilité toutes compétitions, une défaite aux tirs au but comptée comme un nul, la série en cours dite ; meilleur total
+de points **par division** ; meilleur buteur et joueur le plus capé pour le club, et un joueur au club à 5 buts ou 10 matchs ;
+plus gros achat et plus grosse vente, `Transfer` de type `TRANSFER` ; jeune formé le plus réussi, clé `youth:{année}:{club}:`
+ou `shop-youth:` signalé « Boutique », par l'indice de légende) ; **indice de légende** (`LEGEND_POINTS` : 1 par match, 2 par
+but, 1 par passe, 15 par élection comme joueur de la saison, 20 par titre de D1 ou Coupe des Lauriers, 10 par Coupe des
+Fanions, coupe, titre de D2 ou montée, ces trophées comptés pour un joueur de 10 matchs ou plus cette saison-là), légende dès
+150 (`LEGEND_THRESHOLD`), cinq montrées et trois joueurs du club « en route » ; statistiques d'un joueur pour le club
+(`attributedLines` : coupe et Europe toujours, championnat quand il a fini la saison au club ou hors de sa division, la ligne
+d'un transfert d'hiver dans la même division allant au club où il l'a finie). Lecture `src/db/career-history.ts` en deux
+parts : les saisons terminées (`readCompletedCareer` : `SeasonResult` reconstruits au besoin, objectifs clos, `SeasonBudget`,
+matchs et statistiques de leurs lignes ou de leur archive, `readArchivedSeasonsOfClub` avec `stats`), gardées par le
+serveur 30 jours par la dernière année terminée (`unstable_cache`, `HISTORY_VERSION`,
+`app/saves/[id]/seasons/_lib/history-cache.ts`), et ce qui bouge (`readLiveCareer` : saison en cours, joueurs tels qu'ils
+sont, transferts, noms des clubs par `displayClubName`). Mesure (`npm run measure:history`, 18/11, carrière archivée comme la
+production) : 50 requêtes et 30 à 40 ms de CPU à froid, 26 requêtes et 8 à 10 ms en cache, à 5 comme à 10 saisons (84 et
+161 Ko gardés). **Relevé de fin de saison** : `SeasonResult.highlights` (Json, migration d'ajout `…_season_highlights`),
+écrit par `recordSeasonResult` (`seasonHighlightsOf`, `src/db/season-highlights.ts` ; pur : `src/engine/season-highlights.ts`)
+dans la transaction d'`advanceToNextSeason`, avant que nettoyage ou archivage n'emportent les événements : budget de fin de
+saison, les cinq meilleurs buteurs du club et leurs passes, exacts d'après les événements de ses matchs, ses triplés, la note
+et la valeur de chaque joueur de l'effectif ; null pour une saison d'avant ou reconstruite (le meilleur buteur vient alors des
+statistiques). Carte de carrière (`/saves/[id]/seasons/card`, `careerCardPath`, `n=` les saisons terminées, sinon 404,
+`CAREER_CARD_VERSION`, `career-card.tsx` : la carrière telle que l'a laissée sa dernière saison terminée, trophées, plus large
+victoire et invincibilité par leurs chiffres seuls, jamais l'adversaire, la première légende ou le meilleur buteur, objectifs ;
+ni nom, ni initiales du club, ni nom du manager ou de la partie ; cadres et titres de la collection) : à partir d'une saison
+terminée, jamais dans une partie de défi. Le bilan d'une saison dit les records qu'elle a battus (`recordsSetIn`,
+`season-new-records`) ; l'écran Club compte les trophées (`club-honours-trophies`) et mène toujours à l'Histoire
+(`club-honours-all`, « Toute l'histoire »). Ce que l'archivage a emporté (le détail des matchs des saisons terminées :
+buteurs de chaque match, cartons, remplacements, décisions) n'est lu nulle part. Preuves : `career-history.test.ts`,
+`season-highlights.test.ts`, `europe.slow.test.ts` (relevé exact sur une saison jouée), `season-archive.slow.test.ts`
+(l'Histoire identique avant et après l'archivage et la suppression des lignes), `e2e/club.spec.ts` (1280, 390 et 360 px).
 
 **Début de saison (gameplay v2, V3).** `/saves/[id]/season-start` (`app/saves/[id]/season-start`, sous l'entrée Club, sans
 onglet), `season-start` : la saison ; « La direction t'accorde X » (`season-start-budget`, le budget de la dotation de la
@@ -1198,7 +1239,7 @@ d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4. 
   `dashboard-hero` (héros de l'Accueil), `dashboard-todo` (« À faire »), `onboarding` (premières actions, bulles), `missions` (missions du jour, série), `rewards` (jetons, boutique, collection),
   `challenge-banner` (carte du défi), `squad` (effectif), `player-sheet` (fiche joueur, contrats), `lineup`,
   `market` (Acheter, confirmation), `market-sell` (Vendre), `transfers` (marché avancé), `fixtures` (calendrier,
-  feuille de match), `standings` (classement), `seasons` (palmarès, bilan, carte), `cup` (coupe), `club` (écran Club,
+  feuille de match), `standings` (classement), `seasons` (histoire, bilan, cartes de saison et de carrière), `cup` (coupe), `club` (écran Club,
   réglages), `challenge-screen` (onglet Défi), `live` (direct), `session-end` (carte « À demain », mot de l'adjoint),
   `half-time` (panneau Coaching), `actions` (messages des Server Actions, refus), `in-app` (navigateurs intégrés, page
   du lien de reprise), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
@@ -1343,8 +1384,9 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # (client-errors), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
                       # club (club/ : finances, réglages), Europe (europe/ : compétitions européennes), début de saison (season-start/ : dotation, choix de
-                      # l'objectif), défi (challenge/), palmarès (seasons/, et
-                      # seasons/[seasonId]/card : carte PNG de fin de saison, sans nom de club), récompenses
+                      # l'objectif), défi (challenge/), histoire (seasons/ : trophées, records, légendes, saisons ;
+                      # seasons/card : carte de carrière ; seasons/[seasonId]/card : carte PNG de fin de saison, sans nom
+                      # de club), récompenses
                       # (rewards/ : jetons, série, boutique, collection)
                       # actions.ts (Server Actions) à côté des pages qui les utilisent
 e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : le parcours en anglais ;
@@ -1358,7 +1400,7 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # décision du joueur, un changement et un arrêt demandé ; team.spec.ts : Effectif, Composition et fiche ;
                       # lineup-candidates.spec.ts : le changement en un toucher sur téléphone ; starting-instruction.spec.ts :
                       # le panneau du dispositif et la consigne de départ, de la composition au direct ;
-                      # club.spec.ts : Club, son défi, ses réglages, le palmarès et le bilan d'une saison ;
+                      # club.spec.ts : Club, son défi, ses réglages, l'histoire de la carrière et le bilan d'une saison ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # home.spec.ts : l'accueil, le choix du club et les pages hors partie ;
@@ -1397,6 +1439,7 @@ prisma/
     data/             # calendriers OpenFootball (premières et deuxièmes divisions), club-colors.json, club-aliases-fallback.json
 scripts/              # measure-save-size.ts (npm run measure:size), measure-balance.ts (npm run measure:balance), measure-d2-balance.ts (npm run measure:divisions),
                       # measure-seasons.ts (npm run measure:seasons), measure-career-weight.ts (npm run measure:weight),
+                      # measure-history.ts (npm run measure:history),
                       # measure-career-countries.ts (npx tsx : le poids d'une carrière et ses écritures par pays),
                       # generate-reference-migration.ts
 ```
