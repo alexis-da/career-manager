@@ -118,6 +118,7 @@ model User {
   missionDays      MissionDay[]
   tokenEntries     TokenEntry[]
   cosmetics        PlayerCosmetic[]
+  tutorial         Tutorial?
 
   @@index([createdAt]) // les nouveaux joueurs d'une période (/admin)
 }
@@ -126,6 +127,42 @@ model User {
 // celui de son téléphone quand il a commencé dans le navigateur d'une appli (Instagram…), où Google ne se connecte pas.
 // Le jeton n'est que dans le lien : la base n'en garde que l'empreinte. Valable 7 jours, une seule fois ; supprimé avec
 // son utilisateur.
+// Le tutoriel de la première carrière d'un joueur (docs/design/tutoriel.md, src/db/tutorial.ts) : une ligne par joueur, née
+// dans la transaction de sa première carrière hors défi (createSaveAction), jamais dans une partie de défi. Les bulles de
+// l'adjoint, les étapes de chacune et ce qu'en a fait le joueur ; rien de la simulation. Dates à l'horloge de la base.
+// Supprimé avec son utilisateur ; suit ses carrières à la connexion Google (moveTutorial).
+model Tutorial {
+  userId      String         @id
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  saveId      String?        @unique // la carrière qu'il suit ; null une fois supprimée, la carrière suivante le reprend
+  save        Save?          @relation(fields: [saveId], references: [id], onDelete: SetNull)
+  version     Int // le scénario (TUTORIAL_VERSION) : un scénario plus récent ne rejoue jamais un ancien
+  startedAt   DateTime       @default(now())
+  day1At      DateTime? // le « À demain » de son premier match, vu : le premier jour est fini
+  skippedAt   DateTime? // « Passer le tutoriel », la dernière fois ; tout ce qui était caché reste montré
+  skippedStep String? // l'étape montrée quand il l'a passé, la dernière fois
+  resumedAt   DateTime? // repris depuis Club → Réglages, la dernière fois
+  endedAt     DateTime?
+  endedBy     String? // FINISHED | SKIPPED | EXPIRED | MERGED (src/lib/tutorial.ts)
+  steps       TutorialStep[]
+
+  @@index([startedAt]) // les tutoriels commencés d'une période (/admin)
+}
+
+// Une étape du tutoriel d'un joueur : montrée quand, combien de fois, et comment elle s'est close. Une ligne dès qu'elle
+// est montrée ou close ; sa clé (TUTORIAL_STEPS) n'est jamais renommée.
+model TutorialStep {
+  userId   String
+  tutorial Tutorial  @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: Cascade)
+  step     String
+  shownAt  DateTime? // la première fois montrée ; null pour une étape close sans avoir été montrée
+  shows    Int       @default(0)
+  endedAt  DateTime?
+  outcome  String? // DONE | PASSED | ADAPTED | EXPIRED (src/lib/tutorial.ts)
+
+  @@id([userId, step])
+}
+
 model ResumeLink {
   id        String    @id @default(cuid())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -353,6 +390,7 @@ model Save {
   nations              NationSave[]
   internationalMatches InternationalMatch[]
   coachSpells          CoachSpell[]
+  tutorial             Tutorial?
 
   @@index([ownerId])
   @@index([challengeId])

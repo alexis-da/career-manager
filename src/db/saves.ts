@@ -22,6 +22,7 @@ import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { visibleSavesWhere, type SaveViewer } from "./access";
 import { recordFirstSave } from "./activation";
+import { startTutorial } from "./tutorial";
 import { prisma } from "./client";
 import { openCups } from "./cup";
 import { openEurope } from "./europe";
@@ -48,6 +49,9 @@ export const createSaveInputSchema = z.object({
   // The national teams and the international breaks of a worldVersion 2 save from its first season (Save.breaksFrom):
   // NATIONS_ENABLED (true) for the game, never for a challenge save; a test may pass either.
   nations: z.boolean().default(NATIONS_ENABLED),
+  // The first-career tutorial (src/db/tutorial.ts): only the player's own creation asks for it (createSaveAction), never
+  // a test, a script, the demo or a challenge save.
+  tutorial: z.boolean().default(false),
 });
 
 export type CreateSaveInput = z.input<typeof createSaveInputSchema>;
@@ -114,6 +118,7 @@ export async function createChallengeSave(
     cups: CUPS_ENABLED,
     europe: false,
     nations: false,
+    tutorial: false,
     challenge: { id: challengeId, maxSaves },
   });
 }
@@ -142,7 +147,7 @@ async function timedWriteSave(data: SaveData): Promise<{ id: string }> {
 
 /** The transaction of a creation, each phase marked on the timer for the logs. */
 async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: string }> {
-  const { name, managerName, clubId, seed, ownerId, worldVersion, cups, europe, nations, challenge } = data;
+  const { name, managerName, clubId, seed, ownerId, worldVersion, cups, europe, nations, tutorial, challenge } = data;
   // A worldVersion 2 save has its international breaks and its national teams from its first season, never a challenge's.
   const breaksFrom = worldVersion === 2 && nations && challenge === null ? seasonStartYear(WORLD_START_DATE) : null;
   const withBreaks = breaksFrom !== null;
@@ -376,6 +381,11 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
       }
       // Its objectives, on its league season, once its cup and its European competition exist.
       await openSeasonObjectives(tx, save.id, { id: first.seasonId, startYear });
+      // A new player's first career has the tutorial, or takes up the one of a career deleted before its end: before the
+      // first step is written, which would make every player look like an old one.
+      if (tutorial && challenge === null) {
+        await startTutorial(tx, ownerId, save.id);
+      }
       // The owner's first career, when it is: a first step (src/db/activation.ts).
       await recordFirstSave(tx, ownerId);
 

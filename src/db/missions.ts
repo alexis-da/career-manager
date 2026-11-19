@@ -21,6 +21,7 @@ import {
   type StreakMark,
   type StreakView,
 } from "../lib/missions";
+import { firstDayCalmOf, type NullableTutorialDates } from "../lib/tutorial";
 import { prisma } from "./client";
 import { lockRewards, unlockCosmetics, unlockMissionAchievements, writeTokens } from "./rewards";
 import { utcDayOf } from "./user-days";
@@ -271,23 +272,29 @@ export async function recordMissionMoves(db: PrismaClient, saveId: string, moves
     return;
   }
   try {
-    const [context] = await db.$queryRaw<{ ownerId: string | null; challenge: boolean; day: string; tasks: TaskRow[] }[]>`
-      SELECT s."ownerId", s."challengeId" IS NOT NULL AS challenge, d.day,
+    const [context] = await db.$queryRaw<
+      ({ ownerId: string | null; challenge: boolean; day: string; tasks: TaskRow[]; now: Date } & NullableTutorialDates)[]
+    >`
+      SELECT s."ownerId", s."challengeId" IS NOT NULL AS challenge, d.day, now() AS now,
+             tu."startedAt", tu."day1At", tu."skippedAt", tu."resumedAt", tu."endedBy",
              coalesce(json_agg(json_build_object('tier', t."tier", 'kind', t."kind", 'target', t."target", 'progress', t."progress",
                                                  'completed', t."completedAt" IS NOT NULL, 'changedFrom', t."changedFrom"))
                       FILTER (WHERE t."tier" IS NOT NULL), '[]') AS tasks
       FROM "Save" s
       CROSS JOIN (SELECT to_char((now() AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day) d
       LEFT JOIN "MissionTask" t ON t."userId" = s."ownerId" AND t."day" = d.day::date
+      LEFT JOIN "Tutorial" tu ON tu."userId" = s."ownerId" AND tu."saveId" = s."id"
       WHERE s."id" = ${saveId}
-      GROUP BY s."ownerId", s."challengeId", d.day`;
+      GROUP BY s."ownerId", s."challengeId", d.day, tu."userId"`;
     if (context === undefined || context.ownerId === null || context.challenge) {
       return;
     }
     const userId = context.ownerId;
     const { day } = context;
     const tasks = tasksOf(userId, day, context.tasks);
-    const open = tasks.filter(({ completed }) => !completed);
+    // The first day of a tutorial (docs/design/tutoriel.md § 2): no mission drawn nor counted, they come the next day.
+    const calm = firstDayCalmOf(context, context.now);
+    const open = calm ? [] : tasks.filter(({ completed }) => !completed);
     const youth = open.some(({ kind }) => kind === "START_YOUTH");
     const played = await movesOf(db, saveId, moves, youth);
     const steps = open

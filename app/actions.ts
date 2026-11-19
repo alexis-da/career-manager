@@ -97,10 +97,11 @@ export async function createSaveAction(_previous: CreateSaveFormState, formData:
   try {
     // An empty seed gets a random one: the seed feeds the simulation, it is never drawn inside it.
     const seed = parsed.data.seed === "" ? randomUUID() : parsed.data.seed;
-    // The player gets an anonymous identity, and its cookie, with their first save.
+    // The player gets an anonymous identity, and its cookie, with their first save; a new player's first career, the
+    // tutorial of the first career (src/db/tutorial.ts).
     const owner = await requireCurrentUser();
     // A database waking up (P2028, P1001, P1017) gets one more try: the failed transaction was rolled back.
-    ({ id: saveId } = await retryOnWakeUp(() => createSave({ ...parsed.data, seed, ownerId: owner.id }), {
+    ({ id: saveId } = await retryOnWakeUp(() => createSave({ ...parsed.data, seed, ownerId: owner.id, tutorial: true }), {
       onRetry: (error) =>
         console.warn(`[createSaveAction] trying again after ${timer.elapsed()} ms: ${describeError(error)}`),
     }));
