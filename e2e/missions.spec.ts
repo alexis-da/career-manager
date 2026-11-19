@@ -37,10 +37,9 @@ test.describe("on a phone, in French", () => {
       await expect(card.getByTestId("mission-tokens")).toHaveAttribute("data-tokens", "0");
       await expect(card.getByTestId("mission-streak-line")).toHaveText("Une mission aujourd'hui pour passer à 3 jours.");
       await expect(card.getByTestId("mission-cycle")).toHaveAttribute("data-cycle-day", "2");
-      // Under the hero and a new career's first actions; the hero keeps the one orange.
+      // Under the hero, which keeps the one orange.
       const hero = await boxOf(page.getByTestId("dashboard-next-match"));
       expect((await boxOf(card)).y).toBeGreaterThan(hero.y);
-      expect((await boxOf(card)).y).toBeGreaterThan((await boxOf(page.getByTestId("dashboard-first-steps"))).y);
       await expectNoSidewaysScroll(page, "the dashboard and its missions");
       await expectOrangeActions(page, ["next-match"]);
 

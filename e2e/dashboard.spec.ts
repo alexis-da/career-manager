@@ -188,31 +188,26 @@ test("sets the season's objectives out, the optional one still to choose, and th
   await expect(detail.getByTestId("club-confidence")).toHaveAttribute("data-confidence", value);
 });
 
-test("lays a new career's first actions right under the hero, and leaves the money, the offers and the weak spot for later", async ({
+test("lays a new career's missions right under the hero, and leaves the last match, the offers and the weak spot for later", async ({
   page,
 }) => {
   await openDashboard(page);
-  const steps = page.getByTestId("dashboard-first-steps");
-  await expect(steps.getByRole("heading")).toHaveText("Tes trois premières actions");
-  await expect(steps.getByTestId("first-action-squad").getByRole("link")).toHaveAttribute("href", `/saves/${saveId}/squad`);
-  await expect(steps.getByTestId("first-action-lineup").getByRole("link")).toHaveAttribute("href", `/saves/${saveId}/lineup`);
-  // Under a mouse, a click: the touch's words are in the page, hidden.
-  const match = steps.getByTestId("first-action-match");
-  await expect(match).toContainText("Clique sur « Jouer le match » : il se joue en direct.", { useInnerText: true });
-  await expect(match).not.toContainText("Touche", { useInnerText: true });
+  // A career's first steps are its tutorial's (passed here, e2e/tutorial.spec.ts follows it): no list of first actions,
+  // a challenge save's alone.
+  await expect(page.getByTestId("dashboard-first-steps")).toHaveCount(0);
 
-  // The small table beside the hero, the actions under both, across the page.
+  // The small table beside the hero, the day's missions under both, across the page.
   const hero = await boxOf(heroOf(page));
   const table = await boxOf(page.getByTestId("dashboard-table"));
-  const box = await boxOf(steps);
+  const box = await boxOf(page.getByTestId("daily-missions"));
   expect(table.y).toBe(hero.y);
   expect(box.y - (hero.y + hero.height)).toBeGreaterThanOrEqual(0);
   expect(box.y - (hero.y + hero.height)).toBeLessThanOrEqual(24);
   expect(box.x).toBe(hero.x);
   expect(Math.abs(box.x + box.width - (table.x + table.width))).toBeLessThanOrEqual(1);
 
-  // No card of a last match: « Aucun match joué » would only repeat the list. No tip, no offer, no weak spot: the first
-  // steps first.
+  // No card of a last match: « Aucun match joué » would say nothing. No tip, no offer, no weak spot before the first
+  // match.
   await expect(page.getByTestId("dashboard-last-result")).toHaveCount(0);
   await expect(page.locator('[data-testid^="tip-"]')).toHaveCount(0);
   const alerts = page.getByTestId("dashboard-alerts");
@@ -256,11 +251,10 @@ test.describe("on a phone, in English", () => {
       expect((await boxOf(hero.getByTestId(control))).height).toBeGreaterThanOrEqual(44);
     }
 
-    // The first actions right under the hero, before anything else of the page.
-    const steps = page.getByTestId("dashboard-first-steps");
-    await expect(steps.getByRole("heading")).toHaveText("Your first three moves");
+    // The day's missions right under the hero, before anything else of the page; no list of first actions in a career.
+    await expect(page.getByTestId("dashboard-first-steps")).toHaveCount(0);
     const heroBox = await boxOf(hero);
-    const below = (await boxOf(steps)).y - (heroBox.y + heroBox.height);
+    const below = (await boxOf(page.getByTestId("daily-missions"))).y - (heroBox.y + heroBox.height);
     expect(below).toBeGreaterThanOrEqual(0);
     expect(below).toBeLessThanOrEqual(24);
 
