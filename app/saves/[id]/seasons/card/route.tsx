@@ -4,6 +4,7 @@ import { getLocale } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { careerHistoryView, readLiveCareer } from "@/src/db/career-history";
 import { prisma } from "@/src/db/client";
+import { getCoachHistory } from "@/src/db/national-view";
 import { ownedCardDress } from "@/src/db/rewards";
 import { isLocale, type Locale } from "@/src/i18n/locale";
 import { translatorFor } from "@/src/i18n/messages-translator";
@@ -21,7 +22,8 @@ const CARD_CACHE_SECONDS = 30 * 24 * 60 * 60;
 /**
  * A career's card as PNG bytes (base64), drawn once for its save, its count of completed seasons, its format and
  * language, its frame and title, then kept by the server (Next's data cache): 155 ms of CPU square, 95 ms landscape.
- * The completed seasons only: the career as its last completed season left it. null in a challenge save.
+ * The completed seasons only: the career as its last completed season left it, the summer tournaments that ended them
+ * included. null in a challenge save.
  */
 const drawCard = unstable_cache(
   async (saveId: string, completedSeasons: number, format: CardFormat, locale: Locale, frame: CosmeticId, title: CosmeticId | null): Promise<string | null> => {
@@ -32,7 +34,9 @@ const drawCard = unstable_cache(
       return null;
     }
     const history = careerHistoryView(completed, { ...live, current: null, matches: [], lines: [], transfers: [] });
-    const response = await careerCardResponse(careerCardData(history), live.clubColors, format, translatorFor(locale, "careerCard"), locale, {
+    // His titles as a national coach: those of the completed seasons only (careerCardData), the image never changes.
+    const coach = await getCoachHistory(saveId);
+    const response = await careerCardResponse(careerCardData(history, coach), live.clubColors, format, translatorFor(locale, "careerCard"), locale, {
       frame: frameStyleOf(frame),
       title: title === null ? null : translatorFor(locale, "rewards")(`cosmetics.${title}.name`),
     });

@@ -109,6 +109,17 @@
         "none": "Aucun de tes joueurs n'a encore joué en sélection.",
         "explain": "Leurs sélections et leurs buts pendant qu'ils jouaient pour ton club."
       },
+      "coach": {
+        "title": "Sélectionneur",
+        "ofNation": "{code, select, POR {du Portugal} BRA {du Brésil} MAR {du Maroc} SEN {du Sénégal} NED {des Pays-Bas} FRA {de la France} BEL {de la Belgique} CRO {de la Croatie} CIV {de la Côte d'Ivoire} GER {de l'Allemagne} ENG {de l'Angleterre} ARG {de l'Argentine} ESP {de l'Espagne} ITA {de l'Italie} other {de {nation}}}",
+        "spell": "Sélectionneur {nation}, {years}",
+        "span": "{from} → {to}",
+        "since": "depuis {from}",
+        "stage": "{stage, select, 1 {phase de groupes} 2 {demi-finale} 3 {finale} 4 {vainqueur} other {éliminatoires}}",
+        "run": "{name} {year} : {stage}",
+        "won": "vainqueur de la {name} {year}",
+        "ended": "{outcome, select, NOT_QUALIFIED {fin de mission : pas qualifié} MISSED {fin de mission : objectif manqué} other {démission}}"
+      },
       "legends": {
         "title": "Légendes",
         "explain": "Indice de légende : 1 point par match pour le club, 2 par but, 1 par passe décisive, 15 par élection comme joueur de la saison, 10 à 20 par trophée gagné avec lui. Légende dès {threshold}.",
@@ -169,7 +180,10 @@
     "playerGoals": "BUTS",
     "playerAssists": "PASSES",
     "playerRating": "NOTE",
-    "manager": "MANAGER : {title}"
+    "manager": "MANAGER : {title}",
+    "coach": "SÉLECTIONNEUR {nation}",
+    "coachRun": "{coach} · {tournament} : {stage}",
+    "coachWon": "{coach} · VAINQUEUR DE LA {tournament}"
   },
   "careerCard": {
     "title": "CARRIÈRE",
@@ -181,6 +195,8 @@
     "eu1": "{count, plural, one {# COUPE DES LAURIERS} other {# COUPES DES LAURIERS}}",
     "eu2": "{count, plural, one {# COUPE DES FANIONS} other {# COUPES DES FANIONS}}",
     "promotion": "{count, plural, one {# MONTÉE} other {# MONTÉES}}",
+    "coachEu": "{count, plural, one {# COUPE DU VIEUX CONTINENT} other {# COUPES DU VIEUX CONTINENT}}",
+    "coachWorld": "{count, plural, one {# COUPE DES HÉMISPHÈRES} other {# COUPES DES HÉMISPHÈRES}}",
     "noTrophy": "TROPHÉES À CONQUÉRIR",
     "biggestWin": "PLUS LARGE VICTOIRE",
     "unbeaten": "INVINCIBILITÉ",

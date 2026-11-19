@@ -1,8 +1,10 @@
 /* eslint-disable @next/next/no-img-element -- ImageResponse renders plain elements only */
 import { ImageResponse } from "next/og";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { CareerHistoryView } from "@/src/db/career-history";
+import type { CoachHistory } from "@/src/db/national-view";
 import { TROPHY_KINDS, type TrophyKind } from "@/src/engine/career-history";
+import { OLD_CONTINENT_CUP, type TournamentCode } from "@/src/engine/tournaments";
 import { seasonLabel } from "@/src/engine/world";
 import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
@@ -10,6 +12,7 @@ import { clubAccentsOn, type ClubColors } from "@/src/lib/color";
 import { faceDataUri } from "@/src/og/face-image";
 import { DISPLAY_FONT, imageFonts } from "@/src/og/fonts";
 import { divisionsPath } from "../_lib/career";
+import { COACH_TOURNAMENTS } from "../_lib/coach";
 import {
   brandIcon,
   CARD_SIZES,
@@ -28,7 +31,11 @@ import {
 
 // The shareable card of a career (docs/design/historique.md § 5): the brand's midnight blue, the club's colors as
 // accents, and never a club name, real or fictional, nor its initials, nor the manager's name nor the save's (CLAUDE.md,
-// « Communication sortante »): its trophies, two records by their figures alone (never the opponent), its first legend.
+// « Communication sortante »): its trophies, the summer tournaments won as a national coach among them
+// (docs/design/selections.md § 9.10), two records by their figures alone (never the opponent), its first legend.
+
+/** A row whose items go on to the next line when it is full. */
+const WRAPPING_ROW: CSSProperties = { ...row, flexWrap: "wrap" };
 
 /** The career as its card shows it: the history of its completed seasons (the career as its last season left it). */
 export type CareerCardData = {
@@ -37,15 +44,27 @@ export type CareerCardData = {
   lastYear: number | null;
   path: string | null; // « D2 → D1 »
   trophies: { kind: TrophyKind; count: number }[]; // won only, in the trophy room's order
+  coachTitles: { tournament: TournamentCode; count: number }[]; // won as a national coach, the Old Continent's first
   biggestWin: string | null; // « 7-0 »
   unbeaten: number | null; // matches
   player: { title: "legend" | "topScorer"; playerKey: string; name: string; age: number; matches: number; goals: number } | null;
   objectives: { met: number; total: number } | null;
 };
 
-/** What a career's card shows, from the history of its completed seasons: its first legend, else its top scorer. */
-export function careerCardData(history: CareerHistoryView): CareerCardData {
+/**
+ * What a career's card shows, from the history of its completed seasons: its first legend, else its top scorer; and the
+ * summer tournaments its manager won as a national coach (getCoachHistory), those that ended a completed season only.
+ */
+export function careerCardData(history: CareerHistoryView, coach: Pick<CoachHistory, "titles"> | null = null): CareerCardData {
   const { summary, records, players, totals } = history;
+  // A tournament ends the season before its year: the last completed season's, at the latest.
+  const lastTournamentYear = summary.lastYear === null ? null : summary.lastYear + 1;
+  const coachTitles = COACH_TOURNAMENTS.flatMap((tournament) => {
+    const count = (coach?.titles ?? []).filter(
+      (title) => title.tournament === tournament && lastTournamentYear !== null && title.year <= lastTournamentYear,
+    ).length;
+    return count > 0 ? [{ tournament, count }] : [];
+  });
   const legend = history.legends[0];
   const scorer = records.topScorer;
   const featured = legend !== undefined ? { title: "legend" as const, playerKey: legend.playerKey } : scorer !== null ? { title: "topScorer" as const, playerKey: scorer.playerKey } : null;
@@ -60,6 +79,7 @@ export function careerCardData(history: CareerHistoryView): CareerCardData {
       const count = history.trophyRoom.tiles.find((tile) => tile.kind === kind)?.seasons.length ?? 0;
       return count > 0 ? [{ kind, count }] : [];
     }),
+    coachTitles,
     biggestWin: win === null ? null : `${win.goalsFor}-${win.goalsAgainst}`,
     unbeaten: records.unbeaten.record?.length ?? null,
     player:
@@ -125,7 +145,15 @@ export async function careerCardResponse(
     data.firstYear === null || data.lastYear === null
       ? t("firstSeason")
       : t("span", { first: seasonLabel(data.firstYear), last: seasonLabel(data.lastYear), count: data.seasons });
-  const trophies = data.trophies.length === 0 ? [t("noTrophy")] : data.trophies.map(({ kind, count }) => t(kind, { count }));
+  // The club's trophies, then the summer tournaments won as a national coach.
+  const won = [
+    ...data.trophies.map(({ kind, count }) => t(kind, { count })),
+    ...data.coachTitles.map(({ tournament, count }) => t(tournament === OLD_CONTINENT_CUP ? "coachEu" : "coachWorld", { count })),
+  ];
+  const trophies = won.length === 0 ? [t("noTrophy")] : won;
+  // One under another as long as they fit, 4 in landscape and 6 square; beyond, side by side and a little smaller, on as
+  // many lines as they need.
+  const flowing = trophies.length > (square ? 6 : 4);
   const headline = (
     <div style={column}>
       <div style={{ ...row, alignItems: "center" }}>
@@ -148,11 +176,14 @@ export async function careerCardResponse(
       </div>
       <div style={{ marginTop: 10, fontSize: square ? 34 : 30 }}>{span}</div>
       {data.path !== null && <div style={{ marginTop: 2, fontSize: square ? 30 : 26, color: MUTED }}>{data.path}</div>}
-      <div style={{ ...column, marginTop: square ? 28 : 18 }}>
+      <div style={{ ...(flowing ? WRAPPING_ROW : column), marginTop: square ? 28 : 18 }}>
         {trophies.map((line, index) => (
-          <div key={index} style={{ ...row, alignItems: "center", marginTop: index === 0 ? 0 : 6 }}>
+          <div
+            key={index}
+            style={{ ...row, alignItems: "center", marginTop: flowing ? 6 : index === 0 ? 0 : 6, marginRight: flowing ? 28 : 0 }}
+          >
             <div style={{ display: "flex", width: 14, height: 14, borderRadius: 7, background: ORANGE, marginRight: 14 }} />
-            <div style={{ fontSize: square ? 38 : 32 }}>{line}</div>
+            <div style={{ fontSize: flowing ? (square ? 32 : 26) : square ? 38 : 32 }}>{line}</div>
           </div>
         ))}
       </div>

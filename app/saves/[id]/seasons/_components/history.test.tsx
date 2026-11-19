@@ -2,10 +2,13 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { careerHistoryView, type CompletedCareer, type LiveCareer } from "@/src/db/career-history";
+import type { CoachHistory } from "@/src/db/national-view";
 import type { HistoryLine, HistorySeason } from "@/src/engine/career-history";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage } from "@/src/i18n/test-intl";
-import { careerCardPath, divisionsPath } from "../_lib/career";
+import { CAREER_CARD_VERSION, careerCardPath, divisionsPath } from "../_lib/career";
+import { coachTrophyTiles } from "../_lib/coach";
+import { CareerInternationals } from "./career-internationals";
 import { CareerLegends } from "./career-legends";
 import { CareerRecords } from "./career-records";
 import { CurrentSeasonLine } from "./current-season";
@@ -100,6 +103,24 @@ const LIVE: LiveCareer = {
 
 const HISTORY = careerHistoryView(COMPLETED, LIVE);
 
+/** Two missions: Portugal, a semi-final then a title before he left; France, in post. */
+const COACH: CoachHistory = {
+  spells: [
+    {
+      code: "POR",
+      fromYear: 2027,
+      toYear: 2029,
+      outcome: "RESIGNED",
+      tournaments: [
+        { tournament: "int.eu", year: 2028, stage: 2 },
+        { tournament: "int.world", year: 2030, stage: 4 },
+      ],
+    },
+    { code: "FRA", fromYear: 2030, toYear: null, outcome: null, tournaments: [] },
+  ],
+  titles: [{ tournament: "int.world", year: 2030, code: "POR" }],
+};
+
 describe("the History tab", () => {
   it("shows the trophy room, a trophy to conquer unlit, the lost final counted", () => {
     const markup = render(<TrophyRoom room={HISTORY.trophyRoom} />);
@@ -116,6 +137,43 @@ describe("the History tab", () => {
     expect(textOf(markup)).toContain("— Coupe des Fanions À conquérir");
     expect(textOf(markup)).toContain("1 finale perdue");
     expect(textOf(render(<TrophyRoom room={HISTORY.trophyRoom} />, "en"))).toContain("— Pennant Cup Still to win");
+  });
+
+  it("adds the summer tournaments won as a national coach to the trophy room, from his first mission only", () => {
+    const tiles = coachTrophyTiles(COACH);
+    const markup = render(<TrophyRoom room={HISTORY.trophyRoom} coach={tiles} />);
+    const coachTiles = [...markup.matchAll(/data-testid="trophy-tile" data-kind="(coach-[\w.]+)" data-count="(\d)" data-to-conquer="(\w+)"/g)].map((match) =>
+      match.slice(1),
+    );
+
+    expect(coachTiles).toEqual([
+      ["coach-int.eu", "0", "true"],
+      ["coach-int.world", "1", "false"],
+    ]);
+    expect(textOf(markup)).toContain("— Coupe du Vieux Continent À conquérir ×1 Coupe des Hémisphères 2030");
+    expect(textOf(render(<TrophyRoom room={HISTORY.trophyRoom} coach={tiles} />, "en"))).toContain("×1 Hemispheres Cup 2030");
+    // The club's own tiles as they were, and none of his before a first mission.
+    expect(markup.match(/data-testid="trophy-tile"/g)).toHaveLength(HISTORY.trophyRoom.tiles.length + 2);
+    expect(render(<TrophyRoom room={HISTORY.trophyRoom} coach={coachTrophyTiles(null)} />)).not.toContain("coach-int");
+  });
+
+  it("tells the manager's missions as a national coach in the national teams' section", () => {
+    const markup = render(<CareerInternationals history={HISTORY} internationals={[]} coach={COACH} />);
+    const spells = [...markup.matchAll(/data-testid="history-coach-spell" data-nation="(\w+)" data-in-post="(\w+)"/g)].map((match) => match.slice(1));
+
+    expect(spells).toEqual([
+      ["POR", "false"],
+      ["FRA", "true"],
+    ]);
+    expect(partOf(markup, "history-coach-spell")).toMatch(
+      /^POR Sélectionneur du Portugal, 2027-28 → 2029-30 · Coupe du Vieux Continent 2028 : demi-finale · vainqueur de la Coupe des Hémisphères 2030 · démission/,
+    );
+    expect(textOf(markup)).toContain("FRA Sélectionneur de la France, depuis 2030-31");
+    expect(partOf(render(<CareerInternationals history={HISTORY} internationals={[]} coach={COACH} />, "en"), "history-coach")).toMatch(
+      /^National coach POR National coach of Portugal, 2027-28 → 2029-30 · Old Continent Cup 2028: semi-final · won the Hemispheres Cup 2030 · resigned/,
+    );
+    // A manager who never coached a nation: no such block.
+    expect(render(<CareerInternationals history={HISTORY} internationals={[]} />)).not.toContain("history-coach");
   });
 
   it("tells each record with its context, a player still at the club, a transfer's other club", () => {
@@ -176,7 +234,7 @@ describe("the History tab", () => {
     const markup = render(<HistoryHead history={HISTORY} card={card} />);
 
     expect(partOf(markup, "history-seasons")).toMatch(/^2 saisons terminées · 2026-27 → 2027-28 D2 → D1 · 1 trophée · 1 montée Objectifs atteints : 2\/3 /);
-    expect(markup).toContain('href="/saves/save/seasons/card?lang=fr&amp;v=1&amp;n=2"');
+    expect(markup).toContain(`href="/saves/save/seasons/card?lang=fr&amp;v=${CAREER_CARD_VERSION}&amp;n=2"`);
     expect(markup).toContain('data-testid="career-card-image"');
     expect(render(<HistoryHead history={HISTORY} card={null} />)).not.toContain("career-card");
   });
@@ -199,7 +257,7 @@ describe("the History tab", () => {
 
   it("names the card's address by its state, and the divisions' path", () => {
     expect(careerCardPath("save", "en", 5, "square", { frame: "frame-gold", title: "title-champion" })).toBe(
-      "/saves/save/seasons/card?lang=en&v=1&n=5&format=square&frame=frame-gold&title=title-champion",
+      `/saves/save/seasons/card?lang=en&v=${CAREER_CARD_VERSION}&n=5&format=square&frame=frame-gold&title=title-champion`,
     );
     expect(divisionsPath([1])).toBeNull();
     expect(divisionsPath([2, 1, 2])).toBe("D2 → D1 → D2");

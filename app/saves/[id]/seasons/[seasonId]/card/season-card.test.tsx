@@ -7,9 +7,11 @@ import { seasonCardFileName } from "../../../_lib/seasons";
 import {
   CARD_SIZES,
   cardBadge,
+  coachLine,
   europeLine,
   objectivesLine,
   seasonCardResponse,
+  type CardCoach,
   type CardDress,
   type CardFormat,
   type CardObjectives,
@@ -25,6 +27,7 @@ function translators(locale: Locale): CardTranslators {
     seasonCard: testTranslator(locale, "seasonCard"),
     objectives: testTranslator(locale, "objectives"),
     stage: testTranslator(locale, "stage"),
+    nations: testTranslator(locale, "nations"),
   };
 }
 
@@ -79,8 +82,9 @@ async function render(
   locale: Locale = "fr",
   objectives: CardObjectives | null = null,
   dress?: CardDress,
+  coach: CardCoach | null = null,
 ): Promise<Buffer> {
-  const response = await seasonCardResponse(season, LYON, format, translators(locale), locale, objectives, dress);
+  const response = await seasonCardResponse(season, LYON, format, translators(locale), locale, objectives, dress, coach);
   expect(response.headers.get("content-type")).toBe("image/png");
   expect(response.headers.get("cache-control")).toBe("private, max-age=0");
   return Buffer.from(await response.arrayBuffer());
@@ -220,6 +224,44 @@ describe("seasonCardResponse", () => {
         expect(pngSize(await render(season, format, "en"))).toEqual(CARD_SIZES[format]);
       }
     }
+  }, DRAWING_TIMEOUT_MS);
+
+  it("says the nation its manager coached at the card's foot, and its summer tournament, in capitals and without a club", () => {
+    const fr = translators("fr");
+    const en = translators("en");
+    const semi: CardCoach = { code: "POR", tournament: { tournament: "int.world", stage: 2 } };
+    expect(coachLine(semi, fr, "fr")).toBe("SÉLECTIONNEUR DU PORTUGAL · COUPE DES HÉMISPHÈRES : DEMI-FINALE");
+    expect(coachLine(semi, en, "en")).toBe("NATIONAL COACH OF PORTUGAL · HEMISPHERES CUP: SEMI-FINAL");
+    expect(coachLine({ code: "NED", tournament: { tournament: "int.eu", stage: 4 } }, fr, "fr")).toBe(
+      "SÉLECTIONNEUR DES PAYS-BAS · VAINQUEUR DE LA COUPE DU VIEUX CONTINENT",
+    );
+    expect(coachLine({ code: "NED", tournament: { tournament: "int.eu", stage: 4 } }, en, "en")).toBe(
+      "NATIONAL COACH OF THE NETHERLANDS · OLD CONTINENT CUP WINNERS",
+    );
+    expect(coachLine({ code: "CIV", tournament: { tournament: "int.world", stage: 1 } }, fr, "fr")).toBe(
+      "SÉLECTIONNEUR DE LA CÔTE D'IVOIRE · COUPE DES HÉMISPHÈRES : PHASE DE GROUPES",
+    );
+    expect(coachLine({ code: "ITA", tournament: { tournament: "int.eu", stage: 3 } }, fr, "fr")).toBe(
+      "SÉLECTIONNEUR DE L'ITALIE · COUPE DU VIEUX CONTINENT : FINALE",
+    );
+    // A season without a tournament: the nation alone; without a nation, no line.
+    expect(coachLine({ code: "FRA", tournament: null }, fr, "fr")).toBe("SÉLECTIONNEUR DE LA FRANCE");
+    expect(coachLine(null, fr, "fr")).toBeNull();
+  });
+
+  it("draws the national coach's line under the tallest headline, the longest line, in both formats and languages", async () => {
+    // The double of a promoted club with a European run, its objectives beside the season, a frame and a title.
+    const run = { ...CHAMPION, competitionCode: "fr.2", cupWinner: true, cupRound: 6, promoted: true, europeCode: "eu.2", europeStage: 4 };
+    const dress: CardDress = { frame: frameStyleOf("frame-gold-laurels"), title: "L'Insubmersible" };
+    const groups: CardCoach = { code: "CIV", tournament: { tournament: "int.world", stage: 1 } };
+    for (const locale of ["fr", "en"] as const) {
+      for (const format of ["landscape", "square"] as const) {
+        expect(pngSize(await render(run, format, locale, { met: 3, total: 4 }, dress, groups))).toEqual(CARD_SIZES[format]);
+      }
+    }
+    expect(pngSize(await render({ ...CHAMPION, rank: 9, champion: false }, "landscape", "fr", null, undefined, { code: "POR", tournament: null }))).toEqual(
+      CARD_SIZES.landscape,
+    );
   }, DRAWING_TIMEOUT_MS);
 
   it("counts the season's objectives met in the screens' words, nothing for a season without them", () => {

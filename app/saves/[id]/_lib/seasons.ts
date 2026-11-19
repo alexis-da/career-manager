@@ -98,8 +98,11 @@ export function isLastCompletedSeason(startYear: number, currentDate: Date): boo
   return seasonStartYear(currentDate) === startYear + 1;
 }
 
-/** The card's drawing: bumped when the card changes, so that no browser nor the server keeps an old one. */
-export const SEASON_CARD_VERSION = 2;
+/**
+ * The card's drawing: bumped when the card changes, so that no browser nor the server keeps an old one (3: the national
+ * coach's line at its foot).
+ */
+export const SEASON_CARD_VERSION = 3;
 
 /**
  * Where a season's card is drawn, in a language and a format ("square" for 1080 × 1080, 1200 × 630 otherwise): an

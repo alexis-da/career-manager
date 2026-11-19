@@ -3,8 +3,11 @@ import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
 import { DEFAULT_COSMETIC } from "@/src/lib/cosmetics";
 
-/** The career card's drawing: bumped when the card changes, so that no browser nor the server keeps an old one. */
-export const CAREER_CARD_VERSION = 1;
+/**
+ * The career card's drawing: bumped when the card changes, so that no browser nor the server keeps an old one (2: the
+ * titles won as a national coach among the trophies).
+ */
+export const CAREER_CARD_VERSION = 2;
 
 /**
  * Where the career card is drawn, in a language and a format ("square" for 1080 × 1080, 1200 × 630 otherwise), for a

@@ -152,6 +152,7 @@
       "title-youth-coach": { "name": "Formateur", "how": "30 missions « Titularise un joueur de 21 ans ou moins »" },
       "title-champion": { "name": "Champion", "how": "Un titre de champion de Division 1" },
       "title-cup-king": { "name": "Roi de coupe", "how": "Une coupe nationale gagnée" },
+      "title-national-coach": { "name": "Sélectionneur", "how": "Un tournoi d'été gagné comme sélectionneur" },
       "title-professor": { "name": "Le Professeur", "how": "Boutique" },
       "title-strategist": { "name": "Le Stratège", "how": "Boutique" },
       "title-unsinkable": { "name": "L'Insubmersible", "how": "Boutique" },

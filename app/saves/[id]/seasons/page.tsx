@@ -13,6 +13,7 @@ import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
 
 import { cupLabel, europeLabel, moveLabel, rankLabel, recordLabel } from "../_lib/seasons";
+import { getCoachHistory } from "@/src/db/national-view";
 import { getClubInternationals } from "@/src/db/nations-view";
 import { CareerInternationals } from "./_components/career-internationals";
 import { CareerLegends } from "./_components/career-legends";
@@ -21,6 +22,7 @@ import { CurrentSeasonLine } from "./_components/current-season";
 import { HistoryHead } from "./_components/history-head";
 import { TrophyRoom } from "./_components/trophy-room";
 import { careerCardFileName, careerCardPath } from "./_lib/career";
+import { coachTrophyTiles } from "./_lib/coach";
 import { getCareerHistoryCached } from "./_lib/history-cache";
 
 export const dynamic = "force-dynamic";
@@ -47,8 +49,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * The History tab (docs/design/historique.md): the career in a few figures and its card, the trophy room, the records
- * and the legends, then the season in progress and the completed ones, most recent first, each with a link to its card.
+ * The History tab (docs/design/historique.md): the career in a few figures and its card, the trophy room (the summer
+ * tournaments too, from a first mission as a national coach), the records and the legends, the national teams (his
+ * players', his missions), then the season in progress and the completed ones, most recent first, each with a link to
+ * its card.
  */
 export default async function SeasonsPage({ params, searchParams }: PageProps<"/saves/[id]/seasons">) {
   const { id } = await params;
@@ -63,10 +67,12 @@ export default async function SeasonsPage({ params, searchParams }: PageProps<"/
     getTranslations("stage"),
     getLocale(),
   ]);
-  const [history, dress, internationals] = await Promise.all([
+  // His missions as a national coach: a few rows, read with what moves, outside the cached part of the history.
+  const [history, dress, internationals, coach] = await Promise.all([
     getCareerHistoryCached(id),
     getWornCosmetics(ownerId),
     getClubInternationals(id, CLUB_INTERNATIONALS_SHOWN),
+    getCoachHistory(id),
   ]);
   const { clubColors, seasons } = history;
   // The career card from a completed season on, never in a challenge save (its card is its season's).
@@ -86,7 +92,7 @@ export default async function SeasonsPage({ params, searchParams }: PageProps<"/
       </h1>
 
       <HistoryHead history={history} card={card} />
-      <TrophyRoom room={history.trophyRoom} />
+      <TrophyRoom room={history.trophyRoom} coach={coachTrophyTiles(coach)} />
       <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
         <CareerRecords history={history} />
         <CareerLegends
@@ -95,8 +101,10 @@ export default async function SeasonsPage({ params, searchParams }: PageProps<"/
           paths={{ some: `/saves/${id}/seasons`, all: `/saves/${id}/seasons?legends=all` }}
         />
       </div>
-      {/* A save with nations, never a challenge's: its players with their national teams. */}
-      {internationals !== null && <CareerInternationals history={history} internationals={internationals} />}
+      {/* A save with nations, never a challenge's: its players with their national teams, and the manager's missions. */}
+      {(internationals !== null || coach !== null) && (
+        <CareerInternationals history={history} internationals={internationals ?? []} coach={coach} />
+      )}
       {history.current !== null && <CurrentSeasonLine season={history.current} />}
 
       {seasons.length === 0 ? (

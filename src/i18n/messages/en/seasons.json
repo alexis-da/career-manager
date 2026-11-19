@@ -109,6 +109,17 @@
         "none": "None of your players has played for his nation yet.",
         "explain": "Their caps and goals while they played for your club."
       },
+      "coach": {
+        "title": "National coach",
+        "ofNation": "{code, select, NED {of the Netherlands} other {of {nation}}}",
+        "spell": "National coach {nation}, {years}",
+        "span": "{from} → {to}",
+        "since": "since {from}",
+        "stage": "{stage, select, 1 {group stage} 2 {semi-final} 3 {final} 4 {winners} other {qualifiers}}",
+        "run": "{name} {year}: {stage}",
+        "won": "won the {name} {year}",
+        "ended": "{outcome, select, NOT_QUALIFIED {mission ended: did not qualify} MISSED {mission ended: objective missed} other {resigned}}"
+      },
       "legends": {
         "title": "Legends",
         "explain": "Legend index: 1 point a match for the club, 2 a goal, 1 an assist, 15 for each player of the season award, 10 to 20 for each trophy won with him. A legend from {threshold}.",
@@ -169,7 +180,10 @@
     "playerGoals": "GOALS",
     "playerAssists": "ASSISTS",
     "playerRating": "RATING",
-    "manager": "MANAGER: {title}"
+    "manager": "MANAGER: {title}",
+    "coach": "NATIONAL COACH {nation}",
+    "coachRun": "{coach} · {tournament}: {stage}",
+    "coachWon": "{coach} · {tournament} WINNERS"
   },
   "careerCard": {
     "title": "CAREER",
@@ -181,6 +195,8 @@
     "eu1": "{count, plural, one {# LAUREL CUP} other {# LAUREL CUPS}}",
     "eu2": "{count, plural, one {# PENNANT CUP} other {# PENNANT CUPS}}",
     "promotion": "{count, plural, one {# PROMOTION} other {# PROMOTIONS}}",
+    "coachEu": "{count, plural, one {# OLD CONTINENT CUP} other {# OLD CONTINENT CUPS}}",
+    "coachWorld": "{count, plural, one {# HEMISPHERES CUP} other {# HEMISPHERES CUPS}}",
     "noTrophy": "TROPHIES TO WIN",
     "biggestWin": "BIGGEST WIN",
     "unbeaten": "UNBEATEN RUN",

@@ -63,6 +63,17 @@ describe("the collection's catalogue", () => {
     expect(bySeason("double")).toEqual(["badge-double", "frame-double-star"]);
   });
 
+  it("gives the national coach's title for a summer tournament won, never on sale, named in both languages", () => {
+    const bySeason = (what: string) =>
+      COSMETICS.filter(({ unlock }: Cosmetic) => unlock.by === "achievement" && unlock.achievement.on === "season" && unlock.achievement.what === what).map(
+        ({ id, kind }) => `${kind}:${id}`,
+      );
+    expect(bySeason("nationalTournament")).toEqual(["TITLE:title-national-coach"]);
+    expect(priceOf("title-national-coach")).toBeNull();
+    const [fr, en] = [testTranslator("fr", "rewards"), testTranslator("en", "rewards")];
+    expect([fr("cosmetics.title-national-coach.name"), en("cosmetics.title-national-coach.name")]).toEqual(["Sélectionneur", "National coach"]);
+  });
+
   it("names the laurel frames « Couronne » and « Couronne d'or », clear of the Coupe des Lauriers, under their ids of always", () => {
     const [fr, en] = [testTranslator("fr", "rewards"), testTranslator("en", "rewards")];
     expect(COSMETIC_IDS.has("frame-laurels") && COSMETIC_IDS.has("frame-gold-laurels")).toBe(true);

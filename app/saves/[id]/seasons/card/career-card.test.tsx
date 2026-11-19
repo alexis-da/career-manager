@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { realClubNames } from "@/prisma/seed/real-club-names";
 import { careerHistoryView, type CompletedCareer, type LiveCareer } from "@/src/db/career-history";
+import type { CoachHistory } from "@/src/db/national-view";
 import type { HistoryLine, HistorySeason } from "@/src/engine/career-history";
 import type { Locale } from "@/src/i18n/locale";
 import { MESSAGES } from "@/src/i18n/messages";
@@ -111,6 +112,7 @@ describe("careerCardData", () => {
         { kind: "eu1", count: 1 },
         { kind: "promotion", count: 1 },
       ],
+      coachTitles: [],
       biggestWin: "7-0",
       unbeaten: 2,
       player: { title: "legend", playerKey: "olympique-lyonnais#9", name: "Prénom Nom", age: 27, matches: 120, goals: 77 },
@@ -123,12 +125,44 @@ describe("careerCardData", () => {
     expect(young.player).toMatchObject({ title: "topScorer", goals: 4 });
     expect(JSON.stringify(young)).not.toContain("Un club réel");
   });
+
+  it("counts the summer tournaments won as a national coach, those that ended a completed season only", () => {
+    // The career's last completed season is 2028-29, which the tournament of 2029 ended.
+    const titles: CoachHistory["titles"] = [
+      { tournament: "int.world", year: 2028, code: "POR" },
+      { tournament: "int.world", year: 2029, code: "POR" },
+      // Won in June of the season in progress (2029-30): not yet the career its card shows.
+      { tournament: "int.eu", year: 2030, code: "POR" },
+    ];
+    const data = careerCardData(careerHistoryView(COMPLETED, LIVE), { titles });
+    expect(data.coachTitles).toEqual([{ tournament: "int.world", count: 2 }]);
+    // Never among the club's own trophies.
+    expect(data.trophies.map(({ kind }) => kind)).toEqual(["championD1", "cup", "eu1", "promotion"]);
+    expect(careerCardData(careerHistoryView(COMPLETED, LIVE), null).coachTitles).toEqual([]);
+  });
 });
 
 // Rendering only: the images themselves are checked by eye.
 describe("careerCardResponse", () => {
   const data = careerCardData(careerHistoryView(COMPLETED, LIVE));
-  const bare: CareerCardData = { ...data, path: null, trophies: [], biggestWin: null, unbeaten: null, player: null, objectives: null };
+  const bare: CareerCardData = { ...data, path: null, trophies: [], coachTitles: [], biggestWin: null, unbeaten: null, player: null, objectives: null };
+  // Every trophy of the room and both summer tournaments: more than a list holds, side by side.
+  const crowded: CareerCardData = {
+    ...data,
+    path: "D2 → D1 → D2 → D1",
+    trophies: [
+      { kind: "championD1", count: 3 },
+      { kind: "championD2", count: 1 },
+      { kind: "cup", count: 2 },
+      { kind: "eu1", count: 1 },
+      { kind: "eu2", count: 2 },
+      { kind: "promotion", count: 2 },
+    ],
+    coachTitles: [
+      { tournament: "int.eu", count: 1 },
+      { tournament: "int.world", count: 2 },
+    ],
+  };
 
   it("draws a career's card in both formats and languages, and a bare one", async () => {
     for (const locale of ["fr", "en"] as const) {
@@ -137,6 +171,16 @@ describe("careerCardResponse", () => {
         expect(pngSize(await render(bare, format, locale))).toEqual(CARD_SIZES[format]);
       }
     }
+  }, DRAWING_TIMEOUT_MS * 2);
+
+  it("draws every trophy and the titles won as a national coach side by side, in both formats and languages", async () => {
+    for (const locale of ["fr", "en"] as const) {
+      for (const format of ["landscape", "square"] as const) {
+        expect(pngSize(await render(crowded, format, locale, "frame-gold-laurels"))).toEqual(CARD_SIZES[format]);
+      }
+    }
+    const coachOnly: CareerCardData = { ...bare, coachTitles: [{ tournament: "int.world", count: 1 }] };
+    expect(pngSize(await render(coachOnly, "landscape"))).toEqual(CARD_SIZES.landscape);
   }, DRAWING_TIMEOUT_MS * 2);
 
   it("draws it in a frame of the collection, with the manager's title", async () => {

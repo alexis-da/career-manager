@@ -5,6 +5,9 @@ import { ImageResponse } from "next/og";
 import type { CSSProperties, ReactNode } from "react";
 import type { ClosedObjectivesView } from "@/src/db/objectives";
 import type { SeasonResultView } from "@/src/db/season-results";
+import { COACH_STAGES, type CoachStage } from "@/src/engine/national-coach";
+import type { NationCode } from "@/src/engine/nations";
+import type { TournamentCode } from "@/src/engine/tournaments";
 import { seasonLabel } from "@/src/engine/world";
 import { competitionName } from "@/src/i18n/countries";
 import type { Locale } from "@/src/i18n/locale";
@@ -16,6 +19,7 @@ import { faceDataUri } from "@/src/og/face-image";
 import { DISPLAY_FONT, imageFonts } from "@/src/og/fonts";
 
 import { europeLabel, moveLabel, rankLabel, recordLabel } from "../../../_lib/seasons";
+import { coachStageLabel, ofNation, tournamentName } from "../../_lib/coach";
 
 // The shareable card of a season: the brand's midnight blue, the club's colors as accents, and never a club name, real
 // or fictional (CLAUDE.md, « Communication sortante »). The competition keeps its neutral name.
@@ -30,7 +34,14 @@ export type CardTranslators = {
   seasonCard: Translator<"seasonCard">;
   objectives: Translator<"objectives">;
   stage: Translator<"stage">;
+  nations: Translator<"nations">;
 };
+
+/**
+ * The nation its manager coached that season, and the summer tournament that ended it when there was one, with the
+ * stage his nation reached (getCoachSeason, src/db/national-view.ts); null for a season without a nation.
+ */
+export type CardCoach = { code: NationCode; tournament: { tournament: TournamentCode; stage: CoachStage } | null };
 
 export const CARD_SIZES: Record<CardFormat, { width: number; height: number }> = {
   landscape: { width: 1200, height: 630 },
@@ -225,8 +236,35 @@ export function objectivesLine(objectives: CardObjectives | null, t: Pick<CardTr
 }
 
 /**
+ * The line of a season its manager coached a nation (docs/design/selections.md § 9.10), in capitals: « SÉLECTIONNEUR DU
+ * PORTUGAL · COUPE DES HÉMISPHÈRES : DEMI-FINALE », « … · VAINQUEUR DE LA COUPE DES HÉMISPHÈRES » for a title, the nation
+ * alone in a season without a tournament (« NATIONAL COACH OF PORTUGAL · HEMISPHERES CUP: SEMI-FINAL » in English);
+ * null for a season without a nation. Never a club's name.
+ */
+export function coachLine(
+  coach: CardCoach | null,
+  t: Pick<CardTranslators, "seasons" | "seasonCard" | "world" | "nations">,
+  locale: Locale,
+): string | null {
+  if (coach === null) {
+    return null;
+  }
+  const capitals = (text: string): string => text.toLocaleUpperCase(locale);
+  const head = t.seasonCard("coach", { nation: capitals(ofNation(coach.code, t.seasons, t.world)) });
+  const run = coach.tournament;
+  if (run === null) {
+    return head;
+  }
+  const tournament = capitals(tournamentName(run.tournament, t.nations));
+  return run.stage === COACH_STAGES.WINNER
+    ? t.seasonCard("coachWon", { coach: head, tournament })
+    : t.seasonCard("coachRun", { coach: head, tournament, stage: capitals(coachStageLabel(run.stage, t.seasons)) });
+}
+
+/**
  * The card of a season as a PNG response, 1200 × 630 or 1080 × 1080, in the player's language, with its objectives
- * (getClosedObjectives) when it had some, in the frame the player wears and with their title (CardDress).
+ * (getClosedObjectives) when it had some, in the frame the player wears and with their title (CardDress), and the nation
+ * its manager coached that season (CardCoach) in a line at its foot.
  */
 export async function seasonCardResponse(
   season: SeasonResultView,
@@ -236,14 +274,20 @@ export async function seasonCardResponse(
   locale: Locale,
   objectives: CardObjectives | null,
   dress: CardDress = PLAIN_DRESS,
+  coach: CardCoach | null = null,
 ): Promise<ImageResponse> {
   const [fonts, logo] = await Promise.all([imageFonts(), brandIcon()]);
   const square = format === "square";
   // The club color that stands out best on midnight blue, the brand's orange when neither does; the other club color
   // only as the thin band, when it stands out too.
   const [accent, secondary] = clubAccentsOn(clubColors, MIDNIGHT_BLUE, ORANGE);
-  const rankSize = square ? 250 : 190;
-  const statSize = square ? 72 : 60;
+  // The national coach's line, across the card's foot, takes its height from the face and the space above the figures,
+  // and in landscape from the rank and the figures too, a little smaller then; a card without it is drawn as it always
+  // was.
+  const coachText = coachLine(coach, t, locale);
+  const compact = coachText !== null;
+  const rankSize = square ? 250 : compact ? 160 : 190;
+  const statSize = square ? 72 : compact ? 54 : 60;
 
   // The badge (cardBadge) underlined in orange, with its line; or the rank with its suffix raised: « 2e », « 2nd »,
   // never « 2E ».
@@ -293,7 +337,7 @@ export async function seasonCardResponse(
       <div style={{ marginTop: 2, fontSize: 32, color: MUTED }}>{competitionName(season.competitionCode, t.world)}</div>
       {europeText !== null && <div style={{ marginTop: 2, fontSize: square ? 30 : 28 }}>{europeText}</div>}
       <div style={{ display: "flex", marginTop: square ? 28 : 12 }}>{rank}</div>
-      <div style={{ ...row, marginTop: square ? 40 : 26 }}>
+      <div style={{ ...row, marginTop: square ? (compact ? 32 : 40) : compact ? 18 : 26 }}>
         <Stat value={String(season.points)} label={t.seasonCard("points")} size={statSize} />
         <Stat value={recordLabel(season)} label={t.seasonCard("record")} size={statSize} />
         <Stat value={`${season.goalsFor}-${season.goalsAgainst}`} label={t.seasonCard("goals")} size={statSize} />
@@ -323,12 +367,31 @@ export async function seasonCardResponse(
       season={season}
       clubColors={clubColors}
       accent={accent}
-      faceSize={square ? 300 : 250}
+      faceSize={square ? (compact ? 240 : 300) : compact ? 210 : 250}
       square={square}
       t={t}
       locale={locale}
     />
   );
+
+  // « SÉLECTIONNEUR DU PORTUGAL · COUPE DES HÉMISPHÈRES : DEMI-FINALE » across the card, under everything, on one line.
+  const coachRow =
+    coachText === null ? null : (
+      <div style={{ ...row, alignItems: "center", marginTop: square ? 22 : 14 }}>
+        <div style={{ display: "flex", flexShrink: 0, width: 12, height: 12, borderRadius: 6, background: ORANGE, marginRight: 14 }} />
+        <div style={{ fontSize: square ? 26 : 24, letterSpacing: 1 }}>{coachText}</div>
+      </div>
+    );
+  // In landscape, the headline and the footer on the left, the best player on the right.
+  const landscapeColumns = [
+    <div key="left" style={{ ...column, justifyContent: "space-between", flex: 1 }}>
+      {headline}
+      {footer}
+    </div>,
+    <div key="right" style={{ ...column, justifyContent: "center", width: 400 }}>
+      {player}
+    </div>,
+  ];
 
   return new ImageResponse(
     (
@@ -362,15 +425,21 @@ export async function seasonCardResponse(
           >
             {headline}
             {player}
-            {footer}
+            {coachRow === null ? (
+              footer
+            ) : (
+              <div style={column}>
+                {footer}
+                {coachRow}
+              </div>
+            )}
           </div>
+        ) : coachRow === null ? (
+          <div style={{ ...row, flex: 1, padding: `${48 - inset}px ${56 - inset}px ${40 - inset}px ${82 - inset}px` }}>{landscapeColumns}</div>
         ) : (
-          <div style={{ ...row, flex: 1, padding: `${48 - inset}px ${56 - inset}px ${40 - inset}px ${82 - inset}px` }}>
-            <div style={{ ...column, justifyContent: "space-between", flex: 1 }}>
-              {headline}
-              {footer}
-            </div>
-            <div style={{ ...column, justifyContent: "center", width: 400 }}>{player}</div>
+          <div style={{ ...column, flex: 1, padding: `${48 - inset}px ${56 - inset}px ${40 - inset}px ${82 - inset}px` }}>
+            <div style={{ ...row, flex: 1 }}>{landscapeColumns}</div>
+            {coachRow}
           </div>
         )}
       </div>

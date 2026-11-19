@@ -11,7 +11,12 @@ export type Achievement =
   | { on: "perfectDay" } // the three missions of a day
   | { on: "liveMatches"; count: number }
   | { on: "liveWins"; count: number }
-  | { on: "season"; what: "championD1" | "championD2" | "champion" | "promoted" | "cup" | "double" | "europe" | "roadmap" } // europe: either European competition won
+  // europe: either European competition won; nationalTournament: the summer tournament that ended the season, won by
+  // the nation the manager coached (docs/design/selections.md § 5.5)
+  | {
+      on: "season";
+      what: "championD1" | "championD2" | "champion" | "promoted" | "cup" | "double" | "europe" | "roadmap" | "nationalTournament";
+    }
   | { on: "challengePodium" };
 
 /** How a cosmetic is had: worn by default, a streak's cycles done in all, bought, or an achievement. */
@@ -42,6 +47,7 @@ export const COSMETICS = [
   { id: "title-youth-coach", kind: "TITLE", unlock: { by: "achievement", achievement: { on: "missions", kinds: ["START_YOUTH"], count: 30 } } },
   { id: "title-champion", kind: "TITLE", unlock: { by: "achievement", achievement: { on: "season", what: "championD1" } } },
   { id: "title-cup-king", kind: "TITLE", unlock: { by: "achievement", achievement: { on: "season", what: "cup" } } },
+  { id: "title-national-coach", kind: "TITLE", unlock: { by: "achievement", achievement: { on: "season", what: "nationalTournament" } } },
   { id: "title-professor", kind: "TITLE", unlock: { by: "shop", price: TITLE_PRICE } },
   { id: "title-strategist", kind: "TITLE", unlock: { by: "shop", price: TITLE_PRICE } },
   { id: "title-unsinkable", kind: "TITLE", unlock: { by: "shop", price: TITLE_PRICE } },

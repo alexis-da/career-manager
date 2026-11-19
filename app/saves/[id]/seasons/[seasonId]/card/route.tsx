@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
 import { getLocale } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
+import { getCoachSeason } from "@/src/db/national-view";
 import { getClosedObjectives } from "@/src/db/objectives";
 import { ownedCardDress } from "@/src/db/rewards";
 import { getSeasonResult } from "@/src/db/season-results";
@@ -19,7 +20,8 @@ const CARD_CACHE_SECONDS = 30 * 24 * 60 * 60;
 /**
  * A completed season's card as PNG bytes (base64), drawn once for its save, season, format and language, then kept by
  * the server across requests and instances (Next's data cache): drawing one is some 440 ms of CPU (satori and resvg).
- * null when the season has no result. Reads no request data: its language, frame and title come from its address.
+ * null when the season has no result. Reads no request data: its language, frame and title come from its address. The
+ * nation its manager coached that season and the tournament that ended it never change once the season is over.
  */
 const drawCard = unstable_cache(
   async (
@@ -34,6 +36,7 @@ const drawCard = unstable_cache(
     if (result === null) {
       return null;
     }
+    const coach = await getCoachSeason(saveId, result.season.startYear);
     const response = await seasonCardResponse(
       result.season,
       result.clubColors,
@@ -45,10 +48,12 @@ const drawCard = unstable_cache(
         seasonCard: translatorFor(locale, "seasonCard"),
         objectives: translatorFor(locale, "objectives"),
         stage: translatorFor(locale, "stage"),
+        nations: translatorFor(locale, "nations"),
       },
       locale,
       objectives,
       { frame: frameStyleOf(frame), title: title === null ? null : translatorFor(locale, "rewards")(`cosmetics.${title}.name`) },
+      coach,
     );
     return Buffer.from(await response.arrayBuffer()).toString("base64");
   },

@@ -1,7 +1,9 @@
+import { COACH_STAGES } from "../engine/national-coach";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 import { COSMETICS, cosmeticOf, isCosmeticId, owns, type Achievement, type CosmeticId, type CosmeticKind } from "../lib/cosmetics";
 import { describeError } from "../lib/diagnostics";
 import { prisma } from "./client";
+import { getCoachSeason } from "./national-view";
 
 // The rewards of missions v2 (docs/design/missions-v2.md): the tokens' journal and balance, the collection of cosmetics
 // and the achievements that unlock them. Every token is written once, by its key (« mission:2026-11-18:HARD »), in the
@@ -183,9 +185,9 @@ export async function unlockMissionAchievements(
 }
 
 /**
- * A season closed (advanceToNextSeason, once its transaction is committed): its palmarès and objectives unlock their
- * cosmetics for the save's owner, never in a challenge save. A failure is logged, never thrown: it costs a badge, never
- * the season.
+ * A season closed (advanceToNextSeason, once its transaction is committed): its palmarès, its objectives and the summer
+ * tournament that ended it, won by the nation its manager coached, unlock their cosmetics for the save's owner, never in
+ * a challenge save. A failure is logged, never thrown: it costs a badge, never the season.
  */
 export async function unlockSeasonAchievements(saveId: string, seasonId: string | null, db: PrismaClient = prisma): Promise<void> {
   if (seasonId === null) {
@@ -198,7 +200,7 @@ export async function unlockSeasonAchievements(saveId: string, seasonId: string 
     }
     const result = await db.seasonResult.findFirst({
       where: { saveId, seasonId },
-      select: { trophies: true, promoted: true, competition: { select: { tier: true } } },
+      select: { trophies: true, promoted: true, competition: { select: { tier: true } }, season: { select: { startYear: true } } },
     });
     if (result === null) {
       return;
@@ -207,6 +209,8 @@ export async function unlockSeasonAchievements(saveId: string, seasonId: string 
       where: { saveId, seasonId, OR: [{ imposed: true }, { chosen: true }] },
       select: { outcome: true },
     });
+    // The nation he coached that season, and the summer tournament that ended it.
+    const coached = await getCoachSeason(saveId, result.season.startYear);
     const champion = result.trophies.includes("champion");
     const cup = result.trophies.includes("cup");
     const facts: Record<string, boolean> = {
@@ -219,6 +223,8 @@ export async function unlockSeasonAchievements(saveId: string, seasonId: string 
       // Either European competition won (the season's league result keeps its trophy, « europe »).
       europe: result.trophies.includes("europe"),
       roadmap: objectives.length > 0 && objectives.every(({ outcome }) => outcome === "ACHIEVED" || outcome === "EXCEEDED"),
+      // A summer tournament won as national coach (docs/design/selections.md § 5.5).
+      nationalTournament: coached?.tournament?.stage === COACH_STAGES.WINNER,
     };
     const ids = achieved((achievement) => achievement.on === "season" && facts[achievement.what] === true);
     const ownerId = save.ownerId;

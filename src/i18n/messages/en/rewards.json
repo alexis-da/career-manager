@@ -152,6 +152,7 @@
       "title-youth-coach": { "name": "Youth coach", "how": "30 “Start a player aged 21 or under” missions" },
       "title-champion": { "name": "Champion", "how": "A Division 1 title" },
       "title-cup-king": { "name": "Cup king", "how": "A national cup won" },
+      "title-national-coach": { "name": "National coach", "how": "A summer tournament won as national coach" },
       "title-professor": { "name": "The Professor", "how": "Shop" },
       "title-strategist": { "name": "The Strategist", "how": "Shop" },
       "title-unsinkable": { "name": "The Unsinkable", "how": "Shop" },
