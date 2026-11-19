@@ -62,6 +62,19 @@ describe("a save's sections", () => {
     expect(tabTestId("europe")).toBe("nav-europe");
   });
 
+  it("offers « Sélection » under Équipe to a national coach only, his match live under Match as his club's", () => {
+    const team = sectionAt("/squad");
+    expect(tabsOf(team, true, true, true)).toEqual(["squad", "lineup"]);
+    expect(tabsOf(team, true, true, true, true)).toEqual(["squad", "lineup", "nation"]);
+    expect(tabAt("/nation")).toBe("nation");
+    expect(tabAt("/nation/lineup")).toBe("nation");
+    expect(sectionAt("/nation/lineup").key).toBe("team");
+    expect(tabTestId("nation")).toBe("nav-nation");
+    expect(isLivePath("/live/nation")).toBe(true);
+    expect(sectionAt("/live/nation").key).toBe("match");
+    expect(tabAt("/live/nation")).toBeUndefined();
+  });
+
   it("has five entries, each leading to one of its own screens", () => {
     expect(SECTIONS.map(({ key }) => key)).toEqual(["dashboard", "team", "match", "transfers", "club"]);
     for (const section of SECTIONS) {

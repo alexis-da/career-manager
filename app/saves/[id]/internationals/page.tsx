@@ -10,13 +10,14 @@ import {
   type InternationalResult,
   type NationView,
   type TournamentView,
-  type ZoneTableView,
 } from "@/src/db/nations-view";
 import { FINAL_ROUND, FRIENDLY, OLD_CONTINENT_CUP, SEMI_FINAL_ROUND, type TournamentCode } from "@/src/engine/tournaments";
 import type { Translator } from "@/src/i18n/translator";
 import { formatDayMonth } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { NationPill } from "../_components/nation-pill";
 import { ScoreNotes } from "../_components/score-notes";
+import { TABLE_COLUMNS, TableHead, ZoneTable } from "../_components/zone-table";
 
 export const dynamic = "force-dynamic";
 
@@ -45,15 +46,6 @@ function stageOf(result: InternationalResult, t: Translator<"nations">): string 
     return t("stages.final");
   }
   return t("stages.group", { group: GROUP_LETTERS[result.pool ?? 0], round: result.round });
-}
-
-/** A nation by its code in a pill, as a club by its initials: never a federation's crest. */
-function NationPill({ code, className }: { code: string; className?: string }) {
-  return (
-    <span className={cn("inline-grid h-7 min-w-11 place-items-center rounded-md bg-secondary px-1.5 font-heading text-sm leading-none", className)}>
-      {code}
-    </span>
-  );
 }
 
 /** A played match: its stage, the two nations, the score (« a.p. », « 5-3 t.a.b. »), the managed club's players' goals marked. */
@@ -95,67 +87,6 @@ function ResultLine({ result, t, tWorld }: { result: InternationalResult; t: Tra
         </div>
       )}
     </li>
-  );
-}
-
-/** The figures of a table's row, in narrow columns: played, goal difference, points. */
-const TABLE_COLUMNS = "grid grid-cols-[1.25rem_minmax(0,1fr)_2rem_2.5rem_2.5rem] items-center gap-x-2";
-
-function TableHead({ t }: { t: Translator<"nations"> }) {
-  return (
-    <div className={cn(TABLE_COLUMNS, "px-1 pb-1 text-[0.6875rem] font-semibold text-muted-foreground uppercase")}>
-      <span />
-      <span>{t("table.nation")}</span>
-      <abbr title={t("table.playedTitle")} className="text-right no-underline">
-        {t("table.played")}
-      </abbr>
-      <abbr title={t("table.differenceTitle")} className="text-right no-underline">
-        {t("table.difference")}
-      </abbr>
-      <abbr title={t("table.pointsTitle")} className="text-right no-underline">
-        {t("table.points")}
-      </abbr>
-    </div>
-  );
-}
-
-/** A zone's qualifiers: its table, its qualifying places above a dashed line. */
-function ZoneTable({ zone, t, tWorld }: { zone: ZoneTableView; t: Translator<"nations">; tWorld: Translator<"world"> }) {
-  return (
-    <section data-testid="internationals-zone" data-zone={zone.zone} className="space-y-1.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h3 className="eyebrow">{t(`campaign.zone.${zone.zone}`)}</h3>
-        <p className="text-xs text-muted-foreground">{t("campaign.places", { count: zone.places })}</p>
-      </div>
-      <TableHead t={t} />
-      <ol className="text-sm">
-        {zone.rows.map((row) => {
-          const qualified = row.rank <= zone.places;
-          return (
-            <li
-              key={row.code}
-              data-testid="internationals-zone-row"
-              data-code={row.code}
-              data-qualified={qualified}
-              className={cn(
-                TABLE_COLUMNS,
-                "min-h-10 border-b px-1 py-1 last:border-b-0",
-                row.rank === zone.places && "border-b-2 border-dashed border-highlight/60",
-              )}
-            >
-              <span className={cn("text-right font-heading tabular-nums", qualified ? "text-highlight" : "text-muted-foreground")}>{row.rank}</span>
-              <span className="flex min-w-0 items-center gap-2">
-                <NationPill code={row.code} className="h-6 min-w-10 text-xs" />
-                <span className="truncate font-semibold">{tWorld(`nationalities.${row.code}`)}</span>
-              </span>
-              <span className="text-right tabular-nums">{row.played}</span>
-              <span className="text-right tabular-nums">{row.goalsFor - row.goalsAgainst > 0 ? `+${row.goalsFor - row.goalsAgainst}` : row.goalsFor - row.goalsAgainst}</span>
-              <span className="text-right font-heading text-base tabular-nums">{row.points}</span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
   );
 }
 

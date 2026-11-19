@@ -1,0 +1,35 @@
+{
+  "coachOffer": {
+    "title": "National team offer",
+    "proposal": "The federation of {nation} offers you the job of national coach.",
+    "objective": {
+      "QUALIFIED": "Objective: qualify for the {tournament}",
+      "SEMI_FINAL": "Objective: qualify for the {tournament}, then reach the semi-finals",
+      "FINAL": "Objective: qualify for the {tournament}, then reach the final",
+      "WINNER": "Objective: qualify for the {tournament}, then win it"
+    },
+    "noObjective": "No tournament for {nation} this cycle: prepare for the next one",
+    "stages": {
+      "QUALIFIED": "qualification",
+      "SEMI_FINAL": "the semi-finals",
+      "FINAL": "the final",
+      "WINNER": "the title"
+    },
+    "exceeded": "Exceeded: {stage}",
+    "rank": "{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} nation by strength",
+    "firstBreak": "First break: {from} to {to}",
+    "keepClub": "You keep your club: the national team plays during the breaks and in June.",
+    "rule": "If your national team fails to qualify, or falls short of the objective, the federation ends your mission. Your club knows nothing of it: neither its budget nor the chairman's confidence is at stake.",
+    "leave": "You can leave the national team between two breaks.",
+    "view": "See the offer",
+    "decline": "Not now",
+    "accept": "Accept the job",
+    "accepting": "Signing…",
+    "cancel": "Cancel",
+    "failed": "Your answer couldn't be saved. Try again.",
+    "forms": {
+      "of": "{code, select, NED {the Netherlands} other {{nation}}}",
+      "the": "{code, select, NED {the Netherlands} other {{nation}}}"
+    }
+  }
+}

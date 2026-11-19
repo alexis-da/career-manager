@@ -79,7 +79,8 @@ function SimulateMenu({ disabled, hero }: { disabled: boolean; hero: boolean }) 
 type GameActionsProps = {
   saveId: string;
   seasonFinished: boolean;
-  liveMatch: boolean; // the managed club's match waits live: nothing moves on before it ends
+  liveMatch: boolean; // a match waits live (the managed club's, or its national coach's): nothing moves on before it ends
+  liveHref?: string; // where it is played on, within the save: « /live », or « /live/nation » for the national coach's
   worldVersion: WorldVersion; // 2: « Prochain match », which plays the other competitions' dates in between
   hero?: boolean; // in the dashboard's hero: larger, « Jouer le match », with `prepare` next to « Simuler »
   prepare?: ReactNode;
@@ -89,7 +90,16 @@ type GameActionsProps = {
 };
 
 /** The game's main action, in orange, with the quick simulation menu during a season. */
-export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion, hero = false, prepare, nextBreak = false }: GameActionsProps) {
+export function GameActions({
+  saveId,
+  seasonFinished,
+  liveMatch,
+  liveHref = "/live",
+  worldVersion,
+  hero = false,
+  prepare,
+  nextBreak = false,
+}: GameActionsProps) {
   const [pending, startTransition] = useTransition();
   const [intermediate, setIntermediate] = useState(0); // dates played so far by « Prochain match »
   const [kickOff, setKickOff] = useState(false); // « Prochain match » is playing the managed club's date
@@ -168,7 +178,7 @@ export function GameActions({ saveId, seasonFinished, liveMatch, worldVersion, h
       );
 
   const main = liveMatch ? (
-    <Link href={`/saves/${saveId}/live`} className={buttonVariants({ variant, className })} data-testid="resume-match">
+    <Link href={`/saves/${saveId}${liveHref}`} className={buttonVariants({ variant, className })} data-testid="resume-match">
       <PlayIcon data-icon="inline-start" className="fill-current" />
       {t("resumeMatch")}
     </Link>

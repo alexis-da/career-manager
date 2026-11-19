@@ -2,9 +2,12 @@ import {
   BandageIcon,
   BatteryLowIcon,
   ChevronRightIcon,
+  ClipboardListIcon,
   FileClockIcon,
   FlagIcon,
+  FlagOffIcon,
   HandCoinsIcon,
+  HandshakeIcon,
   ShieldAlertIcon,
   TargetIcon,
   UserCheckIcon,
@@ -15,16 +18,19 @@ import Link from "@/src/components/link";
 import type { ComponentType, ReactNode } from "react";
 import type { Dashboard } from "@/src/db/dashboard";
 import type { ManagedLineup } from "@/src/db/lineup";
+import type { CoachTodo } from "@/src/db/national-view";
 import type { ManagedBreak } from "@/src/db/nations-view";
 import type { MarketSales } from "@/src/db/market-sales";
 import { EUROPE_YELLOWS_PER_SUSPENSION, ROTATION_FITNESS, YELLOWS_PER_SUSPENSION } from "@/src/engine/balance";
 import { isEuropeCode } from "@/src/engine/europe";
 import { isAvailable } from "@/src/engine/lineup";
 import { elevenOf, weakSpotOf, type WeakSpot } from "@/src/engine/market-proposals";
+import type { TournamentCode } from "@/src/engine/tournaments";
 import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
 import { formatDayMonth, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { dayRange, nationIn, nationsIn, tournamentName } from "./coach-names";
 
 /** Below this many players under contract, the list warns. */
 const SQUAD_ALERT_SIZE = 18;
@@ -44,6 +50,9 @@ type Todo = {
     | "international-callups"
     | "booking-risks"
     | "europe-booking-risks"
+    | "coach-offer"
+    | "coach-call-up"
+    | "coach-ended"
     | "offers"
     | "weak-spot"
     | "expiring-contracts"
@@ -85,8 +94,84 @@ type DashboardTodoProps = {
   firstMatchPlayed: boolean;
   // An international break about to be played (its call-ups) or just played (who comes back injured or tired).
   internationalBreak: ManagedBreak | null;
+  // The national coach's lines (getCoachTodos): a federation's offer, his list before his break or tournament, the end
+  // of his mission. None by default.
+  coachTodos?: readonly CoachTodo[];
+  // The summer tournament his list is for, when it is one: its line names it.
+  coachTournament?: TournamentCode | null;
   className?: string;
 };
+
+/** The translators the national coach's lines name things with. */
+type CoachNames = {
+  t: Translator<"dashboardTodo">;
+  tCoach: Translator<"coachOffer">;
+  tNations: Translator<"nations">;
+  tWorld: Translator<"world">;
+};
+
+/**
+ * The national coach's lines (docs/design/selections.md § 5.1, 5.4): a federation's offer while it is open, to the
+ * season's start screen, where it is answered; his list before his break or summer tournament, his assistant's ready and
+ * going as it is unless he changes it, never blocking; the end of a mission the federation decided this season, his club
+ * going on, which leads nowhere.
+ */
+function coachLinesOf(
+  todos: readonly CoachTodo[],
+  tournament: TournamentCode | null,
+  base: string,
+  { t, tCoach, tNations, tWorld }: CoachNames,
+  locale: Locale,
+): Todo[] {
+  return todos.flatMap((todo): Todo[] => {
+    switch (todo.kind) {
+      case "offer": {
+        if (todo.offers.length === 0) {
+          return [];
+        }
+        const [first] = todo.offers;
+        return [
+          {
+            id: "coach-offer",
+            severity: "warning",
+            icon: HandshakeIcon,
+            title:
+              todo.offers.length === 1
+                ? t("coachOffer", { nation: nationIn(first, "of", tCoach, tWorld) })
+                : t("coachOffers", { count: todo.offers.length, nations: nationsIn(todo.offers, "the", tCoach, tWorld, locale) }),
+            detail: t("coachOfferDetail"),
+            href: `${base}/season-start`,
+          },
+        ];
+      }
+      case "call-up":
+        return [
+          {
+            id: "coach-call-up",
+            severity: "ok",
+            icon: ClipboardListIcon,
+            title: !todo.tournament
+              ? t("coachCallUp", dayRange(todo.first, todo.last, locale))
+              : tournament === null
+                ? t("coachCallUpSummer")
+                : t("coachCallUpTournament", { tournament: tournamentName(tournament, null, tNations) }),
+            detail: t("coachCallUpDetail"),
+            href: `${base}/nation`,
+          },
+        ];
+      case "ended":
+        return [
+          {
+            id: "coach-ended",
+            severity: "neutral",
+            icon: FlagOffIcon,
+            title: t(`coachEnded.${todo.outcome}`, { nation: nationIn(todo.code, "of", tCoach, tWorld) }),
+            detail: t("coachEndedDetail"),
+          },
+        ];
+    }
+  });
+}
 
 const shortName = ({ firstName, lastName }: { firstName: string; lastName: string }): string => `${firstName.charAt(0)}. ${lastName}`;
 
@@ -140,6 +225,7 @@ function todosOf(
   t: Translator<"dashboardTodo">,
   tPositions: Translator<"positions">,
   locale: Locale,
+  coachLines: readonly Todo[],
 ): Todo[] {
   const { club } = dashboard;
   const base = `/saves/${saveId}`;
@@ -281,6 +367,9 @@ function todosOf(
     });
   }
 
+  // The national coach's, after the club's players out or at risk, before the market.
+  todos.push(...coachLines);
+
   // The market's lines once the club has played: a new manager meets his squad before its buyers and its weak spot.
   const best = sales === null || !firstMatchPlayed ? null : bestOffer(sales);
   if (best !== null) {
@@ -386,20 +475,30 @@ function TodoRow({ severity, icon: Icon, title, detail, href }: Omit<Todo, "id">
 
 /**
  * What the dashboard asks of the manager, the most pressing first: the starters out of the next match, injured then
- * suspended, the other injured, the players one booking from a suspension, offers, the weak spot (these two once the
- * club has played), then the squad's state.
+ * suspended, the other injured, the players one booking from a suspension, the national coach's lines, offers, the weak
+ * spot (these two once the club has played), then the squad's state.
  */
 export function DashboardTodo({ className, ...props }: DashboardTodoProps): ReactNode {
   const t = useTranslations("dashboardTodo");
   const tPositions = useTranslations("positions");
+  const tCoach = useTranslations("coachOffer");
+  const tNations = useTranslations("nations");
+  const tWorld = useTranslations("world");
   const locale = useLocale();
+  const coachLines = coachLinesOf(
+    props.coachTodos ?? [],
+    props.coachTournament ?? null,
+    `/saves/${props.saveId}`,
+    { t, tCoach, tNations, tWorld },
+    locale,
+  );
   return (
     <section aria-labelledby="dashboard-todo" data-testid="dashboard-alerts" className={cn("space-y-2.5", className)}>
       <h2 id="dashboard-todo" className="font-heading text-xl">
         {t("title")}
       </h2>
       <ul className="space-y-2.5">
-        {todosOf(props, t, tPositions, locale).map(({ id, ...todo }) => (
+        {todosOf(props, t, tPositions, locale, coachLines).map(({ id, ...todo }) => (
           <li key={id} data-testid={`alert-${id}`}>
             <TodoRow {...todo} />
           </li>

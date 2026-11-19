@@ -138,6 +138,8 @@ type FinishedProps = {
 
 function Finished({ saveId, phase, onContinue, onLeave }: FinishedProps) {
   const t = useTranslations("simulation");
+  const tWorld = useTranslations("world");
+  const tNations = useTranslations("nations");
   const locale = useLocale();
   const { summary, matches } = phase;
   const period = t("period", { count: phase.played, date: formatDate(phase.untilDate, locale) });
@@ -211,8 +213,20 @@ function Finished({ saveId, phase, onContinue, onLeave }: FinishedProps) {
                   {summary.breaks.map((entry) => (
                     <li key={entry.from.toISOString()} className="space-y-0.5">
                       <p className="font-medium">
-                        {t("breakTitle", { from: formatDayMonth(entry.from, locale), to: formatDayMonth(entry.to, locale) })}
+                        {entry.tournament !== null
+                          ? t("tournamentTitle", { tournament: tNations(entry.tournament === "int.eu" ? "tournaments.eu" : "tournaments.world") })
+                          : t("breakTitle", { from: formatDayMonth(entry.from, locale), to: formatDayMonth(entry.to, locale) })}
                       </p>
+                      {/* A national coach's matches of the break: his nation's results. */}
+                      {entry.national.map((match) => (
+                        <p key={`${match.home}-${match.away}-${match.round}`} className="flex justify-between gap-3" data-simulation="national">
+                          <span>
+                            {tWorld(`nationalities.${match.home}` as Parameters<typeof tWorld>[0])} {match.homeGoals} – {match.awayGoals}{" "}
+                            {tWorld(`nationalities.${match.away}` as Parameters<typeof tWorld>[0])}
+                          </span>
+                          <span className="text-muted-foreground">{t("nationalTeam")}</span>
+                        </p>
+                      ))}
                       {entry.players.length === 0 ? (
                         <p className="text-muted-foreground">{t("noBreakPlayer")}</p>
                       ) : (

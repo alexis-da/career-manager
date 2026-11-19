@@ -10,7 +10,8 @@
       "home": "Home",
       "away": "Away"
     },
-    "versus": "vs {club}"
+    "versus": "vs {club}",
+    "nationalTeam": "Your national team"
   },
   "nav": {
     "label": "Career navigation",
@@ -29,7 +30,8 @@
     "internationals": "Internationals",
     "challenge": "Challenge",
     "seasons": "History",
-    "rewards": "Rewards"
+    "rewards": "Rewards",
+    "nation": "National team"
   },
   "gameActions": {
     "simulate": "Simulate until…",
@@ -90,6 +92,8 @@
     "noExpiredContracts": "No contracts expired.",
     "continue": "Continue",
     "startFailed": "The simulation could not start. Try again.",
-    "nothingToPlay": "No matchdays to play up to {date}."
+    "nothingToPlay": "No matchdays to play up to {date}.",
+    "tournamentTitle": "{tournament}",
+    "nationalTeam": "Your national team"
   }
 }

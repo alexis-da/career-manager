@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import * as z from "zod";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getManagedClubFixtureOn } from "@/src/db/calendar";
+import { prisma } from "@/src/db/client";
 import { advanceLiveMatch, getLiveStep, NoMatchInProgressError, PauseMismatchError, type LiveStep } from "@/src/db/live-match";
 import { formationSchema } from "@/src/db/lineup";
 import { MatchInProgressError, playNextMatchday } from "@/src/db/matchday";
@@ -75,6 +76,31 @@ export async function playMatchdayAction(saveId: string): Promise<GameActionResu
   }
   if (matchday === null) {
     return { ok: false, message: t("seasonOver") };
+  }
+  // A step of the national coach's break or tournament (N4): his match live, or played, on its own screen.
+  if (matchday.national !== undefined) {
+    revalidatePath(`/saves/${id}`, "layout");
+    const { matchId, live } = matchday.national;
+    const row =
+      matchId === null
+        ? null
+        : await prisma.internationalMatch.findFirst({
+            where: { id: matchId, saveId: id },
+            select: { home: true, away: true, homeGoals: true, awayGoals: true },
+          });
+    if (row === null) {
+      return { ok: true, message: t("nationStep", { date: formatDate(matchday.date, locale) }) };
+    }
+    const tWorld = await getTranslations("world");
+    const home = tWorld(`nationalities.${row.home}` as Parameters<typeof tWorld>[0]);
+    const away = tWorld(`nationalities.${row.away}` as Parameters<typeof tWorld>[0]);
+    return live
+      ? { ok: true, message: t("nationLive", { home, away }), redirectTo: `/saves/${id}/live/nation?m=${matchId}&rejouer=1` }
+      : {
+          ok: true,
+          message: t("nationResult", { home, away, homeGoals: row.homeGoals ?? 0, awayGoals: row.awayGoals ?? 0 }),
+          redirectTo: `/saves/${id}/live/nation?m=${matchId}`,
+        };
   }
   const fixture = await getManagedClubFixtureOn(id, matchday.date);
   revalidatePath(`/saves/${id}`, "layout");

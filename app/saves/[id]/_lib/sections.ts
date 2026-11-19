@@ -2,6 +2,7 @@
 export type SectionTab =
   | "squad"
   | "lineup"
+  | "nation"
   | "fixtures"
   | "standings"
   | "cup"
@@ -22,7 +23,7 @@ export type Section = {
 /** The five entries of a save's navigation: every screen of a save lies under one of them. */
 export const SECTIONS: readonly Section[] = [
   { key: "dashboard", home: "", tabs: [] },
-  { key: "team", home: "/squad", computerHome: "/lineup", tabs: ["squad", "lineup"] },
+  { key: "team", home: "/squad", computerHome: "/lineup", tabs: ["squad", "lineup", "nation"] },
   { key: "match", home: "/fixtures", computerHome: "/standings", tabs: ["fixtures", "standings", "cup", "europe", "internationals"] },
   { key: "transfers", home: "/transfers", tabs: [] },
   { key: "club", home: "/club", tabs: ["club", "challenge", "seasons", "rewards"] },
@@ -69,10 +70,20 @@ export const tabTestId = (tab: SectionTab): string => (tab === "club" ? "nav-clu
 
 /**
  * The tabs of an entry in a save: « Coupe » only with a cup, « Europe » only with a European season, « Sélections » only
- * with national teams.
+ * with national teams, « Sélection » (his own, under Équipe) only for a national coach.
  */
-export function tabsOf(section: Section, hasCup: boolean, hasEurope: boolean, hasNations: boolean = false): SectionTab[] {
+export function tabsOf(
+  section: Section,
+  hasCup: boolean,
+  hasEurope: boolean,
+  hasNations: boolean = false,
+  coach: boolean = false,
+): SectionTab[] {
   return section.tabs.filter(
-    (tab) => (hasCup || tab !== "cup") && (hasEurope || tab !== "europe") && (hasNations || tab !== "internationals"),
+    (tab) =>
+      (hasCup || tab !== "cup") &&
+      (hasEurope || tab !== "europe") &&
+      (hasNations || tab !== "internationals") &&
+      (coach || tab !== "nation"),
   );
 }

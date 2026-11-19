@@ -139,3 +139,46 @@ describe("the line-up's hint", () => {
     expect(english).toContain("Tap a player in the list to view his profile.");
   });
 });
+
+describe("a nation's line-up", () => {
+  /** His 23 in the club's editor, as the national coach's page gives them: no squad screen, his assistant's eleven unsaved. */
+  const renderNation = (saved: SavedLineup | null): string =>
+    renderToStaticMarkup(
+      inLanguage(
+        <LineupScreen
+          saveId="save-1"
+          editor={editorWith(saved)}
+          opponent={null}
+          unsaved="assistant"
+          texts={{ selectHint: { touch: "Touche un poste.", click: "Clique sur un poste." }, pickerAbout: "Classés." }}
+        />,
+      ),
+    );
+
+  it("shows his assistant's eleven while none is saved, the one his match then plays, with nothing to save", () => {
+    const markup = renderNation(null);
+
+    const rested = selectRestedLineup(PLAYERS, formationPositions(FORMATION)).starters.map(({ player: { id } }) => id);
+    expect(pitchOf(markup)).toEqual(rested);
+    expect(pitchOf(markup)[0]).toBe("GK#2");
+    expect(statusOf(markup)).toBe("Onze automatique · pas encore enregistré");
+    expect(/<button[^>]*data-testid="lineup-save"[^>]*>/.exec(markup)?.[0]).toContain('disabled=""');
+  });
+
+  it("opens on his saved line-up once there is one", () => {
+    const markup = renderNation(SAVED);
+
+    expect(pitchOf(markup)[0]).toBe("GK#1");
+    expect(statusOf(markup)).toBe("Composition enregistrée");
+  });
+
+  it("has no player's sheet: the page's hint in place of the club's, and no column kept for one", () => {
+    const markup = renderNation(null);
+
+    expect(markup).toContain('<span class="pointer-coarse:hidden">Clique sur un poste.</span>');
+    expect(markup).toContain('<span class="hidden pointer-coarse:inline">Touche un poste.</span>');
+    expect(markup).not.toContain("pour voir sa fiche");
+    expect(markup).not.toContain("xl:grid-cols-[17rem_minmax(0,1fr)_18.5rem]");
+    expect(render(null)).toContain("xl:grid-cols-[17rem_minmax(0,1fr)_18.5rem]");
+  });
+});

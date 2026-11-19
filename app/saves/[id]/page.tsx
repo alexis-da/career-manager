@@ -3,13 +3,16 @@ import type { Metadata } from "next";
 import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { getChallengeBanner } from "@/src/db/challenge-view";
 import { getDashboard } from "@/src/db/dashboard";
+import { getSaveHeader } from "@/src/db/header";
 import { getManagedLineup } from "@/src/db/lineup";
 import { getDailyMissions } from "@/src/db/missions";
 import { getMarketSales } from "@/src/db/market-sales";
+import { coachesNation, getCoachTodos } from "@/src/db/national-view";
 import { getManagedBreak } from "@/src/db/nations-view";
 import { getSeasonObjectives } from "@/src/db/objectives";
 import { getOpponentPreview } from "@/src/db/opponent";
 import { hasPlayedMatch } from "@/src/db/saves";
+import { isTournament } from "@/src/engine/tournaments";
 import { InAppNotice } from "@/app/_components/in-app-notice";
 import { AccountBanner } from "./_components/account-banner";
 import { ChallengeCard } from "./_components/challenge-banner";
@@ -20,7 +23,7 @@ import { DashboardTable } from "./_components/dashboard-table";
 import { DashboardTodo } from "./_components/dashboard-todo";
 import { DailyMissionsCard } from "./_components/daily-missions";
 import { FirstActionsPanel, FirstStepTip, getFirstSteps } from "./_components/first-steps";
-import { NextMatchHero } from "./_components/next-match-hero";
+import { NextMatchHero, type HeroPlay } from "./_components/next-match-hero";
 import { showsFirstActions, showsTip } from "./_lib/first-steps";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +43,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   const tGame = await getTranslations("gameActions");
   // Not simulation code: whether the challenge is over, and the day of the player's missions, are real time.
   const now = new Date();
-  const [dashboard, lineup, opponent, user, challenge, firstSteps, objectives, missions, internationalBreak] = await Promise.all([
+  const [dashboard, lineup, opponent, user, challenge, firstSteps, objectives, missions, internationalBreak, coach, coachTodos] = await Promise.all([
     getDashboard(id),
     getManagedLineup(id),
     getOpponentPreview(id),
@@ -52,7 +55,32 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
     getDailyMissions(id, now),
     // An international break about to be played or just played: who goes, who comes back.
     getManagedBreak(id),
+    // The nation the player coaches, if he does (docs/design/selections.md § 5).
+    coachesNation(id),
+    // A federation's offer, his list before his break or tournament, the end of his mission: lines of « À faire ».
+    getCoachTodos(id),
   ]);
+  // A national coach's game also goes through his breaks and his summer tournament: the hero follows it as the sidebar's
+  // card does (getSaveHeader), his next match at stake first, his match waiting live (« /live/nation »), his tournament
+  // keeping the season going. Anyone else's is the dashboard's own, without reading the header twice.
+  const header = coach === null ? null : await getSaveHeader(id);
+  const nationalNext = header?.nationalNext ?? null;
+  const play: HeroPlay =
+    header === null
+      ? {
+          liveMatch: dashboard.liveMatch,
+          liveHref: "/live",
+          seasonFinished: dashboard.seasonFinished,
+          nextBreak: internationalBreak?.state === "upcoming",
+        }
+      : {
+          liveMatch: header.liveMatch,
+          liveHref: header.liveHref,
+          seasonFinished: header.seasonFinished,
+          nextBreak: header.nextBreak !== null,
+        };
+  // His list's line in « À faire » names his summer tournament: the competition of his next match at stake.
+  const coachTournament = nationalNext !== null && isTournament(nationalNext.competition) ? nationalNext.competition : null;
   // Only an anonymous player's save is at risk: it lives in this browser's cookie.
   const askToSignIn = user?.kind === "ANONYMOUS" && (await hasPlayedMatch(id));
   // Until the club's first match, its first actions under the hero, in place of the last match's card: the market's
@@ -88,6 +116,8 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           formation={lineup.formation}
           opponent={opponent}
           internationalBreak={internationalBreak}
+          nationalNext={nationalNext}
+          play={play}
           className="lg:col-span-2 xl:self-stretch"
         />
         {!firstMatchPlayed && (
@@ -116,6 +146,8 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           sales={sales}
           firstMatchPlayed={firstMatchPlayed}
           internationalBreak={internationalBreak}
+          coachTodos={coachTodos}
+          coachTournament={coachTournament}
         />
         {firstMatchPlayed && <LastMatchCard saveId={id} dashboard={dashboard} />}
         {/* Without the last match's card, the rest of the list's row. */}

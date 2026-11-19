@@ -1,0 +1,133 @@
+{
+  "nationalTeam": {
+    "title": "Ma sélection",
+    "subtitle": "Elle joue pendant les trêves et en juin, quand ton club ne joue pas.",
+    "failed": "La demande n'a pas abouti : réessaie.",
+    "head": {
+      "since": "Sélectionneur depuis {season}",
+      "rank": "{rank, selectordinal, one {#re} other {#e}} nation par la force",
+      "zone": "{zone} : {rank, selectordinal, one {#re} other {#e}}, {points, plural, one {# pt} other {# pts}} en {played, plural, one {# match} other {# matchs}}"
+    },
+    "objective": {
+      "stakes": "Sous l'objectif, la fédération met fin à ta mission. Ton club n'est pas concerné.",
+      "none": "Pas de tournoi pour toi ce cycle : prépare le suivant"
+    },
+    "session": {
+      "break": "Trêve du {from} au {to}",
+      "tournament": "{tournament} · du {from} au {to}",
+      "noneTitle": "Prochaine trêve",
+      "none": "Plus de trêve ni de tournoi pour ta sélection cette saison.",
+      "underway": "En cours",
+      "hint": "La partie s'arrête avant chacun de tes matchs : joue-le en direct ou simule-le.",
+      "byAssistant": "joué par l'adjoint",
+      "next": "Suivant",
+      "live": "En direct"
+    },
+    "venue": {
+      "home": "dom.",
+      "away": "ext.",
+      "neutral": "terrain neutre"
+    },
+    "callUp": {
+      "title": "Convocations",
+      "by": {
+        "assistant": "Liste de l'adjoint",
+        "manager": "Ta liste"
+      },
+      "count": "{total} joueurs : {league, plural, =0 {aucun de nos clubs} other {# de nos clubs}}, {reserve, plural, =0 {aucun hors championnats} other {# hors championnats}}",
+      "ownClub": "Dont {count} de ton club : {names}",
+      "ownClubTired": "{count, plural, one {Il ne manque aucun match de ton club, mais revient fatigué pour le samedi suivant.} other {Ils ne manquent aucun match de ton club, mais reviennent fatigués pour le samedi suivant.}}",
+      "ownClubSummer": "{count, plural, one {Le tournoi se joue après la saison : il reprendra avec ton club à pleine condition.} other {Le tournoi se joue après la saison : ils reprendront avec ton club à pleine condition.}}",
+      "noneOfYours": "Aucun joueur de ton club.",
+      "assistantGoes": "Sans changement de ta part, elle part telle quelle.",
+      "validate": "Valider la liste de l'adjoint",
+      "edit": "Modifier la liste",
+      "locked": {
+        "break": "La liste est arrêtée jusqu'à la fin de la trêve.",
+        "tournament": "La liste est arrêtée jusqu'à la fin du tournoi."
+      },
+      "none": "Rien à convoquer d'ici la fin de la saison."
+    },
+    "sheet": {
+      "title": "Convocations · {count} / {size}",
+      "description": "Choisis {size} joueurs, dont au moins {goalkeepers} gardiens, aucun blessé.",
+      "reset": "Réinitialiser",
+      "lines": {
+        "GK": "Gardiens · {count}",
+        "DF": "Défenseurs · {count}",
+        "MF": "Milieux · {count}",
+        "FW": "Attaquants · {count}"
+      },
+      "notCalled": "Non appelés",
+      "ownClub": "Ton club",
+      "injured": "Blessé",
+      "caps": "{count} sél.",
+      "fitness": "Condition au premier match : {fitness}",
+      "hidden": "{count, plural, one {# autre joueur de la nation, moins bien noté, n'est pas montré.} other {# autres joueurs de la nation, moins bien notés, ne sont pas montrés.}}",
+      "issue": {
+        "count": "Choisis {size} joueurs, dont au moins {goalkeepers} gardiens : {count, plural, =0 {aucun appelé} one {# appelé} other {# appelés}} pour l'instant.",
+        "goalkeepers": "Choisis {size} joueurs, dont au moins {goalkeepers} gardiens : {count, plural, =0 {aucun gardien} one {# gardien} other {# gardiens}} pour l'instant."
+      },
+      "ready": "{size} joueurs, dont {count, plural, one {# gardien} other {# gardiens}} : la liste est prête.",
+      "save": "Enregistrer la liste",
+      "saving": "Enregistrement…"
+    },
+    "lineup": {
+      "title": "Composition",
+      "yours": "{formation} · la tienne",
+      "assistant": "Celle de l'adjoint",
+      "assistantExplain": "Il choisit le dispositif et le onze avant chaque match, parmi tes 23.",
+      "instruction": "Consigne de départ : {instruction}",
+      "instructions": {
+        "ATTACK": "Attaquer",
+        "BALANCED": "Équilibré",
+        "DEFEND": "Fermer"
+      },
+      "prepare": "Préparer la composition",
+      "noSession": "Elle se prépare avec la liste de ta prochaine trêve."
+    },
+    "friendlies": {
+      "label": "L'adjoint joue les amicaux",
+      "on": "Ton adjoint joue les matchs amicaux sans t'arrêter.",
+      "off": "Tu joues aussi les matchs amicaux."
+    },
+    "results": {
+      "title": "Résultats de la saison",
+      "none": "Aucun match joué cette saison."
+    },
+    "resign": {
+      "trigger": "Quitter la sélection",
+      "blocked": {
+        "break": "Tu pourras quitter la sélection après la trêve.",
+        "tournament": "Tu pourras quitter la sélection après le tournoi."
+      },
+      "title": "Quitter la sélection ?",
+      "description": "Ta mission s'arrête aujourd'hui : la fédération cherchera un autre sélectionneur.",
+      "club": "Tu gardes ton club : rien ne change pour lui.",
+      "history": "L'Histoire de ta carrière garde cette mission.",
+      "later": "D'autres fédérations pourront te proposer leur poste à un prochain passage de saison.",
+      "confirm": "Quitter la sélection",
+      "leaving": "Départ…"
+    },
+    "done": {
+      "accepted": "Te voilà sélectionneur : {nation}. Ton club continue avec toi.",
+      "declined": "Offre déclinée : d'autres fédérations te contacteront plus tard.",
+      "resigned": "Tu as quitté la sélection : {nation}. Ton club continue avec toi.",
+      "friendliesByAssistant": "Ton adjoint jouera les matchs amicaux.",
+      "friendliesByYou": "Tu joueras toi-même les matchs amicaux.",
+      "callUp": "Liste enregistrée : 23 joueurs.",
+      "lineup": "Composition de la sélection enregistrée."
+    },
+    "refusals": {
+      "no-offer": "Cette offre n'est plus valable.",
+      "expired": "Trop tard : les offres se décident avant le premier match de ton club de la saison.",
+      "already-coach": "Tu diriges déjà une sélection.",
+      "not-coach": "Tu ne diriges aucune sélection.",
+      "session": "La trêve ou le tournoi a commencé : rien ne change avant sa fin.",
+      "live": "Un match de ta sélection est en cours : termine-le d'abord.",
+      "call-up": "Une liste compte 23 joueurs différents de ta sélection, dont au moins 3 gardiens, et aucun blessé.",
+      "invalid": "Demande invalide.",
+      "lineup": "Ta composition ne compte que des joueurs de ta sélection."
+    }
+  }
+}

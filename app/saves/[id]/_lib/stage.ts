@@ -1,5 +1,6 @@
 import { EUROPE_FINAL_ROUND, EUROPE_LEAGUE_ROUNDS } from "@/src/engine/europe";
 import type { DecidedBy } from "@/src/engine/match";
+import type { FINAL_ROUND, InternationalCompetition, SEMI_FINAL_ROUND } from "@/src/engine/tournaments";
 import { europeKey } from "@/src/i18n/countries";
 import type { Translator } from "@/src/i18n/translator";
 import type { ResultKind } from "./results";
@@ -83,6 +84,67 @@ export function stageLabel(stage: Stage, t: Translator<"stage">): string {
  */
 export function stageNamesCompetition(stage: Stage): boolean {
   return stage.cup || isEuropeStage(stage);
+}
+
+/**
+ * What each national teams' competition is, by its code: a friendly, a zone's qualifiers, or a summer tournament, by its
+ * key in the messages. The engine's codes (src/engine/tournaments.ts), every one of them, which the type checks, without
+ * its modules in the bundles of the client components that name stages.
+ */
+const INTERNATIONAL_KINDS: Readonly<Record<InternationalCompetition, "friendly" | "qualifier" | "eu" | "world">> = {
+  "int.friendly": "friendly",
+  "int.qual.eu": "qualifier",
+  "int.qual.world": "qualifier",
+  "int.eu": "eu",
+  "int.world": "world",
+};
+
+const INTERNATIONAL = new Map(Object.entries(INTERNATIONAL_KINDS));
+
+/** A summer tournament's knockout rounds, after its three group matchdays: the engine's, which the type checks. */
+const INTERNATIONAL_SEMI_FINAL_ROUND: typeof SEMI_FINAL_ROUND = 4;
+const INTERNATIONAL_FINAL_ROUND: typeof FINAL_ROUND = 5;
+
+/** A summer tournament's two groups, by their pool. */
+const GROUP_LETTERS = ["A", "B"] as const;
+
+/** A national teams' match as its round is named: its competition, its round and, in a tournament's groups, its group if known. */
+export type InternationalStage = { competitionCode: string; round: number; pool?: 0 | 1 | null };
+
+/** Whether a stage is a national teams' competition's: a friendly, qualifiers, a summer tournament. */
+export function isInternationalStage(stage: Pick<Stage, "competitionCode">): boolean {
+  return stage.competitionCode !== undefined && INTERNATIONAL.has(stage.competitionCode);
+}
+
+/** A summer tournament's name, « Coupe des Hémisphères »; null for a friendly, qualifiers or any other competition. */
+export function internationalTournamentName(code: string, t: Translator<"nations">): string | null {
+  const kind = INTERNATIONAL.get(code);
+  return kind === "eu" || kind === "world" ? t(`tournaments.${kind}`) : null;
+}
+
+/**
+ * A national teams' match's round, as the Sélections tab names it: « Match amical », « Éliminatoires, 3e journée »,
+ * « Groupe A, 2e journée », « Demi-finale », « Finale ». null when it cannot be named: a tournament's group matchday whose
+ * group is not known, or a competition that is not a national teams' one.
+ */
+export function internationalRoundName(stage: InternationalStage, t: Translator<"nations">): string | null {
+  const kind = INTERNATIONAL.get(stage.competitionCode);
+  if (kind === undefined) {
+    return null;
+  }
+  if (kind === "friendly") {
+    return t("stages.friendly");
+  }
+  if (kind === "qualifier") {
+    return t("stages.qualifier", { round: stage.round });
+  }
+  if (stage.round === INTERNATIONAL_SEMI_FINAL_ROUND) {
+    return t("stages.semiFinal");
+  }
+  if (stage.round === INTERNATIONAL_FINAL_ROUND) {
+    return t("stages.final");
+  }
+  return stage.pool === 0 || stage.pool === 1 ? t("stages.group", { group: GROUP_LETTERS[stage.pool], round: stage.round }) : null;
 }
 
 /** How a played cup tie ended, beyond its score. */

@@ -6,7 +6,10 @@
       "cupDay": "{stage}, le {date}",
       "live": "{day} : {home} – {away}, en direct",
       "notPlaying": "{day} : ton club ne jouait pas.",
-      "result": "{day} : {home} {homeGoals} – {awayGoals} {away}{notes}"
+      "result": "{day} : {home} {homeGoals} – {awayGoals} {away}{notes}",
+      "nationLive": "Ta sélection en direct : {home} – {away}",
+      "nationResult": "Ta sélection : {home} {homeGoals} – {awayGoals} {away}",
+      "nationStep": "Trêve internationale jouée jusqu'au {date}."
     },
     "season": {
       "started": "Saison {season} lancée : {retired, plural, one {# retraite} other {# retraites}}, {youth, plural, one {# jeune arrivé} other {# jeunes arrivés}}.",

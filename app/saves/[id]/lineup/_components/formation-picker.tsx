@@ -21,6 +21,7 @@ type FormationPickerProps = {
   formation: FormationName; // the editor's
   players: readonly EditorPlayer[]; // the squad, as the next match will have it: the formations are ranked for it
   tier: CompetitionTier; // its division, whose average opponent the ranking weighs against
+  about?: string; // how they are ranked, a nation's words; the club's (« … de ta division ») by default
   onPick: (formation: FormationName) => void; // switches the lineup to it, the players kept where they fit
 };
 
@@ -32,7 +33,7 @@ type FormationPickerProps = {
  * it expects a match. Picking one switches the lineup to it and closes the sheet. The comparison against the next
  * opponent stays under the pitch (FormationPanel).
  */
-export function FormationPicker({ formation, players, tier, onPick }: FormationPickerProps) {
+export function FormationPicker({ formation, players, tier, about, onPick }: FormationPickerProps) {
   const t = useTranslations("lineup");
   const tFormations = useTranslations("formations");
   const computer = useMediaQuery(COMPUTER_QUERY);
@@ -68,7 +69,7 @@ export function FormationPicker({ formation, players, tier, onPick }: FormationP
           {/* The cross is in the corner. */}
           <div className="px-4 pt-4 pr-14 pb-3 sm:px-6">
             <SheetTitle className="text-2xl leading-none font-bold">{t("picker.title")}</SheetTitle>
-            <SheetDescription className="mt-1.5 leading-snug">{t("picker.about")}</SheetDescription>
+            <SheetDescription className="mt-1.5 leading-snug">{about ?? t("picker.about")}</SheetDescription>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
             <FormationChoices formation={formation} ranked={ranked} onPick={pick} />

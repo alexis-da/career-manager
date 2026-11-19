@@ -79,7 +79,16 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
             data-testid="header-next-match"
             className="lg:mt-auto lg:space-y-2.5 lg:rounded-card lg:bg-primary lg:p-3.5 lg:empty:hidden max-lg:contents"
           >
-            {header.nextMatch !== null && (
+            {header.nationalNext !== null ? (
+              <div className="leading-tight max-lg:hidden" data-testid="header-national-next">
+                <p className="text-xs font-bold tracking-wider text-on-blue uppercase">
+                  {formatShortDate(header.nationalNext.date, locale)} · {t("nationalTeam")}
+                </p>
+                <p className="mt-1 text-[0.9375rem] font-bold">
+                  {tWorld(`nationalities.${header.nationalNext.home}`)} – {tWorld(`nationalities.${header.nationalNext.away}`)}
+                </p>
+              </div>
+            ) : header.nextMatch !== null && (
               <div className="leading-tight max-lg:hidden">
                 <p className="text-xs font-bold tracking-wider text-on-blue uppercase">
                   {formatShortDate(header.nextMatch.date, locale)} · {t(header.nextMatch.atHome ? "venue.home" : "venue.away")}
@@ -91,6 +100,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               saveId={header.id}
               seasonFinished={header.seasonFinished}
               liveMatch={header.liveMatch}
+              liveHref={header.liveHref}
               worldVersion={header.worldVersion}
               nextBreak={header.nextBreak !== null}
             />
@@ -108,7 +118,13 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
               {stage} · {t(header.windowOpen ? "windowOpen" : "windowClosed")}
             </p>
           </div>
-          <SectionTabs saveId={header.id} hasCup={header.hasCup} hasEurope={header.hasEurope} hasNations={header.hasNations} />
+          <SectionTabs
+            saveId={header.id}
+            hasCup={header.hasCup}
+            hasEurope={header.hasEurope}
+            hasNations={header.hasNations}
+            coach={header.coach !== null}
+          />
           {children}
         </main>
       </div>

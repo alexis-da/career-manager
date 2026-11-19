@@ -33,13 +33,13 @@ type SelectedSlotProps = {
   position: Position;
   player: LineupPlayer | undefined; // the slot's, none when it is empty
   named: boolean; // whether it names the slot: the sheet's title does
-  onOpenSheet: () => void;
+  onOpenSheet?: () => void; // none in an editor without sheets: a nation's
   onSendToBench: () => void;
 };
 
 /**
  * The selected slot and its player: how he fits it (« 71 → 65 · Dépanne »), then his sheet, the only way to a starter's
- * on a phone, whose list leaves out the eleven, and the bench.
+ * on a phone, whose list leaves out the eleven (where the editor has sheets), and the bench.
  */
 export function SelectedSlot({ position, player, named, onOpenSheet, onSendToBench }: SelectedSlotProps) {
   const t = useTranslations("lineup");
@@ -66,10 +66,12 @@ export function SelectedSlot({ position, player, named, onOpenSheet, onSendToBen
             </span>
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={onOpenSheet} className="xl:hidden" data-testid="lineup-open-sheet">
-              <IdCardIcon data-icon="inline-start" />
-              {t("openSheet")}
-            </Button>
+            {onOpenSheet !== undefined && (
+              <Button size="sm" variant="outline" onClick={onOpenSheet} className="xl:hidden" data-testid="lineup-open-sheet">
+                <IdCardIcon data-icon="inline-start" />
+                {t("openSheet")}
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={onSendToBench} data-testid="lineup-send-to-bench">
               <ArmchairIcon data-icon="inline-start" />
               {t("sendToBench")}

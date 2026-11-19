@@ -1,0 +1,133 @@
+{
+  "nationalTeam": {
+    "title": "My national team",
+    "subtitle": "It plays during the breaks and in June, when your club does not.",
+    "failed": "The request failed: try again.",
+    "head": {
+      "since": "National coach since {season}",
+      "rank": "{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} nation by strength",
+      "zone": "{zone}: {rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}, {points, plural, one {# pt} other {# pts}} from {played, plural, one {# match} other {# matches}}"
+    },
+    "objective": {
+      "stakes": "Fall short of the objective and the federation ends your mission. Your club is not affected.",
+      "none": "No tournament for you this cycle: get ready for the next one"
+    },
+    "session": {
+      "break": "International break: {from} to {to}",
+      "tournament": "{tournament} · {from} to {to}",
+      "noneTitle": "Next break",
+      "none": "No more breaks or tournaments for your national team this season.",
+      "underway": "Under way",
+      "hint": "The game stops before each of your matches: play it live or simulate it.",
+      "byAssistant": "played by your assistant",
+      "next": "Next",
+      "live": "Live"
+    },
+    "venue": {
+      "home": "home",
+      "away": "away",
+      "neutral": "neutral ground"
+    },
+    "callUp": {
+      "title": "Call-ups",
+      "by": {
+        "assistant": "Your assistant's list",
+        "manager": "Your list"
+      },
+      "count": "{total} players: {league, plural, =0 {none from our clubs} other {# from our clubs}}, {reserve, plural, =0 {none outside our leagues} other {# outside our leagues}}",
+      "ownClub": "Including {count} from your club: {names}",
+      "ownClubTired": "{count, plural, one {He misses none of your club's matches, but comes back tired for the following Saturday.} other {They miss none of your club's matches, but come back tired for the following Saturday.}}",
+      "ownClubSummer": "{count, plural, one {The tournament is played after the season: he will be back with your club at full fitness.} other {The tournament is played after the season: they will be back with your club at full fitness.}}",
+      "noneOfYours": "None of your club's players.",
+      "assistantGoes": "Unless you change it, it goes as it is.",
+      "validate": "Approve your assistant's list",
+      "edit": "Edit the list",
+      "locked": {
+        "break": "The list is fixed until the end of the break.",
+        "tournament": "The list is fixed until the end of the tournament."
+      },
+      "none": "Nobody to call up before the end of the season."
+    },
+    "sheet": {
+      "title": "Call-ups · {count} / {size}",
+      "description": "Pick {size} players, at least {goalkeepers} of them goalkeepers, nobody injured.",
+      "reset": "Reset",
+      "lines": {
+        "GK": "Goalkeepers · {count}",
+        "DF": "Defenders · {count}",
+        "MF": "Midfielders · {count}",
+        "FW": "Forwards · {count}"
+      },
+      "notCalled": "Not called up",
+      "ownClub": "Your club",
+      "injured": "Injured",
+      "caps": "{count, plural, one {# cap} other {# caps}}",
+      "fitness": "Fitness at the first match: {fitness}",
+      "hidden": "{count, plural, one {# other player of the nation, rated lower, is not shown.} other {# other players of the nation, rated lower, are not shown.}}",
+      "issue": {
+        "count": "Pick {size} players, at least {goalkeepers} of them goalkeepers: {count, plural, =0 {none called up} other {# called up}} so far.",
+        "goalkeepers": "Pick {size} players, at least {goalkeepers} of them goalkeepers: {count, plural, =0 {no goalkeeper} one {# goalkeeper} other {# goalkeepers}} so far."
+      },
+      "ready": "{size} players, {count, plural, one {# goalkeeper} other {# goalkeepers}} among them: the list is ready.",
+      "save": "Save the list",
+      "saving": "Saving…"
+    },
+    "lineup": {
+      "title": "Line-up",
+      "yours": "{formation} · yours",
+      "assistant": "Your assistant's",
+      "assistantExplain": "He picks the formation and the eleven before each match, from your 23.",
+      "instruction": "Starting instruction: {instruction}",
+      "instructions": {
+        "ATTACK": "Attack",
+        "BALANCED": "Balanced",
+        "DEFEND": "Sit back"
+      },
+      "prepare": "Prepare the line-up",
+      "noSession": "It is prepared with the squad of your next break."
+    },
+    "friendlies": {
+      "label": "Your assistant plays the friendlies",
+      "on": "Your assistant plays the friendlies without stopping you.",
+      "off": "You play the friendlies too."
+    },
+    "results": {
+      "title": "This season's results",
+      "none": "No match played this season."
+    },
+    "resign": {
+      "trigger": "Leave the national team",
+      "blocked": {
+        "break": "You can leave the national team after the break.",
+        "tournament": "You can leave the national team after the tournament."
+      },
+      "title": "Leave the national team?",
+      "description": "Your mission ends today: the federation will look for another coach.",
+      "club": "You keep your club: nothing changes for it.",
+      "history": "Your career's History keeps this mission.",
+      "later": "Other federations may offer you their post at a later season's start.",
+      "confirm": "Leave the national team",
+      "leaving": "Leaving…"
+    },
+    "done": {
+      "accepted": "You are now the national coach of {nation}. Your club goes on with you.",
+      "declined": "Offer declined: other federations will contact you later.",
+      "resigned": "You have left the national team: {nation}. Your club goes on with you.",
+      "friendliesByAssistant": "Your assistant will play the friendlies.",
+      "friendliesByYou": "You will play the friendlies yourself.",
+      "callUp": "Squad saved: 23 players.",
+      "lineup": "National team line-up saved."
+    },
+    "refusals": {
+      "no-offer": "This offer no longer stands.",
+      "expired": "Too late: offers are settled before your club's first match of the season.",
+      "already-coach": "You already coach a national team.",
+      "not-coach": "You do not coach a national team.",
+      "session": "The break or the tournament has started: nothing changes before its end.",
+      "live": "A match of your national team is under way: finish it first.",
+      "call-up": "A squad has 23 different players of your nation, at least 3 goalkeepers, and nobody injured.",
+      "invalid": "Invalid request.",
+      "lineup": "Your line-up only takes players of your national team."
+    }
+  }
+}

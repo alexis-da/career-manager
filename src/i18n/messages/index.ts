@@ -1,4 +1,12 @@
 import type { Locale } from "../locale";
+import enNationalTeam from "./en/national-team.json";
+import frNationalTeam from "./fr/national-team.json";
+import enCoachOffer from "./en/coach-offer.json";
+import frCoachOffer from "./fr/coach-offer.json";
+import enNationalLineup from "./en/national-lineup.json";
+import frNationalLineup from "./fr/national-lineup.json";
+import enNationalLive from "./en/national-live.json";
+import frNationalLive from "./fr/national-live.json";
 import enActions from "./en/actions.json";
 import enAdmin from "./en/admin.json";
 import enCatalogs from "./en/catalogs.json";
@@ -125,6 +133,10 @@ export const ZONES = {
   decisions: { fr: frDecisions, en: enDecisions },
   actions: { fr: frActions, en: enActions },
   admin: { fr: frAdmin, en: enAdmin },
+  "national-team": { fr: frNationalTeam, en: enNationalTeam },
+  "coach-offer": { fr: frCoachOffer, en: enCoachOffer },
+  "national-lineup": { fr: frNationalLineup, en: enNationalLineup },
+  "national-live": { fr: frNationalLive, en: enNationalLive },
 } as const;
 
 const fr = {
@@ -167,6 +179,10 @@ const fr = {
   ...frDecisions,
   ...frActions,
   ...frAdmin,
+  ...frNationalTeam,
+  ...frCoachOffer,
+  ...frNationalLineup,
+  ...frNationalLive,
 };
 
 /** The game's messages, typed by the French ones: the English ones must have every key (src/i18n/messages.test.ts). */
@@ -214,5 +230,9 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enDecisions,
     ...enActions,
     ...enAdmin,
+    ...enNationalTeam,
+    ...enCoachOffer,
+    ...enNationalLineup,
+    ...enNationalLive,
   },
 };

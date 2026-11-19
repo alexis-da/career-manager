@@ -5,9 +5,11 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getClubFinances } from "@/src/db/club";
+import { getCoachOffers } from "@/src/db/national-view";
 import { getLastClosedObjectives, getSeasonObjectives } from "@/src/db/objectives";
 import { getSaveSummary } from "@/src/db/saves";
 import { seasonLabel, seasonStartYear } from "@/src/engine/world";
+import { CoachOfferCard } from "../_components/coach-offer-card";
 import { objectivesBehind } from "./_lib/season-start";
 import { SeasonBudgetDetail, SeasonGrant, SeasonWages } from "./_components/season-budget";
 import { SeasonObjectives } from "./_components/season-objectives";
@@ -23,23 +25,27 @@ export async function generateMetadata(): Promise<Metadata> {
  * board's dotation was made (its funding at the club's reputation rank, the bonus or malus of last season's objectives,
  * half of the budget left unspent), the wage cap with the payroll and what it leaves, then the season's objectives, the
  * optional one to choose. Under the entry Club, without a tab: the season's review leads here. A save from before the
- * dotations or the objectives shows what it has.
+ * dotations or the objectives shows what it has. A federation's offer to coach its nation comes first, while it is open
+ * (docs/design/selections.md § 9.6).
  */
 export default async function SeasonStartPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const [t, save, finances, objectives, closed] = await Promise.all([
+  const [t, save, finances, objectives, closed, coachOffers] = await Promise.all([
     getTranslations("seasonStart"),
     getSaveSummary(id),
     getClubFinances(id),
     getSeasonObjectives(id),
     getLastClosedObjectives(id),
+    getCoachOffers(id),
   ]);
   if (save === null) {
     notFound();
   }
   const { dotation } = finances;
+  // Until the club's first match of the season: then the offers go, as the choice of the objective closes.
+  const offers = coachOffers !== null && coachOffers.open ? coachOffers.offers : [];
 
   return (
     <div data-testid="season-start" className="space-y-5">
@@ -61,8 +67,12 @@ export default async function SeasonStartPage({ params }: { params: Promise<{ id
         <p className="pt-1 text-sm text-muted-foreground">{t("intro")}</p>
       </div>
 
-      {/* One column the screen's width under lg (minmax(0, 1fr)): the money, then the objectives; side by side above. */}
+      {/* One column the screen's width under lg (minmax(0, 1fr)): the money, then the objectives; side by side above. A
+          federation's offer first, across the page. */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+        {offers.map((offer) => (
+          <CoachOfferCard key={offer.code} saveId={id} offer={offer} className="lg:col-span-2" />
+        ))}
         <div className="space-y-5">
           <SeasonGrant finances={finances} />
           {dotation !== null && <SeasonBudgetDetail dotation={dotation} lastObjectives={objectivesBehind(dotation, closed)} />}

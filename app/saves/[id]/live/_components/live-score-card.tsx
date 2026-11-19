@@ -9,11 +9,30 @@ import { ScoreNotes } from "../../_components/score-notes";
 import { RESULT_CLASSES, type ResultKind } from "../../_lib/results";
 import type { ShownInstruction } from "../_lib/live-instruction";
 
-function Team({ team, away }: { team: TeamView; away: boolean }) {
+/** The size of a side's mark on the card, a club's initials or a nation's code. */
+const MARK = "size-14 rounded-[1rem] text-2xl";
+
+/**
+ * A nation's mark, where a club has its initials: its code, « POR », never a federation's crest; on the orange for the
+ * coach's nation, on white for the other, as a club's. Its name is next to it, read by screen readers.
+ */
+function NationMark({ code, managed }: { code: string; managed: boolean }) {
+  return (
+    <span
+      aria-hidden
+      data-nation={code}
+      className={cn("grid shrink-0 place-items-center font-heading", MARK, managed ? "bg-(--club) text-(--club-fg)" : "bg-foreground text-background")}
+    >
+      {code}
+    </span>
+  );
+}
+
+function Team({ team, away, nation }: { team: TeamView; away: boolean; nation: string | null }) {
   return (
     // A column on a phone, the name under the initials; on a computer, side by side, the initials next to the score.
     <div className={cn("flex min-w-0 flex-col items-center gap-1.5 text-center lg:gap-3.5", away ? "lg:flex-row lg:text-left" : "lg:flex-row-reverse lg:text-right")}>
-      <ClubInitials name={team.name} managed={team.isManaged} className="size-14 rounded-[1rem] text-2xl" />
+      {nation === null ? <ClubInitials name={team.name} managed={team.isManaged} className={MARK} /> : <NationMark code={nation} managed={team.isManaged} />}
       {/* On a phone, the score leaves each name about 100 px at 360 px, 115 px at 390 px: enough for the longest word in
           each of these two ranges, which do not overlap (a width in px and one in rem do not sort reliably). From lg, it
           leaves 155 px, then 280 px from xl. A word longer than the column wraps rather than run out of it. */}
@@ -59,6 +78,8 @@ function InstructionLine({ instruction, source }: ShownInstruction) {
 type LiveScoreCardProps = {
   caption: string;
   dashboardHref: string;
+  exitLabel?: string; // the way out's name, when it does not lead home: « Retour à la sélection »
+  nations?: { home: string; away: string }; // a national team's match: its nations' codes, their marks
   match: FixtureWithEvents;
   homeGoals: number;
   awayGoals: number;
@@ -72,11 +93,14 @@ type LiveScoreCardProps = {
 
 /**
  * The head of the screen, in the bright blue: what is played, the score, the minute, the managed club's instruction and
- * how far the match has run. Below lg, it reaches the screen's top and sides; the page cancels <main>'s margins for it.
+ * how far the match has run; for a national team's match, its nations by their codes. Below lg, it reaches the screen's
+ * top and sides; the page cancels <main>'s margins for it.
  */
 export function LiveScoreCard({
   caption,
   dashboardHref,
+  exitLabel,
+  nations,
   match,
   homeGoals,
   awayGoals,
@@ -102,7 +126,7 @@ export function LiveScoreCard({
           className="-ml-2 grid size-11 shrink-0 place-items-center rounded-lg outline-none transition-colors hover:bg-on-blue/10 focus-visible:ring-3 focus-visible:ring-ring/50 lg:hidden"
         >
           <ChevronLeftIcon aria-hidden className="size-6" />
-          <span className="sr-only">{t("exit")}</span>
+          <span className="sr-only">{exitLabel ?? t("exit")}</span>
         </Link>
         <p data-testid="live-caption" className="min-w-0 flex-1 basis-40 text-xs font-bold tracking-wider wrap-break-word text-on-blue uppercase lg:text-[0.8125rem]">
           {caption}
@@ -118,14 +142,14 @@ export function LiveScoreCard({
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 lg:items-center lg:gap-7">
-        <Team team={match.home} away={false} />
+        <Team team={match.home} away={false} nation={nations?.home ?? null} />
         <div className="flex flex-col items-center">
           <p data-testid="live-score" className="font-heading text-[4rem] leading-none whitespace-nowrap tabular-nums lg:text-[5.25rem] lg:leading-[0.9]">
             <Goals value={homeGoals} /> – <Goals value={awayGoals} />
           </p>
           <p className="font-heading text-2xl leading-tight text-(--club) tabular-nums">{minute}&apos;</p>
         </div>
-        <Team team={match.away} away />
+        <Team team={match.away} away nation={nations?.away ?? null} />
       </div>
 
       {/* The result's colours do not read on the blue: on the dark, as a calendar's row has them. The notes keep their

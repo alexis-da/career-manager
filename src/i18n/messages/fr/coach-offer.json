@@ -1,0 +1,35 @@
+{
+  "coachOffer": {
+    "title": "Offre de sélection",
+    "proposal": "La fédération {nation} te propose son poste de sélectionneur.",
+    "objective": {
+      "QUALIFIED": "Objectif : se qualifier pour la {tournament}",
+      "SEMI_FINAL": "Objectif : se qualifier pour la {tournament}, puis atteindre les demi-finales",
+      "FINAL": "Objectif : se qualifier pour la {tournament}, puis atteindre la finale",
+      "WINNER": "Objectif : se qualifier pour la {tournament}, puis la gagner"
+    },
+    "noObjective": "Pas de tournoi pour {nation} ce cycle : prépare le suivant",
+    "stages": {
+      "QUALIFIED": "la qualification",
+      "SEMI_FINAL": "les demi-finales",
+      "FINAL": "la finale",
+      "WINNER": "le titre"
+    },
+    "exceeded": "Dépassé : {stage}",
+    "rank": "{rank, selectordinal, one {#re} other {#e}} nation par la force",
+    "firstBreak": "Première trêve : du {from} au {to}",
+    "keepClub": "Tu gardes ton club : la sélection joue pendant les trêves et en juin.",
+    "rule": "Si ta sélection ne se qualifie pas, ou finit sous l'objectif, la fédération met fin à ta mission. Ton club n'en sait rien : ni budget ni confiance du président en jeu.",
+    "leave": "Tu peux quitter la sélection entre deux trêves.",
+    "view": "Voir l'offre",
+    "decline": "Pas maintenant",
+    "accept": "Accepter le poste",
+    "accepting": "Signature…",
+    "cancel": "Annuler",
+    "failed": "Ta réponse n'a pas pu être enregistrée. Réessaie.",
+    "forms": {
+      "of": "{code, select, GER {d'Allemagne} ENG {d'Angleterre} ESP {d'Espagne} FRA {de France} ITA {d'Italie} POR {du Portugal} NED {des Pays-Bas} BEL {de Belgique} CRO {de Croatie} BRA {du Brésil} ARG {d'Argentine} MAR {du Maroc} SEN {du Sénégal} CIV {de Côte d'Ivoire} other {de {nation}}}",
+      "the": "{code, select, GER {l'Allemagne} ENG {l'Angleterre} ESP {l'Espagne} FRA {la France} ITA {l'Italie} POR {le Portugal} NED {les Pays-Bas} BEL {la Belgique} CRO {la Croatie} BRA {le Brésil} ARG {l'Argentine} MAR {le Maroc} SEN {le Sénégal} CIV {la Côte d'Ivoire} other {{nation}}}"
+    }
+  }
+}

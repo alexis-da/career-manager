@@ -11,11 +11,13 @@ export function SectionTabs({
   hasCup,
   hasEurope,
   hasNations,
+  coach = false,
 }: {
   saveId: string;
   hasCup: boolean;
   hasEurope: boolean;
   hasNations: boolean;
+  coach?: boolean; // a national coach: « Sélection » under Équipe
 }) {
   const t = useTranslations("nav");
   const base = `/saves/${saveId}`;
@@ -30,7 +32,7 @@ export function SectionTabs({
       label={t("sectionTabs", { section: t(section.key) })}
       testId="section-tabs"
       className="mb-5 lg:max-w-md"
-      links={tabsOf(section, hasCup, hasEurope, hasNations).map((tab) => ({
+      links={tabsOf(section, hasCup, hasEurope, hasNations, coach).map((tab) => ({
         href: `${base}/${tab}`,
         label: t(tab),
         active: tab === active,

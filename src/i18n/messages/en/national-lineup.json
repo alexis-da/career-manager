@@ -1,0 +1,13 @@
+{
+  "nationalLineup": {
+    "title": "National team line-up",
+    "back": "My national team",
+    "nextMatch": "{nation} · next match on {date}",
+    "empty": "No break ahead: the team is picked before the next break.",
+    "selectHint": {
+      "touch": "Tap a position on the pitch to see who can play there, best rated in it first, or drag a player onto a position.",
+      "click": "Click a position on the pitch to see who can play there, best rated in it first, or drag a player onto a position."
+    },
+    "pickerAbout": "Ranked for your 23 as the other national teams rank them: your assistant's eleven in each, against an average Division 1 opponent."
+  }
+}

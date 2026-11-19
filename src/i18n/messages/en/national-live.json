@@ -1,0 +1,8 @@
+{
+  "nationalLive": {
+    "title": "National team match, live",
+    "exit": "Back to the national team",
+    "tournamentStage": "{tournament} — {stage}",
+    "groupRound": "Group stage, matchday {round}"
+  }
+}

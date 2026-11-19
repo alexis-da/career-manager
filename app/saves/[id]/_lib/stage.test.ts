@@ -1,11 +1,32 @@
 import { describe, expect, it } from "vitest";
+import {
+  FINAL_ROUND,
+  FRIENDLY,
+  GROUP_ROUNDS,
+  HEMISPHERES_CUP,
+  INTERNATIONAL_COMPETITIONS,
+  OLD_CONTINENT_CUP,
+  QUALIFIER_EUROPE,
+  QUALIFIER_WORLD,
+  SEMI_FINAL_ROUND,
+} from "@/src/engine/tournaments";
 import { testTranslator } from "@/src/i18n/test-intl";
 import { cupLabel } from "./seasons";
-import { cupRoundReached, extraTimeNote, matchResultFor, penaltiesNote, stageLabel } from "./stage";
+import {
+  cupRoundReached,
+  extraTimeNote,
+  internationalRoundName,
+  internationalTournamentName,
+  isInternationalStage,
+  matchResultFor,
+  penaltiesNote,
+  stageLabel,
+} from "./stage";
 
 const regulation = { decidedBy: null, homePenalties: null, awayPenalties: null };
 const stage = { fr: testTranslator("fr", "stage"), en: testTranslator("en", "stage") };
 const score = { fr: testTranslator("fr", "score"), en: testTranslator("en", "score") };
+const nations = { fr: testTranslator("fr", "nations"), en: testTranslator("en", "nations") };
 
 describe("match stage and cup notes", () => {
   it("names a cup tie by its round, never as a matchday", () => {
@@ -54,5 +75,70 @@ describe("match stage and cup notes", () => {
     expect([matchResultFor(shootout, true), matchResultFor(shootout, false)]).toEqual(["L", "W"]);
     expect(matchResultFor({ ...regulation, homeGoals: 1, awayGoals: 1 }, true)).toBe("D");
     expect(matchResultFor({ ...regulation, decidedBy: "EXTRA_TIME", homeGoals: 3, awayGoals: 2 }, false)).toBe("L");
+  });
+});
+
+describe("a national teams' match's stage", () => {
+  it("tells the engine's national teams' competitions from the clubs'", () => {
+    expect(INTERNATIONAL_COMPETITIONS.map((code) => isInternationalStage({ competitionCode: code }))).toEqual(
+      INTERNATIONAL_COMPETITIONS.map(() => true),
+    );
+    expect(["fr.1", "en.2", "es.cup", "eu.1", "eu.2", "int"].map((code) => isInternationalStage({ competitionCode: code }))).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(isInternationalStage({})).toBe(false);
+  });
+
+  it("names its round as the Sélections tab does", () => {
+    const rounds = (t: (typeof nations)["fr"]) => [
+      internationalRoundName({ competitionCode: FRIENDLY, round: 2 }, t),
+      internationalRoundName({ competitionCode: QUALIFIER_EUROPE, round: 3 }, t),
+      internationalRoundName({ competitionCode: QUALIFIER_WORLD, round: 1 }, t),
+      internationalRoundName({ competitionCode: OLD_CONTINENT_CUP, round: 2, pool: 0 }, t),
+      internationalRoundName({ competitionCode: HEMISPHERES_CUP, round: 1, pool: 1 }, t),
+      internationalRoundName({ competitionCode: HEMISPHERES_CUP, round: SEMI_FINAL_ROUND, pool: null }, t),
+      internationalRoundName({ competitionCode: OLD_CONTINENT_CUP, round: FINAL_ROUND }, t),
+    ];
+    expect(rounds(nations.fr)).toEqual([
+      "Match amical",
+      "Éliminatoires, 3e journée",
+      "Éliminatoires, 1re journée",
+      "Groupe A, 2e journée",
+      "Groupe B, 1re journée",
+      "Demi-finale",
+      "Finale",
+    ]);
+    expect(rounds(nations.en)).toEqual([
+      "Friendly",
+      "Qualifiers, matchday 3",
+      "Qualifiers, matchday 1",
+      "Group A, matchday 2",
+      "Group B, matchday 1",
+      "Semi-final",
+      "Final",
+    ]);
+  });
+
+  it("leaves unnamed a group matchday whose group is not known, and a club's match", () => {
+    expect(internationalRoundName({ competitionCode: HEMISPHERES_CUP, round: GROUP_ROUNDS, pool: null }, nations.fr)).toBeNull();
+    expect(internationalRoundName({ competitionCode: OLD_CONTINENT_CUP, round: 1 }, nations.fr)).toBeNull();
+    expect(internationalRoundName({ competitionCode: "fr.1", round: 1 }, nations.fr)).toBeNull();
+  });
+
+  it("names the summer tournaments, and nothing else", () => {
+    expect(internationalTournamentName(OLD_CONTINENT_CUP, nations.fr)).toBe("Coupe du Vieux Continent");
+    expect(internationalTournamentName(HEMISPHERES_CUP, nations.fr)).toBe("Coupe des Hémisphères");
+    expect(internationalTournamentName(HEMISPHERES_CUP, nations.en)).toBe("Hemispheres Cup");
+    expect([FRIENDLY, QUALIFIER_EUROPE, QUALIFIER_WORLD, "eu.1"].map((code) => internationalTournamentName(code, nations.fr))).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ]);
   });
 });

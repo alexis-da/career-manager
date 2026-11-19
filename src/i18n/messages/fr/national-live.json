@@ -1,0 +1,8 @@
+{
+  "nationalLive": {
+    "title": "Match de la sélection en direct",
+    "exit": "Retour à la sélection",
+    "tournamentStage": "{tournament} — {stage}",
+    "groupRound": "Phase de groupes, {round, selectordinal, one {#re} other {#e}} journée"
+  }
+}

@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { Dashboard } from "@/src/db/dashboard";
 import type { ClubLineupPlayer, ManagedLineup } from "@/src/db/lineup";
 import type { MarketSales, SaleRow } from "@/src/db/market-sales";
+import type { CoachTodo } from "@/src/db/national-view";
 import type { ManagedBreak } from "@/src/db/nations-view";
 import type { SaleQuote } from "@/src/db/transfers";
 import { formationPositions } from "@/src/engine/formations";
 import type { Position } from "@/src/engine/positions";
+import type { TournamentCode } from "@/src/engine/tournaments";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage } from "@/src/i18n/test-intl";
 import { DashboardTodo } from "./dashboard-todo";
@@ -90,10 +92,15 @@ type Props = {
   sales?: MarketSales | null;
   firstMatchPlayed?: boolean;
   internationalBreak?: ManagedBreak | null;
+  coachTodos?: CoachTodo[];
+  coachTournament?: TournamentCode | null;
 };
 
 /** The list of a club that has played, unless told otherwise. */
-const render = ({ dashboard, lineup, sales = null, firstMatchPlayed = true, internationalBreak = null }: Props, locale: Locale = "fr"): string =>
+const render = (
+  { dashboard, lineup, sales = null, firstMatchPlayed = true, internationalBreak = null, coachTodos = [], coachTournament = null }: Props,
+  locale: Locale = "fr",
+): string =>
   renderToStaticMarkup(
     inLanguage(
       <DashboardTodo
@@ -103,6 +110,8 @@ const render = ({ dashboard, lineup, sales = null, firstMatchPlayed = true, inte
         sales={sales}
         firstMatchPlayed={firstMatchPlayed}
         internationalBreak={internationalBreak}
+        coachTodos={coachTodos}
+        coachTournament={coachTournament}
       />,
       locale,
     ),
@@ -458,5 +467,80 @@ describe("the dashboard's to-do list", () => {
     expect(well?.text).toBe("Retour de sélection : ton joueur va bien Aucun blessé, tous en forme pour le prochain match.");
     // Neither line without a break.
     expect(idsOf(render({ dashboard: dashboardWith({}), lineup: lineupOf([]) }))).not.toContain("international-callups");
+  });
+
+  it("puts the national coach's lines after the players out or at risk, before the market: an offer, his list, his mission's end", () => {
+    const first = new Date(Date.UTC(2026, 9, 9));
+    const last = new Date(Date.UTC(2026, 9, 13));
+    const markup = render({
+      dashboard: dashboardWith({}, { bookingRisks: [{ name: "M. Dupont", competitions: ["LEAGUE"] }] }),
+      lineup: lineupOf([starter("Noir", "LB", 58)], [injuredStarter("Morel")]),
+      sales: salesOf(saleRow("Lemoine", offer("Rhône FC", 850_000))),
+      coachTodos: [
+        { kind: "offer", offers: ["POR"] },
+        { kind: "call-up", code: "POR", first, last, tournament: false },
+        { kind: "ended", code: "NED", outcome: "NOT_QUALIFIED" },
+      ],
+    });
+
+    expect(idsOf(markup)).toEqual([
+      "injured-starters",
+      "booking-risks",
+      "coach-offer",
+      "coach-call-up",
+      "coach-ended",
+      "offers",
+      "weak-spot",
+      "full-squad",
+    ]);
+    expect(lines(markup).filter(({ id }) => id.startsWith("coach-"))).toEqual([
+      {
+        id: "coach-offer",
+        href: `${SAVE}/season-start`,
+        text: "Offre de sélection : la fédération du Portugal te propose son poste Tu gardes ton club · réponds avant ton premier match de la saison",
+      },
+      {
+        id: "coach-call-up",
+        href: `${SAVE}/nation`,
+        text: "Convocations pour la trêve du 9 au 13 oct. : la liste de l'adjoint est prête Change-la jusqu'au premier match, sinon elle part telle quelle.",
+      },
+      {
+        id: "coach-ended",
+        href: null,
+        text: "La fédération des Pays-Bas met fin à ta mission : pas qualifié Ton club continue avec toi. D'autres fédérations pourront te contacter.",
+      },
+    ]);
+    // An offer to weigh in amber, his list ready in green (never blocking), a mission over in neutral.
+    expect(tilesOf(markup).slice(2, 5)).toEqual(["bg-warning/15 text-warning", "bg-win/15 text-win", "bg-secondary"]);
+  });
+
+  it("names two offers together, a summer tournament's list by the tournament, and speaks British English", () => {
+    const june = (day: number) => new Date(Date.UTC(2030, 5, day));
+    const coachTodos: CoachTodo[] = [
+      { kind: "offer", offers: ["POR", "CRO"] },
+      { kind: "call-up", code: "POR", first: june(7), last: june(23), tournament: true },
+      { kind: "ended", code: "NED", outcome: "MISSED" },
+    ];
+    const coachLines = (locale: Locale, coachTournament: TournamentCode | null = "int.world") =>
+      lines(render({ dashboard: dashboardWith({}), lineup: NO_ELEVEN, coachTodos, coachTournament }, locale))
+        .filter(({ id }) => id.startsWith("coach-"))
+        .map(({ text }) => text);
+
+    expect(coachLines("fr")).toEqual([
+      "2 offres de sélection : le Portugal et la Croatie te proposent leur poste Tu gardes ton club · réponds avant ton premier match de la saison",
+      "Convocations pour la Coupe des Hémisphères : la liste de l'adjoint est prête Change-la jusqu'au premier match, sinon elle part telle quelle.",
+      "La fédération des Pays-Bas met fin à ta mission : tournoi sous l'objectif Ton club continue avec toi. D'autres fédérations pourront te contacter.",
+    ]);
+    expect(coachLines("en")).toEqual([
+      "2 national team offers: Portugal and Croatia want you as their coach You keep your club · answer before your first match of the season",
+      "Call-ups for the Hemispheres Cup: your assistant's squad is ready Change it until the first match, or it goes as it is.",
+      "The federation of the Netherlands ends your mission: tournament below the objective Your club goes on with you. Other federations may contact you.",
+    ]);
+    // A summer tournament the line cannot name: the summer's, still.
+    expect(coachLines("fr", null)[1]).toBe(
+      "Convocations pour le tournoi d'été : la liste de l'adjoint est prête Change-la jusqu'au premier match, sinon elle part telle quelle.",
+    );
+    // Nothing of the kind for a player who coaches no nation and has no offer.
+    expect(idsOf(render({ dashboard: dashboardWith({}), lineup: NO_ELEVEN })).some((id) => id.startsWith("coach-"))).toBe(false);
   });
 });

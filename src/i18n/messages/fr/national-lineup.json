@@ -1,0 +1,13 @@
+{
+  "nationalLineup": {
+    "title": "Composition de la sélection",
+    "back": "Ma sélection",
+    "nextMatch": "{nation} · prochain match le {date}",
+    "empty": "Pas de trêve à venir : la composition se prépare avant la prochaine trêve.",
+    "selectHint": {
+      "touch": "Touche un poste du terrain pour voir qui peut y jouer, du mieux noté à ce poste au moins bien noté, ou glisse un joueur sur un poste.",
+      "click": "Clique sur un poste du terrain pour voir qui peut y jouer, du mieux noté à ce poste au moins bien noté, ou glisse un joueur sur un poste."
+    },
+    "pickerAbout": "Classés pour tes 23 comme les autres sélections les classent : la composition de l'adjoint dans chacun, face à un adversaire moyen de Division 1."
+  }
+}

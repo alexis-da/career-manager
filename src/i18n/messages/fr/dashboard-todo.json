@@ -24,6 +24,18 @@
     "returnsTiredPlayers": "{players} sous {fitness} au coup d'envoi",
     "returnsWell": "Retour de sélection : {count, plural, one {ton joueur va bien} other {tes # joueurs vont bien}}",
     "returnsWellDetail": "Aucun blessé, tous en forme pour le prochain match.",
+    "coachOffer": "Offre de sélection : la fédération {nation} te propose son poste",
+    "coachOffers": "{count, plural, one {# offre de sélection : {nations} te propose son poste} other {# offres de sélection : {nations} te proposent leur poste}}",
+    "coachOfferDetail": "Tu gardes ton club · réponds avant ton premier match de la saison",
+    "coachCallUp": "Convocations pour la trêve du {from} au {to} : la liste de l'adjoint est prête",
+    "coachCallUpTournament": "Convocations pour la {tournament} : la liste de l'adjoint est prête",
+    "coachCallUpSummer": "Convocations pour le tournoi d'été : la liste de l'adjoint est prête",
+    "coachCallUpDetail": "Change-la jusqu'au premier match, sinon elle part telle quelle.",
+    "coachEnded": {
+      "NOT_QUALIFIED": "La fédération {nation} met fin à ta mission : pas qualifié",
+      "MISSED": "La fédération {nation} met fin à ta mission : tournoi sous l'objectif"
+    },
+    "coachEndedDetail": "Ton club continue avec toi. D'autres fédérations pourront te contacter.",
     "offers": "{club} propose {fee} pour {player}",
     "offersDetail": "{count, plural, one {# offre} other {# offres}} pour tes remplaçants",
     "weakSpot": "Ton point faible : {position}",

@@ -24,6 +24,18 @@
     "returnsTiredPlayers": "{players} under {fitness} at kick-off",
     "returnsWell": "Back from international duty: {count, plural, one {your player is fine} other {your # players are fine}}",
     "returnsWellDetail": "No injury, all fit for the next match.",
+    "coachOffer": "National team offer: the federation of {nation} offers you the job",
+    "coachOffers": "{count, plural, one {# national team offer: {nations} want you as their coach} other {# national team offers: {nations} want you as their coach}}",
+    "coachOfferDetail": "You keep your club · answer before your first match of the season",
+    "coachCallUp": "Call-ups for the break from {from} to {to}: your assistant's squad is ready",
+    "coachCallUpTournament": "Call-ups for the {tournament}: your assistant's squad is ready",
+    "coachCallUpSummer": "Call-ups for the summer tournament: your assistant's squad is ready",
+    "coachCallUpDetail": "Change it until the first match, or it goes as it is.",
+    "coachEnded": {
+      "NOT_QUALIFIED": "The federation of {nation} ends your mission: not qualified",
+      "MISSED": "The federation of {nation} ends your mission: tournament below the objective"
+    },
+    "coachEndedDetail": "Your club goes on with you. Other federations may contact you.",
     "offers": "{club} offers {fee} for {player}",
     "offersDetail": "{count, plural, one {# offer} other {# offers}} for your substitutes",
     "weakSpot": "Your weak spot: {position}",

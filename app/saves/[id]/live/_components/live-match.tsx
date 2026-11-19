@@ -16,6 +16,7 @@ import type { SessionEnd } from "../../_lib/session-end";
 import { REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
 import { matchResultFor } from "../../_lib/stage";
 import { playLiveStepAction, type DecisionInput, type HalfTimeChoiceInput, type LiveMoveInput } from "../../actions";
+import { playNationLiveStepAction } from "../../nation/actions";
 import { decidedTeam } from "../_lib/decided-team";
 import { shownInstruction } from "../_lib/live-instruction";
 import { instructionChanges } from "../../_lib/instruction-changes";
@@ -72,6 +73,12 @@ const clockMinute = (event: { minute: number; period: MatchEventView["period"] }
 const NO_MOVE: LiveMoveInput = { decision: null, changes: null, instruction: null };
 
 /**
+ * The step of the match from a pause, as the server plays it: the managed club's match, or his national team's (N4b), the
+ * same moves, the same result.
+ */
+const STEP_ACTIONS = { club: playLiveStepAction, nation: playNationLiveStepAction } as const;
+
+/**
  * The player's decision on the choice event of a pause, taken on its card: sent at once (« Valider », the card staying
  * until the match goes on), or with what the Coaching panel brings (« Coaching », or a stop asked for at that pause).
  */
@@ -85,7 +92,7 @@ type StopView = "break" | "coaching" | "none";
 
 type LiveMatchProps = {
   saveId: string;
-  dashboardHref: string;
+  dashboardHref: string; // where the way out and « Continuer » lead: the save's home, or the national team's tab
   caption: string;
   match: FixtureWithEvents; // its events up to where it is played, never further
   others: ScoreTimeline[];
@@ -94,6 +101,9 @@ type LiveMatchProps = {
   instructions: InstructionSpan[] | null; // the managed club's up to that pause; null once over, its state gone
   startMinute: number; // 0 from kick-off; the pause's minute to go on from where the match waits
   sessionEnd: SessionEnd | null; // the « À demain » card's, read once the match is over; null before
+  // The national coach's match (N4b) rather than his club's: its two nations' codes, their marks on the score card; its
+  // steps are his nation's, the way out leads to his national team's tab. Absent for the club's.
+  nations?: { home: string; away: string };
 };
 
 type ReplayProps = Omit<LiveMatchProps, "match" | "pause" | "team" | "instructions"> & {
@@ -113,11 +123,14 @@ type ReplayProps = Omit<LiveMatchProps, "match" | "pause" | "team" | "instructio
  * opens. The Coaching panel never opens by itself. « live-skip » takes the clock to the pause and asks for all that
  * comes before the next break, or the end, his assistant deciding the choice events on the way. A cup tie that went to
  * extra time runs on to 120' (« Prolongation »), then its shoot-out kick by kick. With reduced motion, the match goes
- * from one stop to the next at once, its choice events and breaks shown.
+ * from one stop to the next at once, its choice events and breaks shown. The national coach's match is played the same
+ * way, its nations by their codes, its steps his nation's.
  */
-function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEnd, data, onStep, speed, onSpeedChange }: ReplayProps) {
+function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEnd, nations, data, onStep, speed, onSpeedChange }: ReplayProps) {
   const t = useTranslations("live");
+  const tNational = useTranslations("nationalLive");
   const tCommon = useTranslations("common");
+  const playStep = STEP_ACTIONS[nations === undefined ? "club" : "nation"];
   const reducedMotion = useSyncExternalStore(subscribeToReducedMotion, prefersReducedMotion, () => false);
   const router = useRouter();
   const { match, pause, team, instructions } = data;
@@ -192,7 +205,7 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
    */
   const play = useCallback(
     (at: LivePause, move: LiveMoveInput, mode: StepUntil, resumed = false): Promise<void> =>
-      playLiveStepAction(saveId, { phase: at.phase, minute: at.minute }, move, mode).then(
+      playStep(saveId, { phase: at.phase, minute: at.minute }, move, mode).then(
         (result) => {
           if (result.ok) {
             if (resumed) {
@@ -212,7 +225,7 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
           toast.error(isNewVersionError(error) ? tCommon("newVersion") : t("stepFailed"));
         },
       ),
-    [saveId, stopKey, onStep, router, t, tCommon],
+    [playStep, saveId, stopKey, onStep, router, t, tCommon],
   );
 
   // The clock at a pause: where the manager acts, the card or the panel opens, which needs the team at the pause: without
@@ -346,15 +359,19 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
   return (
     <div
       data-live-page
+      // The national coach's match: its tests tell it from the club's.
+      data-national={nations === undefined ? undefined : ""}
       // Under lg, the score reaches the top and the sides of the screen: <main>'s margins are cancelled. The room it keeps at
       // its foot for the navigation, which is gone here, does for the bar of controls.
       className="space-y-5 max-lg:-mx-4 max-lg:-mt-6"
     >
-      <h1 className="sr-only" data-testid="live-title">{t("title")}</h1>
+      <h1 className="sr-only" data-testid="live-title">{nations === undefined ? t("title") : tNational("title")}</h1>
 
       <LiveScoreCard
         caption={caption}
         dashboardHref={dashboardHref}
+        exitLabel={nations === undefined ? undefined : tNational("exit")}
+        nations={nations}
         match={match}
         homeGoals={homeGoals}
         awayGoals={awayGoals}

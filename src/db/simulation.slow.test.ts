@@ -56,6 +56,6 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("simulateMatchdays, to t
     expect(seasons.every((season) => season.startYear === WORLD_START_YEAR && !season.completed)).toBe(true);
 
     // Nothing left: a further call plays and writes nothing.
-    expect(await simulateMatchdays(saveId, nextYear)).toEqual({ played: 0, nextDate: null, done: true, matches: [], breakPlayed: false });
+    expect(await simulateMatchdays(saveId, nextYear)).toEqual({ played: 0, nextDate: null, done: true, matches: [], breakPlayed: false, nationalStop: false });
   }, 300_000);
 });
