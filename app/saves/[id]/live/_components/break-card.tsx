@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { PlayIcon } from "lucide-react";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/src/components/ui/sheet";
 import type { MatchEventView, TeamView } from "@/src/db/calendar";
@@ -38,6 +38,7 @@ type BreakCardProps = {
   onResume: () => void; // without a change, the assistant's as the match would have been simulated
   onCoaching: () => void;
   returnFocusTo: RefObject<HTMLElement | null>; // the bar's way on, once it closes
+  assistantLine?: ReactNode; // the tutorial's line (its first break), above the ways on
 };
 
 /**
@@ -61,6 +62,7 @@ export function BreakCard({
   onResume,
   onCoaching,
   returnFocusTo,
+  assistantLine = null,
 }: BreakCardProps) {
   const t = useTranslations("live");
   const tHalfTime = useTranslations("halfTime");
@@ -138,6 +140,8 @@ export function BreakCard({
               {advice.map((line) => line.text).join(" ")}
               {tHalfTime("advice.close")}
             </p>
+
+            {assistantLine}
           </div>
 
           {/* Stuck to the foot of the card, which can be taller than a short screen: the ways on. */}

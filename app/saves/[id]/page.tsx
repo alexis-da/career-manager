@@ -1,7 +1,10 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
+import { after } from "next/server";
 import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { getChallengeBanner } from "@/src/db/challenge-view";
+import { prisma } from "@/src/db/client";
+import { getManagerName } from "@/src/db/club";
 import { getDashboard } from "@/src/db/dashboard";
 import { getSaveHeader } from "@/src/db/header";
 import { getManagedLineup } from "@/src/db/lineup";
@@ -12,7 +15,10 @@ import { getManagedBreak } from "@/src/db/nations-view";
 import { getSeasonObjectives } from "@/src/db/objectives";
 import { getOpponentPreview } from "@/src/db/opponent";
 import { hasPlayedMatch } from "@/src/db/saves";
+import { recordTutorialEvents } from "@/src/db/tutorial";
 import { isTournament } from "@/src/engine/tournaments";
+import { formatWeekdayDayMonth } from "@/src/lib/format";
+import { dashboardStep, dayOnePlace, firstDayCalm, pendingWrites, tutorialReveal } from "@/src/lib/tutorial";
 import { InAppNotice } from "@/app/_components/in-app-notice";
 import { AccountBanner } from "./_components/account-banner";
 import { ChallengeCard } from "./_components/challenge-banner";
@@ -25,6 +31,8 @@ import { DailyMissionsCard } from "./_components/daily-missions";
 import { FirstActionsPanel, FirstStepTip, getFirstSteps } from "./_components/first-steps";
 import { NextMatchHero, type HeroPlay } from "./_components/next-match-hero";
 import { showsFirstActions, showsTip } from "./_lib/first-steps";
+import { getSaveTutorial } from "./_lib/tutorial";
+import { TutorialBubble } from "./_components/tutorial/tutorial-bubble";
 
 export const dynamic = "force-dynamic";
 
@@ -35,14 +43,21 @@ export async function generateMetadata(): Promise<Metadata> {
 /** Grid cells across the page, whatever its columns. */
 const WIDE = "lg:col-span-2 xl:col-span-3";
 
+/** What the tutorial's welcome rings: the hero's « Jouer le match ». */
+const WELCOME_TARGET = '[data-testid="dashboard-next-match"] [data-testid="next-match"]';
+
 export default async function DashboardPage({ params }: PageProps<"/saves/[id]">) {
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
-  await requireOwnedSave(id);
+  const { ownerId } = await requireOwnedSave(id);
   const t = await getTranslations("dashboard");
   const tGame = await getTranslations("gameActions");
-  // Not simulation code: whether the challenge is over, and the day of the player's missions, are real time.
+  const tTutorial = await getTranslations("tutorial");
+  // Not simulation code: whether the challenge is over, the day of the player's missions and of his tutorial are real time.
   const now = new Date();
+  // The first career's tutorial (docs/design/tutoriel.md): the calm of its first day reads neither missions nor objectives.
+  const tutorial = await getSaveTutorial(id);
+  const calm = tutorial !== null && firstDayCalm(tutorial, now);
   const [dashboard, lineup, opponent, user, challenge, firstSteps, objectives, missions, internationalBreak, coach, coachTodos] = await Promise.all([
     getDashboard(id),
     getManagedLineup(id),
@@ -50,9 +65,9 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
     getCurrentUser(),
     getChallengeBanner(id, now),
     getFirstSteps(id),
-    getSeasonObjectives(id),
-    // The day's missions, proposed the first time they are shown; none in a challenge save.
-    getDailyMissions(id, now),
+    calm ? null : getSeasonObjectives(id),
+    // The day's missions, proposed the first time they are shown; none in a challenge save, nor drawn on the first day.
+    calm ? null : getDailyMissions(id, now),
     // An international break about to be played or just played: who goes, who comes back.
     getManagedBreak(id),
     // The nation the player coaches, if he does (docs/design/selections.md § 5).
@@ -83,11 +98,25 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   const coachTournament = nationalNext !== null && isTournament(nationalNext.competition) ? nationalNext.competition : null;
   // Only an anonymous player's save is at risk: it lives in this browser's cookie.
   const askToSignIn = user?.kind === "ANONYMOUS" && (await hasPlayedMatch(id));
-  // Until the club's first match, its first actions under the hero, in place of the last match's card: the market's
-  // offers and weak spot wait for it too.
+  // Until the club's first match, its last match's card waits; a challenge save has its first actions under the hero in
+  // its place, a career its tutorial's welcome. The market's offers and weak spot wait for that match too.
   const firstMatchPlayed = !showsFirstActions(firstSteps);
-  // No offer outside a transfer window, nor before the club's first match: nothing to read.
-  const sales = dashboard.windowOpen && firstMatchPlayed ? await getMarketSales(id) : null;
+  // What the first day of the tutorial hides (everything shows without one), and its welcome until the first match.
+  const context = { now, matchesPlayed: firstSteps.matches };
+  const reveal = tutorialReveal(tutorial, context);
+  const welcome =
+    tutorial !== null && dashboardStep(tutorial, context) === "welcome" ? await welcomeText(id, dashboard.nextMatch, tTutorial) : null;
+  // What the tutorial closes by itself (a step shown twice, the welcome of a match played another way…), once the page is
+  // sent: never in the page's own time.
+  if (tutorial !== null && ownerId !== null) {
+    const pending = pendingWrites(tutorial, context, { away: true });
+    if (pending.closures.length > 0 || pending.ending !== null) {
+      after(() => recordTutorialEvents(prisma, { userId: ownerId, saveId: id, events: [], away: true, ...context }));
+    }
+  }
+  // No offer outside a transfer window, nor before the club's first match, nor on the tutorial's first day: nothing to read.
+  const market = firstMatchPlayed && reveal.market;
+  const sales = dashboard.windowOpen && market ? await getMarketSales(id) : null;
 
   return (
     <div className="space-y-5">
@@ -95,13 +124,13 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
         <h1 className="font-heading text-4xl max-lg:sr-only" data-testid="dashboard-title">
           {t("title")}
         </h1>
-        <DashboardPills dashboard={dashboard} />
+        {reveal.pills && <DashboardPills dashboard={dashboard} />}
       </div>
       {/* In an app's browser only: an anonymous player's career goes to the phone's browser by its resume link, Google
           (the banner's) not signing in there. */}
       {user?.kind === "ANONYMOUS" && <InAppNotice career />}
       <AccountBanner show={askToSignIn} />
-      {showsTip("simulation", firstSteps) && <FirstStepTip saveId={id} tip="simulation" />}
+      {reveal.tips && showsTip("simulation", firstSteps) && <FirstStepTip saveId={id} tip="simulation" />}
 
       {/* One column the screen's width under lg (minmax(0, 1fr)): never as wide as its widest content. The small table last
           on a phone, beside the hero from xl, in the first row's last cell whatever comes between them in the page,
@@ -120,7 +149,19 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           play={play}
           className="lg:col-span-2 xl:self-stretch"
         />
-        {!firstMatchPlayed && (
+        {/* The tutorial's welcome, by the hero's « Jouer le match »: fixed above the navigation under lg. */}
+        {welcome !== null && tutorial !== null && (
+          <TutorialBubble
+            saveId={id}
+            step="welcome"
+            text={welcome}
+            place={dayOnePlace(tutorial, "welcome")}
+            target={WELCOME_TARGET}
+            className="lg:col-span-2 lg:max-w-2xl"
+          />
+        )}
+        {/* A challenge save's first actions: a career has the tutorial, or a player who knows the game. */}
+        {!firstMatchPlayed && challenge !== null && (
           <FirstActionsPanel
             saveId={id}
             seen={firstSteps.seen}
@@ -129,34 +170,56 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           />
         )}
         {missions !== null && <DailyMissionsCard saveId={id} missions={missions} className={WIDE} />}
-        <DashboardTable
-          saveId={id}
-          dashboard={dashboard}
-          className="max-lg:order-last lg:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 xl:h-full"
-        />
-        {showsTip("money", firstSteps) && <FirstStepTip saveId={id} tip="money" className={WIDE} />}
-        <div className={WIDE}>
-          <DashboardTiles dashboard={dashboard} />
-        </div>
+        {reveal.summary && (
+          <DashboardTable
+            saveId={id}
+            dashboard={dashboard}
+            className="max-lg:order-last lg:col-span-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 xl:h-full"
+          />
+        )}
+        {reveal.tips && showsTip("money", firstSteps) && <FirstStepTip saveId={id} tip="money" className={WIDE} />}
+        {reveal.summary && (
+          <div className={WIDE}>
+            <DashboardTiles dashboard={dashboard} />
+          </div>
+        )}
         {objectives !== null && <DashboardObjectives saveId={id} view={objectives} className={WIDE} />}
-        <DashboardTodo
-          saveId={id}
-          dashboard={dashboard}
-          lineup={lineup}
-          sales={sales}
-          firstMatchPlayed={firstMatchPlayed}
-          internationalBreak={internationalBreak}
-          coachTodos={coachTodos}
-          coachTournament={coachTournament}
-        />
+        {reveal.todo && (
+          <DashboardTodo
+            saveId={id}
+            dashboard={dashboard}
+            lineup={lineup}
+            sales={sales}
+            firstMatchPlayed={market}
+            internationalBreak={internationalBreak}
+            coachTodos={coachTodos}
+            coachTournament={coachTournament}
+          />
+        )}
         {firstMatchPlayed && <LastMatchCard saveId={id} dashboard={dashboard} />}
         {/* Without the last match's card, the rest of the list's row. */}
-        <ChallengeCard
-          view={challenge}
-          saveId={id}
-          className={firstMatchPlayed ? "lg:col-span-2 xl:col-span-1" : "xl:col-span-2"}
-        />
+        {reveal.challenge && (
+          <ChallengeCard
+            view={challenge}
+            saveId={id}
+            className={firstMatchPlayed ? "lg:col-span-2 xl:col-span-1" : "xl:col-span-2"}
+          />
+        )}
       </div>
     </div>
   );
+}
+
+/** The tutorial's welcome: the manager by his name, his first match by its day and its opponent. Read only when it shows. */
+async function welcomeText(
+  saveId: string,
+  nextMatch: Awaited<ReturnType<typeof getDashboard>>["nextMatch"],
+  t: Awaited<ReturnType<typeof getTranslations<"tutorial">>>,
+): Promise<string | null> {
+  if (nextMatch === null) {
+    return null;
+  }
+  const [manager, locale] = await Promise.all([getManagerName(saveId), getLocale()]);
+  const opponent = nextMatch.fixture.home.isManaged ? nextMatch.away.name : nextMatch.home.name;
+  return t("steps.welcome", { manager, date: formatWeekdayDayMonth(nextMatch.fixture.scheduledAt, locale), opponent });
 }

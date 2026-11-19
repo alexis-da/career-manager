@@ -1,0 +1,27 @@
+{
+  "tutorial": {
+    "assistant": "Your assistant",
+    "dayOne": "First day · {index} of {total}",
+    "passStep": "Skip this step",
+    "skip": "Skip the tutorial",
+    "gotIt": "Got it",
+    "skipped": "Tutorial skipped. You can pick it up again in Club, Settings.",
+    "resumed": "Tutorial back on: your assistant returns at the next step.",
+    "steps": {
+      "welcome": "Welcome, {manager}, I'm your assistant. Your first match is on {date} against {opponent}: kick it off, I'll stay right by your side.",
+      "speed": "The match plays out before your eyes: {seconds} seconds at {normal}. In a hurry? Switch to {fast} or {fastest}.",
+      "choice": "Your call: my advice is ticked, but you don't have to follow it.",
+      "halfTime": "In “{coaching}” you can bring a player on or change the instruction; otherwise, “{resume}”.",
+      "halfTimeAdvice": "My advice is already open: “{apply}”, then “{resume}”.",
+      "halfTimeNoAdvice": "Pick who comes off and who goes on, then “{resume}”.",
+      "fullTime": "First match done. Come back tomorrow: I'll have your first missions ready."
+    },
+    "settings": {
+      "title": "Assistant's tutorial",
+      "running": "In progress · day {day}",
+      "skipped": "Skipped on {date}",
+      "resume": "Pick the tutorial up again",
+      "ended": "Finished"
+    }
+  }
+}

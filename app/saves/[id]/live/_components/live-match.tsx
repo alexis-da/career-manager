@@ -7,10 +7,17 @@ import { toast } from "sonner";
 import { isNewVersionError } from "@/app/_lib/new-version";
 import type { FixtureWithEvents, MatchEventView, ScoreTimeline } from "@/src/db/calendar";
 import type { HalfTimeTeam, LivePauseView, LiveStep } from "@/src/db/live-match";
-import { EXTRA_TIME_END_MINUTE } from "@/src/engine/balance";
+import { EXTRA_TIME_END_MINUTE, HALF_TIME_MINUTE } from "@/src/engine/balance";
+import { DAY_ONE_STEPS, REPLAY_SECONDS, type TutorialEvent, type TutorialStepKey } from "@/src/lib/tutorial";
+
+/** How the player's move closes a tutorial's step: made, or made another way. */
+type TutorialCloseEvent = Exclude<TutorialEvent["event"], "show">;
 import type { LivePause } from "@/src/engine/live";
 import type { Instruction, InstructionSpan } from "@/src/engine/match";
 import { SessionEndCard } from "../../_components/session-end-card";
+import { TutorialBubble } from "../../_components/tutorial/tutorial-bubble";
+import { TutorialLine } from "../../_components/tutorial/tutorial-line";
+import { useTutorialEvents } from "../../_components/tutorial/use-tutorial";
 import { decisionMoment } from "../../_lib/decisions";
 import type { SessionEnd } from "../../_lib/session-end";
 import { REGULATION_MINUTES, shootoutKicks } from "../../_lib/match-events";
@@ -43,8 +50,6 @@ import { LiveScoreCard } from "./live-score-card";
 import { LiveShootout } from "./live-shootout";
 import { LiveStats } from "./live-stats";
 
-/** Real duration of the replay from kick-off to the 90th minute, at normal speed. */
-const REPLAY_SECONDS = 45;
 const TICK_MS = 100;
 const MINUTES_PER_TICK = (REGULATION_MINUTES * TICK_MS) / (REPLAY_SECONDS * 1000);
 /** A shoot-out kick every this many milliseconds, at normal speed. */
@@ -90,6 +95,13 @@ type Chosen = { at: string; decision: DecisionInput; index: number; then: Choice
  */
 type StopView = "break" | "coaching" | "none";
 
+/**
+ * The tutorial's steps of a match live (docs/design/tutoriel.md § 1.1): those that may still show here, each at its moment
+ * (the speed while the clock first runs, the first choice event's card, the first break's card), whether its welcome is
+ * left to close (the match it spoke of is open), and whether its first day still runs (its place in the day shown).
+ */
+export type LiveTutorial = { steps: TutorialStepKey[]; welcome: boolean; dayOne: boolean };
+
 type LiveMatchProps = {
   saveId: string;
   dashboardHref: string; // where the way out and « Continuer » lead: the save's home, or the national team's tab
@@ -104,6 +116,7 @@ type LiveMatchProps = {
   // The national coach's match (N4b) rather than his club's: its two nations' codes, their marks on the score card; its
   // steps are his nation's, the way out leads to his national team's tab. Absent for the club's.
   nations?: { home: string; away: string };
+  tutorial?: LiveTutorial | null; // the club's match of a save following a tutorial; never a national match
 };
 
 type ReplayProps = Omit<LiveMatchProps, "match" | "pause" | "team" | "instructions"> & {
@@ -126,8 +139,23 @@ type ReplayProps = Omit<LiveMatchProps, "match" | "pause" | "team" | "instructio
  * from one stop to the next at once, its choice events and breaks shown. The national coach's match is played the same
  * way, its nations by their codes, its steps his nation's.
  */
-function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEnd, nations, data, onStep, speed, onSpeedChange }: ReplayProps) {
+function Replay({
+  saveId,
+  dashboardHref,
+  caption,
+  others,
+  startMinute,
+  sessionEnd,
+  nations,
+  tutorial = null,
+  data,
+  onStep,
+  speed,
+  onSpeedChange,
+}: ReplayProps) {
   const t = useTranslations("live");
+  const tTutorial = useTranslations("tutorial");
+  const tHalfTime = useTranslations("halfTime");
   const tNational = useTranslations("nationalLive");
   const tCommon = useTranslations("common");
   const playStep = STEP_ACTIONS[nations === undefined ? "club" : "nation"];
@@ -153,6 +181,14 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
   const coachingRef = useRef<HTMLButtonElement>(null);
   const resumeRef = useRef<HTMLButtonElement>(null);
   const continueRef = useRef<HTMLAnchorElement>(null);
+  // The tutorial (docs/design/tutoriel.md § 1.1): its steps closed here by the player's moves, the tutorial skipped from
+  // here, the break whose Coaching panel has its line, and the events sent by the page itself, each once.
+  const sendTutorial = useTutorialEvents(saveId);
+  const [tutorialClosed, setTutorialClosed] = useState<ReadonlySet<TutorialStepKey>>(() => new Set());
+  const [tutorialSkipped, setTutorialSkipped] = useState(false);
+  const [coachingLineAt, setCoachingLineAt] = useState<string | null>(null);
+  const tutorialSent = useRef(new Set<string>());
+  const speedSeen = useRef(false); // the speed's bubble has been shown in this match
 
   const key = pause === null ? null : pauseKey(pause);
   const breakPhase = pause !== null && isMatchBreak(pause.phase) ? pause.phase : null;
@@ -184,6 +220,60 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
   const inExtraTime = minute > REGULATION_MINUTES;
   // At the end, every event; before, those whose minute has come (the other matches stop where the clock is too).
   const isShown = (event: { minute: number; period: MatchEventView["period"] }): boolean => over || clockMinute(event) <= minute;
+
+  // A tutorial's step still open in this match: the server's, but for one closed here or the tutorial skipped.
+  const tutorialOpen = (step: TutorialStepKey): boolean =>
+    tutorial !== null && !tutorialSkipped && tutorial.steps.includes(step) && !tutorialClosed.has(step);
+  // A step closed by a move of the player's, its event sent; one the bubble closed itself has sent its own.
+  const closeTutorial = (step: TutorialStepKey, event: TutorialCloseEvent | null): void => {
+    if (!tutorialOpen(step)) {
+      return;
+    }
+    setTutorialClosed((closed) => new Set([...closed, step]));
+    if (event !== null) {
+      sendTutorial([{ step, event }]);
+    }
+  };
+  const place = (step: (typeof DAY_ONE_STEPS)[number]) =>
+    tutorial?.dayOne === true ? { index: DAY_ONE_STEPS.indexOf(step) + 1, total: DAY_ONE_STEPS.length } : null;
+  // The speed, from the kick-off of a match opened at its start to its first stop (a choice event, half-time): its
+  // moment is over then, whatever the clock does next.
+  const firstStop = Math.min(
+    HALF_TIME_MINUTE,
+    ...match.decisions.map((decision) => decision.minute),
+    ...(pause !== null && pause.choice !== null ? [pause.minute] : []),
+  );
+  const speedBubble = tutorialOpen("speed") && !reducedMotion && startMinute === 0 && !skipping && !atStop && minute < firstStop;
+  const choiceLine = tutorialOpen("choice") && cardOpen;
+  const breakLine = tutorialOpen("half-time") && breakOpen;
+
+  // What the page tells the tutorial by itself, each once: the welcome done (the match it spoke of is open), the speed's
+  // moment over without a speed chosen (its first stop reached, or never a clock with reduced motion), a card's line shown.
+  useEffect(() => {
+    const sendOnce = (once: string, events: TutorialEvent[]) => {
+      if (!tutorialSent.current.has(once)) {
+        tutorialSent.current.add(once);
+        sendTutorial(events);
+      }
+    };
+    if (tutorial === null || tutorialSkipped) {
+      return;
+    }
+    if (tutorial.welcome) {
+      sendOnce("welcome", [{ step: "welcome", event: "done" }]);
+    }
+    if (speedBubble) {
+      speedSeen.current = true;
+    } else if (tutorial.steps.includes("speed") && !tutorialClosed.has("speed") && (speedSeen.current || reducedMotion)) {
+      sendOnce("speed", [{ step: "speed", event: "adapt" }]);
+    }
+    if (key !== null && choiceLine) {
+      sendOnce(`choice:${key}`, [{ step: "choice", event: "show" }]);
+    }
+    if (key !== null && breakLine) {
+      sendOnce(`half-time:${key}`, [{ step: "half-time", event: "show" }]);
+    }
+  });
 
   const ticking = !clockDone;
   const kicking = clockDone && pause === null && shownKicks < kicks.length;
@@ -261,8 +351,10 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
     }
   }, [over, skipping]);
 
-  // To the pause at once, then on to the next break or the end; after a failed step, it is asked for again.
+  // To the pause at once, then on to the next break or the end; after a failed step, it is asked for again. The speed's
+  // moment is over.
   const skip = () => {
+    closeTutorial("speed", "adapt");
     setSkipping(true);
     setFailedAt(null);
     writeStopRequest(stopKey, null);
@@ -311,6 +403,8 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
     );
     const input: DecisionInput = { option: decision.option, ...(decision.playerKey === null ? {} : { playerKey: decision.playerKey }) };
     const next: ChoiceThen = then === "coaching" || stopAt === key ? "coaching" : "resume";
+    // « Valider », the tutorial's move; « Coaching » decides too, another way.
+    closeTutorial("choice", then === "resume" ? "done" : "adapt");
     setChosen({ at: key, decision: input, index, then: next });
     if (next === "coaching") {
       openPanel();
@@ -320,12 +414,32 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
   };
 
   // The pause resumed from the panel, with the decision on its card if there is one.
-  const resume = (changes: HalfTimeChoiceInput, instruction: Instruction | null): Promise<void> =>
-    resumeWith({ decision: decided?.decision ?? null, changes, instruction });
+  const resume = (changes: HalfTimeChoiceInput, instruction: Instruction | null): Promise<void> => {
+    closeTutorial("half-time", "adapt");
+    return resumeWith({ decision: decided?.decision ?? null, changes, instruction });
+  };
 
   // A break resumed from its card or the bar: no change, the assistant's as the match would have been simulated.
   const resumeUnchanged = (): void => {
     void resumeWith({ decision: decided?.decision ?? null, changes: null, instruction: null });
+  };
+
+  // The break's card, the tutorial's moves: « Reprendre », or « Coaching » and the panel with its line. The bar's own way
+  // on makes the same move another way.
+  const resumeFromCard = (): void => {
+    closeTutorial("half-time", "done");
+    resumeUnchanged();
+  };
+  const coachingFromCard = (): void => {
+    if (tutorialOpen("half-time") && key !== null) {
+      setCoachingLineAt(key);
+    }
+    closeTutorial("half-time", "done");
+    openPanel();
+  };
+  const resumeFromBar = (): void => {
+    closeTutorial("half-time", "adapt");
+    resumeUnchanged();
   };
 
   const shown = match.events.filter((event) => event.period !== "SHOOTOUT" && isShown(event));
@@ -395,10 +509,16 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
             asked: stopAt !== null && stopAt === key,
             // At the pause, the step from it is being played: too late to stop there.
             busy: clockDone,
-            onToggle: () => writeStopRequest(stopKey, stopAt === key ? null : key),
+            onToggle: () => {
+              closeTutorial("speed", "adapt");
+              writeStopRequest(stopKey, stopAt === key ? null : key);
+            },
           }}
           speed={speed}
-          onSpeedChange={onSpeedChange}
+          onSpeedChange={(value) => {
+            closeTutorial("speed", "done");
+            onSpeedChange(value);
+          }}
           onSkip={skip}
           overlaid={cardOpen || breakOpen || panelOpen}
           onOpenPanel={openPanel}
@@ -407,13 +527,15 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
               ? {
                   label: breakPhase === "REGULATION_END" ? t("break.resume.regulationEnd") : t("break.resume.halfTime"),
                   pending: resumingAt === key,
-                  onResume: resumeUnchanged,
+                  onResume: resumeFromBar,
                 }
               : null
           }
           coachingRef={coachingRef}
           resumeRef={resumeRef}
           continueRef={continueRef}
+          // The first day's « À demain » followed: its move.
+          onContinue={sessionEnd?.tutorial == null ? undefined : () => sendTutorial([{ step: "full-time", event: "done" }])}
         />
       </LiveScoreCard>
 
@@ -429,6 +551,15 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
           playerFitness={team?.players.find((candidate) => candidate.id === choice.playerKey)?.fitness ?? null}
           pending={resumingAt === key}
           onConfirm={confirmChoice}
+          assistantLine={
+            choiceLine ? (
+              <TutorialLine
+                text={tTutorial("steps.choice")}
+                place={place("choice")}
+                skip={{ saveId, step: "choice", onSkipped: () => setTutorialSkipped(true) }}
+              />
+            ) : null
+          }
         />
       )}
 
@@ -446,9 +577,18 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
           awayGoals={awayGoals}
           events={shown}
           pending={resumingAt === key}
-          onResume={resumeUnchanged}
-          onCoaching={openPanel}
+          onResume={resumeFromCard}
+          onCoaching={coachingFromCard}
           returnFocusTo={resumeRef}
+          assistantLine={
+            breakLine ? (
+              <TutorialLine
+                text={tTutorial("steps.halfTime", { coaching: t("coaching"), resume: t("break.resume.halfTime") })}
+                place={place("half-time")}
+                skip={{ saveId, step: "half-time", onSkipped: () => setTutorialSkipped(true) }}
+              />
+            ) : null
+          }
         />
       )}
 
@@ -466,12 +606,52 @@ function Replay({ saveId, dashboardHref, caption, others, startMinute, sessionEn
           homeGoals={homeGoals}
           awayGoals={awayGoals}
           onResume={resume}
+          // After the break card's « Coaching » of the tutorial's half-time: the assistant's advice already open, or how to make one.
+          assistantLine={
+            coachingLineAt !== null && coachingLineAt === key
+              ? (withAdvice: boolean) => (
+                  <TutorialLine
+                    text={
+                      withAdvice
+                        ? tTutorial("steps.halfTimeAdvice", { apply: tHalfTime("compare.apply"), resume: tHalfTime("resume.halfTime") })
+                        : tTutorial("steps.halfTimeNoAdvice", { resume: tHalfTime("resume.halfTime") })
+                    }
+                  />
+                )
+              : undefined
+          }
         />
       )}
 
       <div className="space-y-5 max-lg:px-4">
+        {/* The tutorial's speed, while the clock first runs: under lg above the controls, from lg under the score card. */}
+        {speedBubble && (
+          <TutorialBubble
+            saveId={saveId}
+            step="speed"
+            text={tTutorial("steps.speed", {
+              seconds: REPLAY_SECONDS,
+              normal: t("speedFactor", { factor: 1 }),
+              fast: t("speedFactor", { factor: 2 }),
+              fastest: t("speedFactor", { factor: 4 }),
+            })}
+            place={place("speed")}
+            target='[data-testid="live-speeds"]'
+            live
+            onClosed={(how) => (how === "skip" ? setTutorialSkipped(true) : closeTutorial("speed", null))}
+            className="lg:max-w-2xl"
+          />
+        )}
         {/* The final whistle: what comes next, and why to come back. */}
-        {over && sessionEnd !== null && <SessionEndCard saveId={saveId} appointment={sessionEnd.appointment} word={sessionEnd.word} mission={sessionEnd.mission} />}
+        {over && sessionEnd !== null && (
+          <SessionEndCard
+            saveId={saveId}
+            appointment={sessionEnd.appointment}
+            word={sessionEnd.word}
+            mission={sessionEnd.mission}
+            tutorial={sessionEnd.tutorial}
+          />
+        )}
         {kicks.length > 0 && clockDone && <LiveShootout taken={taken} />}
 
         <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-5">

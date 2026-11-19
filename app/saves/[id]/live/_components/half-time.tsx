@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { ChevronDownIcon, PlayIcon, SkipForwardIcon } from "lucide-react";
-import { useEffect, useRef, useState, useTransition, type RefObject } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode, type RefObject } from "react";
 import { toast } from "sonner";
 import { PlayerFace } from "@/src/components/player-face";
 import { Button } from "@/src/components/ui/button";
@@ -63,6 +63,8 @@ type HalfTimeProps = {
   // The player resumes, with his changes and his instruction or none: the page plays the next segment from the pause,
   // the decision on its choice event first, and goes on with it.
   onResume: (changes: HalfTimeChoiceInput, instruction: Instruction | null) => Promise<void>;
+  // The tutorial's line after its break card's « Coaching »: what to do with the assistant's advice, open or not.
+  assistantLine?: (withAdvice: boolean) => ReactNode;
 };
 
 /**
@@ -88,6 +90,7 @@ export function HalfTime({
   homeGoals,
   awayGoals,
   onResume,
+  assistantLine,
 }: HalfTimeProps) {
   const t = useTranslations("halfTime");
   const tPositions = useTranslations("positions");
@@ -274,6 +277,8 @@ export function HalfTime({
               ))}
               {t("advice.close")}
             </p>
+
+            {assistantLine?.(suggestion !== null)}
 
             <SubstitutionCompare
               state={state}

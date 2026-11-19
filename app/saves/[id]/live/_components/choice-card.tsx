@@ -2,7 +2,7 @@
 
 import { CheckIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/src/components/ui/sheet";
 import type { TeamView } from "@/src/db/calendar";
@@ -168,6 +168,7 @@ type ChoiceCardProps = {
   pending: boolean; // the match goes on with the decision: the card stays until it has, nothing left to press
   onConfirm: (decision: ChoiceCardDecision, then: ChoiceThen) => void; // « Valider » or « Coaching »
   returnFocusTo?: RefObject<HTMLElement | null>; // where the keyboard goes once it closes; by default, where it was before
+  assistantLine?: ReactNode; // the tutorial's line (its first choice event), above the choices
 };
 
 /**
@@ -189,6 +190,7 @@ export function ChoiceCard({
   pending,
   onConfirm,
   returnFocusTo,
+  assistantLine = null,
 }: ChoiceCardProps) {
   const t = useTranslations("choiceCard");
   const group = useId();
@@ -250,6 +252,8 @@ export function ChoiceCard({
               <SheetTitle className="text-4xl leading-none font-bold text-balance">{title}</SheetTitle>
               <SheetDescription className="text-[0.9375rem] leading-[1.45] text-foreground">{situation}</SheetDescription>
             </div>
+
+            {assistantLine}
 
             <fieldset className="min-w-0">
               <legend className="sr-only">{t("choices")}</legend>

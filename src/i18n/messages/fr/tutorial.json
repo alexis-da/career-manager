@@ -1,0 +1,27 @@
+{
+  "tutorial": {
+    "assistant": "Ton adjoint",
+    "dayOne": "Premier jour · {index} sur {total}",
+    "passStep": "Passer l'étape",
+    "skip": "Passer le tutoriel",
+    "gotIt": "Compris",
+    "skipped": "Tutoriel passé. Tu peux le reprendre dans Club, Réglages.",
+    "resumed": "Tutoriel repris : ton adjoint revient à la prochaine étape.",
+    "steps": {
+      "welcome": "Bienvenue, {manager}, je suis ton adjoint. Ton premier match, c'est {date} contre {opponent} : lance-le, je reste à côté de toi.",
+      "speed": "Le match se joue sous tes yeux : {seconds} secondes à {normal}. Pressé ? Passe en {fast} ou {fastest}.",
+      "choice": "À toi de décider : mon conseil est coché, rien ne t'oblige à le suivre.",
+      "halfTime": "Dans « {coaching} », tu fais entrer un joueur ou changes de consigne ; sinon, « {resume} ».",
+      "halfTimeAdvice": "Mon conseil est déjà ouvert : « {apply} », puis « {resume} ».",
+      "halfTimeNoAdvice": "Choisis qui sort et qui entre, puis « {resume} ».",
+      "fullTime": "Premier match joué. Reviens demain : je t'aurai préparé tes premières missions."
+    },
+    "settings": {
+      "title": "Tutoriel de l'adjoint",
+      "running": "En cours · jour {day}",
+      "skipped": "Passé le {date}",
+      "resume": "Reprendre le tutoriel",
+      "ended": "Terminé"
+    }
+  }
+}

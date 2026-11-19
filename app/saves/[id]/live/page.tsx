@@ -7,6 +7,8 @@ import { getLiveMatchday } from "@/src/db/calendar";
 import { getHalfTimeTeam, getLiveWaiting } from "@/src/db/live-match";
 import { formatDate } from "@/src/lib/format";
 import { readSessionEnd } from "../_lib/session-end";
+import { getSaveTutorial } from "../_lib/tutorial";
+import { isClosed, liveSteps, tutorialStatus } from "@/src/lib/tutorial";
 import { isNeutralStage, stageLabel, stageNamesCompetition } from "../_lib/stage";
 import { LiveMatch } from "./_components/live-match";
 import { startMinute } from "./_lib/live-pause";
@@ -34,16 +36,17 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
   const query = await searchParams;
   // Where the match waits, read first with the instructions played up to there: a step played meanwhile (another tab)
   // leaves the events ahead of it, never behind.
-  const live = await getLiveWaiting(id);
+  const [live, tutorial] = await Promise.all([getLiveWaiting(id), getSaveTutorial(id)]);
   const waiting = live?.pause ?? null;
   const [matchday, team] = await Promise.all([getLiveMatchday(id), waiting === null ? null : getHalfTimeTeam(id)]);
   if (matchday === null) {
     redirect(`/saves/${id}`);
   }
   const { match, stadium } = matchday;
+  // Not simulation code: the challenge's days left and the tutorial's days are real time.
+  const now = new Date();
   // Once the match waits nowhere (over: the page is read again at its end), the « À demain » card's next appointment.
-  // Not simulation code: the challenge's days left are real time.
-  const sessionEnd = waiting === null ? await readSessionEnd(id, new Date(), match.id) : null;
+  const sessionEnd = waiting === null ? await readSessionEnd(id, now, { excluded: match.id, tutorial }) : null;
   // A cup tie names its cup in its stage, « Coupe — Finale », a European match its competition; a European final is on
   // neutral ground.
   const caption = [
@@ -67,6 +70,17 @@ export default async function LivePage({ params, searchParams }: PageProps<"/sav
       instructions={live?.instructions ?? null}
       startMinute={startMinute(waiting, query.rejouer === "1")}
       sessionEnd={sessionEnd}
+      // The tutorial's steps of a match live (docs/design/tutoriel.md): its speed, its first choice event, its first break;
+      // its welcome closed, the match it spoke of now open.
+      tutorial={
+        tutorial === null
+          ? null
+          : {
+              steps: liveSteps(tutorial, now).filter((step) => step !== "full-time"),
+              welcome: tutorialStatus(tutorial, now) === "running" && !isClosed(tutorial, "welcome"),
+              dayOne: tutorial.day1At === null,
+            }
+      }
     />
   );
 }

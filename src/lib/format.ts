@@ -19,6 +19,8 @@ function formattersOf(tag: string) {
     shortDate: new Intl.DateTimeFormat(tag, { weekday: "short", day: "numeric", month: "short", timeZone: TIME_ZONE }),
     dayDate: new Intl.DateTimeFormat(tag, { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: TIME_ZONE }),
     shortMonth: new Intl.DateTimeFormat(tag, { month: "short", timeZone: TIME_ZONE }),
+    weekday: new Intl.DateTimeFormat(tag, { weekday: "long", timeZone: TIME_ZONE }),
+    longMonth: new Intl.DateTimeFormat(tag, { month: "long", timeZone: TIME_ZONE }),
     monthYear: new Intl.DateTimeFormat(tag, { month: "long", year: "numeric", timeZone: TIME_ZONE }),
     parisDateTime: new Intl.DateTimeFormat(tag, {
       weekday: "long",
@@ -105,6 +107,13 @@ export function formatDayDate(date: Date, locale: Locale = "fr"): string {
 export function formatDayMonth(date: Date, locale: Locale = "fr"): string {
   const day = date.getUTCDate();
   return `${locale === "fr" && day === 1 ? "1er" : day} ${FORMATTERS[locale].shortMonth.format(date)}`;
+}
+
+/** « samedi 15 août », « samedi 1er août », « Saturday 15 August »: a day in a sentence, without its year. */
+export function formatWeekdayDayMonth(date: Date, locale: Locale = "fr"): string {
+  const { weekday, longMonth } = FORMATTERS[locale];
+  const day = date.getUTCDate();
+  return `${weekday.format(date)} ${locale === "fr" && day === 1 ? "1er" : day} ${longMonth.format(date)}`;
 }
 
 /** « septembre 2026 », « September 2026 ». */

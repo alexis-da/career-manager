@@ -35,6 +35,7 @@ import { MISSION_TIERS } from "@/src/lib/missions";
 import type { ActionResult } from "./_lib/action-result";
 import { halfTimeRefusalMessage } from "./_lib/live-match";
 import { readSessionEnd, type SessionEnd } from "./_lib/session-end";
+import { getSaveTutorial } from "./_lib/tutorial";
 import { extraTimeNote, penaltiesNote, stageLabel, type Decision } from "./_lib/stage";
 
 export type GameActionResult = {
@@ -374,7 +375,7 @@ export async function simulationSummaryAction(saveId: string, fromDate: string):
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
   const summary = await getSimulationSummary(id, daySchema.parse(fromDate));
   // Not simulation code: the challenge's days left are real time.
-  const sessionEnd = await readSessionEnd(id, new Date());
+  const sessionEnd = await readSessionEnd(id, new Date(), { tutorial: await getSaveTutorial(id) });
   // The simulation is over: every page of the save shows the new date, results and table.
   revalidatePath(`/saves/${id}`, "layout");
   return { ...summary, sessionEnd };

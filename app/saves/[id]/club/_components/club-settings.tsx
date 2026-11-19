@@ -8,11 +8,13 @@ import type { CurrentUser } from "@/src/auth/current-user";
 import { publicPath } from "@/src/i18n/public-pages";
 import { maxSavesFor } from "@/src/lib/limits";
 import type { StreakView } from "@/src/lib/missions";
+import type { TutorialSettingState } from "@/src/lib/tutorial";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
 import { StreakChip } from "../../_components/mission-chips";
 import { CLUB_CARD_LINK, ClubCardTitle } from "./club-card";
 import { InstallApp } from "./install-app";
+import { TutorialSetting } from "./tutorial-setting";
 import { SETTINGS_DETAIL as DETAIL, SETTINGS_NAME as NAME, SETTINGS_ROW as ROW } from "./settings-styles";
 
 /** What an account says, wide enough for most e-mails: its action goes under it rather than break one. */
@@ -71,11 +73,15 @@ type ClubSettingsProps = {
   user: CurrentUser;
   ownedSaves: number;
   streak?: StreakView | null; // the player's daily missions, none in a challenge save
+  tutorial?: { saveId: string; state: TutorialSettingState } | null; // the tutorial this save follows, if it does
   className?: string;
 };
 
-/** The player's settings: language, account, saves used, the daily missions' streak, the installable game and privacy. */
-export function ClubSettings({ user, ownedSaves, streak = null, className }: ClubSettingsProps) {
+/**
+ * The player's settings: language, account, saves used, the daily missions' streak, the first career's tutorial, the
+ * installable game and privacy.
+ */
+export function ClubSettings({ user, ownedSaves, streak = null, tutorial = null, className }: ClubSettingsProps) {
   const t = useTranslations("settings");
   const tLanguage = useTranslations("language");
   const tFooter = useTranslations("footer");
@@ -99,6 +105,7 @@ export function ClubSettings({ user, ownedSaves, streak = null, className }: Clu
         </Link>
       </div>
       {streak !== null && <MissionStreak streak={streak} />}
+      {tutorial !== null && <TutorialSetting saveId={tutorial.saveId} view={tutorial.state} />}
       <InstallApp />
       <Link
         href={publicPath("privacy", locale)}

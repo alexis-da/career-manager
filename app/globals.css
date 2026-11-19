@@ -26,6 +26,8 @@
    * them, the phone's home indicator's.
    */
   --save-nav-height: calc(3.5625rem + max(1.125rem, env(safe-area-inset-bottom)));
+  /* The match live's controls under lg, fixed to the foot of the screen: its bar's padding, its speeds and its border. */
+  --live-controls-height: calc(3.8125rem + max(1.125rem, env(safe-area-inset-bottom)));
 
   --background: #0b1340;
   --foreground: #ffffff;
@@ -78,6 +80,26 @@
   --position-fw: #f87171;
   /* The lineup pitch: the cards' blue, under markings the colour of the borders. */
   --pitch: #16205a;
+}
+
+/* The element the tutorial's bubble speaks of (docs/design/tutoriel.md § 0.2): ringed, the screen still usable around it.
+   The ring breathes, but with reduced motion. */
+[data-tutorial-target] {
+  outline: 3px solid var(--highlight);
+  outline-offset: 3px;
+  animation: tutorial-ring 1.6s ease-in-out infinite;
+}
+
+@keyframes tutorial-ring {
+  50% {
+    outline-color: color-mix(in srgb, var(--highlight) 35%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-tutorial-target] {
+    animation: none;
+  }
 }
 
 /* Toasts above a save's navigation; elsewhere, their default place. */

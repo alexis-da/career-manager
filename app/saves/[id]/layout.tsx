@@ -10,12 +10,14 @@ import { playerLocale } from "@/src/i18n/player-locale";
 import { seasonLabel } from "@/src/engine/world";
 import { publicPath } from "@/src/i18n/public-pages";
 import { formatDayDate, formatShortDate } from "@/src/lib/format";
+import { tutorialReveal } from "@/src/lib/tutorial";
 import { LocaleGuard } from "../../_components/locale-guard";
 import { SaveBarActions } from "./_components/game-actions";
 import { SaveNav } from "./_components/save-nav";
 import { SectionTabs } from "./_components/section-tabs";
 import { SimulationProvider } from "./_components/simulation";
 import { stageLabel } from "./_lib/stage";
+import { getSaveTutorial } from "./_lib/tutorial";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +29,12 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const header = await getSaveHeader(id);
+  const [header, tutorial] = await Promise.all([getSaveHeader(id), getSaveTutorial(id)]);
   if (header === null) {
     notFound();
   }
+  // The tabs the tutorial's first day hides: they come with their own moment. Not simulation code: its day is real time.
+  const { hiddenTabs } = tutorialReveal(tutorial, { now: new Date(), matchesPlayed: 0 });
   const t = await getTranslations("header");
   const tWorld = await getTranslations("world");
   const tStage = await getTranslations("stage");
@@ -124,6 +128,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
             hasEurope={header.hasEurope}
             hasNations={header.hasNations}
             coach={header.coach !== null}
+            hidden={hiddenTabs}
           />
           {children}
         </main>

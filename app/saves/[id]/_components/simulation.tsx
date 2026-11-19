@@ -24,6 +24,7 @@ import { isEuropeStage, matchResultFor, stageLabel } from "../_lib/stage";
 import { ResultPill } from "./result-pill";
 import { ScoreNotes } from "./score-notes";
 import { SessionEndCard } from "./session-end-card";
+import { useTutorialEvents } from "./tutorial/use-tutorial";
 
 /** Where a simulation stops; a picked day is sent as « 2026-08-31 ». */
 export type SimulationTarget = SimulationTargetInput;
@@ -143,6 +144,14 @@ function Finished({ saveId, phase, onContinue, onLeave }: FinishedProps) {
   const locale = useLocale();
   const { summary, matches } = phase;
   const period = t("period", { count: phase.played, date: formatDate(phase.untilDate, locale) });
+  // The tutorial's first day, played by the simulation: its « À demain » followed is its way on.
+  const sendTutorial = useTutorialEvents(saveId);
+  const continueOn = () => {
+    if (summary !== null && summary.sessionEnd.tutorial !== null) {
+      sendTutorial([{ step: "full-time", event: "done" }]);
+    }
+    onContinue();
+  };
   return (
     <>
       <div className="space-y-1">
@@ -265,6 +274,7 @@ function Finished({ saveId, phase, onContinue, onLeave }: FinishedProps) {
               appointment={summary.sessionEnd.appointment}
               word={summary.sessionEnd.word}
               mission={summary.sessionEnd.mission}
+              tutorial={summary.sessionEnd.tutorial}
               onNavigate={onLeave}
               className="bg-background"
             />
@@ -275,7 +285,7 @@ function Finished({ saveId, phase, onContinue, onLeave }: FinishedProps) {
       <Button
         variant="club"
         className="h-9 justify-self-end px-5 font-heading text-base font-semibold"
-        onClick={onContinue}
+        onClick={continueOn}
         data-testid="simulation-continue"
       >
         {t("continue")}

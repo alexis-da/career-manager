@@ -7,6 +7,8 @@ import enNationalLineup from "./en/national-lineup.json";
 import frNationalLineup from "./fr/national-lineup.json";
 import enNationalLive from "./en/national-live.json";
 import frNationalLive from "./fr/national-live.json";
+import enTutorial from "./en/tutorial.json";
+import frTutorial from "./fr/tutorial.json";
 import enActions from "./en/actions.json";
 import enAdmin from "./en/admin.json";
 import enCatalogs from "./en/catalogs.json";
@@ -137,6 +139,7 @@ export const ZONES = {
   "coach-offer": { fr: frCoachOffer, en: enCoachOffer },
   "national-lineup": { fr: frNationalLineup, en: enNationalLineup },
   "national-live": { fr: frNationalLive, en: enNationalLive },
+  tutorial: { fr: frTutorial, en: enTutorial },
 } as const;
 
 const fr = {
@@ -183,6 +186,7 @@ const fr = {
   ...frCoachOffer,
   ...frNationalLineup,
   ...frNationalLive,
+  ...frTutorial,
 };
 
 /** The game's messages, typed by the French ones: the English ones must have every key (src/i18n/messages.test.ts). */
@@ -234,5 +238,6 @@ export const MESSAGES: Record<Locale, GameMessages> = {
     ...enCoachOffer,
     ...enNationalLineup,
     ...enNationalLive,
+    ...enTutorial,
   },
 };

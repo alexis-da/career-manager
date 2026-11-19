@@ -5,12 +5,15 @@ import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
 import { ensureCurrentChallenge } from "@/src/db/challenge";
 import { getChallengePage } from "@/src/db/challenge-view";
 import { getClubFinances, getManagerName, getSeasonPrizes } from "@/src/db/club";
+import { managedMatchesPlayed } from "@/src/db/first-steps";
 import { getMissionStreak } from "@/src/db/missions";
 import { getWornCosmetics } from "@/src/db/rewards-view";
 import { getSeasonObjectives } from "@/src/db/objectives";
 import { countOwnedSaves } from "@/src/db/saves";
 import { getSeasonResults } from "@/src/db/season-results";
 import { DEFAULT_COSMETIC, isCosmeticId } from "@/src/lib/cosmetics";
+import { firstDayCalm, tutorialSetting } from "@/src/lib/tutorial";
+import { getSaveTutorial } from "../_lib/tutorial";
 import { BadgeMark } from "../_components/cosmetic-sign";
 import { ClubChallenge } from "./_components/club-challenge";
 import { ClubFinancesCard } from "./_components/club-finances";
@@ -37,10 +40,12 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
   if (user === null) {
     notFound();
   }
-  // Not simulation code: the real week, and the real day of the player's streak.
+  // Not simulation code: the real week, and the real day of the player's streak and of his tutorial.
   const now = new Date();
-  const challenge = await ensureCurrentChallenge(now);
-  const [t, tCosmetics, managerName, finances, prizes, view, objectives, { seasons }, ownedSaves, streak, worn] = await Promise.all([
+  const [challenge, tutorial] = await Promise.all([ensureCurrentChallenge(now), getSaveTutorial(id)]);
+  // The tutorial's first day shows neither the missions' streak nor the challenge: they come the next day.
+  const calm = tutorial !== null && firstDayCalm(tutorial, now);
+  const [t, tCosmetics, managerName, finances, prizes, view, objectives, { seasons }, ownedSaves, streak, worn, matchesPlayed] = await Promise.all([
     getTranslations("club"),
     getTranslations("rewards.cosmetics"),
     getManagerName(id),
@@ -50,8 +55,9 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
     getSeasonObjectives(id),
     getSeasonResults(id),
     countOwnedSaves(user.id),
-    getMissionStreak(id, now),
+    calm ? null : getMissionStreak(id, now),
     getWornCosmetics(user.id),
+    tutorial === null ? 0 : managedMatchesPlayed(id, 1),
   ]);
   // The manager's title and featured badge (missions v2): the collection's, the rookie's by default.
   const title = isCosmeticId(worn.title) ? worn.title : (DEFAULT_COSMETIC.TITLE ?? "title-rookie");
@@ -78,7 +84,7 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
       {/* Each card at its own height: the finances, with their dotation, run longer than the challenge. */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         <ClubFinancesCard finances={finances} prizes={prizes} />
-        <ClubChallenge saveId={id} view={view} />
+        {!calm && <ClubChallenge saveId={id} view={view} />}
       </div>
 
       {/* Across the page, between the season's money and the past seasons: none in a save from before the objectives. */}
@@ -87,7 +93,12 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
       {/* Side by side only from xl: at 1024 px, the content's 704 px are for the card's preview and the seasons. */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <ClubHonours saveId={id} seasons={seasons} dress={worn} className="xl:col-span-2" />
-        <ClubSettings user={user} ownedSaves={ownedSaves} streak={streak} />
+        <ClubSettings
+          user={user}
+          ownedSaves={ownedSaves}
+          streak={streak}
+          tutorial={tutorial === null ? null : { saveId: id, state: tutorialSetting(tutorial, { now, matchesPlayed }) }}
+        />
       </div>
     </div>
   );

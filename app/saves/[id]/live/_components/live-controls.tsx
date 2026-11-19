@@ -35,6 +35,7 @@ type LiveControlsProps = {
   coachingRef: Ref<HTMLButtonElement>;
   resumeRef: Ref<HTMLButtonElement>;
   continueRef: Ref<HTMLAnchorElement>;
+  onContinue?: () => void; // « Continuer » followed: the tutorial's first day done
 };
 
 /**
@@ -59,6 +60,7 @@ export function LiveControls({
   coachingRef,
   resumeRef,
   continueRef,
+  onContinue,
 }: LiveControlsProps) {
   const t = useTranslations("live");
   const { target } = coaching;
@@ -70,7 +72,7 @@ export function LiveControls({
     >
       {!finished ? (
         <>
-          <div role="group" aria-label={t("speed")} className="flex shrink-0 gap-1 rounded-lg bg-background p-1">
+          <div role="group" aria-label={t("speed")} data-testid="live-speeds" className="flex shrink-0 gap-1 rounded-lg bg-background p-1">
             {SPEEDS.map((value) => (
               <Button
                 key={value}
@@ -140,7 +142,13 @@ export function LiveControls({
           )}
         </>
       ) : (
-        <Link ref={continueRef} href={dashboardHref} data-testid="live-continue" className={buttonVariants({ variant: "club", className: MAIN_ACTION })}>
+        <Link
+          ref={continueRef}
+          href={dashboardHref}
+          onClick={onContinue}
+          data-testid="live-continue"
+          className={buttonVariants({ variant: "club", className: MAIN_ACTION })}
+        >
           {t("continue")}
         </Link>
       )}
