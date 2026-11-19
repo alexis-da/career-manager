@@ -39,6 +39,8 @@ import { prisma } from "./client";
 import { progressCups } from "./cup";
 import { progressEurope } from "./europe";
 import { playInternationalBreak, type BreakSummary } from "./nations";
+import { checkCoachQualification } from "./national-missions";
+import { coachSaveOf, COACH_SAVE_SELECT, currentNationalSession, playNationalStep, type NationalStepMode } from "./national-team";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 import { serializeLiveState } from "./live-state";
 import { parseFormation, parseSavedLineup } from "./lineup";
@@ -73,12 +75,21 @@ export function liveFixtureStatus(state: MatchState): "IN_PLAY" | "HALF_TIME" | 
   return state.phase === "HALF_TIME" || state.phase === "REGULATION_END" ? state.phase : "IN_PLAY";
 }
 
-/** Throws MatchInProgressError while the save has a match waiting to be played on. */
+/**
+ * Throws MatchInProgressError while the save has a match waiting to be played on: its club's (Save.liveFixtureId), or
+ * its national coach's (Save.liveInternationalId, N4b).
+ */
 export async function assertNoMatchInProgress(db: Transaction | typeof prisma, saveId: string): Promise<void> {
-  const save = await db.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true } });
-  if (save.liveFixtureId !== null) {
-    throw new MatchInProgressError(save.liveFixtureId);
+  const save = await db.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, liveInternationalId: true } });
+  const live = liveMatchOf(save);
+  if (live !== null) {
+    throw new MatchInProgressError(live);
   }
+}
+
+/** The match a save waits on, its club's or its national coach's (docs/design/selections.md § 10); null without. */
+export function liveMatchOf(save: { liveFixtureId: string | null; liveInternationalId: string | null }): string | null {
+  return save.liveFixtureId ?? save.liveInternationalId;
 }
 
 export type MatchdaySummary = {
@@ -89,14 +100,21 @@ export type MatchdaySummary = {
   // saved ones, and whether it waits to be played on live; null when it did not play. Played in full, what it says to the
   // day's mission (src/lib/missions.ts); null while it waits live.
   managed: { fixtureId: string; autoFilledSlots: number; live: boolean; facts: MatchFacts | null } | null;
-  // An international break played as this step instead of a date of the clubs (src/db/nations.ts): no club match then.
+  // An international break played as this step instead of a date of the clubs (src/db/nations.ts): no club match then;
+  // for a national coach, the break or tournament his step ended (src/db/national-team.ts).
   internationalBreak?: BreakSummary;
+  // A step of the national coach's break or tournament (N4): his match at stake played, or started live (its row), the
+  // matches played, and whether it stopped before his next match at stake.
+  national?: { matchId: string | null; live: boolean; played: number; stopNext: boolean };
 };
 
 export type PlayNextMatchdayOptions = {
   // Play the managed club's match live: its first segment only, the rest step by step (advanceLiveMatch). Without it,
   // as in the quick simulation, every match is played in full, the managed club's choice events by its assistant.
   pauseManagedMatch?: boolean;
+  // A national coach's step stops before his next match at stake instead of playing it: « Prochain match » leaves it to
+  // him, to play live or to simulate.
+  untilNationalStop?: boolean;
 };
 
 /**
@@ -574,16 +592,38 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
       await lockSave(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({
         where: { id: saveId },
-        select: { seed: true, liveFixtureId: true, challengeId: true, currentDate: true },
+        select: { ...COACH_SAVE_SELECT, liveFixtureId: true, liveInternationalId: true, challengeId: true },
       });
-      if (save.liveFixtureId !== null) {
-        throw new MatchInProgressError(save.liveFixtureId);
+      const waiting = liveMatchOf(save);
+      if (waiting !== null) {
+        throw new MatchInProgressError(waiting);
       }
       const next = await tx.fixture.findFirst({
         where: { saveId, played: false },
         orderBy: { scheduledAt: "asc" },
         select: { scheduledAt: true },
       });
+      // A national coach's break or summer tournament before the clubs' next date, played in steps up to his matches at
+      // stake (docs/design/selections.md § 5.2): live or simulated as the player chooses, or left for him.
+      const coach = coachSaveOf(save);
+      const session = coach === null ? null : await currentNationalSession(tx, coach);
+      if (coach !== null && session !== null && (next === null || session.next < next.scheduledAt)) {
+        const mode: NationalStepMode = options.untilNationalStop === true ? "until-stop" : options.pauseManagedMatch === true ? "live" : "simulate";
+        const step = await playNationalStep(tx, coach, mode, session);
+        if (step !== null) {
+          if (step.completed !== null) {
+            await checkCoachQualification(tx, coach, step.session);
+          }
+          return {
+            date: step.date,
+            fixtures: 0,
+            goals: 0,
+            managed: null,
+            ...(step.completed === null ? {} : { internationalBreak: step.completed }),
+            national: { matchId: step.coachMatch?.id ?? null, live: step.coachMatch?.live === true, played: step.played, stopNext: step.stopNext },
+          };
+        }
+      }
       // An international break before the clubs' next date is a step of its own: the manager sees who comes back tired
       // or injured before his club plays again (docs/design/selections.md § 6.7).
       const nextBreak = await tx.internationalMatch.findFirst({
@@ -591,7 +631,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         orderBy: { scheduledAt: "asc" },
         select: { scheduledAt: true },
       });
-      if (nextBreak !== null && (next === null || nextBreak.scheduledAt < next.scheduledAt)) {
+      if (coach === null && nextBreak !== null && (next === null || nextBreak.scheduledAt < next.scheduledAt)) {
         const played = await playInternationalBreak(tx, { id: saveId, seed: save.seed, currentDate: save.currentDate }, next?.scheduledAt ?? null);
         if (played !== null) {
           return { date: played.to, fixtures: 0, goals: 0, managed: null, internationalBreak: played };

@@ -27,6 +27,7 @@ import {
 import { seasonStartYear } from "../engine/world";
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "./client";
+import { coachSaveOf, COACH_SAVE_SELECT, currentNationalSession, sessionBefore } from "./national-team";
 import { fitnessAtKickOff } from "./fitness-view";
 import { managedPlayersSchema, readCallUps, readQualifierTables, readReserves, readStrengths, type NationPlayer } from "./nations";
 
@@ -84,10 +85,13 @@ export type ManagedBreak = {
 };
 
 export const getManagedBreak = cache(async (saveId: string): Promise<ManagedBreak | null> => {
-  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true, breaksFrom: true } });
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { ...COACH_SAVE_SELECT, breaksFrom: true } });
   if (save.breaksFrom === null) {
     return null;
   }
+  // A national coach's break: his own list for his nation, and the 23 kept once it has started (src/db/national-team.ts).
+  const coach = coachSaveOf(save);
+  const coachSession = coach === null ? null : await currentNationalSession(prisma, coach);
   const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
   const [nextMatch, upcoming, lastPlayed] = await Promise.all([
     prisma.fixture.findFirst({
@@ -108,7 +112,10 @@ export const getManagedBreak = cache(async (saveId: string): Promise<ManagedBrea
   // no match before it (other clubs may: a call-up only reads injuries and their clubs, nothing the club's players risk).
   const next = breakSpan(upcoming.map((match) => match.scheduledAt));
   if (next !== null && next.from < (nextMatch?.scheduledAt ?? FAR_FUTURE)) {
-    const called = await readCallUps(prisma, saveId, next.from, save.currentDate);
+    const called =
+      coach !== null && coachSession !== null && coachSession.kind === "break"
+        ? (await sessionBefore(prisma, coach, coachSession, coachSession.first)).called
+        : await readCallUps(prisma, saveId, next.from, save.currentDate);
     const players = [...called.values()]
       .flat()
       .filter((player) => player.clubSaveId === managed.id && player.playerSaveId !== null)
@@ -615,12 +622,22 @@ export async function getNationsView(saveId: string): Promise<NationsView | null
             yours: [],
           }
         : null;
-    campaign = { tournament: cycle.tournament, year: cycle.tournamentYear, breaksPlayed: Math.floor(playedDates.length / 2), zones, draw };
+    // A national coach's tournament under way, in June (src/db/national-team.ts): its matches played so far.
+    const underWay =
+      draw === null
+        ? []
+        : await prisma.internationalMatch.findMany({
+            where: { saveId, played: true, competition: cycle.tournament, startYear: cycle.tournamentYear - 1 },
+            orderBy: [{ scheduledAt: "asc" }, { pool: "asc" }],
+            select: MATCH_SELECT,
+          });
+    const shown = underWay.length > 0 ? { ...(await playedTournament(saveId, underWay, strengths)), groups: draw?.groups ?? [] } : draw;
+    campaign = { tournament: cycle.tournament, year: cycle.tournamentYear, breaksPlayed: Math.floor(playedDates.length / 2), zones, draw: shown };
   }
 
-  // The last tournament played, at a season's transition.
+  // The last tournament played to its final: at a season's transition, or in June by a national coach's steps.
   const lastYear = await prisma.internationalMatch.findFirst({
-    where: { saveId, played: true, competition: { in: TOURNAMENT_CODES } },
+    where: { saveId, played: true, competition: { in: TOURNAMENT_CODES }, round: FINAL_ROUND },
     orderBy: { scheduledAt: "desc" },
     select: { startYear: true },
   });

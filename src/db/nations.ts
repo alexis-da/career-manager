@@ -30,6 +30,7 @@ import {
   cycleOf,
   CYCLES_ENABLED,
   drawTournament,
+  FINAL_ROUND,
   FRIENDLY,
   friendlyHistory,
   internationalTable,
@@ -59,7 +60,7 @@ type Db = PrismaClient | Transaction;
 const DAY_MS = 86_400_000;
 
 /** The competitions a break plays: never a tournament, whose matches are only written once played, in June. */
-const BREAK_COMPETITIONS = [FRIENDLY, QUALIFIER_EUROPE, QUALIFIER_WORLD];
+export const BREAK_COMPETITIONS = [FRIENDLY, QUALIFIER_EUROPE, QUALIFIER_WORLD];
 
 /** Whether the season starting in startYear of a save has breaks: from its first season with nations (Save.breaksFrom). */
 export function seasonHasBreaks(breaksFrom: number | null, startYear: number): boolean {
@@ -208,7 +209,7 @@ export type NationPlayer = SquadPlayer & {
   reserveIndex: number | null; // his place in his nation's reserve
 };
 
-type CandidateRow = {
+export type CandidateRow = {
   id: string;
   playerKey: string;
   firstName: string;
@@ -292,7 +293,7 @@ export async function readCallUps(db: Db, saveId: string, date: Date, currentDat
 }
 
 /** readCallUps, and the reserves it read: a break counts its reserve players' caps on them. */
-async function readCallUpsAndReserves(
+export async function readCallUpsAndReserves(
   db: Db,
   saveId: string,
   date: Date,
@@ -405,10 +406,10 @@ export type ManagedPlayer = z.infer<typeof managedPlayerSchema>;
 const daysBetween = (from: Date, to: Date): number => Math.max(0, Math.round((to.getTime() - from.getTime()) / DAY_MS));
 
 /** A match a session played: its row's id when it has one (a break's), its date and nations. */
-type SessionResult = { id: string | null; date: Date; home: string; away: string; match: LightMatch };
+export type SessionResult = { id: string | null; date: Date; home: string; away: string; match: LightMatch };
 
 /** The managed club's players in a match, called by either side: the screens tell the break from them. */
-function managedLinesOf(session: InternationalSession<NationPlayer>, result: SessionResult, managedId: string): ManagedPlayer[] {
+export function managedLinesOf(session: InternationalSession<NationPlayer>, result: SessionResult, managedId: string): ManagedPlayer[] {
   return (["home", "away"] as const).flatMap((side) =>
     session
       .teamOn(side === "home" ? result.home : result.away, result.date)
@@ -427,16 +428,16 @@ function managedLinesOf(session: InternationalSession<NationPlayer>, result: Ses
 }
 
 /** A match's goals as InternationalMatch.goalTimes keeps them: the minute, + 1000 in extra time, negative away. */
-const goalTimesOfMatch = (match: LightMatch): number[] =>
+export const goalTimesOfMatch = (match: LightMatch): number[] =>
   match.goals.map((goal) => {
     const time = goal.minute > 90 ? goal.minute + EXTRA_TIME_GOAL_OFFSET : goal.minute;
     return goal.side === "home" ? time : -time;
   });
 
 /** The players called whose session it was, with their run: those who played at least once. */
-type CalledRun = { player: NationPlayer; run: PlayerRun };
+export type CalledRun = { player: NationPlayer; run: PlayerRun };
 
-function playedRuns(session: InternationalSession<NationPlayer>, called: ReadonlyMap<string, readonly NationPlayer[]>): CalledRun[] {
+export function playedRuns(session: InternationalSession<NationPlayer>, called: ReadonlyMap<string, readonly NationPlayer[]>): CalledRun[] {
   return [...called.values()].flat().flatMap((player) => {
     const run = session.runs.get(player.id);
     return run !== undefined && run.caps > 0 ? [{ player, run }] : [];
@@ -444,7 +445,7 @@ function playedRuns(session: InternationalSession<NationPlayer>, called: Readonl
 }
 
 /** The reserve players' caps and goals of a session, every nation in one statement. */
-async function writeReserveCounters(tx: Transaction, saveId: string, reserves: readonly ReserveRow[], runs: readonly CalledRun[]): Promise<void> {
+export async function writeReserveCounters(tx: Transaction, saveId: string, reserves: readonly ReserveRow[], runs: readonly CalledRun[]): Promise<void> {
   const counters = reserves.flatMap((row) => {
     const played = runs.filter(({ player }) => player.nation === row.code && player.reserveIndex !== null);
     if (played.length === 0) {
@@ -469,7 +470,7 @@ async function writeReserveCounters(tx: Transaction, saveId: string, reserves: r
 }
 
 /** The managed club's players a session called, with what it did to them. */
-function managedSummary(session: InternationalSession<NationPlayer>, called: ReadonlyMap<string, readonly NationPlayer[]>, managedId: string): ManagedInternational[] {
+export function managedSummary(session: InternationalSession<NationPlayer>, called: ReadonlyMap<string, readonly NationPlayer[]>, managedId: string): ManagedInternational[] {
   return [...called.values()]
     .flat()
     .filter((player) => player.clubSaveId === managedId)
@@ -578,6 +579,62 @@ export async function playInternationalBreak(
 
 // ------------------------------------------------------------------ The summer tournament (§ 3.3)
 
+/**
+ * A summer tournament the national coach's steps played in June (N4), summed up from its rows as playSummerTournament
+ * would have played it: its winner and runner-up (its final's), the managed club's players its nations called (their
+ * matches, goals and injuries, InternationalMatch.managedPlayers), and those of them who won it (their title, written at
+ * the tournament's end).
+ */
+async function writtenTournament(
+  tx: Transaction,
+  saveId: string,
+  cycle: { tournament: TournamentCode; tournamentYear: number },
+  groups: TournamentGroups,
+  rows: readonly { round: number; scheduledAt: Date; home: string; away: string; winner: string | null; managedPlayers: Prisma.JsonValue }[],
+  managedClubId: string,
+): Promise<TournamentSummary> {
+  const final = rows.find((row) => row.round === FINAL_ROUND);
+  const winner = final?.winner ?? null;
+  if (final === undefined || winner === null || !isNationCode(winner) || !isNationCode(final.home) || !isNationCode(final.away)) {
+    throw new Error(`The ${cycle.tournament} ${cycle.tournamentYear} of save ${saveId} has no final played`);
+  }
+  const lines = rows.flatMap((row) =>
+    managedPlayersSchema.parse(row.managedPlayers ?? []).map((line) => ({ ...line, date: row.scheduledAt, nation: line.side === "home" ? row.home : row.away })),
+  );
+  const managed: ManagedInternational[] = [...Map.groupBy(lines, (line) => line.playerKey)].flatMap(([playerKey, entries]) => {
+    const nation = entries[0].nation;
+    if (!isNationCode(nation)) {
+      return [];
+    }
+    const injured = entries.filter((entry) => entry.injuryDays !== null).at(-1);
+    return [
+      {
+        playerKey,
+        nation,
+        matches: entries.filter((entry) => entry.minutes > 0).length,
+        goals: entries.reduce((sum, entry) => sum + entry.goals, 0),
+        injuryDays: injured?.injuryDays ?? null,
+        injuredOn: injured?.date ?? null,
+      },
+    ];
+  });
+  const champions = await tx.playerSave.findMany({
+    where: { saveId, clubSaveId: managedClubId, internationalTitles: { has: titleKey(cycle.tournament, cycle.tournamentYear) } },
+    orderBy: { playerKey: "asc" },
+    select: { playerKey: true, firstName: true, lastName: true },
+  });
+  return {
+    tournament: cycle.tournament,
+    year: cycle.tournamentYear,
+    groups,
+    winner,
+    runnerUp: winner === final.home ? final.away : final.home,
+    matches: rows.length,
+    managed,
+    managedTitles: champions.map((player) => ({ playerKey: player.playerKey, name: `${player.firstName} ${player.lastName}`, nation: winner })),
+  };
+}
+
 /** The final tables of a cycle's qualifiers, of each zone: Europe always, the World zone in a Hemispheres cycle. */
 export type QualifierTables = { europe: ReturnType<typeof internationalTable>; world: ReturnType<typeof internationalTable> };
 
@@ -644,6 +701,16 @@ export async function playSummerTournament(
   const strengths = await readStrengths(tx, saveId);
   const tables = await readQualifierTables(tx, saveId, cycle, strengths);
   const groups = drawTournament({ tournament: cycle.tournament, ...tables, strengths, saveSeed: save.seed, year: cycle.tournamentYear });
+  const managedClub = await tx.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
+  // Played already, in June, by the national coach's steps (src/db/national-team.ts): summed up from its rows.
+  const written = await tx.internationalMatch.findMany({
+    where: { saveId, competition: cycle.tournament, startYear: completedStartYear, played: true },
+    orderBy: [{ scheduledAt: "asc" }, { round: "asc" }],
+    select: { round: true, scheduledAt: true, home: true, away: true, winner: true, managedPlayers: true },
+  });
+  if (written.length > 0) {
+    return writtenTournament(tx, saveId, cycle, groups, written, managedClub.id);
+  }
   const dates = tournamentDates(cycle.tournamentYear);
   const qualified = new Set<string>(groups.flat());
   const { called: all, reserves } = await readCallUpsAndReserves(tx, saveId, dates[0], save.currentDate);
@@ -656,7 +723,7 @@ export async function playSummerTournament(
     strengths,
     seedOf: (date, home, away) => internationalMatchRngSeed(save.seed, date, home, away),
   });
-  const managed = await tx.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
+  const managed = managedClub;
 
   await tx.internationalMatch.createMany({
     data: played.matches.map(({ round, pool, date, home, away, match }) => {

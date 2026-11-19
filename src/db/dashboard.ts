@@ -10,6 +10,7 @@ import { prisma } from "./client";
 import { DISCIPLINE_SELECT, disciplineStatus } from "./discipline-view";
 import { europeLeagueStandings } from "./europe";
 import { managedMatchesAhead } from "./players";
+import { coachSessionPending } from "./national-view";
 import { getStandings, type ClubStandingRow } from "./standings";
 
 /** Matches shown in a club's recent form. */
@@ -161,7 +162,7 @@ async function europePreviews(saveId: string, seasonId: string, fixture: Fixture
 export async function getDashboard(saveId: string): Promise<Dashboard> {
   const save = await prisma.save.findUniqueOrThrow({
     where: { id: saveId },
-    select: { currentDate: true, worldVersion: true, liveFixtureId: true },
+    select: { currentDate: true, worldVersion: true, liveFixtureId: true, liveInternationalId: true },
   });
   const club = await prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
@@ -328,7 +329,9 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
           },
     table: tableAround(table, TABLE_PREVIEW_ROWS),
     managedForm,
-    liveMatch: save.liveFixtureId !== null,
-    seasonFinished: season !== null && unplayed === 0,
+    // A match waits live: the managed club's, or its national coach's (« /live/nation »).
+    liveMatch: save.liveFixtureId !== null || save.liveInternationalId !== null,
+    // A national coach's summer tournament still to play: his season ends with it.
+    seasonFinished: season !== null && unplayed === 0 && !(await coachSessionPending(saveId)),
   };
 }

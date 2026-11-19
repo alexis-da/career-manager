@@ -60,7 +60,7 @@ const isoDay = (date: Date): string => date.toISOString().slice(0, 10);
 type ShopContext = {
   ownerId: string | null;
   challenge: boolean;
-  live: boolean; // a match waits live (Save.liveFixtureId)
+  live: boolean; // a match waits live: its club's (Save.liveFixtureId) or its national coach's (Save.liveInternationalId)
   seed: string;
   currentDate: Date;
   tokens: number;
@@ -79,7 +79,7 @@ type ShopContext = {
 
 async function shopContext(db: Db, saveId: string): Promise<ShopContext> {
   const [row] = await db.$queryRaw<Omit<ShopContext, "startYear">[]>`
-    SELECT s."ownerId", s."challengeId" IS NOT NULL AS challenge, s."liveFixtureId" IS NOT NULL AS live, s."seed",
+    SELECT s."ownerId", s."challengeId" IS NOT NULL AS challenge, (s."liveFixtureId" IS NOT NULL OR s."liveInternationalId" IS NOT NULL) AS live, s."seed",
            s."currentDate", coalesce(u."tokens", 0) AS tokens, coalesce(u."streakShield", false) AS shield,
            c."id" AS "clubSaveId", c."budget", c."wageBudget", c."reputation", cl."slug", cl."country", co."tier",
            (SELECT coalesce(sum(p."wage"), 0)::int FROM "PlayerSave" p

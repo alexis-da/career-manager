@@ -331,6 +331,9 @@ model Save {
   challenge            Challenge?           @relation(fields: [challengeId], references: [id], onDelete: Restrict)
   challengeId          String? // partie du défi de la semaine (graine, club et nom imposés, hors des limites de parties, purgée 24 h après la fin du défi) ; null pour une partie normale
   breaksFrom           Int? // première saison avec trêves internationales et sélections (docs/design/selections.md) : la création d'une partie 2, ou la saison qui suit la mise en ligne ; null pour une partie 1, une partie du défi, ou une partie d'avant jusqu'à sa saison suivante
+  nationCode           String? // la sélection que dirige le joueur (« POR », docs/design/selections.md § 5) ; null : aucune
+  nationFriendlies     Boolean              @default(true) // « L'adjoint joue les amicaux » : les matchs amicaux de sa sélection, joués par l'adjoint sans arrêt
+  liveInternationalId  String? // le match de sa sélection en suspens (N4b) ; sans clé étrangère, comme liveFixtureId
   cyclesFrom           Int? // première saison du premier cycle d'éliminatoires (deux saisons, puis un tournoi d'été) : la première saison avec trêves d'une partie créée depuis, ou la suivante d'une partie d'avant ; null sans sélections
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
@@ -349,6 +352,7 @@ model Save {
   tokenEntries         TokenEntry[]
   nations              NationSave[]
   internationalMatches InternationalMatch[]
+  coachSpells          CoachSpell[]
 
   @@index([ownerId])
   @@index([challengeId])
@@ -431,6 +435,10 @@ model NationSave {
   reserve      Json // ses 23 joueurs hors championnats (validés par Zod, src/db/nations.ts)
   reserveCaps  Int[]    @default([]) // leurs sélections, dans l'ordre de reserve, à part du JSON : une trêve n'écrit qu'eux
   reserveGoals Int[]    @default([])
+  callUp       Json? // les 23 que le sélectionneur a choisis pour la prochaine trêve ou le prochain tournoi : { date, keys } ; null : ceux de l'adjoint
+  lineup       Json? // la composition du sélectionneur : dispositif, onze par emplacement, banc, consigne de départ ; null : celle de l'adjoint
+  squad        Json? // les 23 de la trêve ou du tournoi en cours et leur condition à sa première date : { from, players: [{ key, fitness }] }, que chaque étape rejoue
+  offeredIn    Int? // la saison (année de début) d'une offre ouverte de sa fédération ; null : aucune
   strength     Int? // sa force à l'ouverture du cycle en cours, en millièmes de point attendu (rankFormations) : départage des classements, appariement des matchs amicaux ; null avant le premier cycle
   createdAt    DateTime @default(now())
 
@@ -461,9 +469,35 @@ model InternationalMatch {
   goalTimes      Int[]      @default([]) // la minute de chaque but, négative pour l'équipe à l'extérieur, comme Fixture.goalTimes
   scorers        String[]   @default([]) // la clé de son buteur (playerKey, ou « reserve:POR:7 »), même ordre
   managedPlayers Json? // les joueurs du club dirigé dans les deux sélections du match : [{ playerKey, side, minutes, goals, injuryDays }]
+  // Les seuls matchs de la sélection du joueur, joués par le moteur complet (N4, N4b) : l'état du direct en suspens, ses
+  // événements et ses décisions (moteur, par clé de joueur), ses consignes par segment, et le match tel que sa trêve ou son
+  // tournoi l'applique (buts et passages sur le terrain, condition et blessures : LightMatch)
+  liveState      Json?
+  events         Json?
+  decisions      Json?
+  instructions   Json?
+  outcome        Json?
 
   @@index([saveId, scheduledAt])
   @@index([saveId, competition, startYear])
+}
+
+// Une mission de sélectionneur (docs/design/selections.md § 5) : d'une offre acceptée à la fin, un renvoi ou une démission ;
+// la partie ne dirige qu'une sélection à la fois (Save.nationCode). L'objectif de la fédération est celui du cycle en cours.
+model CoachSpell {
+  id            String   @id @default(cuid())
+  save          Save     @relation(fields: [saveId], references: [id], onDelete: Cascade)
+  saveId        String
+  code          String // la sélection (« POR »)
+  fromYear      Int // la saison de son arrivée (année de début)
+  toYear        Int? // sa dernière saison en poste ; null tant qu'il y est
+  objective     Int? // l'étape visée au tournoi du cycle en cours : 1 qualification, 2 demi-finales, 3 finale ; null sans objectif (zone Monde en cycle du Vieux Continent)
+  objectiveYear Int? // l'année de ce tournoi
+  exceeded      Int      @default(0) // les tournois où il a dépassé l'objectif : +5 de prestige chacun pour les offres suivantes
+  outcome       String? // sa fin : RESIGNED, NOT_QUALIFIED, MISSED ; null tant qu'il est en poste
+  createdAt     DateTime @default(now())
+
+  @@index([saveId])
 }
 
 model ClubSave {

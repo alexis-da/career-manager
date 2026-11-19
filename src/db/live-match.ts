@@ -153,10 +153,10 @@ export type HalfTimeTeam = {
   clubColors: ClubColors;
 };
 
-type Identity = { playerKey: string; firstName: string; lastName: string; birthDate: Date };
+export type Identity = { playerKey: string; firstName: string; lastName: string; birthDate: Date };
 
 /** The managed club's side of its match at a pause, from the state the engine plays and its players' identities. */
-function halfTimeTeamOf(
+export function halfTimeTeamOf(
   state: MatchState,
   side: Side,
   pause: LivePause,
@@ -246,7 +246,7 @@ function halfTimeTeamOf(
 }
 
 /** The keys of every player of a side's squad in a match: on the pitch, gone off, or on the bench. */
-const squadKeys = (state: MatchState, side: Side): string[] => [
+export const squadKeys = (state: MatchState, side: Side): string[] => [
   ...state[side].pitch.map((entry) => entry.player.id),
   ...state[side].bench.map((player) => player.id),
 ];
@@ -344,7 +344,7 @@ function choiceEventViewOf(event: ChoiceEvent, state: MatchState, side: Side, id
 }
 
 /** The pause a match waits at, with the choice event open there. */
-function livePauseViewOf(state: MatchState, side: Side, identities: readonly Identity[]): LivePauseView | null {
+export function livePauseViewOf(state: MatchState, side: Side, identities: readonly Identity[]): LivePauseView | null {
   const pause = pauseOf(state);
   if (pause === null) {
     return null;
@@ -357,7 +357,7 @@ function livePauseViewOf(state: MatchState, side: Side, identities: readonly Ide
  * The instructions a side has played its segments with, a span at each change and who set each: none in a state kept
  * before them.
  */
-const instructionsOf = (state: MatchState, side: Side): InstructionSpan[] => state[side].instructions ?? [];
+export const instructionsOf = (state: MatchState, side: Side): InstructionSpan[] => state[side].instructions ?? [];
 
 /**
  * The managed club's match where it waits, as the live page first reads it: the pause, and the instructions the club has

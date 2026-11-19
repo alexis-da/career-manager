@@ -3,6 +3,7 @@ import { FIXTURE_SELECT, toFixtureView, type FixtureView } from "./calendar";
 import { prisma } from "./client";
 import { assertNoMatchInProgress, playNextMatchday } from "./matchday";
 import { managedPlayersSchema } from "./nations";
+import { coachSaveOf, COACH_SAVE_SELECT, currentNationalSession, nextNationalStop, type CoachSave } from "./national-team";
 import { getStandings } from "./standings";
 
 const DAY_MS = 86_400_000;
@@ -35,6 +36,7 @@ export type SimulationBatch = {
   done: boolean; // nothing left to play up to untilDate
   matches: SimulatedMatch[]; // the managed club's matches of this call, in date order
   breakPlayed: boolean; // an international break was among them (with stopAfterBreak, the last step)
+  nationalStop: boolean; // with untilNationalStop: it stopped before a national coach's match at stake
 };
 
 export type SimulationSummary = {
@@ -44,8 +46,15 @@ export type SimulationSummary = {
   // nation: the national team he was injured with (its code), null in a match of the managed club
   injuries: { playerName: string; date: Date; injuredUntil: Date | null; nation: string | null }[];
   expiredContracts: { playerName: string; contractUntil: Date }[];
-  // The international breaks played: the managed club's players called, with their matches and goals.
-  breaks: { from: Date; to: Date; players: { playerName: string; nation: string; matches: number; goals: number }[] }[];
+  // The international breaks played: the managed club's players called, with their matches and goals; for a national
+  // coach, his nation's matches (and a summer tournament, by its code: « int.eu »).
+  breaks: {
+    from: Date;
+    to: Date;
+    tournament: string | null;
+    players: { playerName: string; nation: string; matches: number; goals: number }[];
+    national: { home: string; away: string; homeGoals: number; awayGoals: number; competition: string; round: number; pool: number | null }[];
+  }[];
 };
 
 /** Fixtures of the seasons in progress: a simulation never plays a fixture of another season. */
@@ -53,18 +62,33 @@ const IN_PROGRESS = { season: { completed: false } } as const;
 
 const fullName = (player: { firstName: string; lastName: string }): string => `${player.firstName} ${player.lastName}`;
 
-/** The next date of the season in progress: of its clubs, or of an international break, which plays as one step. */
+/** The save's national coach, or null when its player coaches no nation. */
+async function coachOf(saveId: string): Promise<CoachSave | null> {
+  return coachSaveOf(await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: COACH_SAVE_SELECT }));
+}
+
+/**
+ * The next date of the season in progress: of its clubs, or of an international break, which plays as one step; for a
+ * national coach, the next date of his break or summer tournament (played in steps, src/db/national-team.ts).
+ */
 async function nextMatchdayDate(saveId: string): Promise<Date | null> {
   const next = await prisma.fixture.findFirst({
     where: { saveId, played: false, ...IN_PROGRESS },
     orderBy: { scheduledAt: "asc" },
     select: { scheduledAt: true },
   });
-  const nextBreak = await prisma.internationalMatch.findFirst({
-    where: { saveId, played: false },
-    orderBy: { scheduledAt: "asc" },
-    select: { scheduledAt: true },
-  });
+  const coach = await coachOf(saveId);
+  const session = coach === null ? null : await currentNationalSession(prisma, coach);
+  const nextBreak =
+    coach === null
+      ? await prisma.internationalMatch.findFirst({
+          where: { saveId, played: false },
+          orderBy: { scheduledAt: "asc" },
+          select: { scheduledAt: true },
+        })
+      : session === null
+        ? null
+        : { scheduledAt: session.next };
   if (nextBreak !== null && (next === null || nextBreak.scheduledAt < next.scheduledAt)) {
     return nextBreak.scheduledAt;
   }
@@ -80,9 +104,13 @@ async function stepsUntil(saveId: string, untilDate: Date): Promise<number> {
     prisma.fixture.groupBy({ by: ["scheduledAt"], where: { saveId, played: false, ...IN_PROGRESS, scheduledAt: { lte: untilDate } } }),
     prisma.internationalMatch.groupBy({ by: ["scheduledAt"], where: { saveId, played: false, scheduledAt: { lte: untilDate } } }),
   ]);
+  // A national coach's summer tournament, its dates not written yet: one step, as a break.
+  const coach = await coachOf(saveId);
+  const session = coach === null ? null : await currentNationalSession(prisma, coach);
+  const tournament = session?.kind === "tournament" && session.next <= untilDate ? [{ scheduledAt: session.next }] : [];
   const dates = [
     ...clubDates.map(({ scheduledAt }) => ({ time: scheduledAt.getTime(), international: false })),
-    ...internationalDates.map(({ scheduledAt }) => ({ time: scheduledAt.getTime(), international: true })),
+    ...[...internationalDates, ...tournament].map(({ scheduledAt }) => ({ time: scheduledAt.getTime(), international: true })),
   ].sort((a, b) => a.time - b.time);
   return dates.filter((date, index) => !date.international || index === 0 || !dates[index - 1].international).length;
 }
@@ -97,9 +125,9 @@ async function managedClubSaveId(saveId: string): Promise<string> {
  * of the season of the save's current date: the next season only starts through advanceToNextSeason.
  */
 export async function planSimulation(saveId: string, target: SimulationTarget): Promise<SimulationPlan> {
-  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true, liveFixtureId: true } });
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true, liveFixtureId: true, liveInternationalId: true } });
   const fromDate = save.currentDate;
-  if (save.liveFixtureId !== null) {
+  if (save.liveFixtureId !== null || save.liveInternationalId !== null) {
     return { matchInProgress: true, fromDate, untilDate: fromDate, matchdays: 0 };
   }
   const seasonEnd = seasonEndDate(seasonStartYear(fromDate));
@@ -113,7 +141,11 @@ export async function planSimulation(saveId: string, target: SimulationTarget): 
         orderBy: { scheduledAt: "asc" },
         select: { scheduledAt: true },
       });
-      wanted = next?.scheduledAt ?? fromDate;
+      // A national coach's next match at stake, when it comes first.
+      const coach = await coachOf(saveId);
+      const stop = coach === null ? null : await nextNationalStop(prisma, coach);
+      const club = next?.scheduledAt ?? null;
+      wanted = stop !== null && (club === null || stop.date < club) ? stop.date : (club ?? fromDate);
       break;
     }
     case "month-end":
@@ -135,7 +167,7 @@ export async function planSimulation(saveId: string, target: SimulationTarget): 
 
 export type IntermediateBatch = {
   played: number; // dates played by this call, none of them with a match of the managed club
-  done: boolean; // the next date to play is the managed club's match, or it has none left
+  done: boolean; // the next date to play is the managed club's match (or his national team's at stake), or it has none left
   breakPlayed: boolean; // an international break was its last step: the manager sees who comes back before his match
 };
 
@@ -155,13 +187,20 @@ export async function playUntilNextMatch(
     orderBy: { scheduledAt: "asc" },
     select: { scheduledAt: true },
   });
-  if (next === null) {
+  // A national coach's next match at stake, before his club's: the way stops before it, for him to play it live.
+  const coach = await coachOf(saveId);
+  const stop = coach === null ? null : await nextNationalStop(prisma, coach);
+  const target = stop !== null && (next === null || stop.date < next.scheduledAt) ? stop.date : (next?.scheduledAt ?? null);
+  if (target === null) {
     return { played: 0, done: true, breakPlayed: false };
   }
   // The day before the managed club's match: its date is left to playNextMatchday, with the half-time pause. An
   // international break stops the way there: the manager sees who comes back tired or injured before his match.
-  const batch = await simulateMatchdays(saveId, new Date(next.scheduledAt.getTime() - DAY_MS), maxMatchdays, { stopAfterBreak: true });
-  return { played: batch.played, done: batch.done, breakPlayed: batch.breakPlayed };
+  const batch = await simulateMatchdays(saveId, new Date(target.getTime() - DAY_MS), maxMatchdays, {
+    stopAfterBreak: true,
+    untilNationalStop: coach !== null,
+  });
+  return { played: batch.played, done: batch.done || batch.nationalStop, breakPlayed: batch.breakPlayed };
 }
 
 /**
@@ -174,18 +213,26 @@ export async function simulateMatchdays(
   saveId: string,
   untilDate: Date,
   maxMatchdays: number = SIMULATION_MAX_MATCHDAYS,
-  { stopAfterBreak = false }: { stopAfterBreak?: boolean } = {},
+  { stopAfterBreak = false, untilNationalStop = false }: { stopAfterBreak?: boolean; untilNationalStop?: boolean } = {},
 ): Promise<SimulationBatch> {
   await assertNoMatchInProgress(prisma, saveId);
   const managedMatches: { fixtureId: string; autoFilledSlots: number }[] = [];
   let played = 0;
   let breakPlayed = false;
+  let nationalStop = false;
   let next = await nextMatchdayDate(saveId);
 
   while (played < maxMatchdays && next !== null && next <= untilDate) {
-    const matchday = await playNextMatchday(saveId);
+    const matchday = await playNextMatchday(saveId, { untilNationalStop });
     if (matchday === null) {
       break;
+    }
+    // A national coach's match at stake next: left to him (« Prochain match » then plays it live).
+    if (matchday.national?.stopNext === true) {
+      nationalStop = true;
+      if (matchday.national.played === 0) {
+        break;
+      }
     }
     played++;
     if (matchday.managed !== null) {
@@ -197,6 +244,9 @@ export async function simulateMatchdays(
       if (stopAfterBreak) {
         break;
       }
+    }
+    if (nationalStop) {
+      break;
     }
   }
 
@@ -216,6 +266,7 @@ export async function simulateMatchdays(
     done: next === null || next > untilDate,
     matches: rows.map((row) => ({ ...toFixtureView(row), autoFilledSlots: autoFilledById.get(row.id) ?? 0 })),
     breakPlayed,
+    nationalStop,
   };
 }
 
@@ -312,8 +363,9 @@ async function breaksBetween(
   const matches = await prisma.internationalMatch.findMany({
     where: { saveId, played: true, scheduledAt: period },
     orderBy: { scheduledAt: "asc" },
-    select: { scheduledAt: true, home: true, away: true, managedPlayers: true },
+    select: { scheduledAt: true, home: true, away: true, managedPlayers: true, competition: true, round: true, pool: true, homeGoals: true, awayGoals: true },
   });
+  const { nationCode } = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { nationCode: true } });
   if (matches.length === 0) {
     return { breaks: [], injuries: [] };
   }
@@ -342,8 +394,21 @@ async function breaksBetween(
   const breaks = groups.map((group) => {
     const ofBreak = lines.filter((line) => line.date >= group.from && line.date <= group.to);
     const byPlayer = Map.groupBy(ofBreak, (line) => line.playerKey);
+    const inGroup = matches.filter((match) => match.scheduledAt >= group.from && match.scheduledAt <= group.to);
     return {
       ...group,
+      tournament: inGroup.find((match) => match.competition === "int.eu" || match.competition === "int.world")?.competition ?? null,
+      national: inGroup
+        .filter((match) => nationCode !== null && (match.home === nationCode || match.away === nationCode))
+        .map((match) => ({
+          home: match.home,
+          away: match.away,
+          homeGoals: match.homeGoals ?? 0,
+          awayGoals: match.awayGoals ?? 0,
+          competition: match.competition,
+          round: match.round,
+          pool: match.pool,
+        })),
       players: [...byPlayer].flatMap(([playerKey, entries]) => {
         const player = playerByKey.get(playerKey);
         return player === undefined

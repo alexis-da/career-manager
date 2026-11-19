@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { displayClubName } from "../engine/club-name";
 import { seasonStartYear, transferWindowAt } from "../engine/world";
 import { worldVersionOf, type WorldVersion } from "../engine/world-version";
@@ -5,6 +6,8 @@ import { prisma } from "./client";
 import { hasCup } from "./cup-view";
 import { hasEurope } from "./europe-view";
 import { getSaveSummary, type SaveSummary } from "./saves";
+import type { NationCode } from "../engine/nations";
+import { coachSessionPending, coachesNation, getNationalNext, type NationalNext } from "./national-view";
 
 const NAMED_CLUB = { select: { club: { select: { slug: true, name: true } } } };
 
@@ -17,7 +20,11 @@ export type SaveHeader = SaveSummary & {
   nextMatch: { date: Date; atHome: boolean; opponent: string } | null;
   seasonFinished: boolean; // every fixture of the seasons in progress is played
   windowOpen: boolean;
-  liveMatch: boolean; // the managed club's match waits at half-time
+  liveMatch: boolean; // a match waits live: the managed club's, or its national coach's
+  liveHref: string; // where it is played on: « /live », or « /live/nation?m=… » for the national coach's (within the save)
+  coach: NationCode | null; // the nation its player coaches: « Sélection » under Équipe
+  // The national coach's next match at stake when it comes before his club's next match: « Prochain match » leads there.
+  nationalNext: NationalNext | null;
   competitionCode: string; // the managed club's competition now: « fr.2 », named by the screens
   worldVersion: WorldVersion;
   hasCup: boolean; // a worldVersion 2 save with the national cups: « Coupe » in its navigation
@@ -28,8 +35,8 @@ export type SaveHeader = SaveSummary & {
   nextBreak: Date | null;
 };
 
-/** What the navigation bar of a save shows, or null when the save does not exist. */
-export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> {
+/** What the navigation bar of a save shows, or null when the save does not exist; read once a request (the layout's, the dashboard's). */
+export const getSaveHeader = cache(async (saveId: string): Promise<SaveHeader | null> => {
   const summary = await getSaveSummary(saveId);
   if (summary === null) {
     return null;
@@ -41,7 +48,10 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     }),
     // By their ids, not by a filter on Season: Postgres would read the seasons in progress of every save.
     prisma.season.findMany({ where: { saveId, completed: false }, select: { id: true } }),
-    prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, worldVersion: true, breaksFrom: true } }),
+    prisma.save.findUniqueOrThrow({
+      where: { id: saveId },
+      select: { liveFixtureId: true, liveInternationalId: true, worldVersion: true, breaksFrom: true },
+    }),
     hasCup(saveId),
     hasEurope(saveId),
   ]);
@@ -86,8 +96,13 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
           orderBy: { scheduledAt: "asc" },
           select: { scheduledAt: true },
         });
+  // A national coach: his next match at stake leads the way, his summer tournament ends his season.
+  const [coach, nationalNext] = [await coachesNation(saveId), await getNationalNext(saveId)];
+  const coachPending = coach !== null && (await coachSessionPending(saveId));
   const nextBreak =
-    nextInternational !== null && (nextFixture === null || nextInternational.scheduledAt < nextFixture.scheduledAt)
+    nationalNext === null &&
+    nextInternational !== null &&
+    (nextFixture === null || nextInternational.scheduledAt < nextFixture.scheduledAt)
       ? nextInternational.scheduledAt
       : null;
 
@@ -111,9 +126,12 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
             atHome,
             opponent: displayClubName((atHome ? nextFixture.awayClubSave : nextFixture.homeClubSave).club),
           },
-    seasonFinished: seasonsInProgress.length > 0 && !unplayedLeft,
+    seasonFinished: seasonsInProgress.length > 0 && !unplayedLeft && !coachPending,
     windowOpen: transferWindowAt(summary.currentDate) !== null,
-    liveMatch: save.liveFixtureId !== null,
+    liveMatch: save.liveFixtureId !== null || save.liveInternationalId !== null,
+    liveHref: save.liveFixtureId === null && save.liveInternationalId !== null ? `/live/nation?m=${save.liveInternationalId}` : "/live",
+    coach,
+    nationalNext,
     competitionCode: managed.competition.code,
     worldVersion: worldVersionOf(save.worldVersion),
     hasCup: withCup,
@@ -121,4 +139,4 @@ export async function getSaveHeader(saveId: string): Promise<SaveHeader | null> 
     hasNations: save.breaksFrom !== null,
     nextBreak,
   };
-}
+});

@@ -2,6 +2,7 @@ import { makeRng, poisson, randomInt, weightedIndex, type Rng } from "../lib/rng
 import {
   EXTRA_TIME_GOAL_WEIGHTS,
   EXTRA_TIME_PERIOD_MINUTES,
+  FULL_FITNESS,
   HOME_ADVANTAGE,
   INJURIES_PER_TEAM,
   INJURY_DAYS_MAX,
@@ -14,11 +15,11 @@ import {
   SEGMENT_MINUTES,
   SHOOTOUT_KICKS,
 } from "./balance";
-import { fitnessAfter, injuryRiskFactor, recoveredFitness } from "./fitness";
+import { fitnessAfter, fitnessAfterMatch, injuryRiskFactor, recoveredFitness } from "./fitness";
 import { chooseFormation } from "./formation-choice";
 import { formationPositions, type FormationName } from "./formations";
 import { isAvailable, selectRestedLineup, type Lineup, type SquadPlayer } from "./lineup";
-import { shootoutChance, type Side } from "./match";
+import { knockoutWinner, shootoutChance, type MatchResult, type Side } from "./match";
 import { positionGroup, ratingAt, type Position } from "./positions";
 import { formationStrength, expectedGoals, type TeamStrength } from "./strength";
 
@@ -332,12 +333,14 @@ export type PlayerRun = {
 /**
  * The national teams of a break or a tournament, as its matches change them: each nation's squad called on its first
  * date, kept with the formation chosen then (nationFormation); a player's fitness recovers day by day between two dates
- * and is lost on the pitch, an injury keeps him out from its date. Pure: the matches' seeds draw.
+ * and is lost on the pitch, an injury keeps him out from its date. Pure: the matches' seeds draw. A match of the national
+ * coach's nation is played by the full engine elsewhere, and recorded here as its result says (record, lightMatchOf).
  */
 export type InternationalSession<P extends SquadPlayer> = {
   runs: ReadonlyMap<string, PlayerRun>; // by player id, every player called
   teamOn(code: string, date: Date): NationTeam<P>; // its players at their fitness then, the injured out
   play(home: string, away: string, date: Date, seed: string, options: LightMatchOptions): LightMatch;
+  record(date: Date, match: LightMatch): void; // a match played elsewhere, applied as play applies its own
 };
 
 const daysBetween = (from: Date, to: Date): number => Math.max(0, Math.round((to.getTime() - from.getTime()) / DAY_MS));
@@ -371,8 +374,7 @@ export function internationalSession<P extends SquadPlayer>(called: ReadonlyMap<
       }),
     };
   };
-  const play = (home: string, away: string, date: Date, seed: string, options: LightMatchOptions): LightMatch => {
-    const match = playLightMatch(teamOn(home, date), teamOn(away, date), seed, options);
+  const record = (date: Date, match: LightMatch): void => {
     for (const appearance of match.appearances) {
       const run = runs.get(appearance.playerId);
       if (run === undefined) {
@@ -393,7 +395,129 @@ export function internationalSession<P extends SquadPlayer>(called: ReadonlyMap<
         run.goals++;
       }
     }
+  };
+  const play = (home: string, away: string, date: Date, seed: string, options: LightMatchOptions): LightMatch => {
+    const match = playLightMatch(teamOn(home, date), teamOn(away, date), seed, options);
+    record(date, match);
     return match;
   };
-  return { runs, teamOn, play };
+  return { runs, teamOn, play, record };
+}
+
+/**
+ * A match of the full engine as a session applies it (the national coach's, N4): its goals, its players' time on the
+ * pitch with the fitness it leaves them (fitnessAfterMatch, from their fitness at kick-off) and its injuries; a knockout
+ * match's decision and winner. `kickOff` gives each player's fitness at kick-off, by key.
+ */
+export function lightMatchOf(result: MatchResult, kickOff: ReadonlyMap<string, number>): LightMatch {
+  const injuries = new Map(result.injuries.map((injury) => [injury.playerId, injury.days]));
+  const spells = Map.groupBy(result.appearances, (appearance) => appearance.playerId);
+  const appearances: LightAppearance[] = [...spells].map(([playerId, entries]) => {
+    const first = entries[0];
+    return {
+      side: first.side,
+      playerId,
+      slot: first.slot,
+      from: Math.min(...entries.map((entry) => entry.from)),
+      to: Math.max(...entries.map((entry) => entry.to)),
+      fitness: fitnessAfterMatch(kickOff.get(playerId) ?? FULL_FITNESS, entries),
+      injuryDays: injuries.get(playerId) ?? null,
+    };
+  });
+  const goals: LightGoal[] = result.events
+    .filter((event) => event.type === "GOAL")
+    .map((event) => ({ side: event.side, minute: event.minute, playerId: event.playerId }));
+  const knockout = result.decidedBy !== undefined;
+  const penalties =
+    result.homePenalties === undefined || result.awayPenalties === undefined ? null : { home: result.homePenalties, away: result.awayPenalties };
+  return {
+    homeGoals: result.homeGoals,
+    awayGoals: result.awayGoals,
+    goals,
+    appearances,
+    decidedBy: result.decidedBy ?? null,
+    penalties,
+    winner: knockout ? knockoutWinner(result) : null,
+  };
+}
+
+// ------------------------------------------------------------------ A break played in steps (N4)
+
+/**
+ * How a session plays one of its matches: light (the session plays it with its seed), as recorded (a match of the national
+ * coach's nation, played by the full engine and applied as its result says), or pending (his match started live, applied
+ * once over: the session goes no further than its date).
+ */
+export type SessionPlay = { kind: "light" } | { kind: "recorded"; match: LightMatch } | { kind: "pending" };
+
+/** A match of a session, in the order it plays them. */
+export type SessionFixture = { date: Date; home: string; away: string; neutral: boolean };
+
+/** A session run: the matches played, in order; the date it stopped before; the match left pending (started live). */
+export type SessionRun<F> = { played: { fixture: F; match: LightMatch }[]; stoppedBefore: Date | null; pending: F | null };
+
+/** Plays a date's matches as `play` says, into `run` (see runBreak). */
+export function playDate<P extends SquadPlayer, F extends SessionFixture>(
+  session: InternationalSession<P>,
+  fixtures: readonly F[],
+  run: SessionRun<F>,
+  play: (fixture: F) => SessionPlay,
+  light: (fixture: F) => LightMatch,
+): void {
+  for (const fixture of fixtures) {
+    const how = play(fixture);
+    if (how.kind === "pending") {
+      run.pending ??= fixture;
+    } else if (how.kind === "recorded") {
+      session.record(fixture.date, how.match);
+      run.played.push({ fixture, match: how.match });
+    } else {
+      run.played.push({ fixture, match: light(fixture) });
+    }
+  }
+}
+
+/** A session's fixtures by date, in order: those of a date together. */
+export function byDate<F extends SessionFixture>(fixtures: readonly F[]): F[][] {
+  const dates: F[][] = [];
+  for (const fixture of fixtures) {
+    const current = dates.at(-1);
+    if (current !== undefined && current[0].date.getTime() === fixture.date.getTime()) {
+      current.push(fixture);
+    } else {
+      dates.push([fixture]);
+    }
+  }
+  return dates;
+}
+
+/**
+ * A break's matches date by date, in their order (N4): a date is played whole or not at all, as `openDate` says (false:
+ * the run stops before it, as before the national coach's next match the player chooses to play live or to simulate);
+ * each match as `playOf` says: light, as recorded, or pending (his match started live), the other matches of its date
+ * played all the same (no player plays twice a date), none after it. Without the national coach, every date open and
+ * every match light: the break playInternationalBreak plays.
+ */
+export function runBreak<P extends SquadPlayer, F extends SessionFixture>(input: {
+  session: InternationalSession<P>;
+  fixtures: readonly F[];
+  seedOf: (fixture: F) => string;
+  openDate: (fixtures: readonly F[]) => boolean;
+  playOf: (fixture: F) => SessionPlay;
+}): SessionRun<F> {
+  const { session, fixtures, seedOf, openDate, playOf } = input;
+  const run: SessionRun<F> = { played: [], stoppedBefore: null, pending: null };
+  for (const date of byDate(fixtures)) {
+    if (!openDate(date)) {
+      run.stoppedBefore = date[0].date;
+      break;
+    }
+    playDate(session, date, run, playOf, (fixture) =>
+      session.play(fixture.home, fixture.away, fixture.date, seedOf(fixture), { neutral: fixture.neutral, knockout: false }),
+    );
+    if (run.pending !== null) {
+      break;
+    }
+  }
+  return run;
 }

@@ -23,6 +23,8 @@ import { applySeasonMoves, readFinalTables, seasonMovesOf } from "./promotion";
 import { applySeasonFinances, applySeasonReputations, payrollsOf, recordDotation } from "./season-finances";
 import { unlockSeasonAchievements } from "./rewards";
 import { recordSeasonResult } from "./season-results";
+import { closeCoachSeason, openCoachOffers, refreshCoachObjective, type CoachTournament } from "./national-missions";
+import { coachSaveOf, COACH_SAVE_SELECT, currentNationalSession } from "./national-team";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
 // The transition rewrites every player of the save, then runs the preseason, in bulk statements.
@@ -45,6 +47,8 @@ export type SeasonTransition = {
   europeMatches: number; // the European competitions' league phases (worldVersion 2 saves, never a challenge save's)
   internationalMatches: number; // the new season's qualifiers and friendlies (worldVersion 2 saves, never a challenge save's)
   tournament: TournamentSummary | null; // the summer tournament the closing season's cycle ended with, played light first
+  // The national coach's tournament against his federation's objective (src/db/national-missions.ts); null without.
+  coachTournament: CoachTournament | null;
   preseason: PreseasonSummary;
 };
 
@@ -124,6 +128,11 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       if (unplayed > 0) {
         throw new SeasonNotFinishedError(unplayed);
       }
+      // A national coach's summer tournament is played in June, his matches as he chooses: the season ends with it.
+      const coach = coachSaveOf(await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: COACH_SAVE_SELECT }));
+      if (coach !== null && (await currentNationalSession(tx, coach)) !== null) {
+        throw new SeasonNotFinishedError(1);
+      }
       // International matches of the season still to play, after its clubs' last date: played light first. Then the summer
       // tournament that ends the season's cycle, if it ends one, before any player progresses, retires or leaves.
       await playInternationalBreak(tx, { id: saveId, seed: save.seed, currentDate: save.currentDate }, null);
@@ -136,6 +145,8 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       const tables = await readFinalTables(tx, saveId, leagueSeasons);
       const moves = worldVersion === 1 ? [] : seasonMovesOf(tables);
       const completedSeasonId = await recordSeasonResult(tx, saveId, leagueSeasons, moves, cupSeasonIds, europeSeasonIds, tournament);
+      // The national coach's tournament against his federation's objective: below it, the end of his mission (§ 5.3).
+      const coachTournament = await closeCoachSeason(tx, saveId, completedStartYear, save.cyclesFrom);
       // The managed club's objectives of the season, closed: their coefficient goes to its next dotation.
       const managedCoefficient = await closeSeasonObjectives(tx, saveId, completedSeasonId);
 
@@ -326,6 +337,13 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       const internationalMatches = withBreaks
         ? await openNations(tx, { saveId, saveSeed: save.seed, cyclesFrom, startYear, currentDate: transitionDate })
         : 0;
+      // The national coach's new objective at a new cycle's opening, from his nation's strength then; the federations'
+      // offers to a player who coaches none (docs/design/selections.md § 5.1).
+      if (withBreaks) {
+        await refreshCoachObjective(tx, saveId, cyclesFrom, startYear);
+        const coachState = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { nationCode: true } });
+        await openCoachOffers(tx, { id: saveId, seed: save.seed, nationCode: coachState.nationCode, challengeId: save.challengeId }, startYear);
+      }
       // The managed club's objectives of the new season, once its fixtures and its cup's first round exist.
       await openSeasonObjectives(tx, saveId, { id: managedSeason.id, startYear });
 
@@ -341,6 +359,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
         europeMatches,
         internationalMatches,
         tournament,
+        coachTournament,
         preseason,
       };
     },

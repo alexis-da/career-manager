@@ -1,6 +1,6 @@
 import { makeRng, shuffle } from "../lib/rng";
 import { europeDates } from "./europe";
-import type { InternationalSession, LightMatch } from "./international";
+import { playDate, type InternationalSession, type LightMatch, type SessionPlay, type SessionRun } from "./international";
 import type { SquadPlayer } from "./lineup";
 import { INTERNATIONAL_DATES_PER_SEASON, NATION_CODES, NATIONS, type NationCode, type NationZone, type Pairing } from "./nations";
 import { breakWindows } from "./schedule";
@@ -458,11 +458,83 @@ export type PlayedTournament = {
 const sideOf = (fixture: TournamentFixture, match: LightMatch): NationCode => (match.winner === "away" ? fixture.away : fixture.home);
 const loserOf = (fixture: TournamentFixture, match: LightMatch): NationCode => (match.winner === "away" ? fixture.home : fixture.away);
 
+/** A tournament's match about to be played, with its date: whether it is a knockout one; always on neutral ground. */
+export type TournamentStep = TournamentFixture & { date: Date; knockout: boolean; neutral: true };
+
 /**
- * A tournament played light, from its squads (the session) and its groups: three matchdays of the groups on neutral
+ * A tournament run in its order, from its squads (the session) and its groups: three matchdays of the groups on neutral
  * ground, then the semi-finals (1st of a group against 2nd of the other) and the final, knockout matches decided by extra
- * time and a shoot-out; `seedOf` gives each match's stream.
+ * time and a shoot-out; `seedOf` gives each light match's stream. A round (one date) is played whole or not at all, as
+ * `openDate` says, each match as `playOf` says (as runBreak): light, as recorded (the national coach's, N4), or pending
+ * (his match started live: the run stops after its date). Complete, it gives the groups' tables, the winner and the
+ * runner-up.
  */
+export function runTournament<P extends SquadPlayer>(input: {
+  session: InternationalSession<P>;
+  groups: TournamentGroups;
+  dates: readonly Date[];
+  strengths: ReadonlyMap<NationCode, number>;
+  seedOf: (date: Date, home: NationCode, away: NationCode) => string;
+  openDate: (fixtures: readonly TournamentStep[]) => boolean;
+  playOf: (step: TournamentStep) => SessionPlay;
+}): SessionRun<TournamentStep> & { result: Omit<PlayedTournament, "matches"> | null } {
+  const { session, groups, dates, strengths, seedOf, openDate, playOf } = input;
+  const run: SessionRun<TournamentStep> = { played: [], stoppedBefore: null, pending: null };
+  const stepOf = (fixture: TournamentFixture, knockout: boolean): TournamentStep => ({ ...fixture, date: dates[fixture.round - 1], knockout, neutral: true });
+  /** A round played whole, or false where the run stops: before it, or after it (a match left pending). */
+  const playRound = (fixtures: readonly TournamentStep[]): boolean => {
+    if (!openDate(fixtures)) {
+      run.stoppedBefore = fixtures[0].date;
+      return false;
+    }
+    playDate(session, fixtures, run, playOf, (step) =>
+      session.play(step.home, step.away, step.date, seedOf(step.date, step.home, step.away), { neutral: true, knockout: step.knockout }),
+    );
+    return run.pending === null;
+  };
+  const matchOf = (step: TournamentStep): LightMatch | undefined =>
+    run.played.find(({ fixture }) => fixture.round === step.round && fixture.home === step.home && fixture.away === step.away)?.match;
+  const fixtures = groupFixtures(groups).sort((a, b) => a.round - b.round || (a.pool ?? 0) - (b.pool ?? 0));
+  for (let round = 1; round <= GROUP_ROUNDS; round++) {
+    if (!playRound(fixtures.filter((fixture) => fixture.round === round).map((fixture) => stepOf(fixture, false)))) {
+      return { ...run, result: null };
+    }
+  }
+  const tables = [0, 1].map((pool) =>
+    internationalTable(
+      groups[pool],
+      run.played
+        .filter(({ fixture }) => fixture.pool === pool)
+        .map(({ fixture, match }) => ({ home: fixture.home, away: fixture.away, homeGoals: match.homeGoals, awayGoals: match.awayGoals })),
+      strengths,
+    ),
+  ) as [InternationalTableRow[], InternationalTableRow[]];
+  const semis = [
+    stepOf({ round: SEMI_FINAL_ROUND, pool: null, home: tables[0][0].code, away: tables[1][1].code }, true),
+    stepOf({ round: SEMI_FINAL_ROUND, pool: null, home: tables[1][0].code, away: tables[0][1].code }, true),
+  ];
+  if (!playRound(semis)) {
+    return { ...run, result: null };
+  }
+  const [first, second] = semis.map((semi) => {
+    const match = matchOf(semi);
+    if (match === undefined) {
+      throw new Error("A semi-final without its result");
+    }
+    return { semi, match };
+  });
+  const final = stepOf({ round: FINAL_ROUND, pool: null, home: sideOf(first.semi, first.match), away: sideOf(second.semi, second.match) }, true);
+  if (!playRound([final])) {
+    return { ...run, result: null };
+  }
+  const finalMatch = matchOf(final);
+  if (finalMatch === undefined) {
+    throw new Error("A final without its result");
+  }
+  return { ...run, result: { tables, winner: sideOf(final, finalMatch), runnerUp: loserOf(final, finalMatch) } };
+}
+
+/** A tournament played light from start to end (runTournament, every match light). */
 export function playTournament<P extends SquadPlayer>(input: {
   session: InternationalSession<P>;
   groups: TournamentGroups;
@@ -470,31 +542,71 @@ export function playTournament<P extends SquadPlayer>(input: {
   strengths: ReadonlyMap<NationCode, number>;
   seedOf: (date: Date, home: NationCode, away: NationCode) => string;
 }): PlayedTournament {
-  const { session, groups, dates, strengths, seedOf } = input;
-  const matches: PlayedTournamentMatch[] = [];
-  const play = (fixture: TournamentFixture, knockout: boolean): PlayedTournamentMatch => {
-    const date = dates[fixture.round - 1];
-    const match = session.play(fixture.home, fixture.away, date, seedOf(date, fixture.home, fixture.away), { neutral: true, knockout });
-    const played = { ...fixture, date, match };
-    matches.push(played);
-    return played;
-  };
-  for (const fixture of groupFixtures(groups).sort((a, b) => a.round - b.round || (a.pool ?? 0) - (b.pool ?? 0))) {
-    play(fixture, false);
+  const run = runTournament({ ...input, openDate: () => true, playOf: () => ({ kind: "light" }) });
+  if (run.result === null) {
+    throw new Error("A light tournament stopped before its end");
+  }
+  const matches = run.played.map(({ fixture, match }) => ({ round: fixture.round, pool: fixture.pool, home: fixture.home, away: fixture.away, date: fixture.date, match }));
+  return { matches, ...run.result };
+}
+
+/** A tournament's match as written so far: played, with its score and, after the groups, its winner. */
+export type TournamentResult = { round: number; home: NationCode; away: NationCode; homeGoals: number; awayGoals: number; winner: NationCode | null };
+
+/**
+ * The next match of a nation in a tournament being played (its groups, its dates, its matches played so far), or null
+ * once it is out or the tournament over (N4): its group's next match, then, the groups over, its semi-final when it is
+ * in the first two of its group, then the final once it has won its semi-final and the other one is played.
+ */
+export function nextTournamentMatch(input: {
+  code: NationCode;
+  groups: TournamentGroups;
+  dates: readonly Date[];
+  played: readonly TournamentResult[];
+  strengths: ReadonlyMap<NationCode, number>;
+}): TournamentStep | null {
+  const { code, groups, dates, played, strengths } = input;
+  const done = (round: number, home: NationCode, away: NationCode): TournamentResult | undefined =>
+    played.find((match) => match.round === round && match.home === home && match.away === away);
+  const step = (fixture: TournamentFixture, knockout: boolean): TournamentStep => ({ ...fixture, date: dates[fixture.round - 1], knockout, neutral: true });
+  const fixtures = groupFixtures(groups).sort((a, b) => a.round - b.round || (a.pool ?? 0) - (b.pool ?? 0));
+  const own = fixtures.find((fixture) => (fixture.home === code || fixture.away === code) && done(fixture.round, fixture.home, fixture.away) === undefined);
+  if (own !== undefined) {
+    return step(own, false);
+  }
+  if (fixtures.some((fixture) => done(fixture.round, fixture.home, fixture.away) === undefined)) {
+    return null;
   }
   const tables = [0, 1].map((pool) =>
     internationalTable(
       groups[pool],
-      matches.filter((entry) => entry.pool === pool).map(({ home, away, match }) => ({ home, away, homeGoals: match.homeGoals, awayGoals: match.awayGoals })),
+      fixtures
+        .filter((fixture) => fixture.pool === pool)
+        .flatMap((fixture) => {
+          const result = done(fixture.round, fixture.home, fixture.away);
+          return result === undefined ? [] : [{ home: result.home, away: result.away, homeGoals: result.homeGoals, awayGoals: result.awayGoals }];
+        }),
       strengths,
     ),
-  ) as [InternationalTableRow[], InternationalTableRow[]];
-  const semis = [
-    play({ round: SEMI_FINAL_ROUND, pool: null, home: tables[0][0].code, away: tables[1][1].code }, true),
-    play({ round: SEMI_FINAL_ROUND, pool: null, home: tables[1][0].code, away: tables[0][1].code }, true),
+  );
+  const semis: TournamentFixture[] = [
+    { round: SEMI_FINAL_ROUND, pool: null, home: tables[0][0].code, away: tables[1][1].code },
+    { round: SEMI_FINAL_ROUND, pool: null, home: tables[1][0].code, away: tables[0][1].code },
   ];
-  const final = play({ round: FINAL_ROUND, pool: null, home: sideOf(semis[0], semis[0].match), away: sideOf(semis[1], semis[1].match) }, true);
-  return { matches, tables, winner: sideOf(final, final.match), runnerUp: loserOf(final, final.match) };
+  const semi = semis.find((fixture) => fixture.home === code || fixture.away === code);
+  if (semi === undefined) {
+    return null;
+  }
+  const semiResult = done(semi.round, semi.home, semi.away);
+  if (semiResult === undefined) {
+    return step(semi, true);
+  }
+  const winners = semis.map((fixture) => done(fixture.round, fixture.home, fixture.away)?.winner ?? null);
+  if (semiResult.winner !== code || winners.some((winner) => winner === null)) {
+    return null;
+  }
+  const final: TournamentFixture = { round: FINAL_ROUND, pool: null, home: winners[0] ?? code, away: winners[1] ?? code };
+  return done(final.round, final.home, final.away) === undefined ? step(final, true) : null;
 }
 
 /** A player's international title, as PlayerSave.internationalTitles keeps it: « int.eu:2028 ». */
