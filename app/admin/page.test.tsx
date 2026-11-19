@@ -105,6 +105,34 @@ vi.mock("@/src/db/admin-dashboard", async (importOriginal) => {
         players: { anonymous: 11, registered: 1, fr: 5, en: 5, phone: 6, computer: 4 },
         challenge: { weekKey: "2026-W45", saves: 12, entries: 14, submitted: 0, maxSaves: 20 },
         resumeLinks: { created: 9, creators: 4, used: 2 },
+        // The tutorial: 20 started, 15 to their first match; 5 skipped, 4 of them on their first day; 3 dropouts. Before
+        // it, 25 of 176 new players back the next day.
+        tutorial: {
+          since: "2026-11-19",
+          referenceFirst: "2026-11-05",
+          referenceLast: "2026-11-18",
+          started: 20,
+          firstMatches: 15,
+          day1Done: 12,
+          skipped: 5,
+          skippedDay1: 4,
+          finished: 10,
+          dropouts: 3,
+          minutesToFirstMatch: { median: 2.6, q3: 4.2, reference: 11 },
+          steps: [
+            { step: "welcome", shown: 20, done: 14, passed: 2, adapted: 3, skipped: 3, lastShown: 1 },
+            { step: "speed", shown: 15, done: 9, passed: 1, adapted: 4, skipped: 1, lastShown: 0 },
+            { step: "choice", shown: 13, done: 12, passed: 0, adapted: 1, skipped: 0, lastShown: 1 },
+            { step: "half-time", shown: 12, done: 11, passed: 1, adapted: 0, skipped: 1, lastShown: 1 },
+            { step: "full-time", shown: 12, done: 8, passed: 0, adapted: 4, skipped: 0, lastShown: 0 },
+          ],
+          returns: [
+            { cohort: "day1Done", players: 12, day1: { part: 3, whole: 10 }, day7: { part: 0, whole: 0 } },
+            { cohort: "skippedDay1", players: 4, day1: { part: 1, whole: 4 }, day7: { part: 0, whole: 0 } },
+            { cohort: "noFirstMatch", players: 5, day1: { part: 0, whole: 5 }, day7: { part: 0, whole: 0 } },
+            { cohort: "reference", players: 180, day1: { part: 25, whole: 176 }, day7: { part: 3, whole: 151 } },
+          ],
+        },
         // Missions: 12 proposed, 5 completed; three streaks running, two of a day and one of 4.
         missions: {
           proposed: 12,
@@ -362,6 +390,24 @@ describe("the administrator's dashboard", () => {
       "38 000 supprimées",
       "1 écart",
       "18,4 s",
+      // The tutorial: its tiles, its time to the first match beside the reference's, its steps and its returns.
+      ">Tutoriel</h2>",
+      "premières carrières hors défi, depuis le 19/11",
+      "Lecture honnête : « fini » contre « passé » n&#x27;est pas un effet du tutoriel",
+      "Commencés",
+      "75 % des commencés",
+      "80 % dès le jour 1",
+      "ni finis ni passés, joueur pas vu depuis 7 jours",
+      "Création → 1er match",
+      "médiane · 3e quartile 4 min",
+      "Avant le tutoriel",
+      "médiane, premières carrières du 05/11 au 18/11",
+      "11 min",
+      "Étapes du premier jour",
+      "Coup de sifflet final",
+      "Retour à J+1 et J+7",
+      "Partis avant la fin du 1er match",
+      "Référence : nouveaux joueurs du 05/11 au 18/11",
     ]) {
       expect(markup.replace(/ /g, " ")).toContain(text);
     }
@@ -391,6 +437,17 @@ describe("the administrator's dashboard", () => {
     expect(markup).toMatch(/data-kind="PLAY_LIVE"(?:(?!<\/tr>).)*>60 %<\/span><span[^>]*>3\/5<\/span>/);
     // Before the tracking, a day's visits are not known.
     expect(markup).toMatch(/data-day="2026-11-06"[^>]*><td[^>]*>06\/11<\/td><td[^>]*>—<\/td>/);
+    // The tutorial between the journey and the retention; its median to the first match, 2.6 minutes.
+    expect(markup.indexOf(">Parcours</h2>")).toBeLessThan(markup.indexOf(">Tutoriel</h2>"));
+    expect(markup.indexOf(">Tutoriel</h2>")).toBeLessThan(markup.indexOf(">Rétention</h2>"));
+    expect(markup).toMatch(/data-testid="admin-tutorial-to-first-match"(?:(?!<\/div>).)*>3 min<\/p>/);
+    // A step's row: shown, done, passed, then the three columns a phone leaves out.
+    expect(markup).toMatch(/data-step="half-time"(?:(?!<\/tr>).)*>Mi-temps<\/td><td[^>]*>12<\/td><td[^>]*>11<\/td><td[^>]*>1<\/td>/);
+    for (const column of ["Adaptées", "Tutoriel passé", "Abandons"]) {
+      expect(markup).toMatch(new RegExp(`<th[^>]*max-sm:hidden[^>]*>${column}</th>`));
+    }
+    // Before the tutorial, 25 of 176 new players back the next day.
+    expect(markup).toMatch(/data-cohort="reference"(?:(?!<\/tr>).)*>14 %<\/span><span[^>]*>25\/176<\/span>/);
   });
 
   it("is in English, over 30 days when asked, the period's link marked", async () => {
@@ -449,6 +506,20 @@ describe("the administrator's dashboard", () => {
       "38,000 deleted",
       "1 mismatch",
       "18.4 s",
+      ">Tutorial</h2>",
+      "first careers outside the challenge, since 19/11",
+      "Read honestly: “finished” against “skipped” is not an effect of the tutorial",
+      "75% of those started",
+      "80% on day 1",
+      "neither finished nor skipped, player not seen for 7 days",
+      "median · 3rd quartile 4 min",
+      "Before the tutorial",
+      "median, first careers from 05/11 to 18/11",
+      "Steps of the first day",
+      "Final whistle",
+      "Back at D+1 and D+7",
+      "Left before the end of the 1st match",
+      "Reference: new players from 05/11 to 18/11",
     ]) {
       expect(markup).toContain(text);
     }

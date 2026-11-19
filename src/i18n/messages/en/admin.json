@@ -153,6 +153,53 @@
       "none": "No challenge this week.",
       "figures": "{saves, plural, =0 {no career} one {# career} other {# careers}} of {max} · {entries, plural, =0 {no player entered} one {# player entered} other {# players entered}} · {submitted, plural, =0 {none ranked} one {# ranked} other {# ranked}} after 10 matchdays"
     },
+    "tutorial": {
+      "title": "Tutorial",
+      "note": "The tutorials started over the period, by UTC day of their start: first careers outside the challenge, since {date}. Read honestly: “finished” against “skipped” is not an effect of the tutorial, as those who skip are often experienced or hurried players; the reference from before the release says more. Over time, the purge removes the players without an account who never came back, from the reference first.",
+      "started": "Started",
+      "firstMatches": "First match played",
+      "day1Done": "Day 1 finished",
+      "skipped": "Skipped",
+      "finished": "Finished",
+      "dropouts": "Dropouts",
+      "toFirstMatch": "Creation → 1st match",
+      "reference": "Before the tutorial",
+      "ofStarted": "{share} of those started",
+      "skippedDay1": "{share} on day 1",
+      "dropoutsDetail": "neither finished nor skipped, player not seen for {days, plural, one {# day} other {# days}}",
+      "toFirstMatchDetail": "median · 3rd quartile {q3}",
+      "referenceDetail": "median, first careers from {first} to {last}",
+      "stepsTitle": "Steps of the first day",
+      "stepsNote": "Shown: at least once; skipped: Escape, “Skip this step” or shown twice without the move; adapted: the move made another way, or the step no longer applying. Tutorial skipped: the step shown when “Skip the tutorial” was touched; dropouts: their last step shown.",
+      "returnsTitle": "Back at D+1 and D+7",
+      "returnsNote": "Back the day after the tutorial began (D+1) and a week later (D+7), the reference since they were created, over the days whose return day is over; “—”: not known yet.",
+      "columns": {
+        "step": "Step",
+        "shown": "Shown",
+        "done": "Done",
+        "passed": "Skipped",
+        "adapted": "Adapted",
+        "skipped": "Tutorial skipped",
+        "lastShown": "Dropouts",
+        "group": "Group",
+        "players": "Players",
+        "day1": "D+1",
+        "day7": "D+7"
+      },
+      "steps": {
+        "welcome": "Welcome",
+        "speed": "Speed",
+        "choice": "Decision",
+        "half-time": "Half-time",
+        "full-time": "Final whistle"
+      },
+      "cohorts": {
+        "day1Done": "Day 1 finished",
+        "skippedDay1": "Tutorial skipped on day 1",
+        "noFirstMatch": "Left before the end of the 1st match",
+        "reference": "Reference: new players from {first} to {last}"
+      }
+    },
     "missions": {
       "title": "Daily missions",
       "note": "Three missions a player a UTC day (easy, medium, hard), on Home in their careers but challenge ones; before v2, one, counted with its mission. Proposed: shown, or taken on before they were; completed, mission by mission. Streaks running: the players whose latest counted day is today or yesterday, and how long.",

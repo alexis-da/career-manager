@@ -3,6 +3,7 @@ import { MAX_CHALLENGE_SAVES_PER_WEEK } from "../config/challenge";
 import { isoWeekKey } from "../lib/iso-week";
 import { RESUME_LINK_DAYS } from "../lib/resume-link";
 import { missionsAndTokens, type MissionFigures, type TokenFigures } from "./admin-missions";
+import { tutorialFigures, type TutorialFigures } from "./admin-tutorial";
 import { databaseSize } from "./db-size";
 import type { EventCleanupCounts } from "./event-cleanup";
 import type { ArchiveMode } from "./season-archiving";
@@ -12,8 +13,8 @@ import { utcDayOf } from "./user-days";
 // /admin: where the players come from and how far they go, from the first visit to the end of a season; who comes back;
 // what is played; the database's health; over the last 7 or 30 UTC days, today included. Read only, across every user:
 // the administrator's view, never a player's. Each figure is one aggregate query over the period through an index
-// (User.createdAt, UserDay.day, the days of VisitDay and DailyStat), never a whole large table; the queries run side by
-// side, on the client's pool (never a transaction's).
+// (User.createdAt, UserDay.day, Tutorial.startedAt, the days of VisitDay and DailyStat), never a whole large table; the
+// queries run side by side, on the client's pool (never a transaction's).
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -55,6 +56,7 @@ export type Journey = {
 };
 
 export type { MissionFigures, TokenFigures } from "./admin-missions";
+export type { TutorialFigures } from "./admin-tutorial";
 
 /** One UTC day of the period. */
 export type AdminDay = {
@@ -91,6 +93,8 @@ export type AdminDashboard = {
   // The resume links of the period (src/db/resume-links.ts): created, for how many players, and used; those of a purged
   // player gone with them.
   resumeLinks: { created: number; creators: number; used: number };
+  // The first career's tutorial (src/db/admin-tutorial.ts): the tutorials started over the period, by Tutorial(startedAt).
+  tutorial: TutorialFigures;
   missions: MissionFigures; // missions v2 (src/db/admin-missions.ts), v1's counted before the switch
   tokens: TokenFigures;
   health: StorageHealth & {
@@ -228,6 +232,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
     passes,
     archivePasses,
     newPlayers,
+    tutorial,
   ] = await Promise.all([
     // The players created since live matches are tracked: a player before it may have played live unrecorded.
     db.$queryRaw<PlayerGroup[]>`
@@ -310,6 +315,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
       FROM "User"
       WHERE "createdAt" >= ${growthFrom}::date AND "createdAt" < ${end}::date
       GROUP BY 1`,
+    tutorialFigures(db, { now, first, last, end }),
   ]);
 
   // A cohort's return day counts once it is over (strictly before today), from the first day visits were recorded.
@@ -451,6 +457,7 @@ export async function getAdminDashboard(db: PrismaClient, now: Date, period: Adm
             submitted: challenge.entries.length,
             maxSaves: MAX_CHALLENGE_SAVES_PER_WEEK,
           },
+    tutorial,
     missions: rewards.missions,
     tokens: rewards.tokens,
     resumeLinks: {

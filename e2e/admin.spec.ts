@@ -15,12 +15,12 @@ import {
 import { expectNoSidewaysScroll, fillCreateSaveForm, signInAs, waitForReact } from "./helpers";
 
 // /admin, the administrator's dashboard (app/admin, src/db/admin-dashboard.ts): a page that does not exist for anyone
-// but ADMIN_EMAIL (ADMIN_EMAIL_TEST on the test server); its six sections on a phone and a computer, in French and in
+// but ADMIN_EMAIL (ADMIN_EMAIL_TEST on the test server); its seven sections on a phone and a computer, in French and in
 // English, without a sideways scroll, page or table; 7 or 30 days; a first visit from a link followed to it; and an error
 // provoked in a player's browser, shown in its errors section.
 
 const LYON = "Olympique Lyonnais";
-const SECTIONS = ["acquisition", "journey", "retention", "activity", "errors", "health"] as const;
+const SECTIONS = ["acquisition", "journey", "tutorial", "retention", "activity", "errors", "health"] as const;
 const VIEWPORTS = [
   { width: 1280, height: 800 },
   { width: 390, height: 844 },
@@ -52,7 +52,7 @@ test("answers 404 on /admin and /admin/stats to anyone but the administrator", a
   }
 });
 
-test("shows the administrator its six sections on a computer and a phone, over 7 or 30 days, in French and in English", async ({
+test("shows the administrator its seven sections on a computer and a phone, over 7 or 30 days, in French and in English", async ({
   page,
 }) => {
   await signInAs(page, await ensureAdminUser());
@@ -68,6 +68,9 @@ test("shows the administrator its six sections on a computer and a phone, over 7
       await expect(page.getByTestId(`admin-${section}`), `${step} ${section}`).toBeVisible();
     }
     await expect(page.getByTestId("admin-acquisition-days").locator("tbody tr")).toHaveCount(7);
+    // The tutorial: the five steps of its first day, and its four rows of returns, the reference's last.
+    await expect(page.getByTestId("admin-tutorial-steps").locator("tbody tr")).toHaveCount(5);
+    await expect(page.getByTestId("admin-tutorial-returns").locator("tbody tr").last()).toHaveAttribute("data-cohort", "reference");
     await expect(page.getByTestId("admin-period-7")).toHaveAttribute("aria-current", "page");
     // The storage: size, growth, its monthly cost now and in 30 days, alerted or not, and the weight per new player.
     const health = page.getByTestId("admin-health");

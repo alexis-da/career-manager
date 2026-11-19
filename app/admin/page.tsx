@@ -19,6 +19,7 @@ import {
   MissionsSection,
   TokensSection,
   RetentionSection,
+  TutorialSection,
   type AdminFormats,
 } from "./_components/admin-sections";
 
@@ -35,8 +36,9 @@ const GB = 1024 * MB;
 const periodOf = (days: string | string[] | undefined): AdminPeriod => (days === "30" ? 30 : 7);
 
 /**
- * The administrator's dashboard (ADMIN_EMAIL): where players come from and how far they go, who comes back, what is
- * played, the game's errors over 24 hours and 7 days (src/db/errors.ts), the database's health, over 7 or 30 days
+ * The administrator's dashboard (ADMIN_EMAIL): where players come from and how far they go, how the first career's
+ * tutorial does (src/db/admin-tutorial.ts), who comes back, what is played, the game's errors over 24 hours and 7 days
+ * (src/db/errors.ts), the database's health, over 7 or 30 days
  * (src/db/admin-dashboard.ts). 404 for anyone else, signed out
  * included, as a page that does not exist. /admin/stats stays, a link away, with its tables and saves' first steps.
  */
@@ -103,6 +105,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
         <AcquisitionSection {...sections} />
         <JourneySection {...sections} />
+        <TutorialSection {...sections} />
         <div className="grid gap-6 xl:grid-cols-2">
           <RetentionSection {...sections} />
           <ActivitySection {...sections} />

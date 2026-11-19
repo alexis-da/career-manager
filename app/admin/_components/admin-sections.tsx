@@ -14,6 +14,7 @@ import {
   type Journey,
   type Share,
 } from "@/src/db/admin-dashboard";
+import { DROPOUT_DAYS, type ReturnCohort } from "@/src/db/admin-tutorial";
 import { totalOf } from "@/src/db/event-cleanup";
 import { MAX_ERROR_GROUPS_PER_DAY, type ErrorGroupView, type ErrorsSection as ErrorFigures } from "@/src/db/errors";
 import { OTHER_SOURCES } from "@/src/db/visits";
@@ -258,6 +259,134 @@ export function JourneySection({ dashboard, t, format }: SectionProps) {
           ))}
         </TableBody>
       </Table>
+    </Section>
+  );
+}
+
+/**
+ * The first career's tutorial (docs/design/tutoriel.md § 4), by UTC day of its start: how far its players went and how
+ * long to their first match, beside the players of the days before its release; how each step of the first day closed,
+ * where the tutorial was skipped and where its dropouts left it; who came back at D+1 and D+7. Four columns at most on a
+ * phone: a step's adapted closings, skips and dropouts from 640 px.
+ */
+export function TutorialSection({ dashboard, t, format }: SectionProps) {
+  const { tutorial } = dashboard;
+  const { median, q3, reference } = tutorial.minutesToFirstMatch;
+  const ofStarted = (count: number): string | null => {
+    const share = format.percent(count, tutorial.started);
+    return share === null ? null : t("tutorial.ofStarted", { share });
+  };
+  const onDayOne = format.percent(tutorial.skippedDay1, tutorial.skipped);
+  const referenceDays = { first: format.day(tutorial.referenceFirst), last: format.day(tutorial.referenceLast) };
+  const cohortName = (cohort: ReturnCohort): string =>
+    cohort === "reference" ? t("tutorial.cohorts.reference", referenceDays) : t(`tutorial.cohorts.${cohort}`);
+  return (
+    <Section id="tutorial" title={t("tutorial.title")} note={t("tutorial.note", { date: format.day(tutorial.since) })}>
+      <Tiles>
+        <Tile label={t("tutorial.started")} value={format.integer(tutorial.started)} testId="admin-tutorial-started" />
+        <Tile
+          label={t("tutorial.firstMatches")}
+          value={format.integer(tutorial.firstMatches)}
+          detail={ofStarted(tutorial.firstMatches)}
+          testId="admin-tutorial-first-matches"
+        />
+        <Tile
+          label={t("tutorial.day1Done")}
+          value={format.integer(tutorial.day1Done)}
+          detail={ofStarted(tutorial.day1Done)}
+          testId="admin-tutorial-day1"
+        />
+        <Tile
+          label={t("tutorial.skipped")}
+          value={format.integer(tutorial.skipped)}
+          detail={onDayOne === null ? null : t("tutorial.skippedDay1", { share: onDayOne })}
+          testId="admin-tutorial-skipped"
+        />
+        <Tile
+          label={t("tutorial.finished")}
+          value={format.integer(tutorial.finished)}
+          detail={ofStarted(tutorial.finished)}
+          testId="admin-tutorial-finished"
+        />
+        <Tile
+          label={t("tutorial.dropouts")}
+          value={format.integer(tutorial.dropouts)}
+          detail={t("tutorial.dropoutsDetail", { days: DROPOUT_DAYS })}
+          testId="admin-tutorial-dropouts"
+        />
+        {/* Side by side: the tutorial's time to the first match, and the same before it. */}
+        <Tile
+          label={t("tutorial.toFirstMatch")}
+          value={median === null ? "—" : format.duration(median)}
+          detail={q3 === null ? null : t("tutorial.toFirstMatchDetail", { q3: format.duration(q3) })}
+          testId="admin-tutorial-to-first-match"
+        />
+        <Tile
+          label={t("tutorial.reference")}
+          value={reference === null ? "—" : format.duration(reference)}
+          detail={t("tutorial.referenceDetail", referenceDays)}
+          testId="admin-tutorial-reference"
+        />
+      </Tiles>
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">{t("tutorial.stepsTitle")}</h3>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t("tutorial.stepsNote")}</p>
+        <Table data-testid="admin-tutorial-steps">
+          <TableHeader>
+            <TableRow className="border-border hover:bg-transparent">
+              <TableHead className={HEAD}>{t("tutorial.columns.step")}</TableHead>
+              <TableHead className={HEAD_NUMBER}>{t("tutorial.columns.shown")}</TableHead>
+              <TableHead className={HEAD_NUMBER}>{t("tutorial.columns.done")}</TableHead>
+              <TableHead className={HEAD_NUMBER}>{t("tutorial.columns.passed")}</TableHead>
+              <TableHead className={cn(HEAD_NUMBER, "max-sm:hidden")}>{t("tutorial.columns.adapted")}</TableHead>
+              {/* Seven columns from 640 px: the longest header on two lines. */}
+              <TableHead className={cn(HEAD_NUMBER, "whitespace-normal max-sm:hidden")}>{t("tutorial.columns.skipped")}</TableHead>
+              <TableHead className={cn(HEAD_NUMBER, "max-sm:hidden")}>{t("tutorial.columns.lastShown")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tutorial.steps.map((row) => (
+              <TableRow key={row.step} data-step={row.step} className={TABLE_ROW}>
+                <TableCell className={cn(TABLE_CELL, TIGHT, "py-2 break-words whitespace-normal")}>{t(`tutorial.steps.${row.step}`)}</TableCell>
+                <TableCell className={NUMBER}>{format.integer(row.shown)}</TableCell>
+                <TableCell className={NUMBER}>{format.integer(row.done)}</TableCell>
+                <TableCell className={NUMBER}>{format.integer(row.passed)}</TableCell>
+                <TableCell className={cn(NUMBER, "max-sm:hidden")}>{format.integer(row.adapted)}</TableCell>
+                <TableCell className={cn(NUMBER, "max-sm:hidden")}>{format.integer(row.skipped)}</TableCell>
+                <TableCell className={cn(NUMBER, "max-sm:hidden")}>{format.integer(row.lastShown)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">{t("tutorial.returnsTitle")}</h3>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t("tutorial.returnsNote")}</p>
+        <Table data-testid="admin-tutorial-returns">
+          <TableHeader>
+            <TableRow className="border-border hover:bg-transparent">
+              <TableHead className={HEAD}>{t("tutorial.columns.group")}</TableHead>
+              <TableHead className={HEAD_NUMBER}>{t("tutorial.columns.players")}</TableHead>
+              <TableHead className={HEAD_NUMBER}>{t("tutorial.columns.day1")}</TableHead>
+              <TableHead className={HEAD_NUMBER}>{t("tutorial.columns.day7")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tutorial.returns.map((row) => (
+              <TableRow key={row.cohort} data-cohort={row.cohort} className={TABLE_ROW}>
+                <TableCell className={cn(TABLE_CELL, TIGHT, "py-2 break-words whitespace-normal")}>{cohortName(row.cohort)}</TableCell>
+                <TableCell className={NUMBER}>{format.integer(row.players)}</TableCell>
+                <TableCell className={cn(NUMBER, "py-1.5")}>
+                  <ShareCell share={row.day1} format={format} />
+                </TableCell>
+                <TableCell className={cn(NUMBER, "py-1.5")}>
+                  <ShareCell share={row.day7} format={format} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </Section>
   );
 }

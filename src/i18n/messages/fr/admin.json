@@ -153,6 +153,53 @@
       "none": "Pas de défi cette semaine.",
       "figures": "{saves, plural, =0 {aucune partie} one {# partie} other {# parties}} sur {max} · {entries, plural, =0 {aucun joueur inscrit} one {# joueur inscrit} other {# joueurs inscrits}} · {submitted, plural, =0 {aucun classé} one {# classé} other {# classés}} après 10 journées"
     },
+    "tutorial": {
+      "title": "Tutoriel",
+      "note": "Les tutoriels commencés sur la période, par jour UTC de début : premières carrières hors défi, depuis le {date}. Lecture honnête : « fini » contre « passé » n'est pas un effet du tutoriel, ceux qui passent sont souvent des joueurs expérimentés ou pressés ; la référence d'avant la mise en ligne dit plus. La purge retire avec le temps les joueurs sans compte jamais revenus, la référence d'abord.",
+      "started": "Commencés",
+      "firstMatches": "Premier match joué",
+      "day1Done": "Jour 1 fini",
+      "skipped": "Passés",
+      "finished": "Terminés",
+      "dropouts": "Abandons",
+      "toFirstMatch": "Création → 1er match",
+      "reference": "Avant le tutoriel",
+      "ofStarted": "{share} des commencés",
+      "skippedDay1": "{share} dès le jour 1",
+      "dropoutsDetail": "ni finis ni passés, joueur pas vu depuis {days, plural, one {# jour} other {# jours}}",
+      "toFirstMatchDetail": "médiane · 3e quartile {q3}",
+      "referenceDetail": "médiane, premières carrières du {first} au {last}",
+      "stepsTitle": "Étapes du premier jour",
+      "stepsNote": "Montrées : au moins une fois ; passées : Échap, « Passer l'étape » ou montrée deux fois sans geste ; adaptées : le geste fait autrement, ou l'étape sans objet. Tutoriel passé : l'étape montrée quand on a touché « Passer le tutoriel » ; abandons : leur dernière étape montrée.",
+      "returnsTitle": "Retour à J+1 et J+7",
+      "returnsNote": "Revenus le lendemain du début du tutoriel (J+1) et une semaine après (J+7), la référence depuis sa création, sur les jours dont le retour est passé ; « — » : pas encore connu.",
+      "columns": {
+        "step": "Étape",
+        "shown": "Montrées",
+        "done": "Faites",
+        "passed": "Passées",
+        "adapted": "Adaptées",
+        "skipped": "Tutoriel passé",
+        "lastShown": "Abandons",
+        "group": "Groupe",
+        "players": "Joueurs",
+        "day1": "J+1",
+        "day7": "J+7"
+      },
+      "steps": {
+        "welcome": "Bienvenue",
+        "speed": "Vitesse",
+        "choice": "Décision",
+        "half-time": "Mi-temps",
+        "full-time": "Coup de sifflet final"
+      },
+      "cohorts": {
+        "day1Done": "Jour 1 fini",
+        "skippedDay1": "Tutoriel passé le jour 1",
+        "noFirstMatch": "Partis avant la fin du 1er match",
+        "reference": "Référence : nouveaux joueurs du {first} au {last}"
+      }
+    },
     "missions": {
       "title": "Missions du jour",
       "note": "Trois missions par joueur et par jour UTC (facile, moyenne, difficile), sur l'Accueil de ses carrières hors défi ; avant la v2, une seule, comptée avec sa mission. Proposées : montrées, ou avancées avant de l'être ; faites, mission par mission. Séries en cours : les joueurs dont le dernier jour compté est d'aujourd'hui ou d'hier, et leur longueur.",
