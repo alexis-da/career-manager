@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
-import { signedUserCookie, USER_COOKIE } from "./db";
+import { signedUserCookie, skipTutorialOf, USER_COOKIE } from "./db";
 
 /**
  * The seed of the saves the end-to-end tests create, unless a test needs a world of its own: fixed, so that every run
@@ -164,7 +164,11 @@ export async function homeOf(page: Page): Promise<string> {
   return (await page.evaluate(() => navigator.language)).startsWith("fr") ? "/fr" : "/";
 }
 
-/** Creates a save from the home page of the browser's language, with a fixed seed, and waits for its dashboard. */
+/**
+ * Creates a save from the home page of the browser's language, with a fixed seed, and waits for its dashboard. A new
+ * player's first career has the tutorial (docs/design/tutoriel.md): passed at once, as its « Passer le tutoriel » does, and
+ * the page read again, so that the specs that do not test it see the whole game (e2e/tutorial.spec.ts tests it).
+ */
 export async function createSave(page: Page, name: string, clubName: string, seed: string = E2E_SEED): Promise<void> {
   await page.goto(await homeOf(page));
   await fillCreateSaveForm(page, name, clubName, seed);
@@ -172,6 +176,16 @@ export async function createSave(page: Page, name: string, clubName: string, see
 
   await expect(page).toHaveURL(/\/saves\/[^/]+$/);
   await expect(page.getByTestId("dashboard-title")).toBeVisible();
+  await passTutorial(page);
+}
+
+/** On a save's dashboard: its tutorial passed, if it has one running, and the page read again. */
+export async function passTutorial(page: Page): Promise<void> {
+  if (await skipTutorialOf(saveIdOf(page))) {
+    await page.reload();
+    await expect(page.getByTestId("dashboard-title")).toBeVisible();
+    await expect(page.getByTestId("tutorial-bubble")).toHaveCount(0);
+  }
 }
 
 /**

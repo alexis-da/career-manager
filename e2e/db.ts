@@ -247,6 +247,52 @@ export async function deleteUsersLeftSince(since: Date): Promise<number> {
 }
 
 /**
+ * Passes the tutorial of a save created from the home page (docs/design/tutoriel.md), as its « Passer le tutoriel » does:
+ * the specs that do not test it see the whole game. Whether there was one running.
+ */
+export async function skipTutorialOf(saveId: string): Promise<boolean> {
+  const result = await withTestDatabase((client) =>
+    client.query(
+      `UPDATE "Tutorial" SET "skippedAt" = now(), "endedAt" = now(), "endedBy" = 'SKIPPED'
+       WHERE "saveId" = $1 AND "endedBy" IS NULL`,
+      [saveId],
+    ),
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export type TutorialRow = {
+  day1At: Date | null;
+  endedBy: string | null;
+  skippedStep: string | null;
+  steps: Record<string, { shows: number; outcome: string | null }>;
+};
+
+/** The tutorial a save follows, as the database keeps it, its steps by key; null without one. */
+export async function tutorialOf(saveId: string): Promise<TutorialRow | null> {
+  return withTestDatabase(async (client) => {
+    const tutorial = await client.query<{ userId: string; day1At: Date | null; endedBy: string | null; skippedStep: string | null }>(
+      `SELECT "userId", "day1At", "endedBy", "skippedStep" FROM "Tutorial" WHERE "saveId" = $1`,
+      [saveId],
+    );
+    const [row] = tutorial.rows;
+    if (row === undefined) {
+      return null;
+    }
+    const steps = await client.query<{ step: string; shows: number; outcome: string | null }>(
+      `SELECT "step", "shows", "outcome" FROM "TutorialStep" WHERE "userId" = $1`,
+      [row.userId],
+    );
+    return {
+      day1At: row.day1At,
+      endedBy: row.endedBy,
+      skippedStep: row.skippedStep,
+      steps: Object.fromEntries(steps.rows.map(({ step, shows, outcome }) => [step, { shows, outcome }])),
+    };
+  });
+}
+
+/**
  * Moves a save to another day without playing the days in between, for a screen that reads no more than the date: the
  * market once its window has closed. Their fixtures stay unplayed: a test that does this plays nothing afterwards.
  */
