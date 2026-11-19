@@ -23,6 +23,27 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-19",
     fr: {
+      title: "Tutoriel de la première carrière",
+      items: [
+        "Ta première carrière commence avec ton adjoint : à chaque étape de ton premier jour, il met en avant le bon bouton et te dit en une phrase à quoi il sert. C'est toi qui fais le geste, et rien ne t'arrête.",
+        "Du choix du club au coup de sifflet final de ton premier match : lancer le match, choisir la vitesse du direct, prendre ta première décision, la mi-temps et le Coaching, puis « À demain ».",
+        "Le premier jour, l'Accueil reste simple : l'argent, les missions, les objectifs et le défi arrivent dès le lendemain, et quelques onglets attendent leur moment.",
+        "« Passer le tutoriel » montre tout d'un coup, à tout moment, et tu le reprends depuis Club, Réglages. Une deuxième carrière n'a pas de tutoriel, une partie du défi non plus : le défi garde ses trois premières actions.",
+      ],
+    },
+    en: {
+      title: "First career tutorial",
+      items: [
+        "Your first career starts with your assistant: at each step of your first day, the right button is highlighted and your assistant tells you in one sentence what it does. You make the move yourself, and nothing holds you up.",
+        "From choosing your club to the final whistle of your first match: kicking it off, picking the speed of the live match, your first decision, half-time and Coaching, then « See you tomorrow ».",
+        "On the first day, the Home screen stays simple: money, missions, objectives and the challenge arrive the next day, and a few tabs wait for their moment.",
+        "« Skip the tutorial » shows everything at once, at any time, and you can pick it up again in Club, Settings. A second career has no tutorial, nor does a challenge save: the challenge keeps its first three actions.",
+      ],
+    },
+  },
+  {
+    date: "2026-11-19",
+    fr: {
       title: "Sélectionneur",
       items: [
         "Une fédération peut te proposer son poste de sélectionneur au passage d'une saison, dès la fin de la première : il faut un club réputé et des trophées récents, et une grande nation demande plus qu'une petite. Tu acceptes ou tu déclines, d'autres offres viendront ; tu gardes toujours ton club.",

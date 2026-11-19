@@ -53,6 +53,7 @@ export const GUIDE: GuideSection[] = [
       title: "Ton premier match",
       blocks: [
         "Sur l'**Accueil** de ta carrière, touche **Jouer le match** : après les dates où seuls les autres clubs jouent, ton match se joue en direct.",
+        "Dans ta première carrière, ton adjoint t'accompagne jusqu'à la fin de ce premier match : une phrase à chaque étape, le bon bouton mis en avant, et c'est toi qui joues. **Passer le tutoriel** le passe d'un coup ; tu le reprends dans **Club**, **Réglages**.",
         "Choisis la vitesse, **x1**, **x2** ou **x4**. **Pause à la 15e** (puis 30e, 60e, 75e) arrête le match pour changer ton équipe. À la **Mi-temps**, le match s'arrête seul. **Aller à la mi-temps** puis **Aller au résultat** jouent la suite d'un coup, ton adjoint décidant pour toi.",
         "Pas envie de regarder ? **Simuler** joue sans direct jusqu'à la date choisie, puis te donne le bilan.",
         "À la fin, **Continuer** te ramène à l'**Accueil** : **Dernier résultat**, **Voir la feuille de match**, le classement et **À faire**, ce qui t'attend.",
@@ -62,6 +63,7 @@ export const GUIDE: GuideSection[] = [
       title: "Your first match",
       blocks: [
         "On your career's **Home** screen, press **Play the match**: after the dates when only other clubs play, your match is played live.",
+        "In your first career, your assistant is by your side until the end of this first match: one sentence at each step, the right button highlighted, and you do the playing. **Skip the tutorial** skips it at once; pick it up again in **Club**, **Settings**.",
         "Pick a speed, **x1**, **x2** or **x4**. **Pause at 15’** (then 30’, 60’, 75’) stops the match so you can change your team. At **Half-time** the match stops by itself. **Go to half-time** then **Go to the result** play on in one go, with your assistant deciding for you.",
         "Rather not watch? **Simulate** plays on without the live match up to the date you choose, then gives you a summary.",
         "At full time, **Continue** takes you back to **Home**: **Last result**, **See the match report**, the table and **To do**, whatever needs your attention.",

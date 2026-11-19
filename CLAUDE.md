@@ -679,9 +679,10 @@ faire » (`DashboardTodo`, du plus pressant au reste : titulaires blessés, titu
 4 jaunes, meilleure offre reçue, point faible, contrats, gardiens, effectif ; toute la ligne est un lien, sauf « Effectif
 complet » ; l'offre et le point faible seulement après le premier match du club, `firstMatchPlayed`), le dernier match
 (`LastMatchCard`, après le premier match seulement, avec le mot de l'adjoint après une défaite) et la carte du défi. **Avant
-le premier match du club** (chantier « première session », 12/11) : ses trois premières actions dans leur propre panneau
-juste sous le héros, à toutes les largeurs (`FirstActionsPanel`, `dashboard-first-steps`), aucune bulle ni carte du
-dernier match. Juste après (le héros, ou ce panneau quand il y est), toute la largeur : les missions du jour (règle « Missions
+le premier match du club** (chantier « première session », 12/11) : dans une partie de défi, ses trois premières actions dans
+leur propre panneau juste sous le héros, à toutes les largeurs (`FirstActionsPanel`, `dashboard-first-steps`) ; dans une
+carrière, la bulle de bienvenue du tutoriel quand elle le suit (règle « Tutoriel de la première carrière »), rien sinon ;
+aucune bulle des premiers pas ni carte du dernier match. Juste après (le héros, ou ce panneau quand il y est), toute la largeur : les missions du jour (règle « Missions
 du jour, jetons et récompenses »), sauf dans une partie de défi. Dans le navigateur d'une appli, l'avis des navigateurs intégrés en tête (règle « Navigateurs intégrés et
 lien de reprise »). Aucune offre hors mercato ni avant le premier match (`getMarketSales` non lu), le point faible n'est
 jamais une alerte. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
@@ -709,21 +710,62 @@ division (`club`, qui montre toujours le club choisi). Le nom de manager est pr�
 `createSave.managerDefault`), toujours modifiable. Le nom de la partie vient du club tant que le joueur n'en tape pas un ;
 lui et la graine sont repliés sous « Options », ouvertes seules par leur erreur ; un formulaire refusé garde tout (`onReset`, React
 le viderait sinon après son action). Tableau de bord : tant que le club
-n'a pas joué, aucun rang (« — ») et « Tes trois premières actions » (`FirstActions`, `FirstActionsPanel`,
-`app/saves/[id]/_components/first-steps.tsx`) juste sous le héros. Effectif et Composition se
+n'a pas joué, aucun rang (« — ») et, dans une partie de défi seulement, « Tes trois premières actions » (`FirstActions`,
+`FirstActionsPanel`, `app/saves/[id]/_components/first-steps.tsx`) juste sous le héros : une carrière a le tutoriel, ou un
+joueur qui connaît le jeu. Effectif et Composition se
 cochent à l'ouverture de leur page (`MarkSeen`) : on ne peut pas enregistrer une composition sans la changer. Le match se
 lit dans le jeu (`managedMatchesPlayed`, `src/db/first-steps.ts`) : les matchs du club, jamais `hasPlayedMatch`, déjà vrai
 à la mi-temps avec ceux des autres clubs. Bulles (`showsTip`, `app/saves/[id]/_lib/first-steps.ts`, `FirstStepTip`) : note
 sur l'effectif, poste secondaire sur la composition ; sur le tableau de bord, aucune avant le premier match, l'argent au
 premier, puis la simulation (dès le 2e, ou au 1er une fois l'argent fermée) ; une par écran, dans le flux de la page
 (elles ne recouvrent aucun bouton), fermables, et finies d'elles-mêmes
-au 5e match du club ; rien n'est bloquant et tout s'applique aussi à une partie de défi. Ce qui est vu n'est pas en base :
+au 5e match du club ; aucune sur le tableau de bord pendant le calme du premier jour du tutoriel ; rien n'est bloquant et tout
+s'applique aussi à une partie de défi. Ce qui est vu n'est pas en base :
 un cookie de confort par élément (`lw_seen_squad`…, 30 jours, `Path=/saves/<id>`, écrit dans le navigateur par
 `rememberSeen`), donc propre à chaque partie, sans lecture avant écriture : une page atteinte par navigation interne ne
 voit pas dans `document.cookie` un cookie de son propre chemin. Après chaque écriture, `router.refresh()` vide le cache
 du routeur, pour le retour du navigateur. Mesure : section « Premiers pas » de `/admin/stats` (`firstStepsByCohort`,
 `src/db/stats.ts`), 14 jours complets par jour de création, hors défi, sur les seules tables du jeu ; à comparer avant et
 après un changement sur moins de 30 jours, la purge retirant les parties anonymes abandonnées.
+
+**Tutoriel de la première carrière (chantier « tutoriel », 19/11).** Cahier `docs/design/tutoriel.md`, validé le 19/11 avec
+ses dix propositions. Première mise en ligne : le premier jour (scénario 1, `TUTORIAL_VERSION`) ; les étapes des jours suivants
+viendront avec un scénario 2, qui ne rejoue jamais le premier (`Tutorial.version`). L'adjoint montre, le joueur fait le geste
+lui-même ; jamais bloquant. **Pour la seule première carrière hors défi d'un nouveau joueur** : la ligne `Tutorial` (migration
+d'ajout `…_tutorial`, une par joueur, clé `userId`, `saveId` unique en SetNull ; `TutorialStep`, une par étape montrée ou
+close) naît dans la transaction de la création quand `createSaveAction` la demande (`createSave({ …, tutorial: true })`,
+`startTutorial`, `src/db/tutorial.ts` : aucune autre carrière hors défi, `firstSaveAt` vide ou joueur créé depuis
+`TUTORIAL_SINCE`, le défi ayant pu venir avant), avant `recordFirstSave` ; jamais pour un test, un script, la démo ni une partie
+de défi. Une carrière supprimée avant la fin laisse son tutoriel à la suivante ; un joueur qui a déjà joué un direct a ses
+étapes du direct closes à la naissance. Règles pures dans `src/lib/tutorial.ts` : `TUTORIAL_STEPS` (**clés jamais renommées** :
+`welcome`, `speed`, `choice`, `half-time`, `full-time`), issues `DONE`, `PASSED` (Échap ou « Passer l'étape », ou montrée deux
+fois sans geste, `MAX_SHOWS`), `ADAPTED` (le geste fait autrement), `EXPIRED`, fins `FINISHED`, `SKIPPED`, `EXPIRED` (14 jours
+après le début ou la reprise, `TUTORIAL_DAYS`), `MERGED` ; `tutorialStatus`, `firstDayCalm`, `tutorialReveal`,
+`dashboardStep`, `liveSteps`, `fullTimeDue`, `pendingWrites`, `canResume`, `tutorialSetting`. Lu une fois par requête par la
+clé du joueur (`readTutorial`, `getSaveTutorial`, `app/saves/[id]/_lib/tutorial.ts`), jamais une table du jeu, aucune
+simulation. **Bulle de l'adjoint** (`TutorialBubble`, `tutorial-bubble`, `data-step`, `tutorial-text`, `tutorial-place`
+« Premier jour · 2 sur 5 », `tutorial-pass`, `tutorial-skip`) : fixée au-dessus de la barre de navigation sous 1024 px
+(au-dessus des commandes du direct, `--live-controls-height`), dans la page près de sa cible au-dessus ; sa cible cerclée
+(`data-tutorial-target`, `globals.css`, sans pulsation en mouvement réduit) et décrite par elle (`aria-describedby`) ; le
+focus jamais déplacé ; Échap passe l'étape hors feuille modale ; aucun orange. Dans une feuille modale et dans « À demain »,
+une ligne de la carte (`TutorialLine`, `tutorial-line`). **Le jour 1** : `welcome` sur « Jouer le match » de l'Accueil, close
+à l'ouverture du direct ; `speed` sur les vitesses (`live-speeds`) du coup d'envoi au premier arrêt ; `choice` dans la
+première carte d'événement ; `half-time` dans la carte de mi-temps, puis une ligne dans le panneau Coaching (conseil ouvert ou
+non) ; `full-time` dans la carte « À demain » du direct ou du résumé de simulation, à la place des missions, qui écrit
+`Tutorial.day1At`. **Calme du premier jour** (`firstDayCalm`, jusqu'à la fin du jour UTC du « À demain ») : ni pastilles
+d'argent, ni missions (ni tirées ni comptées : `recordMissionMoves` lit le tutoriel), ni objectifs sur l'Accueil, ni défi
+(Accueil, Club, « À demain »), ni série dans les Réglages, ni bulles de l'Accueil, ni onglets Défi, Récompenses, Sélections,
+Europe et Coupe (absents de la bascule, adresses ouvertes, `SectionTabs` `hidden`) ; tuiles, mini-classement et « À faire »
+après le premier match, sans offre ni point faible. « Passer le tutoriel » montre tout, pour de bon (`skipTutorialAction`,
+`skipTutorial`, `skippedAt`, `skippedStep`) ; Club → Réglages (`settings-tutorial`, `data-state` running, skipped ou ended)
+le reprend (`resumeTutorialAction`, `settings-tutorial-resume`) quand quelque chose peut encore venir, sans rien recacher.
+Écritures par `tutorialStepAction` (`recordTutorialEvents` : une petite transaction, la ligne verrouillée, jamais dans celle d'un
+match ; une étape montrée compte une fois de plus, son issue gardée une fois) ; ce que le tutoriel clôt de lui-même part avec
+elle, ou après l'envoi de l'Accueil (`after`, `away`). Connexion Google : `moveTutorial` (le compte garde le sien ; sinon celui
+de l'anonyme suit, fini `MERGED` si le compte avait sa carrière). Mesures : section « Tutoriel » de `/admin` (règle « Administration »). Zone de messages
+`tutorial`, chaque réplique de 140 caractères au plus hors noms (`src/lib/tutorial.test.ts`). `e2e/tutorial.spec.ts` fait le
+jour 1 sur téléphone en anglais, chronométré, puis vérifie qu'une deuxième carrière et une partie de défi n'en ont pas ; l'aide
+`createSave` des E2E passe le tutoriel (`passTutorial`, `skipTutorialOf`).
 
 **Écrans de Match.** Classement (`/standings`) : compact à toutes les largeurs (J, Diff, Forme, Pts ; `StandingsTable`,
 `computeForm`, les cinq derniers résultats de championnat, lus par `getLatestSeasonTables`), il tient à 360 px ;
@@ -1323,7 +1365,12 @@ PostgreSQL, que Neon garde d'un démarrage de son calcul à l'autre, et le derni
 nouveaux joueurs par jour et par source, langue, appareil, sans compte ou Google), Parcours (par source : carrière, 1er
 match, fin de saison, en part des visites ; médiane de la création de la carrière à la fin du premier match ; « Passés par
 le direct », en tuile et par source, colonne masquée sous 640 px : la part des nouveaux joueurs créés depuis le premier
-`firstLiveMatchAt` de tous, `liveTrackedSince`, qui ont joué un match en direct jusqu'au bout), Rétention
+`firstLiveMatchAt` de tous, `liveTrackedSince`, qui ont joué un match en direct jusqu'au bout), Tutoriel
+(`TutorialSection`, `admin-tutorial`, `tutorialFigures`, `src/db/admin-tutorial.ts` : les tutoriels commencés sur la période
+par jour UTC de début, leur premier match, leur jour 1 fini, passés (dès le jour 1), terminés, abandons ; la médiane et le
+3e quartile du début au premier match, à côté de la médiane des 14 jours d'avant la mise en ligne ; chaque étape du jour 1,
+montrée, faite, passée, adaptée, où l'on a passé le tutoriel et où les abandons sont partis ; retour à J+1 et J+7 du jour 1
+fini, du tutoriel passé le jour 1, des partis avant la fin du premier match et de la référence), Rétention
 (J+1 et J+7 par jour de création et par source, sur les jours dont le retour est passé), Activité (joueurs actifs par jour
 depuis `UserDay`, matchs du jour, défi de la semaine, lancements de l'appli installée ; liens de reprise de la période,
 créés, pour combien de joueurs, et utilisés, lus dans `ResumeLink`, ceux d'un joueur purgé partis avec lui), Missions du
@@ -1403,7 +1450,7 @@ d'une partie, carte PNG, `/admin/stats`, page de confidentialité. next-intl 4. 
   feuille de match), `standings` (classement), `seasons` (histoire, bilan, cartes de saison et de carrière), `cup` (coupe), `club` (écran Club,
   réglages), `challenge-screen` (onglet Défi), `live` (direct), `session-end` (carte « À demain », mot de l'adjoint),
   `half-time` (panneau Coaching), `actions` (messages des Server Actions, refus), `in-app` (navigateurs intégrés, page
-  du lien de reprise), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
+  du lien de reprise), `tutorial` (bulles et lignes de l'adjoint, ligne des Réglages), `admin`. Typés (`src/i18n/next-intl.d.ts` : une clé inconnue échoue au typage) ;
   `src/i18n/messages.test.ts` exige les mêmes clés et les mêmes arguments ICU dans les deux langues, que tout message
   se formate et qu'un espace de noms n'appartienne qu'à un fichier. Seule exception, les documents des pages publiques,
   hors des messages : la confidentialité et « À propos » ont leurs deux versions en JSX
@@ -1544,7 +1591,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
   api/                # Auth.js, les routes de maintenance (purge, défi de la semaine, nettoyage des événements, archivage des saisons) et les erreurs des navigateurs
                       # (client-errors), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
-                      # club (club/ : finances, réglages), Europe (europe/ : compétitions européennes), sélections (internationals/ : les
+                      # club (club/ : finances, réglages), tutorial/ (actions du tutoriel de la première carrière),
+                      # Europe (europe/ : compétitions européennes), sélections (internationals/ : les
                       # 14 nations, leurs 23, la dernière trêve), ma sélection (nation/ : la nation du sélectionneur, sa liste, sa
                       # composition, nation/lineup ; son direct, live/nation), début de saison (season-start/ : dotation, choix de
                       # l'objectif), défi (challenge/), histoire (seasons/ : trophées, records, légendes, saisons ;
@@ -1570,7 +1618,10 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # home.spec.ts : l'accueil, le choix du club et les pages hors partie ;
-                      # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone ;
+                      # onboarding.spec.ts : le parcours d'un nouveau joueur, sur ordinateur et sur téléphone, le tutoriel
+                      # passé ; les premières actions d'une partie de défi ;
+                      # tutorial.spec.ts : le jour 1 du tutoriel sur téléphone en anglais, chronométré, Échap, « Passer le
+                      # tutoriel » et sa reprise, une deuxième carrière et une partie de défi sans tutoriel ;
                       # missions.spec.ts : les missions du jour faites en direct, les jetons, un achat en boutique, la collection ;
                       # objectives.spec.ts : une fin de saison, la nouvelle dotation et le choix d'un objectif ;
                       # season-card-share.spec.ts : la carte d'une saison partagée en image, ou enregistrée ;

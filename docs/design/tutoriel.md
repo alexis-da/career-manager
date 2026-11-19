@@ -662,3 +662,37 @@ Alexis a retenu les dix propositions :
 8. **Mesure** : la comparaison avant/après, sans groupe témoin, tant que les nouveaux joueurs sont peu nombreux.
 9. **Mise en ligne** : en deux fois, le jour 1 avec les Réglages et /admin d'abord, puis les jours suivants.
 10. **Revoir le tutoriel une fois fini** : non.
+
+---
+
+## 9. Mise en œuvre : première mise en ligne, le jour 1 (19/11)
+
+**Scénario 1.** Les tutoriels créés par cette mise en ligne ont le jour 1 seul (`TUTORIAL_VERSION` 1). Les étapes des jours
+suivants viendront avec un scénario 2. Un tutoriel garde le scénario de sa naissance (§ 0.1, `Tutorial.version`) : celui d'un
+joueur arrivé entre les deux mises en ligne finit avec son jour 1, et tout ce qui était caché apparaît le lendemain, sans
+étape poussée.
+
+**Écarts au § 5**, pour les mesures du § 4 et les étapes closes sans avoir été montrées :
+- `Tutorial.skippedStep` : l'étape montrée quand le joueur a touché « Passer le tutoriel » ;
+- `Tutorial.saveId` unique : une carrière n'est suivie que par un tutoriel ;
+- `TutorialStep.shownAt` facultatif et `shows` à 0 par défaut : les étapes du direct d'un joueur venu du défi naissent
+  closes, la bienvenue d'un premier match simulé se clôt sans être revue ;
+- pas d'index `(step, shownAt)` : les mesures passent par `Tutorial(startedAt)` et la clé de `TutorialStep`.
+
+**Précisions du scénario** :
+- `speed` se montre du coup d'envoi d'un direct ouvert à son début jusqu'à son premier arrêt (une carte d'événement, la
+  mi-temps). Elle est adaptée à cet arrêt, à « Aller à la mi-temps », à une pause demandée, et d'emblée en mouvement réduit.
+- `choice` : « Coaching » sur la carte l'adapte ; « Valider » la fait.
+- `half-time` : « Coaching » ou « Reprendre » de la carte la font ; la reprise par la barre ou par le panneau l'adapte.
+- `full-time` : montrée, elle écrit `day1At` ; faite par « Continuer » ou un lien de la carte, adaptée quand le joueur part
+  autrement (close depuis l'Accueil).
+- Les bulles `rating` et `secondary` (Effectif, Composition) restent dans ce scénario ; `money` et `simulation` se taisent
+  pendant le calme du premier jour. Leurs remplaçantes (`squad`, `lineup`, `market`, `simulate`) viendront avec le scénario 2.
+- La carte du défi de l'écran Club se cache aussi le premier jour, comme celle de l'Accueil.
+
+**Mesures du 19/11** (serveur de développement local, base de test) :
+- **Le jour 1 tient en une minute.** `e2e/tutorial.spec.ts`, 390 × 844, en anglais, à x1, la carte « Fulham FC » : 59,0 s du
+  toucher sur la carte du club au « À demain », dont 6,7 s de création et 52,2 s de direct. Deux cartes d'événement et la
+  mi-temps par le Coaching. Un vrai joueur lit les bulles : compter une à deux minutes, sous les 3 minutes du cahier.
+- Aucune requête de jeu de plus : une lecture du tutoriel par la clé du joueur par page, une petite transaction par
+  bulle montrée ou close, aucune dans un match.

@@ -4,7 +4,7 @@ import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 
 /** The day this page last changed, the same in both versions: to update with their content. */
-const UPDATED_ON = new Date(Date.UTC(2026, 10, 17));
+const UPDATED_ON = new Date(Date.UTC(2026, 10, 19));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -58,7 +58,9 @@ function FrenchPrivacy() {
             dans chaque carrière ; avec ton profil de joueur, tes missions du jour (les trois missions de chaque jour,
             leur avancement, le moment où tu les as accomplies, une mission changée), ta série de jours d&apos;affilée et
             ton protège-série, tes jetons et leur journal (chaque gain et chaque dépense), ta collection de titres,
-            badges et cadres avec ceux que tu portes, et le nombre de tes matchs joués et gagnés en direct.
+            badges et cadres avec ceux que tu portes, le nombre de tes matchs joués et gagnés en direct, et le tutoriel de
+            ta première carrière (les étapes que l&apos;adjoint t&apos;a montrées, quand, et ce que tu en as fait :
+            faite, passée ; le tutoriel passé ou repris).
           </li>
           <li>
             <strong>Si tu joues le défi de la semaine</strong> : ton score de la semaine. Connecté avec Google, ton
@@ -154,7 +156,7 @@ function FrenchPrivacy() {
             Late Winner is run by Alexis Da Cruz (<Contact />). It uses a technical cookie, lw_uid (a random id, one
             year), to link your saves to your browser, and the fingerprint of any resume link you ask for (seven days,
             used once); if you sign in with Google, your email address, name, profile
-            picture and Google id, and a session cookie; your game data, your daily missions, your streak, your tokens and their history, your purchases and your collection among them; and the date of your last visit and the days
+            picture and Google id, and a session cookie; your game data, your daily missions, your streak, your tokens and their history, your purchases, your collection and your first career&apos;s tutorial among them; and the date of your last visit and the days
             you visited, to measure how many players come back. A first-party audience cookie, lw_src (30 days), keeps
             where your first visit came from (a link&apos;s campaign such as ?ref=…, else the referring site&apos;s
             domain, never its address, else “direct”) and the page you landed on; when your player profile is created,
@@ -226,7 +228,9 @@ function EnglishPrivacy() {
             among them; with your player profile, your daily missions (each day&apos;s three missions, their progress,
             when you completed them, a mission changed), your streak of days in a row and your streak shield, your
             tokens and their history (each gain and each spending), your collection of titles, badges and frames with
-            those you wear, and how many matches you played and won live.
+            those you wear, how many matches you played and won live, and your first career&apos;s tutorial (the steps
+            your assistant showed you, when, and what you did with them: done, skipped; the tutorial skipped or taken up
+            again).
           </li>
           <li>
             <strong>If you play the weekly challenge</strong>: your score for the week. Signed in with Google, your first
