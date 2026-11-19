@@ -1071,3 +1071,53 @@ clubs par trêve (400 tirages de chaque trêve d'une saison, mêmes appelés) : 
 - **Poids** (`measure:weight -- --archive`, trois saisons, avec et sans sélections, compact) : 6,46, 7,19, 7,94 et
   8,75 Mo à la création puis après 1, 2 et 3 saisons, contre 6,41, 7,11, 7,81 et 8,60 sans les sélections : environ 33 Ko
   par saison, le tournoi de 2028 et ses 9 matchs compris.
+
+## 16. Mise en œuvre et mesures (19/11, N4 et N4b)
+
+Livré en une mise en ligne, le direct avec : l'offre, la mission et son objectif, la liste et la composition du
+sélectionneur, ses matchs au moteur complet, simulés ou en direct, et leurs écrans. Écarts au cahier, tous voulus :
+
+1. **Une trêve ou un tournoi du sélectionneur se joue par étapes** (§ 5.2, « des dates où la partie s'arrête ») : chaque
+   étape rejoue la session depuis son début, sans rien écrire de plus que ce qu'elle joue (`playNationalStep`,
+   `src/db/national-team.ts` ; `runBreak`, `runTournament`, purs). Ce qu'elle rejoue est gardé à sa première étape :
+   les 23 de chaque nation et leur condition à sa première date (`NationSave.squad`, colonne de plus que le § 10) ; les
+   matchs du sélectionneur tels que le moteur complet les a joués (`InternationalMatch.outcome`, colonne de plus) ; les
+   autres, légers, rejoués aux mêmes graines. Les lignes des joueurs ne sont écrites qu'à la fin de la session, comme
+   une trêve d'une autre partie. Une partie sans sélectionneur joue ses trêves et ses tournois comme avant
+   (`playInternationalBreak`, `playSummerTournament`), et les autres nations jouent leurs matchs du jour comme sans lui
+   (`national-team.test.ts`).
+2. **Son tournoi se joue en juin quand sa nation est qualifiée**, ses matchs écrits une fois joués : sa saison finit
+   avec lui (`SeasonNotFinishedError` avant), le passage de saison le résume sans le rejouer (`writtenTournament`).
+   Sans sélectionneur qualifié, le tournoi se joue toujours au passage de saison (§ 15).
+3. **Une mission par ligne** (`CoachSpell`) : l'objectif du cycle en cours, réécrit à l'ouverture de chaque cycle, et le
+   nombre de tournois dépassés (+5 de prestige chacun) ; les tournois de la mission se lisent dans ses matchs.
+4. **Démission entre deux trêves**, pas seulement au passage de saison : jamais pendant une trêve ou un tournoi commencé,
+   ni pendant un match en direct.
+5. **Pas d'offre à un sélectionneur en poste**, et la nation qu'il vient de quitter (sa saison ou la précédente) n'en
+   fait pas.
+6. **Les amicaux de l'adjoint passent aussi par le moteur complet**, simulés sans arrêt : seuls les matchs de sa nation
+   le font (« seuls les matchs de la nation dirigée utilisent le moteur complet »).
+7. **Couleurs des nations** (`NATION_COLORS`, `src/lib/nation-colors.ts`) : des couleurs du jeu pour les maillots des
+   visages et les initiales du direct, jamais un écusson.
+
+### Coût (`npm run measure:coach`, deux jumeaux 2 de la démo, deux saisons)
+
+L'un dirige l'Allemagne, la nation la plus forte d'Europe, dès sa première saison, l'autre aucune nation ; tout est simulé
+comme le fait « Simuler », l'adjoint décidant. L'Allemagne ne se qualifie pas pour la Coupe du Vieux Continent 2028
+(0-0 aux Pays-Bas, 0-4 en Italie) : la fédération met fin à la mission en mars 2028. Le second jumeau reprend alors la
+France, qualifiée, pour mesurer un tournoi d'été joué par étapes. Deux passages de la mesure (le compteur de CPU de
+Windows avance par pas de 15,6 ms) :
+
+| | Sélectionneur | Sans sélectionneur |
+| --- | --- | --- |
+| Une trêve (CPU, deux dates, 14 matchs) | 76 à 89 ms | 33 à 37 ms |
+| Une trêve (durée, base comprise) | 100 à 108 ms | 61 à 65 ms |
+| Matchs du moteur complet par saison | 8 (ses deux matchs de chaque trêve) | 0 |
+| Arrêts par saison, les amicaux à l'adjoint | 3,5 (4 la première saison, 3 la seconde) | — |
+| Son match en direct | coup d'envoi 31 à 62 ms, puis 12 à 19 ms par quart d'heure ; la dernière étape 47 à 78 ms, la fin de la trêve comprise | — |
+| Son tournoi d'été en juin (France, sortie en poule) | 2 étapes, 62 ms de CPU (122 ms de durée) | 15 à 16 ms au passage de saison (§ 15) |
+| Un passage de saison | 1,16 à 1,28 s | 1,05 à 1,31 s |
+
+Une trêve dirigée coûte environ 45 ms de plus qu'une autre : ses deux matchs au moteur complet (environ 15 ms chacun) et la
+session rejouée à son étape. Elle reste en deçà d'une date de club (172 à 185 ms). Rien ne change pour une partie sans
+sélectionneur : ses trêves et ses tournois passent par le même code qu'avant.

@@ -26,6 +26,7 @@ npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (créat
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (-- --seasons=3 : trois saisons de chaque graine, le premier tournoi d'été compris ; base locale seulement)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
 npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs, Europe (qualifiés, condition et charge des clubs européens, saison par saison), sélections (trêves, appelés, blessures, force des 14 nations, CPU) et tournois d'été (condition au premier match, crédibilité sur 50 cycles) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
+npm run measure:coach  # sélectionneur : CPU d'une trêve dirigée contre une trêve sans lui, d'un match de sélection en direct et d'un tournoi joué par étapes en juin, deux jumeaux d'une partie 2 (-- --seasons=2 --nation=POR ; base locale seulement)
 npm run measure:history # coût d'un affichage de l'onglet Histoire : requêtes et CPU, à froid et en cache, d'une carrière archivée de 5 et 10 saisons (-- --seasons=10 --at=5,10 ; base locale seulement)
 npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json, --archive : saisons terminées archivées, --no-europe : sans compétition européenne, pour comparer ; base locale dédiée et vide)
 ```
@@ -473,6 +474,61 @@ autres sur une saison, 1,26 sur trois, tournoi compris ; joueurs du tournoi à 1
 saison suivante, aucun blessé ; les huit grandes nations font 76 à 88 % des titres de 50 cycles, aucune plus de 24 % ;
 15 ms de CPU par tournoi ; environ 33 Ko par saison).
 
+**Sélectionneur (chantier « sélections », N4 et N4b, 19/11).** Cahier § 5, 9.6 à 9.10 et § 16 (mise en œuvre). Le
+joueur peut diriger une nation en plus de son club (`Save.nationCode`, une seule à la fois ; migration d'ajout
+`…_national_coach`), jamais dans une partie de défi ni une partie 1. **L'offre** : à chaque passage de saison, dès la fin de
+la première, une fois les nations ouvertes (`openCoachOffers`, `src/db/national-missions.ts`), au joueur sans sélection : le
+prestige du manager (`managerPrestige`, `src/engine/national-coach.ts`, pur : réputation du club, + 5 par trophée de ses deux
+dernières saisons, + 3 pour un titre de D2 ou une montée, + 10 au plus, + 5 par tournoi dépassé comme sélectionneur) contre le
+seuil du rang de force de chaque nation (`OFFER_THRESHOLDS` : 85 du 1er au 5e, 75 du 6e au 10e, 65 du 11e au 14e), deux
+fédérations au plus tirées par la graine (`nationalOffers`, flux `{graine}:coach-offers:{année}`), la nation qu'il vient de
+quitter écartée ; gardée dans `NationSave.offeredIn`, ouverte jusqu'au premier match du club de la saison
+(`offersStillOpen`) : l'écran de début de saison (`coach-offer`, sa feuille `coach-offer-sheet`, « Accepter le poste » son
+seul orange) et « À faire » (`coach-offer`) ; « Pas maintenant » la retire, d'autres viendront à un passage suivant. **La
+mission** (`CoachSpell`, une ligne par mission : nation, saisons, objectif du cycle en cours, tournois dépassés, sa fin) :
+l'objectif de la fédération par tiers de force parmi les nations qui visent le tournoi du cycle (`federationObjective` : la
+finale, les demi-finales, la qualification ; aucun pour une nation de la zone Monde en cycle du Vieux Continent), fixé à
+l'arrivée puis à l'ouverture de chaque cycle (`refreshCoachObjective`) ; fin de mission si sa nation ne se qualifie pas, à la
+fin de la trêve des derniers éliminatoires (`checkCoachQualification`), ou finit le tournoi sous l'objectif, au passage de
+saison qui le suit (`closeCoachSeason`, `objectiveVerdict`, `SeasonTransition.coachTournament`) ; démission entre deux trêves
+(`resignNationalTeam`, jamais pendant une trêve ou un tournoi commencé ni un direct) ; **rien pour le club**, ni budget, ni
+confiance du président, ni réputation. **Une trêve ou un tournoi du sélectionneur se joue par étapes**
+(`playNationalStep`, `src/db/national-team.ts`) : chacune rejoue la session depuis son début (`runBreak`, `runTournament`,
+purs) avec les 23 de chaque nation et leur condition à sa première date, gardés à sa première étape (`NationSave.squad`), les
+matchs des autres nations rejoués légers aux mêmes graines, ceux de sa nation tels que le moteur complet les a joués
+(`InternationalMatch.outcome`, `lightMatchOf`), par dates entières, jusqu'à son prochain match à enjeu (éliminatoires,
+tournoi, amical qu'il ne laisse pas à l'adjoint, `Save.nationFriendlies`, vrai par défaut) : en direct (`live`), simulé
+(`simulate`, l'adjoint décidant, le même match que le direct sans changement), ou laissé au joueur (`until-stop` : « Prochain
+match » s'arrête avant, `untilNationalStop`, `playUntilNextMatch`). Seuls les matchs de sa nation passent par le moteur
+complet, ses amicaux de l'adjoint compris ; une partie sans sélectionneur joue ses trêves et ses tournois comme avant
+(`playInternationalBreak`, `playSummerTournament`), et les autres nations leurs matchs du jour comme sans lui
+(`src/db/national-team.test.ts`). Les lignes des joueurs ne sont écrites qu'à la fin de la session ; la date de la partie suit
+les étapes. Quand sa nation est qualifiée, son tournoi se joue en juin par étapes, ses matchs écrits une fois joués : sa saison
+finit avec lui (`SeasonNotFinishedError` avant, `seasonFinished` faux), et le passage de saison le résume sans le rejouer
+(`writtenTournament`, `src/db/nations.ts`). **Son direct** (N4b) : la machinerie du direct du club sur la ligne du match
+(`InternationalMatch.liveState`, `events`, `decisions`, `instructions` ; `Save.liveInternationalId`, que
+`assertNoMatchInProgress` et `liveMatchOf` lisent avec `liveFixtureId`) : `advanceNationalLiveMatch` et
+`getNationalLive` (`src/db/national-live.ts`), `playNationLiveStepAction` ; à son coup de sifflet final, la session reprend
+jusqu'à son prochain match à enjeu ou sa fin. **Sa liste** : celle de l'adjoint par défaut (`callUp`), validée d'un geste ou
+changée jusqu'au premier match de la session (`saveCoachCallUp` : 23 joueurs de sa nation, de nos clubs ou de sa réserve,
+3 gardiens au moins, aucun blessé à sa première date ; `NationSave.callUp`), complétée par celle de l'adjoint si l'un des siens
+manque à sa première date (`completeCallUp`) ; les joueurs de son propre club appelés partent comme les autres, fatigue et
+blessures comprises, et ses écrans le disent. **Sa composition** : l'éditeur du club sur ses 23 (`getCoachLineupEditor`,
+`NationSave.lineup`, `saveCoachLineup` : ses seuls joueurs), celle de l'adjoint sans elle. **Écrans** : Équipe →
+**Sélection** (`/saves/[id]/nation`, `nav-nation`, pour le seul sélectionneur, `SaveHeader.coach`), sa composition
+(`/nation/lineup`), son direct (`/live/nation?m=…`, sous Match comme celui du club) ; le héros de l'Accueil
+(`hero-national`) et la carte de la colonne (`header-national-next`) quand son match à enjeu vient avant celui du club
+(`getNationalNext`, `src/db/national-view.ts`), « Prochain match » y menant ; « À faire » (`coach-offer`, `coach-call-up`
+avant une trêve dirigée, `coach-ended`) ; l'Histoire (`history-coach`, tuiles `coach-int.eu` et `coach-int.world`, hors de
+`TROPHY_KINDS` : rien pour l'indice de légende) ; la carte de saison (« SÉLECTIONNEUR DU PORTUGAL · … »,
+`SEASON_CARD_VERSION` 3) ; la carte de carrière (`CAREER_CARD_VERSION` 2) ; le titre « Sélectionneur »
+(`title-national-coach`, un tournoi gagné). Zones de messages `national-team`, `coach-offer`, `national-lineup`,
+`national-live`. Tests : `national-coach.test.ts` (moteur), `national-team.test.ts` (une trêve en direct et simulée, la même),
+`national-coach.slow.test.ts` (un cycle complet, son tournoi en juin), `e2e/national-coach.spec.ts` (`e2e/coach-save.mts`).
+Mesure : `npm run measure:coach` (19/11, cahier § 16 : une trêve dirigée 76 à 89 ms de CPU contre 33 à 37 ms sans
+sélectionneur ; un match de sélection en direct, 31 à 62 ms au coup d'envoi puis 12 à 19 ms par quart d'heure ; 3,5 arrêts par
+saison, les amicaux à l'adjoint).
+
 **Défi de la semaine.** Un défi par semaine ISO en UTC (`Challenge`, `weekKey` « 2026-W45 », `src/lib/iso-week.ts`),
 écrit une fois par `ensureChallenge` (`src/db/challenge.ts`) : par `POST /api/maintenance/challenge` le lundi (même
 secret et mêmes réponses 404 que la purge) ou, à défaut, à la première visite d'un de ses écrans ; jamais modifié ni
@@ -575,14 +631,15 @@ montre les jetons et la collection, et pourquoi. /admin : sections « Missions d
 
 **Navigation d'une partie.** Cinq entrées, dans `SECTIONS` (`app/saves/[id]/_lib/sections.ts`, pur et testé) : Accueil ·
 Équipe · Match · Marché · Club (en anglais Home · Squad · Match · Market · Club), testids `nav-dashboard`, `nav-team`,
-`nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif et Composition, Match a Calendrier, Classement, Coupe
+`nav-match`, `nav-transfers`, `nav-club`. Équipe a Effectif, Composition et Sélection (seulement pour un sélectionneur,
+`SaveHeader.coach`), Match a Calendrier, Classement, Coupe
 (seulement avec une coupe), Europe (seulement avec une saison européenne, `hasEurope`) et Sélections (seulement avec des nations, `hasNations`), Club a Club, Défi, Histoire et Récompenses ; le direct est sous Match et l'écran de début de saison sous Club,
 sans onglet l'un et l'autre (`SCREENS_WITHOUT_TAB`) ; l'entrée Match mène au Calendrier sous 1024 px, au
 Classement à partir de là, où il a le calendrier et la coupe à côté ; l'entrée Équipe à l'Effectif sous 1024 px, à la
 Composition à partir de là, où elle a l'effectif et la fiche à côté (`computerHome`, choisi par `SaveNav` après
 l'hydratation) ; l'entrée Club mène à `/club` à toutes les largeurs. Ces sous-onglets sont une bascule
 en tête de contenu (`SectionTabs`, `SegmentedLinks`,
-`src/components/segmented.tsx`), testids `nav-squad`, `nav-lineup`, `nav-fixtures`, `nav-standings`, `nav-cup`,
+`src/components/segmented.tsx`), testids `nav-squad`, `nav-lineup`, `nav-nation`, `nav-fixtures`, `nav-standings`, `nav-cup`,
 `nav-europe`, `nav-internationals`, `nav-club-overview` (`tabTestId` : l'onglet Club, l'entrée gardant `nav-club`), `nav-challenge`, `nav-seasons`, `nav-rewards`, présents
 sur les seuls écrans de leur entrée (`openScreen`, `e2e/helpers.ts`, passe par elle). Les entrées ne touchent pas aux
 adresses : chaque écran garde la sienne (`/squad`, `/standings`…). Une seule navigation dans le DOM (`SaveNav`,
@@ -995,7 +1052,8 @@ montées, que les trois dernières saisons de l'écran Club montrent aussi (`clu
 (`/seasons/[seasonId]`) : la ligne européenne du club et le vainqueur de chaque compétition européenne de l'année
 (`getEuropeWinners`, `src/db/europe-results.ts`, l'archive d'une saison archivée ; `season-europe-eu1`, `-eu2`) ; la carte PNG
 (badges `cardBadge` : « EUROPE » pour un titre européen, « DOUBLÉ » pour deux titres parmi championnat, coupe et Europe,
-« TRIPLÉ » pour les trois, et la ligne européenne d'un parcours sans titre ; `SEASON_CARD_VERSION` 2 ; pour une saison
+« TRIPLÉ » pour les trois, et la ligne européenne d'un parcours sans titre ; la saison d'un sélectionneur, sa ligne au pied,
+« SÉLECTIONNEUR DU PORTUGAL · COUPE DES HÉMISPHÈRES : DEMI-FINALE » (`getCoachSeason`) ; `SEASON_CARD_VERSION` 3 ; pour une saison
 qui a des objectifs, la pastille « Objectifs : 2/3 », `objectivesLine`, à côté de la saison),
 `SeasonCardActions` : où le navigateur partage des fichiers (`navigator.canShare({ files })`), « Partager » en orange
 envoie le PNG carré lui-même, seul (`navigator.share({ files })`, sans titre ni texte, que perdent ou refusent Instagram,
@@ -1042,7 +1100,8 @@ dans la transaction d'`advanceToNextSeason`, avant que nettoyage ou archivage n'
 saison, les cinq meilleurs buteurs du club et leurs passes, exacts d'après les événements de ses matchs, ses triplés, la note
 et la valeur de chaque joueur de l'effectif ; null pour une saison d'avant ou reconstruite (le meilleur buteur vient alors des
 statistiques). Carte de carrière (`/saves/[id]/seasons/card`, `careerCardPath`, `n=` les saisons terminées, sinon 404,
-`CAREER_CARD_VERSION`, `career-card.tsx` : la carrière telle que l'a laissée sa dernière saison terminée, trophées, plus large
+`CAREER_CARD_VERSION` 2, `career-card.tsx` : la carrière telle que l'a laissée sa dernière saison terminée, trophées (ceux du
+sélectionneur compris, côte à côte au-delà de quatre lignes en paysage, de six en carré), plus large
 victoire et invincibilité par leurs chiffres seuls, jamais l'adversaire, la première légende ou le meilleur buteur, objectifs ;
 ni nom, ni initiales du club, ni nom du manager ou de la partie ; cadres et titres de la collection) : à partir d'une saison
 terminée, jamais dans une partie de défi. Le bilan d'une saison dit les records qu'elle a battus (`recordsSetIn`,
@@ -1486,7 +1545,8 @@ app/                  # routes App Router, à la racine ; UI en français et en 
                       # (client-errors), seules routes API
   saves/[id]/         # une partie : tableau de bord, effectif, composition, calendrier, classement, transferts,
                       # club (club/ : finances, réglages), Europe (europe/ : compétitions européennes), sélections (internationals/ : les
-                      # 14 nations, leurs 23, la dernière trêve), début de saison (season-start/ : dotation, choix de
+                      # 14 nations, leurs 23, la dernière trêve), ma sélection (nation/ : la nation du sélectionneur, sa liste, sa
+                      # composition, nation/lineup ; son direct, live/nation), début de saison (season-start/ : dotation, choix de
                       # l'objectif), défi (challenge/), histoire (seasons/ : trophées, records, légendes, saisons ;
                       # seasons/card : carte de carrière ; seasons/[seasonId]/card : carte PNG de fin de saison, sans nom
                       # de club), récompenses
@@ -1500,6 +1560,8 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # dashboard.spec.ts : l'Accueil ; match.spec.ts : classement, calendrier et coupe ;
                       # europe.spec.ts : la page Europe, le calendrier et une finale européenne en direct ;
                       # internationals.spec.ts : la première trêve internationale d'une partie neuve, ses alertes, sa fiche, son calendrier ;
+                      # national-coach.spec.ts : l'offre d'une fédération acceptée, la liste de l'adjoint validée puis changée, un match
+                      # de sélection en direct jusqu'à son résultat ;
                       # live.spec.ts : le direct et le panneau Coaching ; live-choices.spec.ts : un direct avec une
                       # décision du joueur, un changement et un arrêt demandé ; team.spec.ts : Effectif, Composition et fiche ;
                       # lineup-candidates.spec.ts : le changement en un toucher sur téléphone ; starting-instruction.spec.ts :
@@ -1543,7 +1605,7 @@ prisma/
     data/             # calendriers OpenFootball (premières et deuxièmes divisions), club-colors.json, club-aliases-fallback.json
 scripts/              # measure-save-size.ts (npm run measure:size), measure-balance.ts (npm run measure:balance), measure-d2-balance.ts (npm run measure:divisions),
                       # measure-seasons.ts (npm run measure:seasons), measure-career-weight.ts (npm run measure:weight),
-                      # measure-history.ts (npm run measure:history),
+                      # measure-history.ts (npm run measure:history), measure-national-coach.ts (npm run measure:coach),
                       # measure-career-countries.ts (npx tsx : le poids d'une carrière et ses écritures par pays),
                       # generate-reference-migration.ts
 ```

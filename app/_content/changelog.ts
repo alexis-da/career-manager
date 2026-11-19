@@ -21,6 +21,29 @@ export const CHANGELOG_LABELS = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-19",
+    fr: {
+      title: "Sélectionneur",
+      items: [
+        "Une fédération peut te proposer son poste de sélectionneur au passage d'une saison, dès la fin de la première : il faut un club réputé et des trophées récents, et une grande nation demande plus qu'une petite. Tu acceptes ou tu déclines, d'autres offres viendront ; tu gardes toujours ton club.",
+        "À chaque trêve, ton adjoint prépare la liste des 23 et la composition : valide-les d'un geste, ou change-les. Appeler les joueurs de ton propre club, c'est les voir revenir fatigués pour le samedi suivant, comme ceux des autres clubs.",
+        "Tes matchs à enjeu, éliminatoires et tournoi d'été, s'arrêtent pour toi : joue-les en direct, avec les événements à choix, les remplacements et les consignes du club, ou simule-les. Ton adjoint joue les matchs amicaux, sauf si tu préfères les jouer toi-même.",
+        "La fédération te fixe un objectif pour chaque tournoi, selon la force de ta nation : la qualification, les demi-finales ou la finale. Si ta nation ne se qualifie pas, ou finit sous l'objectif, elle met fin à ta mission, sans rien changer pour ton club. Tu peux aussi quitter la sélection entre deux trêves.",
+        "Équipe → Sélection rassemble ta nation : son objectif, sa prochaine trêve, ta liste, ta composition, son classement des éliminatoires et ses résultats. L'Histoire garde tes missions, les tournois gagnés comme sélectionneur y ont leur trophée, la carte de la saison le dit, et un tournoi gagné débloque le titre « Sélectionneur ».",
+      ],
+    },
+    en: {
+      title: "National coach",
+      items: [
+        "A federation may offer you its national coach's post as a season turns, from the end of the first: it takes a well-known club and recent trophies, and a big nation asks for more than a small one. Accept or decline, other offers will come; you always keep your club.",
+        "At each break, your assistant prepares the squad of 23 and the lineup: confirm them in one go, or change them. Calling up your own club's players means seeing them come back tired for the Saturday after, like everyone else's.",
+        "Your matches at stake, qualifiers and the summer tournament, stop for you: play them live, with the club's choice events, substitutions and instructions, or simulate them. Your assistant plays the friendlies, unless you would rather play them yourself.",
+        "The federation sets you an objective for each tournament, by your nation's strength: qualifying, the semi-finals or the final. If your nation fails to qualify, or falls short of the objective, it ends your spell, without changing anything for your club. You can also leave the post between two breaks.",
+        "Squad → National team gathers your nation: its objective, its next break, your squad, your lineup, its qualifying table and its results. History keeps your spells, the tournaments you win as national coach get their trophy, the season card says so, and a tournament won unlocks the « National coach » title.",
+      ],
+    },
+  },
+  {
     date: "2026-11-18",
     fr: {
       title: "Éliminatoires et tournois d'été",
