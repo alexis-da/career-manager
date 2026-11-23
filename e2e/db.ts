@@ -293,6 +293,25 @@ export async function tutorialOf(saveId: string): Promise<TutorialRow | null> {
 }
 
 /**
+ * Moves the tutorial a save follows back by whole days, as if they had gone by since its first day: its start, its first
+ * day's end and when each step was first shown. The following days' steps come by the UTC day (docs/design/tutoriel.md).
+ */
+export async function shiftTutorialDays(saveId: string, days: number): Promise<void> {
+  await withTestDatabase(async (client) => {
+    const shift = `${days} days`;
+    const tutorial = await client.query<{ userId: string }>(
+      `UPDATE "Tutorial" SET "startedAt" = "startedAt" - $2::interval, "day1At" = "day1At" - $2::interval
+       WHERE "saveId" = $1 RETURNING "userId"`,
+      [saveId, shift],
+    );
+    const [row] = tutorial.rows;
+    if (row !== undefined) {
+      await client.query(`UPDATE "TutorialStep" SET "shownAt" = "shownAt" - $2::interval WHERE "userId" = $1`, [row.userId, shift]);
+    }
+  });
+}
+
+/**
  * Moves a save to another day without playing the days in between, for a screen that reads no more than the date: the
  * market once its window has closed. Their fixtures stay unplayed: a test that does this plays nothing afterwards.
  */

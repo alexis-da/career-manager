@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createRegisteredUser, deleteUsers, tutorialOf, userIdOf } from "./db";
+import { createRegisteredUser, deleteUsers, shiftTutorialDays, tutorialOf, userIdOf } from "./db";
 import {
   E2E_SEED,
   expectClearOfNav,
@@ -13,9 +13,10 @@ import {
 } from "./helpers";
 
 // The first career's tutorial (docs/design/tutoriel.md): a new player's first day, from a club card to the « À demain »
-// of the first match, in English on a phone, timed; Escape, « Passer le tutoriel » and its way back from the Settings, in
-// French on a computer; and a second career and a challenge save, which never have it. Each test deletes the user it
-// made, and their saves with them.
+// of the first match, in English on a phone, timed; the following days on a phone in French, the tutorial's days moved
+// back in the database (missions, market and its proposal, squad, line-up, objectives, the tabs they bring); Escape,
+// « Passer le tutoriel » and its way back from the Settings, in French on a computer; and a second career and a challenge
+// save, which never have it. Each test deletes the user it made, and their saves with them.
 
 const bubble = (page: Page) => page.getByTestId("tutorial-bubble");
 
@@ -187,7 +188,150 @@ test.describe("a new player's first day, in English on a phone", () => {
       expect(kept?.steps.speed?.outcome).toBe("DONE");
       expect(kept?.steps["half-time"]?.outcome).toBe("DONE");
       expect(kept?.steps.choice?.outcome ?? null).toBe(choices > 0 ? "DONE" : null);
-      expect(kept?.endedBy ?? null).toBe(choices > 0 ? "FINISHED" : null);
+      // The following days' steps still to come: the tutorial goes on.
+      expect(kept?.endedBy ?? null).toBeNull();
+    } finally {
+      await deleteUsers([await userIdOf(context)]);
+    }
+  });
+});
+
+test.describe("the following days, in French on a phone", () => {
+  test.use({ locale: "fr-FR", viewport: { width: 390, height: 844 } });
+
+  /** Waits for a step's outcome as the database keeps it. */
+  const outcomeOf = (saveId: string, step: string) =>
+    expect.poll(async () => (await tutorialOf(saveId))?.steps[step]?.outcome ?? null, { timeout: 15_000 });
+
+  test("bring the missions, the market and its proposal, the squad and the line-up, then the objectives", async ({ page, context }) => {
+    // A world of 198 clubs created, its first match played live to its result.
+    test.setTimeout(300_000);
+    try {
+      await page.goto("/fr");
+      await expect(page.getByTestId("club-suggestion-mid-table")).toBeEnabled();
+      await waitForReact(page);
+      await page.getByTestId("club-suggestion-mid-table").click();
+      await page.getByTestId("create-save-options").click();
+      await page.getByTestId("seed").fill(E2E_SEED);
+      await page.getByTestId("create-save").click();
+      await expect(page).toHaveURL(/\/saves\/[^/]+$/, { timeout: 120_000 });
+      const saveId = saveIdOf(page);
+
+      // The first day, quickly: its match live to the break and to its result, the assistant deciding on the way.
+      await expect(bubble(page)).toHaveAttribute("data-step", "welcome");
+      await playButton(page).click();
+      await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/, { timeout: 120_000 });
+      await page.getByTestId("live-skip").click();
+      await page.getByTestId("break-resume").click();
+      await page.getByTestId("live-skip").click();
+      await expect(page.getByTestId("session-end").getByTestId("tutorial-line")).toBeVisible({ timeout: 60_000 });
+      await expect.poll(async () => (await tutorialOf(saveId))?.day1At ?? null, { timeout: 15_000 }).not.toBeNull();
+
+      // The next day: the missions first, their card ringed under the hero; « Compris » is their move.
+      await shiftTutorialDays(saveId, 1);
+      await page.goto(`/saves/${saveId}`);
+      await expect(bubble(page)).toHaveAttribute("data-step", "missions");
+      await expect(bubble(page).getByTestId("tutorial-text")).toHaveText(
+        "Chaque jour, trois missions : une facile, une moyenne, une difficile. Elles rapportent des jetons, à dépenser dans Club, Récompenses.",
+      );
+      await expect(bubble(page).getByTestId("tutorial-place")).toHaveCount(0);
+      await expect(page.getByTestId("daily-missions")).toHaveAttribute("data-tutorial-target", "");
+      // Money and objectives wait for their own steps.
+      await expect(page.getByTestId("dashboard-budget")).toHaveCount(0);
+      await expect(page.getByTestId("dashboard-objectives")).toHaveCount(0);
+      await expectClearOfNav(page, bubble(page));
+      await expectNoSidewaysScroll(page, "missions");
+      await bubble(page).getByTestId("tutorial-got-it").click();
+      await expect(bubble(page)).toHaveCount(0);
+      await outcomeOf(saveId, "missions").toBe("DONE");
+
+      // The market, while its window is open: its entry ringed, the money shown with it.
+      await page.reload();
+      await expect(bubble(page)).toHaveAttribute("data-step", "market");
+      await expect(bubble(page).getByTestId("tutorial-text")).toHaveText(
+        // A non-breaking space before the colon: a pattern is matched as the page has it.
+        /^Le mercato ferme le .+\. Pour ton point faible, .+, j'ai repéré des joueurs\s:\sva voir le Marché\.$/,
+      );
+      await expect(page.getByTestId("nav-transfers")).toHaveAttribute("data-tutorial-target", "");
+      await expect(page.getByTestId("dashboard-budget")).toBeVisible();
+      await expect(bubble(page).getByTestId("tutorial-got-it")).toHaveCount(0);
+      await expectNoSidewaysScroll(page, "market");
+      // Its move: the Market reached, where the assistant shows the first proposal of « Mes besoins », by its « Recruter »,
+      // scrolled to above the bubble (at once without motion).
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.getByTestId("nav-transfers").click();
+      await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/transfers$`));
+      await expect(bubble(page)).toHaveAttribute("data-step", "market");
+      await expect(bubble(page).getByTestId("tutorial-text")).toHaveText(
+        "Voici un joueur pour ton point faible, dans tes moyens. « Recruter » s'il te convient, « Passer » pour le suivant.",
+      );
+      await expect(page.getByTestId("market-proposal").getByTestId("market-recruit")).toHaveAttribute("data-tutorial-target", "");
+      await expectUncovered(page.getByTestId("market-recruit"));
+      await expectUncovered(page.getByTestId("market-pass"));
+      await expect(bubble(page).getByTestId("tutorial-pass")).toHaveCount(0);
+      await expectNoSidewaysScroll(page, "market proposal");
+      await outcomeOf(saveId, "market").toBe("DONE");
+      await bubble(page).getByTestId("tutorial-got-it").click();
+      await expect(bubble(page)).toHaveCount(0);
+
+      // Two steps pushed today: the dashboard has nothing more to say.
+      await openScreen(page, "dashboard");
+      await expect(page.getByTestId("dashboard-budget")).toBeVisible();
+      await expect(bubble(page)).toHaveCount(0);
+
+      // The squad's own step at its opening, whatever the count: its first row ringed, a profile opened its move.
+      await openScreen(page, "squad");
+      await expect(bubble(page)).toHaveAttribute("data-step", "squad");
+      await expect(bubble(page).getByTestId("tutorial-text")).toContainText("La note, de 1 à 99, résume le niveau d'un joueur ; le cœur, sa condition.");
+      await expect(page.getByTestId("squad-row").first()).toHaveAttribute("data-tutorial-target", "");
+      await expect(page.locator("[data-testid^=\"tip-\"]")).toHaveCount(0);
+      await expectNoSidewaysScroll(page, "squad");
+      await page.getByTestId("squad-row").first().click();
+      await expect(bubble(page)).toHaveCount(0);
+      await outcomeOf(saveId, "squad").toBe("DONE");
+      await page.keyboard.press("Escape");
+
+      // The line-up's: the weak spot's slot ringed; a slot touched, its candidates open, then « Enregistrer » ringed.
+      await openScreen(page, "lineup");
+      await expect(bubble(page)).toHaveAttribute("data-step", "lineup");
+      const ringed = page.locator('[data-testid="pitch-slot"][data-tutorial-target]');
+      await expect(ringed).toHaveCount(1);
+      await expect(page.locator("[data-testid^=\"tip-\"]")).toHaveCount(0);
+      await expectNoSidewaysScroll(page, "lineup");
+      await ringed.click();
+      await expect(page.getByTestId("lineup-candidates-sheet")).toBeVisible();
+      await expect(bubble(page)).toHaveAttribute("data-phase", "follow");
+      await outcomeOf(saveId, "lineup").toBe("DONE");
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("lineup-candidates-sheet")).toBeHidden();
+      await expect(bubble(page).getByTestId("tutorial-text")).toHaveText("Choisis-en un, puis « Enregistrer ». Sinon, garde le mien : il est prêt.");
+      await expect(page.getByTestId("lineup-save")).toHaveAttribute("data-tutorial-target", "");
+      await bubble(page).getByTestId("tutorial-got-it").click();
+      await expect(bubble(page)).toHaveCount(0);
+
+      // The day after: the objectives, their card shown with them, the one the assistant picked said so.
+      await shiftTutorialDays(saveId, 1);
+      await openScreen(page, "dashboard");
+      await expect(bubble(page)).toHaveAttribute("data-step", "objectives");
+      await expect(bubble(page).getByTestId("tutorial-text")).toHaveText(
+        "Voilà ce que la direction attend de toi cette saison ; j'ai pris le dernier objectif à ta place. Avant ton 5e match, elle ne juge rien.",
+      );
+      await expect(page.getByTestId("dashboard-objectives")).toHaveAttribute("data-tutorial-target", "");
+      await expectNoSidewaysScroll(page, "objectives");
+      await page.getByTestId("dashboard-objectives-detail").click();
+      await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/club#objectifs$`));
+      await outcomeOf(saveId, "objectives").toBe("DONE");
+
+      // What the steps brought: the rewards with the missions, the challenge from the second day; the cup, Europe and the
+      // national teams still waiting for theirs.
+      await expect(page.getByTestId("nav-rewards")).toBeVisible();
+      await expect(page.getByTestId("nav-challenge")).toBeVisible();
+      await expect(page.getByTestId("settings-streak")).toBeVisible();
+      await openScreen(page, "fixtures");
+      for (const tab of ["nav-cup", "nav-europe", "nav-internationals"]) {
+        await expect(page.getByTestId(tab), tab).toHaveCount(0);
+      }
+      expect((await tutorialOf(saveId))?.endedBy ?? null).toBeNull();
     } finally {
       await deleteUsers([await userIdOf(context)]);
     }
