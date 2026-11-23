@@ -17,7 +17,7 @@ import { SaveNav } from "./_components/save-nav";
 import { SectionTabs } from "./_components/section-tabs";
 import { SimulationProvider } from "./_components/simulation";
 import { stageLabel } from "./_lib/stage";
-import { getSaveTutorial } from "./_lib/tutorial";
+import { getSaveTutorial, tutorialMoments } from "./_lib/tutorial";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +33,8 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
   if (header === null) {
     notFound();
   }
-  // The tabs the tutorial's first day hides: they come with their own moment. Not simulation code: its day is real time.
-  const { hiddenTabs } = tutorialReveal(tutorial, { now: new Date(), matchesPlayed: 0 });
+  // The tabs the tutorial hides: they come with their step, or their moment. Not simulation code: its day is real time.
+  const { hiddenTabs } = tutorialReveal(tutorial, { now: new Date(), matchesPlayed: 0, moments: tutorialMoments(header) });
   const t = await getTranslations("header");
   const tWorld = await getTranslations("world");
   const tStage = await getTranslations("stage");
@@ -111,7 +111,7 @@ export default async function SaveLayout({ children, params }: LayoutProps<"/sav
           </div>
         </header>
         {/* Under lg, room at the foot for the navigation. */}
-        <main className="mx-auto w-full max-w-296 flex-1 px-4 py-6 lg:p-8 max-lg:pb-[calc(var(--save-nav-height)+1.5rem)]">
+        <main className="mx-auto w-full max-w-296 flex-1 px-4 py-6 lg:p-8 max-lg:pb-[calc(var(--save-nav-height)+1.5rem+var(--tutorial-bubble-space))]">
           {/* The day and what comes next, on a computer: the sidebar's column has no room for them. */}
           <div className="mb-5 flex flex-wrap gap-x-1.5 text-sm text-muted-foreground tabular-nums max-lg:hidden">
             <p data-testid="header-date" className="first-letter:uppercase">

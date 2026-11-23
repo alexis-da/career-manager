@@ -9,7 +9,11 @@ import { getMarketOverview } from "@/src/db/market";
 import { getMarketProposals } from "@/src/db/market-proposals";
 import { getMarketSales } from "@/src/db/market-sales";
 import { formatMoney } from "@/src/lib/format";
+import { marketScreenStep } from "@/src/lib/tutorial";
 import { ClosedWindowNote } from "../_components/contract-fields";
+import { getFirstSteps } from "../_components/first-steps";
+import { TutorialBubble } from "../_components/tutorial/tutorial-bubble";
+import { getSaveTutorial } from "../_lib/tutorial";
 import { MarketBuy } from "./_components/market-buy";
 import { MarketSell, SaleOfferCard } from "./_components/market-sell";
 import { marketHref, singleValues } from "./_lib/market-url";
@@ -27,13 +31,27 @@ export default async function MarketPage({ params, searchParams }: PageProps<"/s
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const [t, tTransfers, locale] = await Promise.all([getTranslations("market"), getTranslations("transfers"), getLocale()]);
+  const [t, tTransfers, tTutorial, locale] = await Promise.all([
+    getTranslations("market"),
+    getTranslations("transfers"),
+    getTranslations("tutorial"),
+    getLocale(),
+  ]);
   const { tab } = querySchema.parse(singleValues(await searchParams));
-  const [overview, sales, proposals] = await Promise.all([
+  const [overview, sales, proposals, tutorial] = await Promise.all([
     getMarketOverview(id),
     getMarketSales(id),
     tab === "buy" ? getMarketProposals(id) : null,
+    getSaveTutorial(id),
   ]);
+  // The tutorial's market step (scenario 2), from the second day: arriving here is its move, and the assistant shows the
+  // first proposal of « Mes besoins », the entry the buying side opens on, by its « Recruter »: scrolled to above the
+  // bubble on a phone, « Passer » beside it. Not simulation code: its day is real time.
+  const marketStep =
+    tutorial !== null &&
+    proposals !== null &&
+    proposals.entries.needs.length > 0 &&
+    marketScreenStep(tutorial, { now: new Date(), matchesPlayed: (await getFirstSteps(id)).matches }, overview.windowOpen);
   const base = `/saves/${id}/transfers`;
   const bestOffer = sales.rows.find((row) => row.terms.sale.ok);
 
@@ -73,6 +91,17 @@ export default async function MarketPage({ params, searchParams }: PageProps<"/s
       />
 
       {!overview.windowOpen && <ClosedWindowNote actions={tTransfers("closedWindow.both")} reopensOn={overview.nextWindowOpensOn} />}
+
+      {marketStep && (
+        <TutorialBubble
+          saveId={id}
+          step="market"
+          text={tTutorial("steps.marketProposal", { sign: t("recruit"), pass: t("pass") })}
+          place={null}
+          target='[data-testid="market-proposal"] [data-testid="market-recruit"]'
+          doneOnShow
+        />
+      )}
 
       {proposals === null ? (
         <MarketSell saveId={id} sales={sales} windowOpen={overview.windowOpen} />

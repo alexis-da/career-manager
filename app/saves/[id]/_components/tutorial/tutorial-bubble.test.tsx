@@ -37,6 +37,14 @@ describe("TutorialBubble", () => {
     expect(bubble({ place: { index: 2, total: 5 } }, "en")).toContain("First day · 2 of 5");
   });
 
+  it("has only « Compris » once its move is made by arriving on its screen", () => {
+    const markup = renderToStaticMarkup(
+      inLanguage(<TutorialBubble saveId="save-1" step="market" text="Voici un joueur." place={null} doneOnShow />),
+    );
+    expect(testIds(markup)).toEqual(["tutorial-bubble", "tutorial-text", "tutorial-got-it", "tutorial-skip"]);
+    expect(markup).toContain('data-phase="step"');
+  });
+
   it("is never orange: the screen keeps its own action", () => {
     expect(bubble({ gotIt: true })).not.toMatch(/--club|bg-\(--club\)/);
   });

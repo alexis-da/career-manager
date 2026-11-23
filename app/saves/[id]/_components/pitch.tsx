@@ -229,7 +229,8 @@ export function Pitch({ slots, starters, players, clubColors, label, editing, se
             aria-pressed={editing === undefined ? undefined : selected === index}
             onClick={editing === undefined ? undefined : () => editing.onSelect(index)}
             className={cn(
-              "group flex w-22 flex-col items-center gap-0.5 outline-none select-none",
+              // Rounded: the tutorial's ring around a slot is never taken for a line of the pitch.
+              "group flex w-22 flex-col items-center gap-0.5 rounded-2xl outline-none select-none",
               // A finger's long press lifts the player (usePointerDrag), never the browser's menu; a swipe scrolls.
               editing !== undefined && "[-webkit-touch-callout:none]",
               editing !== undefined && key !== null && "cursor-grab",

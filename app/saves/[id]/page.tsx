@@ -30,6 +30,7 @@ import { DashboardTodo } from "./_components/dashboard-todo";
 import { DailyMissionsCard } from "./_components/daily-missions";
 import { FirstActionsPanel, FirstStepTip, getFirstSteps } from "./_components/first-steps";
 import { NextMatchHero, type HeroPlay } from "./_components/next-match-hero";
+import { dashboardBubbleOf, laterContextOf } from "./_lib/dashboard-tutorial";
 import { showsFirstActions, showsTip } from "./_lib/first-steps";
 import { getSaveTutorial } from "./_lib/tutorial";
 import { TutorialBubble } from "./_components/tutorial/tutorial-bubble";
@@ -52,7 +53,16 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   const { ownerId } = await requireOwnedSave(id);
   const t = await getTranslations("dashboard");
   const tGame = await getTranslations("gameActions");
-  const tTutorial = await getTranslations("tutorial");
+  const [tTutorial, tNav, tHero, tTodo, tPositions, tWorld, tLineup, locale] = await Promise.all([
+    getTranslations("tutorial"),
+    getTranslations("nav"),
+    getTranslations("dashboardHero"),
+    getTranslations("dashboardTodo"),
+    getTranslations("positions"),
+    getTranslations("world"),
+    getTranslations("lineup"),
+    getLocale(),
+  ]);
   // Not simulation code: whether the challenge is over, the day of the player's missions and of his tutorial are real time.
   const now = new Date();
   // The first career's tutorial (docs/design/tutoriel.md): the calm of its first day reads neither missions nor objectives.
@@ -101,19 +111,45 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   // Until the club's first match, its last match's card waits; a challenge save has its first actions under the hero in
   // its place, a career its tutorial's welcome. The market's offers and weak spot wait for that match too.
   const firstMatchPlayed = !showsFirstActions(firstSteps);
-  // What the first day of the tutorial hides (everything shows without one), and its welcome until the first match.
-  const context = { now, matchesPlayed: firstSteps.matches };
-  const reveal = tutorialReveal(tutorial, context);
-  const welcome =
-    tutorial !== null && dashboardStep(tutorial, context) === "welcome" ? await welcomeText(id, dashboard.nextMatch, tTutorial) : null;
-  // What the tutorial closes by itself (a step shown twice, the welcome of a match played another way…), once the page is
-  // sent: never in the page's own time.
+  // The tutorial's step of the dashboard (docs/design/tutoriel.md): the welcome until the first match; from the second
+  // day, the following days' steps (scenario 2), from what the page has read; what it hides until then (everything shows
+  // without one).
+  const reads = { dashboard, lineup, objectives, internationalBreak };
+  const context = { now, matchesPlayed: firstSteps.matches, later: tutorial === null ? undefined : laterContextOf(reads) };
+  const step = tutorial === null ? null : dashboardStep(tutorial, context);
+  const reveal = tutorialReveal(tutorial, { ...context, step });
+  const welcome = step === "welcome" ? await welcomeText(id, dashboard.nextMatch, tTutorial) : null;
+  const bubble =
+    step === null || step === "welcome"
+      ? null
+      : dashboardBubbleOf(
+          step,
+          reads,
+          { tutorial: tTutorial, nav: tNav, game: tGame, hero: tHero, todo: tTodo, positions: tPositions, world: tWorld, lineup: tLineup },
+          locale,
+        );
+  // What the tutorial closes by itself (a step shown twice, the welcome of a match played another way, a break gone…), once
+  // the page is sent: never in the page's own time.
   if (tutorial !== null && ownerId !== null) {
     const pending = pendingWrites(tutorial, context, { away: true });
     if (pending.closures.length > 0 || pending.ending !== null) {
       after(() => recordTutorialEvents(prisma, { userId: ownerId, saveId: id, events: [], away: true, ...context }));
     }
   }
+  // A following day's bubble, by its target from lg: under the hero, or just above the objectives it speaks of.
+  const laterBubble =
+    bubble === null || step === null ? null : (
+      <TutorialBubble
+        saveId={id}
+        step={step}
+        text={bubble.text}
+        place={null}
+        target={bubble.target}
+        gotIt={bubble.gotIt}
+        doneOn={bubble.doneOn}
+        className={WIDE}
+      />
+    );
   // No offer outside a transfer window, nor before the club's first match, nor on the tutorial's first day: nothing to read.
   const market = firstMatchPlayed && reveal.market;
   const sales = dashboard.windowOpen && market ? await getMarketSales(id) : null;
@@ -160,6 +196,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             className="lg:col-span-2 lg:max-w-2xl"
           />
         )}
+        {bubble?.place === "hero" && laterBubble}
         {/* A challenge save's first actions: a career has the tutorial, or a player who knows the game. */}
         {!firstMatchPlayed && challenge !== null && (
           <FirstActionsPanel
@@ -169,7 +206,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             className={WIDE}
           />
         )}
-        {missions !== null && <DailyMissionsCard saveId={id} missions={missions} className={WIDE} />}
+        {reveal.missions && missions !== null && <DailyMissionsCard saveId={id} missions={missions} className={WIDE} />}
         {reveal.summary && (
           <DashboardTable
             saveId={id}
@@ -183,7 +220,8 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             <DashboardTiles dashboard={dashboard} />
           </div>
         )}
-        {objectives !== null && <DashboardObjectives saveId={id} view={objectives} className={WIDE} />}
+        {bubble?.place === "objectives" && laterBubble}
+        {reveal.objectives && objectives !== null && <DashboardObjectives saveId={id} view={objectives} className={WIDE} />}
         {reveal.todo && (
           <DashboardTodo
             saveId={id}

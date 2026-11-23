@@ -28,6 +28,11 @@
   --save-nav-height: calc(3.5625rem + max(1.125rem, env(safe-area-inset-bottom)));
   /* The match live's controls under lg, fixed to the foot of the screen: its bar's padding, its speeds and its border. */
   --live-controls-height: calc(3.8125rem + max(1.125rem, env(safe-area-inset-bottom)));
+  /*
+   * The room a save's page keeps at its foot for the tutorial's bubble while it is fixed there (under lg): what it covers
+   * can still be scrolled above it. Set by the bubble itself (TutorialBubble), 0 without one.
+   */
+  --tutorial-bubble-space: 0px;
 
   --background: #0b1340;
   --foreground: #ffffff;
