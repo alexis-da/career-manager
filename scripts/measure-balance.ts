@@ -20,11 +20,16 @@
  * a season's form, fatigue and injuries add; and, with --real-formations, the formations on real squads. Then the
  * European competitions (docs/design/europe.md): the European clubs' league points on the Saturday after their European
  * match against their other league matches, their starters' fitness at kick-off, rested starters and injuries against
- * the other first division clubs', and the knockout ties. Each save and its throwaway owner are deleted at the end.
+ * the other first division clubs', and the knockout ties. Then, by country and by month, the AI starters' fitness at
+ * kick-off and the injuries (the winter break of Spain, Italy, Germany and France against England), the CPU of each date
+ * of the clubs (playNextMatchday), and the penalties and scuffles of the managed club played on real squads: AI elevens
+ * of the season's league dates, their form and fitness as they were (--lineups-out=file.json keeps them;
+ * --choices-from=file.json measures those choice events alone, without a database, on the lineups of such a file;
+ * --choice-matches=N, default 6 000). Each save and its throwaway owner are deleted at the end.
  * Writes to the database: the local one only.
  */
 import "dotenv/config";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import {
   ASSISTANT_DEFEND_MINUTE,
   BASE_GOALS_PER_TEAM,
@@ -43,6 +48,7 @@ import {
 import {
   assistantChoices,
   CHOICE_KINDS,
+  choiceEvent,
   decideChoice,
   freeKickChance,
   withChoices,
@@ -50,6 +56,8 @@ import {
   type ChoiceKind,
   type MatchDecision,
 } from "../src/engine/choices";
+import { ageInYears } from "../src/lib/dates";
+import { makeRng } from "../src/lib/rng";
 import { averageLevel, chooseFormation } from "../src/engine/formation-choice";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../src/engine/formations";
 import { competitionTier, type CompetitionTier } from "../src/engine/tiers";
@@ -103,20 +111,30 @@ type Options = {
   formationsOnly: boolean;
   realFormations: boolean;
   out: string | undefined;
+  lineupsOut: string | undefined; // the real lineups the world part kept, for --choices-from
+  choicesFrom: string | undefined; // the choice events on the real lineups of this file alone, without a database
+  choiceMatches: number; // matches of the choice events on real squads
+  winterBreak: boolean; // the world's saves with the winter break, as the game creates them (--no-winter-break: without)
 };
 
 function parseOptions(argv: readonly string[]): Options {
   const value = (name: string): string | undefined => argv.find((arg) => arg.startsWith(`--${name}=`))?.split("=")[1];
+  const choicesFrom = value("choices-from");
   return {
     matches: Number(value("matches") ?? 20_000),
     seeds: Number(value("seeds") ?? 3),
     seasons: Number(value("seasons") ?? 1),
-    engine: !argv.includes("--world-only"),
-    world: !argv.includes("--engine-only") && !argv.includes("--starting-only") && !argv.includes("--formations-only"),
+    engine: !argv.includes("--world-only") && choicesFrom === undefined,
+    world:
+      !argv.includes("--engine-only") && !argv.includes("--starting-only") && !argv.includes("--formations-only") && choicesFrom === undefined,
     startingOnly: argv.includes("--starting-only"),
     formationsOnly: argv.includes("--formations-only"),
     realFormations: argv.includes("--real-formations"),
     out: value("out"),
+    lineupsOut: value("lineups-out"),
+    choicesFrom,
+    choiceMatches: Number(value("choice-matches") ?? 6_000),
+    winterBreak: !argv.includes("--no-winter-break"),
   };
 }
 
@@ -1096,7 +1114,23 @@ type FatigueRecord = {
   byMonth: Map<string, number[]>;
   suspensions: { red: number; yellows: number }; // AI players' matches missed through suspension, by cause
   formations: Map<string, number>; // AI matches by « tier|level band|formation »
+  // By « country code|month » (« es|2027-01 »): every AI starter's fitness at kick-off, the injuries of AI players.
+  byCountryMonth: Map<string, number[]>;
+  injuriesByCountryMonth: Map<string, number>;
+  clubSeasonsByCountry: Map<string, number>; // AI clubs' seasons, by country code
+  cpu: number[]; // ms of CPU of each date of the clubs played (playNextMatchday), international breaks apart
+  lineups: CapturedLineup[]; // AI elevens of some league dates, for the choice events on real squads
 };
+
+/** An AI club's lineup on a league date of a world season, as aiLineupOf picked it: its players' form and fitness then. */
+type CapturedLineup = { tag: string; date: string; tier: number; formation: FormationName; lineup: Lineup };
+
+/** The lineups kept: the AI clubs of one league date in LINEUP_DATE_STRIDE, LINEUP_CLUBS_PER_DATE of them at most. */
+const LINEUP_DATE_STRIDE = 4;
+const LINEUP_CLUBS_PER_DATE = 60;
+
+/** A competition code's country: « es » for « es.2 ». */
+const countryOfCode = (code: string): string => code.split(".")[0];
 
 /** Where an AI club's eleven stands against its division's average level, in points of mean rating. */
 const LEVEL_BANDS = ["below", "around", "above"] as const;
@@ -1127,7 +1161,14 @@ async function playSeasonWatchingFatigue(
     where: { saveId, isManaged: true },
     select: { competition: { select: { country: true } } },
   });
-  const teamSelect = { id: true, isManaged: true, formation: true, formationMonth: true, competition: { select: { tier: true, country: true } } };
+  const teamSelect = {
+    id: true,
+    isManaged: true,
+    formation: true,
+    formationMonth: true,
+    competition: { select: { tier: true, country: true, code: true } },
+  };
+  let leagueDates = 0;
   const watchOf = (clubSaveId: string): ClubWatch => {
     const key = `${tag}|${clubSaveId}`;
     let watch = fatigue.byClub.get(key);
@@ -1175,7 +1216,21 @@ async function playSeasonWatchingFatigue(
     const rows = await prisma.playerSave.findMany({ where: { saveId, clubSaveId: { in: clubs.map((club) => club.id) } }, select: playerSelect });
     const days = Math.round((next.scheduledAt.getTime() - save.currentDate.getTime()) / 86_400_000);
     const { squads, stateByKey } = squadsOf(rows, next.scheduledAt);
+    // The kept lineups play as the managed club's would: its players' ages on the day, for its penalties.
+    const births = await prisma.playerSave.findMany({
+      where: { saveId, clubSaveId: { in: clubs.map((club) => club.id) } },
+      select: { playerKey: true, birthDate: true },
+    });
+    const ageOf = new Map(births.map((row) => [row.playerKey, ageInYears(row.birthDate, next.scheduledAt)]));
+    const aged = (lineup: Lineup): Lineup => {
+      const withAge = (player: SquadPlayer): SquadPlayer => ({ ...player, age: ageOf.get(player.id) });
+      return { ...lineup, starters: lineup.starters.map((starter) => ({ ...starter, player: withAge(starter.player) })), bench: lineup.bench.map(withAge) };
+    };
     const month = next.scheduledAt.toISOString().slice(0, 7);
+    const countryOfClub = new Map(clubs.map((club) => [club.id, countryOfCode(club.competition.code)]));
+    // One league date in LINEUP_DATE_STRIDE keeps its AI lineups, for the choice events on real squads.
+    const keepLineups = clubs.some((club) => club.kind === "LEAGUE") && leagueDates++ % LINEUP_DATE_STRIDE === 0;
+    let kept = 0;
     for (const club of clubs) {
       const squad = withSuspensions(squads.get(club.id) ?? [], club.kind, stateByKey).map((player) => ({
         ...player,
@@ -1200,11 +1255,21 @@ async function playSeasonWatchingFatigue(
       const fitness = rested.starters.map((starter) => starter.player.fitness);
       fatigue.starters.push(...fitness);
       fatigue.byMonth.set(month, [...(fatigue.byMonth.get(month) ?? []), ...fitness]);
+      const countryMonth = `${countryOfCode(club.competition.code)}|${month}`;
+      fatigue.byCountryMonth.set(countryMonth, [...(fatigue.byCountryMonth.get(countryMonth) ?? []), ...fitness]);
       const watch = watchOf(club.id);
       watch.fitness.push(...fitness);
       watch.rotations += rotations;
+      if (keepLineups && club.kind === "LEAGUE" && kept < LINEUP_CLUBS_PER_DATE) {
+        kept++;
+        fatigue.lineups.push({ tag, date: next.scheduledAt.toISOString().slice(0, 10), tier, formation: chosen.formation, lineup: aged(chosen.lineup) });
+      }
     }
+    // The CPU of the date itself, every match of it played and written.
+    const cpu = process.cpuUsage();
     await playNextMatchday(saveId);
+    const used = process.cpuUsage(cpu);
+    fatigue.cpu.push((used.user + used.system) / 1000);
     // The injuries the date gave the AI clubs' players: an injury running past it that was not there before.
     const injuredBefore = new Map(rows.map((row) => [row.id, row.injuredUntil?.getTime() ?? 0]));
     const after = await prisma.playerSave.findMany({
@@ -1215,6 +1280,8 @@ async function playSeasonWatchingFatigue(
       const until = player.injuredUntil?.getTime() ?? 0;
       if (player.clubSaveId !== null && until > next.scheduledAt.getTime() && until !== injuredBefore.get(player.id)) {
         watchOf(player.clubSaveId).injuries++;
+        const countryMonth = `${countryOfClub.get(player.clubSaveId) ?? "?"}|${month}`;
+        fatigue.injuriesByCountryMonth.set(countryMonth, (fatigue.injuriesByCountryMonth.get(countryMonth) ?? 0) + 1);
       }
     }
   }
@@ -1514,6 +1581,11 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
     suspensions: { red: 0, yellows: 0 },
     formations: new Map(),
     byClub: new Map(),
+    byCountryMonth: new Map(),
+    injuriesByCountryMonth: new Map(),
+    clubSeasonsByCountry: new Map(),
+    cpu: [],
+    lineups: [],
   };
   const europe: EuropeWatch[] = [];
   const frozen: LeagueRecord[] = [];
@@ -1530,13 +1602,14 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
         seed: `measure-balance-${seedIndex + 1}`,
         ownerId: OWNER,
         worldVersion: 2,
+        winterBreak: options.winterBreak,
       });
 
       // --seasons seasons a save, each followed by its transition but the last: the second ends the national teams' first
       // cycle, and its transition plays the summer tournament (docs/design/selections.md § 3.3).
       for (let seasonIndex = 0; seasonIndex < options.seasons; seasonIndex++) {
         if (seasonIndex > 0) {
-          await advanceToNextSeason(saveId, { assistantContracts: true });
+          await advanceToNextSeason(saveId, { assistantContracts: true, ...(options.winterBreak ? {} : { winterBreak: false as const }) });
         }
         const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
         const rows = await prisma.playerSave.findMany({ where: { saveId, clubSaveId: { not: null } }, select: PLAYER_SELECT });
@@ -1562,6 +1635,10 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
         }
 
         fatigue.clubSeasons += clubs.filter((row) => !row.isManaged).length;
+        for (const row of clubs.filter((club) => !club.isManaged)) {
+          const country = countryOfCode(row.competition.code);
+          fatigue.clubSeasonsByCountry.set(country, (fatigue.clubSeasonsByCountry.get(country) ?? 0) + 1);
+        }
         const tag = `${seedIndex}:${seasonIndex}`;
         await playSeasonWatchingFatigue(saveId, fatigue, prisma, squadsOf, PLAYER_SELECT, playNextMatchday, withSuspensions, aiLineupOf, tag);
         europe.push(await watchEurope(saveId, prisma, tag));
@@ -1611,6 +1688,12 @@ async function measureWorld(options: Options, sections: string[]): Promise<void>
   fatigueTables(fatigue, sections);
   europeTables(europe, fatigue, sections);
   formationChoiceTables(fatigue, sections);
+  countryMonthTables(fatigue, options.seasons, sections);
+  cpuTable(fatigue.cpu, sections);
+  if (options.lineupsOut !== undefined) {
+    writeFileSync(options.lineupsOut, JSON.stringify(fatigue.lineups));
+  }
+  realChoiceTables(fatigue.lineups, options, sections);
   if (options.realFormations) {
     sections.push(
       "### Formations on real squads, against the median club of the league in its 4-3-3",
@@ -1733,6 +1816,320 @@ async function measureFormations(
   return rows;
 }
 
+// ------------------------------------------------------------------ By country and month: the winter break
+
+/** The countries whose leagues stop over the holidays, together then one by one, and England, which plays on. */
+const WINTER_GROUPS: readonly (readonly [string, readonly string[]])[] = [
+  ["es + it + de + fr", ["es", "it", "de", "fr"]],
+  ["en", ["en"]],
+  ["es", ["es"]],
+  ["it", ["it"]],
+  ["de", ["de"]],
+  ["fr", ["fr"]],
+];
+
+/**
+ * The AI starters' fitness at kick-off and the AI players' injuries, by group of countries, November to February, then
+ * every January together and the whole seasons: per club of a season (a month belongs to one season; the clubs of a
+ * country are as many every season).
+ */
+function countryMonthTables(fatigue: FatigueRecord, seasons: number, sections: string[]): void {
+  const allMonths = [...new Set([...fatigue.byCountryMonth.keys()].map((key) => key.split("|")[1]))];
+  const months = allMonths.filter((month) => /-(11|12|01|02)$/.test(month)).sort();
+  const januaries = allMonths.filter((month) => month.endsWith("-01"));
+  const rows: string[][] = [];
+  for (const [label, countries] of WINTER_GROUPS) {
+    const clubSeasonsOf = Math.max(1, countries.reduce((sum, country) => sum + (fatigue.clubSeasonsByCountry.get(country) ?? 0), 0));
+    // A row's matches and injuries, per club and season: those of a month by the clubs of its season.
+    const row = (month: string, keys: readonly string[], perSeason: number = keys.length): string[] => {
+      const clubSeasons = (clubSeasonsOf / seasons) * perSeason;
+      const fitness = countries.flatMap((country) => keys.flatMap((key) => fatigue.byCountryMonth.get(`${country}|${key}`) ?? []));
+      const injuries = countries.reduce(
+        (sum, country) => sum + keys.reduce((inner, key) => inner + (fatigue.injuriesByCountryMonth.get(`${country}|${key}`) ?? 0), 0),
+        0,
+      );
+      return [
+        label,
+        month,
+        fixed(fitness.length / 11 / clubSeasons, 1),
+        fixed(mean(fitness)),
+        fixed(percent(fitness.filter((value) => value < 75).length, Math.max(1, fitness.length))),
+        fixed(percent(fitness.filter((value) => value < 85).length, Math.max(1, fitness.length))),
+        fixed(injuries / clubSeasons, 2),
+      ];
+    };
+    for (const month of months) {
+      rows.push(row(month, [month]));
+    }
+    if (januaries.length > 1) {
+      rows.push(row("every January", januaries));
+    }
+    rows.push(row("whole season", allMonths, seasons));
+  }
+  sections.push(
+    "### By country and month: the winter break (AI clubs, every match of theirs: league, cup, Europe)",
+    "Matches / club and injuries / club: per AI club of the group, in the month, in a January, or in a season. Fitness: every AI starter's at kick-off.",
+    table(["countries", "month", "matches / club", "starters' fitness at kick-off", "below 75 %", "below 85 %", "injuries / club"], rows),
+  );
+}
+
+/** The CPU of each date of the clubs, every match of it played and written (playNextMatchday), in this process. */
+function cpuTable(cpu: readonly number[], sections: string[]): void {
+  if (cpu.length === 0) {
+    return;
+  }
+  const sorted = [...cpu].sort((a, b) => a - b);
+  const at = (share: number): number => sorted[Math.min(sorted.length - 1, Math.floor(share * sorted.length))];
+  sections.push(
+    "### CPU of a date of the clubs (playNextMatchday, this process: engine, Prisma, pg; the database's own apart)",
+    table(
+      ["dates", "mean ms", "median ms", "90th centile ms", "max ms", "total s"],
+      [
+        [
+          String(cpu.length),
+          fixed(mean(cpu), 0),
+          fixed(at(0.5), 0),
+          fixed(at(0.9), 0),
+          fixed(sorted[sorted.length - 1], 0),
+          fixed(cpu.reduce((sum, value) => sum + value, 0) / 1000, 1),
+        ],
+      ],
+    ),
+  );
+}
+
+// ------------------------------------------------------------------ Choice events on real squads
+
+/** A penalty given at a boundary of a match between real elevens: its takers as offered, and where each one leads. */
+type PenaltySituation = {
+  minute: number;
+  lead: number; // the managed side's goals ahead when it comes
+  chances: number[]; // each taker's, in the order offered
+  shooting: number[]; // each taker's shooting, his rating as a taker
+  assistant: number;
+  points: number[]; // each taker's points at the final whistle, the assistant deciding what follows
+};
+
+/** A scuffle at a boundary of such a match: whether the captain was booked, and what each option did. */
+type ScuffleSituation = {
+  minute: number;
+  lead: number;
+  captainBooked: boolean;
+  assistant: number;
+  options: string[];
+  points: number[];
+  goalDifference: number[]; // the managed side's at the final whistle
+  yellow: boolean[]; // the captain booked by the option, at the minute after the event
+  red: boolean[]; // and sent off
+  boosted: boolean[]; // the option left the managed side more goals for the segments to come
+};
+
+/** The match as it stands with an event of a kind open at its boundary, whatever kind the match drew there. */
+function withEventOf(state: MatchState, side: Side, kind: ChoiceKind): { paused: MatchState; event: ChoiceEvent } | null {
+  const choices = state.choices;
+  if (choices === undefined) {
+    return null;
+  }
+  // A penalty and a scuffle draw no player: the stream is never read.
+  const event = choiceEvent(kind, state, side, state.played, makeRng("measure:hypothetical"));
+  return { paused: { ...state, choices: { ...choices, pending: event } }, event };
+}
+
+/** Whether a decided state leaves the side more goals for later: a factor above 1 in its modifiers, whatever their shape. */
+function boostedAfter(decided: MatchState, side: Side): boolean {
+  const modifiers = decided.modifiers as unknown as
+    | { goals?: Partial<Record<Side, number>>; boosts?: { side: Side; factor: number }[] }
+    | undefined;
+  return (modifiers?.goals?.[side] ?? 1) > 1 || (modifiers?.boosts ?? []).some((boost) => boost.side === side && boost.factor > 1);
+}
+
+/**
+ * Matches between the real elevens of a league date, two by two, the managed side home or away in turn, its choice events
+ * decided by its assistant as simulated; at each boundary its plan has, whatever kind it drew there, a penalty and a scuffle
+ * opened in its place and each option played on from that very state to the final whistle.
+ */
+function realChoiceSituations(
+  lineups: readonly CapturedLineup[],
+  matches: number,
+): { penalties: PenaltySituation[]; scuffles: ScuffleSituation[] } {
+  const pairs: (readonly [CapturedLineup, CapturedLineup])[] = [];
+  for (const group of Map.groupBy(lineups, (entry) => `${entry.tag}|${entry.date}|${entry.tier}`).values()) {
+    for (let index = 0; index + 1 < group.length; index += 2) {
+      pairs.push([group[index], group[index + 1]]);
+    }
+  }
+  const penalties: PenaltySituation[] = [];
+  const scuffles: ScuffleSituation[] = [];
+  if (pairs.length === 0) {
+    return { penalties, scuffles };
+  }
+  for (let index = 0; index < matches; index++) {
+    const [home, away] = pairs[index % pairs.length];
+    const side: Side = (index + Math.floor(index / pairs.length)) % 2 === 0 ? "home" : "away";
+    const seed = `measure-real-choices:${index}`;
+    let state = withChoices(startMatch(home.lineup, away.lineup, { home: home.formation, away: away.formation }), side, seed);
+    while (state.phase !== "FULL_TIME") {
+      state = playOn(state, side, seed, {}, "segment");
+      const choices = state.choices;
+      if (choices === undefined || state.phase !== "IN_PLAY" || !choices.minutes.includes(state.played)) {
+        continue;
+      }
+      const minute = state.played;
+      const lead = leadOf(state, side);
+      const penalty = withEventOf(state, side, "PENALTY");
+      if (penalty !== null) {
+        const shootingOf = new Map(state[side].pitch.map((entry) => [entry.player.id, entry.player.shooting]));
+        penalties.push({
+          minute,
+          lead,
+          chances: penalty.event.options.map((option) => option.chance ?? 0),
+          shooting: penalty.event.options.map((option) => shootingOf.get(option.playerId ?? "") ?? 0),
+          assistant: penalty.event.assistant,
+          points: penalty.event.options.map((option) => pointsOf(playToEnd(decideChoice(penalty.paused, seed, option), side, seed), side)),
+        });
+      }
+      const scuffle = withEventOf(state, side, "SCUFFLE");
+      if (scuffle !== null) {
+        const captain = scuffle.event.playerId ?? "";
+        const decided = scuffle.event.options.map((option) => decideChoice(scuffle.paused, seed, option));
+        const finals = decided.map((after) => playToEnd(after, side, seed));
+        const carded = (after: MatchState, type: "YELLOW_CARD" | "RED_CARD"): boolean =>
+          after.events.some((event) => event.type === type && event.playerId === captain && event.minute === minute + 1);
+        scuffles.push({
+          minute,
+          lead,
+          captainBooked: state[side].booked.includes(captain),
+          assistant: scuffle.event.assistant,
+          options: scuffle.event.options.map((option) => option.option),
+          points: finals.map((final) => pointsOf(final, side)),
+          goalDifference: finals.map((final) => leadOf(final, side)),
+          yellow: decided.map((after) => carded(after, "YELLOW_CARD")),
+          red: decided.map((after) => carded(after, "RED_CARD")),
+          boosted: decided.map((after) => boostedAfter(after, side)),
+        });
+      }
+    }
+  }
+  return { penalties, scuffles };
+}
+
+/** A mean and its 95 % interval. */
+function meanInterval(values: readonly number[]): { mean: number; interval: number } {
+  const average = mean(values);
+  const variance = values.reduce((sum, value) => sum + (value - average) ** 2, 0) / Math.max(1, values.length - 1);
+  return { mean: average, interval: 1.96 * Math.sqrt(variance / Math.max(1, values.length)) };
+}
+
+const leadLabel = (lead: number): string => (lead > 0 ? "ahead" : lead === 0 ? "level" : "behind");
+
+/** The penalties and the scuffles of the managed club on real squads, each option against the assistant's. */
+function realChoiceTables(lineups: readonly CapturedLineup[], options: Options, sections: string[]): void {
+  if (lineups.length < 2) {
+    return;
+  }
+  const { penalties, scuffles } = realChoiceSituations(lineups, options.choiceMatches);
+
+  // Penalties: the takers by rating (shooting), the best first, ties in the order offered.
+  const byRating = (situation: PenaltySituation): number[] =>
+    situation.shooting.map((_, index) => index).sort((a, b) => situation.shooting[b] - situation.shooting[a] || a - b);
+  const best = (situation: PenaltySituation): number => Math.max(...situation.chances);
+  const bestRatedIsBest = (situation: PenaltySituation): boolean => situation.chances[byRating(situation)[0]] >= best(situation) - 1e-9;
+  const penaltyRow = (label: string, pool: readonly PenaltySituation[]): string[] => [
+    label,
+    String(pool.length),
+    fixed(percent(pool.filter(bestRatedIsBest).length, Math.max(1, pool.length))),
+    fixed(100 * mean(pool.map((situation) => situation.chances[byRating(situation)[0]]))),
+    fixed(100 * mean(pool.map((situation) => situation.chances[situation.assistant]))),
+    fixed(100 * mean(pool.map((situation) => best(situation) - situation.chances[byRating(situation)[0]])), 2),
+    fixed(100 * mean(pool.map((situation) => best(situation) - Math.min(...situation.chances))), 1),
+    fixed(percent(pool.filter((situation) => situation.assistant === byRating(situation)[0]).length, Math.max(1, pool.length))),
+  ];
+  const penaltyRows = [
+    penaltyRow("all", penalties),
+    ...CHOICE_EVENT_MINUTES.map((minute) => penaltyRow(`at ${minute}'`, penalties.filter((situation) => situation.minute === minute))),
+    ...["ahead", "level", "behind"].map((label) => penaltyRow(label, penalties.filter((situation) => leadLabel(situation.lead) === label))),
+  ];
+  const takerRows = [0, 1, 2].map((rank) => {
+    const deltas = penalties
+      .filter((situation) => situation.chances.length > rank)
+      .map((situation) => situation.points[byRating(situation)[rank]] - situation.points[situation.assistant]);
+    const { mean: delta, interval } = meanInterval(deltas);
+    const picked = penalties.filter((situation) => byRating(situation)[rank] === situation.assistant).length;
+    return [
+      TAKERS[rank],
+      String(deltas.length),
+      signed(delta, 3),
+      `±${fixed(interval, 3)}`,
+      fixed(percent(picked, Math.max(1, penalties.length))),
+      fixed(100 * mean(penalties.filter((situation) => situation.chances.length > rank).map((situation) => situation.chances[byRating(situation)[rank]]))),
+    ];
+  });
+
+  // Scuffles: each option against the assistant's, with the captain booked or not.
+  const scuffleRows = (["all", "captain not booked", "captain booked"] as const).flatMap((scope) => {
+    const pool = scuffles.filter(
+      (situation) => scope === "all" || (scope === "captain booked") === situation.captainBooked,
+    );
+    const names = [...new Set(pool.flatMap((situation) => situation.options))];
+    return names.map((name) => {
+      const rows = pool
+        .map((situation) => ({ situation, index: situation.options.indexOf(name) }))
+        .filter(({ index }) => index >= 0);
+      const deltas = rows.map(({ situation, index }) => situation.points[index] - situation.points[situation.assistant]);
+      const { mean: delta, interval } = meanInterval(deltas);
+      const count = (keep: (row: (typeof rows)[number]) => boolean): string => fixed(percent(rows.filter(keep).length, Math.max(1, rows.length)));
+      return [
+        scope,
+        name,
+        String(rows.length),
+        signed(delta, 3),
+        `±${fixed(interval, 3)}`,
+        count(({ situation, index }) => situation.points[index] > situation.points[situation.assistant]),
+        count(({ situation, index }) => situation.points[index] < situation.points[situation.assistant]),
+        count(({ situation, index }) => situation.goalDifference[index] !== situation.goalDifference[situation.assistant]),
+        count(({ situation, index }) => situation.boosted[index]),
+        count(({ situation, index }) => situation.yellow[index]),
+        count(({ situation, index }) => situation.red[index]),
+      ];
+    });
+  });
+  const assistantOptions = [...new Set(scuffles.map((situation) => situation.options[situation.assistant]))].join(", ");
+
+  sections.push(
+    "## 5. Choice events on real squads: penalties and scuffles",
+    [
+      `${options.choiceMatches} matches between the AI elevens of league dates of the seasons played (their form and their`,
+      "fitness at kick-off as they were), two of the same date and division, the managed side home or away in turn, its",
+      "choice events decided by its assistant as simulated. At each boundary its plan has (15', 30', 60', 75'), whatever kind",
+      "it drew there, a penalty and a scuffle are opened in its place, and each option is played on from that very state to the",
+      "final whistle, later events decided by the assistant, on the same streams.",
+    ].join(" "),
+    "### Penalties: is the best rated taker the best choice?",
+    [
+      "Best rated: the taker with the best shooting among the three offered. Best choice: the highest chance, the one the",
+      "assistant takes. Chances in %: the best rated's, the assistant's, the gap between them, and between the best and the",
+      "worst of the three.",
+    ].join(" "),
+    table(
+      ["situation", "penalties", "best rated is the best choice %", "best rated's chance", "assistant's chance", "best − best rated", "best − worst", "assistant takes the best rated %"],
+      penaltyRows,
+    ),
+    "#### Each taker against the assistant's, by rating (points at the final whistle)",
+    table(["taker", "penalties", "Δ pts/match", "±", "the assistant's %", "mean chance %"], takerRows),
+    "### Scuffles: each option against the assistant's",
+    [
+      `The assistant's option: ${assistantOptions}. Δ: the option's points less the assistant's option's, a mean over the`,
+      "scuffles. Better, worse: the share where it won more points, or fewer. Score changed: the final goal difference is",
+      "not the assistant's option's. Boosted: the option left its side more goals for the segments to come. Yellow, red: the",
+      "captain booked, or sent off, by the option at the minute after the event.",
+    ].join(" "),
+    table(
+      ["captain", "option", "scuffles", "Δ pts/match", "±", "better %", "worse %", "score changed %", "boosted %", "yellow %", "red %"],
+      scuffleRows,
+    ),
+  );
+}
+
 async function main(): Promise<void> {
   const options = parseOptions(process.argv.slice(2));
   const started = performance.now();
@@ -1743,7 +2140,11 @@ async function main(): Promise<void> {
       100 * 1.96 * Math.sqrt(0.25 / options.matches),
     )} points, a difference between two cases much closer, on the same seeds.`,
   ];
-  if (options.startingOnly) {
+  if (options.choicesFrom !== undefined) {
+    const lineups = JSON.parse(readFileSync(options.choicesFrom, "utf8")) as CapturedLineup[];
+    realChoiceTables(lineups, options, sections);
+    console.log(`Choice events on real squads: ${Math.round((performance.now() - started) / 1000)} s`);
+  } else if (options.startingOnly) {
     startingInstructionTables(options, sections);
   } else if (options.formationsOnly) {
     formationTable(options, sections);
