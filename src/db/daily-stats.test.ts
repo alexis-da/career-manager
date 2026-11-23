@@ -107,5 +107,6 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the day's figures, in t
     const recorded = Number(after.databaseBytes ?? 0);
     expect(recorded).toBeGreaterThanOrEqual(sizeBefore - 64 * 1024 * 1024);
     expect(recorded).toBeLessThanOrEqual(sizeAfter + 64 * 1024 * 1024);
-  });
+    // Four sizes of the whole test database and two maintenance calls: past 5 s when the base works for other files.
+  }, 20_000);
 });
