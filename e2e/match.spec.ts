@@ -360,13 +360,14 @@ test("opens the calendar on a list of the next match's month, that match alone s
   await page.getByTestId("match-calendar-all").click();
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/fixtures$`));
 
-  // A new save is on 1 July: the list goes on to August, its first match.
+  // A new save is on 1 July: the list goes on to August, its first match. Five of them: Lyon's league, which has the
+  // winter break, plays its two matchdays of the holidays on the Tuesdays of August (18 and 25 August).
   await expect(page.getByTestId("fixtures-month")).toHaveText("août 2026");
   await expect(page.getByTestId("fixtures-view-list")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("fixtures-calendar")).toHaveCount(0);
 
   const rows = listRowsOf(page);
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(5);
   await expect(page.getByTestId("fixtures-list").locator("[data-next]")).toHaveCount(1);
   const next = rows.first();
   await expect(next).toHaveAttribute("data-next", "true");
@@ -376,7 +377,7 @@ test("opens the calendar on a list of the next match's month, that match alone s
   await expect(next.getByTestId("upcoming-match-trigger")).toHaveCSS("background-color", HIGHLIGHTED_LINE);
 
   const after = rows.nth(1);
-  await expect(after).toContainText(/^sam22/);
+  await expect(after).toContainText(/^mar18/);
   await expect(after).toContainText("D1 · Journée 2");
   await expect(after).not.toContainText("Suivant");
   await expect(after.getByTestId("upcoming-match-trigger")).toHaveCSS("background-color", CARD_BACKGROUND);
@@ -451,7 +452,7 @@ test("switches to the grid and back, each view on its own month until the player
   const toGrid = page.getByTestId("fixtures-view-calendar");
   const toList = page.getByTestId("fixtures-view-list");
   const grid = page.getByTestId("fixtures-calendar");
-  await expect(listRowsOf(page)).toHaveCount(3);
+  await expect(listRowsOf(page)).toHaveCount(5);
 
   // The grid opens on the save's date, the list on the next match.
   await toGrid.click();
@@ -478,21 +479,21 @@ test("switches to the grid and back, each view on its own month until the player
   await expect(page).toHaveURL(/\/fixtures\?vue=grille&mois=2026-08$/);
   await expect(month).toHaveText("août 2026");
 
-  // The same three matches in August's grid.
+  // The same five matches in August's grid, two of them on Tuesdays.
   const days = page.locator('[role="gridcell"]:has([data-testid="upcoming-match-trigger"])');
-  await expect(days).toHaveCount(3);
-  expect(await attributesOf(days, "data-day")).toEqual(["2026-08-15", "2026-08-22", "2026-08-29"]);
+  await expect(days).toHaveCount(5);
+  expect(await attributesOf(days, "data-day")).toEqual(["2026-08-15", "2026-08-18", "2026-08-22", "2026-08-25", "2026-08-29"]);
 
   await toList.click();
   await expect(page).toHaveURL(/\/fixtures\?mois=2026-08$/);
-  await expect(listRowsOf(page)).toHaveCount(3);
+  await expect(listRowsOf(page)).toHaveCount(5);
 });
 
 test("opens the grid to pick a day, from the list and from the table, and gives up without a trace", async ({ page }) => {
   await openSave(page, "/fixtures");
   const banner = page.getByTestId("fixtures-pick-banner");
   const days = page.getByTestId("calendar-day-pick");
-  await expect(listRowsOf(page)).toHaveCount(3);
+  await expect(listRowsOf(page)).toHaveCount(5);
 
   const pickDate = async (): Promise<void> => {
     await page.getByTestId("simulate-menu").click();
@@ -631,7 +632,7 @@ test.describe("on a phone, in English", () => {
     expect(await fullOrangeActions(page)).toEqual(["next-match"]);
 
     const rows = listRowsOf(page);
-    await expect(rows).toHaveCount(3);
+    await expect(rows).toHaveCount(5);
     await expect(rows.first()).toContainText(/^Sat15/);
     await expect(rows.first()).toContainText("D1 · Matchday 1");
     await expect(rows.first()).toContainText("Next");
@@ -759,7 +760,7 @@ test("after the club's first match, the calendar, the table, its form and its su
   await openScreen(page, "fixtures");
   await expect(page.getByTestId("fixtures-month")).toHaveText("août 2026");
   const rows = listRowsOf(page);
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(5);
   await expect(rows.nth(1)).toHaveAttribute("data-next", "true");
   await expect(page.getByTestId("fixtures-list").locator("[data-next]")).toHaveCount(1);
   const played = rows.first();

@@ -16,7 +16,7 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-test("opens the calendar, simulates to the end of the month, sums it up, and the table shows three matches played", async ({ page }) => {
+test("opens the calendar, simulates to the end of the month, sums it up, and the table shows five matches played", async ({ page }) => {
   // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
   const name = `E2E simulation ${Date.now()}`;
   saveName = name;
@@ -42,14 +42,15 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
     await expect(today).toHaveAttribute("data-day", "2026-08-15");
     await expect(today.locator("[data-result]")).toHaveCount(1);
 
-    // 22 and 29 August are left in the month, and the English second division's Tuesdays, 18 and 25 August.
+    // 18, 22, 25 and 29 August are left in the month: Lyon's league, which has the winter break, plays its two matchdays
+    // of the holidays on the Tuesdays of August, as the English second division plays its own.
     await page.getByTestId("simulate-menu").click();
     await page.getByRole("menuitem", { name: "Fin du mois" }).click();
 
     const dialog = page.locator('[data-simulation="dialog"]');
     await expect(dialog.getByRole("heading", { name: "Simulation terminée" })).toBeVisible();
     await expect(dialog.getByText("4 journées jouées · jusqu'au 31 août 2026")).toBeVisible();
-    await expect(dialog.locator('[data-simulation="matches"] > li')).toHaveCount(2);
+    await expect(dialog.locator('[data-simulation="matches"] > li')).toHaveCount(4);
     await expect(dialog.locator('[data-simulation="rank"]')).toContainText(`sur ${FRENCH_CLUBS}`);
     await expect(dialog.getByRole("heading", { name: "Blessures" })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Contrats arrivés à expiration" })).toBeVisible();
@@ -62,7 +63,7 @@ test("opens the calendar, simulates to the end of the month, sums it up, and the
     await page.getByRole("tab", { name: "Division 1" }).click();
     const panel = page.getByRole("tabpanel", { name: "Division 1" });
     await expect(panel.locator("tbody tr")).toHaveCount(FRENCH_CLUBS);
-    await expect(panel.locator('td[data-column="played"]')).toHaveText(Array.from({ length: FRENCH_CLUBS }, () => "3"));
+    await expect(panel.locator('td[data-column="played"]')).toHaveText(Array.from({ length: FRENCH_CLUBS }, () => "5"));
   } finally {
     // Even when a step failed: a leftover save would pollute the database.
     await deleteSave(page, name);

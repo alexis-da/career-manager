@@ -41,8 +41,9 @@ test("creates a save with a second division club, plays the dates in between wit
     await expect(page.getByText(/Journée 1 · 15 août 2026$/)).toBeVisible();
     await finishLiveMatch(page);
 
-    // 22 and 29 August, and the English second division's Tuesdays (24 clubs, 46 matchdays), 18 and 25 August. Then the
-    // first international break, 4 to 8 September, comes before Paris FC's match of 12 September: « Passer la trêve »
+    // 18, 22, 25 and 29 August: Paris FC's league, which has the winter break, plays its two matchdays of the holidays on
+    // the Tuesdays of August, as the English second division (24 clubs, 46 matchdays) plays its own. Then the first
+    // international break, 4 to 8 September, comes before Paris FC's match of 12 September: « Passer la trêve »
     // plays the Tuesday before it, 1 September, and the break, and stops there; « Prochain match » then has nothing in
     // between.
     await page.getByTestId("simulate-menu").click();
@@ -56,17 +57,17 @@ test("creates a save with a second division club, plays the dates in between wit
     await expect(page.getByTestId("hero-break")).toHaveAttribute("data-state", "back", { timeout: 60_000 });
     await page.getByTestId("next-match").click();
     await expect(page).toHaveURL(/\/saves\/[^/]+\/live\?rejouer=1$/);
-    await expect(page.getByText(/Journée 4 · 12 septembre 2026$/)).toBeVisible();
+    await expect(page.getByText(/Journée 6 · 12 septembre 2026$/)).toBeVisible();
     await finishLiveMatch(page);
 
-    // The table opens on the club's country and division; Paris FC's has played four matchdays.
+    // The table opens on the club's country and division; Paris FC's has played six matchdays.
     await openScreen(page, "standings");
     await expect(page.getByRole("tab", { name: "France" })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("tab", { name: "Division 2" })).toHaveAttribute("aria-selected", "true");
     const frenchSecond = page.getByRole("tabpanel", { name: "Division 2" });
     await expect(frenchSecond.locator("tbody tr")).toHaveCount(18);
     await expect(frenchSecond.locator("tr[data-managed]")).toContainText(PARIS_FC);
-    await expect(frenchSecond.locator('td[data-column="played"]')).toHaveText(Array.from({ length: 18 }, () => "4"));
+    await expect(frenchSecond.locator('td[data-column="played"]')).toHaveText(Array.from({ length: 18 }, () => "6"));
     await expect(frenchSecond.locator('tr[data-zone="promotion"]')).toHaveCount(2);
 
     // England: the first division played the same four Saturdays, the second division three Tuesdays as well.
