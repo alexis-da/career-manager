@@ -89,6 +89,9 @@ const offer = (option: ChoiceOption, details: Partial<OptionView> = {}): OptionV
   playerKey: null,
   player: null,
   chance: null,
+  form: null,
+  fitness: null,
+  age: null,
   replacement: null,
   instruction: null,
   current: false,
@@ -100,19 +103,30 @@ const choice = (kind: ChoiceKind, minute: number, options: OptionView[], assista
   kind,
   player: about?.player ?? null,
   playerKey: about?.playerKey ?? null,
+  booked: false,
+  pressure: null,
   options,
   assistant,
 });
 
-const PENALTY = choice(
-  "PENALTY",
-  60,
-  [offer("TAKER", { ...MARTIN, chance: 0.783 }), offer("TAKER", { ...BERNARD, chance: 0.74 }), offer("TAKER", { ...PETIT, chance: 0.69 })],
-  0,
-);
+const PENALTY: ChoiceEventView = {
+  ...choice(
+    "PENALTY",
+    60,
+    [
+      offer("TAKER", { ...MARTIN, chance: 0.783, form: 61, fitness: 64.4, age: 31 }),
+      offer("TAKER", { ...BERNARD, chance: 0.74, form: 50, fitness: 70, age: 24 }),
+      offer("TAKER", { ...PETIT, chance: 0.69, form: 40, fitness: 95, age: null }),
+    ],
+    0,
+  ),
+  pressure: "high",
+};
 const FREE_KICK = choice("FREE_KICK", 15, [offer("SHOOT", { ...MARTIN, chance: 0.14 }), offer("COMBINE")], 1, MARTIN);
 const HOTHEAD = choice("HOTHEAD", 30, [offer("TAKE_OFF", { ...BERNARD, replacement: SUBSTITUTE }), offer("KEEP", BERNARD)], 0, BERNARD);
 const SCUFFLE = choice("SCUFFLE", 30, [offer("CALM"), offer("PROTEST", PETIT)], 0, PETIT);
+/** The same scuffle, its captain already booked. */
+const BOOKED_SCUFFLE: ChoiceEventView = { ...SCUFFLE, booked: true };
 const KNOCK = choice("KNOCK", 60, [offer("TAKE_OFF", { ...MARTIN, replacement: SUBSTITUTE }), offer("PLAY_ON", MARTIN)], 0, MARTIN);
 const EXHAUSTED = choice("EXHAUSTED", 75, [offer("REPLACE", { ...BERNARD, replacement: SUBSTITUTE }), offer("KEEP", BERNARD)], 0, BERNARD);
 /** The three instructions of a late tactical card, Attaquer, Équilibré, Fermer; the club has been playing balanced. */
@@ -234,15 +248,22 @@ describe("the choice card", () => {
     const text = textOf(markup);
     expect(text).toContain("Coup de pied arrêté · 60e");
     expect(text).toContain("Penalty pour toi !");
-    expect(text).toContain("60e minute, 1-1 : faute dans la surface adverse, l'arbitre te donne un penalty. Qui le tire ?");
+    expect(text).toContain(
+      "60e minute, 1-1 : faute dans la surface adverse, l'arbitre te donne un penalty. Qui le tire ? Grosse pression : l'expérience et la forme comptent encore plus.",
+    );
     const takers = optionsOf(markup);
     expect(takers.map((row) => attribute(row, "data-option"))).toEqual(["TAKER", "TAKER", "TAKER"]);
     expect(takers.map((row) => attribute(row, "data-player-key"))).toEqual(["p-9", "p-10", "p-7"]);
     expect(textOf(takers[0])).toContain("Hugo Martin");
     expect(textOf(takers[0])).toContain("78 % de réussite");
+    // What each chance reads: his form, his fitness now, his age when known.
+    expect(textOf(takers[0])).toContain("en forme · condition 64 · 31 ans");
     expect(textOf(takers[1])).toContain("Léo Bernard");
     expect(textOf(takers[1])).toContain("74 % de réussite");
+    expect(textOf(takers[1])).toContain("forme moyenne · condition 70 · 24 ans");
     expect(textOf(takers[2])).toContain("69 % de réussite");
+    expect(textOf(takers[2])).toContain("en petite forme · condition 95");
+    expect(textOf(takers[2])).not.toContain("ans");
     expect(attribute(takers[0], "data-assistant")).toBe("true");
     expect(takers[0]).toContain('checked=""');
     // The sign never goes to the next line without its figure.
@@ -282,10 +303,15 @@ describe("the choice card", () => {
     const text = textOf(markup);
     expect(text).toContain("Échauffourée");
     expect(text).toContain("30e minute, 0-0 : ça chauffe sur le terrain face à Rhône FC. Noé Petit, ton capitaine, est au milieu.");
-    expect(text).toContain("Tes joueurs peuvent se remobiliser, mais Noé Petit risque un carton.");
+    expect(text).toContain("Tout le monde se calme : aucun risque, le match reprend comme avant.");
+    expect(text).toContain("Un pari : tes joueurs peuvent se transcender, ou perdre la tête et laisser des espaces. Noé Petit risque un jaune.");
     const [calm, protest] = optionsOf(markup);
     expect(attribute(calm, "data-player-key")).toBeUndefined();
     expect(attribute(protest, "data-player-key")).toBe("p-7");
+    // Already booked, the captain risks a red card.
+    expect(textOf(render(BOOKED_SCUFFLE, { ownGoals: 0, otherGoals: 0 }))).toContain(
+      "Un pari : tes joueurs peuvent se transcender, ou perdre la tête et laisser des espaces. Noé Petit, déjà averti, risque le rouge.",
+    );
   });
 
   it("tells the score from the player's club, and the minutes left until the 90th", () => {
@@ -343,6 +369,10 @@ describe("the choice card", () => {
     expect(penalty).toContain("Penalty to you!");
     expect(penalty).toContain("60th minute, 1-1: a foul in the box, and the referee gives you a penalty. Who takes it?");
     expect(penalty).toContain("78% chance of scoring");
+    expect(penalty).toContain("Heavy pressure: experience and form count even more.");
+    expect(penalty).toContain("in form · fitness 64 · aged 31");
+    expect(penalty).toContain("out of form · fitness 95");
+    expect(textOf(render(BOOKED_SCUFFLE, {}, "en"))).toContain("Noé Petit, already booked, risks a red card.");
     expect(penalty).toContain("Assistant's pick");
     expect(penalty).toContain("Confirm");
     expect(textOf(render(LEADING, { ownGoals: 2, otherGoals: 1 }, "en"))).toContain(
@@ -360,6 +390,10 @@ describe("the choice card", () => {
       [FREE_KICK, {}],
       [HOTHEAD, {}],
       [SCUFFLE, {}],
+      [BOOKED_SCUFFLE, {}],
+      [{ ...PENALTY, pressure: "low" }, {}],
+      [{ ...PENALTY, pressure: "medium" }, {}],
+      [{ ...PENALTY, pressure: null }, {}],
       [KNOCK, {}],
       [EXHAUSTED, { playerFitness: 40 }],
       [EXHAUSTED, {}],

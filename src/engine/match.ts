@@ -193,9 +193,15 @@ export type TeamLive = {
 export type ScheduledIncident = { minute: number; side: Side; kind: "RED_CARD" | "INJURY"; playerId: string; days: number };
 
 /**
+ * A side's expected goals multiplied for a while: in every segment that starts before `until` (minutes played), within
+ * the period of play it was set in. A scuffle's protest sets one, on its own side or on the other.
+ */
+export type GoalBoost = { side: Side; factor: number; until: number };
+
+/**
  * What choice events and managers leave on a match for the segments that follow: a side's expected goals multiplied in
- * the next segment, a side's instruction for the rest of the period of play it was given in (regular time, or extra time),
- * incidents set for later.
+ * the next segment, or for a few (boosts), a side's instruction for the rest of the period of play it was given in
+ * (regular time, or extra time), incidents set for later.
  */
 export type MatchModifiers = {
   goals: Partial<Record<Side, number>>;
@@ -203,6 +209,8 @@ export type MatchModifiers = {
   // Who gave each of those instructions; absent from a state paused before it was kept: its manager.
   givenBy?: Partial<Record<Side, GivenBy>>;
   scheduled: ScheduledIncident[];
+  // Absent without one, as from a state paused before them.
+  boosts?: GoalBoost[];
 };
 
 /** Who gives a side an instruction during its match: its manager at a pause, or a choice event's decision. */
@@ -695,9 +703,12 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
   };
   // The managed club's choice events score some of its goals: the rest of its play scores fewer.
   const choiceGoals = (side: Side): number => (state.choices?.side === side ? OWN_GOALS_WITH_CHOICE_EVENTS : 1);
+  // The boosts still running when the segment starts: 1 without one, which leaves the expected goals exactly as they were.
+  const boostOf = (side: Side): number =>
+    (modifiers?.boosts ?? []).reduce((factor, boost) => (boost.side === side && played < boost.until ? factor * boost.factor : factor), 1);
   for (const side of SIDES) {
-    // A choice event may have multiplied the side's goals in this segment.
-    schedule(side, "GOAL", poisson(rng, expected[side] * goalShare * choiceGoals(side) * (modifiers?.goals[side] ?? 1)));
+    // A choice event may have multiplied the side's goals in this segment, or in a few.
+    schedule(side, "GOAL", poisson(rng, expected[side] * goalShare * choiceGoals(side) * (modifiers?.goals[side] ?? 1) * boostOf(side)));
     schedule(side, "YELLOW_CARD", poisson(rng, YELLOW_CARDS_PER_TEAM * share));
     schedule(side, "RED_CARD", poisson(rng, RED_CARDS_PER_TEAM * share));
     schedule(side, "INJURY", poisson(rng, INJURIES_PER_TEAM * share * injuryRisk(side)));
@@ -834,13 +845,16 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
 
   state.played = last;
   if (modifiers !== undefined) {
-    // A choice event's goals count for one segment, an instruction for the rest of its period of play.
+    // A choice event's goals count for one segment, a boost until its minute, an instruction for the rest of its period of
+    // play.
     const periodOver = segment === "s6";
+    const boosts = (modifiers.boosts ?? []).filter((boost) => boost.until > last);
     state.modifiers = {
       goals: {},
       instructions: periodOver ? {} : modifiers.instructions,
       ...(periodOver || modifiers.givenBy === undefined ? {} : { givenBy: modifiers.givenBy }),
       scheduled: modifiers.scheduled.filter((scheduled) => scheduled.minute > lastMinute),
+      ...(boosts.length === 0 ? {} : { boosts }),
     };
   }
 

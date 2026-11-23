@@ -48,6 +48,7 @@ import {
   type TournamentGroups,
 } from "../engine/tournaments";
 import { Prisma, type PrismaClient } from "../generated/prisma/client";
+import { ageInYears } from "../lib/dates";
 
 // The national teams of a save (docs/design/selections.md): its nations and their reserves; the international matches of
 // its breaks, qualifiers of its cycles and friendlies around them, created at each season's opening; a break played in
@@ -239,6 +240,7 @@ export type CandidateRow = {
   morale: number;
   fitness: number;
   clubSaveId: string;
+  birthDate: Date;
 };
 
 /** Candidates read by line: the best of each, enough for the call-up's lines and its last two places. */
@@ -253,11 +255,11 @@ async function readCandidates(db: Db, saveId: string, date: Date): Promise<Candi
   return db.$queryRaw<CandidateRow[]>`
     SELECT "id", "playerKey", "firstName", "lastName", "caps", "internationalGoals", "nationality", "position", "overall",
       "pace", "shooting", "passing", "dribbling", "defending", "physical", "goalkeeping", "form", "morale", "fitness",
-      "clubSaveId"
+      "clubSaveId", "birthDate"
     FROM (
       SELECT p."id", p."playerKey", p."firstName", p."lastName", p."caps", p."internationalGoals", p."nationality",
         p."position", p."overall", p."pace", p."shooting", p."passing", p."dribbling", p."defending", p."physical",
-        p."goalkeeping", p."form", p."morale", p."fitness", p."clubSaveId",
+        p."goalkeeping", p."form", p."morale", p."fitness", p."clubSaveId", p."birthDate",
         ROW_NUMBER() OVER (
           PARTITION BY p."nationality",
             CASE WHEN p."position" = 'GK' THEN 0
@@ -334,6 +336,7 @@ export async function readCallUpsAndReserves(
       form: row.form,
       morale: row.morale,
       fitness: recoveredFitness(row.fitness, restDays),
+      age: ageInYears(row.birthDate, date),
       nation: nation.code,
       firstName: row.firstName,
       lastName: row.lastName,
@@ -363,6 +366,7 @@ export async function readCallUpsAndReserves(
         form: 50,
         morale: 50,
         fitness: FULL_FITNESS,
+        age: ageInYears(new Date(`${player.birthDate}T00:00:00Z`), date),
         nation: row.code,
         firstName: player.firstName,
         lastName: player.lastName,

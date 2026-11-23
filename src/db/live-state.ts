@@ -41,6 +41,8 @@ const squadPlayerSchema = z.object({
   // At kick-off. A state paused before fatigue counted has none: every player was rested then.
   fitness: z.number().int().min(0).max(FULL_FITNESS).default(FULL_FITNESS),
   injured: z.boolean(),
+  // On the day of the match, for a penalty's pressure. A state paused before it was kept has none.
+  age: z.number().int().min(10).max(60).optional(),
 });
 
 const teamSchema = z.object({
@@ -129,6 +131,11 @@ const modifiersSchema = z.object({
   scheduled: z.array(
     z.object({ minute, side, kind: z.enum(["RED_CARD", "INJURY"]), playerId: playerKey, days: z.number().int().min(0) }),
   ),
+  // A side's goals multiplied until a minute played: a scuffle's protest; absent from a state paused before them.
+  boosts: z
+    .array(z.object({ side, factor: z.number().positive(), until: minute }))
+    .max(5)
+    .optional(),
 });
 
 /**

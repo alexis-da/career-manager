@@ -28,6 +28,7 @@ import {
 import { playOn } from "../engine/live";
 import { competitionTier } from "../engine/tiers";
 import { Prisma } from "../generated/prisma/client";
+import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { matchFacts, type MatchFacts } from "../lib/missions";
 import { recordFirstMatch, recordFirstSeasonEnd } from "./activation";
@@ -697,10 +698,27 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
         await ensureObjectiveChosen(tx, saveId);
       }
       // The managed club's country, whose AI clubs choose their formation before each match (lineupOf).
-      const { competition: managedCompetition } = await tx.clubSave.findFirstOrThrow({
+      const { id: managedClubSaveId, competition: managedCompetition } = await tx.clubSave.findFirstOrThrow({
         where: { saveId, isManaged: true },
-        select: { competition: { select: { country: true } } },
+        select: { id: true, competition: { select: { country: true } } },
       });
+      // Its players' ages on the day, when it plays: its penalty takers' experience (penaltyChance), which no AI club's
+      // match reads. Read for its players alone: a date's thousands of birth dates would cost every date some CPU.
+      const managedSquad = squads.get(managedClubSaveId);
+      if (managedSquad !== undefined) {
+        const births = await tx.playerSave.findMany({
+          where: { saveId, clubSaveId: managedClubSaveId },
+          select: { playerKey: true, birthDate: true },
+        });
+        const ageOf = new Map(births.map((row) => [row.playerKey, ageInYears(row.birthDate, matchDate)]));
+        squads.set(
+          managedClubSaveId,
+          managedSquad.map((player) => {
+            const age = ageOf.get(player.id);
+            return age === undefined ? player : { ...player, age };
+          }),
+        );
+      }
       const kept: ({ clubSaveId: string } & KeptFormation)[] = [];
 
       for (const fixture of fixtures) {

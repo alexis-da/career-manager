@@ -23,8 +23,15 @@
     "PENALTY": {
       "title": "Penalty to you!",
       "situation": "{context}: a foul in the box, and the referee gives you a penalty. Who takes it?",
+      "pressure": {
+        "low": "Little pressure.",
+        "medium": "Some pressure: experience and form count.",
+        "high": "Heavy pressure: experience and form count even more."
+      },
       "TAKER": {
-        "effect": "{chance}% chance of scoring"
+        "effect": "{chance}% chance of scoring",
+        "details": "{form, select, high {in form} low {out of form} other {average form}} · fitness {fitness} · aged {age}",
+        "detailsNoAge": "{form, select, high {in form} low {out of form} other {average form}} · fitness {fitness}"
       }
     },
     "FREE_KICK": {
@@ -56,11 +63,12 @@
       "situation": "{context}: tempers flare against {opponent}. {captain}, your captain, is in the thick of it.",
       "CALM": {
         "label": "Calm your players down",
-        "effect": "Everyone settles down: play goes on as before."
+        "effect": "Everyone settles down: no risk, play goes on as before."
       },
       "PROTEST": {
         "label": "Protest",
-        "effect": "It may fire your players up, but {captain} risks a card."
+        "effect": "A gamble: your players may raise their game, or lose their heads and leave gaps. {captain} risks a yellow card.",
+        "effectBooked": "A gamble: your players may raise their game, or lose their heads and leave gaps. {captain}, already booked, risks a red card."
       }
     },
     "KNOCK": {

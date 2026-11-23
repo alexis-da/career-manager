@@ -21,6 +21,10 @@ export type SquadPlayer = LineupCandidate &
     form: number; // 1–99
     morale: number; // 1–99
     fitness: number; // 0–100, FULL_FITNESS when rested
+    // Whole years on the day of the match: his experience when a penalty's pressure comes (penaltyChance). Given to the
+    // managed club's players (playNextMatchday) and to a nation's (its call-ups), the only ones a penalty reads; absent for
+    // an AI club's, and from a state paused before it was kept: an age of PENALTY_EXPERIENCE_NEUTRAL_AGE.
+    age?: number;
   };
 
 export type LineupSlot<P extends LineupCandidate = SquadPlayer> = {

@@ -1,5 +1,14 @@
 import { MAX_SUBSTITUTION_WINDOWS } from "../engine/balance";
-import { decideChoice, optionInstruction, type ChoiceEvent, type ChoiceKind, type ChoiceOption } from "../engine/choices";
+import {
+  decideChoice,
+  optionInstruction,
+  penaltyPressure,
+  pressureLevel,
+  type ChoiceEvent,
+  type ChoiceKind,
+  type ChoiceOption,
+  type PressureLevel,
+} from "../engine/choices";
 import { fitnessFactor } from "../engine/fitness";
 import { pauseOf, playOn, type LivePause, type PausePhase, type PlayOnInput, type PlayOnUntil } from "../engine/live";
 import {
@@ -298,11 +307,18 @@ export type ChoiceEventView = {
   kind: ChoiceKind;
   player: string | null; // the player it is about
   playerKey: string | null;
+  booked: boolean; // the player it is about is booked: a scuffle's captain risks a red card
+  pressure: PressureLevel | null; // a penalty's, from the minute and the score (penaltyPressure); null for any other event
   options: {
     option: ChoiceOption;
     playerKey: string | null;
     player: string | null;
     chance: number | null;
+    // A penalty taker's form, fitness at that minute and age, which his chance reads; null for any other option (an age
+    // too, for a taker of a state paused before it was kept).
+    form: number | null;
+    fitness: number | null;
+    age: number | null;
     replacement: { key: string; name: string } | null;
     instruction: Instruction | null; // for the rest of regular time
     current: boolean; // its instruction is the one the club has been playing with: « (actuelle) »
@@ -319,21 +335,29 @@ function choiceEventViewOf(event: ChoiceEvent, state: MatchState, side: Side, id
   const names = new Map(identities.map((row) => [row.playerKey, fullName(row)]));
   const current = currentInstructionOf(state[side]);
   const nameOf = (key: string | undefined): string | null => (key === undefined ? null : (names.get(key) ?? null));
+  const other = side === "home" ? "away" : "home";
+  const onPitch = (key: string | undefined) => state[side].pitch.find((entry) => entry.status === "ON" && entry.player.id === key);
   return {
     minute: event.minute,
     kind: event.kind,
     player: nameOf(event.playerId),
     playerKey: event.playerId ?? null,
+    booked: event.playerId !== undefined && state[side].booked.includes(event.playerId),
+    pressure: event.kind === "PENALTY" ? pressureLevel(penaltyPressure(event.minute, state[side].goals - state[other].goals)) : null,
     options: event.options.map((option) => {
       const replacement =
         (option.option === "TAKE_OFF" || option.option === "REPLACE") && option.playerId !== undefined
           ? replacementFor(state, side, option.playerId)
           : undefined;
+      const taker = option.option === "TAKER" ? onPitch(option.playerId) : undefined;
       return {
         option: option.option,
         playerKey: option.playerId ?? null,
         player: nameOf(option.playerId),
         chance: option.chance ?? null,
+        form: taker === undefined ? null : taker.player.form,
+        fitness: taker === undefined ? null : fitnessAt(taker, event.minute),
+        age: taker?.player.age ?? null,
         replacement: replacement === undefined ? null : { key: replacement.id, name: nameOf(replacement.id) ?? replacement.id },
         instruction: optionInstruction(option.option),
         current: optionInstruction(option.option) === current,

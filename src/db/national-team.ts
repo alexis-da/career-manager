@@ -38,6 +38,7 @@ import {
 } from "../engine/tournaments";
 import { seasonStartYear } from "../engine/world";
 import { Prisma } from "../generated/prisma/client";
+import { ageInYears } from "../lib/dates";
 import { serializeLiveState } from "./live-state";
 import {
   BREAK_COMPETITIONS,
@@ -422,7 +423,7 @@ type LeagueRow = CandidateRow & { injuredUntil: Date | null; retired: boolean };
 
 const LEAGUE_SELECT = Prisma.sql`"id", "playerKey", "firstName", "lastName", "caps", "internationalGoals", "nationality",
   "position", "overall", "pace", "shooting", "passing", "dribbling", "defending", "physical", "goalkeeping", "form",
-  "morale", "fitness", "clubSaveId", "injuredUntil", "retired"`;
+  "morale", "fitness", "clubSaveId", "birthDate", "injuredUntil", "retired"`;
 
 /** Our players of some keys, by key. */
 async function leagueRowsByKey(db: Transaction, saveId: string, keys: readonly string[]): Promise<Map<string, LeagueRow>> {
@@ -442,7 +443,8 @@ export async function nationPool(db: Transaction, saveId: string, nationality: s
     ORDER BY "overall" DESC, "playerKey"`;
 }
 
-function leaguePlayer(row: LeagueRow, code: NationCode, fitness: number): NationPlayer {
+/** One of our players as his nation calls him on a date: his fitness then, his age that day. */
+function leaguePlayer(row: LeagueRow, code: NationCode, fitness: number, date: Date): NationPlayer {
   return {
     id: row.playerKey,
     position: row.position,
@@ -458,6 +460,7 @@ function leaguePlayer(row: LeagueRow, code: NationCode, fitness: number): Nation
     form: row.form,
     morale: row.morale,
     fitness,
+    age: ageInYears(row.birthDate, date),
     nation: code,
     firstName: row.firstName,
     lastName: row.lastName,
@@ -469,7 +472,8 @@ function leaguePlayer(row: LeagueRow, code: NationCode, fitness: number): Nation
   };
 }
 
-function reservePlayer(row: ReserveRow, index: number, fitness: number): NationPlayer {
+/** A player of a nation's reserve as it calls him on a date: his fitness then, his age that day. */
+function reservePlayer(row: ReserveRow, index: number, fitness: number, date: Date): NationPlayer {
   const player = row.reserve[index];
   return {
     id: player.key,
@@ -486,6 +490,7 @@ function reservePlayer(row: ReserveRow, index: number, fitness: number): NationP
     form: 50,
     morale: 50,
     fitness,
+    age: ageInYears(new Date(`${player.birthDate}T00:00:00Z`), date),
     nation: row.code,
     firstName: player.firstName,
     lastName: player.lastName,
@@ -539,10 +544,10 @@ async function coachCallUpPlayers(
     const row = rows.get(key);
     if (row !== undefined) {
       const available = row.clubSaveId !== null && !row.retired && (row.injuredUntil === null || row.injuredUntil <= date);
-      return available ? [leaguePlayer(row, save.nationCode, recoveredFitness(row.fitness, restDays))] : [];
+      return available ? [leaguePlayer(row, save.nationCode, recoveredFitness(row.fitness, restDays), date)] : [];
     }
     const index = reserve?.reserve.findIndex((player) => player.key === key) ?? -1;
-    return reserve !== undefined && index >= 0 ? [reservePlayer(reserve, index, FULL_FITNESS)] : [];
+    return reserve !== undefined && index >= 0 ? [reservePlayer(reserve, index, FULL_FITNESS, date)] : [];
   });
 }
 
@@ -584,10 +589,10 @@ async function sessionSquads(
         entries.flatMap((entry) => {
           const row = league.get(entry.key);
           if (row !== undefined) {
-            return [leaguePlayer(row, code, entry.fitness)];
+            return [leaguePlayer(row, code, entry.fitness, session.first)];
           }
           const index = reserve?.reserve.findIndex((player) => player.key === entry.key) ?? -1;
-          return reserve !== undefined && index >= 0 ? [reservePlayer(reserve, index, entry.fitness)] : [];
+          return reserve !== undefined && index >= 0 ? [reservePlayer(reserve, index, entry.fitness, session.first)] : [];
         }),
       );
     }

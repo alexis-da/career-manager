@@ -33,9 +33,11 @@ const knock: ChoiceEventView = {
   kind: "KNOCK",
   player: "Léo s7",
   playerKey: "s7",
+  booked: false,
+  pressure: null,
   options: [
-    { option: "TAKE_OFF", playerKey: "s7", player: "Léo s7", chance: null, replacement: { key: "b1", name: "Léo b1" }, instruction: null, current: false },
-    { option: "PLAY_ON", playerKey: "s7", player: "Léo s7", chance: null, replacement: null, instruction: null, current: false },
+    { option: "TAKE_OFF", playerKey: "s7", player: "Léo s7", chance: null, form: null, fitness: null, age: null, replacement: { key: "b1", name: "Léo b1" }, instruction: null, current: false },
+    { option: "PLAY_ON", playerKey: "s7", player: "Léo s7", chance: null, form: null, fitness: null, age: null, replacement: null, instruction: null, current: false },
   ],
   assistant: 0,
 };
@@ -69,6 +71,9 @@ describe("the team a decision on a choice event leaves", () => {
       playerKey: null,
       player: null,
       chance: null,
+      form: null,
+      fitness: null,
+      age: null,
       replacement: null,
       instruction,
       current: false,
@@ -78,6 +83,8 @@ describe("the team a decision on a choice event leaves", () => {
       kind,
       player: null,
       playerKey: null,
+      booked: false,
+      pressure: null,
       options,
       assistant: 0,
     });
@@ -103,9 +110,11 @@ describe("the team a decision on a choice event leaves", () => {
       kind: "SCUFFLE",
       player: "Léo s4",
       playerKey: "s4",
+      booked: false,
+      pressure: null,
       options: [
-        { option: "CALM", playerKey: null, player: null, chance: null, replacement: null, instruction: null, current: false },
-        { option: "PROTEST", playerKey: "s4", player: "Léo s4", chance: null, replacement: null, instruction: null, current: false },
+        { option: "CALM", playerKey: null, player: null, chance: null, form: null, fitness: null, age: null, replacement: null, instruction: null, current: false },
+        { option: "PROTEST", playerKey: "s4", player: "Léo s4", chance: null, form: null, fitness: null, age: null, replacement: null, instruction: null, current: false },
       ],
       assistant: 0,
     };

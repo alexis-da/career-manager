@@ -3,6 +3,7 @@ import {
   CHOICE_EVENT_COUNT_WEIGHTS,
   CHOICE_EVENT_MINUTES,
   CHOICE_EVENT_WEIGHTS,
+  CONDITION_NEUTRAL,
   EXHAUSTED_FITNESS_LOST,
   EXHAUSTED_INJURY_CHANCE,
   EXHAUSTED_MINUTE,
@@ -26,12 +27,31 @@ import {
   KNOCK_INJURY_DAYS_MAX,
   KNOCK_INJURY_DAYS_MIN,
   LEADING_MAX_MARGIN,
+  PENALTY_EXPERIENCE_AGE_SPAN,
+  PENALTY_EXPERIENCE_CHANCE,
+  PENALTY_EXPERIENCE_NEUTRAL_AGE,
+  PENALTY_FITNESS_CHANCE,
+  PENALTY_FITNESS_REFERENCE,
+  PENALTY_FORM_CHANCE,
+  PENALTY_PRESSURE_BY_LEAD,
+  PENALTY_PRESSURE_CHANCE,
+  PENALTY_PRESSURE_FLOOR,
+  PENALTY_PRESSURE_FORM,
+  PENALTY_PRESSURE_REFERENCE,
   PENALTY_TAKERS,
+  PROTEST_BACKFIRE_GOALS,
   PROTEST_GOALS,
-  PROTEST_GOALS_CHANCE,
+  PROTEST_SEGMENTS,
+  PROTEST_SUCCESS_CHANCE,
   PROTEST_YELLOW_CHANCE,
   REGULATION_MINUTES,
   SEGMENT_MINUTES,
+  SHOOTOUT_BASE_CHANCE,
+  SHOOTOUT_KEEPER_FACTOR,
+  SHOOTOUT_KICKER_FACTOR,
+  SHOOTOUT_MAX_CHANCE,
+  SHOOTOUT_MIN_CHANCE,
+  SHOOTOUT_REFERENCE_RATING,
   TACTICAL_CHOICE_MINUTES,
 } from "./balance";
 import {
@@ -40,11 +60,11 @@ import {
   fitnessAt,
   giveInstruction,
   goalAt,
-  shootoutChance,
   substitutionAt,
   substitutionsLeft,
   windowOpenAt,
   type BoundaryHook,
+  type GoalBoost,
   type Instruction,
   type MatchModifiers,
   type MatchState,
@@ -151,6 +171,63 @@ export function withChoices(state: MatchState, side: Side, matchSeed: string): M
   };
 }
 
+/**
+ * The pressure of a penalty, from 0 to 1: the minute's part (PENALTY_PRESSURE_FLOOR at kick-off, 1 from the end of regular
+ * time), times what the score puts on the kick (PENALTY_PRESSURE_BY_LEAD, from the side's goals ahead: level or one
+ * behind the most).
+ */
+export function penaltyPressure(minute: number, lead: number): number {
+  const byLead = PENALTY_PRESSURE_BY_LEAD;
+  const score =
+    lead === 0
+      ? byLead.level
+      : lead === -1
+        ? byLead.oneBehind
+        : lead === 1
+          ? byLead.oneAhead
+          : lead === -2
+            ? byLead.twoBehind
+            : lead === 2
+              ? byLead.twoAhead
+              : byLead.decided;
+  const time = Math.min(1, minute / REGULATION_MINUTES);
+  return (PENALTY_PRESSURE_FLOOR + (1 - PENALTY_PRESSURE_FLOOR) * time) * score;
+}
+
+export type PressureLevel = "low" | "medium" | "high";
+
+/** How the card names a penalty's pressure: high from 0.75 (a level match from the 60th minute), low below 0.5. */
+export function pressureLevel(pressure: number): PressureLevel {
+  return pressure >= 0.75 ? "high" : pressure >= 0.5 ? "medium" : "low";
+}
+
+/** A penalty taker as his kick reads him: his shooting, his form, his fitness at that minute of the match, his age. */
+export type PenaltyTaker = { shooting: number; form: number; fitness: number; age?: number };
+
+/** A taker's experience facing the pressure, from −1 (young) to 1 (a veteran's calm); 0 at an unknown age. */
+export function penaltyExperience(age: number | undefined): number {
+  const years = (age ?? PENALTY_EXPERIENCE_NEUTRAL_AGE) - PENALTY_EXPERIENCE_NEUTRAL_AGE;
+  return Math.max(-1, Math.min(1, years / PENALTY_EXPERIENCE_AGE_SPAN));
+}
+
+/**
+ * A penalty's chance (balance.ts, PENALTY_TAKERS): the shoot-out's, the taker's shooting against the goalkeeper's
+ * goalkeeping, then his form (counting for more under pressure), his fitness at that minute, the pressure itself and his
+ * experience facing it; within the shoot-out's bounds, to the whole percent the card shows: what it shows is what is
+ * played.
+ */
+export function penaltyChance(taker: PenaltyTaker, keeperGoalkeeping: number, pressure: number): number {
+  const chance =
+    SHOOTOUT_BASE_CHANCE +
+    SHOOTOUT_KICKER_FACTOR * (taker.shooting - SHOOTOUT_REFERENCE_RATING) -
+    SHOOTOUT_KEEPER_FACTOR * (keeperGoalkeeping - SHOOTOUT_REFERENCE_RATING) +
+    PENALTY_FORM_CHANCE * (taker.form - CONDITION_NEUTRAL) * (1 + PENALTY_PRESSURE_FORM * pressure) -
+    PENALTY_FITNESS_CHANCE * (PENALTY_FITNESS_REFERENCE - taker.fitness) -
+    PENALTY_PRESSURE_CHANCE * (pressure - PENALTY_PRESSURE_REFERENCE) +
+    PENALTY_EXPERIENCE_CHANCE * pressure * penaltyExperience(taker.age);
+  return Math.round(100 * Math.min(SHOOTOUT_MAX_CHANCE, Math.max(SHOOTOUT_MIN_CHANCE, chance))) / 100;
+}
+
 /** A direct free kick's chance: the taker's shooting against the goalkeeper's goalkeeping, within the bounds. */
 export function freeKickChance(shooting: number, goalkeeping: number): number {
   const chance =
@@ -230,16 +307,26 @@ export function choiceEvent(kind: ChoiceKind, state: MatchState, side: Side, min
   });
   switch (kind) {
     case "PENALTY": {
+      // The best shooters, the best rated first; each one's chance as he is now; the assistant takes the best, the best
+      // rated at an equal chance.
       const keeping = goalkeepingOf(state, otherSide(side));
-      const takers = outfield
-        .map((entry) => ({ entry, chance: shootoutChance(entry.player.shooting, keeping) }))
-        .sort((a, b) => b.chance - a.chance || byId(a.entry, b.entry))
-        .slice(0, PENALTY_TAKERS);
+      const pressure = penaltyPressure(minute, state[side].goals - state[otherSide(side)].goals);
+      const takers = [...outfield]
+        .sort((a, b) => b.player.shooting - a.player.shooting || byId(a, b))
+        .slice(0, PENALTY_TAKERS)
+        .map((entry) => ({
+          entry,
+          chance: penaltyChance(
+            { shooting: entry.player.shooting, form: entry.player.form, fitness: fitnessAt(entry, minute), age: entry.player.age },
+            keeping,
+            pressure,
+          ),
+        }));
       return {
         minute,
         kind,
         options: takers.map(({ entry, chance }) => ({ option: "TAKER", playerId: entry.player.id, chance })),
-        assistant: 0,
+        assistant: takers.reduce((best, taker, index) => (taker.chance > takers[best].chance ? index : best), 0),
       };
     }
     case "FREE_KICK": {
@@ -327,6 +414,12 @@ function withScheduled(state: MatchState, incident: ScheduledIncident): MatchSta
   return { ...state, modifiers: { ...modifiers, scheduled: [...modifiers.scheduled, incident] } };
 }
 
+/** A side's expected goals multiplied until a minute played (GoalBoost). */
+function withBoost(state: MatchState, boost: GoalBoost): MatchState {
+  const modifiers = modifiersOf(state);
+  return { ...state, modifiers: { ...modifiers, boosts: [...(modifiers.boosts ?? []), boost] } };
+}
+
 /** A whole number from min to max, from a uniform draw u in [0, 1). */
 const within = (min: number, max: number, u: number): number => min + Math.floor(u * (max - min + 1));
 
@@ -374,8 +467,13 @@ function applyOption(state: MatchState, side: Side, event: ChoiceEvent, chosen: 
     case "CALM":
       return state;
     case "PROTEST": {
-      const pushed = first < PROTEST_GOALS_CHANCE ? withGoals(state, side, PROTEST_GOALS) : state;
-      return second < PROTEST_YELLOW_CHANCE ? bookingAt(pushed, side, playerOf(chosen), at) : pushed;
+      // A bet on the next segments of the period of play: the players fired up, or losing their heads; and the captain's card.
+      const until = Math.min(event.minute + PROTEST_SEGMENTS * SEGMENT_MINUTES, end);
+      const bet =
+        first < PROTEST_SUCCESS_CHANCE
+          ? withBoost(state, { side, factor: PROTEST_GOALS, until })
+          : withBoost(state, { side: otherSide(side), factor: PROTEST_BACKFIRE_GOALS, until });
+      return second < PROTEST_YELLOW_CHANCE ? bookingAt(bet, side, playerOf(chosen), at) : bet;
     }
     case "PLAY_ON": {
       const playerId = playerOf(chosen);

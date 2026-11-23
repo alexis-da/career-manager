@@ -3,7 +3,7 @@ import { buildWorldPlan } from "../../prisma/seed/seed";
 import { HALF_TIME_MINUTE, REGULATION_MINUTES } from "../engine/balance";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../engine/formations";
 import { attributeRngSeed, clubLevelFromRank, generateAttributes } from "../engine/generation";
-import { assistantChoices, withChoices } from "../engine/choices";
+import { assistantChoices, choiceEvent, decideChoice, withChoices } from "../engine/choices";
 import { selectLineup, type Lineup, type SquadPlayer } from "../engine/lineup";
 import { playOn } from "../engine/live";
 import { knockoutWinner, matchResult, simulateMatch, startMatch, type Instruction, type MatchState, type Side } from "../engine/match";
@@ -200,4 +200,40 @@ describe("simulating or watching a match", () => {
     // His assistant, or a late tactical event, changed it in some of them.
     expect(switched).toBeGreaterThan(20);
   }, 30_000);
+
+  it("keeps a protest's bet and the players' ages through the stored state: the match played on is the same", () => {
+    let boosted = 0;
+    for (let index = 0; index < 60; index++) {
+      const managedSide: Side = index % 2 === 0 ? "home" : "away";
+      const homeClub = squads[(index * 3) % squads.length];
+      const awayClub = squads[(index * 17 + 5) % squads.length];
+      if (homeClub === awayClub) {
+        continue;
+      }
+      // Each player of an age, as squadsOf gives them on the day of the match.
+      const aged = (squad: SquadPlayer[]): SquadPlayer[] => squad.map((player, slot) => ({ ...player, age: 18 + ((slot * 5) % 17) }));
+      const home = selectLineup(aged(homeClub.squad));
+      const away = selectLineup(aged(awayClub.squad));
+      const seed = `protest:${index}`;
+      let state = withChoices(startMatch(home, away), managedSide, seed);
+      while (state.played < 30) {
+        state = playOn(state, managedSide, seed, {}, "segment");
+      }
+      // A scuffle at the 30th minute, whatever the plan had there, its manager protesting.
+      const choices = state.choices;
+      if (choices === undefined) {
+        throw new Error("A managed club's match without its choice events");
+      }
+      const event = choiceEvent("SCUFFLE", state, managedSide, 30, makeRng(seed));
+      const protested = decideChoice({ ...state, choices: { ...choices, pending: event } }, seed, { option: "PROTEST" });
+      boosted += (protested.modifiers?.boosts ?? []).length;
+
+      const stored = parseLiveState("protested", serializeLiveState({ managedSide, state: protested }));
+      expect(stored.state.modifiers?.boosts).toEqual(protested.modifiers?.boosts);
+      expect(stored.state.home.pitch.map((entry) => entry.player.age)).toEqual(protested.home.pitch.map((entry) => entry.player.age));
+      expect(stored.state.home.pitch.every((entry) => entry.player.age !== undefined)).toBe(true);
+      expect(matchResult(finish(stored.state, managedSide, seed))).toEqual(matchResult(finish(protested, managedSide, seed)));
+    }
+    expect(boosted).toBeGreaterThan(40);
+  });
 });

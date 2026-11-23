@@ -23,8 +23,15 @@
     "PENALTY": {
       "title": "Penalty pour toi !",
       "situation": "{context} : faute dans la surface adverse, l'arbitre te donne un penalty. Qui le tire ?",
+      "pressure": {
+        "low": "Peu de pression.",
+        "medium": "Pression moyenne : l'expérience et la forme comptent.",
+        "high": "Grosse pression : l'expérience et la forme comptent encore plus."
+      },
       "TAKER": {
-        "effect": "{chance} % de réussite"
+        "effect": "{chance} % de réussite",
+        "details": "{form, select, high {en forme} low {en petite forme} other {forme moyenne}} · condition {fitness} · {age} ans",
+        "detailsNoAge": "{form, select, high {en forme} low {en petite forme} other {forme moyenne}} · condition {fitness}"
       }
     },
     "FREE_KICK": {
@@ -56,11 +63,12 @@
       "situation": "{context} : ça chauffe sur le terrain face à {opponent}. {captain}, ton capitaine, est au milieu.",
       "CALM": {
         "label": "Calmer tes joueurs",
-        "effect": "Tout le monde se calme : le match reprend comme avant."
+        "effect": "Tout le monde se calme : aucun risque, le match reprend comme avant."
       },
       "PROTEST": {
         "label": "Protester",
-        "effect": "Tes joueurs peuvent se remobiliser, mais {captain} risque un carton."
+        "effect": "Un pari : tes joueurs peuvent se transcender, ou perdre la tête et laisser des espaces. {captain} risque un jaune.",
+        "effectBooked": "Un pari : tes joueurs peuvent se transcender, ou perdre la tête et laisser des espaces. {captain}, déjà averti, risque le rouge."
       }
     },
     "KNOCK": {

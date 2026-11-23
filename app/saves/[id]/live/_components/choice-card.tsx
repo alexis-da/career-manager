@@ -51,8 +51,16 @@ type Score = { own: number; other: number };
 /** What the card says of the match around its event. */
 type Situation = { opponent: TeamView; score: Score; playerFitness: number | null };
 
-/** What an option says: what it is, and what it does in plain words (nothing for a taker whose chance is unknown). */
-type OptionTexts = { label: string; effect: string | null };
+/**
+ * What an option says: what it is, what it does in plain words (nothing for a taker whose chance is unknown), and for a
+ * penalty taker what his chance reads: his form, his fitness now, his age.
+ */
+type OptionTexts = { label: string; effect: string | null; details?: string };
+
+/** A taker's form as the card words it: in form from FORM_HIGH, out of form up to FORM_LOW, average between. */
+const FORM_HIGH = 56;
+const FORM_LOW = 44;
+const formWord = (form: number): "high" | "low" | "average" => (form >= FORM_HIGH ? "high" : form <= FORM_LOW ? "low" : "average");
 
 /** The minute and the score, seen from the player's club: « 60e minute, tu mènes 2-1 », « 60e minute, 1-1 ». */
 function contextOf(minute: number, { own, other }: Score, t: Translator<"choiceCard">): string {
@@ -77,8 +85,11 @@ function eventTexts(
   const player = event.player ?? t("aPlayer");
   const remaining = REGULATION_MINUTES - event.minute;
   switch (event.kind) {
-    case "PENALTY":
-      return { title: t("PENALTY.title"), situation: t("PENALTY.situation", { context }) };
+    case "PENALTY": {
+      // The pressure the chances read, after the question: none for a card of a state paused before it was told.
+      const pressure = event.pressure === null ? "" : ` ${t(`PENALTY.pressure.${event.pressure}`)}`;
+      return { title: t("PENALTY.title"), situation: `${t("PENALTY.situation", { context })}${pressure}` };
+    }
     case "FREE_KICK":
       return { title: t("FREE_KICK.title"), situation: t("FREE_KICK.situation", { context, taker: player }) };
     case "HOTHEAD":
@@ -117,11 +128,22 @@ function optionTexts(event: ChoiceEventView, offered: OfferedOption, t: Translat
   const player = offered.player ?? event.player ?? t("aPlayer");
   const replacement = offered.replacement?.name ?? t("aPlayer");
   switch (offered.option) {
-    case "TAKER":
+    case "TAKER": {
+      const known = offered.form !== null && offered.fitness !== null;
+      const values = known ? { form: formWord(offered.form ?? 0), fitness: fitnessFigure(offered.fitness ?? 0) } : null;
       return {
         label: player,
         effect: offered.chance === null ? null : t("PENALTY.TAKER.effect", { chance: Math.round(offered.chance * 100) }),
+        ...(values === null
+          ? {}
+          : {
+              details:
+                offered.age === null
+                  ? t("PENALTY.TAKER.detailsNoAge", values)
+                  : t("PENALTY.TAKER.details", { ...values, age: offered.age }),
+            }),
       };
+    }
     case "SHOOT":
       return { label: t("FREE_KICK.SHOOT.label"), effect: t("FREE_KICK.SHOOT.effect", { taker: player }) };
     case "COMBINE":
@@ -137,7 +159,11 @@ function optionTexts(event: ChoiceEventView, offered: OfferedOption, t: Translat
     case "CALM":
       return { label: t("SCUFFLE.CALM.label"), effect: t("SCUFFLE.CALM.effect") };
     case "PROTEST":
-      return { label: t("SCUFFLE.PROTEST.label"), effect: t("SCUFFLE.PROTEST.effect", { captain: player }) };
+      return {
+        label: t("SCUFFLE.PROTEST.label"),
+        // Already booked, the captain risks a second yellow card, and a red with it.
+        effect: t(event.booked ? "SCUFFLE.PROTEST.effectBooked" : "SCUFFLE.PROTEST.effect", { captain: player }),
+      };
     case "PLAY_ON":
       return { label: t("KNOCK.PLAY_ON.label"), effect: t("KNOCK.PLAY_ON.effect") };
     case "REPLACE":
@@ -327,7 +353,10 @@ function OptionRow({ group, index, offered, texts, checked, assistant, onPick }:
   const labelId = `${group}-${index}-label`;
   const assistantId = `${group}-${index}-assistant`;
   const effectId = `${group}-${index}-effect`;
-  const describedBy = [assistant ? assistantId : null, texts.effect === null ? null : effectId].filter((id) => id !== null).join(" ");
+  const detailsId = `${group}-${index}-details`;
+  const describedBy = [assistant ? assistantId : null, texts.effect === null ? null : effectId, texts.details === undefined ? null : detailsId]
+    .filter((id) => id !== null)
+    .join(" ");
   return (
     <label
       data-testid="choice-option"
@@ -375,6 +404,11 @@ function OptionRow({ group, index, offered, texts, checked, assistant, onPick }:
         {texts.effect !== null && (
           <span id={effectId} className="block text-sm leading-snug text-muted-foreground">
             {texts.effect}
+          </span>
+        )}
+        {texts.details !== undefined && (
+          <span id={detailsId} data-testid="choice-option-details" className="block text-xs leading-snug text-muted-foreground">
+            {texts.details}
           </span>
         )}
       </span>

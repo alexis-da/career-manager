@@ -736,8 +736,49 @@ export const CHOICE_EVENT_WEIGHTS: Readonly<Record<ChoiceKind, number>> = {
   CHASING: 24,
 };
 
-/** Penalty: the best shooters on the pitch offered as takers, each kick's chance as in a shoot-out (shootoutChance). */
+/**
+ * Penalty: the best shooters on the pitch offered as takers, the best rated first. A kick's chance starts from the
+ * shoot-out's (shootoutChance: his shooting against the goalkeeper's goalkeeping), then moves with the taker as he is at
+ * that moment of the match (penaltyChance, choices.ts):
+ * - his form: PENALTY_FORM_CHANCE per point away from CONDITION_NEUTRAL, multiplied by 1 + PENALTY_PRESSURE_FORM × the
+ *   pressure: the tighter the moment, the more his form counts, both ways;
+ * - his fitness at that minute: PENALTY_FITNESS_CHANCE per point away from PENALTY_FITNESS_REFERENCE, about a starter's
+ *   fitness at a boundary: a fresh substitute's legs against a starter's at the end of a match;
+ * - the pressure, from 0 to 1 (penaltyPressure: the minute and the score), PENALTY_PRESSURE_CHANCE times its gap to
+ *   PENALTY_PRESSURE_REFERENCE off every taker, and his experience facing it: PENALTY_EXPERIENCE_CHANCE times the
+ *   pressure, for the calm of a taker PENALTY_EXPERIENCE_AGE_SPAN years or more above PENALTY_EXPERIENCE_NEUTRAL_AGE, as
+ *   much off for one as far below it, in proportion between;
+ * within SHOOTOUT_MIN_CHANCE and SHOOTOUT_MAX_CHANCE. The chance shown is the one played, and the assistant takes the
+ * best. Form and fitness alone hardly separate three teammates (the same form or fitness for the three in many matches):
+ * the best rated was still the best choice 60 % of the time at the most. Measured on real squads (measure:balance,
+ * « Choice events on real squads »): the best rated taker is the best choice about one penalty in two, two in three at
+ * 15', two in five at 75'.
+ */
 export const PENALTY_TAKERS = 3;
+export const PENALTY_FORM_CHANCE = 0.004;
+export const PENALTY_PRESSURE_FORM = 1;
+export const PENALTY_FITNESS_CHANCE = 0.005;
+export const PENALTY_FITNESS_REFERENCE = 85;
+export const PENALTY_PRESSURE_CHANCE = 0.05;
+export const PENALTY_PRESSURE_REFERENCE = 0.5;
+export const PENALTY_EXPERIENCE_CHANCE = 0.12;
+export const PENALTY_EXPERIENCE_NEUTRAL_AGE = 26;
+export const PENALTY_EXPERIENCE_AGE_SPAN = 5;
+
+/**
+ * The pressure of a kick: the minute's part, PENALTY_PRESSURE_FLOOR at kick-off up to 1 at the end of regular time and in
+ * extra time, times the score's, as seen by its side: the most when level or one goal behind (an equaliser or the lead),
+ * then one ahead, two behind, two ahead, three or more either way.
+ */
+export const PENALTY_PRESSURE_FLOOR = 0.3;
+export const PENALTY_PRESSURE_BY_LEAD: Readonly<Record<"level" | "oneBehind" | "oneAhead" | "twoBehind" | "twoAhead" | "decided", number>> = {
+  level: 1,
+  oneBehind: 1,
+  oneAhead: 0.8,
+  twoBehind: 0.6,
+  twoAhead: 0.4,
+  decided: 0.2,
+};
 
 /**
  * Dangerous free kick: a direct shot's chance, from the taker's shooting and the goalkeeper's goalkeeping away from the
@@ -759,11 +800,19 @@ export const HOTHEAD_MINUTE = 30;
 export const HOTHEAD_RED_CHANCE = 0.12;
 
 /**
- * A scuffle: protesting multiplies the side's expected goals in the next segment with the first chance, and books its
- * captain (the best outfield player on the pitch) with the second.
+ * A scuffle, its captain (the best outfield player on the pitch) in the middle. Calming the players down is safe: nothing
+ * happens. Protesting is a bet on the next PROTEST_SEGMENTS segments of the period of play: with PROTEST_SUCCESS_CHANCE the
+ * players are fired up, their side's expected goals multiplied by PROTEST_GOALS; otherwise they lose their heads, the
+ * opponent's multiplied by PROTEST_BACKFIRE_GOALS. Whatever comes of it, the captain is booked with PROTEST_YELLOW_CHANCE,
+ * sent off if he already was. Measured on real squads (measure:balance, « Choice events on real squads »): on average
+ * as good as calming down (−0.002 point a match ± 0.012; +0.003 with the captain not booked, −0.065 when he is), the final
+ * score changed by it in 28 % of the scuffles, the points in 13 %, as often for better as for worse. Until 23/11, ×1.08 on
+ * the next segment half the time: the score changed in 1.4 % of them.
  */
-export const PROTEST_GOALS = 1.08;
-export const PROTEST_GOALS_CHANCE = 0.5;
+export const PROTEST_SEGMENTS = 2;
+export const PROTEST_SUCCESS_CHANCE = 0.5;
+export const PROTEST_GOALS = 2;
+export const PROTEST_BACKFIRE_GOALS = 1.95;
 export const PROTEST_YELLOW_CHANCE = 0.3;
 
 /**

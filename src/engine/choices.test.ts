@@ -6,9 +6,15 @@ import {
   HOTHEAD_RED_CHANCE,
   KNOCK_INJURY_CHANCE,
   KNOCK_SHARE,
+  PENALTY_EXPERIENCE_CHANCE,
   POSITION_PROFILES,
+  PROTEST_BACKFIRE_GOALS,
+  PROTEST_GOALS,
+  PROTEST_SUCCESS_CHANCE,
   PROTEST_YELLOW_CHANCE,
   SEGMENT_MINUTES,
+  SHOOTOUT_MAX_CHANCE,
+  SHOOTOUT_MIN_CHANCE,
 } from "./balance";
 import {
   assistantChoices,
@@ -17,6 +23,10 @@ import {
   choicePlan,
   decideChoice,
   isChoicePossible,
+  penaltyChance,
+  penaltyExperience,
+  penaltyPressure,
+  pressureLevel,
   withChoices,
   type ChoiceEvent,
   type ChoiceKind,
@@ -113,10 +123,14 @@ describe("choice events", () => {
     expect(minutesOf("PENALTY").has(105)).toBe(true);
   });
 
-  it("offer the best three shooters a penalty, the best chance first, a better taker scoring whenever a worse one does", () => {
+  it("offer the best three shooters a penalty, the best rated first, a better chance scoring whenever a worse one does", () => {
     const at15 = stateAt(15, "penalty");
     const { event } = waitingOn("PENALTY", at15);
     expect(event.options).toHaveLength(3);
+    const shooting = (playerId: string | undefined) => at15.home.pitch.find((entry) => entry.player.id === playerId)?.player.shooting ?? 0;
+    const ratings = event.options.map((option) => shooting(option.playerId));
+    expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
+    // Teammates of the same form, fitness and age: the best rated has the best chance, the assistant's.
     expect(event.options.map((option) => option.chance ?? 0)).toEqual([...event.options.map((option) => option.chance ?? 0)].sort((a, b) => b - a));
     expect(event.assistant).toBe(0);
 
@@ -135,6 +149,66 @@ describe("choice events", () => {
     }
     expect(best / 400).toBeCloseTo(event.options[0].chance ?? 0, 1);
     expect(best).toBeGreaterThanOrEqual(worst);
+  });
+
+  it("give a penalty its chance from the taker as he is: form, fitness at that minute, the pressure and his experience of it", () => {
+    const taker = { shooting: 80, form: 50, fitness: 85, age: 26 };
+    const level75 = penaltyPressure(75, 0);
+    const chance = (changes: Partial<typeof taker>, pressure = level75, keeper = 70) => penaltyChance({ ...taker, ...changes }, keeper, pressure);
+    // The shoot-out's chance (0.79 against a goalkeeper of 70), to the whole percent, at an average pressure.
+    expect(chance({}, 0.5)).toBe(0.79);
+    expect(Math.round(100 * chance({ form: 50.4 }, 0.5))).toBe(100 * chance({}, 0.5));
+    // Form counts for more under pressure, both ways; tired legs cost; a veteran keeps his calm, a youngster loses his.
+    expect(chance({ form: 60 }) - chance({})).toBeGreaterThan(chance({ form: 60 }, 0.4) - chance({}, 0.4));
+    expect(chance({ form: 40 })).toBeLessThan(chance({}));
+    expect(chance({ fitness: 65 })).toBeLessThan(chance({}));
+    expect(chance({ fitness: 100 })).toBeGreaterThan(chance({}));
+    expect(chance({ age: 33 })).toBeCloseTo(chance({}) + PENALTY_EXPERIENCE_CHANCE * level75, 2);
+    expect(chance({ age: 19 })).toBeCloseTo(chance({}) - PENALTY_EXPERIENCE_CHANCE * level75, 2);
+    expect(chance({ age: undefined })).toBe(chance({}));
+    expect([penaltyExperience(21), penaltyExperience(26), penaltyExperience(28.5), penaltyExperience(40)]).toEqual([-1, 0, 0.5, 1]);
+    // The pressure lowers every taker's chance, within the shoot-out's bounds.
+    expect(chance({}, 1)).toBeLessThan(chance({}, 0.4));
+    expect(chance({ shooting: 99, form: 99, fitness: 100, age: 35 }, 1, 40)).toBe(SHOOTOUT_MAX_CHANCE);
+    expect(chance({ shooting: 40, form: 1, fitness: 30, age: 18 }, 1, 95)).toBe(SHOOTOUT_MIN_CHANCE);
+  });
+
+  it("put the pressure of a penalty on its minute and its score, the most level or a goal behind at the end", () => {
+    expect(penaltyPressure(15, 0)).toBeCloseTo(0.3 + 0.7 / 6, 5);
+    expect(penaltyPressure(90, 0)).toBe(1);
+    expect(penaltyPressure(105, -1)).toBe(1);
+    expect(penaltyPressure(75, 1)).toBeLessThan(penaltyPressure(75, 0));
+    expect(penaltyPressure(75, -2)).toBeLessThan(penaltyPressure(75, 1));
+    expect(penaltyPressure(75, 2)).toBeLessThan(penaltyPressure(75, -2));
+    expect(penaltyPressure(75, 3)).toBe(penaltyPressure(75, -4));
+    expect([15, 30, 60, 75].map((minute) => pressureLevel(penaltyPressure(minute, 0)))).toEqual(["low", "medium", "high", "high"]);
+  });
+
+  it("let the assistant take the best chance, not always the best rated: a tired or young shooter at the end of a tight match", () => {
+    const at75 = stateAt(75, "late-penalty");
+    const level: MatchState = { ...at75, home: { ...at75.home, goals: 1 }, away: { ...at75.away, goals: 1 } };
+    const best = [...level.home.pitch]
+      .filter((entry) => entry.status === "ON" && entry.slot !== "GK")
+      .sort((a, b) => b.player.shooting - a.player.shooting || (a.player.id < b.player.id ? -1 : 1))[0];
+    const shaken: MatchState = {
+      ...level,
+      home: {
+        ...level.home,
+        pitch: level.home.pitch.map((entry) =>
+          entry === best ? { ...entry, player: { ...entry.player, form: 35, fitness: 80, age: 20 } } : { ...entry, player: { ...entry.player, age: 30 } },
+        ),
+      },
+    };
+    const { event } = waitingOn("PENALTY", shaken);
+    expect(event.options[0].playerId).toBe(best.player.id);
+    expect(event.assistant).not.toBe(0);
+    const chances = event.options.map((option) => option.chance ?? 0);
+    expect(chances[event.assistant]).toBe(Math.max(...chances));
+    // The chance played is the one shown: a kick scores when its draw is under it.
+    const seed = seeds(300, "late-kick").find((candidate) =>
+      decideChoice(waitingOn("PENALTY", shaken).state, candidate, { option: "TAKER", playerId: event.options[event.assistant].playerId }).home.goals > 1,
+    );
+    expect(seed).toBeDefined();
   });
 
   it("let a free kick be shot, by the best shooter, or worked: the side's goals multiplied in the next segment only", () => {
@@ -173,6 +247,54 @@ describe("choice events", () => {
       }
     }
     expect(sentOff / 600).toBeCloseTo(HOTHEAD_RED_CHANCE, 1);
+  });
+
+  it("make a protest a bet on the next two segments: the players fired up, or the opponent's goals up, half the time each", () => {
+    const at30 = stateAt(30, "scuffle-bet");
+    let firedUp = 0;
+    for (const seed of seeds(600, "bet")) {
+      const protested = decideChoice(waitingOn("SCUFFLE", at30).state, seed, { option: "PROTEST" });
+      const [boost] = protested.modifiers?.boosts ?? [];
+      expect(protested.modifiers?.boosts).toHaveLength(1);
+      expect(boost.until).toBe(30 + 2 * SEGMENT_MINUTES);
+      expect(boost).toEqual(
+        boost.side === "home" ? { side: "home", factor: PROTEST_GOALS, until: 60 } : { side: "away", factor: PROTEST_BACKFIRE_GOALS, until: 60 },
+      );
+      firedUp += boost.side === "home" ? 1 : 0;
+    }
+    expect(firedUp / 600).toBeCloseTo(PROTEST_SUCCESS_CHANCE, 1);
+    // Calming down changes nothing: no boost, no card.
+    const calmed = decideChoice(waitingOn("SCUFFLE", at30).state, "calm", { option: "CALM" });
+    expect(calmed.home).toEqual(at30.home);
+    expect(calmed.modifiers?.boosts).toBeUndefined();
+
+    // The boost runs over the segments that start before its minute, half-time between them, then goes; never past the 90th.
+    const protested = decideChoice(waitingOn("SCUFFLE", at30).state, "bet:0", { option: "PROTEST" });
+    const third = playOn(protested, "home", "bet:0", {}, "segment");
+    expect(third.played).toBe(45);
+    expect(third.modifiers?.boosts).toHaveLength(1);
+    const fourth = playOn(third, "home", "bet:0", {}, "segment");
+    expect(fourth.played).toBe(60);
+    expect(fourth.modifiers?.boosts).toBeUndefined();
+    const at75 = stateAt(75, "scuffle-late");
+    const late = decideChoice(waitingOn("SCUFFLE", at75).state, "late", { option: "PROTEST" });
+    expect(late.modifiers?.boosts?.[0].until).toBe(90);
+  });
+
+  it("score more goals for a fired-up side over the next two segments, and for its opponent when the protest backfires", () => {
+    const at30 = stateAt(30, "scuffle-goals");
+    const goalsOver = (side: Side, factor: number): number => {
+      let goals = 0;
+      for (const seed of seeds(1500, `goals-${side}-${factor}`)) {
+        const boosted: MatchState = { ...at30, modifiers: { goals: {}, instructions: {}, scheduled: [], boosts: [{ side, factor, until: 60 }] } };
+        let state = playOn(boosted, "home", seed, {}, "segment");
+        state = playOn(state, "home", seed, {}, "segment");
+        goals += state[side].goals - at30[side].goals;
+      }
+      return goals;
+    };
+    expect(goalsOver("home", PROTEST_GOALS)).toBeGreaterThan(1.5 * goalsOver("home", 1));
+    expect(goalsOver("away", PROTEST_BACKFIRE_GOALS)).toBeGreaterThan(1.5 * goalsOver("away", 1));
   });
 
   it("book the captain of a side that protests about three times in ten, and send him off if he was already booked", () => {
