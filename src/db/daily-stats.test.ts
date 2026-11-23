@@ -85,9 +85,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the day's figures, in t
     const { db, stats } = loaded();
     const before = await today();
 
+    const databaseSize = async (): Promise<number> => {
+      const [{ size }] = await db.$queryRaw<{ size: bigint }[]>`SELECT pg_database_size(current_database()) AS size`;
+      return Number(size);
+    };
+
     // Of the 3 users and their 4 saves, one user and their save by the 14-day rule.
     await stats.recordMaintenance(db, { users: 3, saves: 4, oneDayUsers: 1, oneDaySaves: 1, challengeSaves: 1 });
+    const sizeBefore = await databaseSize();
     await stats.recordMaintenance(db, { users: 0, saves: 0, oneDayUsers: 0, oneDaySaves: 0, challengeSaves: 0 });
+    const sizeAfter = await databaseSize();
 
     const after = await today();
     expect(after.purgedUsers).toBeGreaterThanOrEqual(before.purgedUsers + 3);
@@ -95,8 +102,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the day's figures, in t
     expect(after.purgedOneDayUsers).toBeGreaterThanOrEqual(before.purgedOneDayUsers + 1);
     expect(after.purgedOneDaySaves).toBeGreaterThanOrEqual(before.purgedOneDaySaves + 1);
     expect(after.purgedChallengeSaves).toBeGreaterThanOrEqual(before.purgedChallengeSaves + 1);
-    const [{ size }] = await db.$queryRaw<{ size: bigint }[]>`SELECT pg_database_size(current_database()) AS size`;
-    // The size of a moment ago: within a few megabytes of now, whatever the other files write meanwhile.
-    expect(Math.abs(Number(after.databaseBytes ?? 0) - Number(size))).toBeLessThan(64 * 1024 * 1024);
+    // The size the last call read: between those read just before and just after it, whatever the other files write
+    // meanwhile (their saves make it grow by tens of megabytes in a second), within a few megabytes a vacuum may give back.
+    const recorded = Number(after.databaseBytes ?? 0);
+    expect(recorded).toBeGreaterThanOrEqual(sizeBefore - 64 * 1024 * 1024);
+    expect(recorded).toBeLessThanOrEqual(sizeAfter + 64 * 1024 * 1024);
   });
 });

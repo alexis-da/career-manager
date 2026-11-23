@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { AdminStats } from "@/src/db/stats";
 import type { Locale } from "@/src/i18n/locale";
 
@@ -72,6 +72,11 @@ const render = async (locale: Locale): Promise<string> => {
 };
 
 describe("the administrator's statistics", () => {
+  // The page and its modules imported once, in the hook's time: cold, while the whole suite runs, it outlasts a test's 5 s.
+  beforeAll(async () => {
+    await import("./page");
+  });
+
   it("are in French, sizes in Mo and shares with a spaced percent sign", async () => {
     const markup = await render("fr");
     for (const text of ["Statistiques", "Comptes Google", "Nouveaux utilisateurs et rétention, 14 derniers jours (UTC)", "J+1"]) {

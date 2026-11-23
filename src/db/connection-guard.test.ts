@@ -32,6 +32,9 @@ const TEST_WORKFLOWS = [
   ".github/actions/playwright/action.yml",
 ];
 
+/** Every source file of the repository read, twice for those that open a connection: more than 5 s while the suite runs. */
+const READING_MS = 30_000;
+
 describe("the connections to the database", () => {
   it("check their URL against localhost in every file that opens one", () => {
     const opening = SOURCE_ROOTS.flatMap(sourceFiles).filter(
@@ -42,7 +45,7 @@ describe("the connections to the database", () => {
     // The app's client, the seed, the end-to-end tests' helpers, the tests' locks and their own clients.
     expect(opening.length).toBeGreaterThanOrEqual(7);
     expect(unguarded).toEqual([]);
-  });
+  }, READING_MS);
 
   it("are local in the test workflows, which read no secret and never lift the guard", () => {
     for (const workflow of TEST_WORKFLOWS) {
