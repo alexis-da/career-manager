@@ -337,6 +337,18 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the tutorial's figures 
       { step: "choice", shown: 2, done: 1, passed: 1, adapted: 1, skipped: 0, lastShown: 0 },
       { step: "half-time", shown: 2, done: 2, passed: 0, adapted: 1, skipped: 0, lastShown: 0 },
       { step: "full-time", shown: 2, done: 1, passed: 0, adapted: 0, skipped: 1, lastShown: 0 },
+      // The following days' steps, none shown here.
+      { step: "missions", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "market", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "objectives", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "lineup", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "squad", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "simulate", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "break", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "europe", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "cup", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "fitness", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "judged", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
     ]);
   }, READING_MS);
 
@@ -354,6 +366,17 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the tutorial's figures 
       ["choice", 0],
       ["half-time", 0],
       ["full-time", 0],
+      ["missions", 0],
+      ["market", 0],
+      ["objectives", 0],
+      ["lineup", 0],
+      ["squad", 0],
+      ["simulate", 0],
+      ["break", 0],
+      ["europe", 0],
+      ["cup", 0],
+      ["fitness", 0],
+      ["judged", 0],
     ]);
     // A step expired is shown, never done, passed nor adapted.
     expect(month.steps[4]).toEqual({ step: "full-time", shown: 3, done: 1, passed: 0, adapted: 0, skipped: 1, lastShown: 0 });

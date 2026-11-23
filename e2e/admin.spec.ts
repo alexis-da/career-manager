@@ -68,8 +68,9 @@ test("shows the administrator its seven sections on a computer and a phone, over
       await expect(page.getByTestId(`admin-${section}`), `${step} ${section}`).toBeVisible();
     }
     await expect(page.getByTestId("admin-acquisition-days").locator("tbody tr")).toHaveCount(7);
-    // The tutorial: the five steps of its first day, and its four rows of returns, the reference's last.
-    await expect(page.getByTestId("admin-tutorial-steps").locator("tbody tr")).toHaveCount(5);
+    // The tutorial: the five steps of its first day and the eleven of the following days, and its four rows of returns,
+    // the reference's last.
+    await expect(page.getByTestId("admin-tutorial-steps").locator("tbody tr")).toHaveCount(16);
     await expect(page.getByTestId("admin-tutorial-returns").locator("tbody tr").last()).toHaveAttribute("data-cohort", "reference");
     await expect(page.getByTestId("admin-period-7")).toHaveAttribute("aria-current", "page");
     // The storage: size, growth, its monthly cost now and in 30 days, alerted or not, and the weight per new player.

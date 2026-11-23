@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { DROPOUT_DAYS, REFERENCE_DAYS, RETURN_COHORTS, returnsOf, stepsOf } from "./admin-tutorial";
 
 // The assembling of /admin's tutorial figures (src/db/admin-tutorial.ts), without a database: each row of the returns
-// over the days whose return day is over, as the Retention section counts them; each step of the first day in the
-// scenario's order. The queries are tested in the database (admin-tutorial.test.ts).
+// over the days whose return day is over, as the Retention section counts them; each step of the tutorial in the
+// scenario's order, the first day's then the following days'. The queries are tested in the database (admin-tutorial.test.ts).
 
 const none = { part: 0, whole: 0 };
 
@@ -44,17 +44,20 @@ describe("the tutorial's figures", () => {
     expect(returnsOf([{ day: "2026-10-31", cohort: "noFirstMatch", players: 2, day1: 1, day7: 0 }], "2026-11-01")[2].day1).toEqual(none);
   });
 
-  it("lists the first day's steps in the scenario's order, 0 where a query had none, a step it does not know left out", () => {
+  it("lists the tutorial's steps in the scenario's order, 0 where a query had none, a step it does not know left out", () => {
     const steps = stepsOf(
       [
         { step: "half-time", shown: 4, done: 3, passed: 1, adapted: 0 },
         { step: "welcome", shown: 9, done: 6, passed: 1, adapted: 2 },
-        { step: "missions", shown: 7, done: 7, passed: 0, adapted: 0 },
+        { step: "cup", shown: 3, done: 2, passed: 0, adapted: 1 },
+        // The farewell is no step of its own: said once, it says nothing of the tutorial.
+        { step: "farewell", shown: 7, done: 7, passed: 0, adapted: 0 },
+        { step: "someday", shown: 7, done: 7, passed: 0, adapted: 0 },
       ],
       [{ step: "welcome", tutorials: 2 }],
       [
         { step: "speed", tutorials: 1 },
-        { step: "missions", tutorials: 5 },
+        { step: "someday", tutorials: 5 },
       ],
     );
 
@@ -64,6 +67,17 @@ describe("the tutorial's figures", () => {
       { step: "choice", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
       { step: "half-time", shown: 4, done: 3, passed: 1, adapted: 0, skipped: 0, lastShown: 0 },
       { step: "full-time", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "missions", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "market", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "objectives", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "lineup", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "squad", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "simulate", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "break", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "europe", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "cup", shown: 3, done: 2, passed: 0, adapted: 1, skipped: 0, lastShown: 0 },
+      { step: "fitness", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
+      { step: "judged", shown: 0, done: 0, passed: 0, adapted: 0, skipped: 0, lastShown: 0 },
     ]);
   });
 });

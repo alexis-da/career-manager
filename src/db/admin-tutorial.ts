@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from "../generated/prisma/client";
-import { DAY_ONE_STEPS, TUTORIAL_SINCE, utcDay, type TutorialStepKey } from "../lib/tutorial";
+import { DAY_ONE_STEPS, LATER_STEPS, TUTORIAL_SINCE, utcDay, type TutorialStepKey } from "../lib/tutorial";
 import type { Share } from "./admin-dashboard";
 
 // /admin's « Tutoriel » (docs/design/tutoriel.md § 4): the first-career tutorials started over the period, by UTC day of
@@ -10,6 +10,14 @@ import type { Share } from "./admin-dashboard";
 // UserDay records every day since 9 October 2026, before the reference: every cohort here is known once its day is over.
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The steps of the table, in the scenarios' order: the first day's, then the following days' (scenario 2); the farewell,
+ * said once at the end, is none of them.
+ */
+export const ADMIN_STEPS = [...DAY_ONE_STEPS, ...LATER_STEPS] as const satisfies readonly TutorialStepKey[];
+
+export type AdminStep = (typeof ADMIN_STEPS)[number];
 
 /** A tutorial neither finished nor skipped whose player has not been seen for this many days: a dropout. */
 export const DROPOUT_DAYS = 7;
@@ -27,7 +35,7 @@ export type TutorialReturns = { cohort: ReturnCohort; players: number; day1: Sha
 
 /** A step of the first day: how it was shown and closed, where the tutorial was skipped, and where its dropouts left. */
 export type TutorialStepFigures = {
-  step: TutorialStepKey;
+  step: AdminStep;
   shown: number; // shown at least once (TutorialStep.shownAt)
   done: number; // its move made
   passed: number; // Escape, « Passer l'étape », or shown twice without its move
@@ -85,9 +93,9 @@ export function returnsOf(rows: readonly ReturnRow[], last: string): TutorialRet
   });
 }
 
-/** The first day's steps in the scenario's order, 0 where a query had no row; a step it does not know left out. */
+/** The tutorial's steps in the scenario's order, the first day's then the following days', 0 where a query had no row; a step it does not know (the farewell) left out. */
 export function stepsOf(counts: readonly StepCounts[], skips: readonly StepTally[], lastShown: readonly StepTally[]): TutorialStepFigures[] {
-  return DAY_ONE_STEPS.map((step) => {
+  return ADMIN_STEPS.map((step) => {
     const count = counts.find((row) => row.step === step);
     return {
       step,
@@ -182,7 +190,7 @@ export async function tutorialFigures(
         JOIN "User" u ON u."id" = t."userId"
         JOIN "TutorialStep" s ON s."userId" = t."userId"
         WHERE ${period} AND ${dropout} AND s."shownAt" IS NOT NULL
-        ORDER BY t."userId", s."shownAt" DESC, array_position(${[...DAY_ONE_STEPS]}::text[], s."step") DESC NULLS LAST
+        ORDER BY t."userId", s."shownAt" DESC, array_position(${[...ADMIN_STEPS]}::text[], s."step") DESC NULLS LAST
       ) l
       GROUP BY 1`,
     // A tutorial in each row it belongs to (the rows overlap), its returns counted from the UTC day it began. The return

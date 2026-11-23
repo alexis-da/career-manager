@@ -169,7 +169,7 @@
       "dropoutsDetail": "neither finished nor skipped, player not seen for {days, plural, one {# day} other {# days}}",
       "toFirstMatchDetail": "median · 3rd quartile {q3}",
       "referenceDetail": "median, first careers from {first} to {last}",
-      "stepsTitle": "Steps of the first day",
+      "stepsTitle": "Tutorial steps",
       "stepsNote": "Shown: at least once; skipped: Escape, “Skip this step” or shown twice without the move; adapted: the move made another way, or the step no longer applying. Tutorial skipped: the step shown when “Skip the tutorial” was touched; dropouts: their last step shown.",
       "returnsTitle": "Back at D+1 and D+7",
       "returnsNote": "Back the day after the tutorial began (D+1) and a week later (D+7), the reference since they were created, over the days whose return day is over; “—”: not known yet.",
@@ -191,7 +191,18 @@
         "speed": "Speed",
         "choice": "Decision",
         "half-time": "Half-time",
-        "full-time": "Final whistle"
+        "full-time": "Final whistle",
+        "missions": "Missions",
+        "market": "Transfer window",
+        "objectives": "Objectives",
+        "lineup": "Line-up",
+        "squad": "Squad",
+        "simulate": "Simulate",
+        "break": "International break",
+        "europe": "Europe",
+        "cup": "Cup",
+        "fitness": "Fitness",
+        "judged": "Judged"
       },
       "cohorts": {
         "day1Done": "Day 1 finished",

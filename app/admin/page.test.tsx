@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { AdminDashboard, AdminDay } from "@/src/db/admin-dashboard";
 import type { ErrorGroupView, ErrorsSection } from "@/src/db/errors";
 import type { Locale } from "@/src/i18n/locale";
@@ -290,6 +290,11 @@ const render = async (locale: Locale, days?: string): Promise<string> => {
 };
 
 describe("the administrator's dashboard", () => {
+  // The page and its modules imported once, in the hook's time: cold, while the whole suite runs, it outlasts a test's 5 s.
+  beforeAll(async () => {
+    await import("./page");
+  });
+
   it("is in French: its period, every section, sources by name, sizes in Mo and shares with a spaced percent sign", async () => {
     const markup = await render("fr");
 
@@ -403,7 +408,7 @@ describe("the administrator's dashboard", () => {
       "Avant le tutoriel",
       "médiane, premières carrières du 05/11 au 18/11",
       "11 min",
-      "Étapes du premier jour",
+      "Étapes du tutoriel",
       "Coup de sifflet final",
       "Retour à J+1 et J+7",
       "Partis avant la fin du 1er match",
@@ -515,7 +520,7 @@ describe("the administrator's dashboard", () => {
       "median · 3rd quartile 4 min",
       "Before the tutorial",
       "median, first careers from 05/11 to 18/11",
-      "Steps of the first day",
+      "Tutorial steps",
       "Final whistle",
       "Back at D+1 and D+7",
       "Left before the end of the 1st match",

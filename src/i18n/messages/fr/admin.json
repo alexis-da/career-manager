@@ -169,7 +169,7 @@
       "dropoutsDetail": "ni finis ni passés, joueur pas vu depuis {days, plural, one {# jour} other {# jours}}",
       "toFirstMatchDetail": "médiane · 3e quartile {q3}",
       "referenceDetail": "médiane, premières carrières du {first} au {last}",
-      "stepsTitle": "Étapes du premier jour",
+      "stepsTitle": "Étapes du tutoriel",
       "stepsNote": "Montrées : au moins une fois ; passées : Échap, « Passer l'étape » ou montrée deux fois sans geste ; adaptées : le geste fait autrement, ou l'étape sans objet. Tutoriel passé : l'étape montrée quand on a touché « Passer le tutoriel » ; abandons : leur dernière étape montrée.",
       "returnsTitle": "Retour à J+1 et J+7",
       "returnsNote": "Revenus le lendemain du début du tutoriel (J+1) et une semaine après (J+7), la référence depuis sa création, sur les jours dont le retour est passé ; « — » : pas encore connu.",
@@ -191,7 +191,18 @@
         "speed": "Vitesse",
         "choice": "Décision",
         "half-time": "Mi-temps",
-        "full-time": "Coup de sifflet final"
+        "full-time": "Coup de sifflet final",
+        "missions": "Missions",
+        "market": "Mercato",
+        "objectives": "Objectifs",
+        "lineup": "Composition",
+        "squad": "Effectif",
+        "simulate": "Simuler",
+        "break": "Trêve",
+        "europe": "Europe",
+        "cup": "Coupe",
+        "fitness": "Fatigue",
+        "judged": "Jugement"
       },
       "cohorts": {
         "day1Done": "Jour 1 fini",
