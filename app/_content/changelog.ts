@@ -23,6 +23,27 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-23",
     fr: {
+      title: "Équilibrage : penalty, échauffourée, trêve hivernale",
+      items: [
+        "Penalty : la chance de chaque tireur dépend maintenant de sa forme, de sa condition à ce moment du match et de la pression, qui monte avec la minute et le score. Sous la pression, l'expérience compte : ton meilleur tireur n'est plus toujours le bon choix, et la carte te dit pourquoi.",
+        "Échauffourée : « Protester » devient un pari sur la demi-heure qui suit : ton équipe se transcende ou perd la tête, et ton capitaine risque un jaune, ou le rouge s'il est déjà averti. « Calmer tes joueurs » reste sans risque.",
+        "Trêve hivernale : en Espagne, en Italie, en Allemagne et en France, plus de championnat du 21 décembre au 3 janvier ; l'Angleterre joue pendant les fêtes. Même fin de saison, aucune journée en moins : quelques-unes passent en semaine. Dans une carrière en cours, à partir de la saison prochaine.",
+        "Un peu plus de buts : environ 2,7 par match en moyenne, au lieu de 2,6.",
+      ],
+    },
+    en: {
+      title: "Balance: penalties, scuffles, winter break",
+      items: [
+        "Penalties: each taker's chance now depends on their form, their fitness at that moment of the match and the pressure, which rises with the minute and the score. Under pressure, experience counts: your best taker is no longer always the right choice, and the card tells you why.",
+        "Scuffles: “Protest” becomes a gamble on the next half hour: your team raises its game or loses its head, and your captain risks a yellow card, or a red if already booked. “Calm your players down” stays risk-free.",
+        "Winter break: in Spain, Italy, Germany and France, no league matches from 21 December to 3 January; England plays through the holidays. The season ends on the same day, with every matchday played: a few move to midweek. In a career already under way, from next season.",
+        "A few more goals: about 2.7 a match on average, instead of 2.6.",
+      ],
+    },
+  },
+  {
+    date: "2026-11-23",
+    fr: {
       title: "Tutoriel : les jours suivants",
       items: [
         "Dès le lendemain de ton premier jour, ton adjoint revient avec les étapes suivantes, deux par jour au plus, les plus pressées d'abord : les missions du jour, le mercato et un joueur pour ton point faible, les objectifs de la direction, la simulation.",

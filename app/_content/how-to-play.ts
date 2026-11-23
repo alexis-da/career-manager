@@ -129,7 +129,8 @@ export const GUIDE: GuideSection[] = [
       blocks: [
         "Une à trois fois par match, à la 15e, 30e, 60e ou 75e minute, le direct s'arrête sur un choix :",
         [
-          "**Penalty pour toi !** Choisis le tireur, sa chance affichée",
+          "**Penalty pour toi !** Choisis le tireur : sa chance dépend de sa forme, de sa condition et, sous la pression de la fin de match, de son expérience",
+          "**Échauffourée** : **Calmer tes joueurs**, sans risque, ou **Protester**, un pari : ton équipe se transcende ou perd la tête, et ton capitaine risque un carton",
           "**Coup franc dangereux** : **Frapper** ou **Jouer en combinaison**",
           "**Joueur touché** : **Le sortir** ou **Le laisser jouer**",
         ],
@@ -143,7 +144,8 @@ export const GUIDE: GuideSection[] = [
       blocks: [
         "One to three times a match, at the 15th, 30th, 60th or 75th minute, the live match stops for a decision:",
         [
-          "**Penalty to you!** Pick the taker, with their chance shown",
+          "**Penalty to you!** Pick the taker: their chance depends on their form, their fitness and, under late-match pressure, their experience",
+          "**Scuffle**: **Calm your players down**, no risk, or **Protest**, a gamble: your team raises its game or loses its head, and your captain risks a card",
           "**Dangerous free kick**: **Shoot** or **Play it short**",
           "**Player hurt**: **Take him off** or **Let him play on**",
         ],
@@ -205,6 +207,7 @@ export const GUIDE: GuideSection[] = [
         "Quatre fois par saison, début septembre, mi-octobre, mi-novembre et fin mars, une **trêve internationale** arrête tous les championnats et les coupes : les nations jouent deux matchs, le vendredi et le mardi. Chacune appelle ses 23 meilleurs joueurs, de nos clubs ou d'ailleurs, hors de nos championnats.",
         "Avant la trêve, **À faire**, sur l'**Accueil**, te dit lesquels de tes joueurs sont appelés, et ta fiche d'effectif les marque **En sélection**. **Passer la trêve** la joue seule : à son retour, **À faire** te signale ceux qui reviennent blessés ou fatigués, avant ton prochain match.",
         "La fiche d'un joueur compte ses sélections et ses buts avec sa nation ; le **Calendrier** montre les trêves, et **Match**, **Sélections** classe les 14 nations par force, avec leurs 23 et les résultats de la dernière trêve. Pas de trêve dans une partie de défi.",
+        "En Espagne, en Italie, en Allemagne et en France, les championnats s'arrêtent aussi pour les fêtes, du 21 décembre au 3 janvier ; l'Angleterre joue pendant les fêtes. La saison finit le même jour pour tous : quelques journées passent en semaine.",
         "Les trêves mènent à un tournoi d'été, un été sur deux : les nations d'Europe y jouent les **éliminatoires** de la **Coupe du Vieux Continent** (les six premières d'une poule de neuf), puis, au cycle suivant, celles de la **Coupe des Hémisphères** (cinq européennes et trois de la zone Monde). Le tournoi se joue en juin, au passage à la saison suivante, et tes joueurs en reviennent reposés ; **Sélections** montre le classement, les groupes, le tableau final et le vainqueur, et la fiche d'un joueur garde ses titres.",
         "Avec un club réputé et des trophées récents, une fédération peut te proposer son poste de **sélectionneur** au passage d'une saison : l'offre t'attend sur l'écran de début de saison, avec l'objectif de la fédération (la qualification, les demi-finales ou la finale du tournoi), jusqu'au premier match de ton club. Tu gardes ton club : la sélection joue pendant les trêves et en juin.",
         "Sélectionneur, tu retrouves ta nation sous **Équipe**, **Sélection** : ton adjoint y prépare la liste des 23 et la composition de chaque trêve, que tu valides d'un geste ou que tu changes. Tes joueurs appelés partent comme les autres, et reviennent fatigués. **Prochain match** s'arrête avant chacun de tes matchs à enjeu, éliminatoires et tournoi : joue-le en direct, comme un match de ton club, ou simule-le ; ton adjoint joue les matchs amicaux, sauf si tu décoches **L'adjoint joue les amicaux**. Quand ta nation est qualifiée, ta saison se termine avec son tournoi, en juin.",
@@ -217,6 +220,7 @@ export const GUIDE: GuideSection[] = [
         "Four times a season, early September, mid-October, mid-November and late March, an **international break** stops every league and cup: the nations play two matches, on Friday and Tuesday. Each calls its 23 best players, from our clubs or from elsewhere, outside our leagues.",
         "Before the break, **To do**, on **Home**, tells you which of your players are called up, and your squad marks them **Called up**. **Play the break** plays it on its own: when it is over, **To do** flags those who come back injured or tired, before your next match.",
         "A player's sheet counts his caps and goals for his nation; the **Fixtures** show the breaks, and **Match**, **Internationals** ranks the 14 nations by strength, with their squads and the last break's results. No breaks in a challenge career.",
+        "In Spain, Italy, Germany and France, the leagues also stop for the holidays, from 21 December to 3 January; England plays through them. The season ends on the same day for everyone: a few matchdays move to midweek.",
         "The breaks lead to a summer tournament, every other summer: Europe's nations play the **qualifiers** of the **Old Continent Cup** (the top six of a group of nine), then, the cycle after, those of the **Hemispheres Cup** (five European nations and three from the World zone). The tournament is played in June, as the season turns, and your players come back rested; **Internationals** shows the table, the groups, the knockout stage and the winner, and a player's sheet keeps his titles.",
         "With a well-known club and recent trophies, a federation may offer you its **national coach**'s post as a season turns: the offer waits for you on the season's start screen, with the federation's objective (qualifying, the semi-finals or the final of the tournament), until your club's first match. You keep your club: the national team plays during the breaks and in June.",
         "As national coach, you find your nation under **Squad**, **National team**: your assistant prepares there the squad of 23 and the lineup of each break, which you confirm in one go or change. Your players called up go like everyone else's, and come back tired. **Next match** stops before each of your matches at stake, qualifiers and tournament: play it live, like a match of your club, or simulate it; your assistant plays the friendlies, unless you untick **Your assistant plays the friendlies**. When your nation qualifies, your season ends with its tournament, in June.",

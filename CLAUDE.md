@@ -23,7 +23,7 @@ npm run test           # tests unitaires (Vitest)
 npm run test:slow      # tests longs en base : saisons complètes (Vitest)
 npm run test:e2e       # tests Playwright (arrête d'abord tout serveur sur 3100 et vide .next-e2e)
 npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (création et journée, direct, marché, SEO, /admin)
-npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (-- --seasons=3 : trois saisons de chaque graine, le premier tournoi d'été compris ; base locale seulement)
+npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (-- --seasons=3 : trois saisons de chaque graine, le premier tournoi d'été compris ; base locale seulement) : six cibles, clubs européens, condition et blessures par pays et par mois (trêve hivernale), CPU par journée, penaltys et échauffourées sur de vrais effectifs (-- --lineups-out=f.json garde leurs onze ; -- --choices-from=f.json les mesure seuls, sans base)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
 npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs, Europe (qualifiés, condition et charge des clubs européens, saison par saison), sélections (trêves, appelés, blessures, force des 14 nations, CPU) et tournois d'été (condition au premier match, crédibilité sur 50 cycles) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
 npm run measure:coach  # sélectionneur : CPU d'une trêve dirigée contre une trêve sans lui, d'un match de sélection en direct et d'un tournoi joué par étapes en juin, deux jumeaux d'une partie 2 (-- --seasons=2 --nation=POR ; base locale seulement)
@@ -134,8 +134,9 @@ avertit qu'un titulaire suspendu sera remplacé. Une troisième compétition, eu
 15', 30', 60' et 75', et à 105' une prolongation sur deux, tirés au coup d'envoi du flux `…:events` ; à chaque limite, le
 type parmi ceux possibles à ce moment (`CHOICE_EVENT_WEIGHTS`) et ses joueurs du flux `…:event:15`, son issue du flux
 `…:event:15:outcome` (`src/engine/choices.ts`, pur, `balance.ts` pour les valeurs ; aucun autre flux n'est décalé).
-Catalogue v1 du cahier : penalty (le tireur parmi les trois meilleurs, sa chance affichée), coup franc (frapper ou
-combiner), joueur averti qui s'énerve, échauffourée, joueur touché, joueur à bout (25 points de fitness perdus sur le
+Catalogue v1 du cahier : penalty (le tireur parmi les trois meilleurs, sa chance affichée : règle « Penalty et
+échauffourée »), coup franc (frapper ou combiner), joueur averti qui s'énerve, échauffourée (même règle), joueur touché,
+joueur à bout (25 points de fitness perdus sur le
 terrain, à partir de 75'), le club mène, le club est mené ou à égalité (une consigne jusqu'à la fin du temps
 réglementaire : les trois consignes, Attaquer, Équilibré (l'option `STEADY`) et Fermer, chacune une fois, celle que le
 club joue marquée « (actuelle) », `optionInstruction`, `currentInstructionOf` ; l'adjoint prend celle de sa règle). Les buts des événements sont pris sur ceux du club (`OWN_GOALS_WITH_CHOICE_EVENTS`, 0,89 sur ses buts
@@ -144,6 +145,31 @@ en simulation (`assistantChoices`, `simulateMatch`) et en direct quand le joueur
 le joueur décide sur la carte d'événement (G5, règle « Match en direct »), la décision de l'adjoint présélectionnée. Chaque
 décision est gardée dans `MatchDecision` (migration d'ajout `…_choice_events`, (fixtureId, sequence) unique), écrite
 dans la transaction qui joue la suite, avant elle ; le fil du direct et la feuille de match la montrent avec son effet.
+
+**Penalty et échauffourée (chantier « équilibrage », 23/11).** Cahier `docs/design/equilibrage.md`. Mesurés sur de vrais
+effectifs (`npm run measure:balance`, section « Choice events on real squads » : les onze des clubs IA de dates de
+championnat, leur forme et leur condition d'alors, chaque option jouée jusqu'au coup de sifflet final ; `--
+--choices-from`). **Penalty** : les trois meilleurs tireurs (`shooting`), le mieux noté d'abord ; la chance de chacun
+(`penaltyChance`, `src/engine/choices.ts`, pure, au pour cent près : ce que la carte montre est ce qui est joué) part de
+celle des tirs au but (`shootoutChance`), puis sa forme (comptée d'autant plus que la pression monte), sa condition à
+cette minute (`fitnessAt`, autour de `PENALTY_FITNESS_REFERENCE`), la pression (`penaltyPressure` : de 0,3 au coup
+d'envoi à 1 à la 90e, fois le score, `PENALTY_PRESSURE_BY_LEAD`, nul ou mené d'un but le plus) et l'expérience face à
+elle (`penaltyExperience`, l'âge du jour du match, `SquadPlayer.age` : posé pour le seul club dirigé par
+`playNextMatchday`, en une requête de son effectif (lire l'âge des quelque 5 000 joueurs d'une date coûtait 6 à 9 ms de
+CPU à chaque date), et par les convocations des sélections, gardé par l'état du direct, de −1 à 21 ans à +1 à 31, ×
+`PENALTY_EXPERIENCE_CHANCE` × la pression) ; l'adjoint prend la meilleure chance. Forme et condition seules départagent
+mal trois coéquipiers (le mieux noté restait le meilleur choix 60 % du temps au mieux) : l'expérience les départage.
+Mesure : le mieux noté est le meilleur choix dans 49,8 % des penaltys (55 % à la 15e, 43 % à la 75e ; avant, 100 %), le
+prendre d'office coûte 0,023 point par penalty. Carte : la pression après la question (`ChoiceEventView.pressure`,
+`pressureLevel` : faible, moyenne, forte), et sous la chance de chaque tireur sa forme en mots, sa condition et son âge
+(`form`, `fitness`, `age`, `choice-option-details`). **Échauffourée** : « Calmer » ne change rien ; « Protester » est un
+pari sur les deux segments suivants de la période de jeu (`PROTEST_SEGMENTS`) : la moitié du temps l'équipe se
+transcende (ses buts attendus × `PROTEST_GOALS`), sinon elle perd la tête (ceux de l'adversaire ×
+`PROTEST_BACKFIRE_GOALS`), par `MatchModifiers.boosts` (`GoalBoost`, jusqu'à une minute jouée, gardés par l'état du
+direct) ; et le capitaine averti trois fois sur dix, exclu s'il l'était déjà (la carte le dit,
+`ChoiceEventView.booked`). Mesure : +0,004 point par match en moyenne contre « Calmer » (+0,011 capitaine non averti,
+−0,067 averti) ; le score final changé dans 29 % des échauffourées, les points dans 14 % (6,5 % mieux, 7,1 % moins
+bien), contre 1,4 % et 0,6 % avant.
 
 **Remplacements et consigne en direct (gameplay v1, G5).** Le joueur change son équipe à toute pause de son match :
 mi-temps, fin du temps réglementaire d'une coupe nulle, pause de la prolongation, et entre deux segments (15', 30', 60',
@@ -178,7 +204,8 @@ match de chaque mois du jeu (chantier « cpu », mise en ligne du 11/11 : `aiLin
 `ClubSave.formationMonth`, année × 100 + mois en UTC, `formationMonthOf`, migration d'ajout `…_formation_month`), leur onze
 choisi à chaque match dans ce dispositif (`selectRestedLineup` ; `src/db/monthly-formation.test.ts`). Le joueur ne voit
 que leurs scores, et peser les dix-sept dispositifs avant chacun de leurs matchs était une grande part du CPU d'une
-journée. Base des buts recalibrée pour les six cibles : `BASE_GOALS_PER_TEAM` 1,23 → 1,31. Pour peser les dix-sept
+journée. Base des buts recalibrée pour les six cibles : `BASE_GOALS_PER_TEAM` 1,23 → 1,31, puis 1,35 le 23/11 (chantier
+« équilibrage » : 2,60 buts par match, au plancher de la cible, → 2,68 (2,66 sur 18 saisons)). Pour peser les dix-sept
 dispositifs, l'effectif est classé une fois à chaque poste (`restedLineups`, `src/engine/lineup.ts`, chantier « cpu »,
 11/11 : note au poste puis identifiant, les mêmes onze et bancs que `selectRestedLineup`, que `lineup.test.ts` compare
 sur 200 effectifs tirés).
@@ -426,6 +453,28 @@ qu'à sa saison suivante, deux jumeaux jouent la même trêve) ; mesures dans la
 `npm run measure:seasons` et au § 14 du cahier (18/11 : 2,60 buts par match comme avant ; environ 210 joueurs de nos clubs
 appelés par trêve, 2,2 par club de D1, 13 au plus ; un international rentre vers 75 le mardi, 95 au samedi ; titulaires
 sous 75 en octobre : 1 à 4 % chez les clubs européens qui prêtent le plus ; 20 à 24 ms de CPU par trêve ; 35 Ko par saison).
+
+**Trêve hivernale (chantier « équilibrage », 23/11).** Dans une saison avec trêves, les championnats d'Espagne,
+d'Italie, d'Allemagne et de France (`WINTER_BREAK_COUNTRIES`, `hasWinterBreak`, `src/engine/schedule.ts`) ne jouent ni
+samedi ni mardi du 21 décembre au 3 janvier (`winterBreakDates`, lu sur les dates : les semaines 19 et 20 en 2026-27, 18
+et 19 quand la saison commence le 21 août) ; l'Angleterre joue pendant les fêtes. Mêmes premier et dernier samedis,
+toutes les journées : les deux journées des fêtes passent aux mardis des deux premières semaines (18 et 25 août en
+2026-27), quand tous les joueurs sont frais et qu'aucun club ne joue l'Europe ; chaque championnat garde ses samedis de
+repos (les 34 journées, deux : 24 octobre et 13 mars en 2026-27) et ses mardis (les 38 : 16 mars, et 19 janvier pour le
+29 décembre ; les 42, huit), dans l'ordre de `WINTER_BREAK_TUESDAY_WEEKS` (0, 1, 30, 22, 23, 35, 38, 2, 31 : ceux des
+trêves internationales sans celui des fêtes, la semaine 19, les veilles de trêve, 2 et 31, en dernier : un international
+y jouerait samedi, mardi et vendredi) ; jamais trois matchs en moins de sept jours (`breaks.test.ts`, coupe et Europe
+comprises, sur cinq saisons). Coupe et Europe inchangées (une 6e journée européenne tombe le 22 décembre les saisons qui
+commencent le 21 août). `Save.winterBreakFrom` (migration d'ajout `…_winter_break`) : posé avec `breaksFrom` à la
+création d'une partie 2 (`createSave`, option `winterBreak`, vraie par défaut), au prochain passage de saison d'une
+partie 2 d'avant (`seasonHasWinterBreak`, `src/db/nations.ts` ; option `winterBreak: false` d'`advanceToNextSeason`),
+jamais pour un défi ni une partie 1 ; `seasonFixtures` reçoit le drapeau de chaque championnat. Tests :
+`breaks.test.ts`, `fixtures.test.ts`, `nations.test.ts`, `nations.slow.test.ts`, `winter-break.slow.test.ts` (une partie
+d'avant garde sa saison, a la trêve à la suivante). Mesure (`npm run measure:balance`, section « By country and month »,
+`-- --no-winter-break` pour comparer) : en janvier, les clubs IA des quatre pays 5,0 (5,6 avant) matchs par club, 14,3 %
+(17,5 %) de titulaires sous 85 de condition au coup d'envoi, 0,65 (0,70) blessure par club ; l'Angleterre inchangée (6,6
+matchs, 29 %, 0,9 blessure) ; sur la saison, rien ne change (+1 % de blessures), les blessures des clubs de la Coupe des
+Lauriers à 1,28 fois celles des autres clubs de D1 (1,22 avant ; six graines, trois saisons).
 
 **Éliminatoires et tournois d'été (chantier « sélections », N3, 18/11).** Cahier § 3.3, 3.4, 4 et § 15 (mise en œuvre et
 mesures). Moteur pur `src/engine/tournaments.ts`. **Un cycle** : deux saisons d'éliminatoires aux trêves, puis un tournoi
