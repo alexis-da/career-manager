@@ -14,8 +14,9 @@ import { firstMatchdayDate, WORLD_START_DATE } from "./world";
 
 // A whole league matchday of the real world (round 1 of the ten competitions, 99 matches), every event and score
 // reduced to a digest. Pinned with the engine in segments of gameplay v1 (G1, docs/design/gameplay-v1.md), pinned again
-// with the formations AI clubs choose (gameplay v2, V1: chooseFormation, the goals' base recalibrated): a league match
-// must stay exactly the same, draw for draw, until a change of the engine means to change it, and pins it again.
+// with the formations AI clubs choose (gameplay v2, V1: chooseFormation, the goals' base recalibrated), and with the
+// goals' base raised to 1.35 (balancing chantier, 23/11: 2.60 goals a match to about 2.68): a league match must stay
+// exactly the same, draw for draw, until a change of the engine means to change it, and pins it again.
 const SAVE_SEED = "match-fingerprint";
 
 const lineups = new Map<string, { formation: FormationName; lineup: Lineup }>();
@@ -76,7 +77,7 @@ describe("league match fingerprint", () => {
     // The instructions each team played, kept with the result since the match feed tells their changes, are pinned
     // apart: without them, the matchday is the very one pinned before.
     const draws = results.map((match) => ({ ...match, result: { ...match.result, instructions: undefined } }));
-    expect(createHash("sha256").update(JSON.stringify(draws)).digest("hex")).toBe("bd13f5e4e8dc91e4d944197193399155dd8e42373ba7fc4534da09f3085b48e2");
-    expect(createHash("sha256").update(JSON.stringify(results)).digest("hex")).toBe("9086ae996683d25db0667b05c7ff9b6882b6ebfb546642098bbea3311966bc1e");
+    expect(createHash("sha256").update(JSON.stringify(draws)).digest("hex")).toBe("e7b6e153f3f8fd02b5ec31e0809cd6569140437c0dd977385a92430d251668d2");
+    expect(createHash("sha256").update(JSON.stringify(results)).digest("hex")).toBe("e86b364580745b553c0edc0cb331e5a17b05ebe06133122e1785e9ca6508e460");
   });
 });

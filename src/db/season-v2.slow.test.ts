@@ -25,9 +25,10 @@ const PRELIMINARY_TIES: Record<string, number> = { "de.cup": 4, "en.cup": 12, "e
  * matches, as a digest: taken on a twin without the cups nor the European competitions (createSave with cups and europe
  * false), and taken again whenever the engine changes the matches. Neither changes anything before its first match
  * (later, their matches change form, fitness and injuries, so the league goes its own way). Without the European
- * competitions, the league until the eve of the first cup round, 570 matches, is 05d947bd…ccf93b77 (17/11).
+ * competitions, the league until the eve of the first cup round, 570 matches, is 05d947bd…ccf93b77 (17/11). Taken again
+ * with the goals' base at 1.35 (balancing chantier, 23/11): 61a7e49c…52ffe2a1ee35 before.
  */
-const LEAGUE_DIGEST_BEFORE_EUROPE = "61a7e49caa63ddd758d44e1c7ceff1a65508a959dd2f5ee8535f52ffe2a1ee35";
+const LEAGUE_DIGEST_BEFORE_EUROPE = "e1adfe5cc8ce3e708700e0d49d8e0b95c5e804839311779be87b3a691b448d52";
 
 /** Clubs of each competition of a worldVersion 2 save: they never change, promotions and relegations included. */
 const DIVISION_SIZES: Record<string, number> = {

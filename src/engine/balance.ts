@@ -563,9 +563,10 @@ export const STRENGTH_PER_MORALE_POINT = 0.001;
  * Expected goals of a team facing an equal opponent on neutral ground, both in the neutral 4-4-2 à plat. Calibrated with
  * npm run measure:balance on complete seasons, fatigue included, AI clubs in the formation each chooses (chooseFormation:
  * an underdog closes the game, a favourite opens it, fewer goals on the whole than two 4-3-3s): 1.23 when they all played
- * the 4-3-3, 1.31 since gameplay v2 (V1), the six targets of docs/design/gameplay-v1.md where they were.
+ * the 4-3-3, 1.31 since gameplay v2 (V1), the six targets of docs/design/gameplay-v1.md where they were; 1.35 since the
+ * balancing chantier (23/11): 2.60 goals a match, the floor of the target (2.6 to 2.8), raised to about 2.68.
  */
-export const BASE_GOALS_PER_TEAM = 1.31;
+export const BASE_GOALS_PER_TEAM = 1.35;
 
 /**
  * When a match's goals come: the weight of each quarter of an hour of regular time in its expected goals, from kick-off
