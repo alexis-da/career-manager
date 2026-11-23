@@ -23,6 +23,27 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-11-23",
     fr: {
+      title: "Tutoriel : les jours suivants",
+      items: [
+        "Dès le lendemain de ton premier jour, ton adjoint revient avec les étapes suivantes, deux par jour au plus, les plus pressées d'abord : les missions du jour, le mercato et un joueur pour ton point faible, les objectifs de la direction, la simulation.",
+        "Il te prévient aussi au bon moment : la trêve internationale et tes joueurs appelés, ton premier match européen, ton premier match de coupe, un titulaire fatigué avant le coup d'envoi, puis le jour où la direction commence à juger.",
+        "L'Effectif et la Composition ont leur étape à leur première ouverture : la note et la condition d'un joueur, puis le poste le plus faible de ton onze et qui peut y jouer.",
+        "Ce que le premier jour cachait revient avec son étape : l'argent avec le mercato, les missions et les Récompenses avec les leurs, les objectifs, puis les onglets Sélections, Europe et Coupe à leur moment. Quand tout est vu, ton adjoint te le dit une fois et laisse ses conseils dans « À faire ».",
+      ],
+    },
+    en: {
+      title: "Tutorial: the following days",
+      items: [
+        "From the day after your first day, your assistant comes back with the next steps, two a day at most, the most pressing first: the day's missions, the transfer window and a player for your weak spot, the board's objectives, simulating.",
+        "Your assistant also tells you at the right time: the international break and your called-up players, your first European match, your first cup tie, a tired starter before kick-off, then the day the board starts judging.",
+        "Squad and Line-up get their own step the first time you open them: a player's rating and fitness, then your eleven's weakest position and who can play there.",
+        "What the first day kept hidden comes back with its step: money with the transfer window, missions and Rewards with theirs, the objectives, then the Internationals, Europe and Cup tabs at their moment. Once everything is seen, your assistant says so once and leaves the advice in « To do ».",
+      ],
+    },
+  },
+  {
+    date: "2026-11-23",
+    fr: {
       title: "Tutoriel de la première carrière",
       items: [
         "Ta première carrière commence avec ton adjoint : à chaque étape de ton premier jour, il met en avant le bon bouton et te dit en une phrase à quoi il sert. C'est toi qui fais le geste, et rien ne t'arrête.",

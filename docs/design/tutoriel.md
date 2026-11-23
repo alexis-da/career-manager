@@ -697,3 +697,65 @@ joueur arrivé entre les deux mises en ligne finit avec son jour 1, et tout ce q
   mi-temps par le Coaching. Un vrai joueur lit les bulles : compter une à deux minutes, sous les 3 minutes du cahier.
 - Aucune requête de jeu de plus : une lecture du tutoriel par la clé du joueur par page, une petite transaction par
   bulle montrée ou close, aucune dans un match.
+
+## 10. Mise en œuvre : seconde mise en ligne, les jours suivants (23/11)
+
+**Scénario 2.** Les tutoriels nés depuis cette mise en ligne ont les étapes du § 1.3 (`TUTORIAL_VERSION` 2,
+`scenarioSteps`). Ceux nés entre les deux mises en ligne, le même jour, gardent le scénario 1 : leur jour 1 seul, et les
+bulles `rating` et `secondary` (§ 9).
+
+**Rythme.** Dès le jour UTC qui suit le « À demain » (`laterDay`), l'Accueil montre une étape à la fois, la première due
+dans cet ordre (`LATER_ORDER`) : `missions`, `market`, `break`, `europe`, `cup`, `fitness`, `objectives`, `simulate`,
+`judged`, `lineup` (poussée par « Préparer » à partir du jour 3). Deux étapes nouvelles par jour au plus (`PUSHED_PER_DAY`,
+d'après le premier affichage de chaque étape, `TutorialStep.shownAt`) ; une étape déjà montrée revient à son écran sans
+compter. Les étapes d'écran (`squad`, `lineup`) se montrent à l'ouverture de leur écran, jour 1 compris, hors de ce compte.
+
+**Précisions du scénario** :
+- `market` : son geste est l'arrivée sur le Marché, par l'entrée cerclée ou autrement ; la bulle du Marché, sur la
+  proposition de « Mes besoins », la fait en se montrant (`marketScreenStep`) et n'a que « Compris ». Elle cercle
+  « Recruter » : sur téléphone, la page défile pour montrer « Recruter » et « Passer » au-dessus d'elle (la carte entière
+  cerclée les laissait sous la bulle). Sa réplique dit
+  « Voici un joueur pour ton point faible, dans tes moyens. « Recruter » s'il te convient, « Passer » pour le suivant. »
+  (EN « Here's a player for your weak spot, within your means. “Sign” if he suits you, “Pass” for the next one. ») : la
+  proposition n'est pas toujours le meilleur joueur que le club peut s'offrir, et « s'il te plaît » se lisait comme une
+  politesse. Une recrue faite avant l'étape ne la clôt pas : le point faible reste, la bulle vient quand même.
+- `lineup` : un poste touché est son geste (ses candidats s'ouvrent), puis « Choisis-en un, puis « Enregistrer ». Sinon,
+  garde le mien : il est prêt. » (EN « Pick one, then “Save”. Or keep mine: it's ready. ») avec « Enregistrer » cerclé :
+  « garde le mien, puis Enregistrer » ne se pouvait pas, « Enregistrer » restant inactif sans changement. « Enregistrer »
+  touché d'abord la fait aussi, sans la suite. Le poste cerclé est le point faible du onze, celui du Marché
+  (`weakSpotIndexOf`). Poussée au jour 3 par « Préparer » : « Avant ton prochain match, ouvre « Préparer » : je te
+  montre qui peut jouer à chaque poste. »
+- `fitness` : sur l'Accueil seulement, « Préparer » cerclé, son geste ; la Composition garde sa propre étape. Adaptée si plus
+  aucun titulaire n'est fatigué après qu'elle a été montrée.
+- `squad` : une fiche ouverte (une ligne touchée).
+- `break`, `europe`, `cup` : « Compris » ou « Jouer le match » (« Passer la trêve » est ce même bouton) ; `simulate` :
+  « Simuler » ou « Compris » ; `objectives` et `judged`, au-dessus de la carte Objectifs : « Voir le détail » ou « Compris ».
+- Une étape sans objet pour le club (`europe` sans qualification, `break` sans sélections) est close `ADAPTED` sans être
+  montrée ; son onglet attend son moment (`tutorialMoments` : la fin de la première trêve, la première journée européenne,
+  les seizièmes de coupe). Une étape montrée dont le moment passe est adaptée ; une étape jamais montrée attend sa
+  prochaine occasion (`laterClosure`).
+- L'adieu (`farewell`) se dit une fois, à partir du jour 2, quand toutes les étapes sont closes, et pas à l'expiration ; il
+  n'est pas une étape des mesures.
+- Sur la Composition, le poste cerclé est arrondi : un anneau rectangulaire se confondait avec les lignes du terrain.
+- Sous 1024 px, la page garde en bas la hauteur de la bulle fixée (`--tutorial-bubble-space`, sur le contenu de la partie) :
+  sans elle, « Recruter », au pied du Marché, restait sous la bulle, la page ne pouvant défiler plus loin.
+- Typographie : les répliques françaises ont une espace insécable dans les guillemets et devant « : », « ; », « ? » et
+  « ! », pour qu'aucun signe ne commence une ligne à 360 px.
+- Les bulles `rating`, `secondary`, `money` et `simulation` se taisent tant que le tutoriel d'un scénario 2 tourne, et une
+  fois fini : ses étapes les ont remplacées. « Passer le tutoriel » les rend avec tout le reste, comme une fusion ou une
+  expiration (`tipsReplaced`, `tutorialReveal`).
+
+**Mesures du 23/11** (serveur de développement local, base de test) :
+- **Le jour 1 tient toujours en une minute** : 57,6 s du toucher sur la carte du club au « À demain » dans les E2E complets
+  (5,2 s de création, 52,2 s de direct à x1, deux cartes d'événement), 64,9 s dans un passage du seul fichier, sa création
+  à froid comprise (9,9 s).
+- **Les jours suivants** : `e2e/tutorial.spec.ts` va de la création aux objectifs du troisième jour en 56 s (le premier
+  match en direct jusqu'au résultat, l'adjoint décidant, puis deux jours avancés en base) : missions, mercato et sa
+  proposition, Effectif, Composition et sa suite, objectifs. Passe visuelle à 390 et 360 px, en français et en anglais :
+  aucun défilement de côté, captures dans `captures/tutoriel/jours-390-*`.
+- **Aucune lecture du jeu de plus sur l'Accueil** : le contexte des étapes vient de ce qu'il lit déjà. L'Effectif, la
+  Composition et le Marché lisent le tutoriel par la clé du joueur (le layout l'a déjà lu dans la requête, `cache`) ; la
+  Composition ne calcule le point faible de son onze que quand son étape vient ; le Marché ne compte les matchs du club que
+  pour le joueur d'un tutoriel, sur Acheter, avec une proposition de « Mes besoins ».
+- **Aucune migration** : les nouvelles étapes s'écrivent dans `TutorialStep` (`step` est un texte) ; l'adieu clôt sa ligne
+  et écrit la fin `FINISHED`.

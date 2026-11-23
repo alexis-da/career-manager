@@ -719,7 +719,8 @@ lit dans le jeu (`managedMatchesPlayed`, `src/db/first-steps.ts`) : les matchs d
 sur l'effectif, poste secondaire sur la composition ; sur le tableau de bord, aucune avant le premier match, l'argent au
 premier, puis la simulation (dès le 2e, ou au 1er une fois l'argent fermée) ; une par écran, dans le flux de la page
 (elles ne recouvrent aucun bouton), fermables, et finies d'elles-mêmes
-au 5e match du club ; aucune sur le tableau de bord pendant le calme du premier jour du tutoriel ; rien n'est bloquant et tout
+au 5e match du club ; aucune sur le tableau de bord pendant le calme du premier jour du tutoriel, aucune tant que le
+tutoriel d'un scénario 2 tourne ou une fois fini, ses étapes les remplaçant (`tipsReplaced`) ; rien n'est bloquant et tout
 s'applique aussi à une partie de défi. Ce qui est vu n'est pas en base :
 un cookie de confort par élément (`lw_seen_squad`…, 30 jours, `Path=/saves/<id>`, écrit dans le navigateur par
 `rememberSeen`), donc propre à chaque partie, sans lecture avant écriture : une page atteinte par navigation interne ne
@@ -729,8 +730,9 @@ du routeur, pour le retour du navigateur. Mesure : section « Premiers pas » de
 après un changement sur moins de 30 jours, la purge retirant les parties anonymes abandonnées.
 
 **Tutoriel de la première carrière (chantier « tutoriel », 19/11).** Cahier `docs/design/tutoriel.md`, validé le 19/11 avec
-ses dix propositions. Première mise en ligne : le premier jour (scénario 1, `TUTORIAL_VERSION`) ; les étapes des jours suivants
-viendront avec un scénario 2, qui ne rejoue jamais le premier (`Tutorial.version`). L'adjoint montre, le joueur fait le geste
+ses dix propositions. Deux mises en ligne le 23/11 : le premier jour (scénario 1), puis les jours suivants (scénario 2,
+`TUTORIAL_VERSION` 2, `scenarioSteps`) ; un tutoriel né entre les deux garde le premier jour seul (`Tutorial.version` 1), ses
+bulles `rating` et `secondary` comprises. L'adjoint montre, le joueur fait le geste
 lui-même ; jamais bloquant. **Pour la seule première carrière hors défi d'un nouveau joueur** : la ligne `Tutorial` (migration
 d'ajout `…_tutorial`, une par joueur, clé `userId`, `saveId` unique en SetNull ; `TutorialStep`, une par étape montrée ou
 close) naît dans la transaction de la création quand `createSaveAction` la demande (`createSave({ …, tutorial: true })`,
@@ -738,14 +740,16 @@ close) naît dans la transaction de la création quand `createSaveAction` la dem
 `TUTORIAL_SINCE`, le défi ayant pu venir avant), avant `recordFirstSave` ; jamais pour un test, un script, la démo ni une partie
 de défi. Une carrière supprimée avant la fin laisse son tutoriel à la suivante ; un joueur qui a déjà joué un direct a ses
 étapes du direct closes à la naissance. Règles pures dans `src/lib/tutorial.ts` : `TUTORIAL_STEPS` (**clés jamais renommées** :
-`welcome`, `speed`, `choice`, `half-time`, `full-time`), issues `DONE`, `PASSED` (Échap ou « Passer l'étape », ou montrée deux
+`welcome`, `speed`, `choice`, `half-time`, `full-time`, puis `LATER_STEPS` : `missions`, `market`, `objectives`, `lineup`,
+`squad`, `simulate`, `break`, `europe`, `cup`, `fitness`, `judged`, et `farewell`), issues `DONE`, `PASSED` (Échap ou « Passer l'étape », ou montrée deux
 fois sans geste, `MAX_SHOWS`), `ADAPTED` (le geste fait autrement), `EXPIRED`, fins `FINISHED`, `SKIPPED`, `EXPIRED` (14 jours
 après le début ou la reprise, `TUTORIAL_DAYS`), `MERGED` ; `tutorialStatus`, `firstDayCalm`, `tutorialReveal`,
 `dashboardStep`, `liveSteps`, `fullTimeDue`, `pendingWrites`, `canResume`, `tutorialSetting`. Lu une fois par requête par la
 clé du joueur (`readTutorial`, `getSaveTutorial`, `app/saves/[id]/_lib/tutorial.ts`), jamais une table du jeu, aucune
 simulation. **Bulle de l'adjoint** (`TutorialBubble`, `tutorial-bubble`, `data-step`, `tutorial-text`, `tutorial-place`
 « Premier jour · 2 sur 5 », `tutorial-pass`, `tutorial-skip`) : fixée au-dessus de la barre de navigation sous 1024 px
-(au-dessus des commandes du direct, `--live-controls-height`), dans la page près de sa cible au-dessus ; sa cible cerclée
+(au-dessus des commandes du direct, `--live-controls-height`), la page gardant sa hauteur en bas (`--tutorial-bubble-space`,
+que la bulle pose elle-même), dans la page près de sa cible au-dessus ; sa cible cerclée
 (`data-tutorial-target`, `globals.css`, sans pulsation en mouvement réduit) et décrite par elle (`aria-describedby`) ; le
 focus jamais déplacé ; Échap passe l'étape hors feuille modale ; aucun orange. Dans une feuille modale et dans « À demain »,
 une ligne de la carte (`TutorialLine`, `tutorial-line`). **Le jour 1** : `welcome` sur « Jouer le match » de l'Accueil, close
@@ -762,10 +766,32 @@ le reprend (`resumeTutorialAction`, `settings-tutorial-resume`) quand quelque ch
 Écritures par `tutorialStepAction` (`recordTutorialEvents` : une petite transaction, la ligne verrouillée, jamais dans celle d'un
 match ; une étape montrée compte une fois de plus, son issue gardée une fois) ; ce que le tutoriel clôt de lui-même part avec
 elle, ou après l'envoi de l'Accueil (`after`, `away`). Connexion Google : `moveTutorial` (le compte garde le sien ; sinon celui
-de l'anonyme suit, fini `MERGED` si le compte avait sa carrière). Mesures : section « Tutoriel » de `/admin` (règle « Administration »). Zone de messages
-`tutorial`, chaque réplique de 140 caractères au plus hors noms (`src/lib/tutorial.test.ts`). `e2e/tutorial.spec.ts` fait le
-jour 1 sur téléphone en anglais, chronométré, puis vérifie qu'une deuxième carrière et une partie de défi n'en ont pas ; l'aide
-`createSave` des E2E passe le tutoriel (`passTutorial`, `skipTutorialOf`).
+de l'anonyme suit, fini `MERGED` si le compte avait sa carrière). **Les jours suivants** (scénario 2, cahier § 1.3) : dès le
+jour UTC qui suit le « À demain » (`laterDay`), l'Accueil pousse une étape à la fois, deux nouvelles par jour au plus
+(`PUSHED_PER_DAY`, `pushedToday` : une étape déjà montrée revient sans compter), la plus pressée d'abord (`LATER_ORDER`,
+`dashboardStep`, d'après ce que l'Accueil lit déjà : `laterContextOf`, `app/saves/[id]/_lib/dashboard-tutorial.ts`) :
+`missions` (leur carte), `market` (mercato ouvert, premier match joué : l'entrée Marché cerclée, son geste l'arrivée sur le
+Marché, où la seconde bulle cercle « Recruter » de la proposition de « Mes besoins », `marketScreenStep`, `doneOnShow`), `break` (trêve à
+venir, `hero-break`), `europe` et `cup` (le prochain match du club), `fitness` (un titulaire sous 75 au coup d'envoi :
+« Préparer » cerclé), `objectives` (leur carte), `simulate` (deux matchs joués), `judged` (la confiance, dès le 5e match),
+`lineup` (poussée par « Préparer » au jour 3) ; chaque bulle par `dashboardBubbleOf`, sous le héros ou au-dessus des objectifs
+dont elle parle. Étapes d'écran, hors du compte du jour (`SCREEN_STEPS`, `screenStep`) : `squad` à l'ouverture de l'Effectif
+(première ligne cerclée, une fiche ouverte son geste), `lineup` à celle de la Composition (le poste du point faible du onze
+cerclé, `weakSpotIndexOf`, `src/engine/market-proposals.ts` ; un poste touché son geste, puis « Enregistrer » cerclé,
+`followUp`) ; tant que le tutoriel d'un scénario 2 tourne et une fois fini, ses étapes remplacent les bulles `rating`,
+`secondary`, `money` et `simulation` (`tipsReplaced`) ; passé, fusionné ou expiré, elles reviennent avec tout le reste. Ce que le calme cachait revient avec son étape (`tutorialReveal`, l'étape montrée
+sur l'écran même comprise) : l'argent avec `market` (ou au jour 3 mercato fermé), missions, Récompenses, série et ligne de
+« À demain » avec `missions`, objectifs avec `objectives` ou `judged`, défi dès le jour 2, onglets Sélections, Europe et Coupe
+avec leur étape ou leur moment (`tutorialMoments` : la fin de la première trêve, la première journée européenne, les seizièmes
+de coupe). Une étape sans objet (pas d'Europe, pas de sélections) ou dont le moment est passé une fois montrée est close
+`ADAPTED` (`laterClosure`, par `pendingWrites` avec ce que l'Accueil sait) ; une étape jamais montrée attend sa prochaine
+occasion. Toutes closes : l'adieu, une fois, dès le jour 2 (`farewellDue`, `farewell` : « Mes conseils restent dans « À
+faire » »), écrit avec la fin `FINISHED`. Mesures : section « Tutoriel » de `/admin` (règle « Administration »), ses seize
+étapes. Zone de messages `tutorial`, chaque réplique de 140 caractères au plus hors noms (`src/lib/tutorial.test.ts`).
+`e2e/tutorial.spec.ts` fait le jour 1 sur téléphone en anglais, chronométré, puis les jours suivants sur téléphone en français
+(`shiftTutorialDays`, `e2e/db.ts` : missions, mercato et sa proposition, Effectif, Composition, objectifs), et vérifie qu'une
+deuxième carrière et une partie de défi n'en ont pas ; l'aide `createSave` des E2E passe le tutoriel (`passTutorial`,
+`skipTutorialOf`).
 
 **Écrans de Match.** Classement (`/standings`) : compact à toutes les largeurs (J, Diff, Forme, Pts ; `StandingsTable`,
 `computeForm`, les cinq derniers résultats de championnat, lus par `getLatestSeasonTables`), il tient à 360 px ;
@@ -1368,7 +1394,7 @@ le direct », en tuile et par source, colonne masquée sous 640 px : la part des
 `firstLiveMatchAt` de tous, `liveTrackedSince`, qui ont joué un match en direct jusqu'au bout), Tutoriel
 (`TutorialSection`, `admin-tutorial`, `tutorialFigures`, `src/db/admin-tutorial.ts` : les tutoriels commencés sur la période
 par jour UTC de début, leur premier match, leur jour 1 fini, passés (dès le jour 1), terminés, abandons ; la médiane et le
-3e quartile du début au premier match, à côté de la médiane des 14 jours d'avant la mise en ligne ; chaque étape du jour 1,
+3e quartile du début au premier match, à côté de la médiane des 14 jours d'avant la mise en ligne ; chaque étape, du jour 1 puis des jours suivants,
 montrée, faite, passée, adaptée, où l'on a passé le tutoriel et où les abandons sont partis ; retour à J+1 et J+7 du jour 1
 fini, du tutoriel passé le jour 1, des partis avant la fin du premier match et de la référence), Rétention
 (J+1 et J+7 par jour de création et par source, sur les jours dont le retour est passé), Activité (joueurs actifs par jour
