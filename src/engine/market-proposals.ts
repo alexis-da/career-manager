@@ -199,19 +199,26 @@ const urgencyOf = ({ rating, outOfLine }: ElevenSlot): number[] =>
  * starter.
  */
 export function weakSpotOf(eleven: readonly ElevenSlot[]): WeakSpot | null {
-  let weakest: ElevenSlot | undefined;
-  for (const slot of eleven) {
-    if (weakest === undefined || compareKeys(urgencyOf(slot), urgencyOf(weakest)) < 0) {
-      weakest = slot;
-    }
-  }
-  if (weakest === undefined || eleven.every(({ rating }) => rating === null)) {
+  const weakest = eleven[weakSpotIndexOf(eleven)];
+  if (weakest === undefined) {
     return null;
   }
   const { slot, rating, outOfLine } = weakest;
   return rating === null
     ? { position: slot, rating: 0, reason: "empty" }
     : { position: slot, rating: Math.round(rating), reason: outOfLine === true ? "outOfLine" : "lowest" };
+}
+
+/** The weak spot's slot in the eleven, its index in the formation (weakSpotOf); -1 without one. */
+export function weakSpotIndexOf(eleven: readonly ElevenSlot[]): number {
+  let weakest = -1;
+  eleven.forEach((slot, index) => {
+    const current = eleven[weakest];
+    if (current === undefined || compareKeys(urgencyOf(slot), urgencyOf(current)) < 0) {
+      weakest = index;
+    }
+  });
+  return eleven.every(({ rating }) => rating === null) ? -1 : weakest;
 }
 
 /**

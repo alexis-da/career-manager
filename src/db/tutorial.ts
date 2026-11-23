@@ -2,6 +2,8 @@ import { z } from "zod";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
 import {
   canResume,
+  FAREWELL,
+  farewellDue,
   isClosed,
   LIVE_STEPS,
   pendingWrites,
@@ -13,6 +15,7 @@ import {
   TUTORIAL_STEPS,
   TUTORIAL_VERSION,
   tutorialStatus,
+  type DashboardContext,
   type StepOutcome,
   type TutorialContext,
   type TutorialEnding,
@@ -42,7 +45,7 @@ const TUTORIAL_SELECT = {
   skippedAt: true,
   resumedAt: true,
   endedBy: true,
-  steps: { select: { step: true, shows: true, outcome: true } },
+  steps: { select: { step: true, shows: true, shownAt: true, outcome: true } },
 } as const;
 
 type TutorialRow = Prisma.TutorialGetPayload<{ select: typeof TUTORIAL_SELECT }>;
@@ -50,10 +53,10 @@ type TutorialRow = Prisma.TutorialGetPayload<{ select: typeof TUTORIAL_SELECT }>
 /** A row as the rules read it: a step of a later scenario that this code does not know is left out. */
 function progressOf(row: TutorialRow): TutorialProgress {
   const steps: TutorialProgress["steps"] = {};
-  for (const { step, shows, outcome } of row.steps) {
+  for (const { step, shows, shownAt, outcome } of row.steps) {
     const key = stepSchema.safeParse(step);
     if (key.success) {
-      steps[key.data] = { shows, outcome: outcome === null ? null : outcomeSchema.parse(outcome) };
+      steps[key.data] = { shows, shownAt, outcome: outcome === null ? null : outcomeSchema.parse(outcome) };
     }
   }
   return {
@@ -128,7 +131,7 @@ async function lockedTutorial(tx: Prisma.TransactionClient, userId: string, save
   return locked.length === 0 ? null : readTutorial(tx, userId, saveId);
 }
 
-type RecordInput = TutorialContext & {
+type RecordInput = DashboardContext & {
   userId: string;
   saveId: string;
   events: readonly TutorialEvent[];
@@ -138,15 +141,26 @@ type RecordInput = TutorialContext & {
 /**
  * A screen's events on the tutorial its save follows, with what the tutorial closes by itself (pendingWrites), and its
  * end once every step is closed: one small transaction. A step shown counts one more show while it is open; the first
- * day's « À demain » shown is its end (Tutorial.day1At). Nothing on a tutorial over, or one this save does not follow.
+ * day's « À demain » shown is its end (Tutorial.day1At). Nothing on a tutorial over, or one this save does not follow,
+ * but its farewell, said once when it is finished (farewellDue).
  */
 export async function recordTutorialEvents(db: PrismaClient, { userId, saveId, events, away, ...context }: RecordInput): Promise<void> {
   await db.$transaction(async (tx) => {
     const progress = await lockedTutorial(tx, userId, saveId);
-    if (progress === null || progress.endedBy !== null) {
+    if (progress === null) {
       return;
     }
-    const own = tutorialStatus(progress, context.now) === "running" ? events : [];
+    if (farewellDue(progress, context.now) && events.some(({ step }) => step === FAREWELL)) {
+      await closeStep(tx, userId, FAREWELL, "DONE");
+      await tx.$executeRaw`UPDATE "TutorialStep" SET "shownAt" = now(), "shows" = 1 WHERE "userId" = ${userId} AND "step" = ${FAREWELL}`;
+      await tx.$executeRaw`
+        UPDATE "Tutorial" SET "endedAt" = now(), "endedBy" = 'FINISHED' WHERE "userId" = ${userId} AND "endedBy" IS NULL`;
+      return;
+    }
+    if (progress.endedBy !== null) {
+      return;
+    }
+    const own = tutorialStatus(progress, context.now) === "running" ? events.filter(({ step }) => step !== FAREWELL) : [];
     const pending = pendingWrites(progress, context, { excluded: own.map(({ step }) => step), away });
     const closed = new Set<TutorialStepKey>();
     for (const { step, event } of own) {

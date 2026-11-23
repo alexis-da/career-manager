@@ -7,15 +7,23 @@ import {
   dashboardStep,
   dayOnePlace,
   expiresAt,
+  FAREWELL,
+  farewellDue,
   firstDayCalm,
   firstDayCalmOf,
   FULL_REVEAL,
   fullTimeDue,
+  LATER_STEPS,
   liveSteps,
+  marketScreenStep,
   MAX_SHOWS,
   pendingWrites,
+  PUSHED_PER_DAY,
   REPLAY_SECONDS,
+  scenarioSteps,
+  screenStep,
   stepsToReopen,
+  tipsReplaced,
   TUTORIAL_DAYS,
   TUTORIAL_STEPS,
   TUTORIAL_VERSION,
@@ -24,6 +32,7 @@ import {
   tutorialSetting,
   tutorialStatus,
   utcDay,
+  type LaterContext,
   type StepProgress,
   type TutorialProgress,
   type TutorialStepKey,
@@ -33,10 +42,10 @@ const START = new Date("2026-11-19T10:00:00.000Z");
 const at = (iso: string): Date => new Date(iso);
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** A tutorial begun at START, its steps as given. */
+/** A tutorial of scenario 1 (the first day alone) begun at START, its steps as given. */
 function tutorial(changes: Partial<TutorialProgress> = {}, steps: Partial<Record<TutorialStepKey, StepProgress>> = {}): TutorialProgress {
   return {
-    version: TUTORIAL_VERSION,
+    version: 1,
     startedAt: START,
     day1At: null,
     skippedAt: null,
@@ -55,9 +64,17 @@ const allClosed = (outcome: StepProgress["outcome"] = "DONE") =>
   Object.fromEntries(DAY_ONE_STEPS.map((step) => [step, closed(outcome)])) as Record<TutorialStepKey, StepProgress>;
 
 describe("the tutorial's steps", () => {
-  it("are the first day's five, in the scenario's order, under keys never renamed", () => {
-    expect(TUTORIAL_STEPS).toEqual(["welcome", "speed", "choice", "half-time", "full-time"]);
-    expect(DAY_ONE_STEPS).toEqual(TUTORIAL_STEPS);
+  it("are the first day's five, the following days' and the farewell, under keys never renamed", () => {
+    expect(DAY_ONE_STEPS).toEqual(["welcome", "speed", "choice", "half-time", "full-time"]);
+    expect(LATER_STEPS).toEqual(["missions", "market", "objectives", "lineup", "squad", "simulate", "break", "europe", "cup", "fitness", "judged"]);
+    expect(TUTORIAL_STEPS).toEqual([...DAY_ONE_STEPS, ...LATER_STEPS, FAREWELL]);
+    expect(FAREWELL).toBe("farewell");
+  });
+
+  it("are those of its scenario: the first day alone in the first, the following days' too in the second", () => {
+    expect(TUTORIAL_VERSION).toBe(2);
+    expect(scenarioSteps(1)).toEqual(DAY_ONE_STEPS);
+    expect(scenarioSteps(2)).toEqual([...DAY_ONE_STEPS, ...LATER_STEPS]);
   });
 
   it("place each step of the first day in it while it lasts", () => {
@@ -265,16 +282,267 @@ describe("tutorialDay and tutorialSetting", () => {
   });
 });
 
+describe("scenario 2: the following days", () => {
+  const DAY1 = at("2026-11-19T10:20:00Z");
+  const DAY2 = at("2026-11-20T09:00:00Z");
+  const DAY3 = at("2026-11-21T09:00:00Z");
+  /** A tutorial of scenario 2 whose first day was done on START's day, its steps as given. */
+  const v2 = (steps: Partial<Record<TutorialStepKey, StepProgress>> = {}, changes: Partial<TutorialProgress> = {}) =>
+    tutorial({ version: 2, day1At: DAY1, ...changes }, { ...allClosed(), ...steps });
+  /** The following days' steps closed as given, but those named. */
+  const laterClosed = (except: readonly TutorialStepKey[] = [], outcome: StepProgress["outcome"] = "DONE") =>
+    Object.fromEntries(LATER_STEPS.filter((step) => !except.includes(step)).map((step) => [step, closed(outcome)])) as Record<
+      TutorialStepKey,
+      StepProgress
+    >;
+  const LATER: LaterContext = {
+    windowOpen: true,
+    breakUpcoming: false,
+    calledUp: 0,
+    nextMatch: "league",
+    tiredStarter: false,
+    judged: false,
+    objectives: true,
+    europe: true,
+    nations: true,
+  };
+  const shownOn = (date: Date, shows = 1): StepProgress => ({ shows, shownAt: date, outcome: null });
+
+  it("push nothing the first day, then the missions first, the market while the window is open", () => {
+    expect(dashboardStep(v2(), { now: at("2026-11-19T22:00:00Z"), matchesPlayed: 1, later: LATER })).toBeNull();
+    expect(dashboardStep(v2(), { now: DAY2, matchesPlayed: 1, later: LATER })).toBe("missions");
+    const missionsDone = { missions: closed() };
+    expect(dashboardStep(v2(missionsDone), { now: DAY2, matchesPlayed: 1, later: LATER })).toBe("market");
+    expect(dashboardStep(v2(missionsDone), { now: DAY2, matchesPlayed: 1, later: { ...LATER, windowOpen: false } })).toBe("objectives");
+    // A scenario 1 has no following days.
+    expect(dashboardStep(tutorial({ day1At: DAY1 }, allClosed()), { now: DAY2, matchesPlayed: 1, later: LATER })).toBeNull();
+  });
+
+  it("put what has a moment before the rest: the break, the European match, the cup tie, a tired starter", () => {
+    const steps = { missions: closed(), market: closed() };
+    expect(dashboardStep(v2(steps), { now: DAY2, matchesPlayed: 1, later: { ...LATER, breakUpcoming: true } })).toBe("break");
+    expect(dashboardStep(v2(steps), { now: DAY2, matchesPlayed: 1, later: { ...LATER, nextMatch: "europe" } })).toBe("europe");
+    expect(dashboardStep(v2(steps), { now: DAY2, matchesPlayed: 1, later: { ...LATER, nextMatch: "cup" } })).toBe("cup");
+    expect(dashboardStep(v2(steps), { now: DAY2, matchesPlayed: 1, later: { ...LATER, tiredStarter: true } })).toBe("fitness");
+    // Then the objectives, the simulation after two matches, the judgement once the board judges, the line-up from day 3.
+    expect(dashboardStep(v2(steps), { now: DAY2, matchesPlayed: 1, later: LATER })).toBe("objectives");
+    const more = { ...steps, objectives: closed() };
+    expect(dashboardStep(v2(more), { now: DAY2, matchesPlayed: 2, later: LATER })).toBe("simulate");
+    const judged = { ...more, simulate: closed() };
+    expect(dashboardStep(v2(judged), { now: DAY2, matchesPlayed: 5, later: { ...LATER, judged: true } })).toBe("judged");
+    expect(dashboardStep(v2(judged), { now: DAY2, matchesPlayed: 5, later: LATER })).toBeNull();
+    expect(dashboardStep(v2(judged), { now: DAY3, matchesPlayed: 5, later: LATER })).toBe("lineup");
+  });
+
+  it("push PUSHED_PER_DAY steps a day at most, a step already shown coming back whatever the count", () => {
+    expect(PUSHED_PER_DAY).toBe(2);
+    const today = { missions: { shows: 1, shownAt: DAY2, outcome: "DONE" as const }, market: shownOn(DAY2) };
+    // Two shown today: the market, shown, comes back; nothing new is pushed.
+    expect(dashboardStep(v2(today), { now: DAY2, matchesPlayed: 1, later: LATER })).toBe("market");
+    const marketDone = { ...today, market: { shows: 1, shownAt: DAY2, outcome: "DONE" as const } };
+    expect(dashboardStep(v2(marketDone), { now: DAY2, matchesPlayed: 1, later: LATER })).toBeNull();
+    // The next day, room again.
+    expect(dashboardStep(v2(marketDone), { now: DAY3, matchesPlayed: 1, later: LATER })).toBe("objectives");
+    // The screens' own steps never count.
+    const screens = { missions: closed(), squad: shownOn(DAY2), lineup: shownOn(DAY2) };
+    expect(dashboardStep(v2(screens), { now: DAY2, matchesPlayed: 1, later: LATER })).toBe("market");
+  });
+
+  it("say farewell once every step is closed, from the second day", () => {
+    const done = v2(laterClosed());
+    expect(farewellDue(done, DAY2)).toBe(true);
+    expect(dashboardStep(done, { now: DAY2, matchesPlayed: 3, later: LATER })).toBe(FAREWELL);
+    expect(farewellDue(v2(laterClosed(), { day1At: null }), START)).toBe(false);
+    expect(farewellDue(v2({ ...laterClosed(), farewell: closed() }), DAY2)).toBe(false);
+    expect(farewellDue(v2(laterClosed(["judged"])), DAY2)).toBe(false);
+    expect(farewellDue(v2(laterClosed(), { endedBy: "SKIPPED", skippedAt: DAY2 }), DAY2)).toBe(false);
+    expect(farewellDue(tutorial({ day1At: DAY1, endedBy: "FINISHED" }, allClosed()), DAY2)).toBe(false);
+  });
+
+  it("show their screens' steps when their screen opens, the first day too, twice at most", () => {
+    expect(screenStep(v2({}, { day1At: null }), "squad", START)).toBe(true);
+    expect(screenStep(v2(), "lineup", DAY2)).toBe(true);
+    expect(screenStep(v2({ lineup: shown(MAX_SHOWS) }), "lineup", DAY2)).toBe(false);
+    expect(screenStep(v2({ squad: closed() }), "squad", DAY2)).toBe(false);
+    expect(screenStep(tutorial(), "squad", START)).toBe(false);
+    expect(screenStep(v2({}, { endedBy: "SKIPPED", skippedAt: DAY2 }), "squad", DAY2)).toBe(false);
+  });
+
+  it("show the Market's own bubble from the second day, the window open, a first match played", () => {
+    expect(marketScreenStep(v2(), { now: DAY2, matchesPlayed: 1 }, true)).toBe(true);
+    expect(marketScreenStep(v2(), { now: at("2026-11-19T20:00:00Z"), matchesPlayed: 1 }, true)).toBe(false);
+    expect(marketScreenStep(v2(), { now: DAY2, matchesPlayed: 1 }, false)).toBe(false);
+    expect(marketScreenStep(v2(), { now: DAY2, matchesPlayed: 0 }, true)).toBe(false);
+    expect(marketScreenStep(v2({ market: closed() }), { now: DAY2, matchesPlayed: 1 }, true)).toBe(false);
+    expect(marketScreenStep(tutorial({ day1At: DAY1 }), { now: DAY2, matchesPlayed: 1 }, true)).toBe(false);
+  });
+
+  it("replace the first steps' tips while a scenario 2 runs and once it is done; passed or run out, they come back", () => {
+    expect(tipsReplaced(null, DAY2)).toBe(false);
+    expect(tipsReplaced(tutorial(), DAY2)).toBe(false);
+    expect(tipsReplaced(v2(), DAY2)).toBe(true);
+    expect(tipsReplaced(v2({}, { day1At: null }), START)).toBe(true);
+    expect(tipsReplaced(v2(laterClosed()), DAY2)).toBe(true);
+    expect(tipsReplaced(v2({}, { endedBy: "SKIPPED", skippedAt: DAY2 }), DAY2)).toBe(false);
+    expect(tipsReplaced(v2({}, { skippedAt: DAY2, resumedAt: DAY3 }), DAY3)).toBe(false);
+    expect(tipsReplaced(v2({}, { endedBy: "MERGED" }), DAY2)).toBe(false);
+    expect(tipsReplaced(v2(), new Date(START.getTime() + TUTORIAL_DAYS * DAY_MS))).toBe(false);
+  });
+
+  it("reveal each thing with its step, the one shown on this screen included, or with its moment", () => {
+    const context = { now: DAY2, matchesPlayed: 1, later: LATER };
+    expect(tutorialReveal(v2(), context)).toEqual({
+      pills: false,
+      missions: false,
+      objectives: false,
+      summary: true,
+      todo: true,
+      market: false,
+      challenge: true,
+      tips: false,
+      hiddenTabs: ["rewards", "internationals", "europe", "cup"],
+    });
+    const withMissions = tutorialReveal(v2(), { ...context, step: "missions" });
+    expect(withMissions.missions).toBe(true);
+    expect(withMissions.hiddenTabs).toEqual(["internationals", "europe", "cup"]);
+    const seen = tutorialReveal(v2({ missions: closed(), market: closed(), objectives: closed(), break: closed() }), context);
+    expect(seen).toMatchObject({ pills: true, missions: true, objectives: true, market: true });
+    expect(seen.hiddenTabs).toEqual(["europe", "cup"]);
+    // The judgement shows the objectives too; the moments bring their tabs by themselves.
+    expect(tutorialReveal(v2({ judged: closed("ADAPTED") }), context).objectives).toBe(true);
+    const moments = { breakPassed: true, europePassed: true, cupPassed: false };
+    expect(tutorialReveal(v2(), { ...context, moments }).hiddenTabs).toEqual(["rewards", "cup"]);
+    // A step closed unshown, because it does not apply to the club, brings no tab: its moment does.
+    const outOfEurope = v2({ europe: { shows: 0, outcome: "ADAPTED" } });
+    expect(tutorialReveal(outOfEurope, context).hiddenTabs).toContain("europe");
+    expect(tutorialReveal(outOfEurope, { ...context, moments: { ...moments, europePassed: true } }).hiddenTabs).not.toContain("europe");
+  });
+
+  it("show the money from the third day once the window is shut, everything once the tutorial is passed or over", () => {
+    const shut = { ...LATER, windowOpen: false };
+    expect(tutorialReveal(v2(), { now: DAY2, matchesPlayed: 1, later: shut }).pills).toBe(false);
+    expect(tutorialReveal(v2(), { now: DAY3, matchesPlayed: 1, later: shut }).pills).toBe(true);
+    // Passed, everything at once, its tips too; done, its own steps have said what the tips would.
+    expect(tutorialReveal(v2({}, { endedBy: "SKIPPED", skippedAt: DAY2 }), { now: DAY2, matchesPlayed: 1 })).toEqual(FULL_REVEAL);
+    expect(tutorialReveal(v2(laterClosed()), { now: DAY2, matchesPlayed: 1 })).toEqual({ ...FULL_REVEAL, tips: false });
+    // The first day's calm stays the same in both scenarios.
+    expect(tutorialReveal(v2({}, { day1At: null }), { now: START, matchesPlayed: 0 })).toEqual(
+      tutorialReveal(tutorial(), { now: START, matchesPlayed: 0 }),
+    );
+  });
+
+  it("adapt a step that does not apply, or whose moment went by once shown; one never shown waits", () => {
+    const context = { now: DAY2, matchesPlayed: 1 };
+    const away = { away: true };
+    const noEurope = pendingWrites(v2(), { ...context, later: { ...LATER, europe: false, nations: false } }, away);
+    expect(noEurope.closures).toEqual([
+      { step: "break", outcome: "ADAPTED" },
+      { step: "europe", outcome: "ADAPTED" },
+    ]);
+    const shownSteps = { market: shown(), break: shown(), europe: shown(), cup: shown(), fitness: shown() };
+    const gone = { ...LATER, windowOpen: false, breakUpcoming: false, nextMatch: "league" as const, tiredStarter: false };
+    expect(pendingWrites(v2(shownSteps), { ...context, later: gone }, away).closures).toEqual([
+      { step: "market", outcome: "ADAPTED" },
+      { step: "break", outcome: "ADAPTED" },
+      { step: "europe", outcome: "ADAPTED" },
+      { step: "cup", outcome: "ADAPTED" },
+      { step: "fitness", outcome: "ADAPTED" },
+    ]);
+    expect(pendingWrites(v2(), { ...context, later: gone }, away).closures).toEqual([]);
+    // Without what the dashboard knows, nothing of the kind.
+    expect(pendingWrites(v2(shownSteps), context, away).closures).toEqual([]);
+  });
+
+  it("finish once the following days' steps are closed too, and expire those left", () => {
+    expect(pendingWrites(v2(), { now: DAY2, matchesPlayed: 1 }).ending).toBeNull();
+    expect(pendingWrites(v2(laterClosed()), { now: DAY2, matchesPlayed: 1 }).ending).toBe("FINISHED");
+    const now = new Date(START.getTime() + TUTORIAL_DAYS * DAY_MS);
+    const writes = pendingWrites(v2(laterClosed(["cup", "judged"])), { now, matchesPlayed: 9 });
+    expect(writes).toEqual({
+      closures: [
+        { step: "cup", outcome: "EXPIRED" },
+        { step: "judged", outcome: "EXPIRED" },
+      ],
+      ending: "EXPIRED",
+    });
+  });
+
+  it("open again, taken up, every following day's step passed", () => {
+    const skipped = v2({ market: closed("PASSED"), squad: closed("PASSED"), cup: closed("DONE") }, { endedBy: "SKIPPED", skippedAt: DAY2 });
+    expect(stepsToReopen(skipped, { matchesPlayed: 3 })).toEqual(["market", "squad"]);
+    expect(canResume(skipped, { now: DAY2, matchesPlayed: 3 })).toBe(true);
+  });
+});
+
 describe("the assistant's lines", () => {
   /** A line's length without its names and figures: each argument one character. */
-  const ARGUMENTS = { manager: "M", date: "D", opponent: "O", seconds: REPLAY_SECONDS, normal: "1", fast: "2", fastest: "4", coaching: "C", resume: "R", apply: "A" };
+  const ARGUMENTS = {
+    manager: "M",
+    date: "D",
+    opponent: "O",
+    seconds: REPLAY_SECONDS,
+    normal: "1",
+    fast: "2",
+    fastest: "4",
+    coaching: "C",
+    resume: "R",
+    apply: "A",
+    club: "C",
+    rewards: "R",
+    position: "P",
+    market: "M",
+    sign: "S",
+    pass: "P",
+    save: "S",
+    prepare: "P",
+    simulate: "S",
+    count: 2,
+    competition: "C",
+    player: "P",
+    fitness: 70,
+    automatic: "A",
+    todo: "T",
+  };
+  const KEYS = [
+    "welcome",
+    "speed",
+    "choice",
+    "halfTime",
+    "halfTimeAdvice",
+    "halfTimeNoAdvice",
+    "fullTime",
+    "missions",
+    "market",
+    "marketProposal",
+    "objectives",
+    "objectivesOwn",
+    "lineupPick",
+    "lineupPush",
+    "simulate",
+    "break",
+    "breakNone",
+    "europe",
+    "cup",
+    "fitness",
+    "judged",
+    "farewell",
+  ] as const;
 
   it("each hold in 140 characters, names left out, in both languages", () => {
     for (const locale of ["fr", "en"] as const) {
       const t = testTranslator(locale, "tutorial.steps");
-      for (const key of ["welcome", "speed", "choice", "halfTime", "halfTimeAdvice", "halfTimeNoAdvice", "fullTime"] as const) {
+      for (const key of KEYS) {
         const line = t(key, ARGUMENTS);
         expect(line.length, `${locale} ${key}: ${line}`).toBeLessThanOrEqual(140);
+        // Typography only: a non-breaking space where French wants one, never a control character.
+        expect(line, `${locale} ${key}`).not.toMatch(/\p{Cc}/u);
+      }
+      // A screen's lines name the gesture of the screen they are read on.
+      for (const touch of ["touch", "click"] as const) {
+        for (const key of ["lineup", "squad"] as const) {
+          const line = t(key, { touch });
+          expect(line.length, `${locale} ${key} ${touch}: ${line}`).toBeLessThanOrEqual(140);
+        }
       }
     }
   });

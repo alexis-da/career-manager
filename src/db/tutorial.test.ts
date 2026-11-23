@@ -46,6 +46,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the first career's tuto
   const record = (userId: string, saveId: string, events: import("../lib/tutorial").TutorialEvent[], matchesPlayed = 0, away = false) =>
     loaded().tutorials.recordTutorialEvents(loaded().db, { userId, saveId, events, now: new Date(), matchesPlayed, away });
   const row = (userId: string) => loaded().db.tutorial.findUnique({ where: { userId } });
+  /** A tutorial of scenario 1, the first day alone: those created between the two releases. */
+  const scenarioOne = (userId: string) => loaded().db.tutorial.update({ where: { userId }, data: { version: 1 } });
+  const YESTERDAY = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
 
   beforeAll(async () => {
     const [{ prisma }, tutorialModule, rulesModule, savesModule] = await Promise.all([
@@ -112,9 +115,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the first career's tuto
     await start(owner, saveId);
     const progress = await read(owner, saveId);
     expect(progress?.steps).toEqual({
-      speed: { shows: 0, outcome: "ADAPTED" },
-      choice: { shows: 0, outcome: "ADAPTED" },
-      "half-time": { shows: 0, outcome: "ADAPTED" },
+      speed: { shows: 0, shownAt: null, outcome: "ADAPTED" },
+      choice: { shows: 0, shownAt: null, outcome: "ADAPTED" },
+      "half-time": { shows: 0, shownAt: null, outcome: "ADAPTED" },
     });
   });
 
@@ -166,10 +169,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the first career's tuto
     const owner = await user();
     const saveId = await bareSave(owner);
     await start(owner, saveId);
+    await scenarioOne(owner);
     await record(owner, saveId, [{ step: "welcome", event: "show" }]);
     // The first match simulated: the welcome made another way, written with the next event.
     await record(owner, saveId, [{ step: "full-time", event: "show" }], 1);
-    expect((await read(owner, saveId))?.steps.welcome).toEqual({ shows: 1, outcome: "ADAPTED" });
+    expect((await read(owner, saveId))?.steps.welcome).toMatchObject({ shows: 1, outcome: "ADAPTED" });
     for (const step of ["speed", "choice", "half-time"] as const) {
       await record(owner, saveId, [{ step, event: "adapt" }], 1);
     }
@@ -177,7 +181,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the first career's tuto
     // The « À demain » seen, left without its links: adapted on the dashboard, and the tutorial over.
     await record(owner, saveId, [], 1, true);
     expect(await row(owner)).toMatchObject({ endedBy: "FINISHED" });
-    expect((await read(owner, saveId))?.steps["full-time"]).toEqual({ shows: 1, outcome: "ADAPTED" });
+    expect((await read(owner, saveId))?.steps["full-time"]).toMatchObject({ shows: 1, outcome: "ADAPTED" });
   });
 
   it("is passed for good, then taken up again with what can still come, nothing hidden again", async () => {
@@ -197,14 +201,69 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the first career's tuto
     expect(resumed).toMatchObject({ endedBy: null, endedAt: null, skippedStep: "speed" });
     expect(resumed?.resumedAt).not.toBeNull();
     expect(resumed?.skippedAt).not.toBeNull();
-    expect((await read(owner, saveId))?.steps.welcome).toEqual({ shows: 0, outcome: null });
+    expect((await read(owner, saveId))?.steps.welcome).toMatchObject({ shows: 0, outcome: null });
 
-    // Passed again once the first day is over, all its steps closed: nothing left to take up.
+    // Passed again once the first day is over, all its steps closed: a scenario 1 has nothing left to take up.
+    await scenarioOne(owner);
     for (const step of loaded().rules.DAY_ONE_STEPS) {
       await record(owner, saveId, [{ step, event: "pass" }], 1);
     }
     await db.tutorial.update({ where: { userId: owner }, data: { endedBy: "SKIPPED", endedAt: NOW, day1At: NOW } });
     expect(await tutorials.resumeTutorial(db, owner, saveId, { now: new Date(), matchesPlayed: 1 })).toBe(false);
+  });
+
+  it("adapts on the dashboard the following days' steps that do not apply to the save", async () => {
+    const { tutorials, db } = loaded();
+    const owner = await user();
+    const saveId = await bareSave(owner);
+    await start(owner, saveId);
+    await db.tutorial.update({ where: { userId: owner }, data: { day1At: YESTERDAY } });
+    const later = {
+      windowOpen: true,
+      breakUpcoming: false,
+      calledUp: 0,
+      nextMatch: "league" as const,
+      tiredStarter: false,
+      judged: false,
+      objectives: true,
+      europe: false,
+      nations: false,
+    };
+    await tutorials.recordTutorialEvents(db, { userId: owner, saveId, events: [], now: new Date(), matchesPlayed: 1, later, away: true });
+    const steps = (await read(owner, saveId))?.steps;
+    expect(steps?.europe).toMatchObject({ shows: 0, outcome: "ADAPTED" });
+    expect(steps?.break).toMatchObject({ shows: 0, outcome: "ADAPTED" });
+    expect(steps?.missions).toBeUndefined();
+    expect((await row(owner))?.endedBy).toBeNull();
+  });
+
+  it("says farewell once, from the second day, when every step of a scenario 2 is closed", async () => {
+    const { rules, db } = loaded();
+    const owner = await user();
+    const saveId = await bareSave(owner);
+    await start(owner, saveId);
+    await db.tutorial.update({ where: { userId: owner }, data: { day1At: YESTERDAY } });
+    const [last, ...others] = rules.scenarioSteps(2);
+    await db.tutorialStep.createMany({ data: others.map((step) => ({ userId: owner, step, shows: 1, shownAt: YESTERDAY, outcome: "DONE" })) });
+    // The last step closed: the tutorial is over, the farewell still to say.
+    await record(owner, saveId, [{ step: last, event: "done" }], 3);
+    expect(await row(owner)).toMatchObject({ endedBy: "FINISHED" });
+    const finished = await read(owner, saveId);
+    expect(finished !== null && rules.farewellDue(finished, new Date())).toBe(true);
+    expect(finished === null ? null : rules.dashboardStep(finished, { now: new Date(), matchesPlayed: 3 })).toBe(rules.FAREWELL);
+
+    await record(owner, saveId, [{ step: rules.FAREWELL, event: "show" }], 3);
+    const farewell = await db.tutorialStep.findUniqueOrThrow({ where: { userId_step: { userId: owner, step: rules.FAREWELL } } });
+    expect(farewell).toMatchObject({ shows: 1, outcome: "DONE" });
+    expect(farewell.shownAt).not.toBeNull();
+    // Said once: never again, the tutorial still finished.
+    const said = await read(owner, saveId);
+    expect(said !== null && rules.farewellDue(said, new Date())).toBe(false);
+    await record(owner, saveId, [{ step: rules.FAREWELL, event: "show" }], 3);
+    expect(await db.tutorialStep.findUniqueOrThrow({ where: { userId_step: { userId: owner, step: rules.FAREWELL } } })).toMatchObject({
+      shows: 1,
+    });
+    expect(await row(owner)).toMatchObject({ endedBy: "FINISHED" });
   });
 
   it("follows a player into their Google account, over when the account had a career of its own", async () => {
