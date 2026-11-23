@@ -305,7 +305,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the tutorial's figures 
       dropouts: 0,
     });
     // The game's own release, its reference the 14 days before.
-    expect(released).toMatchObject({ since: "2026-11-19", referenceFirst: "2026-11-05", referenceLast: "2026-11-18", started: 5 });
+    expect(released).toMatchObject({ since: "2026-11-23", referenceFirst: "2026-11-09", referenceLast: "2026-11-22", started: 5 });
   }, READING_MS);
 
   it("measures from a tutorial's start to its first match, beside the reference's from its first career", async () => {

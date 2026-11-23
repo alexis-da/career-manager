@@ -4,7 +4,7 @@ import type { Locale } from "@/src/i18n/locale";
 import { formatDate } from "@/src/lib/format";
 
 /** The day this page last changed, the same in both versions: to update with their content. */
-const UPDATED_ON = new Date(Date.UTC(2026, 10, 19));
+const UPDATED_ON = new Date(Date.UTC(2026, 10, 23));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (

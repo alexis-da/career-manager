@@ -21,7 +21,7 @@ export const CHANGELOG_LABELS = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: "2026-11-19",
+    date: "2026-11-23",
     fr: {
       title: "Tutoriel de la première carrière",
       items: [

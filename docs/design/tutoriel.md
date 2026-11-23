@@ -665,9 +665,10 @@ Alexis a retenu les dix propositions :
 
 ---
 
-## 9. Mise en œuvre : première mise en ligne, le jour 1 (19/11)
+## 9. Mise en œuvre : première mise en ligne, le jour 1 (23/11)
 
-**Scénario 1.** Les tutoriels créés par cette mise en ligne ont le jour 1 seul (`TUTORIAL_VERSION` 1). Les étapes des jours
+**Scénario 1.** Les tutoriels créés par cette mise en ligne (le 23/11 : `TUTORIAL_SINCE`, d'où part aussi la référence des
+mesures, les 14 jours d'avant) ont le jour 1 seul (`TUTORIAL_VERSION` 1). Les étapes des jours
 suivants viendront avec un scénario 2. Un tutoriel garde le scénario de sa naissance (§ 0.1, `Tutorial.version`) : celui d'un
 joueur arrivé entre les deux mises en ligne finit avec son jour 1, et tout ce qui était caché apparaît le lendemain, sans
 étape poussée.

@@ -65,6 +65,7 @@ describe("the changelog", () => {
     const days = CHANGELOG.map(({ date }) => date);
     expect([...days].sort().reverse()).toEqual(days);
     expect([...new Set(days)]).toEqual([
+      "2026-11-23",
       "2026-11-19",
       "2026-11-18",
       "2026-11-17",

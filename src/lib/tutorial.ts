@@ -48,7 +48,7 @@ export const TUTORIAL_DAYS = 14;
 export const MAX_SHOWS = 2;
 
 /** Its first release: a player created from then on may have it after the challenge (src/db/tutorial.ts). */
-export const TUTORIAL_SINCE = new Date("2026-11-19T00:00:00.000Z");
+export const TUTORIAL_SINCE = new Date("2026-11-23T00:00:00.000Z");
 
 /** The real duration of the live replay from kick-off to the 90th minute at x1, which the speed step announces. */
 export const REPLAY_SECONDS = 45;
