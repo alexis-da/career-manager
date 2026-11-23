@@ -9,6 +9,7 @@ import { CUPS_ENABLED } from "../engine/cup";
 import { EUROPE_ENABLED } from "../engine/europe";
 import { NATIONS_ENABLED } from "../engine/nations";
 import { countryOf } from "../engine/promotion";
+import { hasWinterBreak } from "../engine/schedule";
 import { competitionTier } from "../engine/tiers";
 import { seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import { DEFAULT_WORLD_VERSION, worldTiers } from "../engine/world-version";
@@ -49,6 +50,9 @@ export const createSaveInputSchema = z.object({
   // The national teams and the international breaks of a worldVersion 2 save from its first season (Save.breaksFrom):
   // NATIONS_ENABLED (true) for the game, never for a challenge save; a test may pass either.
   nations: z.boolean().default(NATIONS_ENABLED),
+  // The winter break of its leagues of Spain, Italy, Germany and France with its breaks, from its first season
+  // (Save.winterBreakFrom): true for the game; a test may pass false, a save from before it, which has it from its next.
+  winterBreak: z.boolean().default(true),
   // The first-career tutorial (src/db/tutorial.ts): only the player's own creation asks for it (createSaveAction), never
   // a test, a script, the demo or a challenge save.
   tutorial: z.boolean().default(false),
@@ -118,6 +122,7 @@ export async function createChallengeSave(
     cups: CUPS_ENABLED,
     europe: false,
     nations: false,
+    winterBreak: false,
     tutorial: false,
     challenge: { id: challengeId, maxSaves },
   });
@@ -147,10 +152,14 @@ async function timedWriteSave(data: SaveData): Promise<{ id: string }> {
 
 /** The transaction of a creation, each phase marked on the timer for the logs. */
 async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: string }> {
-  const { name, managerName, clubId, seed, ownerId, worldVersion, cups, europe, nations, tutorial, challenge } = data;
+  const { name, managerName, clubId, seed, ownerId, worldVersion, cups, europe, nations, winterBreak, tutorial, challenge } = data;
   // A worldVersion 2 save has its international breaks and its national teams from its first season, never a challenge's.
   const breaksFrom = worldVersion === 2 && nations && challenge === null ? seasonStartYear(WORLD_START_DATE) : null;
   const withBreaks = breaksFrom !== null;
+  // Its leagues of Spain, Italy, Germany and France stop over the holidays with its breaks, from its first season too
+  // (Save.winterBreakFrom): never a worldVersion 1 save nor a challenge's, which have no breaks.
+  const winterBreakFrom = winterBreak ? breaksFrom : null;
+  const withWinterBreak = winterBreakFrom !== null;
   // Its first cycle of qualifiers starts with its first season with breaks (the Old Continent Cup in June two years on).
   const cyclesFrom = cyclesFromFor({ cyclesFrom: null }, breaksFrom, seasonStartYear(WORLD_START_DATE));
   const tiers = worldTiers(worldVersion);
@@ -225,7 +234,7 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
       }
 
       const save = await tx.save.create({
-        data: { name, managerName, seed, ownerId, worldVersion, currentDate: WORLD_START_DATE, challengeId: challenge?.id ?? null, breaksFrom, cyclesFrom },
+        data: { name, managerName, seed, ownerId, worldVersion, currentDate: WORLD_START_DATE, challengeId: challenge?.id ?? null, breaksFrom, cyclesFrom, winterBreakFrom },
         select: { id: true, seed: true, currentDate: true },
       });
       if (challenge !== null) {
@@ -326,6 +335,7 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
           competitionCode: competition.code,
           startYear,
           withBreaks,
+          winterBreak: withWinterBreak && hasWinterBreak(competition.code),
           clubs: clubs
             .filter((club) => club.competitionId === competition.id)
             .map((club) => ({ slug: club.slug, clubSaveId: getOrThrow(clubSaveIdByClubId, club.id, "club save") })),

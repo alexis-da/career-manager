@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { buildWorldPlan } from "../../prisma/seed/seed";
+import { hasWinterBreak, winterBreakDates } from "../engine/schedule";
 import { seasonFixtures } from "./fixtures";
 
 const plan = buildWorldPlan();
 
 /** The fixtures of a competition's season with a fixed seed, club save ids standing for the slugs. */
-function fixturesOf(code: string, startYear: number, worldVersion: 1 | 2, withBreaks: boolean = false) {
+function fixturesOf(code: string, startYear: number, worldVersion: 1 | 2, withBreaks: boolean = false, winterBreak: boolean = false) {
   const competition = plan.find((candidate) => candidate.competition.code === code);
   if (competition === undefined) {
     throw new Error(`No competition ${code}`);
@@ -19,6 +20,7 @@ function fixturesOf(code: string, startYear: number, worldVersion: 1 | 2, withBr
     competitionCode: code,
     startYear,
     withBreaks,
+    winterBreak,
     clubs: competition.clubs.map((club) => ({ slug: club.slug, clubSaveId: club.slug })),
   });
 }
@@ -63,5 +65,33 @@ describe("seasonFixtures", () => {
 
     expect(codes).toHaveLength(10);
     expect(new Set(codes.map(lastDay)).size).toBe(1);
+  });
+
+  it("stops the leagues of Spain, Italy, Germany and France from 21 December to 3 January with the winter break, England's playing on: the same matches, every competition ending the same day", () => {
+    type Row = ReturnType<typeof fixturesOf>[number];
+    const time = (fixture: Row): number => new Date(fixture.scheduledAt).getTime();
+    const match = (fixture: Row): string => `${fixture.round}|${fixture.homeClubSaveId}|${fixture.awayClubSaveId}`;
+    for (const startYear of [2026, 2027]) {
+      const { from, to } = winterBreakDates(startYear);
+      const inBreak = (fixture: Row): boolean => time(fixture) >= from.getTime() && time(fixture) <= to.getTime();
+      const lastDays = new Set<number>();
+      for (const { competition } of plan) {
+        const before = fixturesOf(competition.code, startYear, 2, true);
+        const after = fixturesOf(competition.code, startYear, 2, true, hasWinterBreak(competition.code));
+        // Only the dates move: the same matches, matchday by matchday.
+        expect(after.map(match)).toEqual(before.map(match));
+        expect(before.some(inBreak), competition.code).toBe(true);
+        if (hasWinterBreak(competition.code)) {
+          expect(after.filter(inBreak), competition.code).toEqual([]);
+          // A matchday's matches stay on one date.
+          expect(new Set(after.map((fixture) => `${fixture.round}|${time(fixture)}`)).size).toBe(new Set(after.map((fixture) => fixture.round)).size);
+        } else {
+          expect(after, competition.code).toEqual(before);
+        }
+        lastDays.add(Math.max(...after.map(time)));
+      }
+      expect(plan.map(({ competition }) => competition.code).filter((code) => !hasWinterBreak(code))).toEqual(["en.1", "en.2"]);
+      expect(lastDays.size).toBe(1);
+    }
   });
 });

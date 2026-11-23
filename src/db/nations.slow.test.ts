@@ -7,7 +7,8 @@ import type { prisma as prismaClient } from "./client";
 const DAY = (date: Date): string => date.toISOString().slice(0, 10);
 
 // A worldVersion 2 save from before the national teams (docs/design/selections.md § 3.5): its season as it was, then its
-// breaks and nations from its next season only; and the same break, played the same way, in two saves of one seed.
+// breaks and nations, and the winter break with them, from its next season only; and the same break, played the same
+// way, in two saves of one seed.
 // Runs against DATABASE_URL and is skipped without it; modules are imported lazily because the client throws without it.
 describe.skipIf(process.env.DATABASE_URL === undefined)("national teams in a save from before them", () => {
   let db: typeof prismaClient | undefined;
@@ -64,8 +65,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("national teams in a sav
     const twin = await createBefore();
 
     for (const id of [first, twin]) {
-      const save = await database().save.findUniqueOrThrow({ where: { id }, select: { breaksFrom: true } });
+      const save = await database().save.findUniqueOrThrow({ where: { id }, select: { breaksFrom: true, winterBreakFrom: true } });
       expect(save.breaksFrom).toBeNull();
+      expect(save.winterBreakFrom).toBeNull();
       expect(await database().internationalMatch.count({ where: { saveId: id } })).toBe(0);
       // Its league season on the calendar without breaks: its first Saturdays every week.
       const english = await database().fixture.groupBy({
@@ -81,8 +83,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("national teams in a sav
       expect(await database().playerSave.count({ where: { saveId: id, caps: { gt: 0 } } })).toBe(0);
       await season.advanceToNextSeason(id);
 
-      const after = await database().save.findUniqueOrThrow({ where: { id }, select: { breaksFrom: true, cyclesFrom: true } });
+      const after = await database().save.findUniqueOrThrow({ where: { id }, select: { breaksFrom: true, cyclesFrom: true, winterBreakFrom: true } });
       expect(after.breaksFrom).toBe(WORLD_START_YEAR + 1);
+      // The winter break with its breaks: the leagues of Spain, Italy, Germany and France stop over the holidays.
+      expect(after.winterBreakFrom).toBe(WORLD_START_YEAR + 1);
       // Its first cycle of qualifiers with its first season with breaks: its first tournament two summers on.
       expect(after.cyclesFrom).toBe(WORLD_START_YEAR + 1);
       expect(await database().internationalMatch.count({ where: { saveId: id, competition: "int.qual.eu" } })).toBe(16);
@@ -94,6 +98,12 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("national teams in a sav
         orderBy: { scheduledAt: "asc" },
       });
       expect(nextEnglish.map(({ scheduledAt }) => DAY(scheduledAt))).toEqual(matchdayDates(46, WORLD_START_YEAR + 1, true).map(DAY));
+      const nextSpanish = await database().fixture.groupBy({
+        by: ["scheduledAt"],
+        where: { saveId: id, season: { startYear: WORLD_START_YEAR + 1, competition: { code: "es.1" } } },
+        orderBy: { scheduledAt: "asc" },
+      });
+      expect(nextSpanish.map(({ scheduledAt }) => DAY(scheduledAt))).toEqual(matchdayDates(38, WORLD_START_YEAR + 1, true, true).map(DAY));
     }
 
     // Both saves through the first break of their new season: the same matches, the same scores, the same scorers.

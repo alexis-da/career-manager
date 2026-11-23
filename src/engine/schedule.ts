@@ -1,4 +1,5 @@
 import { shuffle, type Rng } from "../lib/rng";
+import { countryOf } from "./promotion";
 import { firstMatchdayDate } from "./world";
 
 export type ScheduledMatch = {
@@ -37,9 +38,53 @@ const BREAK_DATE_OFFSETS: readonly [number, number] = [-1, 3];
  * matchdays take the first two (29 December and 16 March for 2026-27), the 42 the first six, the 46 all ten. Never in a
  * week with a cup or European Wednesday (cupDates, europeDates), nor in the week after one: Wednesday, Saturday and
  * Tuesday would be three matches in six days, for a club of the cup or of Europe (a second division's cup winner plays
- * it). Nor in a break's week. The only ten weeks left.
+ * it). Nor in a break's week. The only ten weeks left. A league with the winter break takes them without the holidays'
+ * week (WINTER_BREAK_TUESDAY_WEEKS).
  */
 export const BREAK_SEASON_TUESDAY_WEEKS: readonly number[] = [19, 30, 2, 22, 35, 38, 0, 1, 23, 31];
+
+/**
+ * The countries whose leagues stop over the holidays in a season with breaks, by the prefix of a competition's code:
+ * Spain, Italy, Germany and France, as their real leagues do. Never England, which plays through them as it always has.
+ */
+export const WINTER_BREAK_COUNTRIES: readonly string[] = ["es", "it", "de", "fr"];
+
+/**
+ * The winter break's first and last days, both included: 21 December of a season's start year to 3 January of the next,
+ * as a UTC month (0: January) and day. Days rather than weeks: the season's first Saturday moves from 15 to 21 August,
+ * and the holidays' weeks with it (weeks 19 and 20 in 2026-27, 18 and 19 in 2027-28). Fourteen days: always two
+ * Saturdays and two Tuesdays.
+ */
+const WINTER_BREAK_FIRST_DAY = { month: 11, day: 21 } as const;
+const WINTER_BREAK_LAST_DAY = { month: 0, day: 3 } as const;
+
+/**
+ * The Tuesdays of a league with the winter break, in the order they are used: those of BREAK_SEASON_TUESDAY_WEEKS but the
+ * holidays' week, 19 (29 December 2026; in the years the season starts on 21 August, 4 January, the day after the break:
+ * never taken, so that such a league plays the same Tuesdays every season, none on the day the clubs come back), as safe
+ * from the cup's and Europe's Wednesdays. The two matchdays of the holidays go to the first two weeks of August (18 and
+ * 25 August for 2026-27), when every player is fresh and no club plays in Europe yet: a league keeps the rest weekends
+ * it had (the 34 matchdays, two, in the autumn and the spring), and its Tuesdays (the 38 matchdays, 16 March, and
+ * 19 January for the 29 December). Taking them anywhere else in the season added to the European clubs' load: their
+ * injuries came to 1.33 or 1.34 times the other first division clubs' over three seasons (measure:balance), against
+ * 1.26 before the winter break. The Tuesdays right before an international break (weeks 2 and 31) come last: a first
+ * division's international would play Saturday, Tuesday and his nation's Friday, three matches in six days. The 42
+ * matchdays take eight, a second division's; 43 matchdays at most.
+ */
+export const WINTER_BREAK_TUESDAY_WEEKS: readonly number[] = [0, 1, 30, 22, 23, 35, 38, 2, 31];
+
+/** Whether a league stops for the winter break in a season with breaks: one of WINTER_BREAK_COUNTRIES, never England's. */
+export function hasWinterBreak(competitionCode: string): boolean {
+  return WINTER_BREAK_COUNTRIES.includes(countryOf(competitionCode));
+}
+
+/** The winter break of the season starting in startYear, both days included: 21 December 2026 to 3 January 2027 for 2026-27. */
+export function winterBreakDates(startYear: number): { from: Date; to: Date } {
+  return {
+    from: new Date(Date.UTC(startYear, WINTER_BREAK_FIRST_DAY.month, WINTER_BREAK_FIRST_DAY.day)),
+    to: new Date(Date.UTC(startYear + 1, WINTER_BREAK_LAST_DAY.month, WINTER_BREAK_LAST_DAY.day)),
+  };
+}
 
 /** A season's international break: its index (0 to 3), its week, and its two dates, Friday and Tuesday. */
 export type BreakWindow = { index: number; week: number; dates: readonly [Date, Date] };
@@ -61,11 +106,15 @@ export function breakWindows(startYear: number): BreakWindow[] {
  * Tuesday for each matchday more, spread evenly between the first and the last (46 matchdays: 6 Tuesdays). With the
  * international breaks (withBreaks: a season of a save with nations, Save.breaksFrom), the same first and last
  * Saturdays without those of BREAK_WEEKS: up to 36 matchdays on Saturdays spread evenly, beyond, every Saturday and the
- * first Tuesdays of BREAK_SEASON_TUESDAY_WEEKS. No draw: the same number of matchdays always gets the same dates.
+ * first Tuesdays of BREAK_SEASON_TUESDAY_WEEKS. With the winter break too (winterBreak: a league that has it,
+ * hasWinterBreak, in a season from Save.winterBreakFrom; nothing without the breaks), the same without its dates from
+ * 21 December to 3 January: up to 34 matchdays on Saturdays spread evenly, beyond, every Saturday and the first Tuesdays
+ * of WINTER_BREAK_TUESDAY_WEEKS; the season still ends on its last Saturday, with all its matchdays. No draw: the same
+ * number of matchdays always gets the same dates.
  */
-export function matchdayDates(roundCount: number, startYear: number, withBreaks: boolean = false): Date[] {
+export function matchdayDates(roundCount: number, startYear: number, withBreaks: boolean = false, winterBreak: boolean = false): Date[] {
   if (withBreaks) {
-    return matchdayDatesWithBreaks(roundCount, startYear);
+    return matchdayDatesWithBreaks(roundCount, startYear, winterBreak);
   }
   if (!Number.isInteger(roundCount) || roundCount < 2 || roundCount > 2 * SEASON_SATURDAYS - 1) {
     throw new RangeError(`A season of 2 to ${2 * SEASON_SATURDAYS - 1} matchdays, got ${roundCount}`);
@@ -86,23 +135,40 @@ export function matchdayDates(roundCount: number, startYear: number, withBreaks:
   return [...saturdays, ...tuesdays].sort((a, b) => a - b).map((time) => new Date(time));
 }
 
-/** matchdayDates of a season with breaks: the Saturdays outside BREAK_WEEKS, then its Tuesdays. */
-function matchdayDatesWithBreaks(roundCount: number, startYear: number): Date[] {
+/**
+ * matchdayDates of a season with breaks: the Saturdays outside BREAK_WEEKS, then its Tuesdays. With the winter break,
+ * neither a Saturday nor a Tuesday from 21 December to 3 January, read on the dates, whatever the year: 34 Saturdays, a
+ * league keeping the rest Saturdays it had, its two matchdays of the holidays on the first Tuesdays of
+ * WINTER_BREAK_TUESDAY_WEEKS, and any beyond the Saturdays on the next ones.
+ */
+function matchdayDatesWithBreaks(roundCount: number, startYear: number, winterBreak: boolean): Date[] {
   const first = firstMatchdayDate(startYear).getTime();
   const saturday = (week: number): number => first + week * DAYS_BETWEEN_MATCHDAYS * DAY_MS;
-  const saturdays = Array.from({ length: SEASON_SATURDAYS }, (_, week) => week).filter((week) => !BREAK_WEEKS.includes(week));
-  const most = saturdays.length + BREAK_SEASON_TUESDAY_WEEKS.length;
+  const { from, to } = winterBreakDates(startYear);
+  // Both days of the break included: a matchday is at midnight UTC, and the break lasts to the end of its last day.
+  const open = (time: number): boolean => !winterBreak || time < from.getTime() || time >= to.getTime() + DAY_MS;
+  const saturdays = Array.from({ length: SEASON_SATURDAYS }, (_, week) => week)
+    .filter((week) => !BREAK_WEEKS.includes(week))
+    .map(saturday)
+    .filter(open);
+  const tuesdays = (winterBreak ? WINTER_BREAK_TUESDAY_WEEKS : BREAK_SEASON_TUESDAY_WEEKS)
+    .map((week) => saturday(week) + MIDWEEK_DAYS_AFTER_SATURDAY * DAY_MS)
+    .filter(open);
+  const most = saturdays.length + tuesdays.length;
   if (!Number.isInteger(roundCount) || roundCount < 2 || roundCount > most) {
-    throw new RangeError(`A season with breaks has 2 to ${most} matchdays, got ${roundCount}`);
+    throw new RangeError(`A season with breaks${winterBreak ? " and the winter break" : ""} has 2 to ${most} matchdays, got ${roundCount}`);
   }
-  if (roundCount <= saturdays.length) {
-    const gaps = saturdays.length - 1;
-    return Array.from({ length: roundCount }, (_, index) => new Date(saturday(saturdays[Math.round((index * gaps) / (roundCount - 1))])));
-  }
-  const tuesdays = BREAK_SEASON_TUESDAY_WEEKS.slice(0, roundCount - saturdays.length).map(
-    (week) => saturday(week) + MIDWEEK_DAYS_AFTER_SATURDAY * DAY_MS,
-  );
-  return [...saturdays.map(saturday), ...tuesdays].sort((a, b) => a - b).map((time) => new Date(time));
+  // The rest Saturdays a league had in a season with breaks (36 Saturdays less its matchdays), which the winter break
+  // leaves it, as many as the holidays took (two): its matchdays beyond the other Saturdays go to Tuesdays.
+  const withoutHolidays = SEASON_SATURDAYS - BREAK_WEEKS.length;
+  const rest = Math.min(withoutHolidays - saturdays.length, Math.max(0, withoutHolidays - roundCount));
+  const onSaturdays = Math.min(roundCount, saturdays.length - rest);
+  // Saturdays spread evenly, the first and the last always among them.
+  const spread = (count: number): number[] =>
+    count === saturdays.length
+      ? saturdays
+      : Array.from({ length: count }, (_, index) => saturdays[Math.round((index * (saturdays.length - 1)) / (count - 1))]);
+  return [...spread(onSaturdays), ...tuesdays.slice(0, roundCount - onSaturdays)].sort((a, b) => a - b).map((time) => new Date(time));
 }
 
 /**

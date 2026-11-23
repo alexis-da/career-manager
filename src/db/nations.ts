@@ -68,6 +68,15 @@ export function seasonHasBreaks(breaksFrom: number | null, startYear: number): b
 }
 
 /**
+ * Whether the season starting in startYear of a save has the winter break, its leagues of Spain, Italy, Germany and France
+ * (hasWinterBreak) stopping from 21 December to 3 January: from Save.winterBreakFrom, its first season with breaks, or the
+ * next season of a save from before it. A season with it always has its breaks.
+ */
+export function seasonHasWinterBreak(winterBreakFrom: number | null, startYear: number): boolean {
+  return winterBreakFrom !== null && startYear >= winterBreakFrom;
+}
+
+/**
  * Whether a save has national teams from its next season: a worldVersion 2 save, never a challenge's, while the game
  * gives them (NATIONS_ENABLED), or one that already has them.
  */

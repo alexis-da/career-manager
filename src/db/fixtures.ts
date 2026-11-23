@@ -18,6 +18,9 @@ export type SeasonFixturesInput = {
   competitionCode: string;
   startYear: number;
   withBreaks: boolean; // a season with international breaks (worldVersion 2 only): matchdayDates without their Saturdays
+  // This league stops for the winter break (with withBreaks only): a league of Spain, Italy, Germany or France
+  // (hasWinterBreak) in a season from Save.winterBreakFrom on. matchdayDates without its dates from 21 December to 3 January.
+  winterBreak: boolean;
   clubs: readonly SeasonClub[];
 };
 
@@ -27,7 +30,8 @@ const bySlug = (a: SeasonClub, b: SeasonClub): number => (a.slug < b.slug ? -1 :
  * Fixture rows of a new season: a seeded double round-robin between the clubs. Clubs are sorted by slug first, so their
  * order in the input never matters. A worldVersion 1 save keeps the calendar it always had: generateSchedule, one
  * matchday a week from the third Saturday of August. A worldVersion 2 save gets generateBalancedSchedule, never more than
- * two matches in a row at home or away, its matchdays placed by matchdayDates so that every competition ends the same day.
+ * two matches in a row at home or away, its matchdays placed by matchdayDates so that every competition ends the same day,
+ * around the international breaks and, for a league that has it, the winter break: the same matches, on other dates.
  */
 export function seasonFixtures(input: SeasonFixturesInput): Prisma.FixtureCreateManyInput[] {
   const clubs = [...input.clubs].sort(bySlug);
@@ -38,7 +42,8 @@ export function seasonFixtures(input: SeasonFixturesInput): Prisma.FixtureCreate
     firstMatchdayDate(input.startYear),
     makeRng(scheduleRngSeed(input.saveSeed, input.competitionCode, input.startYear)),
   );
-  const dates = input.worldVersion === 1 ? null : matchdayDates(2 * (clubs.length - 1), input.startYear, input.withBreaks);
+  const dates =
+    input.worldVersion === 1 ? null : matchdayDates(2 * (clubs.length - 1), input.startYear, input.withBreaks, input.winterBreak);
   return schedule.map((match) => ({
     saveId: input.saveId,
     seasonId: input.seasonId,

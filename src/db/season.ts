@@ -2,6 +2,7 @@ import { CONDITION_NEUTRAL, FULL_FITNESS } from "../engine/balance";
 import { marketValueFor } from "../engine/economy";
 import type { PlayerAttributes } from "../engine/generation";
 import { progressionRngSeed, progressPlayer, willRetire } from "../engine/progression";
+import { hasWinterBreak } from "../engine/schedule";
 import { seasonEndDate, seasonStartDate } from "../engine/world";
 import { worldVersionOf } from "../engine/world-version";
 import { Prisma } from "../generated/prisma/client";
@@ -16,7 +17,7 @@ import { cupEntrantsOf, openCups } from "./cup";
 import { cupWinnersOf, europeQualifiersOf, europeReputationBonuses, openEurope } from "./europe";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
-import { cyclesFromFor, nationsFor, openNations, playInternationalBreak, playSummerTournament, seasonHasBreaks, type TournamentSummary } from "./nations";
+import { cyclesFromFor, nationsFor, openNations, playInternationalBreak, playSummerTournament, seasonHasBreaks, seasonHasWinterBreak, type TournamentSummary } from "./nations";
 import { runPreseasonInTransaction, type PreseasonOptions, type PreseasonSummary } from "./preseason";
 import { closeSeasonObjectives, openSeasonObjectives } from "./objectives";
 import { applySeasonMoves, readFinalTables, seasonMovesOf } from "./promotion";
@@ -65,7 +66,8 @@ export class SeasonNotFinishedError extends Error {
  * game's rule.
  */
 // europe: false, nations: false: a measure's save without them, to compare (scripts/measure-career-weight.ts).
-export type SeasonTransitionOptions = PreseasonOptions & { europe?: false; nations?: false };
+// winterBreak: false: a save without the winter break does not get it at this transition (a test's save from before it).
+export type SeasonTransitionOptions = PreseasonOptions & { europe?: false; nations?: false; winterBreak?: false };
 
 type PlayerUpdate = PlayerAttributes & {
   playerSaveId: string;
@@ -86,7 +88,7 @@ type PlayerUpdate = PlayerAttributes & {
  * moving clubs change competition, every club's reputation follows its final place against its expected rank and every
  * club gets its finances for the new season, its dotation (from its objectives for the managed club, which alone keeps
  * half of its unspent budget) and its wage budget from its payroll at the end of the season
- * (src/db/season-finances.ts), the save moves to 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created, with the managed club's dotation
+ * (src/db/season-finances.ts), the save moves to 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created (around the international breaks and, from Save.winterBreakFrom, the winter break of the leagues that have it), with the managed club's dotation
  * (SeasonBudget), the cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables (when the
  * save already had cups, or the game gives them: CUPS_ENABLED), its European competitions and their league phases, from
  * the final tables and the cups' winners (when the save already had them, or the game gives them: EUROPE_ENABLED; never
@@ -103,7 +105,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       await assertNoMatchInProgress(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({
         where: { id: saveId },
-        select: { seed: true, worldVersion: true, challengeId: true, breaksFrom: true, cyclesFrom: true, currentDate: true },
+        select: { seed: true, worldVersion: true, challengeId: true, breaksFrom: true, cyclesFrom: true, winterBreakFrom: true, currentDate: true },
       });
       const seasons = await tx.season.findMany({
         where: { saveId, completed: false },
@@ -157,10 +159,14 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       const breaksFrom = options.nations !== false && nationsFor(save) ? (save.breaksFrom ?? startYear) : save.breaksFrom;
       // Its cycles of qualifiers and summer tournaments with its breaks, from its next season for a save from before them.
       const cyclesFrom = cyclesFromFor(save, breaksFrom, startYear);
-      if (breaksFrom !== save.breaksFrom || cyclesFrom !== save.cyclesFrom) {
-        await tx.save.update({ where: { id: saveId }, data: { breaksFrom, cyclesFrom } });
-      }
       const withBreaks = seasonHasBreaks(breaksFrom, startYear);
+      // The winter break of its leagues of Spain, Italy, Germany and France with its breaks, from its next season for a
+      // save from before it: the season it closes kept its dates.
+      const winterBreakFrom = options.winterBreak !== false && withBreaks ? (save.winterBreakFrom ?? startYear) : save.winterBreakFrom;
+      if (breaksFrom !== save.breaksFrom || cyclesFrom !== save.cyclesFrom || winterBreakFrom !== save.winterBreakFrom) {
+        await tx.save.update({ where: { id: saveId }, data: { breaksFrom, cyclesFrom, winterBreakFrom } });
+      }
+      const withWinterBreak = seasonHasWinterBreak(winterBreakFrom, startYear);
       const lastContractDay = seasonEndDate(completedStartYear);
 
       // Every club's payroll at the end of the season, before any player retires or leaves: its next wage budget's base.
@@ -299,20 +305,22 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       }
       await recordDotation(tx, saveId, managedSeason.id, dotation);
 
-      const fixtures = nextSeasons.flatMap((season) =>
-        seasonFixtures({
+      const fixtures = nextSeasons.flatMap((season) => {
+        const competitionCode = getOrThrow(codeByCompetition, season.competitionId, "competition code");
+        return seasonFixtures({
           saveId,
           saveSeed: save.seed,
           worldVersion,
           seasonId: season.id,
-          competitionCode: getOrThrow(codeByCompetition, season.competitionId, "competition code"),
+          competitionCode,
           startYear,
           withBreaks,
+          winterBreak: withWinterBreak && hasWinterBreak(competitionCode),
           clubs: clubSaves
             .filter((clubSave) => clubSave.competitionId === season.competitionId)
             .map((clubSave) => ({ slug: clubSave.club.slug, clubSaveId: clubSave.id })),
-        }),
-      );
+        });
+      });
       await tx.fixture.createMany({ data: fixtures });
       // The cups of a worldVersion 2 save that had them, or of any once the game gives them (its saves from before the
       // cups included): the final tables rank the entrants.

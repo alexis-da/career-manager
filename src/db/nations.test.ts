@@ -1,15 +1,15 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { breakWindows } from "../engine/schedule";
+import { breakWindows, hasWinterBreak, matchdayDates, winterBreakDates } from "../engine/schedule";
 import { WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 
 const DAY = (date: Date): string => date.toISOString().slice(0, 10);
 
 // The national teams of a new worldVersion 2 save (docs/design/selections.md, N1 and N2), on a throwaway twin of the demo
-// save: its nations and the friendlies of its breaks from its first season, a break played as one step of its own, what
-// the screens read of it; none in a worldVersion 1 save. Runs against DATABASE_URL and is skipped without it; modules are
-// imported lazily because the client throws without it.
+// save: its nations and the friendlies of its breaks from its first season, the winter break of its leagues with them, a
+// break played as one step of its own, what the screens read of it; none in a worldVersion 1 save. Runs against
+// DATABASE_URL and is skipped without it; modules are imported lazily because the client throws without it.
 describe.skipIf(process.env.DATABASE_URL === undefined)("the national teams of a save", () => {
   let db: typeof prismaClient | undefined;
   let modules:
@@ -94,9 +94,30 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the national teams of a
     expect(clubDates.map(({ scheduledAt }) => DAY(scheduledAt)).filter((day) => breakDays.includes(day))).toEqual([]);
   });
 
+  it("stops the leagues of Spain, Italy, Germany and France from 21 December to 3 January from the first season, England's playing on", async () => {
+    const save = await database().save.findUniqueOrThrow({ where: { id: saveId }, select: { winterBreakFrom: true } });
+    expect(save.winterBreakFrom).toBe(WORLD_START_YEAR);
+    const { from, to } = winterBreakDates(WORLD_START_YEAR);
+    const seasons = await database().season.findMany({
+      where: { saveId, startYear: WORLD_START_YEAR, competition: { kind: "LEAGUE" } },
+      select: { id: true, competition: { select: { code: true } } },
+    });
+    expect(seasons).toHaveLength(10);
+    for (const { id: seasonId, competition: { code } } of seasons) {
+      const matchdays = await database().fixture.groupBy({ by: ["round", "scheduledAt"], where: { saveId, seasonId }, orderBy: { scheduledAt: "asc" } });
+      const days = matchdays.map(({ scheduledAt }) => DAY(scheduledAt));
+      // A date a matchday, where the calendar with breaks puts it, without the holidays for a league that stops.
+      const rounds = new Set(matchdays.map(({ round }) => round)).size;
+      expect(days, code).toEqual(matchdayDates(rounds, WORLD_START_YEAR, true, hasWinterBreak(code)).map(DAY));
+      expect(days.some((day) => day >= DAY(from) && day <= DAY(to)), code).toBe(!hasWinterBreak(code));
+    }
+  });
+
   it("gives a worldVersion 1 save no national team", async () => {
-    const save = await database().save.findUniqueOrThrow({ where: { id: worldOneId }, select: { breaksFrom: true } });
+    const save = await database().save.findUniqueOrThrow({ where: { id: worldOneId }, select: { breaksFrom: true, winterBreakFrom: true } });
     expect(save.breaksFrom).toBeNull();
+    // Nor the winter break, which goes with the breaks.
+    expect(save.winterBreakFrom).toBeNull();
     expect(await database().nationSave.count({ where: { saveId: worldOneId } })).toBe(0);
     expect(await database().internationalMatch.count({ where: { saveId: worldOneId } })).toBe(0);
     expect(await loaded().view.getManagedBreak(worldOneId)).toBeNull();

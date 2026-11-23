@@ -372,6 +372,7 @@ model Save {
   nationFriendlies     Boolean              @default(true) // « L'adjoint joue les amicaux » : les matchs amicaux de sa sélection, joués par l'adjoint sans arrêt
   liveInternationalId  String? // le match de sa sélection en suspens (N4b) ; sans clé étrangère, comme liveFixtureId
   cyclesFrom           Int? // première saison du premier cycle d'éliminatoires (deux saisons, puis un tournoi d'été) : la première saison avec trêves d'une partie créée depuis, ou la suivante d'une partie d'avant ; null sans sélections
+  winterBreakFrom      Int? // première saison avec trêve hivernale (championnats d'Espagne, d'Italie, d'Allemagne et de France sans match du 21 décembre au 3 janvier, l'Angleterre jouant) : la première saison avec trêves d'une partie créée depuis, ou la suivante d'une partie d'avant ; null pour une partie 1, une partie du défi, ou une partie d'avant jusqu'à sa saison suivante
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   clubSaves            ClubSave[]
