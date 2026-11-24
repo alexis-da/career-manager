@@ -1,9 +1,12 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS, REGULATION_MINUTES } from "../engine/balance";
+import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS, REGULATION_MINUTES, YOUTH_OBJECTIVE_STARTS } from "../engine/balance";
 import { fitnessAfter } from "../engine/fitness";
+import { formationPositions } from "../engine/formations";
+import { selectRestedLineup, type YouthStarter } from "../engine/lineup";
 import { firstMatchdayDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
+import type { ManagedLineup } from "./lineup";
 import type { MatchdaySummary } from "./matchday";
 import type { getStandings as getStandingsFunction } from "./standings";
 
@@ -85,14 +88,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
     expect([unplayedThatDay, playedElsewhere]).toEqual([0, 0]);
   });
 
-  it("plays the managed club's saved lineup", async () => {
+  it("plays the managed club's saved lineup: saving it took the line-up from the assistant", async () => {
     const stats = await database().playerSeasonStats.findFirst({
       where: { saveId, playerSave: { playerKey: pickedKey } },
       select: { appearances: true, minutes: true },
     });
+    const save = await database().save.findUniqueOrThrow({ where: { id: saveId }, select: { lineupByAssistant: true } });
 
     expect(stats?.appearances).toBe(1);
     expect(stats?.minutes).toBeGreaterThan(0);
+    expect(save.lineupByAssistant).toBe(false);
   });
 
   it("records each goal, an event of the managed club's match or in another fixture's goal times, and counts them in the season stats", async () => {
@@ -241,4 +246,173 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, first
     expect(rewritten.filter((row) => row.values === before.get(row.id)?.values).map((row) => row.id)).toEqual([]);
     expect(rewritten.length).toBeLessThan(after.length / 2);
   }, 120_000);
+});
+
+// The managed club's eleven made by its assistant (docs/design/simplification.md § 3), a new career's way, on a twin of
+// the demo save whose first match comes the next day: its formation and starting instruction picked without taking the
+// line-up, its best goalkeeper tired, the Jeunesse objective chosen and a young player one point below a starter at his
+// position, the only one young enough.
+describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, the assistant's eleven", () => {
+  let db: typeof prismaClient | undefined;
+  let lineups: typeof import("./lineup") | undefined;
+  let saveId = "";
+  let managed = { id: "", seasonId: "" };
+  let fielded: ManagedLineup | undefined; // getManagedLineup before the match
+  let youth: YouthStarter | null | undefined; // the line-up editor's, before the match
+  let summary: MatchdaySummary | null = null;
+  let tiredKeeper = "";
+  let young = ""; // the young player's key
+  let replaced = ""; // the starter at his position he is one point below
+
+  const database = (): typeof prismaClient => {
+    if (db === undefined) {
+      throw new Error("Database client not initialised");
+    }
+    return db;
+  };
+  const loaded = (): typeof import("./lineup") => {
+    if (lineups === undefined) {
+      throw new Error("Modules not loaded");
+    }
+    return lineups;
+  };
+
+  beforeAll(async () => {
+    const [{ prisma }, support, { playNextMatchday }, lineupModule] = await Promise.all([
+      import("./client"),
+      import("./test-support"),
+      import("./matchday"),
+      import("./lineup"),
+    ]);
+    db = prisma;
+    lineups = lineupModule;
+    saveId = await support.createDemoTwin("Test onze de l'adjoint");
+    // One day of rest before the match: a tired player is still tired at its kick-off.
+    await prisma.save.update({ where: { id: saveId }, data: { currentDate: new Date(Date.UTC(WORLD_START_YEAR, 7, 14)) } });
+    const club = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true, competitionId: true } });
+    const season = await prisma.season.findFirstOrThrow({
+      where: { saveId, competitionId: club.competitionId, startYear: WORLD_START_YEAR },
+      select: { id: true },
+    });
+    managed = { id: club.id, seasonId: season.id };
+    await lineupModule.saveLineupPlan(saveId, { formation: "4-4-2", instruction: "ATTACK" });
+
+    // Its best goalkeeper at 60, 65 at kick-off: the assistant rests him for the next one.
+    const [keeper] = await prisma.playerSave.findMany({
+      where: { saveId, clubSaveId: club.id, position: "GK" },
+      orderBy: [{ overall: "desc" }, { playerKey: "asc" }],
+      take: 1,
+      select: { id: true, playerKey: true },
+    });
+    tiredKeeper = keeper.playerKey;
+    await prisma.playerSave.update({ where: { id: keeper.id }, data: { fitness: 60 } });
+
+    // The Jeunesse objective, the season's chosen one.
+    await prisma.seasonObjective.updateMany({ where: { saveId, seasonId: season.id, imposed: false }, data: { chosen: false } });
+    await prisma.seasonObjective.upsert({
+      where: { seasonId_kind: { seasonId: season.id, kind: "YOUTH" } },
+      create: { saveId, seasonId: season.id, kind: "YOUTH", imposed: false, chosen: true, target: YOUTH_OBJECTIVE_STARTS },
+      update: { chosen: true },
+    });
+
+    // A reserve of a position the rested eleven plays, one point below its weakest starter there, the only player of the
+    // squad young enough: the club's best young player, for the assistant.
+    const { players } = await lineupModule.getLineupEditor(saveId);
+    const rested = selectRestedLineup(players, formationPositions("4-4-2"));
+    const starting = new Set(rested.starters.map(({ player }) => player.id));
+    const pick = [...rested.starters]
+      .filter(({ player, slot }) => player.position === slot && slot !== "GK")
+      .sort((a, b) => a.player.overall - b.player.overall || (a.player.id < b.player.id ? -1 : 1))
+      .map(({ player }) => ({ starter: player, reserve: players.find((other) => !starting.has(other.id) && other.position === player.position) }))
+      .find(({ reserve }) => reserve !== undefined);
+    if (pick?.reserve === undefined) {
+      throw new Error("No reserve at a position of the eleven");
+    }
+    young = pick.reserve.id;
+    replaced = pick.starter.id;
+    await prisma.playerSave.updateMany({
+      where: { saveId, clubSaveId: club.id, playerKey: { not: young } },
+      data: { birthDate: new Date(Date.UTC(1995, 0, 1)) },
+    });
+    await prisma.playerSave.updateMany({
+      where: { saveId, clubSaveId: club.id, playerKey: young },
+      data: { birthDate: new Date(Date.UTC(2007, 0, 1)), overall: pick.starter.overall - 1 },
+    });
+
+    const editor = await lineupModule.getLineupEditor(saveId);
+    youth = editor.youth;
+    fielded = await lineupModule.getManagedLineup(saveId);
+    summary = await playNextMatchday(saveId);
+  }, 120_000);
+
+  afterAll(async () => {
+    if (saveId !== "") {
+      await db?.save.delete({ where: { id: saveId } });
+    }
+    await db?.$disconnect();
+  }, 60_000);
+
+  it("keeps the line-up the assistant's when its formation and starting instruction are picked", async () => {
+    const [save, club] = await Promise.all([
+      database().save.findUniqueOrThrow({ where: { id: saveId }, select: { lineupByAssistant: true } }),
+      database().clubSave.findFirstOrThrow({ where: { id: managed.id, saveId }, select: { formation: true, lineup: true } }),
+    ]);
+
+    expect(save.lineupByAssistant).toBe(true);
+    expect(club).toEqual({ formation: "4-4-2", lineup: { starters: [], benchOrder: [], instruction: "ATTACK" } });
+  });
+
+  it("shows on the screens the very eleven the match plays: the tired goalkeeper rested, the young player in", async () => {
+    const stats = await database().playerSeasonStats.findMany({
+      where: { saveId, seasonId: managed.seasonId, starts: 1, playerSave: { clubSaveId: managed.id } },
+      select: { playerSave: { select: { playerKey: true } } },
+    });
+    const starters = fielded?.lineup.starters.map(({ player }) => player.id) ?? [];
+
+    expect(youth).toEqual({ id: young, leagueStarts: 0 });
+    expect(fielded).toMatchObject({ formation: "4-4-2", byAssistant: true, missingStarters: [] });
+    expect(fielded?.lineup.instruction).toBe("ATTACK");
+    expect(starters).toHaveLength(11);
+    expect(starters).toContain(young);
+    expect(starters).not.toContain(replaced);
+    expect(starters).not.toContain(tiredKeeper);
+    expect(stats.map(({ playerSave }) => playerSave.playerKey).sort()).toEqual([...starters].sort());
+    // His own eleven: nobody picked in place of a saved starter.
+    expect(summary?.managed?.autoFilledSlots).toBe(0);
+  });
+
+  it("starts the match with the starting instruction picked", async () => {
+    const { instructionsOf } = await import("./calendar");
+    const fixture = await database().fixture.findFirstOrThrow({
+      where: { saveId, played: true, OR: [{ homeClubSaveId: managed.id }, { awayClubSaveId: managed.id }] },
+      select: { instructions: true },
+    });
+
+    expect(instructionsOf(fixture.instructions)[0]).toEqual({ from: 0, instruction: "ATTACK", source: "START" });
+  });
+
+  it("starts the young player until his 15th league start, and for the Jeunesse objective only", async () => {
+    const { getLineupEditor, getManagedLineup } = loaded();
+    const db = database();
+    const row = await db.playerSeasonStats.findFirstOrThrow({
+      where: { saveId, seasonId: managed.seasonId, playerSave: { clubSaveId: managed.id, playerKey: young } },
+      select: { id: true, starts: true },
+    });
+    expect(row.starts).toBe(1);
+    expect((await getLineupEditor(saveId)).youth).toEqual({ id: young, leagueStarts: 1 });
+
+    await db.playerSeasonStats.update({ where: { id: row.id }, data: { starts: YOUTH_OBJECTIVE_STARTS } });
+    expect((await getLineupEditor(saveId)).youth).toEqual({ id: young, leagueStarts: YOUTH_OBJECTIVE_STARTS });
+    const done = await getManagedLineup(saveId);
+    expect(done.lineup.starters.map(({ player }) => player.id)).not.toContain(young);
+
+    // Another objective the season's: no Jeunesse.
+    await db.seasonObjective.updateMany({ where: { saveId, seasonId: managed.seasonId, kind: "YOUTH" }, data: { chosen: false } });
+    await db.seasonObjective.upsert({
+      where: { seasonId_kind: { seasonId: managed.seasonId, kind: "SOLIDITY" } },
+      create: { saveId, seasonId: managed.seasonId, kind: "SOLIDITY", imposed: false, chosen: true, target: 40 },
+      update: { chosen: true },
+    });
+    expect((await getLineupEditor(saveId)).youth).toBeNull();
+  });
 });

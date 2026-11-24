@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { SaveIcon, SparklesIcon } from "lucide-react";
+import { SaveIcon, SparklesIcon, Undo2Icon } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PlayerFace } from "@/src/components/player-face";
@@ -26,13 +26,15 @@ import { PointerText } from "../../_components/pointer-text";
 import { PositionBadge, PositionBadges } from "../../_components/position-badge";
 import type { ActionResult } from "../../_lib/action-result";
 import { fitnessFigure } from "../../_lib/fitness";
-import { saveLineupAction } from "../actions";
+import { setAssistantSettingAction } from "../../club/actions";
+import { saveLineupAction, saveLineupPlanAction } from "../actions";
 import { slotCandidates } from "../_lib/candidates";
 import {
   automaticState,
   moveToBenchFront,
   pinnedSheetKey,
   placeInSlot,
+  restedOf,
   sendSlotToBench,
   swapSlots,
   type EditorState,
@@ -62,22 +64,32 @@ function startersOf(lineup: Lineup<ClubLineupPlayer>): (string | null)[] {
 }
 
 /**
- * The eleven shown while no lineup is saved, the one the match then plays: the best available at each slot (a club's:
- * resolveLineup without a saved lineup, selectLineup), or the assistant's, his tired players rested where a rested one is
- * hardly worse (a nation's: its coach's match plays chooseFormation's eleven, in the formation the editor opens on).
+ * The eleven shown while no lineup is saved, the one the match then plays: the best available at each slot (a club's
+ * player's: resolveLineup without a saved lineup, selectLineup), or the assistant's, his tired players rested where a
+ * rested one is hardly worse (a nation's: its coach's match plays chooseFormation's eleven, in the formation the editor
+ * opens on).
  */
 export type UnsavedEleven = "best" | "assistant";
 
-/** What the match will play, except that saved starters now injured or suspended stay in their slot, shown in red. */
-function initialState(
-  formation: FormationName,
-  saved: SavedLineup | null,
-  players: readonly ClubLineupPlayer[],
-  instruction: Instruction,
-  unsaved: UnsavedEleven,
-): EditorState {
-  if (saved === null && unsaved === "assistant") {
-    return automaticState({ formation, starters: [], bench: [], instruction }, formation, players);
+/**
+ * Who makes a club's line-up (docs/design/simplification.md § 3): its assistant, whose eleven the editor opens on and the
+ * formation and the instruction only shape until a gesture on a player, or its player, whose saved line-up it opens on.
+ * A nation's editor has neither (LineupEditor.byAssistant absent): its coach's own line-up, saved or his assistant's.
+ */
+type LineupMode = "assistant" | "player" | null;
+
+const modeOf = (editor: LineupEditorView): LineupMode =>
+  editor.byAssistant === undefined ? null : editor.byAssistant ? "assistant" : "player";
+
+/**
+ * What the match will play: the assistant's eleven of the next match when he makes the line-up (automaticState, the
+ * Jeunesse objective's young player with it); otherwise the saved line-up, except that saved starters now injured or
+ * suspended stay in their slot, shown in red.
+ */
+function initialState(editor: LineupEditorView, unsaved: UnsavedEleven): EditorState {
+  const { formation, saved, players, instruction } = editor;
+  if (modeOf(editor) === "assistant" || (saved === null && unsaved === "assistant")) {
+    return automaticState({ formation, starters: [], bench: [], instruction }, formation, players, editor.youth ?? null);
   }
   const resolved = resolveLineup(formation, saved, players);
   const starters = startersOf(resolved);
@@ -115,6 +127,9 @@ function applyDrop(state: EditorState, source: DragSource, target: DropTarget): 
 /** The Server Action « Enregistrer » calls: the club's lineup (saveLineupAction), or his nation's for a national coach. */
 export type SaveLineupAction = (saveId: string, input: { formation: FormationName; lineup: SavedLineup }) => Promise<ActionResult>;
 
+/** The Server Action a club's formation or starting instruction calls while its assistant makes the line-up. */
+export type SaveLineupPlanAction = (saveId: string, input: { formation: FormationName; instruction: Instruction }) => Promise<ActionResult>;
+
 /** The words of the editor a nation's coach reads in place of the club's, the page's in its language. */
 export type LineupScreenTexts = {
   selectHint: { touch: string; click: string }; // under the squad's title, no slot selected: what a line does
@@ -130,6 +145,7 @@ type LineupScreenProps = {
   opponent: PanelOpponent | null; // the next match's, his likely eleven's strength: the page's, the same object across renders
   care?: ShopShortcuts["care"]; // express care in the shop, for the sheet of an injured player
   saveAction?: SaveLineupAction; // the club's by default
+  planAction?: SaveLineupPlanAction; // the club's by default, while its assistant makes the line-up
   unsaved?: UnsavedEleven; // the club's by default: the best available at each slot
   texts?: LineupScreenTexts; // the club's by default, the lineup messages'
 };
@@ -138,9 +154,18 @@ type LineupScreenProps = {
 export function LineupScreen(props: LineupScreenProps) {
   const { editor } = props;
   const [chosen, setChosen] = useState<string | null>(null);
-  // A new key after each save, and after a sale or a release (a new list of 23 for a nation): the editor starts again from
-  // what is now saved, with no key left of a player gone.
-  const key = `${editor.formation}:${JSON.stringify(editor.saved)}:${editor.players.map((player) => player.id).join()}`;
+  // A new key after each save, after a sale or a release (a new list of 23 for a nation), and whenever the eleven the
+  // assistant would field may change: who makes the line-up, the next match, a player's fitness, injury or suspension,
+  // the Jeunesse objective's young player. The editor starts again from what now holds, with no key left of a player gone.
+  const squadKey = editor.players.map((player) => `${player.id}/${player.fitness}/${Number(player.injured)}/${Number(player.suspended)}`).join();
+  const key = [
+    editor.byAssistant,
+    editor.formation,
+    JSON.stringify(editor.saved),
+    JSON.stringify(editor.youth ?? null),
+    editor.matchDate.getTime(),
+    squadKey,
+  ].join(":");
   return <LineupEditor key={key} {...props} chosen={chosen} onChoose={setChosen} />;
 }
 
@@ -156,6 +181,11 @@ type LineupEditorProps = LineupScreenProps & {
  * screen's players (a club's), a line of the squad clicked with no slot selected shows the player's sheet instead, with
  * the actions of the squad screen: over the page under xl, in the third column from there, which also follows the
  * selected slot and is never empty. A nation's editor has no sheet, nor that third column.
+ *
+ * A club's line-up (docs/design/simplification.md § 3.2, 3.3): while its assistant makes it, the editor shows his eleven
+ * of the next match, and a formation or a starting instruction picked is saved at once, his still; a gesture on a player
+ * makes a draft of the player's own, which « Enregistrer » saves, taking the line-up from him, and « Annuler » drops.
+ * The player's own saved line-up can be handed back to the assistant (« Rendre la main à l'adjoint »).
  */
 function LineupEditor({
   saveId,
@@ -164,16 +194,21 @@ function LineupEditor({
   opponent,
   care = null,
   saveAction = saveLineupAction,
+  planAction = saveLineupPlanAction,
   unsaved = "best",
   texts,
   chosen,
   onChoose,
 }: LineupEditorProps) {
-  const { formation, saved, clubColors, players } = editor;
+  const { saved, clubColors, players } = editor;
   const t = useTranslations("lineup");
   const tPlayer = useTranslations("player");
-  const [initial] = useState(() => initialState(formation, saved, players, editor.instruction, unsaved));
-  const [state, setState] = useState(initial);
+  const mode = modeOf(editor);
+  const youth = editor.youth ?? null;
+  // What the editor started from, the assistant's eleven or the saved line-up: what « Annuler » goes back to, and what a
+  // formation or an instruction saved at once moves on.
+  const [base, setBase] = useState(() => initialState(editor, unsaved));
+  const [state, setState] = useState(base);
   const [selected, setSelected] = useState<number | null>(null);
   const [candidatesSlot, setCandidatesSlot] = useState<number | null>(null); // the last selected: the sheet's, as it closes
   const [sheetOpen, setSheetOpen] = useState(false); // under xl: over the page, until it is closed
@@ -205,7 +240,9 @@ function LineupEditor({
   const byKey = new Map(players.map((player) => [player.id, player]));
   const slots = FORMATIONS[state.formation];
   const selectedPosition: Position | null = selected === null ? null : slots[selected].position;
-  const dirty = !sameState(state, initial);
+  const dirty = !sameState(state, base);
+  // The assistant's eleven as he fields it, no gesture made on a player: its formation and instruction are saved at once.
+  const assistantView = mode === "assistant" && !dirty;
   const dragged = drag === null ? null : (byKey.get(drag.source.key) ?? null);
 
   const clickSlot = (index: number): void => {
@@ -263,8 +300,37 @@ function LineupEditor({
     setSelected(null);
   };
 
+  /**
+   * While the assistant makes the line-up: his eleven in the formation and with the instruction picked, saved at once
+   * (planAction), shown before it is; put back as it was when the save is refused.
+   */
+  const savePlan = (next: EditorState): void => {
+    const before = base;
+    setBase(next);
+    setState(next);
+    setSelected(null);
+    startTransition(async () => {
+      try {
+        const result = await planAction(saveId, { formation: next.formation, instruction: next.instruction });
+        if (result.ok) {
+          toast.success(result.message);
+          return;
+        }
+        toast.error(result.message);
+      } catch {
+        toast.error(t("saveFailed"));
+      }
+      setBase(before);
+      setState(before);
+    });
+  };
+
   const switchFormation = (value: string): void => {
     if (!isFormationName(value) || value === state.formation) {
+      return;
+    }
+    if (assistantView) {
+      savePlan(automaticState(state, value, players, youth));
       return;
     }
     const starters = changeFormation(state.formation, value, state.starters, players);
@@ -278,14 +344,50 @@ function LineupEditor({
 
   /** A formation of the comparison, with the assistant's eleven in it: the one its row was worked out with. */
   const applyFormation = (value: FormationName): void => {
-    setState(automaticState(state, value, players));
+    const next = automaticState(state, value, players, youth);
+    if (assistantView) {
+      savePlan(next);
+      return;
+    }
+    setState(next);
     setSelected(null);
   };
 
-  /** The assistant's eleven in the formation: his rule rests the tired, and nobody plays injured or suspended. */
+  /** The starting instruction: saved at once while the assistant makes the line-up, else a change of the draft. */
+  const pickInstruction = (instruction: Instruction): void => {
+    if (assistantView) {
+      savePlan({ ...state, instruction });
+      return;
+    }
+    setState({ ...state, instruction });
+  };
+
+  /** A nation's « Composition automatique »: the assistant's eleven in the formation, the tired rested, nobody out. */
   const automatic = (): void => {
-    setState(automaticState(state, state.formation, players));
+    setState(automaticState(state, state.formation, players, youth));
     setSelected(null);
+  };
+
+  /** « Annuler »: back to what the editor started from, the assistant's eleven or the saved line-up. */
+  const cancel = (): void => {
+    setState(base);
+    setSelected(null);
+  };
+
+  /** « Rendre la main à l'adjoint »: his eleven before each match again, the saved line-up kept, unread. */
+  const handBack = (): void => {
+    startTransition(async () => {
+      try {
+        const result = await setAssistantSettingAction(saveId, "lineup", true);
+        if (result.ok) {
+          toast.success(result.message);
+        } else {
+          toast.error(result.message);
+        }
+      } catch {
+        toast.error(t("saveFailed"));
+      }
+    });
   };
 
   /** Fills only the empty slots, keeping every player already placed. */
@@ -362,8 +464,45 @@ function LineupEditor({
       />
     );
 
+  // The tired players the assistant's eleven rests: his card names them.
+  const rested = mode === "assistant" ? restedOf(players, base.formation, base.starters) : [];
+  const saveButton = (
+    // The screen's only orange: filled when there is something to save.
+    <Button
+      variant={dirty ? "club" : "outline"}
+      className="h-9 px-4 font-heading text-base font-semibold"
+      disabled={pending || !dirty}
+      onClick={save}
+      data-testid="lineup-save"
+    >
+      <SaveIcon data-icon="inline-start" />
+      {pending ? t("saving") : t("save")}
+    </Button>
+  );
+
   return (
     <div className="space-y-4">
+      {/* The assistant's way (docs/design/simplification.md § 6.3): what he does before each match, whom he rests now, and
+          how to make one's own eleven. The same card all along, a draft made or not: nothing moves under a gesture. */}
+      {mode === "assistant" && (
+        <Panel data-testid="lineup-assistant" className="space-y-1.5 p-4 sm:p-5">
+          <PanelTitle>{t("assistant.title")}</PanelTitle>
+          <p className="text-sm">{t("assistant.about")}</p>
+          {rested.length > 0 && (
+            <p data-testid="lineup-rested" className="text-sm text-muted-foreground">
+              {t("assistant.rested", {
+                players: rested
+                  .map((player) => t("assistant.restedPlayer", { name: player.lastName, fitness: fitnessFigure(player.fitness) }))
+                  .join(", "),
+              })}
+            </p>
+          )}
+          <p className="text-[0.8125rem] leading-snug text-muted-foreground">
+            <PointerText touch={t("assistant.hint.touch")} click={t("assistant.hint.click")} />
+          </p>
+        </Panel>
+      )}
+
       {/* Two rows on a phone, with the label left to the screen readers; the same two groups in one row when they fit. */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-2 max-sm:w-full">
@@ -377,41 +516,63 @@ function LineupEditor({
             about={texts?.pickerAbout}
             onPick={switchFormation}
           />
-          {/* Half the row on a phone, beside the formation: its label goes on two lines there rather than out of it. */}
-          <Button
-            variant="outline"
-            onClick={automatic}
-            className="max-sm:h-auto max-sm:flex-1 max-sm:text-center max-sm:leading-tight max-sm:text-balance max-sm:whitespace-normal"
-            data-testid="lineup-automatic"
-          >
-            <SparklesIcon data-icon="inline-start" />
-            {t("automatic")}
-          </Button>
+          {/* A nation's: half the row on a phone, beside the formation, its label on two lines there rather than out of it.
+              A club's assistant makes its eleven himself, before each match: no such button. */}
+          {mode === null && (
+            <Button
+              variant="outline"
+              onClick={automatic}
+              className="max-sm:h-auto max-sm:flex-1 max-sm:text-center max-sm:leading-tight max-sm:text-balance max-sm:whitespace-normal"
+              data-testid="lineup-automatic"
+            >
+              <SparklesIcon data-icon="inline-start" />
+              {t("automatic")}
+            </Button>
+          )}
         </div>
-        <div className="flex items-center gap-3 max-sm:w-full max-sm:justify-between">
-          {/* Never saved, the eleven shown is the one the match plays without a saved lineup: a club's picked
-              automatically, the best available at each slot (resolveLineup without one: selectLineup), not quite the
-              assistant's, « Composition automatique », who also rests the tired (selectRestedLineup): the same until one
-              tires. A nation's is the assistant's (unsaved: "assistant"). */}
-          <p role="status" className="text-sm" data-testid="lineup-status">
+        {mode === null ? (
+          <div className="flex items-center gap-3 max-sm:w-full max-sm:justify-between">
+            {/* A nation's: never saved, the eleven shown is the assistant's, the one his match plays (unsaved: "assistant"). */}
+            <p role="status" className="text-sm" data-testid="lineup-status">
+              {dirty ? (
+                <span className="text-warning">{t("unsaved")}</span>
+              ) : (
+                <span className="text-muted-foreground">{saved === null ? t("notSaved") : t("saved")}</span>
+              )}
+            </p>
+            {saveButton}
+          </div>
+        ) : (
+          // A club's: who makes the eleven, then « Enregistrer » and « Annuler » for a draft only, « Rendre la main à
+          // l'adjoint » for the player's own saved one. The status takes the row on a phone, the buttons the next.
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 max-sm:w-full">
+            <p role="status" className="text-sm max-sm:w-full" data-testid="lineup-status" data-mode={dirty ? "draft" : mode}>
+              {dirty ? (
+                <span className="text-warning">{t("status.draft")}</span>
+              ) : (
+                <span className="text-muted-foreground">
+                  {mode === "assistant" ? t("status.assistant") : saved === null || saved.starters.length === 0 ? t("notSaved") : t("status.saved")}
+                </span>
+              )}
+            </p>
             {dirty ? (
-              <span className="text-warning">{t("unsaved")}</span>
+              <>
+                {saveButton}
+                <Button variant="outline" className="h-9 px-4" disabled={pending} onClick={cancel} data-testid="lineup-cancel">
+                  <Undo2Icon data-icon="inline-start" />
+                  {t("cancel")}
+                </Button>
+              </>
             ) : (
-              <span className="text-muted-foreground">{saved === null ? t("notSaved") : t("saved")}</span>
+              mode === "player" && (
+                <Button variant="outline" className="h-9 px-4" disabled={pending} onClick={handBack} data-testid="lineup-hand-back">
+                  <SparklesIcon data-icon="inline-start" />
+                  {t("handBack")}
+                </Button>
+              )
             )}
-          </p>
-          {/* The screen's only orange: filled when there is something to save. */}
-          <Button
-            variant={dirty ? "club" : "outline"}
-            className="h-9 px-4 font-heading text-base font-semibold"
-            disabled={pending || !dirty}
-            onClick={save}
-            data-testid="lineup-save"
-          >
-            <SaveIcon data-icon="inline-start" />
-            {pending ? t("saving") : t("save")}
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
       {(emptySlots > 0 || startersOut.length > 0) && (
@@ -534,7 +695,7 @@ function LineupEditor({
         <div className="grid grid-cols-1 gap-4 lg:col-span-full lg:row-start-1 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <FormationPanel formation={state.formation} eleven={eleven} players={players} opponent={opponent} onApply={applyFormation} />
           <Panel className="p-4 sm:p-5">
-            <StartingInstruction value={state.instruction} onChange={(instruction) => setState({ ...state, instruction })} />
+            <StartingInstruction value={state.instruction} onChange={pickInstruction} />
           </Panel>
         </div>
 

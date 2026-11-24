@@ -39,6 +39,10 @@ const THUMB = 44;
 /** The formations the formation's sheet recommends for the squad, above the others it folds. */
 const RECOMMENDED = 3;
 
+/** The line-up's status, in French: the assistant's eleven, a new career's, then the player's own once saved. */
+const ASSISTANT_STATUS = "Onze de ton adjoint · il le refait avant chaque match";
+const PLAYER_STATUS = "Ton onze · enregistré. Ton adjoint ne remplace qu'un blessé ou un suspendu.";
+
 /** Written by no screen of the team: the sorts' arrows, the sheet's cross and the transfers' arrow are drawn, or words. */
 const GLYPHS = /[▲▼✕→]/u;
 
@@ -68,8 +72,8 @@ const PHONES = [
       form: /^Forme \d+$/,
       rating: "Note",
       substitute: /^Remplaçant 1 : /,
-      notSaved: "Onze automatique · pas encore enregistré",
-      unsaved: "Modifications non enregistrées",
+      assistant: "Onze de ton adjoint · il le refait avant chaque match",
+      unsaved: "Ton onze · modifications non enregistrées",
       showAll: "Voir tous les dispositifs · 14",
     },
   },
@@ -83,8 +87,8 @@ const PHONES = [
       form: /^Form \d+$/,
       rating: "Rating",
       substitute: /^Substitute 1: /,
-      notSaved: "Automatic eleven · not saved yet",
-      unsaved: "Unsaved changes",
+      assistant: "Your assistant's eleven · he picks it again before every match",
+      unsaved: "Your eleven · unsaved changes",
       showAll: "See all formations · 14",
     },
   },
@@ -384,15 +388,17 @@ for (const { name, locale, viewport, says } of PHONES) {
       // The bench stays in sight along the list; it holds at the top of the screen, and the navigation at its foot.
       expect(await pinnedToScreen(page)).toEqual(["save-nav", "lineup-bench"]);
 
-      // Nothing to save yet, and no orange: no line-up was ever saved, the match would play the automatic eleven shown.
+      // Nothing to save, and no orange: the assistant makes a new career's eleven, the one shown, the match's.
       const save = page.getByTestId("lineup-save");
       const status = page.getByTestId("lineup-status");
-      await expect(status).toHaveText(says.notSaved);
-      await expect(save).toBeDisabled();
+      await expect(status).toHaveText(says.assistant);
+      await expect(page.getByTestId("lineup-assistant")).toBeVisible();
+      await expect(save).toHaveCount(0);
+      await expect(page.getByTestId("lineup-automatic")).toHaveCount(0);
       await expectOrangeActions(page, []);
 
       const reserves = page.getByTestId("lineup-reserve");
-      for (const control of ["nav-squad", "nav-lineup", "view-opponent", "lineup-formation", "lineup-automatic", "lineup-save"]) {
+      for (const control of ["nav-squad", "nav-lineup", "view-opponent", "lineup-formation"]) {
         await expectThumbTarget(page.getByTestId(control));
       }
       for (const target of [...(await slots.all()), ...(await reserves.all())]) {
@@ -475,11 +481,13 @@ for (const { name, locale, viewport, says } of PHONES) {
         await expectNoSidewaysScroll(page, `formation ${shape}`);
       }
 
-      // Something to save: the screen's only orange, the sheet open or not, whose renewal stays secondary here.
+      // A draft of his own, the formations picked in it: the screen's only orange, the sheet open or not, whose renewal stays
+      // secondary here; « Annuler » beside it.
       await expect(status).toHaveText(says.unsaved);
       await expect(save).toBeEnabled();
       await expectOrangeActions(page, ["lineup-save"]);
       await expectThumbTarget(save);
+      await expectThumbTarget(page.getByTestId("lineup-cancel"));
       await reserves.first().tap();
       await expect(sheet.getByTestId("renew-contract")).toBeEnabled();
       await expectOrangeActions(page, ["lineup-save"]);
@@ -488,8 +496,8 @@ for (const { name, locale, viewport, says } of PHONES) {
   });
 }
 
-/** The automatic line-up's button, in each language: longer in French, it has half a phone's row, beside the formation. */
-const AUTOMATIC = { fr: "Composition automatique", en: "Automatic line-up" };
+/** The assistant's card's title, in each language: he makes a new career's eleven (docs/design/simplification.md § 6.3). */
+const ASSISTANT_CARD = { fr: "Ton adjoint aligne le onze", en: "Your assistant picks the eleven" };
 
 /**
  * How far a control's content runs out of its border, in pixels, on its furthest side: 0 when its words and its drawing
@@ -507,24 +515,26 @@ const contentOverflow = (control: Locator): Promise<number> =>
     return Math.round(Math.max(0, ...overflows) * 100) / 100;
   });
 
-test("keeps the automatic line-up's label within its button on a phone, at 390 and 360 px, in French and in English", async ({ page }) => {
+test("keeps the assistant's card, his status and the formation's button within a phone, at 390 and 360 px, in French and in English", async ({ page }) => {
   for (const language of ["fr", "en"] as const) {
     await page.context().addCookies([{ name: "lw_lang", value: language, domain: "localhost", path: "/" }]);
     for (const viewport of PHONES.map((phone) => phone.viewport)) {
       const step = `${language}, ${viewport.width} px`;
       await page.setViewportSize(viewport);
       await openSave(page, "/lineup");
-      const automatic = page.getByTestId("lineup-automatic");
-      await expect(automatic, step).toHaveText(AUTOMATIC[language]);
-      expect(await contentOverflow(automatic), step).toBe(0);
-      expect(await sidewaysOverflow(automatic), step).toBeLessThanOrEqual(0);
-      await expectThumbTarget(automatic);
+      const card = page.getByTestId("lineup-assistant");
+      await expect(card.getByRole("heading"), step).toHaveText(ASSISTANT_CARD[language]);
+      expect(await contentOverflow(card), step).toBe(0);
+      expect(await sidewaysOverflow(card), step).toBeLessThanOrEqual(0);
+      const status = page.getByTestId("lineup-status");
+      expect(await contentOverflow(status), step).toBe(0);
+      expect(await sidewaysOverflow(status), step).toBeLessThanOrEqual(0);
 
-      // On the formation's row, as high as its button.
-      const formation = await boxOf(page.getByTestId("lineup-formation"));
-      const box = await boxOf(automatic);
-      expect(Math.abs(box.y - formation.y), step).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(box.height - formation.height), step).toBeLessThanOrEqual(0.5);
+      // No « Composition automatique » beside the formation any more: its button has the row, a thumb's target.
+      await expect(page.getByTestId("lineup-automatic"), step).toHaveCount(0);
+      const formation = page.getByTestId("lineup-formation");
+      await expectThumbTarget(formation);
+      expect(await sidewaysOverflow(formation), step).toBeLessThanOrEqual(0);
       await expectNoSidewaysScroll(page, step);
     }
   }
@@ -677,8 +687,9 @@ test("leads to the line-up once hydrated, in three columns: the list, the pitch 
   await expect(lit).toHaveCount(starts ? 0 : 1);
   await expect(sheet.getByTestId("player-attributes")).toBeVisible();
 
-  // Nothing to save: no orange on the screen, not the renewal, not the sidebar's action.
-  await expect(page.getByTestId("lineup-save")).toBeDisabled();
+  // Nothing to save, the assistant's eleven: no « Enregistrer », no orange on the screen, not the renewal, not the
+  // sidebar's action.
+  await expect(page.getByTestId("lineup-save")).toHaveCount(0);
   await expect(sheet.getByTestId("renew-contract")).toBeVisible();
   await expect(saveHeader(page).getByTestId("next-match")).toBeVisible();
   await expectOrangeActions(page, []);
@@ -726,8 +737,10 @@ test("keeps the sheet on the player last touched, a slot or a line, and needs no
   await expect(reserve).toHaveAttribute("aria-current", "true");
   await expect(lineOf(page, eleven[KEEPER_SLOT])).toHaveCount(0);
 
+  // Nothing moved: still the assistant's eleven, no draft to save.
   expect(await elevenOf(page)).toEqual(eleven);
-  await expect(page.getByTestId("lineup-save")).toBeDisabled();
+  await expect(page.getByTestId("lineup-save")).toHaveCount(0);
+  await expect(page.getByTestId("lineup-status")).toHaveText(ASSISTANT_STATUS);
 });
 
 test("sorts the squad's table by its columns, an icon on the chosen one, the sheet beside it and its renewal the only orange", async ({ page }) => {
@@ -790,14 +803,18 @@ test("replaces a starter by a reserve, exchanges two starters, and finds all of 
   const formation = page.getByTestId("lineup-formation");
   await expect(sheetOf(page)).toBeVisible();
 
-  // Something to save, the screen's only orange, and the sheet's renewal stays secondary.
+  // The formation picked while the assistant makes the eleven: saved at once, his eleven in it, nothing to save.
   await pickFormation(page, "4-4-2");
-  await expect(status).toHaveText("Modifications non enregistrées");
-  await expect(save).toBeEnabled();
-  await expectOrangeActions(page, ["lineup-save"]);
+  await expect(page.getByText("Dispositif enregistré : ton adjoint aligne son onze en 4-4-2 à plat")).toBeVisible();
+  await expect(status).toHaveText(ASSISTANT_STATUS);
+  await expect(save).toHaveCount(0);
+  await openSave(page, "/lineup");
+  await expect(formation).toHaveAttribute("data-formation", "4-4-2");
+  await expect(status).toHaveText(ASSISTANT_STATUS);
 
   // A slot, then a reserve among its candidates: he takes it, the sheet follows him, the slot lets go, and the starter
   // leaves for the bench. The list has its lines again: the newcomer's gone to the pitch, the outgoing one's on the bench.
+  // A draft of the player's own: something to save, the screen's only orange, and the sheet's renewal stays secondary.
   const slot = slotAt(page, FORWARD_SLOT);
   const outgoing = (await elevenOf(page))[FORWARD_SLOT];
   const reserve = page.getByTestId("lineup-group-fw").getByTestId("lineup-reserve").first();
@@ -814,6 +831,9 @@ test("replaces a starter by a reserve, exchanges two starters, and finds all of 
   await expect(lineOf(page, incoming)).toHaveCount(0);
   await expect(lineOf(page, outgoing)).toHaveAttribute("data-bench", "true");
   await expect(sheetNameOf(page)).toHaveText(incomingName);
+  await expect(status).toHaveText("Ton onze · modifications non enregistrées");
+  await expect(save).toBeEnabled();
+  await expectOrangeActions(page, ["lineup-save"]);
 
   // A slot, then a starter among its candidates: the two exchange their slots, and the bench does not move.
   const other = slotAt(page, OTHER_FORWARD_SLOT);
@@ -832,10 +852,12 @@ test("replaces a starter by a reserve, exchanges two starters, and finds all of 
   await expect(slot).toHaveAttribute("data-slot-player-key", incoming);
   await expect(other).toHaveAttribute("data-slot-player-key", otherKey);
 
+  // Saved: his own from then on, nothing left to save, the way back to the assistant beside it.
   const eleven = await elevenOf(page);
   await save.click();
-  await expect(status).toHaveText("Composition enregistrée");
-  await expect(save).toBeDisabled();
+  await expect(status).toHaveText(PLAYER_STATUS);
+  await expect(save).toHaveCount(0);
+  await expect(page.getByTestId("lineup-hand-back")).toBeVisible();
   await expectOrangeActions(page, []);
 
   await openSave(page, "/lineup");
@@ -843,7 +865,8 @@ test("replaces a starter by a reserve, exchanges two starters, and finds all of 
   await expect(slot).toHaveAttribute("data-slot-player-key", incoming);
   expect(await elevenOf(page)).toEqual(eleven);
   expect(await benchOf(page)).toEqual(bench);
-  await expect(status).toHaveText("Composition enregistrée");
+  await expect(status).toHaveText(PLAYER_STATUS);
+  await expect(page.getByTestId("lineup-assistant")).toHaveCount(0);
 });
 
 test("renews a contract from the line-up's sheet, which shows the new end at once and keeps it", async ({ page }) => {
@@ -899,11 +922,11 @@ test("releases a starter from the line-up's sheet: he leaves the list, and the p
   await expect(page.locator("[data-bench-player-key]")).toHaveCount(7);
   await expect(page.locator(`[data-bench-player-key="${released}"]`)).toHaveCount(0);
 
-  // The sheet is never empty: it has gone to another player. Nothing left to save.
+  // The sheet is never empty: it has gone to another player. Nothing left to save: still the player's own eleven.
   await expect(sheetOf(page)).toBeVisible();
   await expect(sheetNameOf(page)).not.toHaveText(releasedName);
-  await expect(page.getByTestId("lineup-status")).toHaveText("Composition enregistrée");
-  await expect(page.getByTestId("lineup-save")).toBeDisabled();
+  await expect(page.getByTestId("lineup-status")).toHaveText(PLAYER_STATUS);
+  await expect(page.getByTestId("lineup-save")).toHaveCount(0);
 });
 
 test("sells a reserve from the line-up's sheet: its dialog names the offer, and he leaves the list", async ({ page }) => {

@@ -22,6 +22,7 @@
       "objectivesOwn": "Voilà ce que la direction attend de toi cette saison ; le dernier, c'est toi qui l'as choisi. Avant ton 5e match, elle ne juge rien.",
       "lineup": "{touch, select, touch {Touche} other {Clique sur}} un poste : je te montre qui peut y jouer, le meilleur d'abord.",
       "lineupPick": "Choisis-en un, puis « {save} ». Sinon, garde le mien : il est prêt.",
+      "lineupAssistant": "Je fais ton onze avant chaque match. Toi, choisis le dispositif ; {touch, select, touch {touche} other {clique sur}} un joueur si tu veux le faire toi-même.",
       "lineupPush": "Avant ton prochain match, ouvre « {prepare} » : je te montre qui peut jouer à chaque poste.",
       "squad": "La note, de 1 à 99, résume le niveau d'un joueur ; le cœur, sa condition. {touch, select, touch {Touche} other {Clique sur}} un joueur pour voir sa fiche.",
       "simulate": "Pas le temps de tout regarder ? « {simulate} » joue jusqu'à la date que tu choisis, sans direct, et te fait le bilan.",

@@ -20,6 +20,7 @@ import { TutorialBubble } from "../_components/tutorial/tutorial-bubble";
 import { showsFirstActions, showsTip } from "../_lib/first-steps";
 import { getSaveTutorial } from "../_lib/tutorial";
 import { LineupScreen } from "./_components/lineup-editor";
+import { lineupBubbleOf, SAVE_TARGET } from "./_lib/tutorial-step";
 
 export const dynamic = "force-dynamic";
 
@@ -45,12 +46,18 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
     getShopShortcuts(id),
     getSaveTutorial(id),
   ]);
-  // The tutorial's step of the line-up, at its opening (scenario 2), on the slot of the eleven's weak spot, the one the
-  // editor opens with (its saved line-up resolved, as the match plays it). Not simulation code: its day is real time.
+  // The tutorial's step of the line-up, at its opening (scenario 2). Not simulation code: its day is real time. While the
+  // assistant makes the line-up (docs/design/simplification.md § 8), on the formation, the player's own choice; else on
+  // the slot of the eleven's weak spot, the one the editor opens with (its saved line-up resolved, as the match plays it).
+  const due = tutorial !== null && screenStep(tutorial, "lineup", new Date());
+  const byAssistant = editor.byAssistant === true;
   const weakSlot =
-    tutorial !== null && screenStep(tutorial, "lineup", new Date())
+    due && !byAssistant
       ? weakSpotIndexOf(elevenOf(editor.formation, resolveLineup(editor.formation, editor.saved, editor.players).starters))
       : -1;
+  const bubble = lineupBubbleOf(due, byAssistant, weakSlot);
+  const bubbleLine = (touch: "touch" | "click"): string =>
+    bubble?.text === "lineupAssistant" ? tTutorial("steps.lineupAssistant", { touch }) : tTutorial("steps.lineup", { touch });
   const date = formatShortDate(editor.matchDate, locale);
   // A fitness camp (missions v2), while the shop has one today and a player of the squad is tired at kick-off.
   const camp = shortcuts.camp !== null && editor.players.some((player) => player.fitness < ROTATION_FITNESS) ? shortcuts.camp : null;
@@ -82,16 +89,15 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
           </div>
         )}
       </div>
-      {weakSlot >= 0 ? (
+      {bubble !== null ? (
         <TutorialBubble
           saveId={id}
           step="lineup"
-          text={<PointerText touch={tTutorial("steps.lineup", { touch: "touch" })} click={tTutorial("steps.lineup", { touch: "click" })} />}
+          text={<PointerText touch={bubbleLine("touch")} click={bubbleLine("click")} />}
           place={null}
-          target={`[data-testid="pitch-slot"][data-slot-index="${weakSlot}"]`}
-          // A slot touched is its move (« Enregistrer » too, the follow-up then moot).
-          doneOn='[data-testid="pitch-slot"], [data-testid="lineup-save"]'
-          followUp={{ text: tTutorial("steps.lineupPick", { save: t("save") }), target: '[data-testid="lineup-save"]' }}
+          target={bubble.target}
+          doneOn={bubble.doneOn}
+          followUp={bubble.followUp ? { text: tTutorial("steps.lineupPick", { save: t("save") }), target: SAVE_TARGET } : undefined}
         />
       ) : (
         !tipsReplaced(tutorial, new Date()) && showsTip("secondary", firstSteps) && <FirstStepTip saveId={id} tip="secondary" />

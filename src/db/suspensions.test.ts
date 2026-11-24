@@ -121,6 +121,38 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("suspensions and yellow 
     expect(offered).toContain(reserve);
   });
 
+  it("leaves the suspended starter to the assistant once he makes the eleven: out of it, never offered for sale", async () => {
+    const [{ setLineupByAssistant }, { getLineupEditor, getManagedLineup }, { getMarketSales }, { formationPositions }, { selectLineup }] =
+      await Promise.all([
+        import("./assistant-settings"),
+        import("./lineup"),
+        import("./market-sales"),
+        import("../engine/formations"),
+        import("../engine/lineup"),
+      ]);
+    await setLineupByAssistant(saveId, true);
+    try {
+      const [managed, editor] = await Promise.all([getManagedLineup(saveId), getLineupEditor(saveId)]);
+      const fielded = managed.lineup.starters.map(({ player }) => player.id);
+      const everyone = editor.players.map((player) => ({ ...player, injured: false, suspended: false }));
+      const eleven = selectLineup(everyone, formationPositions(editor.formation)).starters.map(({ player }) => player.id);
+
+      // He replaces him himself: no starter to do without, nothing to say on the dashboard.
+      expect(managed.byAssistant).toBe(true);
+      expect(managed.missingStarters).toEqual([]);
+      expect(fielded).toHaveLength(11);
+      expect(fielded).not.toContain(starters[9]);
+      // His eleven with the whole squad available, the suspended one in it, stays off the sales.
+      expect(managed.keptOffSales).toEqual(eleven);
+      expect(editor.players.find((player) => player.id === starters[9])?.suspended).toBe(true);
+      const offered = (await getMarketSales(saveId)).rows.map(({ playerKey }) => playerKey);
+      expect(offered.filter((key) => eleven.includes(key))).toEqual([]);
+      expect(offered).toContain(reserve);
+    } finally {
+      await setLineupByAssistant(saveId, false);
+    }
+  });
+
   it("leaves the next opponent's suspended starter out of his probable eleven", async () => {
     const { getOpponentPreview } = await import("./opponent");
     const before = await getOpponentPreview(saveId);

@@ -1,6 +1,7 @@
+import { ROTATION_FITNESS } from "@/src/engine/balance";
 import { formationPositions, type FormationName } from "@/src/engine/formations";
 import type { Instruction } from "@/src/engine/instructions";
-import { BENCH_SIZE, selectRestedLineup, type LineupCandidate } from "@/src/engine/lineup";
+import { BENCH_SIZE, selectAssistantLineup, selectLineup, type LineupCandidate, type YouthStarter } from "@/src/engine/lineup";
 
 /** The lineup being edited: a player key per slot (null when empty), the substitutes in order, the starting instruction. */
 export type EditorState = {
@@ -56,21 +57,39 @@ export function sendSlotToBench(state: EditorState, slot: number): EditorState {
 }
 
 /**
- * The eleven « Composition automatique » gives in a formation, the assistant's as AI clubs pick theirs
- * (selectRestedLineup): the best player of each slot, the injured and the suspended left out, a tired one (under
- * ROTATION_FITNESS) rested where a rested one is hardly worse there; the bench his too.
+ * The assistant's eleven in a formation, as AI clubs pick theirs (selectRestedLineup): the best player of each slot, the
+ * injured and the suspended left out, a tired one (under ROTATION_FITNESS) rested where a rested one is hardly worse
+ * there; the bench his too. A club's assistant also starts the Jeunesse objective's young player of its next league match
+ * (`youth`, selectAssistantLineup: docs/design/simplification.md § 3.5): the very eleven the match plays.
  */
 export function automaticState(
   state: EditorState,
   formation: FormationName,
   players: readonly (LineupCandidate & { fitness: number })[],
+  youth: YouthStarter | null = null,
 ): EditorState {
-  const lineup = selectRestedLineup(players, formationPositions(formation));
+  const lineup = selectAssistantLineup(players, formationPositions(formation), youth);
   const starters: (string | null)[] = formationPositions(formation).map(() => null);
   for (const { player, index } of lineup.starters) {
     starters[index] = player.id;
   }
   return { ...state, formation, starters, bench: lineup.bench.map((player) => player.id) };
+}
+
+/**
+ * Whom the assistant's eleven rests (docs/design/simplification.md § 6.3, « Au repos »): the players the best eleven of
+ * the formation would start (selectLineup), tired at kick-off (under ROTATION_FITNESS) and out of his starters; the most
+ * tired first, then by id.
+ */
+export function restedOf<P extends LineupCandidate & { fitness: number }>(
+  players: readonly P[],
+  formation: FormationName,
+  starters: readonly (string | null)[],
+): P[] {
+  return selectLineup(players, formationPositions(formation))
+    .starters.map(({ player }) => player)
+    .filter((player) => player.fitness < ROTATION_FITNESS && !starters.includes(player.id))
+    .sort((a, b) => a.fitness - b.fitness || (a.id < b.id ? -1 : 1));
 }
 
 /** A player outside the eleven takes the first place on the bench. */

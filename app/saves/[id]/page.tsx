@@ -183,6 +183,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           saveId={id}
           dashboard={dashboard}
           formation={lineup.formation}
+          byAssistant={lineup.byAssistant}
           opponent={opponent}
           internationalBreak={internationalBreak}
           nationalNext={nationalNext}
@@ -233,6 +234,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             saveId={id}
             dashboard={dashboard}
             lineup={lineup}
+            byAssistant={lineup.byAssistant}
             sales={sales}
             firstMatchPlayed={market}
             internationalBreak={internationalBreak}

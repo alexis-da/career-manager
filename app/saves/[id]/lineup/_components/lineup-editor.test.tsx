@@ -5,14 +5,15 @@ import type { SquadView } from "@/src/db/squad";
 import { POSITION_PROFILES } from "@/src/engine/balance";
 import { formationPositions } from "@/src/engine/formations";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "@/src/engine/generation";
-import { resolveLineup, selectLineup, selectRestedLineup, type SavedLineup } from "@/src/engine/lineup";
+import { resolveLineup, selectAssistantLineup, selectLineup, selectRestedLineup, type SavedLineup } from "@/src/engine/lineup";
 import { POSITIONS, type Position } from "@/src/engine/positions";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage } from "@/src/i18n/test-intl";
 import { LineupScreen } from "./lineup-editor";
 
 // The editor alone is rendered here: a Server Action needs a request.
-vi.mock("@/app/saves/[id]/lineup/actions", () => ({ saveLineupAction: vi.fn() }));
+vi.mock("@/app/saves/[id]/lineup/actions", () => ({ saveLineupAction: vi.fn(), saveLineupPlanAction: vi.fn() }));
+vi.mock("@/app/saves/[id]/club/actions", () => ({ setAssistantSettingAction: vi.fn() }));
 vi.mock("@/app/saves/[id]/squad/actions", () => ({
   releasePlayerAction: vi.fn(),
   renewContractAction: vi.fn(),
@@ -62,7 +63,8 @@ const SQUAD: SquadView = {
   players: [],
 };
 
-const editorWith = (saved: SavedLineup | null): LineupEditor => ({
+/** A club's editor: its assistant makes the line-up (a new career's way), or its player, with what he saved. */
+const editorWith = (saved: SavedLineup | null, byAssistant = true, youth: LineupEditor["youth"] = null): LineupEditor => ({
   formation: FORMATION,
   saved,
   instruction: saved?.instruction ?? "BALANCED",
@@ -70,14 +72,24 @@ const editorWith = (saved: SavedLineup | null): LineupEditor => ({
   clubColors: { primary: "#123456", secondary: "#654321" },
   tier: 1,
   players: PLAYERS,
+  byAssistant,
+  youth,
 });
 
-const render = (saved: SavedLineup | null, locale: Locale = "fr"): string =>
-  renderToStaticMarkup(inLanguage(<LineupScreen saveId="save-1" editor={editorWith(saved)} squad={SQUAD} opponent={null} />, locale));
+const renderEditor = (editor: LineupEditor, locale: Locale = "fr"): string =>
+  renderToStaticMarkup(inLanguage(<LineupScreen saveId="save-1" editor={editor} squad={SQUAD} opponent={null} />, locale));
 
-/** The status beside « Enregistrer »: its text, tags dropped. */
+/** The club's editor, its assistant making the line-up unless told otherwise. */
+const render = (saved: SavedLineup | null, locale: Locale = "fr", byAssistant = true): string =>
+  renderEditor(editorWith(saved, byAssistant), locale);
+
+/** The status of who makes the eleven: its text, tags dropped, its apostrophes as written. */
 const statusOf = (markup: string): string =>
-  (/<p role="status"[^>]*data-testid="lineup-status"[^>]*>(.*?)<\/p>/.exec(markup)?.[1] ?? "").replace(/<[^>]+>/g, "");
+  (/<p role="status"[^>]*data-testid="lineup-status"[^>]*>(.*?)<\/p>/.exec(markup)?.[1] ?? "").replace(/<[^>]+>/g, "").replaceAll("&#x27;", "'");
+
+/** A button of the editor by its test id: its opening tag, or null without it. */
+const buttonOf = (markup: string, testId: string): string | null =>
+  new RegExp(`<button[^>]*data-testid="${testId}"[^>]*>`).exec(markup)?.[0] ?? null;
 
 /** The player key of each slot of the pitch, by index. */
 const pitchOf = (markup: string): string[] =>
@@ -85,7 +97,18 @@ const pitchOf = (markup: string): string[] =>
     .sort(([, a], [, b]) => Number(a) - Number(b))
     .map(([, , key]) => key);
 
-/** A lineup as the manager saves it: the automatic one, every slot filled. */
+/** The assistant's card: its text, tags dropped; null without it. */
+const assistantCardOf = (markup: string): string | null => {
+  const card = /<section[^>]*data-testid="lineup-assistant"[^>]*>(.*?)<\/section>/.exec(markup)?.[1];
+  return card === undefined
+    ? null
+    : card
+        .replace(/<span class="hidden pointer-coarse:inline">.*?<\/span>/g, "")
+        .replace(/<[^>]+>/g, " ")
+        .replaceAll("&#x27;", "'");
+};
+
+/** A lineup as the manager saves it: the automatic one, every slot filled, the tired goalkeeper in goal. */
 const SAVED: SavedLineup = (() => {
   const lineup = selectLineup(PLAYERS, formationPositions(FORMATION));
   return {
@@ -94,33 +117,101 @@ const SAVED: SavedLineup = (() => {
   };
 })();
 
-describe("the line-up's status", () => {
-  it("never says a line-up is saved when none ever was: the eleven shown is the automatic one the match plays", () => {
+describe("the line-up its assistant makes", () => {
+  it("shows his eleven, the one the match plays, and never says a line-up is saved: nothing to save, no orange", () => {
     const markup = render(null);
 
-    expect(statusOf(markup)).toBe("Onze automatique · pas encore enregistré");
+    expect(statusOf(markup)).toBe("Onze de ton adjoint · il le refait avant chaque match");
     expect(markup).not.toContain("Composition enregistrée");
-    // What the match plays without a saved lineup (resolveLineup without one): the best available at each slot, the tired
-    // goalkeeper included, where the assistant's « Composition automatique » would rest him.
-    const played = resolveLineup(FORMATION, null, PLAYERS).starters.map(({ player: { id } }) => id);
-    expect(pitchOf(markup)).toEqual(played);
-    expect(pitchOf(markup)[0]).toBe("GK#1");
-    expect(selectRestedLineup(PLAYERS, formationPositions(FORMATION)).starters[0].player.id).toBe("GK#2");
-    // Nothing to save until the eleven changes.
-    expect(/<button[^>]*data-testid="lineup-save"[^>]*>/.exec(markup)?.[0]).toContain('disabled=""');
+    // His rested eleven (selectRestedLineup), which the match plays: the tired goalkeeper rested, where the best available
+    // at each slot would have him.
+    const rested = selectRestedLineup(PLAYERS, formationPositions(FORMATION)).starters.map(({ player: { id } }) => id);
+    expect(pitchOf(markup)).toEqual(rested);
+    expect(pitchOf(markup)[0]).toBe("GK#2");
+    expect(resolveLineup(FORMATION, null, PLAYERS).starters[0].player.id).toBe("GK#1");
+    // « Enregistrer » for a draft only; his eleven is made again before each match, no button for it.
+    expect(buttonOf(markup, "lineup-save")).toBeNull();
+    expect(buttonOf(markup, "lineup-cancel")).toBeNull();
+    expect(buttonOf(markup, "lineup-automatic")).toBeNull();
+    expect(buttonOf(markup, "lineup-hand-back")).toBeNull();
+    // No full orange: the variant of the screen's action is the save's, for a draft.
+    expect(markup).not.toContain("bg-(--club)");
   });
 
-  it("says a saved line-up is saved, in the same grey", () => {
-    const markup = render(SAVED);
+  it("says what he does, whom he rests, and how to take the eleven, in his card", () => {
+    const card = assistantCardOf(render(null)) ?? "";
 
-    expect(statusOf(markup)).toBe("Composition enregistrée");
-    expect(markup).toMatch(/data-testid="lineup-status"><span class="text-muted-foreground">Composition enregistrée</);
-    expect(render(null)).toMatch(/data-testid="lineup-status"><span class="text-muted-foreground">Onze automatique/);
+    expect(card).toContain("Ton adjoint aligne le onze");
+    expect(card).toContain("Avant chaque match, il prend les meilleurs selon la condition, les blessures et les suspensions, dans ton dispositif.");
+    expect(card).toContain("Au repos : GK#1 (60 de condition)");
+    expect(card).toContain("Clique sur un joueur pour faire ton onze : ton adjoint ne le changera plus.");
+    expect(render(null)).toContain('<span class="hidden pointer-coarse:inline">Touche un joueur pour faire ton onze : ton adjoint ne le changera plus.</span>');
+    // Nobody tired, nobody rested: no such line.
+    const fresh = renderEditor({ ...editorWith(null), players: PLAYERS.map((player) => ({ ...player, fitness: 100 })) });
+    expect(fresh).not.toContain('data-testid="lineup-rested"');
+  });
+
+  it("leaves a line-up saved before unread: his eleven still, its instruction kept", () => {
+    const markup = render({ ...SAVED, instruction: "DEFEND" });
+
+    expect(pitchOf(markup)[0]).toBe("GK#2");
+    expect(statusOf(markup)).toBe("Onze de ton adjoint · il le refait avant chaque match");
+    const radio = (instruction: string) => new RegExp(`<input[^>]*name="starting-instruction"[^>]*value="${instruction}"[^>]*>`).exec(markup)?.[0];
+    expect(markup.match(/<input[^>]*name="starting-instruction"[^>]*>/g)?.find((tag) => tag.includes('value="DEFEND"'))).toContain('checked=""');
+    expect(radio("BALANCED")).not.toContain("checked");
+  });
+
+  it("starts the Jeunesse objective's young player as the match does", () => {
+    const young = player("CB#young", "CB", 71);
+    const players = [...PLAYERS, young];
+    const youth = { id: "CB#young", leagueStarts: 3 };
+    const expected = selectAssistantLineup(players, formationPositions(FORMATION), youth).starters.map(({ player: { id } }) => id);
+    const markup = renderEditor({ ...editorWith(null, true, youth), players });
+
+    expect(expected).toContain("CB#young");
+    expect(pitchOf(markup)).toEqual(expected);
+    expect(selectRestedLineup(players, formationPositions(FORMATION)).starters.map(({ player: { id } }) => id)).not.toContain("CB#young");
   });
 
   it("speaks British English", () => {
-    expect(statusOf(render(null, "en"))).toBe("Automatic eleven · not saved yet");
-    expect(statusOf(render(SAVED, "en"))).toBe("Line-up saved");
+    const markup = render(null, "en");
+
+    expect(statusOf(markup)).toBe("Your assistant's eleven · he picks it again before every match");
+    expect(assistantCardOf(markup)).toContain("Your assistant picks the eleven");
+    expect(assistantCardOf(markup)).toContain("Rested: GK#1 (60 fitness)");
+    expect(assistantCardOf(markup)).toContain("Click a player to make your own eleven: your assistant will no longer change it.");
+  });
+});
+
+describe("the line-up its player makes", () => {
+  it("shows his saved eleven, says it is his, and hands it back to the assistant, nothing to save", () => {
+    const markup = render(SAVED, "fr", false);
+
+    expect(pitchOf(markup)[0]).toBe("GK#1");
+    expect(statusOf(markup)).toBe("Ton onze · enregistré. Ton adjoint ne remplace qu'un blessé ou un suspendu.");
+    expect(markup).toMatch(/data-testid="lineup-status" data-mode="player"><span class="text-muted-foreground">Ton onze · enregistré/);
+    expect(buttonOf(markup, "lineup-hand-back")).not.toBeNull();
+    expect(markup).toContain("Rendre la main à l&#x27;adjoint");
+    expect(buttonOf(markup, "lineup-save")).toBeNull();
+    expect(buttonOf(markup, "lineup-automatic")).toBeNull();
+    expect(markup).not.toContain('data-testid="lineup-assistant"');
+  });
+
+  it("never says a line-up is saved when none was: the automatic eleven the match then plays", () => {
+    const markup = render(null, "fr", false);
+
+    expect(statusOf(markup)).toBe("Onze automatique · pas encore enregistré");
+    // What the match plays without a saved lineup (resolveLineup without one): the best available at each slot.
+    expect(pitchOf(markup)).toEqual(resolveLineup(FORMATION, null, PLAYERS).starters.map(({ player: { id } }) => id));
+    expect(pitchOf(markup)[0]).toBe("GK#1");
+  });
+
+  it("speaks British English", () => {
+    const markup = render(SAVED, "en", false);
+
+    expect(statusOf(markup)).toBe("Your eleven · saved. Your assistant only replaces an injured or suspended player.");
+    expect(markup).toContain("Hand back to your assistant");
+    expect(statusOf(render(null, "en", false))).toBe("Automatic eleven · not saved yet");
   });
 });
 
@@ -141,13 +232,24 @@ describe("the line-up's hint", () => {
 });
 
 describe("a nation's line-up", () => {
+  /** His editor as getCoachLineupEditor gives it: nobody says who makes the line-up, his own. */
+  const nationEditor = (saved: SavedLineup | null): LineupEditor => ({
+    formation: FORMATION,
+    saved,
+    instruction: saved?.instruction ?? "BALANCED",
+    matchDate: new Date(Date.UTC(2026, 8, 4)),
+    clubColors: { primary: "#123456", secondary: "#654321" },
+    tier: 1,
+    players: PLAYERS,
+  });
+
   /** His 23 in the club's editor, as the national coach's page gives them: no squad screen, his assistant's eleven unsaved. */
   const renderNation = (saved: SavedLineup | null): string =>
     renderToStaticMarkup(
       inLanguage(
         <LineupScreen
           saveId="save-1"
-          editor={editorWith(saved)}
+          editor={nationEditor(saved)}
           opponent={null}
           unsaved="assistant"
           texts={{ selectHint: { touch: "Touche un poste.", click: "Clique sur un poste." }, pickerAbout: "Classés." }}
@@ -163,6 +265,17 @@ describe("a nation's line-up", () => {
     expect(pitchOf(markup)[0]).toBe("GK#2");
     expect(statusOf(markup)).toBe("Onze automatique · pas encore enregistré");
     expect(/<button[^>]*data-testid="lineup-save"[^>]*>/.exec(markup)?.[0]).toContain('disabled=""');
+  });
+
+  it("keeps his « Composition automatique », and none of the club's assistant: his card, his status, his hand back", () => {
+    const markup = renderNation(SAVED);
+
+    expect(buttonOf(markup, "lineup-automatic")).not.toBeNull();
+    expect(markup).toContain("Composition automatique");
+    expect(markup).not.toContain('data-testid="lineup-assistant"');
+    expect(buttonOf(markup, "lineup-hand-back")).toBeNull();
+    expect(buttonOf(markup, "lineup-cancel")).toBeNull();
+    expect(buttonOf(markup, "lineup-save")).toContain('disabled=""');
   });
 
   it("opens on his saved line-up once there is one", () => {

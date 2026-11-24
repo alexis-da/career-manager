@@ -73,6 +73,9 @@ type DashboardTodoProps = {
   saveId: string;
   dashboard: Dashboard;
   lineup: ManagedLineup;
+  // Its assistant makes the club's line-up (docs/design/simplification.md § 3.4): he replaces the injured and the
+  // suspended starters and rests the tired himself, so their lines say nothing to do.
+  byAssistant: boolean;
   sales: MarketSales | null; // null out of a transfer window
   // Whether the club has played a match: before its first, the dashboard has its first steps to show, and the market
   // waits (no offer, no weak spot).
@@ -207,7 +210,7 @@ function weakSpotDetail({ reason, rating }: WeakSpot, t: Translator<"dashboardTo
 
 /** Everything the list has to say, in its order of priority (TODO_PRIORITY), whatever the order it is found in here. */
 function todosOf(
-  { saveId, dashboard, lineup, sales, firstMatchPlayed, internationalBreak }: DashboardTodoProps,
+  { saveId, dashboard, lineup, byAssistant, sales, firstMatchPlayed, internationalBreak }: DashboardTodoProps,
   t: Translator<"dashboardTodo">,
   tPositions: Translator<"positions">,
   locale: Locale,
@@ -219,9 +222,11 @@ function todosOf(
   const lineupHref = `${base}/lineup`;
   const todos: Todo[] = [];
 
-  // The saved starters out of the next match: injured, or else suspended (an injured player serves his suspension).
-  const injuredStarters = lineup.missingStarters.filter((player) => player.injured);
-  const suspendedStarters = lineup.missingStarters.filter((player) => !player.injured);
+  // The player's saved starters out of the next match: injured, or else suspended (an injured player serves his
+  // suspension). None while the assistant makes the eleven: he replaces them.
+  const missingStarters = byAssistant ? [] : lineup.missingStarters;
+  const injuredStarters = missingStarters.filter((player) => player.injured);
+  const suspendedStarters = missingStarters.filter((player) => !player.injured);
   if (injuredStarters.length > 0) {
     todos.push({
       id: "injured-starters",
@@ -243,11 +248,11 @@ function todosOf(
     });
   }
 
-  // Before a European match, the starters who would kick it off below the rotation threshold: the manager rotates his
-  // squad himself (docs/design/europe.md, § 3.3), as AI clubs rest theirs below it.
+  // Before a European match, the starters who would kick it off below the rotation threshold: the manager who makes his
+  // eleven rotates his squad himself (docs/design/europe.md, § 3.3), as AI clubs rest theirs below it; his assistant does.
   const nextFixture = dashboard.nextMatch?.fixture ?? null;
   const tiredStarters =
-    nextFixture !== null && isEuropeCode(nextFixture.competitionCode)
+    !byAssistant && nextFixture !== null && isEuropeCode(nextFixture.competitionCode)
       ? lineup.lineup.starters.map(({ player }) => player).filter((player) => isAvailable(player) && player.fitness < ROTATION_FITNESS)
       : [];
   if (tiredStarters.length > 0) {
@@ -375,8 +380,9 @@ function todosOf(
   }
 
   // Every eleven has a weak spot, an empty slot or one held out of line first, the market's: never an alert, only where
-  // to look next, and only while a transfer window is open: out of one, nothing can be done about it.
-  const weakSpot = firstMatchPlayed && dashboard.windowOpen ? weakSpotOf(elevenOf(lineup.formation, lineup.lineup.starters)) : null;
+  // to look next, and only while a transfer window is open: out of one, nothing can be done about it. Read on the
+  // market's eleven (weakSpotLineup): the assistant's way, the best available at each slot, nobody rested.
+  const weakSpot = firstMatchPlayed && dashboard.windowOpen ? weakSpotOf(elevenOf(lineup.formation, lineup.weakSpotLineup.starters)) : null;
   if (weakSpot !== null) {
     todos.push({
       id: "weak-spot",
@@ -480,8 +486,9 @@ const MORE =
  * What the dashboard asks of the manager, the most important first (TODO_PRIORITY, docs/design/simplification.md § 4.1):
  * a missing goalkeeper, the starters out of the next match, a federation's offer, the contracts, the best offer, a thin
  * squad, then the European match and the breaks ahead, the bookings, the injured, the weak spot, a mission's end and the
- * squad's state. The market's lines wait for the club's first match, the weak spot for a transfer window. Three lines at
- * once, the others behind « Voir tout ».
+ * squad's state. The starters out and tired are the player's own eleven's only: the assistant replaces and rests his
+ * (§ 3.4). The market's lines wait for the club's first match, the weak spot for a transfer window. Three lines at once,
+ * the others behind « Voir tout ».
  */
 export function DashboardTodo({ className, ...props }: DashboardTodoProps): ReactNode {
   const t = useTranslations("dashboardTodo");

@@ -81,6 +81,8 @@ test("names the next match in the hero: its opponent, its date and its competiti
   await expect(hero.getByRole("heading")).toHaveText("Prochain match · Journée 1");
   await expect(hero).toContainText(/sam\. 15 août · (Domicile|Extérieur) · France — Division 1/);
   await expect(hero).toContainText(LYON);
+  // A new career's eleven is the assistant's, in its formation (docs/design/simplification.md § 3.4).
+  await expect(hero.getByTestId("hero-formation")).toHaveText("Onze de l'adjoint · 4-3-3 sentinelle");
 
   // The opponent, as its own panel names it: not the club the player manages, and the same in the sidebar's card.
   await hero.getByTestId("view-opponent").click();
@@ -248,6 +250,7 @@ test.describe("on a phone, in English", () => {
     await expect(hero.getByTestId("dashboard-lineup")).toHaveText("Prepare");
     await expect(hero.getByTestId("simulate-menu")).toHaveText("Simulate");
     await expect(hero.getByTestId("view-opponent")).toHaveText("View opponent");
+    await expect(hero.getByTestId("hero-formation")).toHaveText("Assistant's eleven · 4-3-3 holding");
     for (const control of ["next-match", "dashboard-lineup", "simulate-menu", "view-opponent"]) {
       expect((await boxOf(hero.getByTestId(control))).height).toBeGreaterThanOrEqual(44);
     }

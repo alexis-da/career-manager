@@ -6,6 +6,7 @@
     "seasonOver": "The season is over.",
     "noUpcomingMatch": "No match to come.",
     "formation": "Formation {formation}",
+    "assistantFormation": "Assistant's eleven · {formation}",
     "breakAhead": "International break from {from} to {to} before this match · {count, plural, =0 {none of your players called up} one {# of your players called up} other {# of your players called up}}",
     "afterBreak": "After the international break",
     "prepare": "Prepare",

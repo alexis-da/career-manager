@@ -23,7 +23,7 @@ const NO_OFFER: SaleQuote = { ok: false, reason: "no_offer" };
 describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketSales on the demo save", () => {
   let db: typeof prismaClient | undefined;
   let saveId = "";
-  let lineup: ManagedLineup["lineup"] = { starters: [], bench: [] };
+  let keptOffSales: ManagedLineup["keptOffSales"] = [];
   let quotes = new Map<string, ContractTerms>();
   let sales: MarketSales = { rows: [], offers: 0 };
 
@@ -69,7 +69,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketSales on the d
     ]);
     db = prisma;
     saveId = await ensureDemoSave();
-    ({ lineup } = await getManagedLineup(saveId));
+    ({ keptOffSales } = await getManagedLineup(saveId));
     quotes = await quoteSquad(saveId);
     sales = await getMarketSales(saveId);
   }, 900_000);
@@ -83,12 +83,37 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketSales on the d
       where: { saveId, clubSave: { saveId, isManaged: true } },
       select: { playerKey: true },
     });
-    const starters = lineup.starters.map(({ player }) => player.id);
+    const starters = keptOffSales;
     const listed = sales.rows.map((row) => row.playerKey);
 
     expect(starters).toHaveLength(11);
     expect(listed.filter((key) => starters.includes(key))).toEqual([]);
     expect([...listed, ...starters].sort()).toEqual(squad.map((player) => player.playerKey).sort());
+  });
+
+  it("keeps off the sales the eleven its assistant would field with the whole squad, a starter out of the next match in it", async () => {
+    const [{ getLineupEditor, getManagedLineup }, { formationPositions }, { selectLineup }] = await Promise.all([
+      import("./lineup"),
+      import("../engine/formations"),
+      import("../engine/lineup"),
+    ]);
+    const [editor, managed] = await Promise.all([getLineupEditor(saveId), getManagedLineup(saveId)]);
+    const everyone = editor.players.map((player) => ({ ...player, injured: false, suspended: false }));
+    const eleven = selectLineup(everyone, formationPositions(editor.formation)).starters.map(({ player }) => player.id);
+    const fielded = managed.lineup.starters.map(({ player }) => player.id);
+    const byKey = new Map(editor.players.map((player) => [player.id, player]));
+
+    // The demo save's assistant makes its line-up: nobody ever saved one.
+    expect(managed.byAssistant).toBe(true);
+    expect(managed.keptOffSales).toEqual(eleven);
+    expect(sales.rows.map((row) => row.playerKey).filter((key) => eleven.includes(key))).toEqual([]);
+    expect(sales.rows).toHaveLength(editor.players.length - eleven.length);
+    // Of his eleven, those out of the next match are injured or suspended, or the one the Jeunesse objective's young
+    // player starts in place of: never offered, where their stand-ins may be.
+    const out = eleven.filter((key) => !fielded.includes(key));
+    const youthIn = editor.youth != null && fielded.includes(editor.youth.id) && !eleven.includes(editor.youth.id);
+    const fit = out.filter((key) => byKey.get(key)?.injured !== true && byKey.get(key)?.suspended !== true);
+    expect(fit).toHaveLength(youthIn ? 1 : 0);
   });
 
   it("puts the highest offer first", () => {

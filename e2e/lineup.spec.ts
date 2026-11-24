@@ -18,7 +18,7 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a reload", async ({ page }) => {
+test("switches to a 4-4-2 for the assistant, brings a substitute on, saves, finds both after a reload, and hands it back", async ({ page }) => {
   // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
   const name = `E2E ${Date.now()}`;
   saveName = name;
@@ -52,10 +52,19 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
     await page.keyboard.press("Escape");
     await expect(picker).toBeHidden();
 
+    // The assistant makes a new career's eleven: the formation picked is saved at once, his eleven in it, his still.
+    const status = page.getByTestId("lineup-status");
+    await expect(status).toHaveText("Onze de ton adjoint · il le refait avant chaque match");
     await pickFormation(page, "4-4-2");
     await expect(formation).toHaveText("4-4-2 à plat");
-    await expect(page.getByText("Modifications non enregistrées")).toBeVisible();
+    await expect(page.getByText("Dispositif enregistré : ton adjoint aligne son onze en 4-4-2 à plat")).toBeVisible();
+    await expect(status).toHaveText("Onze de ton adjoint · il le refait avant chaque match");
+    await expect(page.getByTestId("lineup-save")).toHaveCount(0);
+    await page.reload();
+    await expect(formation).toHaveAttribute("data-formation", "4-4-2");
+    await expect(status).toHaveText("Onze de ton adjoint · il le refait avant chaque match");
 
+    // A substitute brought on: a draft of the player's own eleven.
     const slot = page.locator(`[data-slot-index="${STRIKER_SLOT}"]`);
     // By key, not by name: Lyon has three Martins, and two of them can sit on the bench.
     const starterKey = (await slot.getAttribute("data-slot-player-key")) ?? "";
@@ -68,15 +77,32 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
     await expect(slot).toHaveAttribute("data-slot-player-key", substituteKey);
     // The replaced starter is now among the substitutes.
     await expect(page.locator(`[data-bench="true"][data-player-key="${starterKey}"]`)).toHaveCount(1);
+    await expect(status).toHaveText("Ton onze · modifications non enregistrées");
+
+    // « Annuler » goes back to the assistant's eleven; the same gesture again, then « Enregistrer »: his own from then on.
+    await page.getByTestId("lineup-cancel").click();
+    await expect(slot).toHaveAttribute("data-slot-player-key", starterKey);
+    await expect(status).toHaveText("Onze de ton adjoint · il le refait avant chaque match");
+    await slot.click();
+    await page.locator(`[data-testid="lineup-candidate"][data-player-key="${substituteKey}"]`).first().click();
+    await expect(slot).toHaveAttribute("data-slot-player-key", substituteKey);
 
     await page.getByRole("button", { name: "Enregistrer" }).click();
     await expect(page.getByText("Composition en 4-4-2 à plat enregistrée.")).toBeVisible();
-    await expect(page.getByText("Composition enregistrée", { exact: true })).toBeVisible();
+    await expect(status).toHaveText("Ton onze · enregistré. Ton adjoint ne remplace qu'un blessé ou un suspendu.");
+    await expect(page.getByTestId("lineup-hand-back")).toBeVisible();
 
     await page.reload();
     await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "4-4-2");
     await expect(page.locator(`[data-slot-index="${STRIKER_SLOT}"]`)).toHaveAttribute("data-slot-player-key", substituteKey);
     await expect(page.locator(`[data-player-key="${substituteKey}"]`)).toHaveCount(0);
+
+    // Handed back to the assistant: his eleven again, the saved one kept, unread.
+    await page.getByTestId("lineup-hand-back").click();
+    await expect(page.getByText("Ton adjoint fait la composition.")).toBeVisible();
+    await expect(status).toHaveText("Onze de ton adjoint · il le refait avant chaque match");
+    await expect(page.locator(`[data-slot-index="${STRIKER_SLOT}"]`)).toHaveAttribute("data-slot-player-key", starterKey);
+    await expect(page.getByTestId("lineup-assistant")).toBeVisible();
   } finally {
     // Even when a step failed: a leftover save would pollute the database.
     await deleteSave(page, name);

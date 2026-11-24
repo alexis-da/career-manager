@@ -291,23 +291,26 @@ test.describe("the following days, in French on a phone", () => {
       await outcomeOf(saveId, "squad").toBe("DONE");
       await page.keyboard.press("Escape");
 
-      // The line-up's: the weak spot's slot ringed; a slot touched, its candidates open, then « Enregistrer » ringed.
+      // The line-up's, the assistant making a new career's eleven (docs/design/simplification.md § 8): the formation ringed,
+      // his words in the gesture of a phone; its sheet opened its move, nothing to save after it.
       await openScreen(page, "lineup");
       await expect(bubble(page)).toHaveAttribute("data-step", "lineup");
-      const ringed = page.locator('[data-testid="pitch-slot"][data-tutorial-target]');
-      await expect(ringed).toHaveCount(1);
+      // Its line in the page twice, a finger's and a mouse's (PointerText): what they share. A non-breaking space before
+      // the semicolon: a pattern is matched as the page has it.
+      const line = bubble(page).getByTestId("tutorial-text");
+      await expect(line).toContainText(/Je fais ton onze avant chaque match\. Toi, choisis le dispositif\s;\s/);
+      await expect(line).toContainText("touche un joueur si tu veux le faire toi-même.");
+      await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-tutorial-target", "");
+      await expect(page.locator('[data-testid="pitch-slot"][data-tutorial-target]')).toHaveCount(0);
       await expect(page.locator("[data-testid^=\"tip-\"]")).toHaveCount(0);
       await expectNoSidewaysScroll(page, "lineup");
-      await ringed.click();
-      await expect(page.getByTestId("lineup-candidates-sheet")).toBeVisible();
-      await expect(bubble(page)).toHaveAttribute("data-phase", "follow");
+      await page.getByTestId("lineup-formation").click();
+      await expect(page.getByTestId("formation-picker")).toBeVisible();
+      await expect(bubble(page)).toHaveCount(0);
       await outcomeOf(saveId, "lineup").toBe("DONE");
       await page.keyboard.press("Escape");
-      await expect(page.getByTestId("lineup-candidates-sheet")).toBeHidden();
-      await expect(bubble(page).getByTestId("tutorial-text")).toHaveText("Choisis-en un, puis « Enregistrer ». Sinon, garde le mien : il est prêt.");
-      await expect(page.getByTestId("lineup-save")).toHaveAttribute("data-tutorial-target", "");
-      await bubble(page).getByTestId("tutorial-got-it").click();
-      await expect(bubble(page)).toHaveCount(0);
+      await expect(page.getByTestId("formation-picker")).toBeHidden();
+      await expect(page.getByTestId("lineup-save")).toHaveCount(0);
 
       // The day after: the objectives, their card shown with them, the one the assistant picked said so.
       await shiftTutorialDays(saveId, 1);

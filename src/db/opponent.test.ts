@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chooseFormation } from "../engine/formation-choice";
-import { averageStarterRating, type SquadPlayer } from "../engine/lineup";
+import { formationPositions } from "../engine/formations";
+import { averageStarterRating, selectLineup, type SquadPlayer } from "../engine/lineup";
 import { formationStrength } from "../engine/strength";
 import { competitionTier } from "../engine/tiers";
 import type { prisma as prismaClient } from "./client";
@@ -119,6 +120,33 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getOpponentPreview", ()
     // Nothing played yet in this save.
     expect(result?.recent).toEqual([]);
     expect(result?.topScorer).toBeNull();
+  });
+
+  it("rates the managed club's eleven its assistant fields, his tired goalkeeper rested: the match's", async () => {
+    const db = database();
+    const managed = await db.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
+    const [keeper] = await db.playerSave.findMany({
+      where: { saveId, clubSaveId: managed.id, position: "GK" },
+      orderBy: [{ overall: "desc" }, { playerKey: "asc" }],
+      take: 1,
+      select: { id: true, fitness: true },
+    });
+    const { currentDate } = await db.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
+    // The day before the match, his goalkeeper at 60: 65 at kick-off, rested.
+    await db.save.update({ where: { id: saveId }, data: { currentDate: new Date(Date.UTC(2026, 7, 14)) } });
+    await db.playerSave.update({ where: { id: keeper.id }, data: { fitness: 60 } });
+    try {
+      const { getLineupEditor, getManagedLineup } = await import("./lineup");
+      const [result, fielded, editor] = await Promise.all([preview(), getManagedLineup(saveId), getLineupEditor(saveId)]);
+      const best = selectLineup(editor.players, formationPositions(editor.formation));
+
+      expect(fielded.byAssistant).toBe(true);
+      expect(result?.managedAverageRating).toBeCloseTo(averageStarterRating(fielded.lineup), 10);
+      expect(averageStarterRating(fielded.lineup)).not.toBeCloseTo(averageStarterRating(best), 10);
+    } finally {
+      await db.save.update({ where: { id: saveId }, data: { currentDate } });
+      await db.playerSave.update({ where: { id: keeper.id }, data: { fitness: keeper.fitness } });
+    }
   });
 
   it("leaves out a starter injured past the match day, keeps one back on that day, and chooses again without him", async () => {

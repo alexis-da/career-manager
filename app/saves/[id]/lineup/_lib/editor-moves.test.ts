@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { ROTATION_FITNESS } from "@/src/engine/balance";
 import { formationPositions } from "@/src/engine/formations";
-import { BENCH_SIZE, type LineupCandidate } from "@/src/engine/lineup";
+import { BENCH_SIZE, selectAssistantLineup, type LineupCandidate } from "@/src/engine/lineup";
 import {
   automaticState,
   moveToBenchFront,
   pinnedSheetKey,
   placeInSlot,
+  restedOf,
   sendSlotToBench,
   swapSlots,
   type EditorState,
@@ -59,6 +60,36 @@ describe("the automatic eleven", () => {
     expect(next.formation).toBe("4-4-2");
     expect(next.starters.every((key) => key !== null)).toBe(true);
     expect(new Set(next.starters).size).toBe(11);
+  });
+
+  it("starts the Jeunesse objective's young player, as the club's match plays its assistant's eleven", () => {
+    // A centre-back of 78 at his own position, two points below the first one: the assistant starts him there.
+    const players = [...squad(), { id: "young", position: "CB" as const, overall: 78, injured: false, fitness: 100 }];
+    const youth = { id: "young", leagueStarts: 0 };
+    const next = automaticState(state, "4-3-3", players, youth);
+    const lineup = selectAssistantLineup(players, formationPositions("4-3-3"), youth);
+
+    expect(next.starters).toEqual(formationPositions("4-3-3").map((_, index) => lineup.starters.find((starter) => starter.index === index)?.player.id ?? null));
+    expect(next.starters).toContain("young");
+    expect(next.bench).toEqual(lineup.bench.map(({ id }) => id));
+    // Without him, the rested eleven alone.
+    expect(automaticState(state, "4-3-3", players).starters).not.toContain("young");
+    expect(next.instruction).toBe(state.instruction);
+  });
+});
+
+describe("the players the assistant rests", () => {
+  it("names those the best eleven would start, tired, out of his: the most tired first", () => {
+    const players = squad().map((player) =>
+      player.id === "RB1a" ? { ...player, fitness: ROTATION_FITNESS - 10 } : player.id === "ST9a" ? { ...player, fitness: ROTATION_FITNESS - 3 } : player,
+    );
+    const rested = automaticState(state, "4-3-3", players);
+
+    expect(restedOf(players, "4-3-3", rested.starters).map(({ id }) => id)).toEqual(["RB1a", "ST9a"]);
+    // Tired but starting all the same, or not of the best eleven: not rested.
+    expect(restedOf(players, "4-3-3", [...rested.starters.slice(0, 1), "RB1a", ...rested.starters.slice(2)]).map(({ id }) => id)).toEqual(["ST9a"]);
+    const reserve = squad().map((player) => (player.id === "RB1b" ? { ...player, fitness: 60 } : player));
+    expect(restedOf(reserve, "4-3-3", automaticState(state, "4-3-3", reserve).starters)).toEqual([]);
   });
 });
 

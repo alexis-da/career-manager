@@ -16,6 +16,7 @@ import { isEuropeStage, isNeutralStage, stageLabel } from "../_lib/stage";
 import { nationalStage, tournamentName } from "./coach-names";
 import { CoachNationMark } from "./coach-nation-mark";
 import { GameActions } from "./game-actions";
+import { HeroFormation } from "./hero-formation";
 import { OpponentSheet } from "./opponent-sheet";
 import { ResultPill } from "./result-pill";
 
@@ -130,6 +131,8 @@ type NextMatchHeroProps = {
   saveId: string;
   dashboard: Dashboard;
   formation: FormationName;
+  // Its assistant makes the club's line-up (docs/design/simplification.md § 3.4): « Onze de l'adjoint · … ».
+  byAssistant: boolean;
   opponent: OpponentPreview | null;
   // An international break before the match (« Passer la trêve » first), or just played (« Après la trêve »).
   internationalBreak: ManagedBreak | null;
@@ -145,9 +148,18 @@ type NextMatchHeroProps = {
  * national coach's match at stake comes first: the main action plays up to it and opens it live, as a club match's, and
  * « Préparer » leads to his national team.
  */
-export function NextMatchHero({ saveId, dashboard, formation, opponent, internationalBreak, nationalNext, play, className }: NextMatchHeroProps) {
+export function NextMatchHero({
+  saveId,
+  dashboard,
+  formation,
+  byAssistant,
+  opponent,
+  internationalBreak,
+  nationalNext,
+  play,
+  className,
+}: NextMatchHeroProps) {
   const t = useTranslations("dashboardHero");
-  const tFormations = useTranslations("formations");
   const tStage = useTranslations("stage");
   const tWorld = useTranslations("world");
   const locale = useLocale();
@@ -230,10 +242,11 @@ export function NextMatchHero({ saveId, dashboard, formation, opponent, internat
         prepare={prepare}
       />
 
-      {/* The club's eleven and its opponent: nothing of the kind for a national match, whose « Préparer » has them. */}
+      {/* The club's eleven, its assistant's or its player's, and its opponent: nothing of the kind for a national match,
+          whose « Préparer » has them. */}
       {nationalNext === null && nextMatch !== null && (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-on-blue">
-          <p>{t("formation", { formation: tFormations(`label.${formation}`) })}</p>
+          <HeroFormation formation={formation} byAssistant={byAssistant} />
           {opponent !== null && <OpponentSheet preview={opponent} triggerClassName={ON_BLUE} />}
         </div>
       )}

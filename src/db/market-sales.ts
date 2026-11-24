@@ -32,11 +32,13 @@ const offerFee = ({ terms: { sale } }: SaleRow): number => (sale.ok ? sale.fee :
 const byKey = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
- * The players of the managed club out of the eleven it would field in its next match, each with the best AI offer for
- * him today: no offer is ever received, so this is what the market would pay. Read only.
+ * The players of the managed club out of its eleven, each with the best AI offer for him today: no offer is ever
+ * received, so this is what the market would pay. Its eleven (ManagedLineup.keptOffSales): the one its player saved, his
+ * starters out of the next match included; when its assistant makes the line-up, his eleven with the whole squad
+ * available (docs/design/simplification.md § 3.4), so that an injured starter is never offered. Read only.
  */
 export async function getMarketSales(saveId: string): Promise<MarketSales> {
-  const [{ lineup, missingStarters }, terms, save, club] = await Promise.all([
+  const [{ keptOffSales }, terms, save, club] = await Promise.all([
     getManagedLineup(saveId),
     quoteSquad(saveId),
     prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
@@ -45,10 +47,9 @@ export async function getMarketSales(saveId: string): Promise<MarketSales> {
       select: { id: true, club: { select: { primaryColor: true, secondaryColor: true } } },
     }),
   ]);
-  // In a lineup, a player's id is his playerKey. A saved starter out injured or suspended is in the eleven he comes back to.
-  const eleven = [...lineup.starters.map(({ player }) => player), ...missingStarters].map((player) => player.id);
+  // In a lineup, a player's id is his playerKey.
   const players = await prisma.playerSave.findMany({
-    where: { saveId, clubSaveId: club.id, playerKey: { notIn: eleven } },
+    where: { saveId, clubSaveId: club.id, playerKey: { notIn: keptOffSales } },
     select: {
       id: true,
       playerKey: true,

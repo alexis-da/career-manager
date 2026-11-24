@@ -21,6 +21,29 @@
     "unsaved": "Modifications non enregistrées",
     "saved": "Composition enregistrée",
     "notSaved": "Onze automatique · pas encore enregistré",
+    "status": {
+      "assistant": "Onze de ton adjoint · il le refait avant chaque match",
+      "draft": "Ton onze · modifications non enregistrées",
+      "saved": "Ton onze · enregistré. Ton adjoint ne remplace qu'un blessé ou un suspendu."
+    },
+    "cancel": "Annuler",
+    "handBack": "Rendre la main à l'adjoint",
+    "assistant": {
+      "title": "Ton adjoint aligne le onze",
+      "about": "Avant chaque match, il prend les meilleurs selon la condition, les blessures et les suspensions, dans ton dispositif.",
+      "rested": "Au repos : {players}",
+      "restedPlayer": "{name} ({fitness} de condition)",
+      "hint": {
+        "touch": "Touche un joueur pour faire ton onze : ton adjoint ne le changera plus.",
+        "click": "Clique sur un joueur pour faire ton onze : ton adjoint ne le changera plus."
+      },
+      "formationSaved": "Dispositif enregistré : ton adjoint aligne son onze en {formation}",
+      "instructionSaved": "Consigne de départ enregistrée : {instruction}",
+      "refusals": {
+        "invalid": "Dispositif ou consigne inconnus.",
+        "player": "Tu fais ton onze toi-même : enregistre-le pour changer son dispositif ou sa consigne."
+      }
+    },
     "saving": "Enregistrement…",
     "save": "Enregistrer",
     "incompleteRefused": "Onze incomplet : {count, plural, one {# poste est vide} other {# postes sont vides}}. Place un joueur sur chaque poste ou utilise « {complete} ».",

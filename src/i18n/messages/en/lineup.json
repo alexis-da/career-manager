@@ -21,6 +21,29 @@
     "unsaved": "Unsaved changes",
     "saved": "Line-up saved",
     "notSaved": "Automatic eleven · not saved yet",
+    "status": {
+      "assistant": "Your assistant's eleven · he picks it again before every match",
+      "draft": "Your eleven · unsaved changes",
+      "saved": "Your eleven · saved. Your assistant only replaces an injured or suspended player."
+    },
+    "cancel": "Cancel",
+    "handBack": "Hand back to your assistant",
+    "assistant": {
+      "title": "Your assistant picks the eleven",
+      "about": "Before every match, he picks the best players on fitness, injuries and suspensions, in your formation.",
+      "rested": "Rested: {players}",
+      "restedPlayer": "{name} ({fitness} fitness)",
+      "hint": {
+        "touch": "Tap a player to make your own eleven: your assistant will no longer change it.",
+        "click": "Click a player to make your own eleven: your assistant will no longer change it."
+      },
+      "formationSaved": "Formation saved: your assistant fields his eleven in the {formation}",
+      "instructionSaved": "Starting instruction saved: {instruction}",
+      "refusals": {
+        "invalid": "Unknown formation or instruction.",
+        "player": "You pick your own eleven: save it to change its formation or instruction."
+      }
+    },
     "saving": "Saving…",
     "save": "Save",
     "incompleteRefused": "Incomplete eleven: {count, plural, one {# position is empty} other {# positions are empty}}. Put a player in every position or use “{complete}”.",

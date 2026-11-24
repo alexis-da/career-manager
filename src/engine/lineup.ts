@@ -1,8 +1,14 @@
-import { ROTATION_FITNESS, ROTATION_GAP_PER_FITNESS_POINT, ROTATION_MAX_RATING_GAP } from "./balance";
+import {
+  ROTATION_FITNESS,
+  ROTATION_GAP_PER_FITNESS_POINT,
+  ROTATION_MAX_RATING_GAP,
+  YOUTH_OBJECTIVE_MAX_AGE,
+  YOUTH_OBJECTIVE_STARTS,
+} from "./balance";
 import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "./formations";
 import type { AttributeName } from "./generation";
 import type { Instruction } from "./instructions";
-import { positionGroup, ratingAt, type Position } from "./positions";
+import { positionGroup, ratingAt, secondaryPositions, type Position } from "./positions";
 
 /** What picking a lineup needs to know about a player. */
 export type LineupCandidate = {
@@ -163,6 +169,102 @@ export function selectRestedLineup<P extends LineupCandidate & { fitness: number
   const assigned: (P | undefined)[] = formation.map(() => undefined);
   const remaining = fillGreedily(formation, assigned, squad.filter(isAvailable), restedFor);
   return toLineup(formation, assigned, automaticBench(remaining));
+}
+
+/**
+ * The most the assistant's eleven gives up in a slot to start the Jeunesse objective's young player there
+ * (docs/design/simplification.md § 3.5): his rating in it at most this much below its starter's.
+ */
+export const YOUTH_STARTER_MAX_GAP = 4;
+
+/** The Jeunesse objective's young player, as the assistant's eleven reads him (§ 3.5): his key, his league starts so far. */
+export type YouthStarter = { id: string; leagueStarts: number };
+
+/**
+ * The Jeunesse objective's candidate (docs/design/simplification.md § 3.5): the club's best player aged
+ * YOUTH_OBJECTIVE_MAX_AGE or less on 1 July of the season (`seasonAge`, in whole years), the best rated, ties broken by
+ * id, available or not; null without one.
+ */
+export function youthCandidate<P extends { id: string; overall: number; seasonAge: number }>(players: readonly P[]): P | null {
+  let best: P | null = null;
+  for (const player of players) {
+    if (player.seasonAge > YOUTH_OBJECTIVE_MAX_AGE) {
+      continue;
+    }
+    if (best === null || player.overall > best.overall || (player.overall === best.overall && player.id < best.id)) {
+      best = player;
+    }
+  }
+  return best;
+}
+
+/**
+ * The managed club's eleven made by its assistant (docs/design/simplification.md § 3.1): the rested eleven AI clubs field,
+ * in the player's formation (selectRestedLineup), its bench with it. With `youth`, the Jeunesse objective's young player
+ * of a league match and his league starts so far (§ 3.5), until he has YOUTH_OBJECTIVE_STARTS: out of that eleven,
+ * available and rested (ROTATION_FITNESS or more), he starts at a slot of his positions, his own or a secondary one,
+ * where he is rated at most YOUTH_STARTER_MAX_GAP below its starter, the smallest gap first, then the first slot; the
+ * starter he replaces joins the others for the bench.
+ */
+export function selectAssistantLineup<P extends LineupCandidate & { fitness: number }>(
+  squad: readonly P[],
+  formation: Formation = DEFAULT_FORMATION,
+  youth: YouthStarter | null = null,
+): Lineup<P> {
+  const rested = selectRestedLineup(squad, formation);
+  if (youth === null || youth.leagueStarts >= YOUTH_OBJECTIVE_STARTS) {
+    return rested;
+  }
+  const young = squad.find((player) => player.id === youth.id);
+  if (
+    young === undefined ||
+    !isAvailable(young) ||
+    young.fitness < ROTATION_FITNESS ||
+    rested.starters.some(({ player }) => player === young)
+  ) {
+    return rested;
+  }
+  const positions = [young.position, ...secondaryPositions(young.id, young.position)];
+  let replaced: LineupSlot<P> | undefined;
+  let replacedGap = Number.POSITIVE_INFINITY;
+  for (const starter of rested.starters) {
+    if (!positions.includes(starter.slot)) {
+      continue;
+    }
+    // The smallest gap within the rule; of equal ones, the first slot.
+    const gap = ratingAt(starter.player, starter.slot) - ratingAt(young, starter.slot);
+    if (gap <= YOUTH_STARTER_MAX_GAP && gap < replacedGap) {
+      replaced = starter;
+      replacedGap = gap;
+    }
+  }
+  if (replaced === undefined) {
+    return rested;
+  }
+  const assigned: (P | undefined)[] = formation.map(() => undefined);
+  for (const { player, index } of rested.starters) {
+    assigned[index] = index === replaced.index ? young : player;
+  }
+  const starting = new Set(assigned);
+  return toLineup(formation, assigned, automaticBench(squad.filter((player) => isAvailable(player) && !starting.has(player))));
+}
+
+/**
+ * The managed club's line-up for a match (docs/design/simplification.md § 3.1): its assistant's eleven
+ * (selectAssistantLineup, the Jeunesse objective's young player given) when he makes it, `assistant` given; the
+ * player's saved line-up otherwise (resolveLineup). Either way, the starting instruction saved with it.
+ */
+export function managedLineup<P extends LineupCandidate & { fitness: number }>(
+  formation: FormationName,
+  saved: SavedLineup | null,
+  squad: readonly P[],
+  assistant: { youth: YouthStarter | null } | null,
+): Lineup<P> {
+  if (assistant === null) {
+    return resolveLineup(formation, saved, squad);
+  }
+  const lineup = selectAssistantLineup(squad, formationPositions(formation), assistant.youth);
+  return saved?.instruction === undefined ? lineup : { ...lineup, instruction: saved.instruction };
 }
 
 /** A player and his rating in a slot. */

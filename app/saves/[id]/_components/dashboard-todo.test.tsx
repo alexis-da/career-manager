@@ -47,7 +47,8 @@ const suspendedStarter = (lastName: string): ClubLineupPlayer => {
 
 /**
  * An eleven in a 4-3-3: the starters given at their positions, the other slots held by starters rated 80 at theirs (none
- * at all without any starter given), and the saved starters out of the next match.
+ * at all without any starter given), and the saved starters out of the next match: the player's line-up, whose weak spot
+ * the market reads on it.
  */
 const lineupOf = (starters: ClubLineupPlayer[], missingStarters: ClubLineupPlayer[] = []): ManagedLineup => {
   const left = [...starters];
@@ -56,13 +57,15 @@ const lineupOf = (starters: ClubLineupPlayer[], missingStarters: ClubLineupPlaye
     const player = given === -1 ? starter(`Titulaire${index}`, slot, 80) : left.splice(given, 1)[0];
     return { player, slot, index };
   });
-  return { formation: "4-3-3", lineup: { starters: starters.length === 0 ? [] : placed, bench: [] }, missingStarters };
+  const lineup = { starters: starters.length === 0 ? [] : placed, bench: [] };
+  return { formation: "4-3-3", byAssistant: false, lineup, missingStarters, weakSpotLineup: lineup, keptOffSales: [] };
 };
 
 /** An eleven of a 4-3-3 with some of its slots left empty: no available player was left to fill them. */
 const lineupWithout = (empty: readonly Position[]): ManagedLineup => {
   const { lineup, ...rest } = lineupOf([starter("Blanc", "GK", 72)]);
-  return { ...rest, lineup: { ...lineup, starters: lineup.starters.filter(({ slot }) => !empty.includes(slot)) } };
+  const holed = { ...lineup, starters: lineup.starters.filter(({ slot }) => !empty.includes(slot)) };
+  return { ...rest, lineup: holed, weakSpotLineup: holed };
 };
 
 const NO_ELEVEN = lineupOf([]);
@@ -89,6 +92,7 @@ const salesOf = (...rows: SaleRow[]): MarketSales => ({ rows, offers: rows.filte
 type Props = {
   dashboard: Dashboard;
   lineup: ManagedLineup;
+  byAssistant?: boolean;
   sales?: MarketSales | null;
   firstMatchPlayed?: boolean;
   internationalBreak?: ManagedBreak | null;
@@ -96,9 +100,18 @@ type Props = {
   coachTournament?: TournamentCode | null;
 };
 
-/** The list of a club that has played, unless told otherwise. */
+/** The list of a club that has played, its player making its line-up, unless told otherwise. */
 const render = (
-  { dashboard, lineup, sales = null, firstMatchPlayed = true, internationalBreak = null, coachTodos = [], coachTournament = null }: Props,
+  {
+    dashboard,
+    lineup,
+    byAssistant = false,
+    sales = null,
+    firstMatchPlayed = true,
+    internationalBreak = null,
+    coachTodos = [],
+    coachTournament = null,
+  }: Props,
   locale: Locale = "fr",
 ): string =>
   renderToStaticMarkup(
@@ -107,6 +120,7 @@ const render = (
         saveId="save-1"
         dashboard={dashboard}
         lineup={lineup}
+        byAssistant={byAssistant}
         sales={sales}
         firstMatchPlayed={firstMatchPlayed}
         internationalBreak={internationalBreak}
@@ -485,18 +499,41 @@ describe("the dashboard's to-do list", () => {
     ]);
   });
 
+  it("says nothing of starters out or tired while the assistant makes the eleven: he replaces and rests them himself", () => {
+    const until = new Date(Date.UTC(2026, 10, 20));
+    const europeanMatch = { nextMatch: { fixture: { competitionCode: "eu.1" } } } as unknown as Partial<Dashboard>;
+    const dashboard = { ...dashboardWith({}, { injured: [{ name: "J. Morel", until }] }), ...europeanMatch } as Dashboard;
+    const lineup = lineupOf([{ ...starter("Las", "ST", 75), fitness: 70 }, starter("Vif", "GK", 70)], [injuredStarter("Morel"), suspendedStarter("Garnier")]);
+
+    expect(idsOf(render({ dashboard, lineup }))).toEqual(["injured-starters", "suspended-starters", "tired-starters", "weak-spot", "full-squad"]);
+    // His way, the injured starter is one of the injured, named with his return; nothing to do about the others.
+    const assisted = lines(render({ dashboard, lineup, byAssistant: true }));
+    expect(assisted.map(({ id }) => id)).toEqual(["injured", "weak-spot", "full-squad"]);
+    expect(assisted[0].text).toBe("1 blessé J. Morel, retour 20 nov.");
+    expect(idsOf(render({ dashboard, lineup, byAssistant: true }, "en"))).toEqual(["injured", "weak-spot", "full-squad"]);
+  });
+
+  it("reads the weak spot on the market's eleven, not on the one the assistant fields", () => {
+    // His eleven starts a young left back (58) for the Jeunesse objective; the market's has the 80 there, and its weakest
+    // starter is the goalkeeper (70).
+    const fielded = lineupOf([starter("Vif", "GK", 70), starter("Jeune", "LB", 58)]);
+    const market = lineupOf([starter("Vif", "GK", 70)]);
+    const lineup: ManagedLineup = { ...fielded, byAssistant: true, weakSpotLineup: market.lineup };
+    const weakSpot = lines(render({ dashboard: dashboardWith({}), lineup, byAssistant: true })).find(({ id }) => id === "weak-spot");
+
+    expect(weakSpot?.text).toBe("Ton point faible : gardien Note 70 · voir le marché");
+  });
+
   it("puts the market's weak spot first where nobody can play, then where a starter plays out of his line", () => {
     const weakSpotOf = (lineup: ManagedLineup, locale: Locale = "fr") =>
       lines(render({ dashboard: dashboardWith({}), lineup }, locale)).find(({ id }) => id === "weak-spot");
     // A centre-back up front, at 54, and a left back at 58 in his own slot.
     const { lineup, ...rest } = lineupOf([starter("Noir", "LB", 58)]);
-    const heldUpFront: ManagedLineup = {
-      ...rest,
-      lineup: {
-        ...lineup,
-        starters: lineup.starters.map((placed) => (placed.slot === "ST" ? { ...placed, player: starter("Roc", "CB", 90) } : placed)),
-      },
+    const held = {
+      ...lineup,
+      starters: lineup.starters.map((placed) => (placed.slot === "ST" ? { ...placed, player: starter("Roc", "CB", 90) } : placed)),
     };
+    const heldUpFront: ManagedLineup = { ...rest, lineup: held, weakSpotLineup: held };
 
     expect(weakSpotOf(lineupWithout(["ST", "LW"]))).toEqual({
       id: "weak-spot",

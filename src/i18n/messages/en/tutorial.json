@@ -22,6 +22,7 @@
       "objectivesOwn": "Here's what the board expects of you this season; the last one is your own pick. Before your 5th match, it judges nothing.",
       "lineup": "{touch, select, touch {Tap} other {Click}} a position: I'll show you who can play there, best first.",
       "lineupPick": "Pick one, then “{save}”. Or keep mine: it's ready.",
+      "lineupAssistant": "I make your eleven before every match. You pick the formation; {touch, select, touch {tap} other {click}} a player if you'd rather make it yourself.",
       "lineupPush": "Before your next match, open “{prepare}”: I'll show you who can play in each position.",
       "squad": "The rating, from 1 to 99, sums up a player's level; the heart, his fitness. {touch, select, touch {Tap} other {Click}} a player to see his profile.",
       "simulate": "No time to watch it all? “{simulate}” plays on to the date you choose, without the live match, and sums it up.",

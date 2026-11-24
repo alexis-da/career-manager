@@ -115,10 +115,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
       support.createDemoTwin("Test deux reprises"),
       support.createDemoTwin("Test pause du joueur"),
     ]);
-    // The two saves whose matches are compared start them closed: the starting instruction saved with the lineup, the
-    // eleven left to the automatic choice.
+    // The two saves whose matches are compared start them closed: the starting instruction picked while the assistant
+    // makes the line-up (docs/design/simplification.md § 3.2), his eleven played with it.
     for (const saveId of [saves.live, saves.straight]) {
-      await lineup.saveManagedLineup(saveId, { formation: "4-3-3", lineup: { starters: [], benchOrder: [], instruction: "DEFEND" } });
+      await lineup.saveLineupPlan(saveId, { formation: "4-3-3", instruction: "DEFEND" });
     }
     await Promise.all([
       matchday.playNextMatchday(saves.live, { pauseManagedMatch: true }),
@@ -148,7 +148,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
         where: { saveId: saves.live, scheduledAt: firstMatchdayDate(WORLD_START_YEAR), id: { not: fixture.id } },
         _count: true,
       }),
-      db.save.findUniqueOrThrow({ where: { id: saves.live }, select: { liveFixtureId: true, currentDate: true } }),
+      db.save.findUniqueOrThrow({ where: { id: saves.live }, select: { liveFixtureId: true, currentDate: true, lineupByAssistant: true } }),
     ]);
 
     expect(fixture).toMatchObject({ status: "IN_PLAY", played: false, homeGoals: null, awayGoals: null, homeHalfTimeGoals: null });
@@ -159,10 +159,15 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a managed match played 
     expect(others).toEqual([{ status: "PLAYED", _count: 47 }]);
     expect(save.liveFixtureId).toBe(fixture.id);
     expect(save.currentDate.toISOString()).toBe(firstMatchdayDate(WORLD_START_YEAR).toISOString());
-    // From kick-off, the starting instruction saved with its lineup, which the live page reads with the pause.
+    // From kick-off, the starting instruction picked, which the live page reads with the pause; the assistant still
+    // makes the line-up, his eleven on the pitch.
+    expect(save.lineupByAssistant).toBe(true);
     const { managedSide, state } = await stored(saves.live);
     expect(state[managedSide].startingInstruction).toBe("DEFEND");
     expect(state[managedSide].instructions?.[0]).toEqual({ from: 0, instruction: "DEFEND", source: "START" });
+    const { getManagedLineup } = await import("./lineup");
+    const kickOff = state[managedSide].pitch.filter((entry) => entry.from === 0).map((entry) => [entry.index, entry.player.id]);
+    expect(kickOff).toEqual((await getManagedLineup(saves.live)).lineup.starters.map(({ index, player }) => [index, player.id]));
     const waiting = await loaded().live.getLiveWaiting(saves.live);
     expect(waiting?.pause).toMatchObject({ phase: "IN_PLAY", minute: SEGMENT_MINUTES });
     expect(waiting?.instructions).toEqual([{ from: 0, instruction: "DEFEND", source: "START" }]);
