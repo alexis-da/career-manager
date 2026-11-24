@@ -99,7 +99,7 @@ async function expectDotationLine(dotation: Locator, testId: string, label: RegE
 
 /**
  * The board's last dotation on the demo save, when it was made since the season budgets (an older one has none, and shows
- * its money without it): its second season's, after a first season played, in detail, then its wage cap. Its objectives
+ * its money without it): its second season's, after a first season played, in detail, without a wage cap. Its objectives
  * are none before the season objectives, a bonus or a malus since.
  */
 async function expectDemoDotation(finances: Locator): Promise<void> {
@@ -123,7 +123,7 @@ async function expectDemoDotation(finances: Locator): Promise<void> {
   );
   await expectDotationLine(dotation, "club-dotation-carry-over", /^Report\s*La moitié du budget non dépensé$/, AMOUNT);
   await expectDotationLine(dotation, "club-dotation-total", "Budget de la saison", AMOUNT);
-  await expectDotationLine(dotation, "club-dotation-wage-budget", "Plafond salarial", AMOUNT);
+  await expect(dotation.getByTestId("club-dotation-wage-budget")).toHaveCount(0);
   await expect(dotation.getByTestId("club-dotation-start")).toHaveCount(0);
 }
 
@@ -179,14 +179,11 @@ async function expectClubScreen(page: Page): Promise<void> {
 
   const finances = page.getByTestId("club-finances");
   await expect(finances.getByTestId("club-budget")).toHaveText(/^\d+(,\d+)? M€$/);
-  await expect(finances.getByTestId("club-payroll")).toHaveText(/^\d+,\d \/ \d+,\d M€$/);
-  await expect(finances.getByTestId("club-wage-room")).toHaveText(/^\d+(,\d+)? [Mk]€ de (marge|dépassement)$/);
-  const bar = finances.getByTestId("club-wage-bar");
-  await expect(bar).toHaveRole("progressbar");
-  await expect(bar).toHaveAttribute("aria-valuenow", /^\d+$/);
-  const share = Number(await bar.getAttribute("aria-valuenow"));
-  expect(share).toBeGreaterThanOrEqual(0);
-  expect(share).toBeLessThanOrEqual(100);
+  // The budget is the only limit (docs/design/simplification.md § 6.8): no payroll, no bar, no room.
+  for (const wage of ["club-payroll", "club-wage-bar", "club-wage-room"]) {
+    await expect(finances.getByTestId(wage)).toHaveCount(0);
+  }
+  await expect(finances).not.toContainText(/salari/i);
   // The money is read only here: nothing of what comes in.
   await expect(page.getByRole("main")).not.toContainText(/recette/i);
   await expectDemoDotation(finances);
@@ -506,7 +503,7 @@ test.describe("in English, at 390 px", () => {
     await expect(page.getByTestId("club-manager")).toContainText("Manager: Test · 2nd season");
     await expect(page.getByTestId("club-manager-title")).toHaveText("Rookie");
     await expect(page.getByTestId("club-budget")).toHaveText(/^€\d+(\.\d+)?m$/);
-    await expect(page.getByTestId("club-payroll")).toHaveText(/^€\d+\.\d+m \/ €\d+\.\d+m$/);
+    await expect(page.getByTestId("club-finances")).not.toContainText(/wage/i);
     await expect(page.getByTestId("club-challenge-link")).toHaveText("See the challenge");
     // The president's objectives, on a demo made since them.
     const objectives = page.getByTestId("club-objectives");
@@ -672,7 +669,7 @@ test.describe("a Google account's Lyon", () => {
     await expectNoSidewaysScroll(page, "history at 360 px");
   });
 
-  test("gives its first season's budget in one line, the one it started with, its wage cap and its prize money, down to 360 px", async ({ page }) => {
+  test("gives its first season's budget in one line, the one it started with, and its prize money, down to 360 px", async ({ page }) => {
     await openSave(page, "/club");
     const dotation = page.getByTestId("club-finances").getByTestId("club-dotation");
     await expect(dotation.getByRole("heading")).toHaveText("Saison 2026-27");
@@ -682,8 +679,13 @@ test.describe("a Google account's Lyon", () => {
     const start = eurosOf(await textOf(dotation.getByTestId("club-dotation-start").locator("dd")));
     const budget = eurosOf(await textOf(page.getByTestId("club-budget")));
     expect(Math.abs(budget - start - 1_500_000)).toBeLessThanOrEqual(100_000);
-    await expectDotationLine(dotation, "club-dotation-wage-budget", "Plafond salarial", AMOUNT);
-    for (const detail of ["club-dotation-base", "club-dotation-objectives", "club-dotation-carry-over", "club-dotation-total"]) {
+    for (const detail of [
+      "club-dotation-base",
+      "club-dotation-objectives",
+      "club-dotation-carry-over",
+      "club-dotation-total",
+      "club-dotation-wage-budget",
+    ]) {
       await expect(dotation.getByTestId(detail)).toHaveCount(0);
     }
     // The season's prize money: that participation, nothing from the cup yet.

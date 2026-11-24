@@ -326,21 +326,6 @@ export async function setSaveDate(saveId: string, date: Date): Promise<void> {
 }
 
 /**
- * Sets the wage room of a save's managed club, its wage budget less its payroll, without signing anyone: the market of a
- * club whose wage room pays little, or nothing (a negative room: its payroll over its wage budget).
- */
-export async function setManagedWageRoom(saveId: string, room: number): Promise<void> {
-  await withTestDatabase((client) =>
-    client.query(
-      `UPDATE "ClubSave" AS c
-       SET "wageBudget" = $2::int + COALESCE((SELECT sum(p."wage") FROM "PlayerSave" p WHERE p."saveId" = $1 AND p."clubSaveId" = c."id"), 0)
-       WHERE c."saveId" = $1 AND c."isManaged"`,
-      [saveId, room],
-    ),
-  );
-}
-
-/**
  * The managed club's line of a save's first season, as the page of a season reads it, the season itself left in progress:
  * a test that does this plays nothing afterwards. Returns the season's id.
  */

@@ -472,7 +472,7 @@ export async function makeTransferOffer(input: MakeTransferOfferInput): Promise<
 
     const wage = Math.max(offeredWage ?? 0, evaluation.minimumWage);
     const contractUntil = contractEndDate(save.currentDate, years);
-    await tx.playerSave.update({ where: { id: player.id, saveId }, data: { clubSaveId: club.id, contractUntil, wage } });
+    await tx.playerSave.update({ where: { id: player.id, saveId }, data: { clubSaveId: club.id, contractUntil, wage, contractChoice: null } });
     await tx.clubSave.update({ where: { id: club.id, saveId }, data: { budget: { decrement: fee } } });
     await tx.clubSave.update({ where: { id: player.clubSave.id, saveId }, data: { budget: { increment: fee } } });
     await tx.transfer.create({
@@ -527,7 +527,7 @@ export async function signFreeAgent(input: SignFreeAgentInput): Promise<Transfer
 
     const wage = Math.max(offeredWage ?? 0, evaluation.minimumWage);
     const contractUntil = contractEndDate(save.currentDate, years);
-    await tx.playerSave.update({ where: { id: player.id, saveId }, data: { clubSaveId: club.id, contractUntil, wage } });
+    await tx.playerSave.update({ where: { id: player.id, saveId }, data: { clubSaveId: club.id, contractUntil, wage, contractChoice: null } });
     await tx.clubSave.update({ where: { id: club.id, saveId }, data: { budget: { decrement: bonus } } });
     await tx.transfer.create({
       data: { saveId, playerSaveId: player.id, fromClubId: null, toClubId: club.clubId, fee: bonus, type: "FREE", date: save.currentDate },
@@ -555,7 +555,8 @@ export async function renewContract(input: RenewContractInput): Promise<Transfer
 
     const wage = Math.max(offeredWage ?? 0, renewalWage(offerPlayer(player, save.currentDate)));
     const contractUntil = contractEndDate(save.currentDate, years);
-    await tx.playerSave.update({ where: { id: player.id, saveId }, data: { contractUntil, wage } });
+    // A new contract: a choice about the old one's end goes with it (PlayerSave.contractChoice).
+    await tx.playerSave.update({ where: { id: player.id, saveId }, data: { contractUntil, wage, contractChoice: null } });
     return { ok: true, fee: 0, budgetChange: 0, payrollChange: wage - player.wage, wage, clubSaveId: club.id, contractUntil };
   }, TRANSACTION_OPTIONS);
 }
@@ -583,7 +584,7 @@ export async function releasePlayer(input: PlayerActionInput): Promise<TransferO
       return refused("insufficient_budget");
     }
 
-    await tx.playerSave.update({ where: { id: player.id, saveId }, data: { clubSaveId: null, contractUntil: null } });
+    await tx.playerSave.update({ where: { id: player.id, saveId }, data: { clubSaveId: null, contractUntil: null, contractChoice: null } });
     await tx.clubSave.update({ where: { id: club.id, saveId }, data: { budget: { decrement: compensation } } });
     await tx.transfer.create({
       data: { saveId, playerSaveId: player.id, fromClubId: club.clubId, toClubId: null, fee: 0, type: "FREE", date: save.currentDate },
@@ -644,7 +645,7 @@ export async function sellPlayer(input: SellPlayerInput): Promise<TransferOutcom
     const contractUntil = contractEndDate(save.currentDate, bid.years);
     await tx.playerSave.update({
       where: { id: player.id, saveId },
-      data: { clubSaveId: buyer.id, contractUntil, wage: bid.wage },
+      data: { clubSaveId: buyer.id, contractUntil, wage: bid.wage, contractChoice: null },
     });
     await tx.clubSave.update({ where: { id: club.id, saveId }, data: { budget: { increment: bid.fee } } });
     await tx.clubSave.update({ where: { id: buyer.id, saveId }, data: { budget: { decrement: bid.fee } } });

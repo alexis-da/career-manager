@@ -59,7 +59,7 @@ const SQUAD: SquadView = {
   startYear: 2026,
   windowOpen: true,
   nextWindowOpensOn: new Date(Date.UTC(2027, 0, 1)),
-  club: { name: "Rhône FC", budget: 10_000_000, wageBudget: 20_000_000, payroll: 15_000_000 },
+  club: { name: "Rhône FC", budget: 10_000_000 },
   players: [],
 };
 

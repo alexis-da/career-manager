@@ -13,6 +13,7 @@ import {
   TargetIcon,
   UserCheckIcon,
   UserMinusIcon,
+  UsersIcon,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "@/src/components/link";
@@ -21,8 +22,8 @@ import type { Dashboard } from "@/src/db/dashboard";
 import type { ManagedLineup } from "@/src/db/lineup";
 import type { CoachTodo } from "@/src/db/national-view";
 import type { ManagedBreak } from "@/src/db/nations-view";
-import type { MarketSales } from "@/src/db/market-sales";
-import { EUROPE_YELLOWS_PER_SUSPENSION, ROTATION_FITNESS, YELLOWS_PER_SUSPENSION } from "@/src/engine/balance";
+import type { SaleProposals } from "@/src/db/sale-proposals";
+import { EUROPE_YELLOWS_PER_SUSPENSION, ROTATION_FITNESS, SQUAD_LIMIT, YELLOWS_PER_SUSPENSION } from "@/src/engine/balance";
 import { isEuropeCode } from "@/src/engine/europe";
 import { isAvailable } from "@/src/engine/lineup";
 import { elevenOf, weakSpotOf, type WeakSpot } from "@/src/engine/market-proposals";
@@ -48,7 +49,7 @@ type Todo = {
   icon: ComponentType<{ className?: string }>; // a lucide icon, or the referee's card
   title: string;
   detail: string;
-  href?: string; // a full squad asks for nothing: no link
+  href?: string; // where the thing gets done; a mission's end asks for nothing: no link
 };
 
 /** A card, upright and full, in its tile's colour: the referee's, red or yellow, as in the match's feed. */
@@ -76,9 +77,11 @@ type DashboardTodoProps = {
   // Its assistant makes the club's line-up (docs/design/simplification.md § 3.4): he replaces the injured and the
   // suspended starters and rests the tired himself, so their lines say nothing to do.
   byAssistant: boolean;
-  sales: MarketSales | null; // null out of a transfer window
+  // The sales the assistant proposes (docs/design/simplification.md § 5.2): null out of a transfer window, where the
+  // page reads none.
+  saleProposals: SaleProposals | null;
   // Whether the club has played a match: before its first, the dashboard has its first steps to show, and the market
-  // waits (no offer, no weak spot).
+  // waits (no proposed sale, no weak spot).
   firstMatchPlayed: boolean;
   // An international break about to be played (its call-ups) or just played (who comes back injured or tired).
   internationalBreak: ManagedBreak | null;
@@ -185,17 +188,6 @@ function otherInjured(injured: Dashboard["injured"], injuredStarters: ManagedLin
   return others;
 }
 
-/** The highest offer, on the first row that has one (getMarketSales sorts them so), and how many there are. */
-function bestOffer({ rows, offers }: MarketSales) {
-  for (const player of rows) {
-    const { sale } = player.terms;
-    if (sale.ok) {
-      return { player, sale, offers };
-    }
-  }
-  return null;
-}
-
 /** Why the weak spot is one: nobody to fill it, a starter out of his line there, or the lowest rating. */
 function weakSpotDetail({ reason, rating }: WeakSpot, t: Translator<"dashboardTodo">): string {
   switch (reason) {
@@ -210,7 +202,7 @@ function weakSpotDetail({ reason, rating }: WeakSpot, t: Translator<"dashboardTo
 
 /** Everything the list has to say, in its order of priority (TODO_PRIORITY), whatever the order it is found in here. */
 function todosOf(
-  { saveId, dashboard, lineup, byAssistant, sales, firstMatchPlayed, internationalBreak }: DashboardTodoProps,
+  { saveId, dashboard, lineup, byAssistant, saleProposals, firstMatchPlayed, internationalBreak }: DashboardTodoProps,
   t: Translator<"dashboardTodo">,
   tPositions: Translator<"positions">,
   locale: Locale,
@@ -361,20 +353,28 @@ function todosOf(
   // The national coach's: a federation's offer, his list, his mission's end.
   todos.push(...coachLines);
 
-  // The market's lines once the club has played: a new manager meets his squad before its buyers and its weak spot.
-  const best = sales === null || !firstMatchPlayed ? null : bestOffer(sales);
-  if (best !== null) {
+  // The market's lines once the club has played: a new manager meets his squad before its buyers and its weak spot. The
+  // sales the assistant proposes, and what they would bring all together (the Sell tab keeps every offer).
+  const proposed = saleProposals === null || !firstMatchPlayed ? [] : saleProposals.proposals;
+  if (proposed.length > 0) {
+    const total = proposed.reduce((sum, proposal) => sum + proposal.offer.fee, 0);
     todos.push({
-      id: "offers",
+      id: "sale-proposals",
       severity: "neutral",
       icon: HandCoinsIcon,
-      title: t("offers", {
-        club: best.sale.buyerName,
-        // In the middle of a sentence: never a line's end between the figure and its unit.
-        fee: formatMoney(best.sale.fee, locale).replace(" ", " "),
-        player: `${best.player.firstName} ${best.player.lastName}`,
-      }),
-      detail: t("offersDetail", { count: best.offers }),
+      title: t("saleProposals", { count: proposed.length }),
+      detail: t("saleProposalsDetail", { count: proposed.length, total: formatMoney(total, locale) }),
+      href: `${base}/transfers?tab=sell`,
+    });
+  }
+  // A full squad signs nobody (SQUAD_LIMIT): said while a window is open, when signing is what the market is for.
+  if (dashboard.windowOpen && club.players >= SQUAD_LIMIT) {
+    todos.push({
+      id: "squad-full",
+      severity: "warning",
+      icon: UsersIcon,
+      title: t("squadFull", { count: club.players, limit: SQUAD_LIMIT }),
+      detail: t("squadFullDetail"),
       href: `${base}/transfers?tab=sell`,
     });
   }
@@ -394,7 +394,21 @@ function todosOf(
     });
   }
 
-  const expiring = dashboard.expiringContracts;
+  // The contracts ending on 30 June, from 1 January (docs/design/simplification.md § 2.2): while the assistant decides
+  // them, only the important players he means to let go, whose sheet lets the player decide otherwise; every one of them
+  // while the player keeps the contracts.
+  const important = dashboard.contractsByAssistant ? dashboard.importantContracts : [];
+  if (important.length > 0) {
+    todos.push({
+      id: "important-contracts",
+      severity: "warning",
+      icon: FileClockIcon,
+      title: t("importantContracts", { players: namesAndOthers(important, t) }),
+      detail: t("importantContractsDetail", { count: important.length }),
+      href: squadHref,
+    });
+  }
+  const expiring = dashboard.contractsByAssistant ? [] : dashboard.expiringContracts;
   if (expiring.length > 0) {
     todos.push({
       id: "expiring-contracts",
@@ -425,33 +439,32 @@ function todosOf(
       href: squadHref,
     });
   }
-  if (club.players >= SQUAD_ALERT_SIZE && club.goalkeepers >= MIN_GOALKEEPERS) {
-    todos.push({
-      id: "full-squad",
-      severity: "ok",
-      icon: UserCheckIcon,
-      title: t("fullSquad"),
-      detail: t("fullSquadDetail", { players: club.players, goalkeepers: club.goalkeepers }),
-    });
-  }
   return byPriority(todos);
 }
 
-/** A line of the list, whole on a phone: its text wraps, and all of it is the link to where the thing gets done. */
-function TodoRow({ severity, icon: Icon, title, detail, href }: Omit<Todo, "id">) {
-  const content = (
+/** A line's tile and its text: its title, then its detail, both wrapping. */
+function TodoContent({ severity, icon: Icon, title, detail }: Pick<Todo, "severity" | "icon" | "title" | "detail">) {
+  return (
     <>
       <span aria-hidden className={cn("grid size-9 shrink-0 place-items-center rounded-md", TILE_CLASSES[severity])}>
         <Icon className="size-4.5" />
       </span>
       <span className="min-w-0 flex-1 space-y-0.5">
         <span className="block text-[0.9375rem] leading-tight font-bold wrap-break-word">{title}</span>
-        <span className="block text-[0.8125rem] leading-snug wrap-break-word text-muted-foreground">{detail}</span>
+        {detail !== "" && <span className="block text-[0.8125rem] leading-snug wrap-break-word text-muted-foreground">{detail}</span>}
       </span>
     </>
   );
+}
+
+/** A line of the list, whole on a phone: its text wraps, and all of it is the link to where the thing gets done. */
+function TodoRow({ href, ...content }: Omit<Todo, "id">) {
   if (href === undefined) {
-    return <div className={ROW}>{content}</div>;
+    return (
+      <div className={ROW}>
+        <TodoContent {...content} />
+      </div>
+    );
   }
   return (
     <Link
@@ -459,7 +472,7 @@ function TodoRow({ severity, icon: Icon, title, detail, href }: Omit<Todo, "id">
       data-testid="alert-action"
       className={cn(ROW, "transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none")}
     >
-      {content}
+      <TodoContent {...content} />
       <ChevronRightIcon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
     </Link>
   );
@@ -484,7 +497,8 @@ const MORE =
 
 /**
  * What the dashboard asks of the manager, the most important first (TODO_PRIORITY, docs/design/simplification.md § 4.1):
- * a missing goalkeeper, the starters out of the next match, a federation's offer, the contracts, the best offer, a thin
+ * a missing goalkeeper, the starters out of the next match, a federation's offer, the contracts (the starters his
+ * assistant means to let go, or every one ending while he keeps the contracts himself), the best offer, a thin
  * squad, then the European match and the breaks ahead, the bookings, the injured, the weak spot, a mission's end and the
  * squad's state. The starters out and tired are the player's own eleven's only: the assistant replaces and rests his
  * (§ 3.4). The market's lines wait for the club's first match, the weak spot for a transfer window. Three lines at once,
@@ -511,7 +525,15 @@ export function DashboardTodo({ className, ...props }: DashboardTodoProps): Reac
       <h2 id="dashboard-todo" className="font-heading text-xl">
         {t("title")}
       </h2>
-      <TodoItems todos={todos.slice(0, TODOS_SHOWN)} />
+      {/* Nothing to do: the assistant takes care of the rest (docs/design/simplification.md § 4.1), on a line that leads
+          nowhere. */}
+      {todos.length === 0 ? (
+        <div data-testid="alert-none" className={ROW}>
+          <TodoContent severity="ok" icon={UserCheckIcon} title={t("none")} detail="" />
+        </div>
+      ) : (
+        <TodoItems todos={todos.slice(0, TODOS_SHOWN)} />
+      )}
       {/* The others in the page, folded: a native disclosure, which opens in place without a request, even before the
           page's script has run, and whose summary says to assistive technologies whether it is open. */}
       {more.length > 0 && (

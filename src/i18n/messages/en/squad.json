@@ -1,10 +1,8 @@
 {
   "squad": {
     "title": "Squad",
-    "players": "{count, plural, one {player} other {players}}",
+    "playersOf": "{count, plural, one {player} other {players}} of {limit}",
     "goalkeepers": "{count, plural, one {goalkeeper} other {goalkeepers}}",
-    "wageBill": "wage bill",
-    "payroll": "€{payroll}m / €{budget}m",
     "windowClosed": "Transfer window closed: extensions, releases and sales will wait until it reopens.",
     "sortLabel": "Sort the squad",
     "presets": {
@@ -21,7 +19,6 @@
       "form": "Form",
       "fitness": "Fitness",
       "marketValue": "Value",
-      "wage": "Wage",
       "contractUntil": "Contract",
       "status": "Status"
     },

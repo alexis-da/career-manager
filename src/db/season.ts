@@ -3,7 +3,7 @@ import { marketValueFor } from "../engine/economy";
 import type { PlayerAttributes } from "../engine/generation";
 import { progressionRngSeed, progressPlayer, willRetire } from "../engine/progression";
 import { hasWinterBreak } from "../engine/schedule";
-import { seasonEndDate, seasonStartDate } from "../engine/world";
+import { seasonStartDate } from "../engine/world";
 import { worldVersionOf } from "../engine/world-version";
 import { Prisma } from "../generated/prisma/client";
 import { ageInYears } from "../lib/dates";
@@ -14,6 +14,7 @@ import { prisma } from "./client";
 import { CUPS_ENABLED } from "../engine/cup";
 import { EUROPE_ENABLED } from "../engine/europe";
 import { cupEntrantsOf, openCups } from "./cup";
+import { recordContractMoves } from "./contracts";
 import { cupWinnersOf, europeQualifiersOf, europeReputationBonuses, openEurope } from "./europe";
 import { seasonFixtures } from "./fixtures";
 import { assertNoMatchInProgress } from "./matchday";
@@ -40,8 +41,8 @@ export type SeasonTransition = {
   startYear: number;
   moves: number; // clubs promoted or relegated (worldVersion 2 saves)
   retired: number;
-  // Players of the managed club whose contract ended; AI clubs decide in the preseason, and the managed club too when
-  // the assistant manages its contracts (none then).
+  // Players of the managed club whose contract ended on 30 June and who left free at the turn, its player's choice, its
+  // assistant's rule or by default (its preseason decides, src/db/preseason.ts).
   freeAgents: number;
   fixtures: number; // of the leagues
   cupTies: number; // the cups' preliminary rounds (worldVersion 2 saves)
@@ -61,9 +62,10 @@ export class SeasonNotFinishedError extends Error {
 }
 
 /**
- * A transition's options: the preseason's (assistantContracts), and `europe`, the measurement scripts' baseline only: false
+ * A transition's options: the preseason's (assistantContracts: who decides the managed club's contracts ending on 30 June,
+ * its assistant or its player, whatever the career's setting), and `europe`, the measurement scripts' baseline only: false
  * opens no European competition, whatever the game's rule (EUROPE_ENABLED), to weigh a save without them. Absent, the
- * game's rule.
+ * game's rule and the career's setting.
  */
 // europe: false, nations: false: a measure's save without them, to compare (scripts/measure-career-weight.ts).
 // winterBreak: false: a save without the winter break does not get it at this transition (a test's save from before it).
@@ -82,22 +84,22 @@ type PlayerUpdate = PlayerAttributes & {
  * match waits at half-time (MatchInProgressError) or a fixture of the season is unplayed. Then: in a worldVersion 2
  * save, promotion and relegation are drawn from the final tables (src/db/promotion.ts); the managed club's
  * SeasonResult is written and its objectives of the season get their outcome (src/db/objectives.ts); every player
- * progresses (retired players excepted) and gets his market value from his new rating and age, some retire, expired
- * contracts of the managed club turn its players into free agents, form, morale, fitness, injuries and yellow cards
- * are reset (a suspension still to serve carries over), the seasons are marked completed (with their moves), the
- * moving clubs change competition, every club's reputation follows its final place against its expected rank and every
- * club gets its finances for the new season, its dotation (from its objectives for the managed club, which alone keeps
- * half of its unspent budget) and its wage budget from its payroll at the end of the season
- * (src/db/season-finances.ts), the save moves to 1 July, the preseason runs (young players, AI squads), and next season's seasons and fixtures are created (around the international breaks and, from Save.winterBreakFrom, the winter break of the leagues that have it), with the managed club's dotation
- * (SeasonBudget), the cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables (when the
+ * progresses (retired players excepted) and gets his market value from his new rating and age, some retire, form,
+ * morale, fitness, injuries and yellow cards are reset (a suspension still to serve carries over), the seasons are marked
+ * completed (with their moves), the moving clubs change competition, every club's reputation follows its final place
+ * against its expected rank and every club gets its finances for the new season, its dotation (from its objectives for
+ * the managed club, which alone keeps half of its unspent budget) and its wage budget from its payroll at the end of the
+ * season (src/db/season-finances.ts), the save moves to 1 July, the preseason runs (the managed club's contracts ending
+ * on 30 June renewed or gone free, young players, AI squads: src/db/preseason.ts), and next season's seasons and fixtures are created (around the international breaks and, from Save.winterBreakFrom, the winter break of the leagues that have it), with the managed club's dotation
+ * (SeasonBudget, what the turn did to its squad with it: contractMoves), the cups of a worldVersion 2 save and their preliminary rounds, drawn from the final tables (when the
  * save already had cups, or the game gives them: CUPS_ENABLED), its European competitions and their league phases, from
  * the final tables and the cups' winners (when the save already had them, or the game gives them: EUROPE_ENABLED; never
  * a challenge save), then the managed club's objectives of the new season. Every cup tie and European match must have
  * been played too: the season ends with the European finals. A European run raises a club's reputation target
  * (europeReputationBonuses).
  * PlayerSave.marketValue is read as is everywhere else: this is where it changes.
- * options.assistantContracts (the measurement scripts' and tests' mode, never the game's): the assistant manages the
- * managed club's contracts, whose expired ones stay for its preseason to renew or release as an AI club's.
+ * options.assistantContracts: who decides the managed club's contracts ending on 30 June, its assistant (true, as the
+ * measurement scripts ask) or its player (false), whatever the career's setting (Save.contractsByAssistant).
  */
 export async function advanceToNextSeason(saveId: string, options: SeasonTransitionOptions = {}): Promise<SeasonTransition> {
   const transition = await prisma.$transaction(
@@ -167,7 +169,6 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
         await tx.save.update({ where: { id: saveId }, data: { breaksFrom, cyclesFrom, winterBreakFrom } });
       }
       const withWinterBreak = seasonHasWinterBreak(winterBreakFrom, startYear);
-      const lastContractDay = seasonEndDate(completedStartYear);
 
       // Every club's payroll at the end of the season, before any player retires or leaves: its next wage budget's base.
       const payrolls = await payrollsOf(tx, saveId);
@@ -191,7 +192,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
           defending: true,
           physical: true,
           goalkeeping: true,
-          clubSave: { select: { clubId: true, isManaged: true } },
+          clubSave: { select: { clubId: true } },
         },
       });
       // League minutes only: the cup and Europe keep the managed club's players' stats alone, which would favour them.
@@ -205,8 +206,8 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       const updates: PlayerUpdate[] = [];
       const transfers: Prisma.TransferCreateManyInput[] = [];
       let retired = 0;
-      let freeAgents = 0;
 
+      // The contracts ending on 30 June stay as they are: the preseason decides them, the managed club's as its AI clubs'.
       for (const row of players) {
         const { id: playerSaveId, playerKey, birthDate, position, clubSave, clubSaveId, contractUntil, ...attributes } = row;
         const age = ageInYears(birthDate, transitionDate);
@@ -220,15 +221,6 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
           retired++;
           transfers.push({ saveId, playerSaveId, fromClubId, toClubId: null, type: "RETIREMENT", date: transitionDate });
           updates.push({ ...progressed, playerSaveId, clubSaveId: null, retired: true, contractUntil: null, marketValue });
-        } else if (
-          clubSave?.isManaged === true &&
-          options.assistantContracts !== true &&
-          contractUntil !== null &&
-          contractUntil <= lastContractDay
-        ) {
-          freeAgents++;
-          transfers.push({ saveId, playerSaveId, fromClubId, toClubId: null, type: "FREE", date: transitionDate });
-          updates.push({ ...progressed, playerSaveId, clubSaveId: null, retired: false, contractUntil: null, marketValue });
         } else {
           updates.push({ ...progressed, playerSaveId, clubSaveId, retired: false, contractUntil, marketValue });
         }
@@ -304,6 +296,10 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
         throw new Error(`Save ${saveId} has no league season for its managed club in ${startYear}`);
       }
       await recordDotation(tx, saveId, managedSeason.id, dotation);
+      // What its turn did to its squad, for the season's start: its contracts renewed or gone, its signings and young players.
+      if (preseason.contractMoves !== null) {
+        await recordContractMoves(tx, saveId, managedSeason.id, preseason.contractMoves);
+      }
 
       const fixtures = nextSeasons.flatMap((season) => {
         const competitionCode = getOrThrow(codeByCompetition, season.competitionId, "competition code");
@@ -361,7 +357,7 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
         startYear,
         moves: moves.length,
         retired,
-        freeAgents,
+        freeAgents: preseason.contractMoves?.left.length ?? 0,
         fixtures: fixtures.length,
         cupTies,
         europeMatches,

@@ -105,10 +105,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals on t
     const { market, transfers, saveId } = loaded();
     const overview = await market.getMarketOverview(saveId);
 
-    for (const { id: playerSaveId, askingPrice, askedWage } of proposed()) {
+    for (const { id: playerSaveId, askingPrice } of proposed()) {
       const quote = await transfers.quoteTransfer({ saveId, playerSaveId });
 
-      expect(quote).toMatchObject({ askingPrice, minimumWage: askedWage });
+      expect(quote.askingPrice).toBe(askingPrice);
       expect(quote.minimumReputation).toBeLessThanOrEqual(overview.reputation);
       expect(askingPrice).toBeLessThanOrEqual(overview.budget);
     }
@@ -126,7 +126,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals on t
     }
   });
 
-  it("says the squad is not full, and that no entry is wage-bound any more", async () => {
+  it("says the squad is not full", async () => {
     const { db, market, saveId, first } = loaded();
     const overview = await market.getMarketOverview(saveId);
     const managed = await db.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
@@ -134,7 +134,6 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals on t
     expect(overview.squadSize).toBe(await db.playerSave.count({ where: { saveId, clubSaveId: managed.id, retired: false } }));
     expect(overview.squadSize).toBeLessThan(SQUAD_LIMIT);
     expect(first.squadFull).toBe(false);
-    expect(first.wageBound).toEqual({ needs: false, gems: false, bargains: false, stars: false });
   });
 
   it("fills identities, clubs and attributes from the save", async () => {
@@ -194,14 +193,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals on t
     }
   });
 
-  it("keeps the screen's shape, nothing more", () => {
+  it("keeps the screen's shape, nothing more: no wage", () => {
     const [proposal] = loaded().first.entries.stars;
 
-    expect(Object.keys(loaded().first).sort()).toEqual(["entries", "squadFull", "wageBound", "weakSpot"]);
+    expect(Object.keys(loaded().first).sort()).toEqual(["entries", "squadFull", "weakSpot"]);
     expect(Object.keys(proposal).sort()).toEqual(
       [
         "age",
-        "askedWage",
         "askingPrice",
         "attributes",
         "clubColors",

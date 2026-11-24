@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { formatMoney } from "../src/lib/format";
-import { setManagedWageRoom, setSaveDate } from "./db";
+import { setSaveDate } from "./db";
 import { createSave, deleteSave, expectNoSidewaysScroll, expectUncovered, openScreen, saveIdOf, textOf } from "./helpers";
 
 // The market's main screen, on a Lyon just created: what to buy, one proposal at a time, the signing in two steps, then
@@ -76,7 +76,9 @@ test("proposes one player at a time, through four ways in, and opens his sheet o
   await expect(page.getByTestId("market-buy")).toBeVisible();
   await expect(page.getByTestId("market-advanced")).toBeVisible();
   expect(await budgetOf(page)).toBeGreaterThan(0);
-  await expect(page.locator('[data-summary="wage-room"]')).toBeVisible();
+  // Beside the budget, the only limit, the squad's count against its 30 places: no wage room.
+  await expect(page.locator('[data-summary="squad"]')).toHaveText(/^Effectif \d+\/30$/);
+  await expect(page.locator('[data-summary="wage-room"]')).toHaveCount(0);
 
   // « Mes besoins » by default: the weak spot, and who fills it best. He plays for a club, which has a price: the biggest
   // gain goes to a rating free agents do not reach, as they stop at 70.
@@ -92,7 +94,10 @@ test("proposes one player at a time, through four ways in, and opens his sheet o
   await expect(name).toHaveText(/\S \S/);
   await expect(page.getByTestId("market-impact")).toHaveText(/^\+[1-9]\d* au poste \S+$/);
   await expect(page.getByTestId("market-price")).toHaveText(AMOUNT);
+  await expect(page.getByTestId("market-price-label")).toHaveText("Prix suggéré");
+  await expect(page.getByTestId("market-contract")).toHaveText("Contrat de 3 saisons");
   await expect(page.getByTestId("market-recruit")).toHaveText("Recruter");
+  await expect(page.getByTestId("market-squad-full")).toHaveCount(0);
   const best = await playerIdOf(proposal);
 
   await page.getByTestId("market-pass").click();
@@ -148,16 +153,20 @@ test("signs a proposal after a short confirmation, and nobody signed in this win
   const playerName = await textOf(page.getByTestId("market-player-name"));
   const price = await textOf(page.getByTestId("market-price"));
   const budgetBefore = await budgetOf(page);
+  const squad = page.locator('[data-summary="squad"]');
+  await expect(squad).toHaveAttribute("data-value", String(squadSize));
 
-  // Nothing to choose, everything to read: the card's price and wage, three seasons from 2026-27, what the budget keeps.
+  // Nothing to choose, everything to read: the card's price, three seasons from 2026-27, what the budget keeps and the
+  // place he takes in the squad. No wage: he gets the one he asks.
   await page.getByTestId("market-recruit").click();
   const confirmation = page.getByTestId("market-recruit-dialog");
   await expect(confirmation).toContainText(`Recruter ${playerName}`);
-  await expect(confirmation.locator("dt")).toHaveText(["Prix", "Salaire par saison", "Durée", "Budget restant"]);
+  await expect(confirmation).toContainText("Le prix le plus bas qu'il accepte, sur la durée standard.");
+  await expect(confirmation.locator("dt")).toHaveText(["Prix", "Durée", "Budget restant", "Effectif"]);
   const lines = confirmation.locator("dd");
-  await expect(lines).toHaveText([price, AMOUNT, "3 saisons, jusqu'au 30 juin 2029", AMOUNT]);
-  await expect(proposal).toContainText(`Salaire ${await textOf(lines.nth(1))} · 3 saisons`);
-  const budgetLeft = await textOf(lines.nth(3));
+  await expect(lines).toHaveText([price, "3 saisons, jusqu'au 30 juin 2029", AMOUNT, `${squadSize + 1} sur 30`]);
+  await expect(proposal.getByTestId("market-contract")).toHaveText("Contrat de 3 saisons");
+  const budgetLeft = await textOf(lines.nth(2));
 
   await page.getByTestId("market-recruit-confirm").click();
   const signed = page.getByTestId("market-signed");
@@ -167,35 +176,44 @@ test("signs a proposal after a short confirmation, and nobody signed in this win
   await page.getByTestId("market-signed-continue").click();
   await expect(signed).toHaveCount(0);
 
-  // The budget has lost the price shown, compared as shown: the card rounds it. He is no longer proposed: another player
-  // is, or nobody, the wage room he leaves being a real limit.
+  // The budget has lost the price shown, compared as shown: the card rounds it, and the squad has a player more. He is no
+  // longer proposed: another player is.
   await expect(page.locator('[data-summary="budget"]')).not.toHaveAttribute("data-value", String(budgetBefore));
   const budgetAfter = await budgetOf(page);
   expect(formatMoney(budgetBefore - budgetAfter)).toBe(price);
   expect(formatMoney(budgetAfter)).toBe(budgetLeft);
+  await expect(squad).toHaveAttribute("data-value", String(squadSize + 1));
+  await expect(squad).toHaveText(`Effectif ${squadSize + 1}/30`);
   await expect(page.locator(`[data-testid="market-proposal"][data-player-id="${playerId}"]`)).toHaveCount(0);
 
   await openScreen(page, "squad");
   await expect(rows).toHaveCount(squadSize + 1);
   await expect(page.locator('[data-summary="players"]')).toHaveText(String(squadSize + 1));
+  await expect(page.getByTestId("squad-summary")).toContainText(`${squadSize + 1} joueurs sur 30`);
   await expectNoResale(page, playerName);
 
-  // The same rule for a free agent, signed on the advanced market: the best rated one the wage room left still pays.
+  // The same rule for a free agent, signed on the advanced market: the best rated one, no longer free. His signing bonus
+  // comes off the budget, to the euro, and he takes a place.
   await openScreen(page, "advanced");
   const freeAgents = page.getByTestId("free-agents-table").locator("tbody tr[data-player-id]");
   await expect(freeAgents.first()).toBeVisible();
-  const wageRoom = Number(await page.locator('[data-summary="wage-room"]').getAttribute("data-value"));
-  const affordable = (
-    await freeAgents.evaluateAll((elements) =>
-      elements.map((element) => ({ id: element.getAttribute("data-player-id"), wage: Number(element.getAttribute("data-asked-wage")) })),
-    )
-  ).find(({ wage }) => wage <= wageRoom);
-  expect(affordable, `a free agent asking at most the wage room left, ${wageRoom} €`).toBeDefined();
-  const freeAgent = freeAgents.and(page.locator(`[data-player-id="${affordable?.id}"]`));
+  const freeAgent = freeAgents.first();
+  const bonus = Number(await freeAgent.getAttribute("data-bonus"));
+  expect(bonus).toBeGreaterThanOrEqual(50_000);
+  const budgetBeforeBonus = await budgetOf(page);
+  expect(bonus).toBeLessThanOrEqual(budgetBeforeBonus);
+  await expect(page.locator('[data-summary="squad"]')).toHaveAttribute("data-value", String(squadSize + 1));
   const freeAgentName = await textOf(freeAgent.getByTestId("market-player"));
   await freeAgent.getByTestId("sign-free-agent").click();
-  await page.getByTestId("sign-free-agent-dialog").getByTestId("confirm-signing").click();
-  await expect(page.getByText(`${freeAgentName} : Contrat signé`, { exact: false })).toBeVisible();
+  const signing = page.getByTestId("sign-free-agent-dialog");
+  await expect(signing).toContainText(`une prime à la signature de ${formatMoney(bonus)}, payée sur ton budget`);
+  await expect(signing.getByRole("spinbutton")).toHaveCount(0);
+  await signing.getByTestId("confirm-signing").click();
+  await expect(
+    page.getByText(`${freeAgentName} : Contrat signé jusqu'au 30 juin 2029, prime à la signature de ${formatMoney(bonus)}.`, { exact: false }),
+  ).toBeVisible();
+  await expect(page.locator('[data-summary="budget"]')).toHaveAttribute("data-value", String(budgetBeforeBonus - bonus));
+  await expect(page.locator('[data-summary="squad"]')).toHaveAttribute("data-value", String(squadSize + 2));
 
   // Both among the club's movements, each with his face, as in the other lists.
   await page.getByTestId("market-tab-moves").click();
@@ -218,77 +236,6 @@ test("signs a proposal after a short confirmation, and nobody signed in this win
   await expect(withOffer.first()).toBeVisible();
   await expect(withOffer.filter({ has: page.getByText(playerName, { exact: true }) })).toHaveCount(0);
   await expect(withOffer.filter({ has: page.getByText(freeAgentName, { exact: true }) })).toHaveCount(0);
-});
-
-test("proposes what the wage room still pays, then how to make room when it pays nobody, in French and in English", async ({
-  page,
-}) => {
-  await createLyonSave(page);
-  const saveId = saveIdOf(page);
-
-  // 930 k€ of wage room, what the first need leaves (the test above): nobody it pays would fill the weak spot, a few
-  // below it are within its means, the best there first.
-  await setManagedWageRoom(saveId, 930_000);
-  await openScreen(page, "transfers");
-  const intro = page.getByTestId("market-intro");
-  await expect(intro).toHaveText(
-    /^Ton point faible : .+ \(note \d+\)\. Ta marge salariale, 930\sk€, ne paie personne qui le comble : voici qui reste dans tes moyens\.$/,
-  );
-  const proposal = page.getByTestId("market-proposal");
-  await expect(page.getByTestId("market-tag")).toHaveText("Dans tes moyens");
-  await expect(page.getByTestId("market-impact")).toHaveCount(0);
-  await expect(page.getByTestId("market-recruit")).toBeEnabled();
-  const first = await playerIdOf(proposal);
-  await page.getByTestId("market-pass").click();
-  await expect(proposal).not.toHaveAttribute("data-player-id", first);
-  await expect(page.getByTestId("market-tag")).toHaveText("Dans tes moyens");
-
-  // Over the wage budget: nobody is within its means, in any way in. What is left, and the three ways to make room.
-  await setManagedWageRoom(saveId, -1_000_000);
-  await page.reload();
-  await expect(intro).toHaveText(/^Ton point faible : .+ \(note \d+\)\. Ta marge salariale ne paie plus personne qui le comble\.$/);
-  await expect(proposal).toHaveCount(0);
-  await expect(page.getByTestId("market-proposals-empty")).toHaveCount(0);
-  const limit = page.getByTestId("market-wage-limit");
-  await expect(limit.getByTestId("market-wage-limit-room")).toHaveText(
-    `Ta masse salariale dépasse ton plafond de ${formatMoney(1_000_000)} : personne ici n'est dans tes moyens.`,
-  );
-  await expect(limit.getByTestId("market-wage-limit-sell")).toContainText("vendre un joueur : son salaire te revient en marge");
-  await expect(limit.getByTestId("market-wage-limit-sell").getByRole("link")).toHaveAttribute("href", `/saves/${saveId}/transfers?tab=sell`);
-  await expect(limit.getByTestId("market-wage-limit-release")).toContainText("libérer un contrat, depuis la fiche du joueur");
-  await expect(limit.getByTestId("market-wage-limit-release").getByRole("link")).toHaveAttribute("href", `/saves/${saveId}/squad`);
-  await expect(limit.getByTestId("market-wage-limit-wait")).toHaveText(
-    "ou attendre la saison prochaine : ton plafond salarial sera recalculé sur ta masse salariale.",
-  );
-  for (const entry of ["market-entry-gems", "market-entry-bargains", "market-entry-stars"]) {
-    await page.getByTestId(entry).click();
-    await expect(limit).toBeVisible();
-  }
-
-  // The way to sell leads to the offers.
-  await limit.getByTestId("market-wage-limit-sell").getByRole("link").click();
-  await expect(page).toHaveURL(/\/transfers\?tab=sell$/);
-
-  // In English, the language chosen.
-  await page.context().addCookies([{ name: "lw_lang", value: "en", domain: "localhost", path: "/" }]);
-  await page.goto(`/saves/${saveId}/transfers`);
-  await expect(intro).toHaveText(/^Your weak spot: .+ \(rated \d+\)\. Your wage room no longer pays anyone who would fix it\.$/);
-  await expect(limit.getByTestId("market-wage-limit-room")).toHaveText(
-    `Your wage bill is ${formatMoney(1_000_000, "en")} over your wage cap: nobody here is within your means.`,
-  );
-  await expect(limit.getByTestId("market-wage-limit-wait")).toHaveText(
-    "or wait for next season: your wage cap will be worked out again from your wage bill.",
-  );
-
-  // On a phone: within the screen, each way a thumb high.
-  await page.setViewportSize(PHONE);
-  await page.reload();
-  await expect(limit).toBeVisible();
-  await expectNoSidewaysScroll(page, "wage limit");
-  for (const way of ["market-wage-limit-sell", "market-wage-limit-release"]) {
-    const box = await limit.getByTestId(way).getByRole("link").boundingBox();
-    expect(box?.height ?? 0, way).toBeGreaterThanOrEqual(44);
-  }
 });
 
 test("sells a player out of the eleven: the tab counts the offers, the budget rises and his line goes", async ({ page }) => {
@@ -391,9 +338,11 @@ test.describe("on a phone, in English", () => {
     await expect(sign).toHaveText("Sign");
     await expectNoSidewaysScroll(page, "buying");
 
-    // The budget alone over the card, and nothing beside it: both are a computer's.
+    // The budget and the squad's count over the card, and nothing beside it: the spotted players and the offer are a
+    // computer's.
     await expect(page.locator('[data-summary="budget"]')).toBeVisible();
-    await expect(page.locator('[data-summary="wage-room"]')).toBeHidden();
+    await expect(page.locator('[data-summary="squad"]')).toHaveText(/^Squad \d+\/30$/);
+    await expect(page.getByTestId("market-contract")).toHaveText("Contract of 3 seasons");
     await expect(page.getByTestId("market-spotted-player").first()).toBeHidden();
     await expect(page.getByTestId("market-sale-offer")).toBeHidden();
 
@@ -405,8 +354,9 @@ test.describe("on a phone, in English", () => {
     const playerName = await textOf(page.getByTestId("market-player-name"));
     await sign.click();
     const confirmation = page.getByTestId("market-recruit-dialog");
-    await expect(confirmation.locator("dt")).toHaveText(["Price", "Wage per season", "Length", "Budget left"]);
-    await expect(confirmation.locator("dd").nth(2)).toHaveText("3 seasons, until 30 June 2029");
+    await expect(confirmation.locator("dt")).toHaveText(["Price", "Length", "Budget left", "Squad"]);
+    await expect(confirmation.locator("dd").nth(1)).toHaveText("3 seasons, until 30 June 2029");
+    await expect(confirmation.locator("dd").nth(3)).toHaveText(/^\d+ of 30$/);
     await expectNoSidewaysScroll(page, "confirmation");
     await page.getByTestId("market-recruit-confirm").click();
     const signed = page.getByTestId("market-signed");

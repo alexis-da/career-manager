@@ -4,9 +4,6 @@
     "manager": "Manager : {manager} · {season, selectordinal, one {#re} other {#e}} saison",
     "finances": "Finances",
     "transferBudget": "Budget transferts",
-    "payroll": "Masse salariale",
-    "wageRoom": "{amount} de marge",
-    "wageOverrun": "{amount} de dépassement",
     "dotation": {
       "title": "Saison {season}",
       "start": "Budget de départ",
@@ -18,8 +15,7 @@
       "neutral": "Ni bonus ni malus : × {coefficient}",
       "carryOver": "Report",
       "carryOverDetail": "La moitié du budget non dépensé",
-      "total": "Budget de la saison",
-      "wageBudget": "Plafond salarial"
+      "total": "Budget de la saison"
     },
     "prizes": {
       "title": "Primes reçues · saison {season}",

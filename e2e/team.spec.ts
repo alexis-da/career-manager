@@ -578,16 +578,16 @@ test.describe("at 768 px", () => {
 test.describe("at 1024 px", () => {
   test.use({ viewport: SMALL_COMPUTER });
 
-  test("leads to the line-up as a computer does, and has the table without the potential and the wage", async ({ page }) => {
+  test("leads to the line-up as a computer does, and has the table without the potential, and never a wage", async ({ page }) => {
     await openSave(page);
     await expect(page.getByTestId("nav-team")).toHaveAttribute("href", `/saves/${saveId}/lineup`);
 
     await openSave(page, "/squad");
     const table = page.getByTestId("squad-table");
     await expect(table.locator("thead")).toBeVisible();
-    for (const column of ["potential", "wage"]) {
-      await expect(page.getByTestId(`squad-column-${column}`)).toBeHidden();
-    }
+    await expect(page.getByTestId("squad-column-potential")).toBeHidden();
+    // No wage column at any width: the player manages no wage (docs/design/simplification.md § 6.2).
+    await expect(page.getByTestId("squad-column-wage")).toHaveCount(0);
     for (const column of ["position", "name", "age", "overall", "form", "market-value", "contract-until"]) {
       await expect(page.getByTestId(`squad-column-${column}`)).toBeVisible();
     }
@@ -876,10 +876,16 @@ test("renews a contract from the line-up's sheet, which shows the new end at onc
   const playerName = await textOf(sheetNameOf(page));
   const eleven = await elevenOf(page);
 
-  // Five seasons from 2026-27, or four when his contract already runs to 2031.
+  // Five seasons from 2026-27, or four when his contract already runs to 2031. Neither on the sheet nor in the dialog a
+  // wage: the length alone is chosen, three seasons to begin with (docs/design/simplification.md § 2.3).
   const [length, expectedEnd] = (await textOf(contract)).includes("2031") ? [4, "30 juin 2030"] : [5, "30 juin 2031"];
+  await expect(contract).not.toContainText("Salaire");
+  await expect(sheetOf(page).getByTestId("renew-contract")).toHaveText("Prolonger maintenant");
   await sheetOf(page).getByTestId("renew-contract").click();
   const renewal = page.getByTestId("renew-dialog");
+  await expect(renewal).toContainText("Contrat actuel : jusqu'au");
+  await expect(renewal.getByTestId("renewal-wage")).toHaveCount(0);
+  await expect(renewal.getByTestId("contract-length-3")).toHaveAttribute("aria-pressed", "true");
   await renewal.getByTestId(`contract-length-${length}`).click();
   await renewal.getByTestId("renew-confirm").click();
   await expect(renewal).toBeHidden();
@@ -905,6 +911,8 @@ test("releases a starter from the line-up's sheet: he leaves the list, and the p
   await expect(sheetNameOf(page)).toHaveText(releasedName);
   await sheetOf(page).getByTestId("release-player").click();
   const release = page.getByTestId("release-dialog");
+  // Its cost in money alone, never a wage: half of what he is still owed.
+  await expect(release).toContainText(/Coût : .+, la moitié de ce qui lui reste dû sur son contrat\./);
   await release.getByTestId("release-confirm").click();
   await expect(release).toBeHidden();
 

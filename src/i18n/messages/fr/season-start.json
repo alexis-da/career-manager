@@ -3,7 +3,7 @@
     "title": "Début de saison",
     "season": "Saison {season}",
     "back": "Tableau de bord",
-    "intro": "Avant ton premier match : le budget que t'accorde la direction, ton plafond salarial et tes objectifs.",
+    "intro": "Avant ton premier match : le budget que t'accorde la direction, ce qu'a fait ton adjoint et tes objectifs.",
     "budget": {
       "granted": "La direction t'accorde",
       "grantedNote": "Ton budget transferts pour la saison {season}.",
@@ -25,12 +25,16 @@
       "carryOverDetail": "La moitié de ton budget non dépensé",
       "total": "Budget de la saison"
     },
-    "wages": {
-      "title": "Plafond salarial",
-      "payroll": "Masse salariale",
-      "room": "Marge",
-      "overrun": "Dépassement",
-      "note": "Un recrutement dont le salaire dépasse ta marge est refusé."
+    "assistant": {
+      "title": "Ton adjoint à l'intersaison",
+      "renewed": "{count, plural, one {Prolongé} other {Prolongés}} : {players}",
+      "renewedPlayer": "{name} ({year})",
+      "left": "{count, plural, one {Parti libre} other {Partis libres}} : {players}",
+      "noContracts": "Aucun contrat ne finissait le 30 juin.",
+      "signed": "{count, plural, one {Signé} other {Signés}} : {players}",
+      "signedPlayer": "{name}, {position} ({bonus})",
+      "youths": "Venus de l'académie : {count, plural, one {# jeune} other {# jeunes}}",
+      "squad": "Effectif : {count, plural, one {# joueur} other {# joueurs}} sur {limit}"
     },
     "objectives": {
       "title": "Objectifs de la saison",

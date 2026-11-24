@@ -29,18 +29,26 @@
       "saved": "{formation} line-up saved."
     },
     "contracts": {
-      "invalid": "Invalid proposal: the length is 1 to 5 seasons and the wage must be an amount in euros.",
-      "renewed": "Contract extended until {until}, for {wage} per season.",
-      "renewedOpenEnded": "Contract extended, for {wage} per season.",
+      "invalid": "Invalid proposal: the length is 1 to 5 seasons.",
+      "renewed": "Contract extended until {until}.",
+      "renewedOpenEnded": "Contract extended.",
       "released": "Player released. Compensation paid: {fee}.",
-      "sold": "Player sold for {fee}."
+      "sold": "Player sold for {fee}.",
+      "choice": {
+        "ASSISTANT": "Your assistant will decide at the end of the season.",
+        "DEFAULT": "Without an extension, he will leave on a free at the end of the season.",
+        "RENEW": "He will be extended at the end of the season.",
+        "LEAVE": "He will leave on a free at the end of the season."
+      },
+      "choiceInvalid": "Invalid choice: extend him, let him go, or leave it to your assistant.",
+      "choiceRefused": "His contract doesn't end this season: nothing to decide for him."
     },
     "market": {
-      "invalid": "Invalid proposal: the length is 1 to 5 seasons, and the fee and the wage are whole amounts in euros.",
-      "signed": "Contract signed until {until}, for {wage} per season.",
-      "signedOpenEnded": "Contract signed, for {wage} per season.",
-      "offerAccepted": "Offer accepted: transfer for {fee}, contract until {until} at {wage} per season.",
-      "offerAcceptedOpenEnded": "Offer accepted: transfer for {fee}, contract at {wage} per season."
+      "invalid": "Invalid proposal: the length is 1 to 5 seasons, and the fee is a whole amount in euros.",
+      "signed": "Contract signed until {until}, signing bonus of {bonus}.",
+      "signedOpenEnded": "Contract signed, signing bonus of {bonus}.",
+      "offerAccepted": "Offer accepted: transfer for {fee}, contract until {until}.",
+      "offerAcceptedOpenEnded": "Offer accepted: transfer for {fee}."
     },
     "objective": {
       "invalid": "Unknown objective: choose one of the three the board offers.",
@@ -69,7 +77,7 @@
     "matchInProgress": "Your match is waiting to resume: play it out before selling a player.",
     "offerChanged": "The offer has changed: nothing was sold, look at the new one before deciding.",
     "offerChangedTo": "The offer has changed: {club} now offers {fee}. Nothing was sold.",
-    "insufficientBudget": "Insufficient budget: your transfer budget doesn't cover this deal.",
+    "insufficientBudget":"Insufficient budget: your transfer budget doesn't cover this deal.",
     "insufficientBudgetFor": "Insufficient budget: the fee of {fee} exceeds your transfer budget of {budget}.",
     "insufficientBudgetBonus": "Your budget doesn't cover his signing bonus ({bonus}).",
     "squadFull": "Your squad already has 30 players, the maximum: sell or release one before signing another.",

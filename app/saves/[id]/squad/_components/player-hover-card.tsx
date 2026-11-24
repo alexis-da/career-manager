@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { PlayerFace } from "@/src/components/player-face";
 import { HoverCardContent } from "@/src/components/ui/hover-card";
 import type { SquadPlayerView } from "@/src/db/squad";
-import { formatDate, formatMoney } from "@/src/lib/format";
+import { formatDate } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { AttributeBars } from "../../_components/attribute-bars";
 import { PositionBadges } from "../../_components/position-badge";
@@ -41,7 +41,27 @@ function ConditionGauge({ label, value, barClass, width, title }: ConditionGauge
   );
 }
 
-function PlayerCardBody({ player }: { player: SquadPlayerView }) {
+/** What the card shows of a player: never his wage, which the player does not manage. */
+type CardPlayer = Pick<
+  SquadPlayerView,
+  | "playerKey"
+  | "firstName"
+  | "lastName"
+  | "age"
+  | "clubColors"
+  | "position"
+  | "overall"
+  | "potential"
+  | "attributes"
+  | "form"
+  | "fitness"
+  | "fitnessAtNextMatch"
+  | "contractUntil"
+  | "contractExpiring"
+>;
+
+/** The card's content: who he is, his ratings and attributes, his form, fitness and contract's end. */
+export function PlayerCardBody({ player }: { player: CardPlayer }) {
   const t = useTranslations("player");
   const locale = useLocale();
   return (
@@ -80,17 +100,12 @@ function PlayerCardBody({ player }: { player: SquadPlayerView }) {
         />
       </dl>
 
-      <dl className="flex justify-between gap-3 border-t pt-2 text-xs">
-        <div>
-          <dt className="text-muted-foreground">{t("contractEnd")}</dt>
-          <dd className={cn("font-semibold", player.contractExpiring && "text-warning")}>
-            {player.contractUntil === null ? "—" : formatDate(player.contractUntil, locale)}
-          </dd>
-        </div>
-        <div className="text-right">
-          <dt className="text-muted-foreground">{t("wage")}</dt>
-          <dd className="font-semibold tabular-nums">{t("wagePerSeason", { wage: formatMoney(player.wage, locale) })}</dd>
-        </div>
+      {/* His contract's end, and no wage: the player manages none (docs/design/simplification.md § 6.2). */}
+      <dl className="border-t pt-2 text-xs">
+        <dt className="text-muted-foreground">{t("contractEnd")}</dt>
+        <dd className={cn("font-semibold", player.contractExpiring && "text-warning")}>
+          {player.contractUntil === null ? "—" : formatDate(player.contractUntil, locale)}
+        </dd>
       </dl>
     </div>
   );

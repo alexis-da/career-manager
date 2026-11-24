@@ -32,19 +32,20 @@ export type SquadDecision =
   | { type: "release"; playerId: string }
   | { type: "sign"; playerId: string; years: number; wage: number; bonus: number }; // bonus: euros, signingBonus
 
-const byId = (a: RosterPlayer, b: RosterPlayer): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+type Ranked = Pick<RosterPlayer, "id" | "overall" | "potential">;
+
+const byId = (a: Ranked, b: Ranked): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 /** Best players first: overall, then potential, then id so that the input order never matters. */
-const byValue = (a: RosterPlayer, b: RosterPlayer): number =>
-  b.overall - a.overall || b.potential - a.potential || byId(a, b);
+export const byValue = (a: Ranked, b: Ranked): number => b.overall - a.overall || b.potential - a.potential || byId(a, b);
 
 /** Index of the player's role in SQUAD_ROLES. */
-const roleIndex = (position: Position): number => SQUAD_ROLES.indexOf(roleOf(position));
+export const roleIndex = (position: Position): number => SQUAD_ROLES.indexOf(roleOf(position));
 
-const GOALKEEPER_ROLE = roleIndex("GK");
+export const GOALKEEPER_ROLE = roleIndex("GK");
 
 /** Players per role, in the order of SQUAD_ROLES. */
-const countByRole = (players: readonly RosterPlayer[]): number[] => {
+export const countByRole = (players: Iterable<{ position: Position }>): number[] => {
   const counts = SQUAD_ROLES.map(() => 0);
   for (const player of players) {
     counts[roleIndex(player.position)]++;
@@ -52,7 +53,10 @@ const countByRole = (players: readonly RosterPlayer[]): number[] => {
   return counts;
 };
 
-/** Seed of an AI club's preseason stream (contract lengths). */
+/**
+ * Seed of a club's preseason stream (contract lengths): an AI club's, and the managed club's, whose assistant renews and
+ * signs with it at the season's turn (src/engine/assistant-contracts.ts).
+ */
 export function squadPlanRngSeed(saveSeed: string, startYear: number, clubSlug: string): string {
   return `${saveSeed}:squad-plan:${startYear}:${clubSlug}`;
 }

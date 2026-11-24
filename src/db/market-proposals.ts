@@ -41,8 +41,8 @@ export type MarketProposal = {
   clubName: string | null; // null: a free agent
   clubColors: ClubColors | null;
   // Euros signing him takes from the budget: his club's asking price, or a free agent's signing bonus (TransferQuote).
+  // No wage: he signs for the one he asks, which no screen shows (docs/design/simplification.md § 1.2).
   askingPrice: number;
-  askedWage: number; // lowest wage he accepts, euros per season: written with his contract, never a condition
   marketValue: number; // euros
   attributes: Record<AttributeName, number>;
   slot: Position; // where he would play in the eleven
@@ -53,16 +53,10 @@ export type MarketProposal = {
 export type MarketProposals = {
   weakSpot: WeakSpot | null;
   entries: Record<MarketEntry, MarketProposal[]>;
-  // Always false: no wage room keeps anyone out since the simplification (docs/design/simplification.md § 1.1). Kept
-  // until the buying screen drops its wage panel.
-  wageBound: Record<MarketEntry, boolean>;
   // The managed club has SQUAD_LIMIT players under contract or more: it signs nobody (squad_full), though the entries,
   // computed as ever, stay readable.
   squadFull: boolean;
 };
-
-/** No entry is ever wage-bound any more (MarketProposals.wageBound). */
-const NEVER_WAGE_BOUND: Readonly<Record<MarketEntry, boolean>> = { needs: false, gems: false, bargains: false, stars: false };
 
 /** What choosing takes for a player of the market: the rest is read for the few chosen. */
 const ROW_SELECT = {
@@ -101,8 +95,8 @@ const VIEW_SELECT = {
 type Row = Prisma.PlayerSaveGetPayload<{ select: typeof ROW_SELECT }>;
 type ViewRow = Prisma.PlayerSaveGetPayload<{ select: typeof VIEW_SELECT }>;
 
-/** A player of the market as proposeSignings weighs him, with his asked wage for the screen. */
-type Candidate = MarketCandidate & { id: string; askedWage: number };
+/** A player of the market as proposeSignings weighs him, with his id. */
+type Candidate = MarketCandidate & { id: string };
 
 /** The managed club as a buyer, on the save's current date, with its players under contract. */
 type Buyer = MarketBuyer & { clubSaveId: string; currentDate: Date; squadSize: number };
@@ -122,7 +116,6 @@ function toCandidate(row: Row, club: { isManaged: boolean; reputation: number } 
     overall: row.overall,
     potential: row.potential,
     askingPrice: quote.askingPrice,
-    askedWage: quote.minimumWage,
     minimumReputation: quote.minimumReputation,
     marketValue: marketValueFor({ age, overall: row.overall, potential: row.potential }),
   };
@@ -142,7 +135,6 @@ function toMarketProposal({ candidate, slot, impact, tag }: Proposal<Candidate>,
     clubName: club === null ? null : displayClubName(club),
     clubColors: club === null ? null : clubColorsOf(club),
     askingPrice: candidate.askingPrice,
-    askedWage: candidate.askedWage,
     marketValue: candidate.marketValue,
     attributes: {
       pace: view.pace,
@@ -359,7 +351,6 @@ export async function getMarketProposals(saveId: string): Promise<MarketProposal
       bargains: toViews(entries.bargains),
       stars: toViews(entries.stars),
     },
-    wageBound: { ...NEVER_WAGE_BOUND },
     squadFull: buyer.squadSize >= SQUAD_LIMIT,
   };
 }

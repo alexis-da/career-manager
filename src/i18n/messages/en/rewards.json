@@ -101,9 +101,8 @@
           "FW": "Attack"
         },
         "youth": "{name}, 17 · rated {overall} · potential {potential}",
-        "youthWage": "Wage {wage} a season, 3-season contract, counted in your wage cap.",
-        "youthRoom": "Wage margin: {wageRoom}",
-        "tooExpensive": "Over your margin",
+        "youthContract": "Contract of {years, plural, one {# season} other {# seasons}}, with no sale or release before it ends.",
+        "youthPlace": "He takes a squad place: {count} of {limit}.",
         "campPlayers": "{count, plural, one {# player under 100 fitness} other {# players under 100 fitness}}",
         "topUp": "Your transfer budget goes up to {budget}."
       },

@@ -37,11 +37,22 @@
     "contract": "Contrat",
     "noContract": "Sans contrat",
     "contractEnd": "Fin de contrat",
-    "wage": "Salaire",
-    "wagePerSeason": "{wage} / saison",
-    "wagePerYear": "{wage} / an",
     "marketValue": "Valeur marchande",
-    "leavingFree": "Sans prolongation, il partira libre en fin de saison.",
+    "leavingFree": {
+      "assistantRenew": "Ton adjoint le prolongera en fin de saison.",
+      "assistantLeave": "Ton adjoint le laissera partir libre en fin de saison.",
+      "renew": "Il sera prolongé en fin de saison.",
+      "leave": "Sans prolongation, il partira libre en fin de saison."
+    },
+    "contractChoice": {
+      "legend": "À la fin de son contrat :",
+      "assistantRenew": "Ton adjoint décide : il le prolongera",
+      "assistantLeave": "Ton adjoint décide : il le laissera partir",
+      "default": "Partir libre (par défaut)",
+      "renew": "Le prolonger",
+      "leave": "Le laisser partir",
+      "failed": "Ton choix n'a pas pu être enregistré. Réessaie."
+    },
     "transfers": "Transferts",
     "transfer": {
       "transfer": "Transfert : {from} vers {to}, {fee}",
@@ -92,21 +103,20 @@
     }
   },
   "contract": {
-    "renew": "Prolonger",
+    "renew": "Prolonger maintenant",
     "renewTitle": "Prolonger {name}",
-    "renewDescription": "Il accepte au moins {wage} par saison. Contrat actuel : jusqu'au {date}.",
-    "renewDescriptionNoContract": "Il accepte au moins {wage} par saison. Contrat actuel : aucun.",
-    "offeredWage": "Salaire proposé, en euros par saison",
-    "negotiating": "Négociation…",
+    "renewDescription": "Contrat actuel : jusqu'au {date}.",
+    "renewDescriptionNoContract": "Contrat actuel : aucun.",
+    "negotiating": "Prolongation…",
     "confirmRenewal": "Confirmer la prolongation",
     "release": "Libérer",
     "releaseTitle": "Libérer {name}",
-    "releaseDescription": "Il deviendra joueur libre. Coût : {cost}, la moitié des salaires restant dus sur son contrat.",
+    "releaseDescription": "Il deviendra joueur libre. Coût : {cost}, la moitié de ce qui lui reste dû sur son contrat.",
     "releasing": "Libération…",
     "confirmRelease": "Libérer le joueur",
     "sell": "Vendre",
     "sellTitle": "Vendre {name}",
-    "bestOffer": "Meilleure offre : {buyer} propose {fee}. Le joueur y gagnera {wage} par saison, pour {years, plural, one {# saison} other {# saisons}}.",
+    "bestOffer": "Meilleure offre : {buyer} propose {fee}.",
     "resaleCap": {
       "purchase": "Arrivé il y a moins d'un an : les clubs ne paieront pas beaucoup plus que ton prix d'achat.",
       "free": "Arrivé libre il y a moins d'un an : les clubs ne paieront pas plus de la moitié de sa valeur."

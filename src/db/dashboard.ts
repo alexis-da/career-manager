@@ -1,14 +1,17 @@
 import { displayClubName } from "../engine/club-name";
 import type { CompetitionKind } from "../engine/discipline";
 import { EUROPE_LEAGUE_ROUNDS } from "../engine/europe";
+import { formationPositions } from "../engine/formations";
 import type { FormResult } from "../engine/standings";
 import { seasonEndDate, transferWindowAt } from "../engine/world";
 import { worldVersionOf, type WorldVersion } from "../engine/world-version";
 import { ageInYears } from "../lib/dates";
 import { FIXTURE_SELECT, toFixtureView, type FixtureView } from "./calendar";
 import { prisma } from "./client";
+import { CONTRACT_RULE_SELECT, importantDepartures } from "./contracts";
 import { DISCIPLINE_SELECT, disciplineStatus } from "./discipline-view";
 import { europeLeagueStandings } from "./europe";
+import { parseFormation } from "./lineup";
 import { managedMatchesAhead } from "./players";
 import { coachSessionPending } from "./national-view";
 import { getStandings, type ClubStandingRow } from "./standings";
@@ -47,9 +50,7 @@ export type Dashboard = {
   club: {
     name: string;
     budget: number; // euros
-    wageBudget: number; // euros per season
-    payroll: number; // euros per season
-    players: number;
+    players: number; // under contract: the club signs nobody more at SQUAD_LIMIT
     goalkeepers: number;
     averageAge: number | null;
   };
@@ -59,7 +60,13 @@ export type Dashboard = {
   // Players one booking from a suspension in a competition the club still plays this season (disciplineStatus), by name,
   // with those competitions, the league first.
   bookingRisks: { name: string; competitions: CompetitionKind[] }[];
+  // Who decides the contracts ending on 30 June (Save.contractsByAssistant, docs/design/simplification.md § 2): its
+  // assistant, who tells only of the important players he means to let go, or its player, told of every one of them.
+  contractsByAssistant: boolean;
   expiringContracts: string[]; // players whose contract ends this season, listed from 1 January
+  // From 1 January, when the assistant decides them: the important players (importantPlayers) whose contract ends this
+  // season, whom his rule lets go and their player chose nothing for (§ 2.2), by name.
+  importantContracts: string[];
   position: {
     rank: number;
     clubs: number;
@@ -162,14 +169,20 @@ async function europePreviews(saveId: string, seasonId: string, fixture: Fixture
 export async function getDashboard(saveId: string): Promise<Dashboard> {
   const save = await prisma.save.findUniqueOrThrow({
     where: { id: saveId },
-    select: { currentDate: true, worldVersion: true, liveFixtureId: true, liveInternationalId: true },
+    select: {
+      currentDate: true,
+      worldVersion: true,
+      liveFixtureId: true,
+      liveInternationalId: true,
+      contractsByAssistant: true,
+    },
   });
   const club = await prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
     select: {
       id: true,
       budget: true,
-      wageBudget: true,
+      formation: true,
       competitionId: true,
       competition: { select: { code: true } },
       club: { select: { slug: true, name: true } },
@@ -185,17 +198,14 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
   // The next and last matches in any competition of the seasons in progress, cup ties included; the table and the
   // rank's movement come from the league season.
   const inProgress = { season: { completed: false } } as const;
-  const [payroll, squad, ahead, nextRow, lastRow, lastLeagueRow, unplayed, table] = await Promise.all([
-    prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } }),
+  const [squad, ahead, nextRow, lastRow, lastLeagueRow, unplayed, table] = await Promise.all([
     prisma.playerSave.findMany({
       where: { saveId, clubSaveId: club.id },
       select: {
         firstName: true,
         lastName: true,
-        birthDate: true,
-        position: true,
-        contractUntil: true,
         injuredUntil: true,
+        ...CONTRACT_RULE_SELECT,
         ...DISCIPLINE_SELECT,
       },
     }),
@@ -266,7 +276,19 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
 
   const secondHalf = season !== null && save.currentDate >= new Date(Date.UTC(season.startYear + 1, 0, 1));
   const lastContractDay = season === null ? null : seasonEndDate(season.startYear);
+  const expiring = squad.filter(
+    (player) => lastContractDay !== null && player.contractUntil !== null && player.contractUntil <= lastContractDay,
+  );
   const ages = squad.map((player) => ageInYears(player.birthDate, save.currentDate));
+  // From 1 January, the important players its assistant means to let go, when he decides the contracts: the rule read on
+  // the squad and the free agents of today, in the club's formation.
+  const letGo =
+    season === null || !secondHalf || !save.contractsByAssistant || expiring.length === 0
+      ? new Set<string>()
+      : await importantDepartures(saveId, squad, {
+          startYear: season.startYear,
+          formation: formationPositions(parseFormation(club.formation)),
+        });
 
   return {
     currentDate: save.currentDate,
@@ -277,8 +299,6 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
     club: {
       name: displayClubName(club.club),
       budget: club.budget,
-      wageBudget: club.wageBudget,
-      payroll: payroll._sum.wage ?? 0,
       players: squad.length,
       goalkeepers: squad.filter((player) => player.position === "GK").length,
       averageAge: ages.length === 0 ? null : ages.reduce((sum, age) => sum + age, 0) / ages.length,
@@ -310,12 +330,12 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
       })
       .sort(({ player: a }, { player: b }) => byName(a, b))
       .map(({ player, competitions }) => ({ name: shortName(player), competitions })),
-    expiringContracts:
-      !secondHalf || lastContractDay === null
-        ? []
-        : squad
-            .filter((player) => player.contractUntil !== null && player.contractUntil <= lastContractDay)
-            .map(shortName),
+    contractsByAssistant: save.contractsByAssistant,
+    expiringContracts: secondHalf ? expiring.map(shortName) : [],
+    importantContracts: squad
+      .filter((player) => letGo.has(player.playerKey))
+      .sort(byName)
+      .map(shortName),
     position:
       managedRow === undefined || managedRow.played === 0
         ? null

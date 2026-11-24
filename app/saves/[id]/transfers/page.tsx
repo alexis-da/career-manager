@@ -8,14 +8,18 @@ import { Badge } from "@/src/components/ui/badge";
 import { getMarketOverview } from "@/src/db/market";
 import { getMarketProposals } from "@/src/db/market-proposals";
 import { getMarketSales } from "@/src/db/market-sales";
+import { getSaleProposals } from "@/src/db/sale-proposals";
+import { SQUAD_LIMIT } from "@/src/engine/balance";
 import { formatMoney } from "@/src/lib/format";
 import { marketScreenStep } from "@/src/lib/tutorial";
+import { cn } from "@/src/lib/utils";
 import { ClosedWindowNote } from "../_components/contract-fields";
 import { getFirstSteps } from "../_components/first-steps";
 import { TutorialBubble } from "../_components/tutorial/tutorial-bubble";
 import { getSaveTutorial } from "../_lib/tutorial";
 import { MarketBuy } from "./_components/market-buy";
 import { MarketSell, SaleOfferCard } from "./_components/market-sell";
+import { SaleProposalsSection } from "./_components/sale-proposals";
 import { marketHref, singleValues } from "./_lib/market-url";
 
 export const dynamic = "force-dynamic";
@@ -38,12 +42,16 @@ export default async function MarketPage({ params, searchParams }: PageProps<"/s
     getLocale(),
   ]);
   const { tab } = querySchema.parse(singleValues(await searchParams));
-  const [overview, sales, proposals, tutorial] = await Promise.all([
+  // The sales the assistant proposes name the « Vendre » tab on both sides; their offers are the squad's quotes, which the
+  // sales read too, once per request (quoteSquadWithBuyers).
+  const [overview, sales, saleProposals, proposals, tutorial] = await Promise.all([
     getMarketOverview(id),
     getMarketSales(id),
+    getSaleProposals(id),
     tab === "buy" ? getMarketProposals(id) : null,
     getSaveTutorial(id),
   ]);
+  const proposedSales = saleProposals.proposals.length;
   // The tutorial's market step (scenario 2), from the second day: arriving here is its move, and the assistant shows the
   // first proposal of « Mes besoins », the entry the buying side opens on, by its « Recruter »: scrolled to above the
   // bubble on a phone, « Passer » beside it. Not simulation code: its day is real time.
@@ -70,13 +78,14 @@ export default async function MarketPage({ params, searchParams }: PageProps<"/s
           >
             {t("budget", { amount: formatMoney(overview.budget, locale) })}
           </Badge>
+          {/* Its players against SQUAD_LIMIT, in amber once full: no signing then. */}
           <Badge
-            data-summary="wage-room"
-            data-value={overview.wageRoom}
+            data-summary="squad"
+            data-value={overview.squadSize}
             variant="secondary"
-            className="h-9 bg-card px-3.5 text-[0.8125rem] tabular-nums max-lg:hidden"
+            className={cn("h-9 bg-card px-3.5 text-[0.8125rem] tabular-nums", overview.squadSize >= SQUAD_LIMIT && "text-warning")}
           >
-            {t("wageRoom", { amount: formatMoney(overview.wageRoom, locale) })}
+            {t("squad", { count: overview.squadSize, limit: SQUAD_LIMIT })}
           </Badge>
         </div>
       </div>
@@ -86,7 +95,12 @@ export default async function MarketPage({ params, searchParams }: PageProps<"/s
         testId="market-sides"
         links={[
           { href: base, label: t("tabs.buy"), active: tab === "buy", testId: "market-tab-buy" },
-          { href: `${base}?tab=sell`, label: t("tabs.sell", { count: sales.offers }), active: tab === "sell", testId: "market-tab-sell" },
+          {
+            href: `${base}?tab=sell`,
+            label: proposedSales > 0 ? t("tabs.sellProposed", { count: proposedSales }) : t("tabs.sell", { count: sales.offers }),
+            active: tab === "sell",
+            testId: "market-tab-sell",
+          },
         ]}
       />
 
@@ -104,12 +118,21 @@ export default async function MarketPage({ params, searchParams }: PageProps<"/s
       )}
 
       {proposals === null ? (
-        <MarketSell saveId={id} sales={sales} windowOpen={overview.windowOpen} />
+        <MarketSell
+          saveId={id}
+          sales={sales}
+          windowOpen={overview.windowOpen}
+          proposals={{
+            ids: saleProposals.proposals.map((proposal) => proposal.id),
+            cards: <SaleProposalsSection saveId={id} proposals={saleProposals} />,
+          }}
+        />
       ) : (
         <MarketBuy
           saveId={id}
           proposals={proposals}
           overview={overview}
+          proposedSales={proposedSales}
           sideOffer={bestOffer !== undefined && <SaleOfferCard saveId={id} row={bestOffer} variant="side" />}
         />
       )}

@@ -28,7 +28,7 @@ const clampPage = (page: number, total: number): number => Math.min(Math.max(1, 
 const managedClub = (saveId: string) =>
   prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
-    select: { id: true, clubId: true, budget: true, wageBudget: true, reputation: true, club: { select: { slug: true, name: true } } },
+    select: { id: true, clubId: true, budget: true, reputation: true, club: { select: { slug: true, name: true } } },
   });
 
 const currentDateOf = async (saveId: string): Promise<Date> =>
@@ -67,10 +67,7 @@ export type MarketOverview = {
   nextWindowOpensOn: Date; // first day of the next window
   clubName: string; // the managed club
   reputation: number; // its reputation: a player whose minimumReputation is higher refuses it, before any offer
-  budget: number; // euros
-  wageBudget: number; // euros per season
-  payroll: number; // euros per season
-  wageRoom: number; // euros per season left under the wage budget
+  budget: number; // euros: its only limit, which pays prices and signing bonuses (no wage cap)
   // The managed club's players under contract (squadSizeOf): at SQUAD_LIMIT, it signs nobody more (squad_full).
   squadSize: number;
   freeAgents: number;
@@ -83,8 +80,7 @@ export type MarketOverview = {
  */
 export const getMarketOverview = cache(async (saveId: string): Promise<MarketOverview> => {
   const [currentDate, club] = await Promise.all([currentDateOf(saveId), managedClub(saveId)]);
-  const [payroll, squadSize, freeAgents, competitions] = await Promise.all([
-    prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } }),
+  const [squadSize, freeAgents, competitions] = await Promise.all([
     squadSizeOf(prisma, saveId, club.id),
     countFreeAgents(saveId),
     prisma.competition.findMany({
@@ -93,7 +89,6 @@ export const getMarketOverview = cache(async (saveId: string): Promise<MarketOve
       select: { code: true },
     }),
   ]);
-  const wages = payroll._sum.wage ?? 0;
   return {
     currentDate,
     windowOpen: transferWindowAt(currentDate) !== null,
@@ -102,9 +97,6 @@ export const getMarketOverview = cache(async (saveId: string): Promise<MarketOve
     clubName: displayClubName(club.club),
     reputation: club.reputation,
     budget: club.budget,
-    wageBudget: club.wageBudget,
-    payroll: wages,
-    wageRoom: club.wageBudget - wages,
     squadSize,
     freeAgents,
     competitions,
@@ -123,7 +115,6 @@ export type FreeAgentRow = {
   age: number;
   overall: number;
   potential: number;
-  askedWage: number; // lowest wage he accepts, euros per season
   signingBonus: number; // euros: what signing him takes from the budget (TransferQuote.askingPrice of a free agent)
   minimumReputation: number; // the lowest reputation of a club he joins
   formerClubName: string | null; // the club that released him
@@ -177,7 +168,6 @@ export async function listFreeAgents(saveId: string, page: number): Promise<Pagi
         age: ageInYears(player.birthDate, currentDate),
         overall: player.overall,
         potential: player.potential,
-        askedWage: quote.minimumWage,
         signingBonus: quote.askingPrice,
         minimumReputation: quote.minimumReputation,
         formerClubName: nameOf(names, player.transfers.at(0)?.fromClubId),
@@ -220,7 +210,6 @@ export type ClubPlayerRow = {
   overall: number;
   potential: number;
   askingPrice: number; // euros, what his club asks today
-  askedWage: number; // lowest wage he accepts to move, euros per season
   minimumReputation: number; // the lowest reputation of a club he joins
   contractUntil: Date | null;
 };
@@ -336,7 +325,6 @@ function sortedClubPlayers(players: readonly ClubPlayer[], filters: MarketFilter
       overall: player.overall,
       potential: player.potential,
       askingPrice: quote.askingPrice,
-      askedWage: quote.minimumWage,
       minimumReputation: quote.minimumReputation,
       contractUntil: player.contractUntil,
     };
@@ -534,7 +522,6 @@ export async function getPlayerSheet(saveId: string, playerSaveId: string): Prom
 /** Figures that explain a refused signing or offer: what the club can spend and what the player's side asks. */
 export type OfferFacts = {
   budget: number;
-  wageRoom: number;
   nextWindowOpensOn: Date;
   clubName: string | null; // the selling club; null for a free agent
   quote: TransferQuote;
@@ -557,7 +544,6 @@ export async function getOfferFacts(saveId: string, playerSaveId: string): Promi
   ]);
   return {
     budget: overview.budget,
-    wageRoom: overview.wageRoom,
     nextWindowOpensOn: overview.nextWindowOpensOn,
     clubName: player.clubSave === null ? null : displayClubName(player.clubSave.club),
     quote: quoteFor(player, player.clubSave, overview.currentDate),

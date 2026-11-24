@@ -3,24 +3,17 @@ import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Badge } from "@/src/components/ui/badge";
 import type { Dashboard } from "@/src/db/dashboard";
+import { SQUAD_LIMIT } from "@/src/engine/balance";
 import { nextTransferWindowOpening, transferWindowCloseDate } from "@/src/engine/world";
-import {
-  formatDayMonth,
-  formatDecimal,
-  formatGoalDifference,
-  formatMillionsAmount,
-  formatMoney,
-  millionsFigure,
-} from "@/src/lib/format";
+import { formatDayMonth, formatDecimal, formatGoalDifference, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import { isPayrollHigh } from "../_lib/payroll";
 import { Panel } from "@/src/components/panel";
 import { ResultPill } from "./result-pill";
 
 const PILL = "h-9 bg-card px-3.5 text-[0.8125rem] tabular-nums";
 
-/** The club's money and the transfer window, at the top of the dashboard. */
-export function DashboardPills({ dashboard }: { dashboard: Dashboard }) {
+/** The club's money and the transfer window, at the top of the dashboard: its budget, its only limit (no wage cap). */
+export function DashboardPills({ dashboard }: { dashboard: Pick<Dashboard, "club" | "currentDate"> }) {
   const t = useTranslations("dashboard");
   const locale = useLocale();
   const { club, currentDate } = dashboard;
@@ -29,18 +22,6 @@ export function DashboardPills({ dashboard }: { dashboard: Dashboard }) {
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
       <Badge data-testid="dashboard-budget" variant="secondary" className={PILL}>
         {t("budgetPill", { amount: formatMoney(club.budget, locale) })}
-      </Badge>
-      <Badge
-        data-testid="dashboard-payroll"
-        data-summary="payroll"
-        data-value={club.payroll}
-        variant="secondary"
-        className={cn(PILL, isPayrollHigh(club.payroll, club.wageBudget) && "text-warning")}
-      >
-        {t("payrollPill", {
-          payroll: millionsFigure(club.payroll, locale).value,
-          wageBudget: formatMillionsAmount(club.wageBudget, locale),
-        })}
       </Badge>
       <p data-testid="dashboard-window" className="text-xs text-muted-foreground">
         {windowClose === null
@@ -61,8 +42,8 @@ function Tile({ label, testId, children }: { label: string; testId: string; chil
   );
 }
 
-function Figure({ children }: { children: ReactNode }) {
-  return <p className="font-heading text-[2rem] leading-none normal-case tabular-nums">{children}</p>;
+function Figure({ children, className }: { children: ReactNode; className?: string }) {
+  return <p className={cn("font-heading text-[2rem] leading-none normal-case tabular-nums", className)}>{children}</p>;
 }
 
 function SmallPrint({ children }: { children: ReactNode }) {
@@ -91,11 +72,12 @@ function Movement({ position }: { position: NonNullable<Dashboard["position"]> }
   );
 }
 
-/** The club's season at a glance: rank, points, form and squad. */
-export function DashboardTiles({ dashboard }: { dashboard: Dashboard }) {
+/** The club's season at a glance: rank, points, form and squad, its players against SQUAD_LIMIT, in amber once full. */
+export function DashboardTiles({ dashboard }: { dashboard: Pick<Dashboard, "club" | "position" | "managedForm"> }) {
   const t = useTranslations("dashboard");
   const locale = useLocale();
   const { club, position, managedForm } = dashboard;
+  const full = club.players >= SQUAD_LIMIT;
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Tile label={t("position")} testId="dashboard-position">
@@ -136,9 +118,11 @@ export function DashboardTiles({ dashboard }: { dashboard: Dashboard }) {
       </Tile>
 
       <Tile label={t("squad")} testId="dashboard-squad">
-        <Figure>
+        <Figure className={cn(full && "text-warning")}>
           {club.players}
-          <span className="ml-1 text-lg text-muted-foreground">{t("playersUnit")}</span>
+          <span className={cn("ml-1 text-lg", !full && "text-muted-foreground")}>
+            {t("playersOf", { count: club.players, limit: SQUAD_LIMIT })}
+          </span>
         </Figure>
         <div>
           <SmallPrint>{t("goalkeepers", { count: club.goalkeepers })}</SmallPrint>

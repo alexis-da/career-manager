@@ -1,3 +1,4 @@
+import type { ContractChoice, ContractIntention } from "../engine/assistant-contracts";
 import { displayClubName } from "../engine/club-name";
 import type { AttributeName } from "../engine/generation";
 import type { Position } from "../engine/positions";
@@ -7,6 +8,7 @@ import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
 import { prisma } from "./client";
+import { contractChoiceOf, managedContractForecasts } from "./contracts";
 import type { NationCode } from "../engine/nations";
 import { parseTitleKey, type TournamentCode } from "../engine/tournaments";
 import { getManagedBreak, internationalInjuries } from "./nations-view";
@@ -74,11 +76,18 @@ export type PlayerProfile = {
   // still plays (disciplineStatus); null for anyone else's, whose club's matches are not read.
   discipline: DisciplineStatus | null;
   marketValue: number; // euros, as stored: set when the player enters the save, recomputed at each season transition
-  wage: number;
+  wage: number; // euros per season: never shown, only a release's cost reads it (docs/design/simplification.md § 1.2)
   contractUntil: Date | null;
   injuredUntil: Date | null; // only while still injured at the current date
   contractExpiring: boolean; // the contract ends with the current season
   managed: boolean; // a player of the managed club: an AI club decides its own players' contracts
+  // A contract of the managed club ending with the season (docs/design/simplification.md § 2.3), null for anyone else's:
+  // its player's choice for it, what the season's turn will do with it (the choice, the assistant's rule, or a free
+  // departure: contractForecasts), and what the assistant's rule would do without the choice, null when its player keeps
+  // the contracts. From the squad and the free agents of today: the turn's come after a season of progress.
+  contractChoice: ContractChoice | null;
+  contractIntention: ContractIntention | null;
+  assistantIntention: ContractIntention | null;
   arrivedThisSeason: boolean; // young player who joined at this season's preseason
   attributes: Record<AttributeName, number>;
   seasonStats: SeasonStatsView;
@@ -108,12 +117,17 @@ function injuredWithOf(
 }
 
 /**
- * Profiles of the save's players matching `where`: identity, ratings, condition, contract, statistics of the
- * current season and transfer history. The save's id always scopes the query, whatever `where` says.
+ * Profiles of the save's players matching `where`: identity, ratings, condition, contract, what the season's turn will do
+ * with a contract of the managed club ending with the season, statistics of the current season and transfer history. The
+ * save's id always scopes the query, whatever `where` says.
  */
 export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSaveWhereInput): Promise<PlayerProfile[]> {
-  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
+  const save = await prisma.save.findUniqueOrThrow({
+    where: { id: saveId },
+    select: { currentDate: true, contractsByAssistant: true },
+  });
   const startYear = seasonStartYear(save.currentDate);
+  const lastContractDay = seasonEndDate(startYear);
 
   const players = await prisma.playerSave.findMany({
     where: { ...where, saveId },
@@ -139,6 +153,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       marketValue: true,
       wage: true,
       contractUntil: true,
+      contractChoice: true,
       injuredUntil: true,
       caps: true,
       internationalGoals: true,
@@ -164,6 +179,13 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       ? managedBreak.players.map((player) => [player.playerKey, { nation: player.nation, from: managedBreak.from, to: managedBreak.to }] as const)
       : [],
   );
+  // What the season's turn will do with their contracts ending on 30 June, read from the whole squad and the free agents
+  // only when one of them is among the players.
+  const expiring = (player: (typeof players)[number]): boolean =>
+    player.contractUntil !== null && player.contractUntil <= lastContractDay;
+  const forecasts = players.some((player) => player.clubSave?.isManaged === true && expiring(player))
+    ? await managedContractForecasts(saveId, { startYear, byAssistant: save.contractsByAssistant })
+    : null;
 
   const [stats, transfers] = await Promise.all([
     prisma.playerSeasonStats.groupBy({
@@ -184,13 +206,13 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
   const clubs = await prisma.club.findMany({ where: { id: { in: clubIds } }, select: { id: true, slug: true, name: true } });
   const clubName = new Map(clubs.map((row) => [row.id, displayClubName(row)]));
   const statsByPlayer = new Map(stats.map((row) => [row.playerSaveId, row._sum]));
-  const lastContractDay = seasonEndDate(startYear);
   const youthPrefix = youthKeyPrefix(startYear);
 
   return players.map((player) => {
     const playerStats = statsByPlayer.get(player.id);
     const managed = player.clubSave?.isManaged === true;
     const atNextMatch = managed && nextMatchDay !== null;
+    const forecast = managed ? forecasts?.get(player.playerKey) : undefined;
     return {
       id: player.id,
       playerKey: player.playerKey,
@@ -212,8 +234,11 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       wage: player.wage,
       contractUntil: player.contractUntil,
       injuredUntil: player.injuredUntil !== null && player.injuredUntil > save.currentDate ? player.injuredUntil : null,
-      contractExpiring: player.contractUntil !== null && player.contractUntil <= lastContractDay,
+      contractExpiring: expiring(player),
       managed,
+      contractChoice: forecast === undefined ? null : contractChoiceOf(player.contractChoice),
+      contractIntention: forecast?.outcome.intention ?? null,
+      assistantIntention: forecast?.assistant ?? null,
       arrivedThisSeason: player.playerKey.startsWith(youthPrefix),
       attributes: {
         pace: player.pace,

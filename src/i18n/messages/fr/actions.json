@@ -29,18 +29,26 @@
       "saved": "Composition en {formation} enregistrée."
     },
     "contracts": {
-      "invalid": "Proposition invalide : la durée va de 1 à 5 saisons et le salaire doit être un montant en euros.",
-      "renewed": "Contrat prolongé jusqu'au {until}, pour {wage} par saison.",
-      "renewedOpenEnded": "Contrat prolongé, pour {wage} par saison.",
+      "invalid": "Proposition invalide : la durée va de 1 à 5 saisons.",
+      "renewed": "Contrat prolongé jusqu'au {until}.",
+      "renewedOpenEnded": "Contrat prolongé.",
       "released": "Joueur libéré. Indemnité versée : {fee}.",
-      "sold": "Joueur vendu pour {fee}."
+      "sold": "Joueur vendu pour {fee}.",
+      "choice": {
+        "ASSISTANT": "Ton adjoint décidera en fin de saison.",
+        "DEFAULT": "Sans prolongation, il partira libre en fin de saison.",
+        "RENEW": "Il sera prolongé en fin de saison.",
+        "LEAVE": "Il partira libre en fin de saison."
+      },
+      "choiceInvalid": "Choix invalide : prolonger, laisser partir, ou laisser ton adjoint décider.",
+      "choiceRefused": "Son contrat ne finit pas cette saison : rien à décider pour lui."
     },
     "market": {
-      "invalid": "Proposition invalide : la durée va de 1 à 5 saisons, l'indemnité et le salaire sont des montants entiers en euros.",
-      "signed": "Contrat signé jusqu'au {until}, pour {wage} par saison.",
-      "signedOpenEnded": "Contrat signé, pour {wage} par saison.",
-      "offerAccepted": "Offre acceptée : transfert pour {fee}, contrat jusqu'au {until} à {wage} par saison.",
-      "offerAcceptedOpenEnded": "Offre acceptée : transfert pour {fee}, contrat à {wage} par saison."
+      "invalid": "Proposition invalide : la durée va de 1 à 5 saisons, l'indemnité est un montant entier en euros.",
+      "signed": "Contrat signé jusqu'au {until}, prime à la signature de {bonus}.",
+      "signedOpenEnded": "Contrat signé, prime à la signature de {bonus}.",
+      "offerAccepted": "Offre acceptée : transfert pour {fee}, contrat jusqu'au {until}.",
+      "offerAcceptedOpenEnded": "Offre acceptée : transfert pour {fee}."
     },
     "objective": {
       "invalid": "Objectif inconnu : choisis l'un des trois que propose la direction.",
@@ -69,7 +77,7 @@
     "matchInProgress": "Ton match attend la reprise : joue la suite avant de vendre un joueur.",
     "offerChanged": "L'offre a changé : rien n'est vendu, regarde la nouvelle avant de décider.",
     "offerChangedTo": "L'offre a changé : {club} propose maintenant {fee}. Rien n'est vendu.",
-    "insufficientBudget": "Budget insuffisant : ton budget transferts ne couvre pas cette opération.",
+    "insufficientBudget":"Budget insuffisant : ton budget transferts ne couvre pas cette opération.",
     "insufficientBudgetFor": "Budget insuffisant : l'indemnité de {fee} dépasse ton budget transferts de {budget}.",
     "insufficientBudgetBonus": "Ton budget ne paie pas sa prime à la signature ({bonus}).",
     "squadFull": "Ton effectif compte déjà 30 joueurs, le maximum : vends ou libère un joueur avant d'en recruter un autre.",

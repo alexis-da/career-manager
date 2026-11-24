@@ -35,8 +35,9 @@ const ROW_ACTION = "h-7";
 
 /**
  * On a phone (under 640 px), a list of players is a grid of five columns in every row, the header's included: the
- * player, his position, age, rating, and his wage or price. Potential, contract and the action are in the player's
- * sheet, a tap on his name away; a club player's club goes under his name.
+ * player, his position, age, rating, and his signing bonus or price. Potential, contract and the action are in the
+ * player's sheet, a tap on his name away; a club player's club goes under his name. No wage anywhere: the player manages
+ * none (docs/design/simplification.md § 6.7).
  */
 const PHONE_PLAYER_ROW =
   "max-sm:grid max-sm:h-auto max-sm:grid-cols-[minmax(0,1fr)_2.75rem_2.25rem_3rem_4.5rem] max-sm:items-center max-sm:py-1";
@@ -203,9 +204,7 @@ export function FreeAgentsTable({
             <Head className={cn("text-right", PHONE_HIDDEN)}>
               <span title={t("table.potentialTitle")}>{t("table.potential")}</span>
             </Head>
-            <Head className="text-right">
-              <HeadLabel full={t("table.askedWage")} phone={t("table.phone.askedWage")} />
-            </Head>
+            <Head className="text-right">{t("table.bonus")}</Head>
             <Head className={PHONE_HIDDEN}>{t("table.formerClub")}</Head>
             <Head className={PHONE_HIDDEN}>
               <span className="sr-only">{t("table.action")}</span>
@@ -217,7 +216,7 @@ export function FreeAgentsTable({
             <TableRow
               key={player.id}
               data-player-id={player.id}
-              data-asked-wage={player.askedWage}
+              data-bonus={player.signingBonus}
               className={cn(TABLE_ROW, PHONE_PLAYER_ROW)}
             >
               <PlayerCell
@@ -230,14 +229,13 @@ export function FreeAgentsTable({
               <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>{player.age}</TableCell>
               <RatingCell overall={player.overall} />
               <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground", PHONE_HIDDEN)}>{player.potential}</TableCell>
-              <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>{formatMoney(player.askedWage, locale)}</TableCell>
+              <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right")}>{formatMoney(player.signingBonus, locale)}</TableCell>
               <TableCell className={cn(TABLE_CELL, "text-muted-foreground", PHONE_HIDDEN)}>{player.formerClubName ?? "—"}</TableCell>
               <TableCell className={cn(TABLE_CELL, "text-right", PHONE_HIDDEN)}>
                 <SignFreeAgentDialog
                   saveId={saveId}
                   player={{ id: player.id, name: `${player.firstName} ${player.lastName}` }}
-                  askedWage={player.askedWage}
-                  wageRoom={overview.wageRoom}
+                  bonus={player.signingBonus}
                   currentDate={overview.currentDate}
                   disabled={!overview.windowOpen}
                   refused={player.minimumReputation > overview.reputation}
@@ -326,7 +324,6 @@ export function ClubPlayersTable({
               sortKey="price"
               label={<HeadLabel full={t("table.askingPrice")} phone={t("table.phone.askingPrice")} />}
             />
-            <Head className={cn("text-right", PHONE_HIDDEN)}>{t("table.askedWage")}</Head>
             <Head className={PHONE_HIDDEN}>{t("table.contractUntil")}</Head>
             <Head className={PHONE_HIDDEN}>
               <span className="sr-only">{t("table.action")}</span>
@@ -358,7 +355,6 @@ export function ClubPlayersTable({
               <RatingCell overall={player.overall} />
               <TableCell className={cn(TABLE_CELL, "text-right text-muted-foreground", PHONE_HIDDEN)}>{player.potential}</TableCell>
               <TableCell className={cn(TABLE_CELL, PHONE_CELL, "text-right font-semibold")}>{formatMoney(player.askingPrice, locale)}</TableCell>
-              <TableCell className={cn(TABLE_CELL, "text-right", PHONE_HIDDEN)}>{formatMoney(player.askedWage, locale)}</TableCell>
               <TableCell className={cn(TABLE_CELL, "whitespace-nowrap text-muted-foreground", PHONE_HIDDEN)}>
                 {player.contractUntil === null ? "—" : formatDate(player.contractUntil, locale)}
               </TableCell>
@@ -368,9 +364,7 @@ export function ClubPlayersTable({
                   player={{ id: player.id, name: `${player.firstName} ${player.lastName}` }}
                   clubName={player.clubName}
                   askingPrice={player.askingPrice}
-                  askedWage={player.askedWage}
                   budget={overview.budget}
-                  wageRoom={overview.wageRoom}
                   currentDate={overview.currentDate}
                   disabled={!overview.windowOpen}
                   refused={player.minimumReputation > overview.reputation}

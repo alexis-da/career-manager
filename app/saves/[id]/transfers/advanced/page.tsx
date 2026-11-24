@@ -18,10 +18,11 @@ import {
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { SegmentedLinks } from "@/src/components/segmented";
 import { Badge } from "@/src/components/ui/badge";
+import { SQUAD_LIMIT } from "@/src/engine/balance";
 import { seasonStartYear } from "@/src/engine/world";
 import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
-import { formatDate, formatMillionsAmount, formatMoney, millionsFigure } from "@/src/lib/format";
+import { formatDate, formatMoney, millionsFigure } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { SquadPlayerActions } from "../../_components/contract-actions";
 import { ClosedWindowNote } from "../../_components/contract-fields";
@@ -80,17 +81,16 @@ function MarketBanner({ overview }: { overview: MarketOverview }) {
             )}
           </dd>
         </div>
+        {/* Its players against SQUAD_LIMIT, in amber once full: no signing then. */}
         <div>
-          <dt className="eyebrow">{t("banner.wageRoom")}</dt>
+          <dt className="eyebrow">{t("banner.squad")}</dt>
           <dd
-            data-summary="wage-room"
-            data-value={overview.wageRoom}
-            className={cn("font-heading text-2xl font-bold normal-case", overview.wageRoom <= 0 && "text-loss")}
+            data-summary="squad"
+            data-value={overview.squadSize}
+            className={cn("font-heading text-2xl font-bold normal-case", overview.squadSize >= SQUAD_LIMIT && "text-warning")}
           >
-            {millionsFigure(overview.wageRoom, locale).value}{" "}
-            <span className="text-base font-semibold text-muted-foreground">
-              {t("banner.wageBudget", { amount: formatMillionsAmount(overview.wageBudget, locale) })}
-            </span>
+            {overview.squadSize}{" "}
+            <span className="text-base font-semibold text-muted-foreground">{t("banner.squadLimit", { limit: SQUAD_LIMIT })}</span>
           </dd>
         </div>
       </dl>
@@ -136,14 +136,13 @@ function sheetFooter(
         <>
           {closed && <ClosedWindowNote actions={t("closedWindow.signings")} reopensOn={overview.nextWindowOpensOn} />}
           <p data-testid="market-sheet-terms" className="text-xs text-muted-foreground">
-            {t("sheet.freeAgent", { wage: formatMoney(status.quote.minimumWage, locale) })}
+            {t("sheet.freeAgent", { bonus: formatMoney(status.quote.askingPrice, locale) })}
           </p>
           {refusal}
           <SignFreeAgentDialog
             saveId={saveId}
             player={player}
-            askedWage={status.quote.minimumWage}
-            wageRoom={overview.wageRoom}
+            bonus={status.quote.askingPrice}
             currentDate={overview.currentDate}
             disabled={closed}
             refused={refused}
@@ -157,11 +156,7 @@ function sheetFooter(
         <>
           {closed && <ClosedWindowNote actions={t("closedWindow.offers")} reopensOn={overview.nextWindowOpensOn} />}
           <p data-testid="market-sheet-terms" className="text-xs text-muted-foreground">
-            {t("asking", {
-              club: status.clubName,
-              price: formatMoney(status.quote.askingPrice, locale),
-              wage: formatMoney(status.quote.minimumWage, locale),
-            })}
+            {t("asking", { club: status.clubName, price: formatMoney(status.quote.askingPrice, locale) })}
           </p>
           {refusal}
           <MakeOfferDialog
@@ -169,9 +164,7 @@ function sheetFooter(
             player={player}
             clubName={status.clubName}
             askingPrice={status.quote.askingPrice}
-            askedWage={status.quote.minimumWage}
             budget={overview.budget}
-            wageRoom={overview.wageRoom}
             currentDate={overview.currentDate}
             disabled={closed}
             refused={refused}

@@ -6,7 +6,8 @@ import { useState } from "react";
 import { Panel } from "@/src/components/panel";
 import { Button } from "@/src/components/ui/button";
 import type { CareerItemView, ShopView } from "@/src/db/shop";
-import { ITEM_PRICES, type CareerItem, type PurchaseRefusal, type YouthLine } from "@/src/engine/shop";
+import { SQUAD_LIMIT } from "@/src/engine/balance";
+import { ITEM_PRICES, PROMISING_YOUTH_CONTRACT_YEARS, type CareerItem, type PurchaseRefusal, type YouthLine } from "@/src/engine/shop";
 import { seasonLabel } from "@/src/engine/world";
 import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
@@ -127,7 +128,7 @@ export function CareerShop({ saveId, shop, opening = null, className }: CareerSh
   const [player, setPlayer] = useState<string | null>(
     opening?.playerSaveId !== undefined && shop.care.some(({ id }) => id === opening.playerSaveId) ? opening.playerSaveId : (shop.care[0]?.id ?? null),
   );
-  const [line, setLine] = useState<YouthLine | null>(shop.youth.find(({ fits }) => fits)?.line ?? null);
+  const [line, setLine] = useState<YouthLine | null>(shop.youth.at(0)?.line ?? null);
 
   const refusalOf = (item: CareerItemView): PurchaseRefusal | null => item.refusal ?? (shop.tokens < item.price ? "tokens" : null);
   const shieldRefusal: PurchaseRefusal | null = shop.shield ? "shield_held" : shop.tokens < ITEM_PRICES.STREAK_SHIELD ? "tokens" : null;
@@ -144,7 +145,6 @@ export function CareerShop({ saveId, shop, opening = null, className }: CareerSh
         : open === null
           ? null
           : { item: open };
-  const youth = shop.youth.find((candidate) => candidate.line === line) ?? null;
 
   return (
     <>
@@ -251,7 +251,6 @@ export function CareerShop({ saveId, shop, opening = null, className }: CareerSh
                   name="line"
                   className="mt-1 accent-(--highlight)"
                   checked={line === candidate.line}
-                  disabled={!candidate.fits}
                   onChange={() => setLine(candidate.line)}
                 />
                 <span className="min-w-0 flex-1">
@@ -265,15 +264,16 @@ export function CareerShop({ saveId, shop, opening = null, className }: CareerSh
                       potential: candidate.potential,
                     })}
                   </span>
-                  <span className={cn("block text-xs tabular-nums", candidate.fits ? "text-muted-foreground" : "text-loss")}>
-                    {formatMoney(candidate.wage, locale)}
-                    {!candidate.fits && ` · ${t("confirm.tooExpensive")}`}
-                  </span>
                 </span>
               </label>
             ))}
-            {youth !== null && <p className="text-xs leading-snug text-muted-foreground">{t("confirm.youthWage", { wage: formatMoney(youth.wage, locale) })}</p>}
-            <p className="text-xs text-muted-foreground tabular-nums">{t("confirm.youthRoom", { wageRoom: formatMoney(Math.max(0, shop.wageRoom), locale) })}</p>
+            {/* His contract and the place he takes, no wage: only a full squad refuses him (squad_full). */}
+            <p data-testid="youth-contract" className="text-xs leading-snug text-muted-foreground">
+              {t("confirm.youthContract", { years: PROMISING_YOUTH_CONTRACT_YEARS })}
+            </p>
+            <p data-testid="youth-place" className="text-xs text-muted-foreground tabular-nums">
+              {t("confirm.youthPlace", { count: shop.squadSize + 1, limit: SQUAD_LIMIT })}
+            </p>
           </fieldset>
         )}
       </PurchaseSheet>

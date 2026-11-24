@@ -2,10 +2,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Dashboard } from "@/src/db/dashboard";
 import type { ClubLineupPlayer, ManagedLineup } from "@/src/db/lineup";
-import type { MarketSales, SaleRow } from "@/src/db/market-sales";
+import type { SaleProposal, SaleProposals } from "@/src/db/sale-proposals";
 import type { CoachTodo } from "@/src/db/national-view";
 import type { ManagedBreak } from "@/src/db/nations-view";
-import type { SaleQuote } from "@/src/db/transfers";
 import { formationPositions } from "@/src/engine/formations";
 import type { Position } from "@/src/engine/positions";
 import type { TournamentCode } from "@/src/engine/tournaments";
@@ -17,11 +16,26 @@ const SAVE = "/saves/save-1";
 
 type Club = { players?: number; goalkeepers?: number };
 
-/** What the list reads of a dashboard, a full squad and a transfer window open by default: the rest is the other cards'. */
+/**
+ * What the list reads of a dashboard, a full squad, a transfer window open and the contracts kept by the player by default:
+ * the rest is the other cards'.
+ */
 const dashboardWith = (
   { players = 22, goalkeepers = 3 }: Club,
-  rest: Partial<Pick<Dashboard, "injured" | "bookingRisks" | "expiringContracts" | "windowOpen">> = {},
-) => ({ club: { players, goalkeepers }, injured: [], bookingRisks: [], expiringContracts: [], windowOpen: true, ...rest }) as Dashboard;
+  rest: Partial<
+    Pick<Dashboard, "injured" | "bookingRisks" | "expiringContracts" | "importantContracts" | "contractsByAssistant" | "windowOpen">
+  > = {},
+) =>
+  ({
+    club: { players, goalkeepers },
+    injured: [],
+    bookingRisks: [],
+    contractsByAssistant: false,
+    expiringContracts: [],
+    importantContracts: [],
+    windowOpen: true,
+    ...rest,
+  }) as Dashboard;
 
 const starter = (lastName: string, position: Position, overall: number): ClubLineupPlayer => ({
   id: lastName,
@@ -70,30 +84,29 @@ const lineupWithout = (empty: readonly Position[]): ManagedLineup => {
 
 const NO_ELEVEN = lineupOf([]);
 
-const offer = (buyerName: string, fee: number): SaleQuote => ({ ok: true, fee, wage: 100_000, years: 3, buyerName });
-
-const NO_OFFER: SaleQuote = { ok: false, reason: "no_offer" };
-
-const saleRow = (lastName: string, sale: SaleQuote): SaleRow => ({
+/** A sale the assistant proposes: a player who never plays, and the best offer for him. */
+const proposal = (lastName: string, fee: number): SaleProposal => ({
   id: lastName,
   playerKey: lastName,
   firstName: "Yann",
   lastName,
-  age: 24,
   position: "CM",
-  overall: 65,
+  overall: 62,
+  age: 29,
   marketValue: 1_000_000,
   clubColors: { primary: "#000000", secondary: "#ffffff" },
-  terms: { renewalMinimumWage: 0, releaseCost: 0, sale, academyUntil: null },
+  starts: 0,
+  minutes: 0,
+  offer: { fee, buyerId: "buyer-1", buyerName: "Rhône FC" },
 });
 
-const salesOf = (...rows: SaleRow[]): MarketSales => ({ rows, offers: rows.filter((row) => row.terms.sale.ok).length });
+const proposalsOf = (...proposals: SaleProposal[]): SaleProposals => ({ period: "season", proposals });
 
 type Props = {
   dashboard: Dashboard;
   lineup: ManagedLineup;
   byAssistant?: boolean;
-  sales?: MarketSales | null;
+  saleProposals?: SaleProposals | null;
   firstMatchPlayed?: boolean;
   internationalBreak?: ManagedBreak | null;
   coachTodos?: CoachTodo[];
@@ -106,7 +119,7 @@ const render = (
     dashboard,
     lineup,
     byAssistant = false,
-    sales = null,
+    saleProposals = null,
     firstMatchPlayed = true,
     internationalBreak = null,
     coachTodos = [],
@@ -121,7 +134,7 @@ const render = (
         dashboard={dashboard}
         lineup={lineup}
         byAssistant={byAssistant}
-        sales={sales}
+        saleProposals={saleProposals}
         firstMatchPlayed={firstMatchPlayed}
         internationalBreak={internationalBreak}
         coachTodos={coachTodos}
@@ -194,7 +207,7 @@ describe("the dashboard's to-do list", () => {
         [starter("Blanc", "GK", 72), starter("Noir", "LB", 58), starter("Vert", "ST", 75)],
         [injuredStarter("Morel"), suspendedStarter("Garnier")],
       ),
-      sales: salesOf(saleRow("Lemoine", offer("Rhône FC", 1_250_000)), saleRow("Colin", offer("Alsace Racing", 800_000)), saleRow("Vidal", NO_OFFER)),
+      saleProposals: proposalsOf(proposal("Lemoine", 1_300_000), proposal("Colin", 800_000)),
     });
 
     expect(markup).toContain('data-testid="dashboard-alerts"');
@@ -212,7 +225,7 @@ describe("the dashboard's to-do list", () => {
         text: "Un titulaire est suspendu J. Garnier : remplacement automatique au prochain match.",
       },
       { id: "expiring-contracts", href: `${SAVE}/squad`, text: "5 contrats expirent le 30 juin A. Faure, B. Girard, C. Henry et 2 autres" },
-      { id: "offers", href: `${SAVE}/transfers?tab=sell`, text: "Rhône FC propose 1,3 M€ pour Yann Lemoine 2 offres pour tes remplaçants" },
+      { id: "sale-proposals", href: `${SAVE}/transfers?tab=sell`, text: "Ton adjoint propose 2 ventes Ils ne jouent pas · 2,1 M€" },
       { id: "small-squad", href: `${SAVE}/squad`, text: "Effectif réduit 17 joueurs sous contrat, 18 au minimum." },
       {
         id: "booking-risks",
@@ -227,7 +240,7 @@ describe("the dashboard's to-do list", () => {
     const { shown, folded } = partsOf(markup);
     expect(idsOf(shown)).toEqual(["goalkeepers", "injured-starters", "suspended-starters"]);
     expect(shown.match(/data-testid="alert-action"/g)).toHaveLength(3);
-    expect(idsOf(folded)).toEqual(["expiring-contracts", "offers", "small-squad", "booking-risks", "injured", "weak-spot"]);
+    expect(idsOf(folded)).toEqual(["expiring-contracts", "sale-proposals", "small-squad", "booking-risks", "injured", "weak-spot"]);
     expect(moreOf(markup)).toMatchObject({ folded: "Voir tout · 6 de plus", open: "Voir moins" });
   });
 
@@ -247,14 +260,17 @@ describe("the dashboard's to-do list", () => {
 
   it("shows three lines, the others folded in the page behind « Voir tout · N de plus », and nothing to unfold for three", () => {
     const fourLines = {
-      dashboard: dashboardWith({}, { bookingRisks: [{ name: "M. Dupont", competitions: ["LEAGUE"] }] }),
+      dashboard: dashboardWith(
+        {},
+        { bookingRisks: [{ name: "M. Dupont", competitions: ["LEAGUE"] }], injured: [{ name: "K. Roux", until: new Date(Date.UTC(2026, 10, 12)) }] },
+      ),
       lineup: lineupOf([], [injuredStarter("Morel"), suspendedStarter("Garnier")]),
     };
     const four = render(fourLines);
     const { shown, folded } = partsOf(four);
 
     expect(idsOf(shown)).toEqual(["injured-starters", "suspended-starters", "booking-risks"]);
-    expect(idsOf(folded)).toEqual(["full-squad"]);
+    expect(idsOf(folded)).toEqual(["injured"]);
     expect(moreOf(four)).toMatchObject({ folded: "Voir tout · 1 de plus", open: "Voir moins" });
     // Folded, never left out: a native disclosure, closed, that opens in place without a request.
     expect(folded).toMatch(/^<details class="group\/todo"><summary data-testid="dashboard-alerts-more"/);
@@ -281,11 +297,11 @@ describe("the dashboard's to-do list", () => {
     const lineup = lineupOf([starter("Noir", "LB", 58)]);
     const closed = dashboardWith({}, { windowOpen: false });
 
-    expect(idsOf(render({ dashboard: dashboardWith({}), lineup }))).toEqual(["weak-spot", "full-squad"]);
-    expect(idsOf(render({ dashboard: closed, lineup }))).toEqual(["full-squad"]);
-    expect(idsOf(render({ dashboard: closed, lineup }, "en"))).toEqual(["full-squad"]);
+    expect(idsOf(render({ dashboard: dashboardWith({}), lineup }))).toEqual(["weak-spot"]);
+    expect(idsOf(render({ dashboard: closed, lineup }))).toEqual([]);
+    expect(idsOf(render({ dashboard: closed, lineup }, "en"))).toEqual([]);
     // Not even an empty slot, the most pressing of weak spots; the rest of the list as it is.
-    expect(idsOf(render({ dashboard: closed, lineup: lineupWithout(["ST", "LW"]) }))).toEqual(["full-squad"]);
+    expect(idsOf(render({ dashboard: closed, lineup: lineupWithout(["ST", "LW"]) }))).toEqual([]);
     const shortOfGoalkeepers = dashboardWith({ goalkeepers: 1 }, { windowOpen: false });
     const hurt = lineupOf([starter("Noir", "LB", 58)], [injuredStarter("Morel")]);
     expect(idsOf(render({ dashboard: shortOfGoalkeepers, lineup: hurt }))).toEqual(["goalkeepers", "injured-starters"]);
@@ -309,19 +325,22 @@ describe("the dashboard's to-do list", () => {
     });
     const card = /<svg viewBox="0 0 24 24" aria-hidden="true" class="size-4.5"><rect [^>]*fill="currentColor"/g;
 
-    expect(idsOf(markup)).toEqual(["injured-starters", "suspended-starters", "booking-risks", "full-squad"]);
-    expect(tilesOf(markup)).toEqual(["bg-loss/15 text-loss", "bg-loss/15 text-loss", "bg-warning/15 text-warning", "bg-win/15 text-win"]);
+    expect(idsOf(markup)).toEqual(["injured-starters", "suspended-starters", "booking-risks"]);
+    expect(tilesOf(markup)).toEqual(["bg-loss/15 text-loss", "bg-loss/15 text-loss", "bg-warning/15 text-warning"]);
     expect(markup.match(card)).toHaveLength(2);
   });
 
-  it("says a full squad has nothing to report, on a line that leads nowhere", () => {
+  it("says there is nothing to do, the assistant taking care of the rest, on a line that leads nowhere", () => {
     const markup = render({ dashboard: dashboardWith({}), lineup: NO_ELEVEN });
+    const none = (html: string) => /data-testid="alert-none"[^>]*>(.*?)<\/div>/.exec(html)?.[1].replace(/<[^>]+>/g, "").replaceAll("&#x27;", "'");
 
-    expect(lines(markup)).toEqual([
-      { id: "full-squad", href: null, text: "Effectif complet 22 joueurs, 3 gardiens — rien à signaler" },
-    ]);
+    expect(lines(markup)).toEqual([]);
+    expect(none(markup)).toBe("Rien à faire : ton adjoint s'occupe du reste.");
     expect(markup).not.toContain("alert-action");
     expect(markup).not.toContain("lucide-chevron-right");
+    expect(none(render({ dashboard: dashboardWith({}), lineup: NO_ELEVEN }, "en"))).toBe("Nothing to do: your assistant takes care of the rest.");
+    // Anything to do, and it says nothing of the kind.
+    expect(render({ dashboard: dashboardWith({ goalkeepers: 1 }), lineup: NO_ELEVEN })).not.toContain("alert-none");
   });
 
   it("tells no goalkeeper from one, and a thin squad with enough goalkeepers from a full one", () => {
@@ -329,7 +348,7 @@ describe("the dashboard's to-do list", () => {
     expect(text).toContain("Aucun gardien sous contrat");
 
     expect(idsOf(render({ dashboard: dashboardWith({ players: 17, goalkeepers: 2 }), lineup: NO_ELEVEN }))).toEqual(["small-squad"]);
-    expect(idsOf(render({ dashboard: dashboardWith({ players: 18, goalkeepers: 2 }), lineup: NO_ELEVEN }))).toEqual(["full-squad"]);
+    expect(idsOf(render({ dashboard: dashboardWith({ players: 18, goalkeepers: 2 }), lineup: NO_ELEVEN }))).toEqual([]);
   });
 
   it("leaves the injured starters to their own line, one name off for each: a substitute may share it", () => {
@@ -346,18 +365,18 @@ describe("the dashboard's to-do list", () => {
     );
 
     const both = lines(render({ dashboard, lineup: lineupOf([], [hurt]) }));
-    expect(both.map(({ id }) => id)).toEqual(["injured-starters", "injured", "full-squad"]);
+    expect(both.map(({ id }) => id)).toEqual(["injured-starters", "injured"]);
     expect(both[1].text).toBe("1 blessé J. Martin, retour 20 nov.");
 
     // Injured today, back for the next match: no longer among the saved starters who miss it, still injured.
-    expect(idsOf(render({ dashboard, lineup: NO_ELEVEN }))).toEqual(["injured", "full-squad"]);
+    expect(idsOf(render({ dashboard, lineup: NO_ELEVEN }))).toEqual(["injured"]);
 
     const alone = dashboardWith({}, { injured: [{ name: "J. Martin", until }] });
-    expect(idsOf(render({ dashboard: alone, lineup: lineupOf([], [hurt]) }))).toEqual(["injured-starters", "full-squad"]);
+    expect(idsOf(render({ dashboard: alone, lineup: lineupOf([], [hurt]) }))).toEqual(["injured-starters"]);
 
     // A suspended starter takes no injured player's name off: the one of that name is someone else.
     const suspended = lines(render({ dashboard: alone, lineup: lineupOf([], [suspendedStarter("Martin")]) }));
-    expect(suspended.map(({ id }) => id)).toEqual(["suspended-starters", "injured", "full-squad"]);
+    expect(suspended.map(({ id }) => id)).toEqual(["suspended-starters", "injured"]);
     expect(suspended[0].text).toBe("Un titulaire est suspendu J. Martin : remplacement automatique au prochain match.");
   });
 
@@ -367,7 +386,6 @@ describe("the dashboard's to-do list", () => {
     expect(idsOf(render({ dashboard: dashboardWith({}), lineup: lineupOf([], [both, suspendedStarter("Garnier")]) }))).toEqual([
       "injured-starters",
       "suspended-starters",
-      "full-squad",
     ]);
     expect(lines(render({ dashboard: dashboardWith({}), lineup: lineupOf([], [both]) }))[0].text).toBe(
       "Un titulaire est blessé J. Morel : remplacement automatique au prochain match.",
@@ -401,25 +419,42 @@ describe("the dashboard's to-do list", () => {
     const props = {
       dashboard: dashboardWith({ players: 17, goalkeepers: 2 }, { expiringContracts: ["A. Faure"] }),
       lineup: lineupOf([starter("Noir", "LB", 58)], [injuredStarter("Morel")]),
-      sales: salesOf(saleRow("Lemoine", offer("Rhône FC", 1_250_000))),
+      saleProposals: proposalsOf(proposal("Lemoine", 1_300_000)),
     };
 
     expect(idsOf(render({ ...props, firstMatchPlayed: false }))).toEqual(["injured-starters", "expiring-contracts", "small-squad"]);
     expect(idsOf(render({ ...props, firstMatchPlayed: false }, "en"))).toEqual(["injured-starters", "expiring-contracts", "small-squad"]);
     // Once it is played, both come back, in their places.
-    expect(idsOf(render(props))).toEqual(["injured-starters", "expiring-contracts", "offers", "small-squad", "weak-spot"]);
+    expect(idsOf(render(props))).toEqual(["injured-starters", "expiring-contracts", "sale-proposals", "small-squad", "weak-spot"]);
   });
 
-  it("shows the first row with an offer, and nothing without one or out of a window", () => {
-    const sales = salesOf(saleRow("Vidal", NO_OFFER), saleRow("Lemoine", offer("Rhône FC", 850_000)));
+  it("says how many sales the assistant proposes and what they would bring, nothing without one or out of a window", () => {
     const dashboard = dashboardWith({});
 
-    expect(lines(render({ dashboard, lineup: NO_ELEVEN, sales }))[0].text).toBe(
-      "Rhône FC propose 850 k€ pour Yann Lemoine 1 offre pour tes remplaçants",
+    expect(lines(render({ dashboard, lineup: NO_ELEVEN, saleProposals: proposalsOf(proposal("Lemoine", 850_000)) }))).toEqual([
+      { id: "sale-proposals", href: `${SAVE}/transfers?tab=sell`, text: "Ton adjoint propose 1 vente Il ne joue pas · 850 k€" },
+    ]);
+    expect(idsOf(render({ dashboard, lineup: NO_ELEVEN, saleProposals: proposalsOf() }))).toEqual([]);
+    // Out of a window, the page reads none.
+    expect(idsOf(render({ dashboard: dashboardWith({}, { windowOpen: false }), lineup: NO_ELEVEN, saleProposals: null }))).toEqual([]);
+  });
+
+  it("says a full squad signs nobody while a window is open, and leads to the sales", () => {
+    const full = render({ dashboard: dashboardWith({ players: 30 }), lineup: NO_ELEVEN });
+
+    expect(lines(full)).toEqual([
+      {
+        id: "squad-full",
+        href: `${SAVE}/transfers?tab=sell`,
+        text: "Effectif plein · 30 joueurs sur 30 Vends ou libère un joueur avant d'en recruter un autre.",
+      },
+    ]);
+    expect(tilesById(full)["squad-full"]).toBe("bg-warning/15 text-warning");
+    expect(lines(render({ dashboard: dashboardWith({ players: 30 }), lineup: NO_ELEVEN }, "en"))[0].text).toBe(
+      "Squad full · 30 players of 30 Sell or release a player before signing another.",
     );
-    expect(idsOf(render({ dashboard, lineup: NO_ELEVEN, sales: salesOf(saleRow("Vidal", NO_OFFER)) }))).toEqual(["full-squad"]);
-    // Out of a window, the page reads no sales.
-    expect(idsOf(render({ dashboard: dashboardWith({}, { windowOpen: false }), lineup: NO_ELEVEN, sales: null }))).toEqual(["full-squad"]);
+    expect(idsOf(render({ dashboard: dashboardWith({ players: 29 }), lineup: NO_ELEVEN }))).toEqual([]);
+    expect(idsOf(render({ dashboard: dashboardWith({ players: 30 }, { windowOpen: false }), lineup: NO_ELEVEN }))).toEqual([]);
   });
 
   it("speaks British English", () => {
@@ -439,7 +474,7 @@ describe("the dashboard's to-do list", () => {
           },
         ),
         lineup: lineupOf([starter("Noir", "LB", 58)], [injuredStarter("Morel"), suspendedStarter("Garnier"), suspendedStarter("Henry")]),
-        sales: salesOf(saleRow("Lemoine", offer("Rhône FC", 77_200_000)), saleRow("Colin", offer("Alsace Racing", 800_000))),
+        saleProposals: proposalsOf(proposal("Lemoine", 77_200_000), proposal("Colin", 800_000)),
       },
       "en",
     );
@@ -450,16 +485,14 @@ describe("the dashboard's to-do list", () => {
       "A starter is injured J. Morel: replaced automatically in the next match.",
       "2 starters are suspended J. Garnier, J. Henry: replaced automatically in the next match.",
       "1 contract expires on 30 June A. Faure",
-      "Rhône FC offers €77.2m for Yann Lemoine 2 offers for your substitutes",
+      "Your assistant suggests 2 sales They never play · €78m",
       "Thin squad 17 players under contract, 18 minimum.",
       "3 players on 4 yellow cards M. Dupont, N. Lebrun (cup), O. Marchal (league and cup): one more booking means a suspension.",
       "1 injured K. Roux, back 12 Nov",
       "Your weak spot: left back Rated 58 · see the market",
     ]);
     expect(moreOf(markup)).toMatchObject({ folded: "See all · 6 more", open: "See less" });
-    expect(lines(render({ dashboard: dashboardWith({}), lineup: NO_ELEVEN }, "en"))[0].text).toBe(
-      "Full squad 22 players, 3 goalkeepers — nothing to report",
-    );
+    expect(render({ dashboard: dashboardWith({}), lineup: NO_ELEVEN }, "en")).toContain("Nothing to do: your assistant takes care of the rest.");
   });
 
   it("flags the starters below the rotation threshold before a European match only, and the European bookings apart", () => {
@@ -505,12 +538,12 @@ describe("the dashboard's to-do list", () => {
     const dashboard = { ...dashboardWith({}, { injured: [{ name: "J. Morel", until }] }), ...europeanMatch } as Dashboard;
     const lineup = lineupOf([{ ...starter("Las", "ST", 75), fitness: 70 }, starter("Vif", "GK", 70)], [injuredStarter("Morel"), suspendedStarter("Garnier")]);
 
-    expect(idsOf(render({ dashboard, lineup }))).toEqual(["injured-starters", "suspended-starters", "tired-starters", "weak-spot", "full-squad"]);
+    expect(idsOf(render({ dashboard, lineup }))).toEqual(["injured-starters", "suspended-starters", "tired-starters", "weak-spot"]);
     // His way, the injured starter is one of the injured, named with his return; nothing to do about the others.
     const assisted = lines(render({ dashboard, lineup, byAssistant: true }));
-    expect(assisted.map(({ id }) => id)).toEqual(["injured", "weak-spot", "full-squad"]);
+    expect(assisted.map(({ id }) => id)).toEqual(["injured", "weak-spot"]);
     expect(assisted[0].text).toBe("1 blessé J. Morel, retour 20 nov.");
-    expect(idsOf(render({ dashboard, lineup, byAssistant: true }, "en"))).toEqual(["injured", "weak-spot", "full-squad"]);
+    expect(idsOf(render({ dashboard, lineup, byAssistant: true }, "en"))).toEqual(["injured", "weak-spot"]);
   });
 
   it("reads the weak spot on the market's eleven, not on the one the assistant fields", () => {
@@ -602,7 +635,7 @@ describe("the dashboard's to-do list", () => {
     const markup = render({
       dashboard: dashboardWith({}, { bookingRisks: [{ name: "M. Dupont", competitions: ["LEAGUE"] }] }),
       lineup: lineupOf([starter("Noir", "LB", 58)], [injuredStarter("Morel")]),
-      sales: salesOf(saleRow("Lemoine", offer("Rhône FC", 850_000))),
+      saleProposals: proposalsOf(proposal("Lemoine", 850_000)),
       coachTodos: [
         { kind: "offer", offers: ["POR"] },
         { kind: "call-up", code: "POR", first, last, tournament: false },
@@ -613,12 +646,11 @@ describe("the dashboard's to-do list", () => {
     expect(idsOf(markup)).toEqual([
       "injured-starters",
       "coach-offer",
-      "offers",
+      "sale-proposals",
       "coach-call-up",
       "booking-risks",
       "weak-spot",
       "coach-ended",
-      "full-squad",
     ]);
     expect(lines(markup).filter(({ id }) => id.startsWith("coach-"))).toEqual([
       {
@@ -674,5 +706,45 @@ describe("the dashboard's to-do list", () => {
     );
     // Nothing of the kind for a player who coaches no nation and has no offer.
     expect(idsOf(render({ dashboard: dashboardWith({}), lineup: NO_ELEVEN })).some((id) => id.startsWith("coach-"))).toBe(false);
+  });
+
+  it("names the starters the assistant means to let go right after a federation's offer, and no other contract while he decides them", () => {
+    const assisted = dashboardWith(
+      {},
+      { contractsByAssistant: true, importantContracts: ["M. Koné"], expiringContracts: ["M. Koné", "A. Faure", "B. Girard"] },
+    );
+    const markup = render({
+      dashboard: assisted,
+      lineup: NO_ELEVEN,
+      saleProposals: proposalsOf(proposal("Lemoine", 850_000)),
+      coachTodos: [{ kind: "offer", offers: ["POR"] }],
+    });
+
+    expect(idsOf(markup)).toEqual(["coach-offer", "important-contracts", "sale-proposals"]);
+    expect(lines(markup).find(({ id }) => id === "important-contracts")).toEqual({
+      id: "important-contracts",
+      href: `${SAVE}/squad`,
+      text: "Fin de contrat le 30 juin : M. Koné Ton adjoint compte le laisser partir · décide sur sa fiche",
+    });
+    expect(tilesById(markup)["important-contracts"]).toBe("bg-warning/15 text-warning");
+
+    // Several: three names at most, and the plural.
+    const several = dashboardWith({}, { contractsByAssistant: true, importantContracts: ["M. Koné", "A. Faure", "B. Girard", "C. Henry"] });
+    expect(lines(render({ dashboard: several, lineup: NO_ELEVEN }))[0].text).toBe(
+      "Fin de contrat le 30 juin : M. Koné, A. Faure, B. Girard et 1 autre Ton adjoint compte les laisser partir · décide sur leur fiche",
+    );
+    expect(lines(render({ dashboard: several, lineup: NO_ELEVEN }, "en"))[0].text).toBe(
+      "Out of contract on 30 June: M. Koné, A. Faure, B. Girard and 1 other Your assistant means to let them go · decide on their sheets",
+    );
+    // Nobody he means to let go: nothing of the contracts at all, however many end.
+    const calm = dashboardWith({}, { contractsByAssistant: true, expiringContracts: ["A. Faure"] });
+    expect(idsOf(render({ dashboard: calm, lineup: NO_ELEVEN }))).toEqual([]);
+  });
+
+  it("lists every contract ending while the player keeps them, never the assistant's line", () => {
+    const own = dashboardWith({}, { expiringContracts: ["A. Faure", "B. Girard"], importantContracts: ["A. Faure"] });
+
+    expect(idsOf(render({ dashboard: own, lineup: NO_ELEVEN }))).toEqual(["expiring-contracts"]);
+    expect(lines(render({ dashboard: own, lineup: NO_ELEVEN }, "en"))[0].text).toBe("2 contracts expire on 30 June A. Faure, B. Girard");
   });
 });

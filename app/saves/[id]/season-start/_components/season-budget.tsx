@@ -17,8 +17,8 @@ import {
 } from "../_lib/season-start";
 import { SectionTitle } from "./section-title";
 
-// What the board grants for the season (gameplay v2, V2): the budget in large, how it was made, and the wage cap. Each
-// figure in euros (hundredths for the coefficient) in a data attribute, beside the words that show it.
+// What the board grants for the season (gameplay v2, V2): the budget in large, and how it was made. Each figure in euros
+// (hundredths for the coefficient) in a data attribute, beside the words that show it.
 
 /** The result colours, as the objectives' outcomes take them (STATUS_TONE). */
 const TONE_TEXT = { win: "text-win", warning: "text-warning", loss: "text-loss", info: "text-info" } as const;
@@ -27,7 +27,7 @@ const TONE_TEXT = { win: "text-win", warning: "text-warning", loss: "text-loss",
  * The budget the board grants for the season, in large on the bright blue: its dotation's, or in a save from before the
  * dotations, the club's budget as it is.
  */
-export function SeasonGrant({ finances }: { finances: ClubFinances }) {
+export function SeasonGrant({ finances }: { finances: Pick<ClubFinances, "budget" | "dotation"> }) {
   const t = useTranslations("seasonStart.budget");
   const locale = useLocale();
   const { dotation } = finances;
@@ -185,37 +185,6 @@ export function SeasonBudgetDetail({
           </>
         )}
       </dl>
-    </Panel>
-  );
-}
-
-/** The wage cap, in large, with the payroll under it and what it leaves, or the overrun. */
-export function SeasonWages({ finances }: { finances: ClubFinances }) {
-  const t = useTranslations("seasonStart.wages");
-  const locale = useLocale();
-  const { wageBudget, payroll, wageRoom } = finances;
-  const over = wageRoom < 0;
-  return (
-    <Panel aria-labelledby="season-start-wages-title" data-testid="season-start-wages" className="space-y-3">
-      <SectionTitle id="season-start-wages-title">{t("title")}</SectionTitle>
-      <p
-        data-testid="season-start-wage-budget"
-        data-amount={wageBudget}
-        className="font-heading text-[2.25rem] leading-none normal-case tabular-nums wrap-break-word"
-      >
-        {formatMoney(wageBudget, locale)}
-      </p>
-      <dl className="space-y-1.5 text-sm">
-        <div data-testid="season-start-payroll" data-amount={payroll} className="flex flex-wrap justify-between gap-x-3">
-          <dt className="text-muted-foreground">{t("payroll")}</dt>
-          <dd className="font-bold tabular-nums">{formatMoney(payroll, locale)}</dd>
-        </div>
-        <div data-testid="season-start-wage-room" data-amount={wageRoom} className="flex flex-wrap justify-between gap-x-3">
-          <dt className="text-muted-foreground">{over ? t("overrun") : t("room")}</dt>
-          <dd className={cn("font-bold tabular-nums", over && "text-warning")}>{formatMoney(Math.abs(wageRoom), locale)}</dd>
-        </div>
-      </dl>
-      <p className="text-[0.8125rem] text-muted-foreground">{t("note")}</p>
     </Panel>
   );
 }

@@ -1,10 +1,8 @@
 {
   "squad": {
     "title": "Effectif",
-    "players": "{count, plural, one {joueur} other {joueurs}}",
+    "playersOf": "{count, plural, one {joueur} other {joueurs}} sur {limit}",
     "goalkeepers": "{count, plural, one {gardien} other {gardiens}}",
-    "wageBill": "masse salariale",
-    "payroll": "{payroll} / {budget} M€",
     "windowClosed": "Mercato fermé : prolongations, libérations et ventes attendront sa réouverture.",
     "sortLabel": "Tri de l'effectif",
     "presets": {
@@ -21,7 +19,6 @@
       "form": "Forme",
       "fitness": "Condition",
       "marketValue": "Valeur",
-      "wage": "Salaire",
       "contractUntil": "Contrat",
       "status": "Statut"
     },

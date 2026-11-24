@@ -1,8 +1,9 @@
+import { assistantSignings, decideContracts } from "../engine/assistant-contracts";
 import { FREE_AGENT_STAY_MIN_OVERALL, SQUAD_LIMIT } from "../engine/balance";
 import { contractEndDate } from "../engine/economy";
 import type { Position } from "../engine/positions";
 import { NAME_BANK } from "../engine/names";
-import { planSquad, squadPlanRngSeed, type RosterPlayer, type SquadDecision } from "../engine/squad-ai";
+import { countByRole, planSquad, squadPlanRngSeed, type RosterPlayer } from "../engine/squad-ai";
 import { competitionTier } from "../engine/tiers";
 import { seasonEndDate, seasonStartYear, WORLD_START_DATE } from "../engine/world";
 import { generateYouthPlayer, youthKeyPrefix, youthPositions, youthRngSeed } from "../engine/youth";
@@ -12,6 +13,7 @@ import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { contractChoiceOf, type ContractMoves } from "./contracts";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
 // A preseason reads every player of the save and writes a few thousand rows in bulk statements.
@@ -25,21 +27,26 @@ export type PreseasonSummary = {
   skipped: boolean; // this season's preseason had already run
   departures: number; // free agents leaving the world
   youthPlayers: number; // two a club, fewer for a club with fewer places left under SQUAD_LIMIT
-  renewals: number; // of the clubs planning their squads: the AI clubs, and the managed club for the assistant
+  // Every club's contracts: the AI clubs' (planSquad), and the managed club's ending on 30 June, renewed or gone free, and
+  // the free agents its assistant signed.
+  renewals: number;
   releases: number;
   signings: number;
   bonuses: number; // euros: the signing bonuses those signings paid out of their clubs' budgets
-  // The managed club's own renewals, releases and signings, when the assistant manages its contracts; absent otherwise.
+  // The managed club's own renewals, releases and signings, when its assistant takes care of its contracts; absent when
+  // its player does.
   managed?: { renewals: number; releases: number; signings: number };
+  // What the turn did to the managed club's squad, for the season it opens (SeasonBudget.contractMoves); null when the
+  // preseason had already run, or without a managed club.
+  contractMoves: ContractMoves | null;
 };
 
 /** How a preseason treats the managed club. */
 export type PreseasonOptions = {
   /**
-   * The assistant manages the managed club's contracts (the measurement scripts and tests only, never the game): the
-   * club plans its squad as an AI club does (planSquad), renewing or releasing its expiring contracts and signing free
-   * agents, in its place among them by reputation, with its own stream and its own budget, which pays its signings'
-   * bonuses. Otherwise its player manages them: the preseason never touches its squad but for its young players.
+   * Who decides the managed club's contracts ending on 30 June (docs/design/simplification.md § 2.1): its assistant (true)
+   * or its player (false), whatever the career's setting; absent, the career's (Save.contractsByAssistant). The
+   * measurement scripts pass true: they measure the game's assistant.
    */
   assistantContracts?: boolean;
 };
@@ -56,6 +63,7 @@ type PlayerState = {
   potential: number;
   wage: number;
   contractUntil: Date | null;
+  contractChoice: string | null; // his player's choice for a contract of the managed club ending on 30 June
 };
 
 const PLAYER_STATE_SELECT = {
@@ -70,6 +78,7 @@ const PLAYER_STATE_SELECT = {
   potential: true,
   wage: true,
   contractUntil: true,
+  contractChoice: true,
 } as const;
 
 const bySlug = (a: { club: { slug: string } }, b: { club: { slug: string } }): number =>
@@ -88,28 +97,39 @@ export async function runPreseason(saveId: string): Promise<PreseasonSummary> {
   });
 }
 
+
 /**
  * Preseason on the save's current date, inside the caller's transaction, once per season:
  * 1. free agents released before this preseason and rated FREE_AGENT_STAY_MIN_OVERALL or less leave the
  *    world (RETIREMENT transfer); the initial pool, never released, counts as released when the save started;
- * 2. every club, the managed one included, receives its young players, as many as the places left under SQUAD_LIMIT
- *    allow (docs/design/simplification.md § 1.4): two, fewer near the limit, none at it;
- * 3. AI clubs, most reputed first, renew or release their expiring contracts and sign free agents, sharing one market,
- *    each signing's bonus paid out of the club's budget (planSquad); signings and releases write FREE transfers, a
- *    signing's with its bonus as the fee, the budgets debited; renewals update contract and wage. The managed club plans
- *    its squad with them when the assistant manages its contracts (options.assistantContracts), never otherwise.
- * No AI club sells to another since the simplification (§ 1.5): the sales for a wage bill above its budget are gone.
- * A season whose young players already exist has had its preseason: nothing is done. Some club always has a place left
- * for one: the AI clubs keep 20 to 25 players.
+ * 2. the managed club's contracts ending on 30 June are decided (docs/design/simplification.md § 2.1, decideContracts):
+ *    its player's choice, then its assistant's rule when he takes care of the contracts (options.assistantContracts, or
+ *    the career's setting), a free departure otherwise; renewed from the club's own stream (squadPlanRngSeed), those who
+ *    leave on the market for every AI club; every choice of the save then goes back to none;
+ * 3. every club, the managed one included, receives its young players, as many as the places left under SQUAD_LIMIT
+ *    allow (§ 1.4): two, fewer near the limit, none at it;
+ * 4. the managed club's assistant signs free agents only when its squad is left under SQUAD_SIZE_MIN players or
+ *    MIN_GOALKEEPERS goalkeepers (assistantSignings), before any AI club and never one it has just let go, each paying his
+ *    bonus out of its budget; never a running contract broken;
+ * 5. AI clubs, most reputed first, renew or release their expiring contracts and sign free agents, sharing one market,
+ *    each signing's bonus paid out of the club's budget (planSquad).
+ * Signings and releases write FREE transfers, a signing's with its bonus as the fee, the budgets debited; renewals update
+ * contract and wage. No AI club sells to another since the simplification (§ 1.5). What the managed club's turn did is
+ * returned (contractMoves), for its season's dotation. A season whose young players already exist has had its preseason:
+ * nothing is done. Some club always has a place left for one: the AI clubs keep 20 to 25 players.
  */
 export async function runPreseasonInTransaction(
   tx: Prisma.TransactionClient,
   saveId: string,
   options: PreseasonOptions = {},
 ): Promise<PreseasonSummary> {
-  const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, currentDate: true } });
+  const save = await tx.save.findUniqueOrThrow({
+    where: { id: saveId },
+    select: { seed: true, currentDate: true, contractsByAssistant: true },
+  });
   const date = save.currentDate;
   const startYear = seasonStartYear(date);
+  const byAssistant = options.assistantContracts ?? save.contractsByAssistant;
   const summary: PreseasonSummary = {
     startYear,
     skipped: false,
@@ -119,6 +139,7 @@ export async function runPreseasonInTransaction(
     releases: 0,
     signings: 0,
     bonuses: 0,
+    contractMoves: null,
   };
 
   const youthAlreadyThere = await tx.playerSave.count({
@@ -152,6 +173,7 @@ export async function runPreseasonInTransaction(
   const changed = new Set<PlayerState>();
   const squads = new Map<string, PlayerState[]>(clubs.map((club) => [club.id, []]));
   const market = new Map<string, PlayerState>();
+  const bonusesByClub = new Map<string, number>();
 
   // 1. Free agents without a club since an earlier release leave the world, unless good enough.
   const departures: string[] = [];
@@ -172,7 +194,56 @@ export async function runPreseasonInTransaction(
     }
   }
 
-  // 2. Young players arrive at every club, in the places left under SQUAD_LIMIT: the first ones of its intake, the same as
+  const lastContractDay = seasonEndDate(startYear - 1);
+  const toRoster = (player: PlayerState): RosterPlayer => ({
+    id: player.key,
+    position: player.position,
+    age: ageInYears(player.birthDate, date),
+    overall: player.overall,
+    potential: player.potential,
+    wage: player.wage,
+    contractExpiring: player.contractUntil !== null && player.contractUntil <= lastContractDay,
+  });
+  const moved = (player: PlayerState) => ({ id: player.id, firstName: player.firstName, lastName: player.lastName });
+
+  // 2. The managed club's contracts ending on 30 June, before its young players come to the places its departures leave,
+  // and before any AI club plans: who leaves is on the market for all of them, as a contract that ran out was before the
+  // rule. Renewals and signings drawn from its own stream, the one its slug gives, which no AI club draws from.
+  const managed = clubs.find((club) => club.isManaged) ?? null;
+  const managedRng = managed === null ? null : makeRng(squadPlanRngSeed(save.seed, startYear, managed.club.slug));
+  const moves: ContractMoves = { byAssistant, renewed: [], left: [], signed: [], youths: 0, squad: 0 };
+  if (managed !== null && managedRng !== null) {
+    const squad = getOrThrow(squads, managed.id, "squad");
+    const squadByKey = new Map(squad.map((player) => [player.key, player]));
+    const decisions = decideContracts(
+      squad.map((player) => ({ ...toRoster(player), choice: contractChoiceOf(player.contractChoice) })),
+      countByRole(market.values()),
+      byAssistant,
+      managedRng,
+    );
+    for (const decision of decisions) {
+      const player = getOrThrow(squadByKey, decision.playerId, "squad player");
+      if (decision.type === "renew") {
+        const until = contractEndDate(date, decision.years);
+        player.contractUntil = until;
+        player.wage = decision.wage;
+        changed.add(player);
+        moves.renewed.push({ ...moved(player), until: until.toISOString(), by: decision.by });
+        summary.renewals++;
+      } else {
+        player.clubSaveId = null;
+        player.contractUntil = null;
+        changed.add(player);
+        market.set(player.key, player);
+        transfers.push({ saveId, playerSaveId: player.id, fromClubId: managed.club.id, toClubId: null, type: "FREE", date });
+        moves.left.push({ ...moved(player), by: decision.by });
+        summary.releases++;
+      }
+    }
+    squads.set(managed.id, squad.filter((player) => player.clubSaveId !== null));
+  }
+
+  // 3. Young players arrive at every club, in the places left under SQUAD_LIMIT: the first ones of its intake, the same as
   // they would be with room for all.
   const youthRows: Prisma.PlayerSaveCreateManyInput[] = [];
   for (const club of [...clubs].sort(bySlug)) {
@@ -208,26 +279,48 @@ export async function runPreseasonInTransaction(
   }
   summary.youthPlayers = youthPlayers.length;
 
-  // 3. AI clubs manage their squads, most reputed first.
-  const lastContractDay = seasonEndDate(startYear - 1);
-  const toRoster = (player: PlayerState): RosterPlayer => ({
-    id: player.key,
-    position: player.position,
-    age: ageInYears(player.birthDate, date),
-    overall: player.overall,
-    potential: player.potential,
-    wage: player.wage,
-    contractExpiring: player.contractUntil !== null && player.contractUntil <= lastContractDay,
-  });
-  const aiClubs = clubs.filter((club) => !club.isManaged).sort(byReputation);
+  // 4. The managed club's assistant signs free agents only to play on: under SQUAD_SIZE_MIN players or MIN_GOALKEEPERS
+  // goalkeepers once the turn is over (§ 13, point 4), the first to choose from the market, but for the players it has
+  // just let go: gone is gone, never signed back with a bonus. Its budget is the dotation the transition just gave
+  // (src/db/season-finances.ts).
+  if (managed !== null && managedRng !== null) {
+    const squad = getOrThrow(squads, managed.id, "squad");
+    const gone = new Set(moves.left.map((player) => player.id));
+    moves.youths = youthPlayers.filter((row) => row.clubSaveId === managed.id).length;
+    const signings = byAssistant
+      ? assistantSignings(
+          { budget: managed.budget, reputation: managed.reputation },
+          squad.map(toRoster),
+          [...market.values()].filter((player) => !gone.has(player.id)).map(toRoster),
+          managedRng,
+        )
+      : [];
+    for (const signing of signings) {
+      const player = getOrThrow(market, signing.playerId, "free agent");
+      market.delete(player.key);
+      player.clubSaveId = managed.id;
+      player.contractUntil = contractEndDate(date, signing.years);
+      player.wage = signing.wage;
+      changed.add(player);
+      squad.push(player);
+      // The bonus is the FREE transfer's fee, as a signing of the player's own writes it (signFreeAgent).
+      transfers.push({ saveId, playerSaveId: player.id, fromClubId: null, toClubId: managed.club.id, fee: signing.bonus, type: "FREE", date });
+      bonusesByClub.set(managed.id, (bonusesByClub.get(managed.id) ?? 0) + signing.bonus);
+      moves.signed.push({ ...moved(player), position: player.position, bonus: signing.bonus });
+      summary.signings++;
+      summary.bonuses += signing.bonus;
+    }
+    moves.squad = squad.length;
+    summary.contractMoves = moves;
+    if (byAssistant) {
+      summary.managed = { renewals: moves.renewed.length, releases: moves.left.length, signings: moves.signed.length };
+    }
+  }
 
-  // The clubs planning their squads, most reputed first: the AI clubs, and the managed club in its place among them when
-  // the assistant manages its contracts, with its own budget and its own stream, the one its slug gives, which no AI club
-  // draws from. Each budget is the dotation the transition just gave (src/db/season-finances.ts), the creation's on the
-  // first preseason; what its signings' bonuses take, it no longer has to bid for the managed club's players.
-  const planners = options.assistantContracts === true ? [...clubs].sort(byReputation) : aiClubs;
-  const bonusesByClub = new Map<string, number>();
-  for (const club of planners) {
+  // 5. AI clubs manage their squads, most reputed first, each with the dotation the transition just gave as its budget
+  // (src/db/season-finances.ts), the creation's on the first preseason: what its signings' bonuses take, it no longer has
+  // to bid for the managed club's players. Each draws from its own stream, the one its slug gives.
+  for (const club of clubs.filter((candidate) => !candidate.isManaged).sort(byReputation)) {
     const squad = getOrThrow(squads, club.id, "squad");
     const squadByKey = new Map(squad.map((player) => [player.key, player]));
     const decisions = planSquad(
@@ -274,10 +367,6 @@ export async function runPreseasonInTransaction(
         summary.bonuses += decision.bonus;
       }
     }
-    if (club.isManaged) {
-      const count = (type: SquadDecision["type"]): number => decisions.filter((decision) => decision.type === type).length;
-      summary.managed = { renewals: count("renew"), releases: count("release"), signings: count("sign") };
-    }
   }
 
   if (transfers.length > 0) {
@@ -294,6 +383,11 @@ export async function runPreseasonInTransaction(
   // The free agents who left the world are retired: out of the market for good.
   if (departures.length > 0) {
     await tx.playerSave.updateMany({ where: { saveId, id: { in: departures } }, data: { retired: true } });
+  }
+  // Every choice of a contract ending on 30 June has been applied: none is left, for a contract renewed earlier or a player
+  // gone since either. No statement when nobody made one, as at a save's creation.
+  if (rows.some((row) => row.contractChoice !== null)) {
+    await tx.playerSave.updateMany({ where: { saveId, contractChoice: { not: null } }, data: { contractChoice: null } });
   }
 
   // Dates go through ISO strings: a Date parameter would be sent in the server's local time zone.

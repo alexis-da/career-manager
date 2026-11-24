@@ -128,7 +128,6 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the AI clubs' players, 
         overall: player.overall,
         potential: player.potential,
         askingPrice: quote.askingPrice,
-        askedWage: quote.minimumWage,
         minimumReputation: quote.minimumReputation,
         contractUntil: player.contractUntil,
       };

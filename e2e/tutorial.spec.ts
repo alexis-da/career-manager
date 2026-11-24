@@ -26,7 +26,6 @@ const playButton = (page: Page) => page.getByTestId("dashboard-next-match").getB
 /** What the first day hides on the dashboard, but its hero: money, missions, objectives, the challenge, first actions. */
 const HIDDEN_ON_THE_FIRST_DAY = [
   "dashboard-budget",
-  "dashboard-payroll",
   "dashboard-window",
   "daily-missions",
   "dashboard-objectives",

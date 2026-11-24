@@ -125,7 +125,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the shop of missions v2
     if (striker === undefined) {
       throw new Error("No youth shown for the attack");
     }
-    expect(striker).toMatchObject({ overall: 63, position: expect.any(String), fits: true });
+    expect(striker).toMatchObject({ overall: 63, position: expect.any(String) });
+    // No wage shown: the player manages none (docs/design/simplification.md § 6.10).
+    expect(Object.keys(striker).sort()).toEqual(["firstName", "lastName", "line", "overall", "position", "potential"]);
+    expect(shown).not.toHaveProperty("wageRoom");
     expect(striker.potential - striker.overall).toBeGreaterThanOrEqual(25);
     const squadSize = (await squad()).length;
     expect(shown.squadSize).toBe(squadSize);
@@ -158,14 +161,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the shop of missions v2
     expect(bought).toMatchObject({ ok: true, price: 350, effect: { kind: "youth", playerKey: "shop-youth:1", line: "FW" } });
     const youth = await db.playerSave.findUniqueOrThrow({
       where: { saveId_playerKey: { saveId, playerKey: "shop-youth:1" } },
-      select: { id: true, firstName: true, lastName: true, overall: true, potential: true, wage: true, position: true, clubSaveId: true, contractUntil: true },
+      select: { id: true, firstName: true, lastName: true, overall: true, potential: true, position: true, clubSaveId: true, contractUntil: true },
     });
     expect(youth).toMatchObject({
       firstName: striker.firstName,
       lastName: striker.lastName,
       overall: striker.overall,
       potential: striker.potential,
-      wage: striker.wage,
       position: striker.position,
       clubSaveId,
     });

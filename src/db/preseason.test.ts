@@ -2,7 +2,7 @@ import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MIN_GOALKEEPERS, SQUAD_LIMIT, SQUAD_SIZE_MAX, SQUAD_SIZE_MIN, YOUTH_PLAYERS_PER_CLUB } from "../engine/balance";
 import { marketValueFor, signingBonus } from "../engine/economy";
-import { seasonStartDate, WORLD_START_YEAR } from "../engine/world";
+import { seasonEndDate, seasonStartDate, WORLD_START_YEAR } from "../engine/world";
 import { youthKeyPrefix } from "../engine/youth";
 import { ageInYears } from "../lib/dates";
 import type { prisma as prismaClient } from "./client";
@@ -171,9 +171,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a preseason under the s
     if (managed === undefined || crowded === undefined) {
       throw new Error("No managed club, or no AI club");
     }
-    // The managed club at 29: one place left.
+    // The managed club at 29: one place left, and nothing of its own to decide, every contract running past the season.
     await fillTo(saveId, managed.id, SQUAD_LIMIT - 1);
     await fillTo(saveId, crowded.id, SQUAD_LIMIT);
+    await database().playerSave.updateMany({
+      where: { saveId, clubSaveId: managed.id },
+      data: { contractUntil: seasonEndDate(WORLD_START_YEAR + 3) },
+    });
 
     const summary = await loaded().preseason.runPreseason(saveId);
 
@@ -190,8 +194,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a preseason under the s
     expect(youthsOf.get(crowded.club.slug)).toBeUndefined();
     expect(clubs.filter((club) => club !== managed && club !== crowded).filter((club) => youthsOf.get(club.club.slug) !== YOUTH_PLAYERS_PER_CLUB)).toEqual([]);
     expect(summary.youthPlayers).toBe(YOUTH_PLAYERS_PER_CLUB * (clubs.length - 2) + 1);
-    // The managed club does not plan its squad: 29 and its young player.
+    // Its assistant signs nobody for a squad of more than twenty: 29 and its young player.
     expect(await squadSizeOf(saveId, managed.id)).toBe(SQUAD_LIMIT);
+    expect(summary.contractMoves).toMatchObject({ byAssistant: true, renewed: [], left: [], signed: [], youths: 1, squad: SQUAD_LIMIT });
 
     // Every free signing of the day has its bonus for fee, a quarter of the player's value then, at least 50 000 €.
     const signings = await signingsOf(saveId);
@@ -214,7 +219,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a preseason under the s
     expect(await database().transfer.count({ where: { saveId, type: "TRANSFER", date: NEXT_START } })).toBe(0);
   }, 120_000);
 
-  it("has the managed club pay its own signings' bonuses when the assistant plans its squad", async () => {
+  it("has the managed club's assistant sign for a squad left under twenty, paying each bonus, and break no running contract", async () => {
     const [, saveId] = saveIds;
     const clubs = await clubsOf(saveId);
     const managed = clubs.find((club) => club.isManaged);
@@ -233,6 +238,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a preseason under the s
     await database().clubSave.update({ where: { id: managed.id, saveId }, data: { budget } });
     const before = await squadSizeOf(saveId, managed.id);
     expect(before).toBeLessThan(SQUAD_SIZE_MIN - YOUTH_PLAYERS_PER_CLUB);
+    // Its contracts ending on 30 June are decided, those running past it never broken.
+    const running = new Set(
+      (
+        await database().playerSave.findMany({
+          where: { saveId, clubSaveId: managed.id, contractUntil: { gt: seasonEndDate(WORLD_START_YEAR) } },
+          select: { id: true },
+        })
+      ).map(({ id }) => id),
+    );
+    expect(running.size).toBeGreaterThan(0);
 
     const summary = await database().$transaction(
       (tx) => loaded().preseason.runPreseasonInTransaction(tx, saveId, { assistantContracts: true }),
@@ -242,13 +257,22 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("a preseason under the s
     const own = (await signingsOf(saveId)).filter(({ toClubId }) => toClubId === managed.clubId);
     const moves = summary.managed;
     if (moves === undefined) {
-      throw new Error("The managed club did not plan its squad");
+      throw new Error("The managed club's assistant decided nothing");
     }
     expect(own.length).toBeGreaterThan(0);
     expect(own).toHaveLength(moves.signings);
     expect(own.filter(({ fee, bonus }) => fee !== bonus)).toEqual([]);
     const { budget: after } = await database().clubSave.findUniqueOrThrow({ where: { id: managed.id }, select: { budget: true } });
     expect(after).toBe(budget - own.reduce((sum, { fee }) => sum + fee, 0));
-    expect(await squadSizeOf(saveId, managed.id)).toBe(before + YOUTH_PLAYERS_PER_CLUB + moves.signings - moves.releases);
+    const size = await squadSizeOf(saveId, managed.id);
+    expect(size).toBe(before + YOUTH_PLAYERS_PER_CLUB + moves.signings - moves.releases);
+    expect(size).toBeGreaterThanOrEqual(SQUAD_SIZE_MIN);
+    const released = await database().transfer.findMany({
+      where: { saveId, type: "FREE", date: NEXT_START, fromClubId: managed.clubId, toClubId: null },
+      select: { playerSaveId: true },
+    });
+    expect(released).toHaveLength(moves.releases);
+    expect(released.filter(({ playerSaveId }) => running.has(playerSaveId))).toEqual([]);
+    expect(summary.contractMoves?.signed.map(({ bonus }) => bonus).sort()).toEqual(own.map(({ fee }) => fee).sort());
   }, 120_000);
 });

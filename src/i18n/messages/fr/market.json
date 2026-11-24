@@ -2,12 +2,13 @@
   "market": {
     "title": "Marché",
     "budget": "{amount} dispo",
-    "wageRoom": "Marge salariale {amount}",
+    "squad": "Effectif {count}/{limit}",
     "advanced": "Marché complet : filtres, joueurs libres, mouvements",
     "tabs": {
       "label": "Acheter ou vendre",
       "buy": "Acheter",
-      "sell": "Vendre · {count, plural, =0 {aucune offre} one {# offre} other {# offres}}"
+      "sell": "Vendre · {count, plural, =0 {aucune offre} one {# offre} other {# offres}}",
+      "sellProposed": "Vendre · {count, plural, one {# proposée} other {# proposées}}"
     },
     "entries": {
       "label": "Type de proposition",
@@ -22,8 +23,6 @@
       "weakSpotEmpty": "(poste vide : personne de disponible pour le tenir).",
       "weakSpotOutOfLine": "(tenu hors poste, note {rating}).",
       "weakSpotRest": "Voici qui le comblerait.",
-      "weakSpotAffordable": "Ta marge salariale, {room}, ne paie personne qui le comble : voici qui reste dans tes moyens.",
-      "weakSpotNoRoom": "Ta marge salariale ne paie plus personne qui le comble.",
       "noWeakSpot": "Ton onze n'a pas encore de titulaires à comparer.",
       "gems": "Des jeunes à fort potentiel, à ta portée.",
       "bargains": "Moins chers que leur valeur, souvent en fin de contrat.",
@@ -35,31 +34,26 @@
       "bargains": "Aucune bonne affaire à ta portée pour l'instant.",
       "stars": "Aucune star à ta portée pour l'instant."
     },
-    "wageLimit": {
-      "left": "Il te reste {room} de marge salariale par saison : personne ici n'est dans tes moyens.",
-      "none": "Ta masse salariale atteint ton plafond : personne ici n'est dans tes moyens.",
-      "over": "Ta masse salariale dépasse ton plafond de {amount} : personne ici n'est dans tes moyens.",
-      "how": "Pour retrouver de la marge :",
-      "sell": "vendre un joueur : son salaire te revient en marge, son prix en budget ;",
-      "sellLink": "voir les offres",
-      "release": "libérer un contrat, depuis la fiche du joueur : son salaire te revient en marge, contre la moitié de ce qui lui reste dû ;",
-      "releaseLink": "ouvrir l'effectif",
-      "wait": "ou attendre la saison prochaine : ton plafond salarial sera recalculé sur ta masse salariale."
+    "squadFull": {
+      "title": "Effectif plein",
+      "text": "{count, plural, one {# joueur} other {# joueurs}} sur {limit} : vends ou libère un joueur avant d'en recruter un autre.",
+      "sell": "Vendre un joueur",
+      "proposals": "Voir les ventes proposées",
+      "squad": "Ouvrir l'effectif"
     },
     "tags": {
       "best": "Meilleur choix",
       "gem": "Pépite · pot. {potential}",
       "bargain": "Bonne affaire",
       "star": "Star",
-      "fit": "Bon profil",
-      "affordable": "Dans tes moyens"
+      "fit": "Bon profil"
     },
     "playerLine": "{age} ans · {club}",
     "freeAgent": "Joueur libre",
     "impact": "+{impact} au poste {slot}",
     "suggestedPrice": "Prix suggéré",
-    "free": "Gratuit",
-    "contract": "Salaire {wage} · {years, plural, one {# saison} other {# saisons}}",
+    "bonus": "Prime à la signature",
+    "contract": "Contrat de {years, plural, one {# saison} other {# saisons}}",
     "pass": "Passer",
     "recruit": "Recruter",
     "adjust": "Détails du contrat · ajuster l'offre",
@@ -68,12 +62,13 @@
     "spottedAge": "{age} ans",
     "confirm": {
       "title": "Recruter {name}",
-      "description": "Le prix et le salaire les plus bas qu'il accepte, sur la durée standard.",
+      "description": "Le prix le plus bas qu'il accepte, sur la durée standard.",
       "price": "Prix",
-      "wage": "Salaire par saison",
       "length": "Durée",
       "lengthValue": "{years, plural, one {# saison} other {# saisons}}, jusqu'au {date}",
       "budgetLeft": "Budget restant",
+      "squad": "Effectif",
+      "squadValue": "{count} sur {limit}",
       "confirm": "Confirmer",
       "pending": "Signature…",
       "failed": "Le serveur n'a pas répondu. Réessaie."
@@ -81,7 +76,7 @@
     "signed": {
       "title": "Signé !",
       "joins": "{name} rejoint {club}",
-      "detail": "Contrat de {years, plural, one {# saison} other {# saisons}}, jusqu'au {date}, à {wage} par saison.",
+      "detail": "Contrat de {years, plural, one {# saison} other {# saisons}}, jusqu'au {date}.",
       "continue": "Continuer"
     }
   }

@@ -2,12 +2,13 @@
   "market": {
     "title": "Market",
     "budget": "{amount} available",
-    "wageRoom": "Wage room {amount}",
+    "squad": "Squad {count}/{limit}",
     "advanced": "Full market: filters, free agents, moves",
     "tabs": {
       "label": "Buy or sell",
       "buy": "Buy",
-      "sell": "Sell · {count, plural, =0 {no offers} one {# offer} other {# offers}}"
+      "sell": "Sell · {count, plural, =0 {no offers} one {# offer} other {# offers}}",
+      "sellProposed": "Sell · {count} suggested"
     },
     "entries": {
       "label": "Kind of proposal",
@@ -22,8 +23,6 @@
       "weakSpotEmpty": "(empty: nobody available to play there).",
       "weakSpotOutOfLine": "(played out of position, rated {rating}).",
       "weakSpotRest": "Here's who would fix it.",
-      "weakSpotAffordable": "Your wage room, {room}, pays nobody who would fix it: here's who is within your means.",
-      "weakSpotNoRoom": "Your wage room no longer pays anyone who would fix it.",
       "noWeakSpot": "Your eleven has no starters to compare yet.",
       "gems": "Young players with high potential, within your reach.",
       "bargains": "Cheaper than they're worth, often at the end of their contract.",
@@ -35,31 +34,26 @@
       "bargains": "No bargains within your reach for now.",
       "stars": "No stars within your reach for now."
     },
-    "wageLimit": {
-      "left": "You have {room} of wage room a season left: nobody here is within your means.",
-      "none": "Your wage bill has reached your wage cap: nobody here is within your means.",
-      "over": "Your wage bill is {amount} over your wage cap: nobody here is within your means.",
-      "how": "To make room:",
-      "sell": "sell a player: his wage comes back as room, his fee as budget;",
-      "sellLink": "see the offers",
-      "release": "release a contract, from the player's sheet: his wage comes back as room, for half of what he is still owed;",
-      "releaseLink": "open the squad",
-      "wait": "or wait for next season: your wage cap will be worked out again from your wage bill."
+    "squadFull": {
+      "title": "Squad full",
+      "text": "{count, plural, one {# player} other {# players}} of {limit}: sell or release a player before signing another.",
+      "sell": "Sell a player",
+      "proposals": "See the suggested sales",
+      "squad": "Open the squad"
     },
     "tags": {
       "best": "Best choice",
       "gem": "Gem · pot. {potential}",
       "bargain": "Bargain",
       "star": "Star",
-      "fit": "Good fit",
-      "affordable": "Within your means"
+      "fit": "Good fit"
     },
     "playerLine": "Age {age} · {club}",
     "freeAgent": "Free agent",
     "impact": "+{impact} at {slot}",
     "suggestedPrice": "Suggested price",
-    "free": "Free",
-    "contract": "Wage {wage} · {years, plural, one {# season} other {# seasons}}",
+    "bonus": "Signing bonus",
+    "contract": "Contract of {years, plural, one {# season} other {# seasons}}",
     "pass": "Pass",
     "recruit": "Sign",
     "adjust": "Contract details · adjust the offer",
@@ -68,12 +62,13 @@
     "spottedAge": "Age {age}",
     "confirm": {
       "title": "Sign {name}",
-      "description": "The lowest price and wage he accepts, for the standard length.",
+      "description": "The lowest price he accepts, for the standard length.",
       "price": "Price",
-      "wage": "Wage per season",
       "length": "Length",
       "lengthValue": "{years, plural, one {# season} other {# seasons}}, until {date}",
       "budgetLeft": "Budget left",
+      "squad": "Squad",
+      "squadValue": "{count} of {limit}",
       "confirm": "Confirm",
       "pending": "Signing…",
       "failed": "The server did not answer. Try again."
@@ -81,7 +76,7 @@
     "signed": {
       "title": "Signed!",
       "joins": "{name} joins {club}",
-      "detail": "Contract of {years, plural, one {# season} other {# seasons}}, until {date}, at {wage} per season.",
+      "detail": "Contract of {years, plural, one {# season} other {# seasons}}, until {date}.",
       "continue": "Continue"
     }
   }

@@ -31,7 +31,10 @@ async function translators() {
   return { t, tRefusals, locale };
 }
 
-/** The refusal with the figures behind it: budget, the selling club's price or a free agent's signing bonus. */
+/**
+ * The refusal with the figures behind it: budget, the selling club's price or a free agent's signing bonus. Never a wage:
+ * an offer pays at least the one the player asks, and only the club's reputation makes him refuse.
+ */
 async function explainRefusal(
   outcome: Refused,
   offer: { saveId: string; playerSaveId: string; fee?: number },
@@ -49,12 +52,12 @@ async function explainRefusal(
       budget: facts.budget,
       clubName: facts.clubName ?? undefined,
       askingPrice: facts.quote.askingPrice,
-      minimumWage: facts.quote.minimumWage,
       nextWindowOpensOn: facts.nextWindowOpensOn,
     }),
   };
 }
 
+/** Signs a free agent: his signing bonus off the budget (the outcome's fee), his asked wage, never shown. */
 export async function signFreeAgentAction(input: SignFreeAgentInput): Promise<ActionResult> {
   const { t, tRefusals, locale } = await translators();
   const parsed = signFreeAgentSchema.safeParse(input);
@@ -67,13 +70,13 @@ export async function signFreeAgentAction(input: SignFreeAgentInput): Promise<Ac
     return explainRefusal(outcome, parsed.data, tRefusals, locale);
   }
   revalidatePath(`/saves/${parsed.data.saveId}`, "layout");
-  const wage = formatMoney(outcome.wage, locale);
+  const bonus = formatMoney(outcome.fee, locale);
   return {
     ok: true,
     message:
       outcome.contractUntil === null
-        ? t("signedOpenEnded", { wage })
-        : t("signed", { until: formatDate(outcome.contractUntil, locale), wage }),
+        ? t("signedOpenEnded", { bonus })
+        : t("signed", { until: formatDate(outcome.contractUntil, locale), bonus }),
   };
 }
 
@@ -90,12 +93,11 @@ export async function makeTransferOfferAction(input: MakeTransferOfferInput): Pr
   }
   revalidatePath(`/saves/${parsed.data.saveId}`, "layout");
   const fee = formatMoney(outcome.fee, locale);
-  const wage = formatMoney(outcome.wage, locale);
   return {
     ok: true,
     message:
       outcome.contractUntil === null
-        ? t("offerAcceptedOpenEnded", { fee, wage })
-        : t("offerAccepted", { fee, until: formatDate(outcome.contractUntil, locale), wage }),
+        ? t("offerAcceptedOpenEnded", { fee })
+        : t("offerAccepted", { fee, until: formatDate(outcome.contractUntil, locale) }),
   };
 }

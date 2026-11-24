@@ -101,9 +101,8 @@
           "FW": "Attaque"
         },
         "youth": "{name}, 17 ans · note {overall} · potentiel {potential}",
-        "youthWage": "Salaire {wage} par saison, contrat de 3 saisons, compté dans ton plafond salarial.",
-        "youthRoom": "Marge salariale : {wageRoom}",
-        "tooExpensive": "Hors de ta marge",
+        "youthContract": "Contrat de {years, plural, one {# saison} other {# saisons}}, ni vente ni libération avant sa fin.",
+        "youthPlace": "Il prend une place : {count} sur {limit}.",
         "campPlayers": "{count, plural, one {# joueur sous 100 de condition} other {# joueurs sous 100 de condition}}",
         "topUp": "Ton budget transferts passe à {budget}."
       },

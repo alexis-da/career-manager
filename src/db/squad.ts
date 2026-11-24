@@ -13,7 +13,7 @@ export type SquadView = {
   startYear: number;
   windowOpen: boolean;
   nextWindowOpensOn: Date;
-  club: { name: string; budget: number; wageBudget: number; payroll: number };
+  club: { name: string; budget: number };
   players: SquadPlayerView[];
 };
 
@@ -22,21 +22,17 @@ export async function getSquadView(saveId: string): Promise<SquadView> {
   const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
   const club = await prisma.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
-    select: { id: true, budget: true, wageBudget: true, club: { select: { slug: true, name: true } } },
+    select: { id: true, budget: true, club: { select: { slug: true, name: true } } },
   });
 
-  const [players, terms, payroll] = await Promise.all([
-    getPlayerProfiles(saveId, { clubSaveId: club.id }),
-    quoteSquad(saveId),
-    prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } }),
-  ]);
+  const [players, terms] = await Promise.all([getPlayerProfiles(saveId, { clubSaveId: club.id }), quoteSquad(saveId)]);
 
   return {
     currentDate: save.currentDate,
     startYear: seasonStartYear(save.currentDate),
     windowOpen: transferWindowAt(save.currentDate) !== null,
     nextWindowOpensOn: nextTransferWindowOpening(save.currentDate),
-    club: { name: displayClubName(club.club), budget: club.budget, wageBudget: club.wageBudget, payroll: payroll._sum.wage ?? 0 },
+    club: { name: displayClubName(club.club), budget: club.budget },
     players: players.map((player) => {
       const playerTerms = terms.get(player.id);
       if (playerTerms === undefined) {

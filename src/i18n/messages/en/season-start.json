@@ -3,7 +3,7 @@
     "title": "Season start",
     "season": "{season} season",
     "back": "Dashboard",
-    "intro": "Before your first match: the budget the board gives you, your wage cap and your objectives.",
+    "intro": "Before your first match: the budget the board gives you, what your assistant did and your objectives.",
     "budget": {
       "granted": "The board gives you",
       "grantedNote": "Your transfer budget for the {season} season.",
@@ -25,12 +25,16 @@
       "carryOverDetail": "Half of your unspent budget",
       "total": "Season budget"
     },
-    "wages": {
-      "title": "Wage cap",
-      "payroll": "Wage bill",
-      "room": "Wage room",
-      "overrun": "Over budget",
-      "note": "A signing whose wage exceeds your wage room is refused."
+    "assistant": {
+      "title": "Your assistant over the summer",
+      "renewed": "{count, plural, one {Contract extended} other {Contracts extended}}: {players}",
+      "renewedPlayer": "{name} ({year})",
+      "left": "{count, plural, one {# player left on a free} other {# players left on a free}}: {players}",
+      "noContracts": "No contract ended on 30 June.",
+      "signed": "{count, plural, one {Free agent signed} other {Free agents signed}}: {players}",
+      "signedPlayer": "{name}, {position} ({bonus})",
+      "youths": "From the academy: {count, plural, one {# youngster} other {# youngsters}}",
+      "squad": "Squad: {count, plural, one {# player} other {# players}} out of {limit}"
     },
     "objectives": {
       "title": "Season objectives",

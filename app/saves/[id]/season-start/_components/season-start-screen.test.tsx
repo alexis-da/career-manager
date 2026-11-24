@@ -2,11 +2,13 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ClubDotation, ClubFinances } from "@/src/db/club";
+import type { ContractMovesView } from "@/src/db/contracts";
 import type { ClosedObjectivesView, ObjectiveView, SeasonObjectivesView } from "@/src/db/objectives";
 import type { ObjectiveKind } from "@/src/engine/objectives";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage } from "@/src/i18n/test-intl";
-import { SeasonBudgetDetail, SeasonGrant, SeasonWages } from "./season-budget";
+import { SeasonAssistant } from "./season-assistant";
+import { SeasonBudgetDetail, SeasonGrant } from "./season-budget";
 import { SeasonObjectives } from "./season-objectives";
 
 // The form is drawn without its Server Action, which reads the database, nor the App Router its refusals refresh.
@@ -39,7 +41,8 @@ const textOf = (markup: string): string =>
 const lastObjectiveOf = (markup: string, kind: ObjectiveKind): string =>
   new RegExp(`<li[^>]*data-objective="${kind}"[\\s\\S]*?</li>`).exec(markup)?.[0] ?? "";
 
-const DOTATION: ClubDotation = {
+// What the screen reads of the dotation and the finances: no wage, which it never shows (docs/design/simplification.md § 6.9).
+const DOTATION = {
   startYear: 2027,
   reputation: 78,
   reputationRank: 3,
@@ -49,11 +52,10 @@ const DOTATION: ClubDotation = {
   objectivesAmount: 4_200_000,
   carryOver: 6_000_000,
   budget: 52_200_000,
-  wageBudget: 70_000_000,
   first: false,
-};
+} as ClubDotation;
 
-const FINANCES: ClubFinances = { budget: 52_200_000, wageBudget: 70_000_000, payroll: 61_000_000, wageRoom: 9_000_000, dotation: DOTATION };
+const FINANCES = { budget: 52_200_000, dotation: DOTATION } as ClubFinances;
 
 const LAST_SEASON: ClosedObjectivesView["objectives"] = [
   { kind: "RANKING", variant: "FINISH", target: 5, exceed: 2, outcome: "ACHIEVED", byAssistant: false },
@@ -137,21 +139,57 @@ describe("the dotation's detail", () => {
   });
 });
 
-describe("the wage cap", () => {
-  it("gives the cap in large, the payroll and what it leaves", () => {
-    const markup = render(<SeasonWages finances={FINANCES} />);
-    expect(markup).toMatch(/data-testid="season-start-wage-budget" data-amount="70000000"[^>]*>70 M€</);
-    expect(textOf(elementOf(markup, "season-start-payroll"))).toBe("Masse salariale 61 M€");
-    expect(textOf(elementOf(markup, "season-start-wage-room"))).toBe("Marge 9 M€");
-    expect(markup).not.toContain("text-warning");
+/** A turn's moves as the screen reads them: renewals, departures, signings, young players and the squad left. */
+const MOVES: ContractMovesView = {
+  byAssistant: true,
+  renewed: [
+    { name: "M. Diallo", until: new Date(Date.UTC(2030, 5, 30)) },
+    { name: "A. Koné", until: new Date(Date.UTC(2029, 5, 30)) },
+  ],
+  left: [{ name: "J. Moreau" }, { name: "L. Petit" }],
+  signed: [{ name: "L. Blanc", position: "GK", bonus: 900_000 }],
+  youths: 2,
+  squad: 25,
+  limit: 30,
+};
+
+describe("the assistant's close season", () => {
+  it("tells what the turn did: the contracts renewed with their end, the players gone, the signings and their bonuses, the squad", () => {
+    const markup = render(<SeasonAssistant moves={MOVES} />);
+
+    expect(markup).toContain('data-testid="season-start-assistant"');
+    expect(markup).toContain('data-by-assistant="true"');
+    expect(markup).toMatch(/<h2 [^>]*id="season-start-assistant-title"[^>]*>Ton adjoint à l&#x27;intersaison<\/h2>/);
+    const line = (testId: string) => elementOf(markup, testId, "li");
+    expect(line("season-start-renewed")).toContain('data-count="2"');
+    expect(textOf(line("season-start-renewed"))).toBe("Prolongés : M. Diallo (2030), A. Koné (2029)");
+    expect(textOf(line("season-start-left"))).toBe("Partis libres : J. Moreau, L. Petit");
+    expect(textOf(line("season-start-signed"))).toBe("Signé : L. Blanc, gardien (900 k€)");
+    expect(textOf(line("season-start-youths"))).toBe("Venus de l'académie : 2 jeunes");
+    expect(line("season-start-squad")).toContain('data-count="25"');
+    expect(textOf(line("season-start-squad"))).toBe("Effectif : 25 joueurs sur 30");
+    expect(markup).not.toContain("season-start-no-contracts");
   });
 
-  it("tells the overrun above the cap", () => {
-    const markup = render(<SeasonWages finances={{ ...FINANCES, payroll: 71_500_000, wageRoom: -1_500_000 }} />);
-    const room = elementOf(markup, "season-start-wage-room");
-    expect(room).toContain('data-amount="-1500000"');
-    expect(textOf(room)).toBe("Dépassement 1,5 M€");
-    expect(room).toContain("text-warning");
+  it("says when no contract ended, leaves out what did not happen, and speaks British English", () => {
+    const quiet = render(<SeasonAssistant moves={{ ...MOVES, byAssistant: false, renewed: [], left: [], signed: [], youths: 0, squad: 30 }} />);
+    expect(textOf(quiet)).toBe("Ton adjoint à l'intersaison Aucun contrat ne finissait le 30 juin. Effectif : 30 joueurs sur 30");
+    expect(quiet).toContain('data-by-assistant="false"');
+    for (const testId of ["season-start-renewed", "season-start-left", "season-start-signed", "season-start-youths"]) {
+      expect(quiet).not.toContain(testId);
+    }
+
+    const one = render(
+      <SeasonAssistant moves={{ ...MOVES, renewed: MOVES.renewed.slice(0, 1), left: MOVES.left.slice(0, 1), youths: 1, squad: 21 }} />,
+    );
+    expect(textOf(elementOf(one, "season-start-renewed", "li"))).toBe("Prolongé : M. Diallo (2030)");
+    expect(textOf(elementOf(one, "season-start-left", "li"))).toBe("Parti libre : J. Moreau");
+    expect(textOf(elementOf(one, "season-start-youths", "li"))).toBe("Venus de l'académie : 1 jeune");
+
+    expect(textOf(render(<SeasonAssistant moves={MOVES} />, "en"))).toBe(
+      "Your assistant over the summer Contracts extended: M. Diallo (2030), A. Koné (2029) 2 players left on a free: J. Moreau, L. Petit " +
+        "Free agent signed: L. Blanc, goalkeeper (€900k) From the academy: 2 youngsters Squad: 25 players out of 30",
+    );
   });
 });
 

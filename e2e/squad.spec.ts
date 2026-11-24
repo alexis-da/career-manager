@@ -34,15 +34,21 @@ test("renews a contract and releases a player from the squad page", async ({ pag
     const [length, expectedEnd] = contractBefore.includes("2031") ? ["4 saisons", "30 juin 2030"] : ["5 saisons", "30 juin 2031"];
 
     await rows.first().getByRole("button", { name: /^Voir la fiche de / }).click();
-    await page.getByRole("button", { name: "Prolonger", exact: true }).click();
+    // No wage on the sheet, nor in the renewal: the length alone is chosen (docs/design/simplification.md § 2.3).
+    const sheet = page.getByTestId("player-sheet");
+    await expect(sheet.getByTestId("player-sheet-contract")).toBeVisible();
+    await expect(sheet.getByTestId("player-sheet-contract")).not.toContainText("Salaire");
+    await page.getByRole("button", { name: "Prolonger maintenant", exact: true }).click();
     const renewal = page.getByRole("dialog", { name: /^Prolonger / });
+    await expect(renewal).toContainText("Contrat actuel : jusqu'au");
+    await expect(renewal.getByTestId("renewal-wage")).toHaveCount(0);
+    await expect(renewal).not.toContainText("Salaire");
     await renewal.getByRole("button", { name: length, exact: true }).click();
     await renewal.getByRole("button", { name: "Confirmer la prolongation" }).click();
-    await expect(page.getByText(`Contrat prolongé jusqu'au ${expectedEnd}`, { exact: false })).toBeVisible();
+    await expect(page.getByText(`Contrat prolongé jusqu'au ${expectedEnd}.`, { exact: false })).toBeVisible();
     await expect(renewal).toBeHidden();
 
     // The sheet says so at once. The table's column, which the sheet beside it hides at this width, once it has closed.
-    const sheet = page.getByTestId("player-sheet");
     await expect(sheet.getByTestId("player-sheet-contract")).toContainText(expectedEnd);
     await expect(contractCell).toBeHidden();
     await page.keyboard.press("Escape");
@@ -56,7 +62,10 @@ test("renews a contract and releases a player from the squad page", async ({ pag
     // Off the row: the card of a hovered row opens to its right, over the sheet's buttons.
     await page.mouse.move(0, 0);
     await page.getByRole("button", { name: "Libérer", exact: true }).click();
-    await page.getByRole("dialog", { name: /^Libérer / }).getByRole("button", { name: "Libérer le joueur" }).click();
+    // What a release costs, in money only: half of what he is still owed.
+    const release = page.getByRole("dialog", { name: /^Libérer / });
+    await expect(release).toContainText(/Il deviendra joueur libre\. Coût : .+, la moitié de ce qui lui reste dû sur son contrat\./);
+    await release.getByRole("button", { name: "Libérer le joueur" }).click();
     await expect(page.getByText("Joueur libéré", { exact: false })).toBeVisible();
     await expect(rows).toHaveCount(initialCount - 1);
     await expect(summary).toHaveText(String(initialCount - 1));

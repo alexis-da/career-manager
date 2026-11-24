@@ -98,7 +98,7 @@ export function ObjectiveChoiceForm({ saveId, proposals, assistant, labelledBy }
         })}
       </fieldset>
       {assistantName !== undefined && (
-        <p data-testid="season-start-assistant" className="text-[0.8125rem] text-muted-foreground">
+        <p data-testid="objective-assistant-default" className="text-[0.8125rem] text-muted-foreground">
           {t("assistantDefault", { objective: assistantName })}
         </p>
       )}

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { createSave, deleteSave, openScreen } from "./helpers";
 
 /** What a player who turns the club down for its reputation says, before any offer. */
@@ -15,28 +15,21 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-/** Payroll of the managed club in euros, as the dashboard shows it. */
-async function dashboardPayroll(page: Page): Promise<number> {
-  await openScreen(page, "dashboard");
-  await expect(page.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
-  return Number(await page.locator('[data-summary="payroll"]').getAttribute("data-value"));
-}
-
-test("signs a free agent, then shows why an offer above the budget is refused", async ({ page }) => {
+test("signs a free agent for his signing bonus, then shows why an offer above the budget is refused", async ({ page }) => {
   // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
   const name = `E2E transferts ${Date.now()}`;
   saveName = name;
   try {
     // The save starts on 1 July 2026, window open, with the free agent pool on the market.
     await createSave(page, name, "Olympique Lyonnais");
-    const payrollBefore = await dashboardPayroll(page);
 
     await openScreen(page, "squad");
     const rows = page.locator("tbody tr[data-player-key]");
     await expect(rows.first()).toBeVisible();
     const squadSize = await rows.count();
 
-    // Sign the best free agent, at the prefilled minimum wage.
+    // Sign the best free agent: no fee and no wage to offer, his signing bonus off the budget (docs/design/simplification.md
+    // § 1.3), to the euro.
     await openScreen(page, "advanced");
     await expect(page.getByTestId("advanced-title")).toHaveText("Marché avancé");
     await page.getByRole("link", { name: /^Joueurs libres/ }).click();
@@ -45,14 +38,17 @@ test("signs a free agent, then shows why an offer above the budget is refused", 
       "Voir la fiche de ",
       "",
     );
+    const bonus = Number(await freeAgent.getAttribute("data-bonus"));
+    expect(bonus).toBeGreaterThan(0);
+    const budgetBefore = Number(await page.locator('[data-summary="budget"]').getAttribute("data-value"));
     await freeAgent.getByRole("button", { name: "Signer", exact: true }).click();
     await page.getByRole("dialog", { name: `Signer ${playerName}` }).getByRole("button", { name: "Confirmer la signature" }).click();
     await expect(page.getByText(`${playerName} : Contrat signé`, { exact: false })).toBeVisible();
+    await expect(page.locator('[data-summary="budget"]')).toHaveAttribute("data-value", String(budgetBefore - bonus));
 
     await openScreen(page, "squad");
     await expect(rows).toHaveCount(squadSize + 1);
     await expect(page.locator('[data-summary="players"]')).toHaveText(String(squadSize + 1));
-    expect(await dashboardPayroll(page)).toBeGreaterThan(payrollBefore);
 
     // More than the whole budget, offered for the market's lowest rated player: nothing but the money stands in the way,
     // as he accepts Lyon, like every player (next test), and the refusal says so.

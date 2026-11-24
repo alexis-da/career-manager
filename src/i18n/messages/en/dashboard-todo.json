@@ -38,20 +38,23 @@
       "MISSED": "The federation of {nation} ends your mission: tournament below the objective"
     },
     "coachEndedDetail": "Your club goes on with you. Other federations may contact you.",
-    "offers": "{club} offers {fee} for {player}",
-    "offersDetail": "{count, plural, one {# offer} other {# offers}} for your substitutes",
+    "saleProposals": "Your assistant suggests {count, plural, one {# sale} other {# sales}}",
+    "saleProposalsDetail": "{count, plural, one {He never plays} other {They never play}} · {total}",
+    "squadFull": "Squad full · {count} players of {limit}",
+    "squadFullDetail": "Sell or release a player before signing another.",
     "weakSpot": "Your weak spot: {position}",
     "weakSpotDetail": "Rated {rating} · see the market",
     "weakSpotEmptyDetail": "Empty, nobody available to play there · see the market",
     "weakSpotOutOfLineDetail": "Played out of position, rated {rating} · see the market",
     "expiringContracts": "{count, plural, one {# contract expires} other {# contracts expire}} on 30 June",
+    "importantContracts": "Out of contract on 30 June: {players}",
+    "importantContractsDetail": "Your assistant means to let {count, plural, one {him} other {them}} go · decide on {count, plural, one {his sheet} other {their sheets}}",
     "andOthers": "{players} and {count, plural, one {# other} other {# others}}",
     "noGoalkeeper": "No goalkeeper under contract",
     "oneGoalkeeper": "Only one goalkeeper under contract",
     "goalkeepersNeeded": "{count} goalkeepers are needed to keep the team going.",
     "smallSquad": "Thin squad",
     "smallSquadDetail": "{count, plural, one {# player} other {# players}} under contract, {minimum} minimum.",
-    "fullSquad": "Full squad",
-    "fullSquadDetail": "{players, plural, one {# player} other {# players}}, {goalkeepers, plural, one {# goalkeeper} other {# goalkeepers}} — nothing to report"
+    "none": "Nothing to do: your assistant takes care of the rest."
   }
 }

@@ -113,10 +113,22 @@ test("passes a season's end, chooses an objective and finds the new dotation on 
     }
     expect(100 + contributions).toBe(coefficient);
 
-    // The new wage cap, with the payroll under it.
-    const wageCap = page.getByTestId("season-start-wage-budget");
-    expect(await figureOf(wageCap)).toBeGreaterThan(0);
-    expect(await figureOf(page.getByTestId("season-start-payroll"))).toBeGreaterThan(0);
+    // No wage cap any more (docs/design/simplification.md § 6.9): what the assistant did at the turn in its place, the
+    // contracts ending on 30 June renewed or gone, the young players come from the academy, the squad against its limit.
+    await expect(page.getByTestId("season-start")).toContainText("ce qu'a fait ton adjoint");
+    await expect(page.getByTestId("season-start-wages")).toHaveCount(0);
+    const assistant = page.getByTestId("season-start-assistant");
+    await expect(assistant).toContainText("Ton adjoint à l'intersaison");
+    await expect(assistant).toHaveAttribute("data-by-assistant", "true");
+    await expect(
+      assistant.locator('[data-testid="season-start-renewed"], [data-testid="season-start-left"], [data-testid="season-start-no-contracts"]').first(),
+    ).toBeVisible();
+    await expect(assistant.getByTestId("season-start-youths")).toContainText("Venus de l'académie");
+    const squadLine = assistant.getByTestId("season-start-squad");
+    const squad = await figureOf(squadLine, "data-count");
+    expect(squad).toBeGreaterThanOrEqual(20);
+    expect(squad).toBeLessThanOrEqual(30);
+    await expect(squadLine).toHaveText(`Effectif : ${squad} joueurs sur 30`);
 
     // The season's objectives: the ranking imposed (no cup in this world), three proposals, the assistant's marked and
     // checked to begin with, and « Valider mon objectif », the screen's one orange action, down to 360 px.
@@ -128,7 +140,7 @@ test("passes a season's end, chooses an objective and finds the new dotation on 
     const assistantPick = page.locator('[data-testid="objective-choice"][data-assistant]');
     await expect(assistantPick).toHaveCount(1);
     await expect(assistantPick.locator("input")).toBeChecked();
-    await expect(page.getByTestId("season-start-assistant")).toContainText("Sans choix avant ton premier match, ton adjoint choisira ");
+    await expect(page.getByTestId("objective-assistant-default")).toContainText("Sans choix avant ton premier match, ton adjoint choisira ");
     await expectOrangeActions(page, ["objective-validate"]);
     await expectNoSidewaysScroll(page, `season start at ${COMPUTER.width} px`);
     for (const viewport of [PHONE, SMALL_PHONE]) {
@@ -159,9 +171,8 @@ test("passes a season's end, chooses an objective and finds the new dotation on 
     await expect(chosen).toHaveAttribute("data-objective", kind);
     await expect(chosen).toContainText("Ton choix");
 
-    // The Club screen's finances: the same budget, the same coefficient and the same wage cap.
+    // The Club screen's finances: the same budget and the same coefficient.
     const grantedText = await textOf(budget);
-    const wageText = await textOf(wageCap);
     await openScreen(page, "club");
     await expect(page).toHaveURL((url) => url.pathname === `/saves/${saveId}/club`);
     const finances = page.getByTestId("club-finances");
@@ -170,7 +181,6 @@ test("passes a season's end, chooses an objective and finds the new dotation on 
     await expect(clubDotation.getByRole("heading")).toHaveText("Saison 2027-28");
     await expect(clubDotation.getByTestId("club-dotation-total").locator("dd")).toHaveText(grantedText);
     await expect(clubDotation.getByTestId("club-dotation-objectives")).toContainText(`× ${coefficientText(coefficient)}`);
-    await expect(clubDotation.getByTestId("club-dotation-wage-budget").locator("dd")).toHaveText(wageText);
   } finally {
     // The user and its save, a whole season of it: even after a failure.
     await deleteUsers([userId]);

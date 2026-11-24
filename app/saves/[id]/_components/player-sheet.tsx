@@ -15,6 +15,7 @@ import { cn } from "@/src/lib/utils";
 
 import { SecondaryPositionBadges } from "./position-badge";
 import { AttributeBars } from "./attribute-bars";
+import { ContractChoiceField } from "./contract-actions";
 import { PlayerBadges } from "./player-badges";
 
 function transferLabel(transfer: TransferHistoryItem, t: Translator<"player">, locale: Locale): string {
@@ -85,6 +86,20 @@ function StatTile({ label, value }: { label: string; value: number }) {
       <dd className="font-heading text-[1.75rem] leading-none tabular-nums">{value}</dd>
     </div>
   );
+}
+
+/**
+ * What the season's turn will do with a contract of the managed club ending with the season, as its sheet says it: the
+ * player's own choice, else his assistant's rule (assistantIntention), else, while the player keeps the contracts, a free
+ * departure.
+ */
+export function contractEndKey(
+  profile: Pick<PlayerProfile, "contractChoice" | "assistantIntention">,
+): "assistantRenew" | "assistantLeave" | "renew" | "leave" {
+  if (profile.contractChoice !== null) {
+    return profile.contractChoice === "RENEW" ? "renew" : "leave";
+  }
+  return profile.assistantIntention === null ? "leave" : profile.assistantIntention === "renew" ? "assistantRenew" : "assistantLeave";
 }
 
 function ContractLine({ label, warning = false, children }: { label: string; warning?: boolean; children: ReactNode }) {
@@ -231,20 +246,25 @@ export function PlayerSheet({ profile, startYear, footer, onClose, pinned = fals
               {profile.contractUntil === null ? (
                 <ContractLine label={t("contract")}>{t("noContract")}</ContractLine>
               ) : (
-                <>
-                  <ContractLine label={t("contractEnd")} warning={profile.contractExpiring}>
-                    {formatDate(profile.contractUntil, locale)}
-                  </ContractLine>
-                  <ContractLine label={t("wage")}>{t("wagePerYear", { wage: formatMoney(profile.wage, locale) })}</ContractLine>
-                </>
+                <ContractLine label={t("contractEnd")} warning={profile.contractExpiring}>
+                  {formatDate(profile.contractUntil, locale)}
+                </ContractLine>
               )}
               <ContractLine label={t("marketValue")}>{formatMoney(profile.marketValue, locale)}</ContractLine>
             </dl>
-            {/* Only the managed club's players leave on a free without an extension: an AI club renews its own (planSquad). */}
+            {/* The managed club's contracts ending this season alone: an AI club decides its own (planSquad). What the
+                season's turn will do, then the player's choice for it, at any date. */}
             {profile.managed && profile.contractExpiring && (
-              <p data-testid="player-leaving-free" className="text-xs text-warning">
-                {t("leavingFree")}
-              </p>
+              <>
+                <p
+                  data-testid="player-leaving-free"
+                  data-intention={profile.contractIntention ?? undefined}
+                  className={cn("text-xs", profile.contractIntention === "renew" ? "text-muted-foreground" : "text-warning")}
+                >
+                  {t(`leavingFree.${contractEndKey(profile)}`)}
+                </p>
+                <ContractChoiceField player={profile} />
+              </>
             )}
           </section>
 

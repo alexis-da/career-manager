@@ -10,8 +10,8 @@
     },
     "banner": {
       "budget": "Transfer budget",
-      "wageRoom": "Wage room",
-      "wageBudget": "/ {amount} per season"
+      "squad": "Squad",
+      "squadLimit": "/ {limit}"
     },
     "tabs": {
       "label": "Market lists",
@@ -25,10 +25,10 @@
       "both": "signings and offers"
     },
     "sheet": {
-      "freeAgent": "Free agent: he accepts at least {wage} per season.",
+      "freeAgent": "Free agent: signing bonus {bonus}.",
       "retired": "This player has left football: no action possible."
     },
-    "asking": "{club} asks {price}; the player wants at least {wage} per season.",
+    "asking": "{club} asks {price}.",
     "filters": {
       "label": "Filter players",
       "name": "Name",
@@ -53,14 +53,13 @@
       "overall": "Rating",
       "potential": "Pot.",
       "potentialTitle": "Potential",
-      "askedWage": "Wage demand",
+      "bonus": "Bonus",
       "askingPrice": "Asking price",
       "formerClub": "Former club",
       "contractUntil": "Contract ends",
       "action": "Action",
       "phone": {
         "position": "Pos.",
-        "askedWage": "Wage",
         "askingPrice": "Price"
       }
     },
@@ -103,9 +102,7 @@
     "dialogs": {
       "sign": "Sign",
       "signTitle": "Sign {name}",
-      "signDescription": "Free agent: no fee to pay. He accepts at least {wage} per season.",
-      "wage": "Wage offered, in euros per season",
-      "wageRoom": "wage room {amount}",
+      "signDescription": "Free agent: no transfer fee, a signing bonus of {bonus}, paid from your budget.",
       "signing": "Signing…",
       "confirmSigning": "Confirm signing",
       "offer": "Make an offer",

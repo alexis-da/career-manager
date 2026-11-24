@@ -18,6 +18,7 @@ import {
 } from "@/src/components/ui/dialog";
 import type { MarketOverview } from "@/src/db/market";
 import type { MarketProposal, MarketProposals } from "@/src/db/market-proposals";
+import { SQUAD_LIMIT } from "@/src/engine/balance";
 import { contractEndDate } from "@/src/engine/economy";
 import { MARKET_ENTRIES, type MarketEntry } from "@/src/engine/market-proposals";
 import { formatDate, formatMoney } from "@/src/lib/format";
@@ -38,8 +39,8 @@ const PHONE_STATS = 3;
 
 const fullName = (player: MarketProposal): string => `${player.firstName} ${player.lastName}`;
 
-/** An amount inside a sentence, kept on one line: « 1 M€ » never breaks before its unit on a phone. */
-const unbroken = (amount: string): string => amount.replaceAll(" ", "\u00a0");
+/** A free agent: no fee, his signing bonus instead, which his price is (docs/design/simplification.md § 1.3). */
+const isFreeAgent = (player: MarketProposal): boolean => player.clubName === null;
 
 function Tag({ proposal }: { proposal: MarketProposal }) {
   const t = useTranslations("market.tags");
@@ -76,13 +77,16 @@ function Stats({ proposal }: { proposal: MarketProposal }) {
 
 type ProposalCardProps = {
   proposal: MarketProposal;
-  windowOpen: boolean;
+  canSign: boolean; // the window open and a place in the squad: « Recruter » is disabled otherwise
   onPass: () => void;
   onRecruit: () => void;
 };
 
-/** One proposal at a time: who he is, what he brings, what he costs, and the two answers. */
-function ProposalCard({ proposal, windowOpen, onPass, onRecruit }: ProposalCardProps) {
+/**
+ * One proposal at a time: who he is, what he brings, what he costs, his club's price or a free agent's signing bonus, on
+ * the standard contract, and the two answers.
+ */
+function ProposalCard({ proposal, canSign, onPass, onRecruit }: ProposalCardProps) {
   const t = useTranslations("market");
   const tPositions = useTranslations("positions");
   const locale = useLocale();
@@ -131,13 +135,15 @@ function ProposalCard({ proposal, windowOpen, onPass, onRecruit }: ProposalCardP
 
       <div className="flex items-baseline justify-between gap-3">
         <div className="leading-tight">
-          <p className="text-sm text-on-blue">{t("suggestedPrice")}</p>
-          <p className="text-xs text-on-blue tabular-nums">
-            {t("contract", { wage: formatMoney(proposal.askedWage, locale), years: DEFAULT_CONTRACT_LENGTH })}
+          <p className="text-sm text-on-blue" data-testid="market-price-label">
+            {isFreeAgent(proposal) ? t("bonus") : t("suggestedPrice")}
+          </p>
+          <p className="text-xs text-on-blue tabular-nums" data-testid="market-contract">
+            {t("contract", { years: DEFAULT_CONTRACT_LENGTH })}
           </p>
         </div>
         <p className="font-heading text-3xl normal-case tabular-nums" data-testid="market-price">
-          {proposal.askingPrice === 0 ? t("free") : formatMoney(proposal.askingPrice, locale)}
+          {formatMoney(proposal.askingPrice, locale)}
         </p>
       </div>
 
@@ -150,7 +156,7 @@ function ProposalCard({ proposal, windowOpen, onPass, onRecruit }: ProposalCardP
         >
           {t("pass")}
         </Button>
-        <Button variant="club" disabled={!windowOpen} onClick={onRecruit} data-testid="market-recruit" className="h-13 font-heading text-[1.375rem]">
+        <Button variant="club" disabled={!canSign} onClick={onRecruit} data-testid="market-recruit" className="h-13 font-heading text-[1.375rem]">
           {t("recruit")}
         </Button>
       </div>
@@ -187,8 +193,10 @@ function Spotted({ players, current, onPick }: { players: MarketProposal[]; curr
                   {player.impact > 0 ? t("spottedLine", { age: player.age, impact: player.impact }) : t("spottedAge", { age: player.age })}
                 </span>
               </span>
-              <span className="text-[0.9375rem] font-bold tabular-nums">
-                {player.askingPrice === 0 ? t("free") : formatMoney(player.askingPrice, locale)}
+              {/* A free agent's price is his signing bonus, named above it. */}
+              <span className="text-right text-[0.9375rem] font-bold tabular-nums">
+                {isFreeAgent(player) && <span className="block text-xs font-normal text-muted-foreground">{t("bonus")}</span>}
+                {formatMoney(player.askingPrice, locale)}
               </span>
             </button>
           </li>
@@ -198,40 +206,31 @@ function Spotted({ players, current, onPick }: { players: MarketProposal[]; curr
   );
 }
 
-/** The link of a way to make room: orange text, a thumb high on a phone. */
+/** The link of a way to make a place: orange text, a thumb high on a phone. */
 const WAY_LINK = "font-semibold text-(--club) hover:text-(--club-hover) max-sm:inline-flex max-sm:min-h-11 max-sm:items-center";
 
 /**
- * When the wage room alone keeps an entry's players out, and Needs finds nobody it still pays: what is left, then the
- * three ways to make room, selling, releasing a contract, or the next season's wage cap.
+ * At SQUAD_LIMIT players, the club signs nobody more (squad_full): the card says so above the proposals, which stay
+ * readable, « Recruter » disabled, and leads to the two ways to make a place, a sale (the assistant's proposals when he
+ * has some) and a release from the squad.
  */
-function WageLimit({ saveId, wageRoom }: { saveId: string; wageRoom: number }) {
-  const t = useTranslations("market.wageLimit");
-  const locale = useLocale();
+function SquadFull({ saveId, squadSize, proposedSales }: { saveId: string; squadSize: number; proposedSales: number }) {
+  const t = useTranslations("market.squadFull");
   return (
-    <Panel data-testid="market-wage-limit" className="space-y-3">
-      <p className="font-bold" data-testid="market-wage-limit-room" data-value={wageRoom}>
-        {wageRoom > 0
-          ? t("left", { room: unbroken(formatMoney(wageRoom, locale)) })
-          : wageRoom === 0
-            ? t("none")
-            : t("over", { amount: unbroken(formatMoney(-wageRoom, locale)) })}
-      </p>
-      <p className="text-muted-foreground">{t("how")}</p>
-      <ul className="list-disc space-y-1.5 pl-5 text-muted-foreground">
-        <li data-testid="market-wage-limit-sell">
-          {t("sell")}{" "}
-          <Link href={`/saves/${saveId}/transfers?tab=sell`} className={WAY_LINK}>
-            {t("sellLink")}
+    <Panel data-testid="market-squad-full" className="space-y-3">
+      <h2 className="font-heading text-xl">{t("title")}</h2>
+      <p className="text-muted-foreground">{t("text", { count: squadSize, limit: SQUAD_LIMIT })}</p>
+      <ul className="flex flex-wrap gap-x-6 gap-y-1">
+        <li>
+          <Link href={`/saves/${saveId}/transfers?tab=sell`} data-testid="market-squad-full-sell" className={WAY_LINK}>
+            {proposedSales > 0 ? t("proposals") : t("sell")}
           </Link>
         </li>
-        <li data-testid="market-wage-limit-release">
-          {t("release")}{" "}
-          <Link href={`/saves/${saveId}/squad`} className={WAY_LINK}>
-            {t("releaseLink")}
+        <li>
+          <Link href={`/saves/${saveId}/squad`} data-testid="market-squad-full-squad" className={WAY_LINK}>
+            {t("squad")}
           </Link>
         </li>
-        <li data-testid="market-wage-limit-wait">{t("wait")}</li>
       </ul>
     </Panel>
   );
@@ -245,8 +244,12 @@ type RecruitDialogProps = {
   onSigned: () => void;
 };
 
-/** The short confirmation before a signing: nothing left to choose, everything to read. */
-function RecruitDialog({ saveId, proposal, overview, onClose, onSigned }: RecruitDialogProps) {
+/**
+ * The short confirmation before a signing: nothing left to choose, everything to read. His club's price, or a free agent's
+ * signing bonus, the contract's length, the budget it leaves and the place he takes in the squad. No wage: he gets the
+ * one he asks, which the player never manages.
+ */
+export function RecruitDialog({ saveId, proposal, overview, onClose, onSigned }: RecruitDialogProps) {
   const t = useTranslations("market");
   const tConfirm = useTranslations("market.confirm");
   const tCommon = useTranslations("common");
@@ -259,11 +262,10 @@ function RecruitDialog({ saveId, proposal, overview, onClose, onSigned }: Recrui
     startTransition(async () => {
       setRefusal(null);
       try {
-        const offer = { saveId, playerSaveId: proposal.id, wage: proposal.askedWage, years: DEFAULT_CONTRACT_LENGTH };
-        const result =
-          proposal.clubName === null
-            ? await signFreeAgentAction(offer)
-            : await makeTransferOfferAction({ ...offer, fee: proposal.askingPrice });
+        const offer = { saveId, playerSaveId: proposal.id, years: DEFAULT_CONTRACT_LENGTH };
+        const result = isFreeAgent(proposal)
+          ? await signFreeAgentAction(offer)
+          : await makeTransferOfferAction({ ...offer, fee: proposal.askingPrice });
         if (result.ok) {
           onSigned();
         } else {
@@ -275,10 +277,10 @@ function RecruitDialog({ saveId, proposal, overview, onClose, onSigned }: Recrui
     });
 
   const rows: [string, string][] = [
-    [tConfirm("price"), proposal.askingPrice === 0 ? t("free") : formatMoney(proposal.askingPrice, locale)],
-    [tConfirm("wage"), formatMoney(proposal.askedWage, locale)],
+    [isFreeAgent(proposal) ? t("bonus") : tConfirm("price"), formatMoney(proposal.askingPrice, locale)],
     [tConfirm("length"), tConfirm("lengthValue", { years: DEFAULT_CONTRACT_LENGTH, date: formatDate(until, locale) })],
     [tConfirm("budgetLeft"), formatMoney(overview.budget - proposal.askingPrice, locale)],
+    [tConfirm("squad"), tConfirm("squadValue", { count: overview.squadSize + 1, limit: SQUAD_LIMIT })],
   ];
 
   return (
@@ -309,7 +311,7 @@ function RecruitDialog({ saveId, proposal, overview, onClose, onSigned }: Recrui
 }
 
 /** « Signé ! »: the signing is done, its contract in a sentence. */
-function SignedDialog({ proposal, overview, onClose }: { proposal: MarketProposal; overview: MarketOverview; onClose: () => void }) {
+export function SignedDialog({ proposal, overview, onClose }: { proposal: MarketProposal; overview: MarketOverview; onClose: () => void }) {
   const t = useTranslations("market.signed");
   const locale = useLocale();
   const until = contractEndDate(overview.currentDate, DEFAULT_CONTRACT_LENGTH);
@@ -320,9 +322,7 @@ function SignedDialog({ proposal, overview, onClose }: { proposal: MarketProposa
         <DialogDescription className="text-lg font-bold text-foreground">
           {t("joins", { name: fullName(proposal), club: overview.clubName })}
         </DialogDescription>
-        <p className="text-sm text-muted-foreground">
-          {t("detail", { years: DEFAULT_CONTRACT_LENGTH, date: formatDate(until, locale), wage: formatMoney(proposal.askedWage, locale) })}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("detail", { years: DEFAULT_CONTRACT_LENGTH, date: formatDate(until, locale) })}</p>
         <Button variant="club" onClick={onClose} data-testid="market-signed-continue" className="mt-2 h-12 w-full text-base font-bold">
           {t("continue")}
         </Button>
@@ -336,15 +336,15 @@ type MarketBuyProps = {
   proposals: MarketProposals;
   overview: MarketOverview;
   sideOffer: ReactNode; // the best offer for a player of the club, under the spotted players on a computer
+  proposedSales?: number; // the sales the assistant proposes, which a full squad's card leads to (docs/design/simplification.md § 5.2)
 };
 
 /**
  * Buying without a form: four ways in, one proposal at a time, « Passer » or « Recruter ». Everything shown is a player
- * who would accept and whom the club can pay; the advanced market keeps the rest. When the wage room alone keeps an
- * entry's players out, Needs proposes those it still pays, « within your means », and an entry left empty says what room
- * is left and how to make more.
+ * who would accept and whose price, or signing bonus, the budget pays: the only limit, no wage counting; the advanced
+ * market keeps the rest. A full squad says so above the proposals, which stay readable, and signs nobody.
  */
-export function MarketBuy({ saveId, proposals, overview, sideOffer }: MarketBuyProps) {
+export function MarketBuy({ saveId, proposals, overview, sideOffer, proposedSales = 0 }: MarketBuyProps) {
   const t = useTranslations("market");
   const tPositions = useTranslations("positions");
   const locale = useLocale();
@@ -367,6 +367,8 @@ export function MarketBuy({ saveId, proposals, overview, sideOffer }: MarketBuyP
 
   return (
     <div className="space-y-4" data-testid="market-buy">
+      {proposals.squadFull && <SquadFull saveId={saveId} squadSize={overview.squadSize} proposedSales={proposedSales} />}
+
       <div role="group" aria-label={t("entries.label")} className="flex flex-wrap items-center gap-2">
         {MARKET_ENTRIES.map((key) => (
           <button
@@ -399,23 +401,15 @@ export function MarketBuy({ saveId, proposals, overview, sideOffer }: MarketBuyP
               : weakSpot.reason === "outOfLine"
                 ? t("intro.weakSpotOutOfLine", { rating: weakSpot.rating })
                 : t("intro.weakSpotRating", { rating: weakSpot.rating })}{" "}
-            {!proposals.wageBound.needs
-              ? t("intro.weakSpotRest")
-              : list.length > 0
-                ? t("intro.weakSpotAffordable", { room: unbroken(formatMoney(overview.wageRoom, locale)) })
-                : t("intro.weakSpotNoRoom")}
+            {t("intro.weakSpotRest")}
           </>
         )}
       </p>
 
       {current === undefined ? (
-        proposals.wageBound[entry] ? (
-          <WageLimit saveId={saveId} wageRoom={overview.wageRoom} />
-        ) : (
-          <Panel data-testid="market-proposals-empty">
-            <p className="text-muted-foreground">{t(`empty.${entry}`)}</p>
-          </Panel>
-        )
+        <Panel data-testid="market-proposals-empty">
+          <p className="text-muted-foreground">{t(`empty.${entry}`)}</p>
+        </Panel>
       ) : (
         // One column under xl, where the sidebar leaves no room for two: the lead card alone, as on a phone.
         <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
@@ -423,12 +417,12 @@ export function MarketBuy({ saveId, proposals, overview, sideOffer }: MarketBuyP
             <ProposalCard
               key={current.id}
               proposal={current}
-              windowOpen={overview.windowOpen}
+              canSign={overview.windowOpen && !proposals.squadFull}
               onPass={() => setIndex(position + 1)}
               onRecruit={() => setRecruiting(current)}
             />
             <Link
-              href={marketHref(saveId, {}, { tab: current.clubName === null ? undefined : "clubs", player: current.id })}
+              href={marketHref(saveId, {}, { tab: isFreeAgent(current) ? undefined : "clubs", player: current.id })}
               data-testid="market-adjust"
               className="block text-center text-sm font-semibold text-(--club) hover:text-(--club-hover) max-sm:flex max-sm:min-h-11 max-sm:items-center max-sm:justify-center"
             >

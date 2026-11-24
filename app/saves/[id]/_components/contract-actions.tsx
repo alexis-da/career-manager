@@ -1,8 +1,10 @@
 "use client";
 
 import { HeartPulseIcon } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
+import { toast } from "sonner";
 import Link from "@/src/components/link";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -17,19 +19,17 @@ import {
 } from "@/src/components/ui/dialog";
 import type { PlayerProfile } from "@/src/db/players";
 import type { ShopShortcuts } from "@/src/db/shop";
-import type { ContractTerms } from "@/src/db/transfers";
+import type { ContractTerms, SaleQuote } from "@/src/db/transfers";
+import type { ContractChoice } from "@/src/engine/assistant-contracts";
 import { EXPRESS_CARE_MIN_DAYS, daysLeft } from "@/src/engine/shop";
+import type { Locale } from "@/src/i18n/locale";
+import type { Translator } from "@/src/i18n/translator";
 import { formatDate, formatMoney } from "@/src/lib/format";
+import { cn } from "@/src/lib/utils";
+import { isNewVersionError } from "@/app/_lib/new-version";
 import { refusalMessage } from "../_lib/refusal-message";
-import { releasePlayerAction, renewContractAction, sellPlayerAction } from "../squad/actions";
-import {
-  ClosedWindowNote,
-  DEFAULT_CONTRACT_LENGTH,
-  DurationField,
-  MoneyField,
-  RefusalAlert,
-  usePlayerAction,
-} from "./contract-fields";
+import { releasePlayerAction, renewContractAction, sellPlayerAction, setContractChoiceAction } from "../squad/actions";
+import { ClosedWindowNote, DEFAULT_CONTRACT_LENGTH, DurationField, RefusalAlert, usePlayerAction } from "./contract-fields";
 
 const fullName = (player: Pick<PlayerProfile, "firstName" | "lastName">): string => `${player.firstName} ${player.lastName}`;
 
@@ -41,29 +41,48 @@ type ActionProps = {
   triggerClassName?: string;
 };
 
+/** « Contrat actuel : jusqu'au 30 juin 2027. »: what the renewal dialog says of the contract it extends. */
+export function renewalDescription(player: Pick<PlayerProfile, "contractUntil">, t: Translator<"contract">, locale: Locale): string {
+  return player.contractUntil === null
+    ? t("renewDescriptionNoContract")
+    : t("renewDescription", { date: formatDate(player.contractUntil, locale) });
+}
+
+/** What releasing a player costs: half of what he is still owed on his contract, the one place a wage becomes money. */
+export function releaseDescription(terms: Pick<ContractTerms, "releaseCost">, t: Translator<"contract">, locale: Locale): string {
+  return t("releaseDescription", { cost: formatMoney(terms.releaseCost, locale) });
+}
+
+/** The best AI bid for a player, or why there is none. */
+export function saleDescription(sale: SaleQuote, t: Translator<"contract">, tRefusals: Translator<"refusals">, locale: Locale): string {
+  return sale.ok
+    ? t("bestOffer", { buyer: sale.buyerName, fee: formatMoney(sale.fee, locale) })
+    : refusalMessage(sale.reason, tRefusals, locale);
+}
+
+/**
+ * « Prolonger maintenant », in a transfer window: the length alone is chosen, 1 to 5 seasons, 3 by default; the player
+ * extends at his own floor (renewalWage), never shown (docs/design/simplification.md § 2.3).
+ */
 export function RenewContractDialog({
   saveId,
   player,
-  terms,
   currentDate,
   disabled = false,
   primary = true,
   triggerClassName,
-}: ActionProps & { currentDate: Date; primary?: boolean }) {
+}: Omit<ActionProps, "terms"> & { currentDate: Date; primary?: boolean }) {
   const t = useTranslations("contract");
   const tCommon = useTranslations("common");
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [years, setYears] = useState<number>(DEFAULT_CONTRACT_LENGTH);
-  const [wage, setWage] = useState(String(terms.renewalMinimumWage));
   const { pending, refusal, clearRefusal, run } = usePlayerAction();
   const name = fullName(player);
-  const minimumWage = formatMoney(terms.renewalMinimumWage, locale);
 
   const onOpenChange = (next: boolean) => {
     if (next) {
       setYears(DEFAULT_CONTRACT_LENGTH);
-      setWage(String(terms.renewalMinimumWage));
       clearRefusal();
     }
     setOpen(next);
@@ -82,24 +101,11 @@ export function RenewContractDialog({
       <DialogContent data-testid="renew-dialog">
         <DialogHeader>
           <DialogTitle>{t("renewTitle", { name })}</DialogTitle>
-          <DialogDescription>
-            {player.contractUntil === null
-              ? t("renewDescriptionNoContract", { wage: minimumWage })
-              : t("renewDescription", { wage: minimumWage, date: formatDate(player.contractUntil, locale) })}
-          </DialogDescription>
+          <DialogDescription>{renewalDescription(player, t, locale)}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <DurationField years={years} onChange={setYears} currentDate={currentDate} />
-          <MoneyField
-            id={`renewal-wage-${player.id}`}
-            label={t("offeredWage")}
-            value={wage}
-            onChange={setWage}
-            step={10_000}
-            min={1}
-            testId="renewal-wage"
-          />
           <RefusalAlert message={refusal} />
         </div>
 
@@ -110,13 +116,7 @@ export function RenewContractDialog({
           <Button
             variant="club"
             disabled={pending}
-            onClick={() =>
-              run(
-                name,
-                () => renewContractAction({ saveId, playerSaveId: player.id, wage: Number(wage), years }),
-                () => setOpen(false),
-              )
-            }
+            onClick={() => run(name, () => renewContractAction({ saveId, playerSaveId: player.id, years }), () => setOpen(false))}
             data-testid="renew-confirm"
           >
             {pending ? t("negotiating") : t("confirmRenewal")}
@@ -154,7 +154,7 @@ export function ReleasePlayerDialog({ saveId, player, terms, disabled = false, t
       <DialogContent data-testid="release-dialog">
         <DialogHeader>
           <DialogTitle>{t("releaseTitle", { name })}</DialogTitle>
-          <DialogDescription>{t("releaseDescription", { cost: formatMoney(terms.releaseCost, locale) })}</DialogDescription>
+          <DialogDescription>{releaseDescription(terms, t, locale)}</DialogDescription>
         </DialogHeader>
         <RefusalAlert message={refusal} />
         <DialogFooter>
@@ -209,16 +209,7 @@ export function SellPlayerDialog({ saveId, player, terms, disabled = false, prim
       <DialogContent data-testid="sell-dialog">
         <DialogHeader>
           <DialogTitle>{t("sellTitle", { name })}</DialogTitle>
-          <DialogDescription>
-            {sale.ok
-              ? t("bestOffer", {
-                  buyer: sale.buyerName,
-                  fee: formatMoney(sale.fee, locale),
-                  wage: formatMoney(sale.wage, locale),
-                  years: sale.years,
-                })
-              : refusalMessage(sale.reason, tRefusals, locale)}
-          </DialogDescription>
+          <DialogDescription>{saleDescription(sale, t, tRefusals, locale)}</DialogDescription>
         </DialogHeader>
         <RefusalAlert message={refusal} />
         <DialogFooter>
@@ -238,6 +229,102 @@ export function SellPlayerDialog({ saveId, player, terms, disabled = false, prim
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The options of the end-of-contract choice, the assistant's first: his rule's, or a free departure while the player keeps
+ * the contracts.
+ */
+const CHOICE_OPTIONS = [
+  { choice: null, testId: "contract-choice-assistant" },
+  { choice: "RENEW", testId: "contract-choice-renew" },
+  { choice: "LEAVE", testId: "contract-choice-leave" },
+] as const satisfies readonly { choice: ContractChoice | null; testId: string }[];
+
+type ContractChoiceFieldProps = {
+  player: Pick<PlayerProfile, "id" | "firstName" | "lastName" | "contractChoice" | "assistantIntention">;
+};
+
+/**
+ * « À la fin de son contrat » (docs/design/simplification.md § 2.3), on the sheet of a player of the managed club whose
+ * contract ends this season, at any date, window open or closed: his assistant decides (what his rule will do, or a free
+ * departure, the default, while the player keeps the contracts), renew him, or let him go; applied at the season's turn.
+ * Radio buttons of the browser's own, kept at once (useOptimistic), the page read again by the action; a refusal says why
+ * and reads it again too. The save comes from the address: the sheet opens under /saves/[id] only.
+ */
+export function ContractChoiceField({ player }: ContractChoiceFieldProps) {
+  const t = useTranslations("player.contractChoice");
+  const tContract = useTranslations("contract");
+  const tCommon = useTranslations("common");
+  const router = useRouter();
+  // Null outside the App Router: no save there, no choice.
+  const params: { id: string } | null = useParams<{ id: string }>();
+  const saveId = params?.id;
+  const [choice, setChoice] = useOptimistic(player.contractChoice);
+  const [pending, startTransition] = useTransition();
+  if (saveId === undefined) {
+    return null;
+  }
+
+  const choose = (next: ContractChoice | null) => {
+    startTransition(async () => {
+      setChoice(next);
+      try {
+        const result = await setContractChoiceAction(saveId, player.id, next);
+        if (result.ok) {
+          toast.success(tContract("done", { label: fullName(player), message: result.message }));
+        } else {
+          toast.error(result.message);
+          router.refresh();
+        }
+      } catch (error) {
+        toast.error(isNewVersionError(error) ? tCommon("newVersion") : t("failed"));
+      }
+    });
+  };
+
+  const labelOf = (option: ContractChoice | null): string => {
+    if (option === "RENEW") {
+      return t("renew");
+    }
+    if (option === "LEAVE") {
+      return t("leave");
+    }
+    if (player.assistantIntention === null) {
+      return t("default");
+    }
+    return t(player.assistantIntention === "renew" ? "assistantRenew" : "assistantLeave");
+  };
+
+  return (
+    <fieldset
+      data-testid="player-contract-choice"
+      data-choice={choice ?? "ASSISTANT"}
+      disabled={pending}
+      className="space-y-0.5 pt-1"
+    >
+      <legend className="pb-1 text-xs font-semibold text-muted-foreground">{t("legend")}</legend>
+      {CHOICE_OPTIONS.map((option) => (
+        <label
+          key={option.testId}
+          data-testid={option.testId}
+          className={cn(
+            "flex min-h-9 cursor-pointer items-center gap-2.5 rounded-md px-1 text-[0.8125rem] leading-snug max-sm:min-h-11",
+            "has-focus-visible:ring-3 has-focus-visible:ring-ring/50 has-disabled:cursor-default has-disabled:opacity-70",
+          )}
+        >
+          <input
+            type="radio"
+            name={`contract-choice-${player.id}`}
+            checked={choice === option.choice}
+            onChange={() => choose(option.choice)}
+            className="size-4 shrink-0 accent-primary"
+          />
+          <span className={cn(choice === option.choice && "font-semibold")}>{labelOf(option.choice)}</span>
+        </label>
+      ))}
+    </fieldset>
   );
 }
 
@@ -308,7 +395,6 @@ export function SquadPlayerActions({
       <RenewContractDialog
         saveId={saveId}
         player={player}
-        terms={terms}
         currentDate={currentDate}
         disabled={disabled}
         primary={primary}

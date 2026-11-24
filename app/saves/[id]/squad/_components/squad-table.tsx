@@ -23,24 +23,15 @@ import { SecondaryPositionBadges } from "../../_components/position-badge";
 import { formBarClass, ratingClasses } from "../../_lib/ratings";
 import { PLAYER_CARD_DELAY_MS, playerCardHandle, PlayerHoverCard } from "./player-hover-card";
 
-type SortKey =
-  | "position"
-  | "name"
-  | "age"
-  | "overall"
-  | "potential"
-  | "form"
-  | "fitness"
-  | "marketValue"
-  | "wage"
-  | "contractUntil";
+type SortKey = "position" | "name" | "age" | "overall" | "potential" | "form" | "fitness" | "marketValue" | "contractUntil";
 type Direction = "asc" | "desc";
 type Sort = { key: SortKey; direction: Direction };
 
 /**
  * From lg, the table follows its own room, not the screen's: 704 px at 1024 px, 960 px at 1280 px (15 px less with a
- * scrollbar), less again beside the open sheet. Two columns leave under 928 px, three more under 672 px, a room only the
- * sheet leaves; the sheet and the hover card have them all. Before the table scrolls, a name wraps and the badges stack.
+ * scrollbar), less again beside the open sheet. The potential leaves under 928 px, three columns more under 672 px, a room
+ * only the sheet leaves; the sheet and the hover card have them all. Before the table scrolls, a name wraps and the badges
+ * stack. No wage: the player manages none (docs/design/simplification.md § 6.2).
  */
 const NEEDS_928 = "@max-[58rem]:hidden";
 const NEEDS_672 = "@max-[42rem]:hidden";
@@ -73,7 +64,6 @@ const COLUMNS: {
   { key: "form", align: "left", firstDirection: "desc" },
   { key: "fitness", title: "fitness", icon: HeartPulseIcon, align: "left", firstDirection: "asc", needs: NEEDS_672 },
   { key: "marketValue", align: "right", firstDirection: "desc", needs: NEEDS_672 },
-  { key: "wage", align: "right", firstDirection: "desc", needs: NEEDS_928 },
   { key: "contractUntil", align: "left", firstDirection: "asc", needs: NEEDS_672 },
 ];
 
@@ -391,9 +381,6 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                   </TableCell>
                   <TableCell className={cn(TABLE_CELL, TIGHT_CELL, "text-right max-lg:hidden", NEEDS_672)}>
                     {formatMoney(player.marketValue, locale)}
-                  </TableCell>
-                  <TableCell className={cn(TABLE_CELL, TIGHT_CELL, "text-right text-muted-foreground max-lg:hidden", NEEDS_928)}>
-                    {formatMoney(player.wage, locale)}
                   </TableCell>
                   <TableCell
                     data-column="contractUntil"

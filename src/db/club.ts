@@ -7,7 +7,8 @@ import { clubEuropePrizes } from "./europe";
 
 /**
  * The board's last dotation to the managed club, as SeasonBudget keeps it on the league season it opened (gameplay v2,
- * V2): the season's budget and how it was made, and its wage cap.
+ * V2): the season's budget and how it was made. Not its wage cap, still written (SeasonBudget.wageBudget) but read by
+ * nothing: the budget is the only limit (docs/design/simplification.md § 1).
  */
 export type ClubDotation = {
   startYear: number; // of its season
@@ -19,30 +20,22 @@ export type ClubDotation = {
   objectivesAmount: number; // euros: what the coefficient added to the dotation, negative for a malus
   carryOver: number; // euros: half of the transfer budget left unspent the season before
   budget: number; // euros: the dotation, plus the objectives' amount, plus the carry-over
-  wageBudget: number; // euros per season: the wage cap given with it
   first: boolean; // the save's first season: its creation budget, nothing carried over, no objectives
 };
 
+/** The managed club's money: its budget, its only limit, and how the board made it. No wage: no screen shows one. */
 export type ClubFinances = {
   budget: number; // euros
-  wageBudget: number; // euros per season
-  payroll: number; // euros per season
-  wageRoom: number; // euros per season left under the wage budget, negative above it
   dotation: ClubDotation | null; // the board's last; null for a save made before the season budgets, until its next season
 };
 
-/** The managed club's money, as the Club screen shows it. */
+/** The managed club's money, as the Club screen and the season's start show it. */
 export async function getClubFinances(saveId: string): Promise<ClubFinances> {
-  const club = await prisma.clubSave.findFirstOrThrow({
-    where: { saveId, isManaged: true },
-    select: { id: true, budget: true, wageBudget: true },
-  });
-  const [wages, dotation] = await Promise.all([
-    prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } }),
+  const [club, dotation] = await Promise.all([
+    prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { budget: true } }),
     getLatestDotation(saveId),
   ]);
-  const payroll = wages._sum.wage ?? 0;
-  return { budget: club.budget, wageBudget: club.wageBudget, payroll, wageRoom: club.wageBudget - payroll, dotation };
+  return { budget: club.budget, dotation };
 }
 
 /** The managed club's latest dotation, by its season's start: the current season's, unless the save is older than them. */
@@ -57,7 +50,6 @@ async function getLatestDotation(saveId: string): Promise<ClubDotation | null> {
       coefficient: true,
       carryOver: true,
       budget: true,
-      wageBudget: true,
       season: { select: { id: true, startYear: true } },
     },
   });

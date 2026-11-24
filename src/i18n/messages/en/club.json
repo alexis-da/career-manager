@@ -4,9 +4,6 @@
     "manager": "Manager: {manager} · {season, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} season",
     "finances": "Finances",
     "transferBudget": "Transfer budget",
-    "payroll": "Wage bill",
-    "wageRoom": "{amount} wage room",
-    "wageOverrun": "{amount} over budget",
     "dotation": {
       "title": "{season} season",
       "start": "Starting budget",
@@ -18,8 +15,7 @@
       "neutral": "Neither bonus nor penalty: × {coefficient}",
       "carryOver": "Carried over",
       "carryOverDetail": "Half of the unspent budget",
-      "total": "Season budget",
-      "wageBudget": "Wage cap"
+      "total": "Season budget"
     },
     "prizes": {
       "title": "Prize money · {season} season",

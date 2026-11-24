@@ -68,8 +68,6 @@ type ShopContext = {
   shield: boolean;
   clubSaveId: string;
   budget: number;
-  wageBudget: number;
-  payroll: number;
   squadSize: number; // the managed club's players under contract: a promising youth needs a place under SQUAD_LIMIT
   reputation: number;
   slug: string;
@@ -83,9 +81,7 @@ async function shopContext(db: Db, saveId: string): Promise<ShopContext> {
   const [row] = await db.$queryRaw<Omit<ShopContext, "startYear">[]>`
     SELECT s."ownerId", s."challengeId" IS NOT NULL AS challenge, (s."liveFixtureId" IS NOT NULL OR s."liveInternationalId" IS NOT NULL) AS live, s."seed",
            s."currentDate", coalesce(u."tokens", 0) AS tokens, coalesce(u."streakShield", false) AS shield,
-           c."id" AS "clubSaveId", c."budget", c."wageBudget", c."reputation", cl."slug", cl."country", co."tier",
-           (SELECT coalesce(sum(p."wage"), 0)::int FROM "PlayerSave" p
-            WHERE p."saveId" = s."id" AND p."clubSaveId" = c."id") AS payroll,
+           c."id" AS "clubSaveId", c."budget", c."reputation", cl."slug", cl."country", co."tier",
            (SELECT count(*)::int FROM "PlayerSave" p
             WHERE p."saveId" = s."id" AND p."clubSaveId" = c."id" AND NOT p."retired") AS "squadSize",
            (SELECT b."dotation" FROM "SeasonBudget" b JOIN "Season" se ON se."id" = b."seasonId"
@@ -165,7 +161,10 @@ export type CareerItemView = {
 /** A player of the managed club express care can heal sooner. */
 export type CareCandidate = { id: string; name: string; position: Position; overall: number; daysLeft: number; daysAfter: number };
 
-/** The promising youth a line would bring. */
+/**
+ * The promising youth a line would bring. No wage: it limits nothing since the simplification
+ * (docs/design/simplification.md § 1.1), only a full squad, which refuses the item itself (squad_full).
+ */
 export type YouthCandidate = {
   line: YouthLine;
   firstName: string;
@@ -173,10 +172,6 @@ export type YouthCandidate = {
   position: Position;
   overall: number;
   potential: number;
-  wage: number; // euros per season, written with his contract
-  // Always true: no wage budget refuses him since the simplification (docs/design/simplification.md § 1.1), only a full
-  // squad, which refuses the item itself (squad_full). Kept until the Rewards screen drops its wage lines.
-  fits: boolean;
 };
 
 export type ShopView = {
@@ -188,7 +183,6 @@ export type ShopView = {
   items: CareerItemView[];
   budget: number; // euros: the managed club's transfer budget now
   topUp: number; // euros the budget top-up adds
-  wageRoom: number; // euros per season left under the wage budget: no limit any more, kept until the screen drops it
   squadSize: number; // the managed club's players under contract: a promising youth takes a place, SQUAD_LIMIT at most
   belowFull: number; // players under full fitness, whom a camp would help
   care: CareCandidate[];
@@ -210,7 +204,6 @@ export async function getShop(saveId: string, db: PrismaClient = prisma, withYou
     items: [],
     budget: context.budget,
     topUp: 0,
-    wageRoom: context.wageBudget - context.payroll,
     squadSize: context.squadSize,
     belowFull: 0,
     care: [],
@@ -245,8 +238,6 @@ export async function getShop(saveId: string, db: PrismaClient = prisma, withYou
       position: player.position,
       overall: player.overall,
       potential: player.potential,
-      wage: player.wage,
-      fits: true,
     };
   });
   const items = CAREER_ITEMS.map((item): CareerItemView => {

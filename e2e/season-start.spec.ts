@@ -36,7 +36,9 @@ test("starts a save on 1 July 2026, shows a squad player's card on hover and the
     await expect(card).toBeVisible();
     await expect(card.locator("[data-attribute]")).toHaveCount(7); // a goalkeeper: six attributes and goalkeeping
     await expect(card).toContainText("Forme");
-    await expect(card).toContainText("Salaire");
+    await expect(card).toContainText("Fin de contrat");
+    // No wage: the player manages none (docs/design/simplification.md § 6.2).
+    await expect(card).not.toContainText("Salaire");
     await goalkeeper.getByRole("button", { name: /^Voir la fiche de / }).click();
     await expect(page.getByRole("complementary", { name: /^Fiche de / })).toBeVisible();
 

@@ -5,13 +5,15 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { getClubFinances } from "@/src/db/club";
+import { getSeasonContractMoves } from "@/src/db/contracts";
 import { getCoachOffers } from "@/src/db/national-view";
 import { getLastClosedObjectives, getSeasonObjectives } from "@/src/db/objectives";
 import { getSaveSummary } from "@/src/db/saves";
 import { seasonLabel, seasonStartYear } from "@/src/engine/world";
 import { CoachOfferCard } from "../_components/coach-offer-card";
 import { objectivesBehind } from "./_lib/season-start";
-import { SeasonBudgetDetail, SeasonGrant, SeasonWages } from "./_components/season-budget";
+import { SeasonAssistant } from "./_components/season-assistant";
+import { SeasonBudgetDetail, SeasonGrant } from "./_components/season-budget";
 import { SeasonObjectives } from "./_components/season-objectives";
 
 export const dynamic = "force-dynamic";
@@ -23,22 +25,24 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * The start of a season, before the club's first match (gameplay v2, V2 and V3): « La direction t'accorde X », how the
  * board's dotation was made (its funding at the club's reputation rank, the bonus or malus of last season's objectives,
- * half of the budget left unspent), the wage cap with the payroll and what it leaves, then the season's objectives, the
- * optional one to choose. Under the entry Club, without a tab: the season's review leads here. A save from before the
- * dotations or the objectives shows what it has. A federation's offer to coach its nation comes first, while it is open
- * (docs/design/selections.md § 9.6).
+ * half of the budget left unspent), what the assistant did at the turn (« Ton adjoint à l'intersaison »: contracts
+ * renewed or gone, signings, young players, the squad against its limit; docs/design/simplification.md § 6.9), then the
+ * season's objectives, the optional one to choose. Under the entry Club, without a tab: the season's review leads here.
+ * A save from before the dotations or the objectives, or in its first season, shows what it has. A federation's offer to
+ * coach its nation comes first, while it is open (docs/design/selections.md § 9.6).
  */
 export default async function SeasonStartPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
-  const [t, save, finances, objectives, closed, coachOffers] = await Promise.all([
+  const [t, save, finances, objectives, closed, coachOffers, moves] = await Promise.all([
     getTranslations("seasonStart"),
     getSaveSummary(id),
     getClubFinances(id),
     getSeasonObjectives(id),
     getLastClosedObjectives(id),
     getCoachOffers(id),
+    getSeasonContractMoves(id),
   ]);
   if (save === null) {
     notFound();
@@ -76,7 +80,7 @@ export default async function SeasonStartPage({ params }: { params: Promise<{ id
         <div className="space-y-5">
           <SeasonGrant finances={finances} />
           {dotation !== null && <SeasonBudgetDetail dotation={dotation} lastObjectives={objectivesBehind(dotation, closed)} />}
-          <SeasonWages finances={finances} />
+          {moves !== null && <SeasonAssistant moves={moves} />}
         </div>
         <SeasonObjectives saveId={id} view={objectives} />
       </div>

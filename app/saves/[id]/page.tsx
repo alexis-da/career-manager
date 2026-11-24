@@ -10,7 +10,7 @@ import { getDashboard } from "@/src/db/dashboard";
 import { getSaveHeader } from "@/src/db/header";
 import { getManagedLineup } from "@/src/db/lineup";
 import { getDailyMissions } from "@/src/db/missions";
-import { getMarketSales } from "@/src/db/market-sales";
+import { getSaleProposals } from "@/src/db/sale-proposals";
 import { coachesNation, getCoachTodos } from "@/src/db/national-view";
 import { getManagedBreak } from "@/src/db/nations-view";
 import { getSeasonObjectives } from "@/src/db/objectives";
@@ -154,9 +154,10 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
         className={WIDE}
       />
     );
-  // No offer outside a transfer window, nor before the club's first match, nor on the tutorial's first day: nothing to read.
+  // No proposed sale outside a transfer window, nor before the club's first match, nor on the tutorial's first day: nothing
+  // to read (docs/design/simplification.md § 5.2).
   const market = firstMatchPlayed && reveal.market;
-  const sales = dashboard.windowOpen && market ? await getMarketSales(id) : null;
+  const saleProposals = dashboard.windowOpen && market ? await getSaleProposals(id) : null;
 
   return (
     <div className="space-y-5">
@@ -235,7 +236,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
             dashboard={dashboard}
             lineup={lineup}
             byAssistant={lineup.byAssistant}
-            sales={sales}
+            saleProposals={saleProposals}
             firstMatchPlayed={market}
             internationalBreak={internationalBreak}
             coachTodos={coachTodos}

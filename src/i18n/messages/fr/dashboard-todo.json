@@ -38,20 +38,23 @@
       "MISSED": "La fédération {nation} met fin à ta mission : tournoi sous l'objectif"
     },
     "coachEndedDetail": "Ton club continue avec toi. D'autres fédérations pourront te contacter.",
-    "offers": "{club} propose {fee} pour {player}",
-    "offersDetail": "{count, plural, one {# offre} other {# offres}} pour tes remplaçants",
+    "saleProposals": "Ton adjoint propose {count, plural, one {# vente} other {# ventes}}",
+    "saleProposalsDetail": "{count, plural, one {Il ne joue pas} other {Ils ne jouent pas}} · {total}",
+    "squadFull": "Effectif plein · {count} joueurs sur {limit}",
+    "squadFullDetail": "Vends ou libère un joueur avant d'en recruter un autre.",
     "weakSpot": "Ton point faible : {position}",
     "weakSpotDetail": "Note {rating} · voir le marché",
     "weakSpotEmptyDetail": "Poste vide, personne de disponible pour le tenir · voir le marché",
     "weakSpotOutOfLineDetail": "Tenu hors poste, note {rating} · voir le marché",
     "expiringContracts": "{count, plural, one {# contrat expire} other {# contrats expirent}} le 30 juin",
+    "importantContracts": "Fin de contrat le 30 juin : {players}",
+    "importantContractsDetail": "Ton adjoint compte {count, plural, one {le laisser partir} other {les laisser partir}} · décide sur {count, plural, one {sa fiche} other {leur fiche}}",
     "andOthers": "{players} et {count, plural, one {# autre} other {# autres}}",
     "noGoalkeeper": "Aucun gardien sous contrat",
     "oneGoalkeeper": "Un seul gardien sous contrat",
     "goalkeepersNeeded": "{count} gardiens sont nécessaires pour faire tourner l'équipe.",
     "smallSquad": "Effectif réduit",
     "smallSquadDetail": "{count, plural, one {# joueur} other {# joueurs}} sous contrat, {minimum} au minimum.",
-    "fullSquad": "Effectif complet",
-    "fullSquadDetail": "{players, plural, one {# joueur} other {# joueurs}}, {goalkeepers, plural, one {# gardien} other {# gardiens}} — rien à signaler"
+    "none": "Rien à faire : ton adjoint s'occupe du reste."
   }
 }

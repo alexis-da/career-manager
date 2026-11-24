@@ -33,16 +33,15 @@ type TriggerProps = {
 type SignFreeAgentDialogProps = TriggerProps & {
   saveId: string;
   player: { id: string; name: string };
-  askedWage: number;
-  wageRoom: number;
+  bonus: number; // euros: his signing bonus, paid from the budget
   currentDate: Date;
 };
 
+/** Signing a free agent: no fee, his signing bonus off the budget; the contract's length alone to choose, no wage. */
 export function SignFreeAgentDialog({
   saveId,
   player,
-  askedWage,
-  wageRoom,
+  bonus,
   currentDate,
   disabled = false,
   primary = false,
@@ -55,13 +54,11 @@ export function SignFreeAgentDialog({
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [years, setYears] = useState<number>(DEFAULT_CONTRACT_LENGTH);
-  const [wage, setWage] = useState(String(askedWage));
   const { pending, refusal, clearRefusal, run } = usePlayerAction();
 
   const onOpenChange = (next: boolean) => {
     if (next) {
       setYears(DEFAULT_CONTRACT_LENGTH);
-      setWage(String(askedWage));
       clearRefusal();
     }
     setOpen(next);
@@ -79,20 +76,11 @@ export function SignFreeAgentDialog({
       <DialogContent data-testid="sign-free-agent-dialog">
         <DialogHeader>
           <DialogTitle>{t("signTitle", { name: player.name })}</DialogTitle>
-          <DialogDescription>{t("signDescription", { wage: formatMoney(askedWage, locale) })}</DialogDescription>
+          <DialogDescription>{t("signDescription", { bonus: formatMoney(bonus, locale) })}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <DurationField years={years} onChange={setYears} currentDate={currentDate} />
-          <MoneyField
-            id={`signing-wage-${player.id}`}
-            label={t("wage")}
-            value={wage}
-            onChange={setWage}
-            step={10_000}
-            min={1}
-            hint={t("wageRoom", { amount: formatMoney(Math.max(0, wageRoom), locale) })}
-          />
           <RefusalAlert message={refused ? tRefusals("playerRefusedReputation") : refusal} />
         </div>
 
@@ -105,7 +93,7 @@ export function SignFreeAgentDialog({
             onClick={() =>
               run(
                 player.name,
-                () => signFreeAgentAction({ saveId, playerSaveId: player.id, wage: Number(wage), years }),
+                () => signFreeAgentAction({ saveId, playerSaveId: player.id, years }),
                 () => setOpen(false),
               )
             }
@@ -123,20 +111,17 @@ type MakeOfferDialogProps = TriggerProps & {
   player: { id: string; name: string };
   clubName: string;
   askingPrice: number;
-  askedWage: number;
   budget: number;
-  wageRoom: number;
   currentDate: Date;
 };
 
+/** An offer for a player of an AI club: the fee and the contract's length to choose, no wage (he gets the one he asks). */
 export function MakeOfferDialog({
   saveId,
   player,
   clubName,
   askingPrice,
-  askedWage,
   budget,
-  wageRoom,
   currentDate,
   disabled = false,
   primary = false,
@@ -150,14 +135,12 @@ export function MakeOfferDialog({
   const [open, setOpen] = useState(false);
   const [years, setYears] = useState<number>(DEFAULT_CONTRACT_LENGTH);
   const [fee, setFee] = useState(String(askingPrice));
-  const [wage, setWage] = useState(String(askedWage));
   const { pending, refusal, clearRefusal, run } = usePlayerAction();
 
   const onOpenChange = (next: boolean) => {
     if (next) {
       setYears(DEFAULT_CONTRACT_LENGTH);
       setFee(String(askingPrice));
-      setWage(String(askedWage));
       clearRefusal();
     }
     setOpen(next);
@@ -175,13 +158,7 @@ export function MakeOfferDialog({
       <DialogContent data-testid="make-offer-dialog">
         <DialogHeader>
           <DialogTitle>{t("dialogs.offerTitle", { name: player.name })}</DialogTitle>
-          <DialogDescription>
-            {t("asking", {
-              club: clubName,
-              price: formatMoney(askingPrice, locale),
-              wage: formatMoney(askedWage, locale),
-            })}
-          </DialogDescription>
+          <DialogDescription>{t("asking", { club: clubName, price: formatMoney(askingPrice, locale) })}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -193,15 +170,6 @@ export function MakeOfferDialog({
             step={100_000}
             min={0}
             hint={t("dialogs.budget", { amount: formatMoney(budget, locale) })}
-          />
-          <MoneyField
-            id={`offer-wage-${player.id}`}
-            label={t("dialogs.wage")}
-            value={wage}
-            onChange={setWage}
-            step={10_000}
-            min={1}
-            hint={t("dialogs.wageRoom", { amount: formatMoney(Math.max(0, wageRoom), locale) })}
           />
           <DurationField years={years} onChange={setYears} currentDate={currentDate} />
           <RefusalAlert message={refused ? tRefusals("playerRefusedReputation") : refusal} />
@@ -216,8 +184,7 @@ export function MakeOfferDialog({
             onClick={() =>
               run(
                 player.name,
-                () =>
-                  makeTransferOfferAction({ saveId, playerSaveId: player.id, fee: Number(fee), wage: Number(wage), years }),
+                () => makeTransferOfferAction({ saveId, playerSaveId: player.id, fee: Number(fee), years }),
                 () => setOpen(false),
               )
             }

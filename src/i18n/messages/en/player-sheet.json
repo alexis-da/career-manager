@@ -37,11 +37,22 @@
     "contract": "Contract",
     "noContract": "No contract",
     "contractEnd": "Contract ends",
-    "wage": "Wage",
-    "wagePerSeason": "{wage} / season",
-    "wagePerYear": "{wage} / year",
     "marketValue": "Market value",
-    "leavingFree": "Without an extension, he will leave on a free at the end of the season.",
+    "leavingFree": {
+      "assistantRenew": "Your assistant will extend his contract at the end of the season.",
+      "assistantLeave": "Your assistant will let him go on a free at the end of the season.",
+      "renew": "He will be extended at the end of the season.",
+      "leave": "Without an extension, he will leave on a free at the end of the season."
+    },
+    "contractChoice": {
+      "legend": "When his contract ends:",
+      "assistantRenew": "Your assistant decides: he will extend him",
+      "assistantLeave": "Your assistant decides: he will let him go",
+      "default": "Leave on a free (default)",
+      "renew": "Extend him",
+      "leave": "Let him go",
+      "failed": "Your choice could not be saved. Try again."
+    },
     "transfers": "Transfers",
     "transfer": {
       "transfer": "Transfer: {from} to {to}, {fee}",
@@ -92,21 +103,20 @@
     }
   },
   "contract": {
-    "renew": "Extend",
+    "renew": "Extend now",
     "renewTitle": "Extend {name}'s contract",
-    "renewDescription": "He accepts at least {wage} per season. Current contract: until {date}.",
-    "renewDescriptionNoContract": "He accepts at least {wage} per season. Current contract: none.",
-    "offeredWage": "Wage offered, in euros per season",
-    "negotiating": "Negotiating…",
+    "renewDescription": "Current contract: until {date}.",
+    "renewDescriptionNoContract": "Current contract: none.",
+    "negotiating": "Extending…",
     "confirmRenewal": "Confirm extension",
     "release": "Release",
     "releaseTitle": "Release {name}",
-    "releaseDescription": "He will become a free agent. Cost: {cost}, half the wages still owed on his contract.",
+    "releaseDescription": "He will become a free agent. Cost: {cost}, half of what he is still owed on his contract.",
     "releasing": "Releasing…",
     "confirmRelease": "Release player",
     "sell": "Sell",
     "sellTitle": "Sell {name}",
-    "bestOffer": "Best offer: {buyer} offers {fee}. The player will earn {wage} per season there, for {years, plural, one {# season} other {# seasons}}.",
+    "bestOffer": "Best offer: {buyer} offers {fee}.",
     "resaleCap": {
       "purchase": "Joined less than a year ago: clubs won't pay much more than you paid for him.",
       "free": "Joined on a free less than a year ago: clubs won't pay more than half his value."

@@ -5,9 +5,9 @@ import type { prisma as prismaClient } from "./client";
 
 // The Club screen's data, against DATABASE_URL: the demo save, read only, and a throwaway twin, then deleted: fresh from
 // createSave, in its first season, for its dotation, whose rows the next tests change (an earlier season, a bonus, a malus,
-// none), then its wage budget cut below its payroll; in this order. The demo save is created on the first run when missing
-// (a whole season to play, hence the long hook timeout) and kept for later runs. Skipped without DATABASE_URL; modules are
-// imported lazily because the client throws without it.
+// none), then its wage budget cut below its payroll, which changes nothing shown; in this order. The demo save is created
+// on the first run when missing (a whole season to play, hence the long hook timeout) and kept for later runs. Skipped
+// without DATABASE_URL; modules are imported lazily because the client throws without it.
 describe.skipIf(process.env.DATABASE_URL === undefined)("the Club screen's data", () => {
   let db: typeof prismaClient | undefined;
   let club: typeof import("./club") | undefined;
@@ -44,36 +44,33 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the Club screen's data"
     await db?.$disconnect();
   }, 60_000);
 
-  it("adds up the wages of the managed club's players, and what they leave under its wage budget", async () => {
+  it("gives the managed club's budget, its only limit, and nothing of its wages", async () => {
     const { db, club } = loaded();
-    const managed = await db.clubSave.findFirstOrThrow({
-      where: { saveId, isManaged: true },
-      select: { id: true, budget: true, wageBudget: true },
-    });
-    const players = await db.playerSave.findMany({ where: { saveId, clubSaveId: managed.id }, select: { wage: true } });
-    const payroll = players.reduce((sum, { wage }) => sum + wage, 0);
+    const managed = await db.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { budget: true } });
+    const finances = await club.getClubFinances(saveId);
 
-    expect(payroll).toBeGreaterThan(0);
-    expect(await club.getClubFinances(saveId)).toMatchObject({
-      budget: managed.budget,
-      wageBudget: managed.wageBudget,
-      payroll,
-      wageRoom: managed.wageBudget - payroll,
-    });
+    // The budget is the only limit (docs/design/simplification.md § 1): no payroll, no wage cap, no room.
+    expect(Object.keys(finances).sort()).toEqual(["budget", "dotation"]);
+    expect(finances.budget).toBe(managed.budget);
+    expect(finances.dotation === null ? [] : Object.keys(finances.dotation)).not.toContain("wageBudget");
   });
 
-  it("gives the money of the transfer market's overview", async () => {
+  it("gives the budget of the transfer market's overview, which has no wage either", async () => {
     const { club, market } = loaded();
-    const { budget, wageBudget, payroll, wageRoom } = await club.getClubFinances(saveId);
+    const { budget } = await club.getClubFinances(saveId);
+    const overview = await market.getMarketOverview(saveId);
 
-    expect(await market.getMarketOverview(saveId)).toMatchObject({ budget, wageBudget, payroll, wageRoom });
+    expect(overview.budget).toBe(budget);
+    for (const field of ["wageBudget", "payroll", "wageRoom"]) {
+      expect(overview).not.toHaveProperty(field);
+    }
   });
 
   it("gives a save's first season its starting budget, at the club's reputation rank among its division's clubs", async () => {
     const { db, club } = loaded();
     const managed = await db.clubSave.findFirstOrThrow({
       where: { saveId: twinId, isManaged: true },
-      select: { budget: true, wageBudget: true, reputation: true, competitionId: true },
+      select: { budget: true, reputation: true, competitionId: true },
     });
     const division = await db.clubSave.findMany({
       where: { saveId: twinId, competitionId: managed.competitionId },
@@ -91,7 +88,6 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the Club screen's data"
       objectivesAmount: 0,
       carryOver: 0,
       budget: managed.budget,
-      wageBudget: managed.wageBudget,
       first: true,
     });
   });
@@ -170,15 +166,12 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the Club screen's data"
     expect(await club.getClubFinances(twinId)).toEqual({ ...before, dotation: null });
   });
 
-  it("leaves the room negative when the payroll is above the wage budget", async () => {
+  it("shows the same money with a wage budget far below the payroll: it limits nothing any more", async () => {
     const { db, club } = loaded();
-    const wageBudget = 1_000_000;
-    await db.clubSave.updateMany({ where: { saveId: twinId, isManaged: true }, data: { wageBudget } });
+    const before = await club.getClubFinances(twinId);
+    await db.clubSave.updateMany({ where: { saveId: twinId, isManaged: true }, data: { wageBudget: 1_000_000 } });
 
-    const { payroll, wageRoom } = await club.getClubFinances(twinId);
-
-    expect(payroll).toBeGreaterThan(wageBudget);
-    expect(wageRoom).toBe(wageBudget - payroll);
+    expect(await club.getClubFinances(twinId)).toEqual(before);
   });
 
   it("names the save's manager", async () => {

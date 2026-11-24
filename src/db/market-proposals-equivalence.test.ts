@@ -57,7 +57,7 @@ const VIEW_SELECT = {
 
 type CandidateRow = Prisma.PlayerSaveGetPayload<{ select: typeof CANDIDATE_SELECT }>;
 type ViewRow = Prisma.PlayerSaveGetPayload<{ select: typeof VIEW_SELECT }>;
-type Candidate = MarketCandidate & { id: string; askedWage: number };
+type Candidate = MarketCandidate & { id: string };
 
 type Modules = {
   db: typeof prismaClient;
@@ -87,7 +87,6 @@ function toCandidate(row: CandidateRow, currentDate: Date): Candidate {
     overall: row.overall,
     potential: row.potential,
     askingPrice: quote.askingPrice,
-    askedWage: quote.minimumWage,
     minimumReputation: quote.minimumReputation,
     marketValue: marketValueFor({ age, overall: row.overall, potential: row.potential }),
   };
@@ -107,7 +106,6 @@ function toMarketProposal({ candidate, slot, impact, tag }: Proposal<Candidate>,
     clubName: club === null ? null : displayClubName(club),
     clubColors: club === null ? null : clubColorsOf(club),
     askingPrice: candidate.askingPrice,
-    askedWage: candidate.askedWage,
     marketValue: candidate.marketValue,
     attributes: {
       pace: row.pace,
@@ -152,8 +150,7 @@ async function referenceProposals(saveId: string): Promise<MarketProposals> {
   return {
     weakSpot,
     entries: { needs: views(entries.needs), gems: views(entries.gems), bargains: views(entries.bargains), stars: views(entries.stars) },
-    // No entry is wage-bound any more, and the squad is full at SQUAD_LIMIT players (getMarketOverview counts them).
-    wageBound: { needs: false, gems: false, bargains: false, stars: false },
+    // The squad is full at SQUAD_LIMIT players (getMarketOverview counts them).
     squadFull: buyer.squadSize >= SQUAD_LIMIT,
   };
 }

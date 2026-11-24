@@ -1,16 +1,20 @@
 /**
  * The lines of the dashboard's « À faire », the most important first (docs/design/simplification.md § 4.1): a team that
- * cannot line up, then what the manager must answer, the squad's size, the matches and breaks ahead, the bookings, the
- * injured, and last what only informs: where to look on the market, a mission's end, a squad with nothing to report. The
- * list shows them in this order, whatever the order they are found in.
+ * cannot line up, then what the manager must answer (a federation's offer, the contracts ending on 30 June: the starters
+ * his assistant means to let go, or every one when he keeps the contracts; the sales his assistant proposes), the squad's
+ * size, the matches and breaks ahead, the bookings, the injured, and last what only informs: where to look on the market,
+ * a mission's end. The list shows them in this order, whatever the order they are found in; without any, it says there
+ * is nothing to do (`alert-none`).
  */
 export const TODO_PRIORITY = [
   "goalkeepers",
   "injured-starters",
   "suspended-starters",
   "coach-offer",
+  "important-contracts",
   "expiring-contracts",
-  "offers",
+  "sale-proposals",
+  "squad-full",
   "small-squad",
   "tired-starters",
   "international-returns",
@@ -21,7 +25,6 @@ export const TODO_PRIORITY = [
   "injured",
   "weak-spot",
   "coach-ended",
-  "full-squad",
 ] as const;
 
 /** A line of « À faire », by its id: its data-testid is « alert-{id} ». */

@@ -31,7 +31,6 @@ const PHONE = { width: 390, height: 844 };
 const WEAK_SPOT = /^Ton point faible : (.+)Note (\d+) · voir le marché$/;
 
 /** « Lille OSC propose 12,5 M€ pour Jean Morel », then « 3 offres pour tes remplaçants ». */
-const BEST_OFFER = /^(.+) propose (.+) pour (.+?)(\d+) offres? pour tes remplaçants$/;
 
 /** An optional objective's name, as the card names the three the board proposes. */
 const OPTIONAL = "(Jeunesse|Spectacle|Solidité|Bonne gestion)";
@@ -120,14 +119,15 @@ test("sums the club up: its money at the top of the page, its season in tiles, b
   await openDashboard(page);
 
   await expect(page.getByTestId("dashboard-budget")).toHaveText(/^Budget \d+(,\d+)? M€$/);
-  await expect(page.getByTestId("dashboard-payroll")).toHaveText(/^Salaires \d+,\d \/ \d+,\d M€$/);
-  await expect(page.locator('[data-summary="payroll"]')).toHaveAttribute("data-value", /^[1-9]\d*$/);
+  // No wage pill: the budget is the only limit (docs/design/simplification.md § 6.1).
+  await expect(page.getByTestId("dashboard-payroll")).toHaveCount(0);
   await expect(page.getByTestId("dashboard-window")).toHaveText("Mercato ouvert jusqu'au 31 août");
 
   await expect(page.getByTestId("dashboard-position")).toContainText("—");
   await expect(page.getByTestId("dashboard-points")).toContainText("—");
   await expect(page.getByTestId("dashboard-form")).toContainText("Pas encore de match");
-  await expect(page.getByTestId("dashboard-squad")).toContainText(/\d+ ?joueurs/);
+  // Its players against the squad's limit, 30.
+  await expect(page.getByTestId("dashboard-squad")).toContainText(/\d+ ?joueurs sur 30/);
 });
 
 test("shows the player's club in the small table, and leads to the full one", async ({ page }) => {
@@ -209,13 +209,13 @@ test("lays a new career's missions right under the hero, and leaves the last mat
   expect(box.x).toBe(hero.x);
   expect(Math.abs(box.x + box.width - (table.x + table.width))).toBeLessThanOrEqual(1);
 
-  // No card of a last match: « Aucun match joué » would say nothing. No tip, no offer, no weak spot before the first
-  // match, not even behind « Voir tout »: the lines are counted in the page, folded or not.
+  // No card of a last match: « Aucun match joué » would say nothing. No tip, no proposed sale, no weak spot before the
+  // first match, not even behind « Voir tout »: the lines are counted in the page, folded or not.
   await expect(page.getByTestId("dashboard-last-result")).toHaveCount(0);
   await expect(page.locator('[data-testid^="tip-"]')).toHaveCount(0);
   const alerts = page.getByTestId("dashboard-alerts");
   await expect(alerts).toBeVisible();
-  await expect(alerts.getByTestId("alert-offers")).toHaveCount(0);
+  await expect(alerts.getByTestId("alert-sale-proposals")).toHaveCount(0);
   await expect(alerts.getByTestId("alert-weak-spot")).toHaveCount(0);
 });
 
@@ -371,7 +371,7 @@ test("plays the match from the hero, offers only to resume it at the break, then
   await expect(page.getByTestId("fixtures-month")).toHaveText("août 2026");
 });
 
-test("once the first match is played, sends the weak spot to the market and, the window open, the best offer to its sales", async ({
+test("once the first match is played, sends the weak spot to the market, and proposes no sale in a career's first summer", async ({
   page,
 }) => {
   await openDashboard(page);
@@ -386,23 +386,18 @@ test("once the first match is played, sends the weak spot to the market and, the
   await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/transfers$`));
   await expect(page.getByTestId("market-intro")).toHaveText(`Ton point faible : ${position} (note ${rating}). Voici qui le comblerait.`);
 
-  // The sales open on the offer the line gives, and count as many.
+  // A career's first summer weighs no season of the club's: no sale proposed (docs/design/simplification.md § 5.1). The
+  // Sell tab keeps every offer, the best first, and counts them.
   await openScreen(page, "dashboard");
-  const offers = (await openTodo(page)).getByTestId("alert-offers");
-  await expect(offers).toBeVisible();
-  await expect(offers).toHaveText(BEST_OFFER);
-  const [, buyer, fee, player, count] = BEST_OFFER.exec(await textOf(offers)) ?? [];
-  await offers.getByTestId("alert-action").click();
-  await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/transfers\\?tab=sell$`));
-  const best = page.getByTestId("market-sell").getByTestId("market-sale-offer");
-  await expect(best).toHaveAttribute("aria-label", player);
-  await expect(best).toContainText(buyer);
-  await expect(best).toContainText(fee);
-  await expect(page.getByTestId("market-tab-sell")).toHaveText(new RegExp(`^Vendre · ${count} offres?$`));
+  await expect((await openTodo(page)).getByTestId("alert-sale-proposals")).toHaveCount(0);
+  await page.goto(`/saves/${saveId}/transfers?tab=sell`);
+  await expect(page.getByTestId("market-sale-proposals")).toHaveCount(0);
+  await expect(page.getByTestId("market-sell").getByTestId("market-sale-offer")).toBeVisible();
+  await expect(page.getByTestId("market-tab-sell")).toHaveText(/^Vendre · \d+ offres?$/);
 });
 
 // Last: nothing is left to play after it.
-test("leads only to the next season once this one is over, with neither an offer nor the weak spot out of the window", async ({ page }) => {
+test("leads only to the next season once this one is over, with neither a proposed sale nor the weak spot out of the window", async ({ page }) => {
   // The rest of the season, simulated.
   test.setTimeout(240_000);
   await openDashboard(page);
@@ -436,5 +431,5 @@ test("leads only to the next season once this one is over, with neither an offer
   await expect(page.getByTestId("dashboard-window")).toHaveText("Fenêtre fermée jusqu'au 1er juil.");
   await expect(page.getByTestId("dashboard-alerts")).toBeVisible();
   await expect(page.getByTestId("alert-weak-spot")).toHaveCount(0);
-  await expect(page.getByTestId("alert-offers")).toHaveCount(0);
+  await expect(page.getByTestId("alert-sale-proposals")).toHaveCount(0);
 });
