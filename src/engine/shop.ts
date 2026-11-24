@@ -99,7 +99,7 @@ export type PurchaseRefusal =
   | "not_injured" // express care: the player has too few days left, or is not the club's
   | "camp_today" // a fitness camp already on this date
   | "full_fitness" // a fitness camp: the whole squad is at FULL_FITNESS already
-  | "wage_budget" // the promising youth's wage over the wage budget's margin
+  | "squad_full" // the promising youth: the squad already has SQUAD_LIMIT players (docs/design/simplification.md § 1.4)
   | "shield_held" // a streak shield already in reserve
   | "owned" // a cosmetic already had
   | "not_for_sale";

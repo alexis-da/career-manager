@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
-import { CONTRACT_YEARS_WEIGHTS, WAGE_BUDGET_MARGIN } from "./balance";
+import { CONTRACT_YEARS_WEIGHTS, SIGNING_BONUS_MIN, SIGNING_BONUS_SHARE, SIGNING_BONUS_STEP, WAGE_BUDGET_MARGIN } from "./balance";
 import {
   clubFinances,
   contractYears,
   generateContract,
   managedWageMargin,
+  marketValueFor,
+  renewalWage,
   seasonFinances,
+  signingBonus,
   wageBudgetFloor,
   wageBudgetFor,
+  wageFor,
 } from "./economy";
 import { WORLD_START_DATE } from "./world";
 
@@ -128,6 +132,47 @@ describe("managedWageMargin", () => {
     for (let coefficient = 70; coefficient < 140; coefficient += 5) {
       expect(managedWageMargin(coefficient + 5)).toBeGreaterThan(managedWageMargin(coefficient));
     }
+  });
+});
+
+describe("signingBonus", () => {
+  it("is 25 % of the value, rounded up to 10 000 €, as the design's free agents show", () => {
+    expect([SIGNING_BONUS_SHARE, SIGNING_BONUS_MIN, SIGNING_BONUS_STEP]).toEqual([0.25, 50_000, 10_000]);
+    // The table of docs/design/simplification.md § 1.3: values of 1.01, 4.39, 5.03, 6.24, 3.50 and 19.80 M€.
+    expect([1_010_000, 4_390_000, 5_030_000, 6_240_000, 3_500_000, 19_800_000].map(signingBonus)).toEqual([
+      260_000, 1_100_000, 1_260_000, 1_560_000, 880_000, 4_950_000,
+    ]);
+    // A 58 of 29, and a 62 of 20 with a potential of 74, on the signing day.
+    expect(signingBonus(marketValueFor({ age: 29, overall: 58, potential: 58 }))).toBe(260_000);
+    expect(signingBonus(marketValueFor({ age: 20, overall: 62, potential: 74 }))).toBe(1_100_000);
+  });
+
+  it("never goes under 50 000 €, and keeps an exact step as it is", () => {
+    expect(signingBonus(10_000)).toBe(50_000);
+    expect(signingBonus(200_000)).toBe(50_000);
+    expect(signingBonus(210_000)).toBe(60_000);
+    expect(signingBonus(240_000)).toBe(60_000);
+    expect(signingBonus(0)).toBe(50_000);
+  });
+
+  it("is a whole number of steps, at least a quarter of the value, less than a step above it", () => {
+    // Market values, whole numbers of MARKET_VALUE_STEP (marketValueFor).
+    for (let value = 10_000; value <= 200_000_000; value = Math.round((value * 1.37) / 10_000) * 10_000 + 10_000) {
+      const bonus = signingBonus(value);
+
+      expect(bonus % SIGNING_BONUS_STEP, `${value}`).toBe(0);
+      expect(bonus, `${value}`).toBeGreaterThanOrEqual(Math.max(SIGNING_BONUS_MIN, value * SIGNING_BONUS_SHARE));
+      expect(bonus, `${value}`).toBeLessThan(Math.max(SIGNING_BONUS_MIN, value * SIGNING_BONUS_SHARE) + SIGNING_BONUS_STEP);
+    }
+  });
+});
+
+describe("renewalWage", () => {
+  it("is the higher of the current wage and the market wage", () => {
+    const player = { age: 26, overall: 75 };
+
+    expect(renewalWage({ ...player, wage: 100_000 })).toBe(wageFor(player));
+    expect(renewalWage({ ...player, wage: 50_000_000 })).toBe(50_000_000);
   });
 });
 

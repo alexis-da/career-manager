@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { SQUAD_LIMIT } from "../engine/balance";
 import { budgetTopUp } from "../engine/shop";
 import type { prisma as prismaClient } from "./client";
 
@@ -117,27 +118,42 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the shop of missions v2
     expect(await shop.buyCareerItem(saveId, { requestId: request(), item: "BUDGET_TOP_UP" })).toMatchObject({ ok: false, reason: "season_limit" });
   }, MS);
 
-  it("brings the promising youth the shop showed, within the wage budget, and keeps him through his first contract", async () => {
+  it("brings the promising youth the shop showed, whatever the wage budget, but no one into a full squad", async () => {
     const { db, shop, transfers } = loaded();
     const shown = await shop.getShop(saveId);
     const striker = shown.youth.find(({ line }) => line === "FW");
     if (striker === undefined) {
       throw new Error("No youth shown for the attack");
     }
-    expect(striker).toMatchObject({ overall: 63, position: expect.any(String) });
+    expect(striker).toMatchObject({ overall: 63, position: expect.any(String), fits: true });
     expect(striker.potential - striker.overall).toBeGreaterThanOrEqual(25);
-    const payroll = (await squad()).reduce((sum, { wage }) => sum + wage, 0);
+    const squadSize = (await squad()).length;
+    expect(shown.squadSize).toBe(squadSize);
+    expect(shown.items.find(({ item }) => item === "PROMISING_YOUTH")?.refusal).toBeNull();
 
-    // A wage budget with no room left: refused, with his wage and the room.
-    await db.clubSave.update({ where: { id: clubSaveId }, data: { wageBudget: payroll } });
-    expect(await shop.buyCareerItem(saveId, { requestId: request(), item: "PROMISING_YOUTH", line: "FW" })).toMatchObject({
-      ok: false,
-      reason: "wage_budget",
-      wage: striker.wage,
-      wageRoom: 0,
+    // A squad of 30 players: free agents moved in, as they are, then sent back to the market. Refused, the item too.
+    const fillers = await db.playerSave.findMany({
+      where: transfers.freeAgentWhere(saveId),
+      orderBy: { playerKey: "asc" },
+      take: SQUAD_LIMIT - squadSize,
+      select: { id: true },
     });
+    await db.playerSave.updateMany({ where: { saveId, id: { in: fillers.map(({ id }) => id) } }, data: { clubSaveId } });
+    try {
+      expect(await shop.buyCareerItem(saveId, { requestId: request(), item: "PROMISING_YOUTH", line: "FW" })).toMatchObject({
+        ok: false,
+        reason: "squad_full",
+      });
+      const full = await shop.getShop(saveId);
+      expect(full.squadSize).toBe(SQUAD_LIMIT);
+      expect(full.items.find(({ item }) => item === "PROMISING_YOUTH")?.refusal).toBe("squad_full");
+    } finally {
+      await db.playerSave.updateMany({ where: { saveId, id: { in: fillers.map(({ id }) => id) } }, data: { clubSaveId: null } });
+    }
 
-    await db.clubSave.update({ where: { id: clubSaveId }, data: { wageBudget: payroll + 10_000_000 } });
+    // His wage limits nothing any more: a wage budget with no room left does not refuse him.
+    const payroll = (await squad()).reduce((sum, { wage }) => sum + wage, 0);
+    await db.clubSave.update({ where: { id: clubSaveId }, data: { wageBudget: payroll } });
     const bought = await shop.buyCareerItem(saveId, { requestId: request(), item: "PROMISING_YOUTH", line: "FW" });
     expect(bought).toMatchObject({ ok: true, price: 350, effect: { kind: "youth", playerKey: "shop-youth:1", line: "FW" } });
     const youth = await db.playerSave.findUniqueOrThrow({

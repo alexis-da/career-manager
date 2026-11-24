@@ -1,6 +1,10 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { SQUAD_LIMIT } from "../engine/balance";
+import { displayClubName } from "../engine/club-name";
+import { marketValueFor, signingBonus } from "../engine/economy";
 import { WORLD_START_YEAR } from "../engine/world";
+import { ageInYears } from "../lib/dates";
 import type { prisma as prismaClient } from "./client";
 import type * as TransfersModule from "./transfers";
 
@@ -96,6 +100,42 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
   const saleQuote = async (saveId: string, playerSaveId: string) => (await api().quoteSquad(saveId)).get(playerSaveId)?.sale;
 
   const setDate = (saveId: string, date: Date) => database().save.update({ where: { id: saveId }, data: { currentDate: date } });
+
+  /** A club's players under contract, as SQUAD_LIMIT counts them. */
+  const squadSizeOf = (saveId: string, clubSaveId: string) =>
+    database().playerSave.count({ where: { saveId, clubSaveId, retired: false } });
+
+  /**
+   * Runs `check` with a club filled to SQUAD_LIMIT players by free agents moved in as they are (no contract, no wage),
+   * then sends them back to the market: the best rated first, never `keep`.
+   */
+  const withFullSquad = async (saveId: string, clubSaveId: string, check: () => Promise<void>, keep: readonly string[] = []) => {
+    const missing = SQUAD_LIMIT - (await squadSizeOf(saveId, clubSaveId));
+    const fillers = await database().playerSave.findMany({
+      where: { ...api().freeAgentWhere(saveId), id: { notIn: [...keep] } },
+      orderBy: [{ overall: "desc" }, { playerKey: "asc" }],
+      take: Math.max(0, missing),
+      select: { id: true },
+    });
+    const ids = fillers.map(({ id }) => id);
+    expect(ids).toHaveLength(Math.max(0, missing));
+    await database().playerSave.updateMany({ where: { saveId, id: { in: ids } }, data: { clubSaveId } });
+    try {
+      expect(await squadSizeOf(saveId, clubSaveId)).toBeGreaterThanOrEqual(SQUAD_LIMIT);
+      await check();
+    } finally {
+      await database().playerSave.updateMany({ where: { saveId, id: { in: ids }, clubSaveId }, data: { clubSaveId: null } });
+    }
+  };
+
+  /** What signing a free agent costs today: his signing bonus, a quarter of his market value. */
+  const bonusOf = async (saveId: string, playerSaveId: string): Promise<number> => {
+    const [{ currentDate }, player] = await Promise.all([
+      database().save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
+      database().playerSave.findUniqueOrThrow({ where: { id: playerSaveId }, select: { birthDate: true, overall: true, potential: true } }),
+    ]);
+    return signingBonus(marketValueFor({ age: ageInYears(player.birthDate, currentDate), overall: player.overall, potential: player.potential }));
+  };
 
   /** The sale of a player who arrived in this window is refused and changes nothing, and the squad quotes say the same. */
   const expectBoughtThisWindow = async (saveId: string, playerSaveId: string) => {
@@ -223,7 +263,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
     expect((await rankedPlayer(saveId, SELLER_SLUG, 9)).id).toBe(player.id);
   });
 
-  it("is refused by the club below its price, and by the player without his raise", async () => {
+  it("is refused by the club below its price, never for a wage: the player joins for his ask at least", async () => {
     const [saveId] = saveIds;
     const player = await rankedPlayer(saveId, SELLER_SLUG, 10);
     const quote = await api().quoteTransfer({ saveId, playerSaveId: player.id });
@@ -236,6 +276,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
       wage: quote.minimumWage,
       years: 2,
     });
+    expect(lowFee).toEqual({ ok: false, reason: "club_refused", refusals: ["fee_too_low"] });
+    expect(await clubState(saveId, MANAGED_SLUG)).toEqual(managedBefore);
+
+    // A wage under his ask was a refusal: he now joins for his ask (docs/design/simplification.md § 1.1).
     const lowWage = await api().makeTransferOffer({
       saveId,
       playerSaveId: player.id,
@@ -243,13 +287,12 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
       wage: quote.minimumWage - 1,
       years: 2,
     });
-
-    expect(lowFee).toEqual({ ok: false, reason: "club_refused", refusals: ["fee_too_low"] });
-    expect(lowWage).toEqual({ ok: false, reason: "player_refused", refusals: ["wage_too_low"] });
-    expect(await clubState(saveId, MANAGED_SLUG)).toEqual(managedBefore);
+    const moved = await database().playerSave.findUniqueOrThrow({ where: { id: player.id }, select: { wage: true } });
+    expect(lowWage).toMatchObject({ ok: true, fee: quote.askingPrice, wage: quote.minimumWage, payrollChange: quote.minimumWage });
+    expect(moved.wage).toBe(quote.minimumWage);
   });
 
-  it("releases a player with compensation, signs him back as a free agent, and renews another contract", async () => {
+  it("releases a player with compensation, signs him back for his signing bonus, and renews another contract", async () => {
     const [saveId] = saveIds;
     const released = await rankedPlayer(saveId, MANAGED_SLUG, 15);
     const start = await clubState(saveId, MANAGED_SLUG);
@@ -263,27 +306,36 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
     expect(afterRelease.budget - start.budget).toBe(-release.fee);
     expect(afterRelease.payroll - start.payroll).toBe(-released.wage);
 
+    // A free agent's price is his signing bonus, a quarter of his value: paid out of the budget, the FREE transfer's fee.
     const freeAgentQuote = await api().quoteTransfer({ saveId, playerSaveId: released.id });
-    expect(freeAgentQuote.askingPrice).toBe(0);
-    const signing = await api().signFreeAgent({
-      saveId,
-      playerSaveId: released.id,
-      wage: freeAgentQuote.minimumWage,
-      years: 1,
-    });
+    const bonus = await bonusOf(saveId, released.id);
+    expect(freeAgentQuote.askingPrice).toBe(bonus);
+    expect(bonus).toBeGreaterThanOrEqual(50_000);
+    const signing = await api().signFreeAgent({ saveId, playerSaveId: released.id, years: 1 });
     const afterSigning = await clubState(saveId, MANAGED_SLUG);
-    expect(signing).toMatchObject({ ok: true, fee: 0, budgetChange: 0, payrollChange: freeAgentQuote.minimumWage });
-    expect(afterSigning.budget).toBe(afterRelease.budget);
+    const transfer = await database().transfer.findFirstOrThrow({
+      where: { saveId, playerSaveId: released.id, type: "FREE", toClubId: { not: null } },
+      select: { fee: true, fromClubId: true },
+    });
+    expect(signing).toMatchObject({
+      ok: true,
+      fee: bonus,
+      budgetChange: -bonus,
+      payrollChange: freeAgentQuote.minimumWage,
+      wage: freeAgentQuote.minimumWage,
+    });
+    expect(afterSigning.budget).toBe(afterRelease.budget - bonus);
     expect(afterSigning.payroll - afterRelease.payroll).toBe(freeAgentQuote.minimumWage);
+    expect(transfer).toEqual({ fee: bonus, fromClubId: null });
 
+    // A renewal is never refused for its wage: without one, his floor; under it, his floor; above it, what is offered.
     const renewed = await rankedPlayer(saveId, MANAGED_SLUG, 3);
     const renewalQuote = await api().quoteTransfer({ saveId, playerSaveId: renewed.id });
-    const refusedRenewal = await api().renewContract({
-      saveId,
-      playerSaveId: renewed.id,
-      wage: renewalQuote.minimumWage - 1,
-      years: 4,
-    });
+    expect(renewalQuote.minimumWage).toBeGreaterThanOrEqual(renewed.wage);
+    const withoutWage = await api().renewContract({ saveId, playerSaveId: renewed.id, years: 4 });
+    const underFloor = await api().renewContract({ saveId, playerSaveId: renewed.id, wage: renewalQuote.minimumWage - 1, years: 4 });
+    expect(withoutWage).toMatchObject({ ok: true, budgetChange: 0, wage: renewalQuote.minimumWage });
+    expect(underFloor).toMatchObject({ ok: true, wage: renewalQuote.minimumWage, payrollChange: 0 });
     const renewal = await api().renewContract({
       saveId,
       playerSaveId: renewed.id,
@@ -292,10 +344,105 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
     });
     const afterRenewal = await clubState(saveId, MANAGED_SLUG);
 
-    expect(refusedRenewal).toEqual({ ok: false, reason: "player_refused", refusals: ["wage_too_low"] });
-    expect(renewal).toMatchObject({ ok: true, budgetChange: 0, payrollChange: renewalQuote.minimumWage + 100_000 - renewed.wage });
+    expect(renewal).toMatchObject({ ok: true, budgetChange: 0, payrollChange: 100_000, wage: renewalQuote.minimumWage + 100_000 });
     expect(renewal.ok && renewal.contractUntil?.toISOString()).toBe("2030-06-30T00:00:00.000Z");
     expect(afterRenewal.payroll - afterSigning.payroll).toBe(renewalQuote.minimumWage + 100_000 - renewed.wage);
+  });
+
+  it("refuses a free agent whose signing bonus the budget does not pay, and changes nothing", async () => {
+    const [saveId] = saveIds;
+    const { id: playerSaveId } = await database().playerSave.findFirstOrThrow({
+      where: api().freeAgentWhere(saveId),
+      orderBy: [{ overall: "desc" }, { playerKey: "asc" }],
+      select: { id: true },
+    });
+    const bonus = await bonusOf(saveId, playerSaveId);
+    const { id: clubSaveId, budget } = await clubState(saveId, MANAGED_SLUG);
+    await database().clubSave.update({ where: { id: clubSaveId, saveId }, data: { budget: bonus - 1 } });
+    try {
+      const before = await clubState(saveId, MANAGED_SLUG);
+      const transfersBefore = await database().transfer.count({ where: { saveId } });
+
+      expect(await api().signFreeAgent({ saveId, playerSaveId, years: 2 })).toEqual({
+        ok: false,
+        reason: "insufficient_budget",
+        refusals: [],
+      });
+      expect(await clubState(saveId, MANAGED_SLUG)).toEqual(before);
+      expect(await database().transfer.count({ where: { saveId } })).toBe(transfersBefore);
+      expect((await database().playerSave.findUniqueOrThrow({ where: { id: playerSaveId }, select: { clubSaveId: true } })).clubSaveId).toBeNull();
+    } finally {
+      await database().clubSave.update({ where: { id: clubSaveId, saveId }, data: { budget } });
+    }
+  });
+
+  it("refuses a purchase and a free signing at 30 players, but still sells and releases, then signs again under 30", async () => {
+    const [saveId] = saveIds;
+    const { id: clubSaveId } = await clubState(saveId, MANAGED_SLUG);
+    const target = await rankedPlayer(saveId, SELLER_SLUG, 11);
+    const targetQuote = await api().quoteTransfer({ saveId, playerSaveId: target.id });
+    const { id: freeAgentId } = await database().playerSave.findFirstOrThrow({
+      where: api().freeAgentWhere(saveId),
+      orderBy: [{ overall: "asc" }, { playerKey: "asc" }],
+      select: { id: true },
+    });
+    // The club's own players, never moved, the weakest first: neither the fillers nor anyone it signed.
+    const ownPlayers = () =>
+      database().playerSave.findMany({
+        where: { saveId, clubSaveId, playerKey: { startsWith: `${MANAGED_SLUG}#` }, transfers: { none: { saveId } } },
+        orderBy: [{ overall: "asc" }, { playerKey: "asc" }],
+        select: { id: true },
+      });
+
+    await withFullSquad(
+      saveId,
+      clubSaveId,
+      async () => {
+        const before = await clubState(saveId, MANAGED_SLUG);
+        const purchase = await api().makeTransferOffer({ saveId, playerSaveId: target.id, fee: targetQuote.askingPrice, years: 3 });
+        const signing = await api().signFreeAgent({ saveId, playerSaveId: freeAgentId, years: 3 });
+
+        expect(purchase).toEqual({ ok: false, reason: "squad_full", refusals: [] });
+        expect(signing).toEqual({ ok: false, reason: "squad_full", refusals: [] });
+        expect(await clubState(saveId, MANAGED_SLUG)).toEqual(before);
+
+        // Sales and releases are never refused by it: one sold, the squad has a place, the free agent signs.
+        const [sold, released] = await ownPlayers();
+        expect(await api().sellPlayer({ saveId, playerSaveId: sold.id })).toMatchObject({ ok: true });
+        expect(await api().signFreeAgent({ saveId, playerSaveId: freeAgentId, years: 3 })).toMatchObject({ ok: true });
+        expect(await squadSizeOf(saveId, clubSaveId)).toBe(SQUAD_LIMIT);
+        expect(await api().releasePlayer({ saveId, playerSaveId: released.id })).toMatchObject({ ok: true });
+        expect(await squadSizeOf(saveId, clubSaveId)).toBe(SQUAD_LIMIT - 1);
+      },
+      [freeAgentId],
+    );
+  });
+
+  it("passes over a buyer at 30 players: the player goes to another club", async () => {
+    const [saveId] = saveIds;
+    const quotes = await api().quoteSquad(saveId);
+    const [playerSaveId, quote] = [...quotes]
+      .flatMap(([id, { sale }]) => (sale.ok ? [[id, sale] as const] : []))
+      .sort(([, a], [, b]) => b.fee - a.fee || a.buyerName.localeCompare(b.buyerName))[0];
+    const clubs = await database().clubSave.findMany({
+      where: { saveId, isManaged: false },
+      select: { id: true, club: { select: { slug: true, name: true } } },
+    });
+    const buyer = clubs.find(({ club }) => displayClubName(club) === quote.buyerName);
+    if (buyer === undefined) {
+      throw new Error(`No club named ${quote.buyerName}`);
+    }
+
+    await withFullSquad(saveId, buyer.id, async () => {
+      const requoted = (await api().quoteSquad(saveId)).get(playerSaveId)?.sale;
+      expect(requoted?.ok === true ? requoted.buyerName : "no offer").not.toBe(quote.buyerName);
+      const sale = await api().sellPlayer({ saveId, playerSaveId });
+      if (sale.ok) {
+        expect(sale.clubSaveId).not.toBe(buyer.id);
+      } else {
+        expect(sale).toEqual({ ok: false, reason: "no_offer", refusals: [] });
+      }
+    });
   });
 
   // No other test uses the second save after the first one. The last of these moves its date on for good.
@@ -359,10 +506,15 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
     expect(await clubState(saveId, MANAGED_SLUG)).toEqual(before);
   });
 
-  it("validates its input with the exported Zod schemas", async () => {
+  it("validates its input with the exported Zod schemas, the wage optional", async () => {
     await expect(
       api().makeTransferOffer({ saveId: saveIds[0], playerSaveId: "x", fee: -1, wage: 1, years: 1 }),
     ).rejects.toThrow();
     expect(api().renewContractSchema.safeParse({ saveId: "s", playerSaveId: "p", wage: 1, years: 6 }).success).toBe(false);
+    for (const schema of [api().renewContractSchema, api().signFreeAgentSchema]) {
+      expect(schema.safeParse({ saveId: "s", playerSaveId: "p", years: 3 }).success).toBe(true);
+      expect(schema.safeParse({ saveId: "s", playerSaveId: "p", wage: 0, years: 3 }).success).toBe(false);
+    }
+    expect(api().makeTransferOfferSchema.safeParse({ saveId: "s", playerSaveId: "p", fee: 1, years: 3 }).success).toBe(true);
   });
 });

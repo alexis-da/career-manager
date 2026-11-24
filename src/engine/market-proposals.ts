@@ -3,7 +3,6 @@ import { marketValueFor } from "./economy";
 import { formationPositions, type FormationName } from "./formations";
 import { RATING_MAX, RATING_MIN } from "./generation";
 import { positionGroup, ratingAt, secondaryPositions, type Position, type PositionedPlayer } from "./positions";
-import { minimumWage } from "./transfer-ai";
 
 /** Proposals an entry of the market keeps at most. */
 export const MAX_PROPOSALS_PER_ENTRY = 10;
@@ -24,10 +23,7 @@ export const MARKET_ENTRIES = ["needs", "gems", "bargains", "stars"] as const;
 
 export type MarketEntry = (typeof MARKET_ENTRIES)[number];
 
-/** The four entries, and what Needs proposes instead when the wage room alone empties it (affordableAt). */
-export type RankedEntry = MarketEntry | "affordable";
-
-export type ProposalTag = "best" | "gem" | "bargain" | "star" | "fit" | "affordable";
+export type ProposalTag = "best" | "gem" | "bargain" | "star" | "fit";
 
 /**
  * Why a slot is the weak spot: nobody can fill it (« empty »), its starter plays out of his line (« outOfLine », « Hors
@@ -54,16 +50,17 @@ export type MarketCandidate = {
   age: number;
   overall: number;
   potential: number;
-  askingPrice: number; // euros; 0 for a free agent
-  askedWage: number; // euros per season
+  // Euros the buyer pays to sign him, out of its budget: his club's asking price, or a free agent's signing bonus
+  // (signingBonus, docs/design/simplification.md § 1.3). Every entry weighs it as his price.
+  askingPrice: number;
   minimumReputation: number; // the lowest reputation of a club he joins
   marketValue: number; // euros
 };
 
+/** The buyer, the managed club: no wage room counts since the simplification (docs/design/simplification.md § 1.1). */
 export type MarketBuyer = {
   reputation: number;
   budget: number; // euros
-  wageRoom: number; // euros per season left under the wage budget
 };
 
 export type Proposal<C extends MarketCandidate = MarketCandidate> = {
@@ -98,13 +95,12 @@ function compareKeys(a: readonly number[], b: readonly number[]): number {
   return 0;
 }
 
-/** Who would accept the club and whose price it can pay, the wage room aside. */
-export const isReachable = (candidate: MarketCandidate, buyer: MarketBuyer): boolean =>
-  buyer.reputation >= candidate.minimumReputation && candidate.askingPrice <= buyer.budget;
-
-/** Who would accept the club and whom it can pay, price and wage: nobody else is ever proposed. */
+/**
+ * Who would accept the club and whose price its budget pays (a free agent's signing bonus): nobody else is ever proposed.
+ * His wage is no condition (docs/design/simplification.md § 1.1).
+ */
 export const isEligible = (candidate: MarketCandidate, buyer: MarketBuyer): boolean =>
-  isReachable(candidate, buyer) && candidate.askedWage <= buyer.wageRoom;
+  buyer.reputation >= candidate.minimumReputation && candidate.askingPrice <= buyer.budget;
 
 const isGem = (candidate: MarketCandidate): boolean =>
   candidate.age <= GEM_MAX_AGE && candidate.potential >= candidate.overall + GEM_MIN_GROWTH;
@@ -121,19 +117,16 @@ const impactAt = (candidate: MarketCandidate, weakSpot: WeakSpot): number =>
 
 /**
  * The rules of the entries, from the weak spot: Needs, those who would improve it, the biggest gain first, then the
- * cheapest, then the best rated; « affordable », anyone, in the same order; Gems, the young with room to grow, by
- * potential, then price; Bargains, those cheap for their value and not far below the weak spot, by the money saved, then
- * rating; Stars, anyone, by rating, then price. Without a weak spot, Needs and « affordable » take nobody.
+ * cheapest, then the best rated; Gems, the young with room to grow, by potential, then price; Bargains, those cheap for
+ * their value and not far below the weak spot, by the money saved, then rating; Stars, anyone, by rating, then price.
+ * Without a weak spot, Needs takes nobody.
  */
-export function entryRules(weakSpot: WeakSpot | null): Record<RankedEntry, EntryRule> {
-  const needKeys = (candidate: MarketCandidate): number[] => [
-    weakSpot === null ? 0 : -impactAt(candidate, weakSpot),
-    candidate.askingPrice,
-    -candidate.overall,
-  ];
+export function entryRules(weakSpot: WeakSpot | null): Record<MarketEntry, EntryRule> {
   return {
-    needs: { takes: (candidate) => weakSpot !== null && impactAt(candidate, weakSpot) > 0, keys: needKeys },
-    affordable: { takes: () => weakSpot !== null, keys: needKeys },
+    needs: {
+      takes: (candidate) => weakSpot !== null && impactAt(candidate, weakSpot) > 0,
+      keys: (candidate) => [weakSpot === null ? 0 : -impactAt(candidate, weakSpot), candidate.askingPrice, -candidate.overall],
+    },
     gems: { takes: isGem, keys: (candidate) => [-candidate.potential, candidate.askingPrice] },
     bargains: {
       takes: (candidate) =>
@@ -245,21 +238,17 @@ function needTag(candidate: MarketCandidate): ProposalTag {
   return hasBargainPrice(candidate) ? "bargain" : "fit";
 }
 
-/** What the buying screen proposes, entry by entry, and which entries the wage room alone empties. */
+/** What the buying screen proposes, entry by entry. */
 export type SigningProposals<C extends MarketCandidate> = {
   weakSpot: WeakSpot | null;
   entries: Record<MarketEntry, Proposal<C>[]>;
-  // The wage room alone keeps the entry's players out: with room enough, it would propose some. Needs then proposes
-  // those the room still pays at the weak spot (affordableAt), when there are any.
-  wageBound: Record<MarketEntry, boolean>;
 };
 
 /**
- * What the buying screen proposes: the eligible candidates in each entry (who would accept the club and whom it can pay,
- * price and wage: nobody else is ever proposed), MAX_PROPOSALS_PER_ENTRY at most, in a total order (the player key breaks
- * every tie, so the order of `candidates` never shows). An empty eleven has no weak spot, hence no needs and no rating
- * for a bargain to reach. An entry the wage room alone empties is wage-bound; Needs then proposes the players the room
- * still pays at the weak spot, even rated below the starter, tagged « affordable » (affordableAt).
+ * What the buying screen proposes: the eligible candidates in each entry (who would accept the club and whose price its
+ * budget pays, a free agent's signing bonus: nobody else is ever proposed), MAX_PROPOSALS_PER_ENTRY at most, in a total
+ * order (the player key breaks every tie, so the order of `candidates` never shows). An empty eleven has no weak spot,
+ * hence no needs and no rating for a bargain to reach.
  */
 export function proposeSignings<C extends MarketCandidate>(
   eleven: readonly ElevenSlot[],
@@ -268,39 +257,30 @@ export function proposeSignings<C extends MarketCandidate>(
 ): SigningProposals<C> {
   const weakSpot = weakSpotOf(eleven);
   const rules = entryRules(weakSpot);
-  const reachable = candidates.filter((candidate) => isReachable(candidate, buyer));
-  const eligible = reachable.filter((candidate) => isEligible(candidate, buyer));
-  /** Needs and « affordable » stay at the weak spot, whatever a candidate would bring elsewhere. */
-  const atWeakSpot = (entry: "needs" | "affordable"): Proposal<C>[] =>
+  const eligible = candidates.filter((candidate) => isEligible(candidate, buyer));
+  /** Needs stays at the weak spot, whatever a candidate would bring elsewhere. */
+  const needs = (): Proposal<C>[] =>
     weakSpot === null
       ? []
-      : firstOf(eligible, rules[entry]).map(
+      : firstOf(eligible, rules.needs).map(
           (candidate, rank): Proposal<C> => ({
             candidate,
             slot: weakSpot.position,
             impact: impactAt(candidate, weakSpot),
-            tag: entry === "affordable" ? "affordable" : rank === 0 ? "best" : needTag(candidate),
+            tag: rank === 0 ? "best" : needTag(candidate),
           }),
         );
   /** The other entries place each candidate in the slot where he brings the most. */
   const inBestSlot = (entry: Exclude<MarketEntry, "needs">, tag: ProposalTag): Proposal<C>[] =>
     firstOf(eligible, rules[entry]).map((candidate): Proposal<C> => ({ candidate, ...bestSlot(candidate, eleven), tag }));
-  // With room enough for any wage, the entry would take someone: the reachable players it takes.
-  const wageBound = Object.fromEntries(
-    MARKET_ENTRIES.map((entry) => [
-      entry,
-      !eligible.some(rules[entry].takes) && reachable.some(rules[entry].takes),
-    ]),
-  ) as Record<MarketEntry, boolean>;
   return {
     weakSpot,
     entries: {
-      needs: atWeakSpot(wageBound.needs ? "affordable" : "needs"),
+      needs: needs(),
       gems: inBestSlot("gems", "gem"),
       bargains: inBestSlot("bargains", "bargain"),
       stars: inBestSlot("stars", "star"),
     },
-    wageBound,
   };
 }
 
@@ -314,8 +294,8 @@ const MIN_ASKING_SHARE = Math.min(...ASKING_PRICE_BY_SEASONS_LEFT.map(([, share]
 /**
  * Below any asking price of a club for its player: a market value is a whole number of MARKET_VALUE_STEP, one at least
  * (marketValueFor), and the club asks at least MIN_ASKING_SHARE of it, rounded to the nearest step (askingPrice): never
- * more than half a step under that share. Positive: a free agent, who costs nothing, comes before a club's player on a
- * tie of rating or potential.
+ * more than half a step under that share. A bound on the club players a search has yet to read: the free agents, read
+ * all at once, cost their signing bonus, often more, and simply keep the search reading on a tie.
  */
 export const CLUB_ASKING_PRICE_FLOOR = MARKET_VALUE_STEP * MIN_ASKING_SHARE - MARKET_VALUE_STEP / 2;
 
@@ -349,14 +329,12 @@ export function maxClubSaving(overall: number): number {
 /**
  * The lowest overall a candidate of an entry can have: a rating in a slot never exceeds the overall, so Needs takes
  * nobody rated at the weak spot or below, and Bargains nobody rated more than BARGAIN_MAX_GAP_TO_WEAK_SPOT below it.
- * Without a weak spot, Needs and « affordable » take nobody: Infinity. -Infinity when any overall will do.
+ * Without a weak spot, Needs takes nobody: Infinity. -Infinity when any overall will do.
  */
-export function lowestOverallIn(entry: RankedEntry, weakSpot: WeakSpot | null): number {
+export function lowestOverallIn(entry: MarketEntry, weakSpot: WeakSpot | null): number {
   switch (entry) {
     case "needs":
       return weakSpot === null ? Infinity : weakSpot.rating + 1;
-    case "affordable":
-      return weakSpot === null ? Infinity : -Infinity;
     case "bargains":
       return weakSpot === null ? -Infinity : weakSpot.rating - BARGAIN_MAX_GAP_TO_WEAK_SPOT;
     case "gems":
@@ -370,7 +348,7 @@ export function lowestOverallIn(entry: RankedEntry, weakSpot: WeakSpot | null): 
  * (his potential for Gems): a lower bound of his keys in entryRules' order. Null when no such player can enter it, rated
  * under lowestOverallIn.
  */
-export function entryBound(entry: RankedEntry, weakSpot: WeakSpot | null, highest: number): number[] | null {
+export function entryBound(entry: MarketEntry, weakSpot: WeakSpot | null, highest: number): number[] | null {
   if (highest < lowestOverallIn(entry, weakSpot)) {
     return null;
   }
@@ -381,7 +359,6 @@ export function entryBound(entry: RankedEntry, weakSpot: WeakSpot | null, highes
     case "bargains":
       return [-maxClubSaving(highest), -highest];
     case "needs":
-    case "affordable":
       // His impact at the weak spot is his rounded rating there, never above his overall, less the starter's.
       return weakSpot === null ? null : [-(highest - weakSpot.rating), CLUB_ASKING_PRICE_FLOOR, -highest];
   }
@@ -404,7 +381,7 @@ export function isSettled(rule: EntryRule, first: readonly MarketCandidate[], bo
  * or more. Null while the first ones are fewer than the entry keeps: the next players read may change everything.
  */
 export function settlingFloor(
-  entry: RankedEntry,
+  entry: MarketEntry,
   weakSpot: WeakSpot | null,
   first: readonly MarketCandidate[],
   highest: number,
@@ -420,38 +397,4 @@ export function settlingFloor(
     }
   }
   return RATING_MIN;
-}
-
-/** Largest wage, euros per season, the database holds. */
-const MAX_DATABASE_INT = 2_147_483_647;
-
-/**
- * The highest current wage of a club's player whose asked wage to move (minimumWage) the wage room pays; -1 when it pays
- * none. Exact: the asked wage grows with the current wage.
- */
-export function highestWagePaid(wageRoom: number): number {
-  const asks = (wage: number): number =>
-    minimumWage({ age: 0, overall: 0, potential: 0, wage, seasonsLeft: 0 }, { reputation: 0 });
-  if (asks(0) > wageRoom) {
-    return -1;
-  }
-  let low = 0;
-  let high = MAX_DATABASE_INT;
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2);
-    if (asks(middle) <= wageRoom) {
-      low = middle;
-    } else {
-      high = middle - 1;
-    }
-  }
-  return low;
-}
-
-/**
- * Before every gem's birth date, on a date: a gem is GEM_MAX_AGE at most, so born after the same day GEM_MAX_AGE + 1
- * years earlier (ageInYears), two days of margin for a 29 February and a time of day.
- */
-export function gemBirthDateFloor(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear() - GEM_MAX_AGE - 1, date.getUTCMonth(), date.getUTCDate() - 2));
 }

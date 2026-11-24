@@ -9,7 +9,7 @@ import {
   SQUAD_ROLES,
   SQUAD_STANDARD_SIZE,
 } from "./balance";
-import { contractYears, wageFor } from "./economy";
+import { contractYears, marketValueFor, renewalWage, signingBonus, wageFor } from "./economy";
 import { roleOf, type Position } from "./positions";
 
 export type RosterPlayer = {
@@ -24,13 +24,13 @@ export type RosterPlayer = {
 
 export type RosterClub = {
   id: string;
-  wageBudget: number; // euros per season
+  budget: number; // euros: its transfer budget, which pays its signings' bonuses
 };
 
 export type SquadDecision =
   | { type: "renew"; playerId: string; years: number; wage: number }
   | { type: "release"; playerId: string }
-  | { type: "sign"; playerId: string; years: number; wage: number };
+  | { type: "sign"; playerId: string; years: number; wage: number; bonus: number }; // bonus: euros, signingBonus
 
 const byId = (a: RosterPlayer, b: RosterPlayer): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
@@ -80,11 +80,13 @@ export function wantsToKeep(player: RosterPlayer, standard: number): boolean {
  * 1. expiring contracts: renew the players worth keeping, release the others, unless the free agent
  *    market has nobody left to replace them in their role (SQUAD_ROLES);
  * 2. signings: the best free agents for each role below its count, then outfield players up to
- *    SQUAD_SIZE_MIN, as long as the payroll stays within the wage budget. A missing goalkeeper is signed
- *    even when the squad is already at SQUAD_SIZE_MAX;
+ *    SQUAD_SIZE_MIN, as long as the club's budget pays their signing bonuses (signingBonus, on the preseason date),
+ *    each debited as he signs: a free agent whose bonus is above what is left is passed over. A missing goalkeeper is
+ *    signed even when the squad is already at SQUAD_SIZE_MAX;
  * 3. above SQUAD_SIZE_MAX, the weakest players under a running contract are released, prospects and the
  *    last goalkeepers excepted.
- * Wages come from economy.ts; contract lengths are drawn from `rng`.
+ * Wages come from economy.ts, written as before though no wage budget limits them (docs/design/simplification.md § 1.5);
+ * contract lengths are drawn from `rng`.
  */
 export function planSquad(
   club: RosterClub,
@@ -116,7 +118,6 @@ export function planSquad(
     }
   }
 
-  let payroll = 0;
   const kept: RosterPlayer[] = [];
   for (const player of ordered) {
     if (releasedIds.has(player.id)) {
@@ -125,26 +126,29 @@ export function planSquad(
     }
     kept.push(player);
     if (player.contractExpiring) {
-      const wage = Math.max(player.wage, wageFor(player));
-      decisions.push({ type: "renew", playerId: player.id, years: contractYears(player.age, rng), wage });
-      payroll += wage;
-    } else {
-      payroll += player.wage;
+      decisions.push({ type: "renew", playerId: player.id, years: contractYears(player.age, rng), wage: renewalWage(player) });
     }
   }
 
-  // 2. Signings.
+  // 2. Signings, each paying its bonus out of the budget left.
   const counts = countByRole(kept);
   const signedIds = new Set<string>();
   let size = kept.length;
+  let budget = club.budget;
   const trySign = (candidate: RosterPlayer): void => {
-    const wage = wageFor(candidate);
-    if (payroll + wage > club.wageBudget) {
+    const bonus = signingBonus(marketValueFor(candidate));
+    if (bonus > budget) {
       return;
     }
-    decisions.push({ type: "sign", playerId: candidate.id, years: contractYears(candidate.age, rng), wage });
+    decisions.push({
+      type: "sign",
+      playerId: candidate.id,
+      years: contractYears(candidate.age, rng),
+      wage: wageFor(candidate),
+      bonus,
+    });
     signedIds.add(candidate.id);
-    payroll += wage;
+    budget -= bonus;
     counts[roleIndex(candidate.position)]++;
     size++;
   };

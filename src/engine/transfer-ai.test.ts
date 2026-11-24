@@ -1,21 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
-import { WAGE_SALE_MIN_FEE_SHARE } from "./balance";
+import { SQUAD_LIMIT } from "./balance";
 import { marketValueFor, wageFor } from "./economy";
 import {
   askingPrice,
   biddingOrder,
   evaluateOffer,
-  evaluateRenewal,
   minimumWage,
-  planWageSales,
   resaleCap,
   saleBids,
   walkSaleBids,
   type BidderClub,
   type ClubArrival,
   type OfferPlayer,
-  type WageSalePlayer,
 } from "./transfer-ai";
 
 const player = (overrides: Partial<OfferPlayer> = {}): OfferPlayer => ({
@@ -41,9 +38,9 @@ describe("askingPrice", () => {
 });
 
 describe("evaluateOffer", () => {
-  it("is accepted at the asking price with a 10 % raise", () => {
+  it("is accepted at the asking price, the player joining for his 10 % raise", () => {
     const target = player();
-    const evaluation = evaluateOffer(target, SELLER, BUYER, askingPrice(target), 3_300_000);
+    const evaluation = evaluateOffer(target, SELLER, BUYER, askingPrice(target));
 
     expect(evaluation).toMatchObject({ accepted: true, clubAccepts: true, playerAccepts: true, refusals: [] });
     expect(evaluation.minimumWage).toBe(3_300_000);
@@ -51,27 +48,24 @@ describe("evaluateOffer", () => {
 
   it("is refused by the club below the asking price", () => {
     const target = player();
-    const evaluation = evaluateOffer(target, SELLER, BUYER, askingPrice(target) - 1, 3_300_000);
+    const evaluation = evaluateOffer(target, SELLER, BUYER, askingPrice(target) - 1);
 
     expect(evaluation).toMatchObject({ accepted: false, clubAccepts: false, playerAccepts: true, refusals: ["fee_too_low"] });
   });
 
-  it("is refused by the player without a 10 % raise", () => {
+  it("is refused by the player for a club far below his current club or his level, never for a wage", () => {
     const target = player();
-    const evaluation = evaluateOffer(target, SELLER, BUYER, askingPrice(target), 3_299_999);
-
-    expect(evaluation).toMatchObject({ accepted: false, clubAccepts: true, playerAccepts: false, refusals: ["wage_too_low"] });
-  });
-
-  it("is refused by the player for a club far below his current club or his level", () => {
-    const target = player();
-    const stepDown = evaluateOffer(target, SELLER, { reputation: 69 }, askingPrice(target), 3_300_000);
+    const stepDown = evaluateOffer(target, SELLER, { reputation: 69 }, askingPrice(target));
     const star = player({ overall: 90, potential: 90 });
-    const tooSmall = evaluateOffer(star, { reputation: 60 }, { reputation: 74 }, askingPrice(star), 3_300_000);
+    const tooSmall = evaluateOffer(star, { reputation: 60 }, { reputation: 74 }, askingPrice(star));
 
     expect(stepDown.refusals).toEqual(["club_reputation_too_low"]);
-    expect(evaluateOffer(target, SELLER, { reputation: 70 }, askingPrice(target), 3_300_000).accepted).toBe(true);
+    expect(evaluateOffer(target, SELLER, { reputation: 70 }, askingPrice(target)).accepted).toBe(true);
     expect(tooSmall.refusals).toEqual(["club_reputation_too_low"]);
+    // An offer carries the wage the player asks: an underpaid or an overpaid player alike accepts it.
+    for (const wage of [0, 1, 50_000_000]) {
+      expect(evaluateOffer(player({ wage }), SELLER, BUYER, askingPrice(player({ wage }))).accepted).toBe(true);
+    }
   });
 
   it("lets a free agent sign without a fee for 90 % of his market wage, rounded up to the thousand", () => {
@@ -81,34 +75,21 @@ describe("evaluateOffer", () => {
     expect(floor % 1_000).toBe(0);
     expect(floor).toBeGreaterThanOrEqual(wageFor(freeAgent) * 0.9);
     expect(floor).toBeLessThan(wageFor(freeAgent) * 0.9 + 1_000);
-    expect(evaluateOffer(freeAgent, null, BUYER, 0, floor)).toMatchObject({ accepted: true, askingPrice: 0 });
-    expect(evaluateOffer(freeAgent, null, BUYER, 0, floor - 1).refusals).toEqual(["wage_too_low"]);
-  });
-});
-
-describe("evaluateRenewal", () => {
-  it("asks for the higher of the current wage and the market wage", () => {
-    const underpaid = player({ wage: 100_000 });
-    const overpaid = player({ wage: 50_000_000 });
-
-    expect(evaluateRenewal(underpaid, wageFor(underpaid))).toEqual({ accepted: true, minimumWage: wageFor(underpaid) });
-    expect(evaluateRenewal(underpaid, wageFor(underpaid) - 1).accepted).toBe(false);
-    expect(evaluateRenewal(overpaid, 50_000_000).accepted).toBe(true);
-    expect(evaluateRenewal(overpaid, wageFor(overpaid)).accepted).toBe(false);
+    expect(evaluateOffer(freeAgent, null, BUYER, 0)).toMatchObject({ accepted: true, askingPrice: 0, minimumWage: floor });
   });
 });
 
 describe("saleBids", () => {
   const bidders: BidderClub[] = [
-    { slug: "rich", reputation: 88, budget: 500_000_000, wageRoom: 100_000_000 },
-    { slug: "second", reputation: 84, budget: 500_000_000, wageRoom: 100_000_000 },
-    { slug: "third", reputation: 82, budget: 500_000_000, wageRoom: 100_000_000 },
-    { slug: "broke", reputation: 86, budget: 1_000_000, wageRoom: 100_000_000 },
-    { slug: "no-wage-room", reputation: 87, budget: 500_000_000, wageRoom: 0 },
-    { slug: "too-small", reputation: 60, budget: 500_000_000, wageRoom: 100_000_000 },
+    { slug: "rich", reputation: 88, budget: 500_000_000, squadSize: 25 },
+    { slug: "second", reputation: 84, budget: 500_000_000, squadSize: 29 },
+    { slug: "third", reputation: 82, budget: 500_000_000, squadSize: 20 },
+    { slug: "broke", reputation: 86, budget: 1_000_000, squadSize: 25 },
+    { slug: "full", reputation: 87, budget: 500_000_000, squadSize: SQUAD_LIMIT },
+    { slug: "too-small", reputation: 60, budget: 500_000_000, squadSize: 25 },
   ];
 
-  it("only lets clubs the player would join and that can pay bid, best fee first, at his minimum wage", () => {
+  it("only lets clubs the player would join, under 30 players and able to pay, bid, best fee first, at his minimum wage", () => {
     const bids = saleBids(player(), SELLER, bidders, makeRng("sale"));
 
     expect(bids.map((bid) => bid.clubSlug).sort()).toEqual(["rich", "second", "third"]);
@@ -136,12 +117,12 @@ describe("saleBids", () => {
 
 describe("walkSaleBids", () => {
   const ordered: BidderClub[] = [
-    { slug: "rich", reputation: 88, budget: 500_000_000, wageRoom: 100_000_000 },
-    { slug: "no-wage-room", reputation: 87, budget: 500_000_000, wageRoom: 0 },
-    { slug: "broke", reputation: 86, budget: 1_000_000, wageRoom: 100_000_000 },
-    { slug: "second", reputation: 84, budget: 500_000_000, wageRoom: 100_000_000 },
-    { slug: "third", reputation: 82, budget: 500_000_000, wageRoom: 100_000_000 },
-    { slug: "too-small", reputation: 60, budget: 500_000_000, wageRoom: 100_000_000 },
+    { slug: "rich", reputation: 88, budget: 500_000_000, squadSize: 25 },
+    { slug: "full", reputation: 87, budget: 500_000_000, squadSize: SQUAD_LIMIT },
+    { slug: "broke", reputation: 86, budget: 1_000_000, squadSize: 25 },
+    { slug: "second", reputation: 84, budget: 500_000_000, squadSize: 29 },
+    { slug: "third", reputation: 82, budget: 500_000_000, squadSize: 20 },
+    { slug: "too-small", reputation: 60, budget: 500_000_000, squadSize: 25 },
   ];
   /** A walk over the first `read` clubs, others left to read. */
   const walk = (clubs: BidderClub[], read: number) => walkSaleBids(player(), SELLER, clubs.slice(0, read), true, makeRng("sale"));
@@ -173,6 +154,22 @@ describe("walkSaleBids", () => {
       bids: ["rich", "second", "third"].map((slug) => ({ ...free.bids.find((bid) => bid.clubSlug === slug), fee: cap })),
     });
     expect(walkSaleBids(player(), SELLER, ordered, false, makeRng("sale"), Number.MAX_SAFE_INTEGER)).toEqual(free);
+  });
+
+  it("passes a club at 30 players over without a draw, whatever its budget and reputation; one at 29 bids", () => {
+    const withoutFull = ordered.filter((club) => club.slug !== "full");
+    const walked = walkSaleBids(player(), SELLER, ordered, false, makeRng("sale"));
+
+    // The clubs after it draw what they would without it in the list: no wage room counts, only the squad.
+    expect(walked).toEqual(walkSaleBids(player(), SELLER, withoutFull, false, makeRng("sale")));
+    expect(walked.bids.map((bid) => bid.clubSlug)).not.toContain("full");
+    expect(walked.bids.map((bid) => bid.clubSlug)).toContain("second");
+    // Above 30 too: a squad from before the limit bids for nobody.
+    const crowded = ordered.map((club) => (club.slug === "full" ? { ...club, squadSize: SQUAD_LIMIT + 4 } : club));
+    expect(walkSaleBids(player(), SELLER, crowded, false, makeRng("sale"))).toEqual(walked);
+    // The same club with a place left draws, and takes the rich club's next draws.
+    const roomy = ordered.map((club) => (club.slug === "full" ? { ...club, squadSize: SQUAD_LIMIT - 1 } : club));
+    expect(walkSaleBids(player(), SELLER, roomy, false, makeRng("sale")).bids.map((bid) => bid.clubSlug)).toContain("full");
   });
 });
 
@@ -207,71 +204,5 @@ describe("resaleCap", () => {
     expect(resaleCap(releasedThenSignedFree, player(), utc("2027-01-12"))).toEqual({ kind: "free", fee: Math.floor(value / 2) });
     expect(resaleCap(boughtBack, player(), utc("2027-01-12"))).toEqual({ kind: "purchase", fee: 110_000 });
     expect(resaleCap(sameDay, player(), utc("2027-01-12"))).toEqual({ kind: "free", fee: Math.floor(value / 2) });
-  });
-});
-
-describe("planWageSales", () => {
-  /** A squad of 22: two stars paid 12 M€ and 9 M€, a goalkeeper paid 8 M€, and 19 players paid 1 M€ (2 goalkeepers). */
-  const squad = (): WageSalePlayer[] => [
-    { ...player({ overall: 80, potential: 80, wage: 12_000_000 }), id: "star", goalkeeper: false },
-    { ...player({ overall: 78, potential: 79, wage: 9_000_000 }), id: "second", goalkeeper: false },
-    { ...player({ overall: 77, potential: 77, wage: 8_000_000 }), id: "keeper", goalkeeper: true },
-    ...Array.from({ length: 19 }, (_, index) => ({
-      ...player({ overall: 62, potential: 64, wage: 1_000_000 }),
-      id: `squad-${String(index).padStart(2, "0")}`,
-      goalkeeper: index < 2,
-    })),
-  ];
-  const payroll = (players: WageSalePlayer[]) => players.reduce((sum, member) => sum + member.wage, 0); // 48 M€
-  const RICH: BidderClub = { slug: "rich", reputation: 90, budget: 500_000_000, wageRoom: 100_000_000 };
-  const rngFor = (id: string) => makeRng(`wage-sales-test:${id}`);
-
-  it("sells nothing for a club within its wage budget", () => {
-    expect(planWageSales({ reputation: 60, wageBudget: 50_000_000 }, squad(), [RICH], rngFor)).toEqual([]);
-  });
-
-  it("sells the best-paid players first, and stops once the payroll is back within the budget", () => {
-    // 48 M€ for a 30 M€ budget: the 12 M€ star and the 9 M€ second go, 27 M€ left.
-    const sales = planWageSales({ reputation: 60, wageBudget: 30_000_000 }, squad(), [RICH], rngFor);
-    const sold = new Set(sales.map((sale) => sale.playerId));
-
-    expect(sales.map((sale) => sale.playerId)).toEqual(["star", "second"]);
-    expect(payroll(squad().filter((member) => !sold.has(member.id)))).toBeLessThanOrEqual(30_000_000);
-    for (const sale of sales) {
-      const sold = squad().find((member) => member.id === sale.playerId);
-      expect(sale.clubSlug).toBe("rich");
-      expect(sale.fee).toBeGreaterThanOrEqual(WAGE_SALE_MIN_FEE_SHARE * marketValueFor(sold ?? player()));
-    }
-  });
-
-  it("never sells under 80 % of the value: a player nobody can afford stays, and the next best paid is tried", () => {
-    const star = squad()[0];
-    // Enough budget for the second (value at 78) but not for 80 % of the star's value.
-    const tight: BidderClub = { ...RICH, slug: "tight", budget: Math.floor(WAGE_SALE_MIN_FEE_SHARE * marketValueFor(star)) - 1 };
-    const sales = planWageSales({ reputation: 60, wageBudget: 40_000_000 }, squad(), [tight], rngFor);
-
-    expect(sales.map((sale) => sale.playerId)).not.toContain("star");
-    expect(sales.map((sale) => sale.playerId)[0]).toBe("second");
-  });
-
-  it("keeps twenty players at least, even still over the budget", () => {
-    // 1 M€ budget: impossible to reach; the sales stop at 20 players.
-    const sales = planWageSales({ reputation: 60, wageBudget: 1_000_000 }, squad(), [RICH], rngFor);
-
-    expect(sales.map((sale) => sale.playerId)).toEqual(["star", "second"]);
-  });
-
-  it("never sells one of the last two goalkeepers, even the best paid", () => {
-    // Two goalkeepers only, paid most: they stay, the best-paid outfield players go.
-    const keepers: WageSalePlayer[] = [
-      { ...player({ overall: 79, potential: 79, wage: 15_000_000 }), id: "keeper-a", goalkeeper: true },
-      { ...player({ overall: 76, potential: 76, wage: 14_000_000 }), id: "keeper-b", goalkeeper: true },
-      ...squad().filter((member) => !member.goalkeeper),
-    ];
-    const sales = planWageSales({ reputation: 60, wageBudget: 40_000_000 }, keepers, [RICH], rngFor);
-
-    expect(sales.map((sale) => sale.playerId)).not.toContain("keeper-a");
-    expect(sales.map((sale) => sale.playerId)).not.toContain("keeper-b");
-    expect(sales.map((sale) => sale.playerId)[0]).toBe("star");
   });
 });

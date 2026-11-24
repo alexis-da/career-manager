@@ -4,7 +4,6 @@ import {
   ASKING_PRICE_BY_SEASONS_LEFT,
   FREE_AGENT_MIN_WAGE_SHARE,
   MARKET_VALUE_STEP,
-  MIN_GOALKEEPERS,
   PLAYER_REPUTATION_MARGIN,
   REPUTATION_STEP_DOWN,
   RESALE_CAP_FEE_PERCENT,
@@ -12,9 +11,8 @@ import {
   SALE_BID_SHARE_MAX,
   SALE_BID_SHARE_MIN,
   SALE_MAX_BIDDERS,
-  SQUAD_SIZE_MIN,
+  SQUAD_LIMIT,
   TRANSFER_MIN_WAGE_RAISE,
-  WAGE_SALE_MIN_FEE_SHARE,
   WAGE_STEP,
 } from "./balance";
 import { interpolate, lerp } from "./curves";
@@ -32,26 +30,25 @@ export type OfferClub = {
   reputation: number; // 1–99
 };
 
-export type OfferRefusal = "fee_too_low" | "wage_too_low" | "club_reputation_too_low";
+/**
+ * Why an offer is refused: its fee, by the selling club, or the buying club's reputation, by the player. Never the wage:
+ * an offer carries the wage the player asks (minimumWage), which the club always pays (docs/design/simplification.md § 1.1).
+ */
+export type OfferRefusal = "fee_too_low" | "club_reputation_too_low";
 
 export type OfferEvaluation = {
   accepted: boolean;
   clubAccepts: boolean;
   playerAccepts: boolean;
   askingPrice: number; // euros; 0 for a free agent
-  minimumWage: number; // euros per season
+  minimumWage: number; // euros per season: the wage he joins for
   refusals: OfferRefusal[];
-};
-
-export type RenewalEvaluation = {
-  accepted: boolean;
-  minimumWage: number;
 };
 
 export type BidderClub = OfferClub & {
   slug: string; // stable key: bids are ordered by it on ties, never by a database id
   budget: number; // euros
-  wageRoom: number; // euros per season left under the wage budget
+  squadSize: number; // its players under contract, not retired: at SQUAD_LIMIT, it bids for nobody
 };
 
 export type SaleBid = {
@@ -95,45 +92,34 @@ export function minimumReputation(player: OfferPlayer, sellingClub: OfferClub | 
 }
 
 /**
- * Immediate answer to an offer, with no pending state. The selling club accepts a fee at or above its
- * asking price; the player accepts a wage at or above his minimum from a club reputed enough. For a free
- * agent, pass sellingClub null: there is no fee to accept.
+ * Immediate answer to an offer, with no pending state. The selling club accepts a fee at or above its asking price; the
+ * player accepts a club reputed enough, for the wage he asks (minimumWage), which the offer carries. For a free agent,
+ * pass sellingClub null: there is no fee to accept.
  */
 export function evaluateOffer(
   player: OfferPlayer,
   sellingClub: OfferClub | null,
   buyingClub: OfferClub,
   fee: number,
-  wage: number,
 ): OfferEvaluation {
   const asking = sellingClub === null ? 0 : askingPrice(player);
-  const wageFloor = minimumWage(player, sellingClub);
   const refusals: OfferRefusal[] = [];
   if (fee < asking) {
     refusals.push("fee_too_low");
-  }
-  if (wage < wageFloor) {
-    refusals.push("wage_too_low");
   }
   if (buyingClub.reputation < minimumReputation(player, sellingClub)) {
     refusals.push("club_reputation_too_low");
   }
   const clubAccepts = !refusals.includes("fee_too_low");
-  const playerAccepts = !refusals.includes("wage_too_low") && !refusals.includes("club_reputation_too_low");
+  const playerAccepts = !refusals.includes("club_reputation_too_low");
   return {
     accepted: clubAccepts && playerAccepts,
     clubAccepts,
     playerAccepts,
     askingPrice: asking,
-    minimumWage: wageFloor,
+    minimumWage: minimumWage(player, sellingClub),
     refusals,
   };
-}
-
-/** A player extends his contract for at least his current wage or his market wage, whichever is higher. */
-export function evaluateRenewal(player: OfferPlayer, wage: number): RenewalEvaluation {
-  const floor = Math.max(player.wage, wageFor(player));
-  return { accepted: wage >= floor, minimumWage: floor };
 }
 
 /** Seed of the bids for a player put on sale on a date. */
@@ -185,11 +171,12 @@ export type SaleWalk = {
 
 /**
  * Bids of AI clubs for a player the managed club puts on sale, walking down the clubs in bidding order (biddingOrder):
- * only clubs the player would join, with wage room for his minimum wage, bid, at most SALE_MAX_BIDDERS, each offering a
- * drawn share of his market value when its budget allows. The clubs may be the first of that order only, the others
- * still to be read (`more`): a walk that needs one past them is not done, and is to be started again, with a new stream
- * from the same seed, once more are read. Every club reached draws as it would in a walk given all of them, so the bids
- * of a walk that is done are those of saleBids. Returned best first: highest fee, then highest reputation.
+ * only clubs the player would join, under SQUAD_LIMIT players, bid, at most SALE_MAX_BIDDERS, each offering a drawn share
+ * of his market value when its budget allows; a club at SQUAD_LIMIT is passed over without a draw. No wage room counts
+ * (docs/design/simplification.md § 1.5): the buyer pays his minimum wage. The clubs may be the first of that order only,
+ * the others still to be read (`more`): a walk that needs one past them is not done, and is to be started again, with a
+ * new stream from the same seed, once more are read. Every club reached draws as it would in a walk given all of them,
+ * so the bids of a walk that is done are those of saleBids. Returned best first: highest fee, then highest reputation.
  *
  * feeCap (resaleCap): a club that draws a higher fee, and can pay it, offers the cap instead. It draws nothing: the clubs
  * that bid, their wages and contracts, are those of the walk without it, only their fees are lowered, and the most
@@ -220,7 +207,7 @@ export function walkSaleBids(
     if (club.reputation < reputationFloor) {
       break;
     }
-    if (club.wageRoom < wage) {
+    if (club.squadSize >= SQUAD_LIMIT) {
       continue;
     }
     const fee = roundToStep(value * lerp(SALE_BID_SHARE_MIN, SALE_BID_SHARE_MAX, rng()), MARKET_VALUE_STEP);
@@ -244,63 +231,4 @@ export function saleBids(
   rng: Rng,
 ): SaleBid[] {
   return walkSaleBids(player, sellingClub, [...bidders].sort(biddingOrder), false, rng).bids;
-}
-
-/** A player of an AI club over its wage budget, as planWageSales reads him. */
-export type WageSalePlayer = OfferPlayer & {
-  id: string; // stable player key
-  goalkeeper: boolean;
-};
-
-export type WageSale = SaleBid & { playerId: string };
-
-/**
- * Sales of an AI club whose payroll is above its wage budget: its best-paid players first, each to the best bid of the
- * other AI clubs (saleBids: clubs he would join, with the budget and the wage room), never under
- * WAGE_SALE_MIN_FEE_SHARE of his market value, until the payroll is back within the budget. A player without such a bid
- * stays and the next best paid is tried; the squad never drops under SQUAD_SIZE_MIN players nor MIN_GOALKEEPERS
- * goalkeepers. Each sale takes the buyer's budget and wage room for the next ones. Nothing when within the budget.
- */
-export function planWageSales(
-  seller: OfferClub & { wageBudget: number },
-  squad: readonly WageSalePlayer[],
-  buyers: readonly BidderClub[],
-  rngFor: (playerId: string) => Rng,
-): WageSale[] {
-  let payroll = squad.reduce((sum, player) => sum + player.wage, 0);
-  if (payroll <= seller.wageBudget) {
-    return [];
-  }
-  const market = buyers.map((buyer) => ({ ...buyer }));
-  let size = squad.length;
-  let goalkeepers = squad.filter((player) => player.goalkeeper).length;
-  const sales: WageSale[] = [];
-
-  const byWage = [...squad].sort((a, b) => b.wage - a.wage || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  for (const player of byWage) {
-    if (payroll <= seller.wageBudget || size <= SQUAD_SIZE_MIN) {
-      break;
-    }
-    if (player.goalkeeper && goalkeepers <= MIN_GOALKEEPERS) {
-      continue;
-    }
-    const floor = WAGE_SALE_MIN_FEE_SHARE * marketValueFor(player);
-    const bid = saleBids(player, seller, market, rngFor(player.id)).find((candidate) => candidate.fee >= floor);
-    const buyer = bid === undefined ? undefined : market.find((club) => club.slug === bid.clubSlug);
-    if (bid === undefined || buyer === undefined) {
-      continue;
-    }
-    sales.push({ ...bid, playerId: player.id });
-    buyer.budget -= bid.fee;
-    buyer.wageRoom -= bid.wage;
-    payroll -= player.wage;
-    size--;
-    goalkeepers -= player.goalkeeper ? 1 : 0;
-  }
-  return sales;
-}
-
-/** Seed of the bids for a player an AI club over its wage budget sells in a preseason. */
-export function wageSaleRngSeed(saveSeed: string, startYear: number, playerKey: string): string {
-  return `${saveSeed}:wage-sale:${startYear}:${playerKey}`;
 }

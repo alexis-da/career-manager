@@ -15,6 +15,9 @@ import {
   MARKET_VALUE_PER_GROWTH_POINT,
   MARKET_VALUE_STEP,
   NEUTRAL_BUDGET_COEFFICIENT,
+  SIGNING_BONUS_MIN,
+  SIGNING_BONUS_SHARE,
+  SIGNING_BONUS_STEP,
   WAGE_AGE_FACTOR,
   WAGE_BUDGET_FLOOR_SHARE,
   WAGE_BUDGET_MARGIN,
@@ -155,6 +158,28 @@ export function wageFor(player: Pick<ContractProfile, "age" | "overall">): numbe
   return roundToStep(
     interpolate(WAGE_BY_OVERALL, player.overall) * interpolate(WAGE_AGE_FACTOR, player.age),
     WAGE_STEP,
+  );
+}
+
+/**
+ * The wage a player extends his contract for, euros per season: his current wage or his market wage (wageFor), whichever
+ * is higher. The managed club's renewals and the AI clubs' (planSquad) alike; nothing is ever refused below it, nothing
+ * is asked above it (docs/design/simplification.md § 1.1).
+ */
+export function renewalWage(player: Pick<ContractProfile, "age" | "overall"> & { wage: number }): number {
+  return Math.max(player.wage, wageFor(player));
+}
+
+/**
+ * A free agent's signing bonus in euros, paid on the signing club's transfer budget (docs/design/simplification.md § 1.3):
+ * SIGNING_BONUS_SHARE of his market value on the signing day (marketValueFor), rounded up to SIGNING_BONUS_STEP, never
+ * under SIGNING_BONUS_MIN. Rounded to the euro first: a product such as 1 010 000 × 0.25 must not reach the next step by
+ * a floating-point hair.
+ */
+export function signingBonus(marketValue: number): number {
+  return Math.max(
+    SIGNING_BONUS_MIN,
+    Math.ceil(Math.round(marketValue * SIGNING_BONUS_SHARE) / SIGNING_BONUS_STEP) * SIGNING_BONUS_STEP,
   );
 }
 

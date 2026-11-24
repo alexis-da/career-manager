@@ -45,7 +45,7 @@ export async function renewContractAction(input: RenewContractInput): Promise<Ac
     };
   }
   revalidatePath(`/saves/${parsed.data.saveId}`, "layout");
-  const wage = formatMoney(parsed.data.wage, locale);
+  const wage = formatMoney(outcome.wage, locale);
   return {
     ok: true,
     message:

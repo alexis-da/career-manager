@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FREE_AGENT_STAY_MIN_OVERALL, MIN_GOALKEEPERS, SQUAD_SIZE_MAX, SQUAD_SIZE_MIN } from "../engine/balance";
-import { marketValueFor } from "../engine/economy";
+import { marketValueFor, signingBonus } from "../engine/economy";
 import { FREE_AGENT_POOL_SLUG } from "../engine/free-agents";
 import { ATTRIBUTE_NAMES, RATING_MAX, RATING_MIN } from "../engine/generation";
 import { seasonStartDate, WORLD_START_YEAR } from "../engine/world";
@@ -36,6 +36,10 @@ type AfterFirstAdvance = {
   expiredContractsInClubs: number;
   poolStillFree: number; // free agents of the initial pool rated FREE_AGENT_STAY_MIN_OVERALL or less, still in the world
   poolLeft: number;
+  // The preseason's free signings: their fees and the bonuses they should be, and the paid transfers of the day, none
+  // since the AI clubs' sales for a wage bill are gone (docs/design/simplification.md § 1.5).
+  preseasonSignings: { fee: number; bonus: number }[];
+  preseasonSales: number;
 };
 
 // Plays three seasons in a row on a save with the demo seed, advancing after each one, then deletes it. Runs
@@ -130,6 +134,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       marketValues,
       poolStillFree,
       poolLeft,
+      preseasonSignings,
+      preseasonSales,
     ] = await Promise.all([
       fixturesOfYear(FIRST_YEAR),
       db.fixture.count({ where: { saveId, season: { startYear: nextYear } } }),
@@ -182,6 +188,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
           playerSave: { playerKey: { startsWith: `${FREE_AGENT_POOL_SLUG}#` } },
         },
       }),
+      db.transfer.findMany({
+        where: { saveId, type: "FREE", fromClubId: null, toClubId: { not: null }, date: new Date(Date.UTC(nextYear, 6, 1)) },
+        select: { fee: true, playerSave: { select: { birthDate: true, overall: true, potential: true } } },
+      }),
+      db.transfer.count({ where: { saveId, type: "TRANSFER", date: new Date(Date.UTC(nextYear, 6, 1)) } }),
     ]);
     const kickoffDate = new Date(Date.UTC(nextYear, 6, 1));
     return {
@@ -201,6 +212,13 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
       expiredContractsInClubs,
       poolStillFree,
       poolLeft,
+      preseasonSignings: preseasonSignings.map(({ fee, playerSave }) => ({
+        fee,
+        bonus: signingBonus(
+          marketValueFor({ age: ageInYears(playerSave.birthDate, kickoffDate), overall: playerSave.overall, potential: playerSave.potential }),
+        ),
+      })),
+      preseasonSales,
       wrongMarketValues: marketValues.filter(
         (player) =>
           player.marketValue !==
@@ -330,6 +348,16 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("advanceToNextSeason ove
     expect(state.transition.preseason.skipped).toBe(false);
     expect(state.transition.preseason.youthPlayers).toBe(192);
     expect(state.expiredContractsInClubs).toBe(0);
+  });
+
+  it("has the AI clubs pay a signing bonus for each free agent they sign, and sell nobody to one another", () => {
+    const state = afterFirstAdvance();
+
+    expect(state.preseasonSignings.length).toBeGreaterThan(0);
+    expect(state.preseasonSignings).toHaveLength(state.transition.preseason.signings);
+    expect(state.preseasonSignings.filter(({ fee, bonus }) => fee !== bonus)).toEqual([]);
+    expect(state.transition.preseason.bonuses).toBe(state.preseasonSignings.reduce((sum, { fee }) => sum + fee, 0));
+    expect(state.preseasonSales).toBe(0);
   });
 
   it("makes the free agents of the initial pool still unsigned at the next preseason leave the world, unless rated above 65", () => {

@@ -9,7 +9,7 @@ const REASONS: TransferRefusal[] = [
   "window_closed",
   "not_available",
   "insufficient_budget",
-  "wage_budget_exceeded",
+  "squad_full",
   "club_refused",
   "player_refused",
   "no_offer",
@@ -46,32 +46,41 @@ describe("refusalMessage", () => {
     );
   });
 
-  it("tells what the player asks, or that the club's reputation is the problem", () => {
-    expect(message("player_refused", ["wage_too_low"], { minimumWage: 2_400_000 })).toBe(
-      "Le joueur refuse : il demande au moins 2,4 M€ par saison.",
-    );
-    expect(message("player_refused", ["wage_too_low"], { minimumWage: 2_400_000 }, "en")).toBe(
-      "The player refuses: he wants at least €2.4m per season.",
-    );
+  it("tells that the club's reputation is the problem, a player refusing for nothing else", () => {
     expect(message("player_refused", ["club_reputation_too_low"])).toContain("réputation");
     expect(message("player_refused", ["club_reputation_too_low"], {}, "en")).toContain("reputation");
+    expect(message("player_refused", [], { minimumWage: 2_400_000 })).toBe("Le joueur refuse : il demande au moins 2,4 M€ par saison.");
+    expect(message("player_refused", [], { minimumWage: 2_400_000 }, "en")).toBe(
+      "The player refuses: he wants at least €2.4m per season.",
+    );
   });
 
-  it("gives the amounts of a refusal for budget, wages or price", () => {
+  it("gives the amounts of a refusal for budget, a signing bonus or price", () => {
     expect(message("insufficient_budget", [], { fee: 120_000_000, budget: 45_000_000 })).toBe(
       "Budget insuffisant : l'indemnité de 120 M€ dépasse ton budget transferts de 45 M€.",
     );
     expect(message("insufficient_budget", [], { fee: 120_000_000, budget: 45_000_000 }, "en")).toBe(
       "Insufficient budget: the fee of €120m exceeds your transfer budget of €45m.",
     );
-    expect(message("wage_budget_exceeded", [], { wage: 3_000_000, wageRoom: -500_000 })).toBe(
-      "Masse salariale dépassée : 3 M€ par saison, pour une marge restante de 0 €.",
+    // A free agent's signing bonus, whatever the budget given.
+    expect(message("insufficient_budget", [], { bonus: 1_300_000, budget: 900_000 })).toBe(
+      "Ton budget ne paie pas sa prime à la signature (1,3 M€).",
     );
+    expect(message("insufficient_budget", [], { bonus: 1_300_000 }, "en")).toBe("Your budget doesn't cover his signing bonus (€1.3m).");
     expect(message("club_refused", ["fee_too_low"], { clubName: "FC Barcelona", askingPrice: 18_500_000 })).toBe(
       "FC Barcelona refuse : il demande au moins 18,5 M€.",
     );
     expect(message("club_refused", ["fee_too_low"], { clubName: "FC Barcelona", askingPrice: 18_500_000 }, "en")).toBe(
       "FC Barcelona refuses: they want at least €18.5m.",
+    );
+  });
+
+  it("says a full squad has 30 players, and what to do, in both languages", () => {
+    expect(message("squad_full")).toBe(
+      "Ton effectif compte déjà 30 joueurs, le maximum : vends ou libère un joueur avant d'en recruter un autre.",
+    );
+    expect(message("squad_full", [], {}, "en")).toBe(
+      "Your squad already has 30 players, the maximum: sell or release one before signing another.",
     );
   });
 

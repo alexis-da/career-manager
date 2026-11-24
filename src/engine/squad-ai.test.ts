@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { makeRng, shuffle } from "../lib/rng";
-import { MIN_GOALKEEPERS, SQUAD_SIZE_MAX, SQUAD_SIZE_MIN } from "./balance";
-import { wageFor } from "./economy";
+import { MIN_GOALKEEPERS, SIGNING_BONUS_MIN, SQUAD_SIZE_MAX, SQUAD_SIZE_MIN } from "./balance";
+import { marketValueFor, signingBonus, wageFor } from "./economy";
 import { squadTemplate, type Position } from "./positions";
 import { planSquad, type RosterClub, type RosterPlayer, type SquadDecision } from "./squad-ai";
 
-const RICH_CLUB: RosterClub = { id: "club", wageBudget: 500_000_000 };
+const RICH_CLUB: RosterClub = { id: "club", budget: 500_000_000 };
+
+/** The signing bonus of a free agent on the preseason date. */
+const bonusOf = (player: RosterPlayer): number => signingBonus(marketValueFor(player));
+
+/** The bonuses the signings of a plan pay. */
+const bonusesOf = (decisions: readonly SquadDecision[]): number =>
+  decisions.reduce((sum, decision) => sum + (decision.type === "sign" ? decision.bonus : 0), 0);
 
 function roster(prefix: string, counts: Partial<Record<Position, number>>, overall: number): RosterPlayer[] {
   return (Object.entries(counts) as [Position, number][]).flatMap(([position, count]) =>
@@ -83,13 +90,13 @@ describe("planSquad", () => {
     expect(idsOf(decisions, "release")).toEqual([]);
   });
 
-  it("signs free agents up to 20–25 players with 2 goalkeepers, within the wage budget", () => {
+  it("signs free agents up to 20–25 players with 2 goalkeepers, each paying his bonus out of the budget", () => {
     const squad = roster("regular", { CB: 6, CM: 6, ST: 3 }, 68);
     const market = [
       ...roster("free-a", { GK: 3, CB: 4, CM: 4, ST: 3 }, 66),
       ...roster("free-b", { GK: 1, CB: 3, CM: 3, ST: 3 }, 58),
     ];
-    const club = { id: "club", wageBudget: 60_000_000 };
+    const club = { id: "club", budget: 60_000_000 };
 
     const decisions = planSquad(club, squad, market, makeRng("signings"));
     const after = apply(squad, market, decisions);
@@ -97,11 +104,24 @@ describe("planSquad", () => {
     expect(after.players.length).toBeGreaterThanOrEqual(SQUAD_SIZE_MIN);
     expect(after.players.length).toBeLessThanOrEqual(SQUAD_SIZE_MAX);
     expect(after.goalkeepers).toBeGreaterThanOrEqual(MIN_GOALKEEPERS);
-    expect(after.payroll).toBeLessThanOrEqual(club.wageBudget);
+    expect(bonusesOf(decisions)).toBeLessThanOrEqual(club.budget);
     for (const decision of decisions.filter((d) => d.type === "sign")) {
       const signed = market.find((candidate) => candidate.id === decision.playerId);
-      expect(decision.wage).toBe(signed === undefined ? -1 : wageFor(signed));
+      if (signed === undefined) {
+        throw new Error(`Unknown signing ${decision.playerId}`);
+      }
+      // The wage is written as before, whatever the payroll: no wage budget limits a signing.
+      expect(decision).toMatchObject({ wage: wageFor(signed), bonus: bonusOf(signed) });
     }
+  });
+
+  it("signs whatever the payroll: the wages limit nothing, only the bonuses against the budget", () => {
+    const squad = roster("regular", { GK: 1, CB: 6, CM: 6, ST: 3 }, 68).map((member) => ({ ...member, wage: 50_000_000 }));
+    const market = roster("free", { GK: 2, CB: 3 }, 60);
+
+    const decisions = planSquad({ id: "club", budget: 10_000_000 }, squad, market, makeRng("big-payroll"));
+
+    expect(idsOf(decisions, "sign").length).toBeGreaterThan(0);
   });
 
   it("signs nobody when the squad is full, however good the free agents", () => {
@@ -116,13 +136,37 @@ describe("planSquad", () => {
     expect(apply(squad, market, decisions).players).toHaveLength(SQUAD_SIZE_MAX);
   });
 
-  it("signs nobody once the wage budget is used up", () => {
+  it("signs nobody when the budget pays no bonus, 50 000 € the least of them", () => {
     const squad = roster("regular", { GK: 1, CB: 6, CM: 6, ST: 3 }, 68);
-    const payroll = squad.reduce((sum, member) => sum + member.wage, 0);
+    const market = roster("free", { GK: 2, CB: 3 }, 60);
 
-    const decisions = planSquad({ id: "club", wageBudget: payroll }, squad, roster("free", { GK: 2, CB: 3 }, 60), makeRng("broke"));
+    for (const budget of [0, SIGNING_BONUS_MIN - 1, Math.min(...market.map(bonusOf)) - 1]) {
+      expect(idsOf(planSquad({ id: "club", budget }, squad, market, makeRng("broke")), "sign"), `${budget}`).toEqual([]);
+    }
+    // A budget of the cheapest bonus exactly pays it.
+    const exact = Math.min(...market.map(bonusOf));
+    expect(idsOf(planSquad({ id: "club", budget: exact }, squad, market, makeRng("broke")), "sign")).toHaveLength(1);
+  });
 
-    expect(idsOf(decisions, "sign")).toEqual([]);
+  it("debits each bonus as he signs: a free agent the rest no longer pays is passed over, a cheaper one after him signed", () => {
+    // Twenty players, three centre-backs short: the best free agent first, a dear one, then two cheap ones.
+    const squad = [...roster("regular", { GK: 2, RB: 2, LB: 2, CDM: 2, CM: 3, CAM: 2, RM: 2, LM: 2, ST: 2 }, 70), player("cb", "CB", 70)];
+    const dear = player("free-dear", "CB", 74, { age: 25 });
+    const cheap = [player("free-cheap-1", "CB", 60, { age: 31 }), player("free-cheap-2", "CB", 59, { age: 31 })];
+    const market = [dear, ...cheap];
+    expect(bonusOf(dear)).toBeGreaterThan(bonusOf(cheap[0]) + bonusOf(cheap[1]));
+
+    // Enough for the dear one and the first cheap one: nothing left for the second.
+    const both = bonusOf(dear) + bonusOf(cheap[0]);
+    const decisions = planSquad({ id: "club", budget: both }, squad, market, makeRng("debits"));
+    expect(idsOf(decisions, "sign")).toEqual(["free-cheap-1", "free-dear"]);
+    expect(bonusesOf(decisions)).toBe(both);
+
+    // Too little for the dear one: passed over, the two cheap ones after him signed.
+    const cheapOnes = bonusOf(cheap[0]) + bonusOf(cheap[1]);
+    const short = planSquad({ id: "club", budget: cheapOnes }, squad, market, makeRng("debits"));
+    expect(idsOf(short, "sign")).toEqual(["free-cheap-1", "free-cheap-2"]);
+    expect(bonusesOf(short)).toBe(cheapOnes);
   });
 
   it("releases the weakest players under contract above 25, keeping 2 goalkeepers", () => {

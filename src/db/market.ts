@@ -8,7 +8,7 @@ import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears, earliestBirthForMaxAge } from "../lib/dates";
 import { prisma } from "./client";
 import { getPlayerProfiles, type PlayerProfile, type TransferKind } from "./players";
-import { freeAgentWhere, quoteFor, quoteSquad, type ContractTerms, type TransferQuote } from "./transfers";
+import { freeAgentWhere, quoteFor, quoteSquad, squadSizeOf, type ContractTerms, type TransferQuote } from "./transfers";
 
 /** Rows per page in every list of the transfer market. */
 export const MARKET_PAGE_SIZE = 50;
@@ -71,18 +71,21 @@ export type MarketOverview = {
   wageBudget: number; // euros per season
   payroll: number; // euros per season
   wageRoom: number; // euros per season left under the wage budget
+  // The managed club's players under contract (squadSizeOf): at SQUAD_LIMIT, it signs nobody more (squad_full).
+  squadSize: number;
   freeAgents: number;
   competitions: { code: string }[]; // named by the screens
 };
 
 /**
- * The transfer window and the managed club's money, as the top of the transfer page shows them. Read once per request
- * (React's cache: the page and its proposals both ask); outside a server render, every call reads.
+ * The transfer window and the managed club's money and squad, as the top of the transfer page shows them. Read once per
+ * request (React's cache: the page and its proposals both ask); outside a server render, every call reads.
  */
 export const getMarketOverview = cache(async (saveId: string): Promise<MarketOverview> => {
   const [currentDate, club] = await Promise.all([currentDateOf(saveId), managedClub(saveId)]);
-  const [payroll, freeAgents, competitions] = await Promise.all([
+  const [payroll, squadSize, freeAgents, competitions] = await Promise.all([
     prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } }),
+    squadSizeOf(prisma, saveId, club.id),
     countFreeAgents(saveId),
     prisma.competition.findMany({
       where: { kind: "LEAGUE", seasons: { some: { saveId } } },
@@ -102,6 +105,7 @@ export const getMarketOverview = cache(async (saveId: string): Promise<MarketOve
     wageBudget: club.wageBudget,
     payroll: wages,
     wageRoom: club.wageBudget - wages,
+    squadSize,
     freeAgents,
     competitions,
   };
@@ -120,6 +124,7 @@ export type FreeAgentRow = {
   overall: number;
   potential: number;
   askedWage: number; // lowest wage he accepts, euros per season
+  signingBonus: number; // euros: what signing him takes from the budget (TransferQuote.askingPrice of a free agent)
   minimumReputation: number; // the lowest reputation of a club he joins
   formerClubName: string | null; // the club that released him
 };
@@ -173,6 +178,7 @@ export async function listFreeAgents(saveId: string, page: number): Promise<Pagi
         overall: player.overall,
         potential: player.potential,
         askedWage: quote.minimumWage,
+        signingBonus: quote.askingPrice,
         minimumReputation: quote.minimumReputation,
         formerClubName: nameOf(names, player.transfers.at(0)?.fromClubId),
       };

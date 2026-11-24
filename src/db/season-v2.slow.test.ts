@@ -66,7 +66,7 @@ type TransitionCheck = {
   financesBefore: Map<string, ClubFinances>; // by Club.id
   payrollsBefore: Map<string, number>; // by Club.id, at the end of the season closed
   financesAfter: Map<string, ClubFinances>;
-  saleFees: Map<string, number>; // budget change by Club.id from the preseason's AI sales for wage bills
+  bonusesPaid: Map<string, number>; // budget change by Club.id from the preseason's signing bonuses (planSquad): negative
   europeBonus: Map<string, number>; // what the closing season's European runs add to each club's reputation target, by Club.id
   participation: Map<string, number>; // the next season's European participation prize, credited at its opening, by Club.id
   cups: CupCheck[]; // the closing season's cups, read before the move
@@ -153,24 +153,23 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
   };
 
   /**
-   * Budget change of each club (Club.id) from the AI sales of a preseason (planWageSales): the fees received, minus the
-   * fees paid, of the paid transfers dated that day.
+   * Budget change of each club (Club.id) from the signing bonuses of a preseason (planSquad, docs/design/simplification.md
+   * § 1.5): the fees of the free signings dated that day, paid out of the signing club's dotation. No AI club sells to
+   * another any more: the sales for a wage bill above its budget are gone.
    */
-  const saleFeesOn = async (date: Date): Promise<Map<string, number>> => {
-    const sales = await database().transfer.findMany({
-      where: { saveId, type: "TRANSFER", date },
-      select: { fromClubId: true, toClubId: true, fee: true },
+  const bonusesOn = async (date: Date): Promise<Map<string, number>> => {
+    const signings = await database().transfer.findMany({
+      where: { saveId, type: "FREE", date, fromClubId: null, toClubId: { not: null } },
+      select: { toClubId: true, fee: true },
     });
-    const fees = new Map<string, number>();
-    for (const { fromClubId, toClubId, fee } of sales) {
-      if (fromClubId !== null) {
-        fees.set(fromClubId, (fees.get(fromClubId) ?? 0) + fee);
-      }
+    const paid = new Map<string, number>();
+    for (const { toClubId, fee } of signings) {
       if (toClubId !== null) {
-        fees.set(toClubId, (fees.get(toClubId) ?? 0) - fee);
+        paid.set(toClubId, (paid.get(toClubId) ?? 0) - fee);
       }
     }
-    return fees;
+    expect(await database().transfer.count({ where: { saveId, type: "TRANSFER", date } })).toBe(0);
+    return paid;
   };
 
   /** Plays the season in progress, then moves on, and reads back what the move did. */
@@ -312,7 +311,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         financesBefore,
         payrollsBefore,
         financesAfter: await financesOf(saveId),
-        saleFees: await saleFeesOn(seasonStartDate(startYear + 1)),
+        bonusesPaid: await bonusesOn(seasonStartDate(startYear + 1)),
         europeBonus,
         participation,
         cups,
@@ -572,8 +571,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
 
     // Each new division ranked by the new reputations: the dotation, plus half of the unspent budget for the managed club
     // alone (an AI club's is the dotation times its coefficient), and the wage budget of the payroll at the end of the
-    // season, plus its margin (the managed club's from its coefficient), at most the table's; the preseason's AI sales for
-    // wage bills move budgets too, their fees added back.
+    // season, plus its margin (the managed club's from its coefficient), at most the table's; the preseason's signing
+    // bonuses come off the budgets of the clubs that signed.
     const divisions = Map.groupBy([...check.financesBefore.keys()], (clubId) => check.competitionOf.get(clubId) ?? "");
     for (const [competitionId, members] of divisions) {
       const tier = tierOf(check.codeOf.get(competitionId) ?? "");
@@ -598,7 +597,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("worldVersion 2 seasons"
         });
         expect(check.financesAfter.get(clubId)).toEqual({
           // The next season's European clubs have their participation prize on top, credited at the opening.
-          budget: finances.budget + (check.saleFees.get(clubId) ?? 0) + (check.participation.get(clubId) ?? 0),
+          budget: finances.budget + (check.bonusesPaid.get(clubId) ?? 0) + (check.participation.get(clubId) ?? 0),
           wageBudget: finances.wageBudget,
           reputation: reputations.get(clubId),
         });

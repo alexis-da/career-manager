@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { SIGNING_BONUS_MIN, SQUAD_LIMIT } from "../engine/balance";
 import { displayClubName } from "../engine/club-name";
-import { marketValueFor } from "../engine/economy";
+import { marketValueFor, signingBonus } from "../engine/economy";
 import { elevenOf, MARKET_ENTRIES, MAX_PROPOSALS_PER_ENTRY } from "../engine/market-proposals";
 import { clubColorsOf } from "../lib/color";
 import { ageInYears } from "../lib/dates";
@@ -65,13 +66,14 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals on t
 
   it("finds the weak spot in the eleven: a slot held out of line first, else the starter rated lowest", async () => {
     const { lineups, saveId, first } = loaded();
-    const { formation, lineup } = await lineups.getManagedLineup(saveId);
-    const eleven = elevenOf(formation, lineup.starters);
+    // The eleven the market weighs (docs/design/simplification.md § 3.4).
+    const { formation, weakSpotLineup } = await lineups.getManagedLineup(saveId);
+    const eleven = elevenOf(formation, weakSpotLineup.starters);
     const outOfLine = eleven.filter((slot) => slot.outOfLine === true);
     const pool = outOfLine.length > 0 ? outOfLine : eleven;
     const lowest = Math.min(...pool.map(({ rating }) => rating ?? 0));
 
-    expect(lineup.starters).toHaveLength(11);
+    expect(weakSpotLineup.starters).toHaveLength(11);
     expect(eleven.map(({ rating }) => rating)).not.toContain(null);
     expect(first.weakSpot).toEqual({
       position: pool.find(({ rating }) => rating === lowest)?.slot,
@@ -99,7 +101,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals on t
     expect(proposed().filter((proposal) => proposal.clubName === overview.clubName)).toEqual([]);
   });
 
-  it("only proposes players who would accept, at terms the club can pay", async () => {
+  it("only proposes players who would accept, at a price the budget pays, whatever their wage", async () => {
     const { market, transfers, saveId } = loaded();
     const overview = await market.getMarketOverview(saveId);
 
@@ -109,18 +111,30 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals on t
       expect(quote).toMatchObject({ askingPrice, minimumWage: askedWage });
       expect(quote.minimumReputation).toBeLessThanOrEqual(overview.reputation);
       expect(askingPrice).toBeLessThanOrEqual(overview.budget);
-      expect(askedWage).toBeLessThanOrEqual(overview.wageRoom);
     }
   }, 30_000);
 
-  it("proposes players of the AI clubs and free agents, without a club nor a price", () => {
+  it("proposes players of the AI clubs, and a free agent only at his signing bonus", () => {
     const freeAgents = proposed().filter((proposal) => proposal.clubName === null);
 
-    expect(freeAgents.length).toBeGreaterThan(0);
+    // A free agent is no longer free (docs/design/simplification.md § 1.3): at a quarter of his value or so, he may be
+    // none of the first ones for a club of this level. The equivalence tests propose some, on a small budget.
     expect(freeAgents.length).toBeLessThan(proposed().length);
     for (const proposal of freeAgents) {
-      expect(proposal).toMatchObject({ clubColors: null, askingPrice: 0 });
+      expect(proposal).toMatchObject({ clubColors: null, askingPrice: signingBonus(proposal.marketValue) });
+      expect(proposal.askingPrice).toBeGreaterThanOrEqual(SIGNING_BONUS_MIN);
     }
+  });
+
+  it("says the squad is not full, and that no entry is wage-bound any more", async () => {
+    const { db, market, saveId, first } = loaded();
+    const overview = await market.getMarketOverview(saveId);
+    const managed = await db.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
+
+    expect(overview.squadSize).toBe(await db.playerSave.count({ where: { saveId, clubSaveId: managed.id, retired: false } }));
+    expect(overview.squadSize).toBeLessThan(SQUAD_LIMIT);
+    expect(first.squadFull).toBe(false);
+    expect(first.wageBound).toEqual({ needs: false, gems: false, bargains: false, stars: false });
   });
 
   it("fills identities, clubs and attributes from the save", async () => {
@@ -183,6 +197,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals on t
   it("keeps the screen's shape, nothing more", () => {
     const [proposal] = loaded().first.entries.stars;
 
+    expect(Object.keys(loaded().first).sort()).toEqual(["entries", "squadFull", "wageBound", "weakSpot"]);
     expect(Object.keys(proposal).sort()).toEqual(
       [
         "age",

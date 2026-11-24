@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ageInYears } from "../lib/dates";
-import { marketValueFor } from "./economy";
+import { marketValueFor, signingBonus } from "./economy";
 import {
   CLUB_ASKING_PRICE_FLOOR,
   elevenOf,
   entryBound,
   entryRules,
-  gemBirthDateFloor,
-  highestWagePaid,
+  isEligible,
   isSettled,
   lowestOverallIn,
   MARKET_ENTRIES,
@@ -21,17 +19,16 @@ import {
   type MarketCandidate,
   type MarketEntry,
   type Proposal,
-  type RankedEntry,
   type WeakSpot,
 } from "./market-proposals";
 import { formationPositions } from "./formations";
 import { resolveLineup, type LineupCandidate } from "./lineup";
 import { POSITIONS, secondaryPositions, type Position } from "./positions";
-import { askingPrice, minimumWage, type OfferPlayer } from "./transfer-ai";
+import { askingPrice, type OfferPlayer } from "./transfer-ai";
 
 const MILLION = 1_000_000;
 
-const BUYER: MarketBuyer = { reputation: 70, budget: 100 * MILLION, wageRoom: 10 * MILLION };
+const BUYER: MarketBuyer = { reputation: 70, budget: 100 * MILLION };
 
 /** A plain striker of 26, fairly priced: he fits no entry but Stars, and Needs when he improves the weak spot. */
 const candidate = (playerKey: string, overrides: Partial<MarketCandidate> = {}): MarketCandidate => ({
@@ -41,7 +38,6 @@ const candidate = (playerKey: string, overrides: Partial<MarketCandidate> = {}):
   overall: 70,
   potential: 72,
   askingPrice: 10 * MILLION,
-  askedWage: MILLION,
   minimumReputation: 50,
   marketValue: 10 * MILLION,
   ...overrides,
@@ -257,11 +253,10 @@ describe("eligibility", () => {
     overall: 70,
     potential: 80,
     askingPrice: 6 * MILLION,
-    askedWage: 2 * MILLION,
     minimumReputation: 60,
     marketValue: 10 * MILLION,
   });
-  const exactBuyer: MarketBuyer = { reputation: 60, budget: 6 * MILLION, wageRoom: 2 * MILLION };
+  const exactBuyer: MarketBuyer = { reputation: 60, budget: 6 * MILLION };
   const eleven: ElevenSlot[] = [{ slot: "ST", rating: 60 }];
 
   const entryCounts = (buyer: MarketBuyer): number[] => {
@@ -281,12 +276,36 @@ describe("eligibility", () => {
     expect(entryCounts({ ...exactBuyer, budget: 6 * MILLION - 1 })).toEqual([0, 0, 0, 0]);
   });
 
-  it("drops him from all four entries when the wage room is too short", () => {
-    expect(entryCounts({ ...exactBuyer, wageRoom: 2 * MILLION - 1 })).toEqual([0, 0, 0, 0]);
+  it("weighs nothing but the reputation and the price: no wage, no wage room", () => {
+    expect(isEligible(wanted, exactBuyer)).toBe(true);
+    expect(Object.keys(exactBuyer).sort()).toEqual(["budget", "reputation"]);
+  });
+});
+
+describe("a free agent at his signing bonus", () => {
+  const eleven: ElevenSlot[] = [
+    { slot: "GK", rating: 80 },
+    { slot: "ST", rating: 60 },
+  ];
+  // A free agent of 27 rated 68: his price is his bonus, a quarter of his value or so.
+  const value = marketValueFor({ age: 27, overall: 68, potential: 70 });
+  const free = candidate("free", { overall: 68, potential: 70, age: 27, marketValue: value, askingPrice: signingBonus(value) });
+
+  it("is proposed when the budget pays his bonus, and not a euro short", () => {
+    const bonus = signingBonus(value);
+
+    expect(bonus).toBe(1_560_000);
+    expect(keys(proposeSignings(eleven, [free], { ...BUYER, budget: bonus }).entries.needs)).toEqual(["free"]);
+    expect(proposeSignings(eleven, [free], { ...BUYER, budget: bonus - 1 }).entries).toEqual({ needs: [], gems: [], bargains: [], stars: [] });
   });
 
-  it("drops every asked wage when the club is over its wage budget", () => {
-    expect(entryCounts({ ...exactBuyer, wageRoom: -MILLION })).toEqual([0, 0, 0, 0]);
+  it("is a bargain, saving three quarters of his value, and comes after a cheaper player of his rating", () => {
+    const cheaper = candidate("cheaper", { overall: 68, potential: 70, age: 27, marketValue: value, askingPrice: signingBonus(value) - 10_000 });
+    const { entries } = proposeSignings(eleven, [free, cheaper], BUYER);
+
+    expect(keys(entries.bargains)).toEqual(["cheaper", "free"]);
+    expect(entries.bargains.find(({ candidate: { playerKey } }) => playerKey === "free")?.tag).toBe("bargain");
+    expect(keys(entries.stars)).toEqual(["cheaper", "free"]);
   });
 });
 
@@ -595,70 +614,26 @@ describe("proposeSignings", () => {
   });
 });
 
-describe("the wage room", () => {
+describe("when nobody would improve the weak spot", () => {
   const eleven: ElevenSlot[] = [
     { slot: "GK", rating: 80 },
     { slot: "ST", rating: 60 },
   ];
-  // Who would improve the weak spot, but asks a lot; two who would not, asking little.
-  const dear = candidate("dear", { overall: 70, askedWage: 3 * MILLION });
-  const cheap = candidate("cheap", { overall: 58, askedWage: MILLION / 2 });
-  const cheaper = candidate("cheaper", { overall: 55, askedWage: MILLION / 4 });
-  const buyer = (wageRoom: number): MarketBuyer => ({ ...BUYER, wageRoom });
 
-  it("proposes in Needs what it still pays at the weak spot, best there first, within your means", () => {
-    const { entries, wageBound } = proposeSignings(eleven, [dear, cheap, cheaper], buyer(MILLION));
+  it("leaves Needs empty: no « within your means » players at the weak spot any more", () => {
+    const cheap = candidate("cheap", { overall: 58 });
+    const cheaper = candidate("cheaper", { overall: 55 });
+    const { entries } = proposeSignings(eleven, [cheap, cheaper], BUYER);
 
-    expect(wageBound.needs).toBe(true);
-    expect(keys(entries.needs)).toEqual(["cheap", "cheaper"]);
-    expect(entries.needs.map(({ slot, impact, tag }) => ({ slot, impact, tag }))).toEqual([
-      { slot: "ST", impact: -2, tag: "affordable" },
-      { slot: "ST", impact: -5, tag: "affordable" },
-    ]);
-    // Stars still has the two it pays: not wage-bound.
+    expect(entries.needs).toEqual([]);
     expect(keys(entries.stars)).toEqual(["cheap", "cheaper"]);
-    expect(wageBound.stars).toBe(false);
-  });
-
-  it("leaves an entry empty and wage-bound when the room pays nobody", () => {
-    const { entries, wageBound } = proposeSignings(eleven, [dear, cheap, cheaper], buyer(MILLION / 10));
-
-    expect(entries.needs).toEqual([]);
-    expect(entries.stars).toEqual([]);
-    expect(wageBound).toEqual({ needs: true, gems: false, bargains: false, stars: true });
-  });
-
-  it("counts a club over its wage budget as paying nobody", () => {
-    expect(proposeSignings(eleven, [dear, cheap], buyer(-MILLION)).wageBound).toMatchObject({ needs: true, stars: true });
-  });
-
-  it("is not wage-bound when nobody would improve the weak spot, whatever his wage", () => {
-    const { entries, wageBound } = proposeSignings(eleven, [cheap, cheaper], buyer(MILLION / 10));
-
-    expect(entries.needs).toEqual([]);
-    expect(wageBound.needs).toBe(false);
-    expect(wageBound.stars).toBe(true);
-  });
-
-  it("is not wage-bound when the budget or the reputation keeps the players out", () => {
-    const pricey = candidate("pricey", { overall: 70, askingPrice: 200 * MILLION, askedWage: 3 * MILLION });
-    const proud = candidate("proud", { overall: 70, minimumReputation: 90, askedWage: 3 * MILLION });
-
-    expect(proposeSignings(eleven, [pricey, proud, cheap], buyer(MILLION / 10)).wageBound.needs).toBe(false);
-  });
-
-  it("keeps Needs as it is when the room pays someone who improves the weak spot", () => {
-    const { entries, wageBound } = proposeSignings(eleven, [dear, cheap], buyer(3 * MILLION));
-
-    expect(wageBound.needs).toBe(false);
-    expect(entries.needs.map(({ candidate: { playerKey }, tag }) => [playerKey, tag])).toEqual([["dear", "best"]]);
+    expect(entries.stars.map(({ tag }) => tag)).toEqual(["star", "star"]);
   });
 });
 
 describe("the bounds of a search in the database", () => {
   const weakSpot: WeakSpot = { position: "CB", rating: 60, reason: "lowest" };
   const rules = entryRules(weakSpot);
-  const RANKED: readonly RankedEntry[] = ["needs", "affordable", "gems", "bargains", "stars"];
 
   /** Players of the AI clubs of every kind: rating, age, room to grow, seasons left, position. */
   const clubPlayers: MarketCandidate[] = [];
@@ -686,7 +661,7 @@ describe("the bounds of a search in the database", () => {
   const tenOf = (overrides: Partial<MarketCandidate>): MarketCandidate[] =>
     Array.from({ length: MAX_PROPOSALS_PER_ENTRY }, (_, index) => candidate(`tenth-${index}`, overrides));
 
-  it("puts every club's asking price at or above a floor, itself above a free agent's", () => {
+  it("puts every club's asking price at or above a positive floor", () => {
     expect(CLUB_ASKING_PRICE_FLOOR).toBeGreaterThan(0);
     for (const player of clubPlayers) {
       expect(player.askingPrice, player.playerKey).toBeGreaterThanOrEqual(CLUB_ASKING_PRICE_FLOOR);
@@ -702,7 +677,7 @@ describe("the bounds of a search in the database", () => {
 
   it("bounds the keys of every club's player an entry takes, from the highest rating (potential for Gems) left", () => {
     // A player whose keys came before the bound would settle an entry whose tenth he is.
-    for (const entry of RANKED) {
+    for (const entry of MARKET_ENTRIES) {
       for (const player of clubPlayers.filter(rules[entry].takes)) {
         const highest = entry === "gems" ? player.potential : player.overall;
         const tenth = Array.from({ length: MAX_PROPOSALS_PER_ENTRY }, () => player);
@@ -721,10 +696,9 @@ describe("the bounds of a search in the database", () => {
     expect(entryBound("stars", weakSpot, 1)).not.toBeNull();
   });
 
-  it("has no one enter Needs nor « affordable » without a weak spot, and anyone rated enter the others", () => {
+  it("has no one enter Needs without a weak spot, and anyone rated enter the others", () => {
     expect(lowestOverallIn("needs", null)).toBe(Infinity);
-    expect(lowestOverallIn("affordable", null)).toBe(Infinity);
-    expect(entryBound("affordable", null, 99)).toBeNull();
+    expect(entryBound("needs", null, 99)).toBeNull();
     expect([lowestOverallIn("gems", null), lowestOverallIn("bargains", null), lowestOverallIn("stars", null)]).toEqual([
       -Infinity,
       -Infinity,
@@ -736,7 +710,7 @@ describe("the bounds of a search in the database", () => {
     const pricey = tenOf({ overall: 70, askingPrice: MILLION });
 
     expect(isSettled(rules.stars, pricey, entryBound("stars", weakSpot, 69))).toBe(true);
-    // A club's player rated 70 may cost less; a free agent costs nothing, and none is left.
+    // A club's player rated 70 may cost less; the free agents, read first, are none of those left.
     expect(isSettled(rules.stars, pricey, entryBound("stars", weakSpot, 70))).toBe(false);
     expect(isSettled(rules.stars, tenOf({ overall: 70, askingPrice: 0 }), entryBound("stars", weakSpot, 70))).toBe(true);
     // Nine are not ten.
@@ -752,33 +726,5 @@ describe("the bounds of a search in the database", () => {
     // Ten centre-backs rated 65 at the weak spot, a gain of 5: every player rated 65 or more is read.
     expect(settlingFloor("needs", weakSpot, tenOf({ position: "CB", overall: 65 }), 90)).toBe(65);
     expect(settlingFloor("gems", weakSpot, tenOf({ age: 19, overall: 60, potential: 80 }), Infinity)).toBe(80);
-  });
-
-  it("pays exactly the highest wage the wage room pays", () => {
-    const asked = (wage: number): number =>
-      minimumWage({ age: 25, overall: 70, potential: 70, wage, seasonsLeft: 2 }, { reputation: 50 });
-    for (const room of [0, 999, 1_000, 1_100, 54_321, 3_300_000, 10 * MILLION]) {
-      const wage = highestWagePaid(room);
-
-      expect(asked(wage), `${room}`).toBeLessThanOrEqual(room);
-      expect(asked(wage + 1), `${room}`).toBeGreaterThan(room);
-    }
-    expect(highestWagePaid(-1)).toBe(-1);
-  });
-
-  it("has every gem born after gemBirthDateFloor, and whoever was born that day too old to be one", () => {
-    const dates = [Date.UTC(2026, 6, 1), Date.UTC(2028, 1, 29), Date.UTC(2027, 2, 1), Date.UTC(2026, 11, 31)].map(
-      (time) => new Date(time),
-    );
-    for (const date of dates) {
-      const floor = gemBirthDateFloor(date);
-      for (let day = -3; day <= 3; day++) {
-        const birth = new Date(Date.UTC(date.getUTCFullYear() - 22, date.getUTCMonth(), date.getUTCDate() + day));
-        if (ageInYears(birth, date) <= 21) {
-          expect(birth.getTime(), `${date.toISOString()} ${birth.toISOString()}`).toBeGreaterThan(floor.getTime());
-        }
-      }
-      expect(ageInYears(floor, date)).toBeGreaterThan(21);
-    }
   });
 });

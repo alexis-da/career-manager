@@ -193,7 +193,8 @@ export const BUDGET_COEFFICIENT_RANGE: RankRange = { worst: 70, best: 140 };
 /**
  * A club's wage budget, as a multiple of its payroll (the season's, or the squad's at the creation): what it may add in
  * wages, about two to four typical signings. Never above the creation's wage budget at its rank (CLUB_WAGE_BUDGET_BY_TIER),
- * which alone left room for twenty.
+ * which alone left room for twenty. No signing is refused by it since the simplification (docs/design/simplification.md
+ * § 1.2): computed as before, never shown, it only breaks the ties of equal reputations (reputationRanks).
  */
 export const WAGE_BUDGET_MARGIN = 1.2;
 
@@ -961,6 +962,13 @@ export const SQUAD_SIZE_MIN = 20;
 export const SQUAD_SIZE_MAX = 25;
 export const MIN_GOALKEEPERS = 2;
 
+/**
+ * The most players under contract a club may have, every club alike (docs/design/simplification.md § 1.4): the managed
+ * club signs nobody more at it (squad_full), a preseason's young players only fill the places left under it, and an AI
+ * club at it bids for nobody. Sales and releases are never refused by it; a squad already above it keeps its players.
+ */
+export const SQUAD_LIMIT = 30;
+
 /** A line of the squad template: positions that stand in for each other, and the players they need together. */
 export type SquadRole = { positions: readonly Position[]; count: number };
 
@@ -1054,6 +1062,15 @@ export const TRANSFER_MIN_WAGE_RAISE = 0.1;
 /** Share of his market wage a free agent accepts. */
 export const FREE_AGENT_MIN_WAGE_SHARE = 0.9;
 
+/**
+ * A free agent's signing bonus (docs/design/simplification.md § 1.3): this share of his market value on the signing day,
+ * rounded up to SIGNING_BONUS_STEP, never under SIGNING_BONUS_MIN (signingBonus). Paid on the club's transfer budget as a
+ * fee, the managed club's and the AI clubs' alike: without it, the best free agents would sign for nothing.
+ */
+export const SIGNING_BONUS_SHARE = 0.25;
+export const SIGNING_BONUS_MIN = 50_000;
+export const SIGNING_BONUS_STEP = 10_000;
+
 /** A player joins no club whose reputation is more than this below his own overall… */
 export const PLAYER_REPUTATION_MARGIN = 15;
 
@@ -1076,12 +1093,6 @@ export const RESALE_CAP_FEE_PERCENT = 110;
 
 /** …and at most this share of his market value, in percent, for a player it signed free. */
 export const RESALE_CAP_VALUE_PERCENT = 50;
-
-/**
- * An AI club whose payroll is above its wage budget (a relegated club, typically) sells its best-paid players to other
- * AI clubs in the preseason until it is back within it, never for less than this share of a player's market value.
- */
-export const WAGE_SALE_MIN_FEE_SHARE = 0.8;
 
 // ------------------------------------------------------------------ Faces (src/engine/face.ts)
 // A face is drawn once from the player's key; only the hair changes with age, and never back.

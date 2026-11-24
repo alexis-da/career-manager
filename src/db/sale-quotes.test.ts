@@ -6,12 +6,12 @@ import {
   SALE_BID_SHARE_MAX,
   SALE_BID_SHARE_MIN,
   SALE_MAX_BIDDERS,
+  SQUAD_LIMIT,
 } from "../engine/balance";
 import { displayClubName } from "../engine/club-name";
 import { lerp } from "../engine/curves";
-import { contractEndDate, contractYears, marketValueFor } from "../engine/economy";
+import { contractEndDate, contractYears, marketValueFor, renewalWage } from "../engine/economy";
 import {
-  evaluateRenewal,
   minimumReputation,
   minimumWage,
   saleRngSeed,
@@ -33,7 +33,9 @@ import type { ContractTerms, SaleQuote } from "./transfers";
 
 // ------------------------------------------------------------------------------------------------------------------
 // The reference: the AI offers for the managed club's players as commit 829e62a computed them, every AI club and the
-// payroll of every club of the save read at each call. Copied as it was, but for the database client, handed in.
+// squad of every club of the save read at each call. Copied as it was, but for the database client, handed in, and for
+// the simplification's rule (docs/design/simplification.md § 1.5): a club at SQUAD_LIMIT players bids for nobody, where
+// one without the wage room for the player's wage did not; no wage room counts any more.
 
 const roundToStep = (value: number, step: number): number => Math.round(value / step) * step;
 
@@ -42,7 +44,7 @@ function referenceSaleBids(player: OfferPlayer, sellingClub: OfferClub, bidders:
   const wage = minimumWage(player, sellingClub);
   const reputationFloor = minimumReputation(player, sellingClub);
   const eligible = bidders
-    .filter((club) => club.reputation >= reputationFloor && club.wageRoom >= wage)
+    .filter((club) => club.reputation >= reputationFloor && club.squadSize < SQUAD_LIMIT)
     .sort((a, b) => b.reputation - a.reputation || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
   const reputationBySlug = new Map(eligible.map((club) => [club.slug, club.reputation]));
 
@@ -109,10 +111,9 @@ function referenceImplementation(db: typeof prismaClient, getManagedLineup: type
     const save = await db.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, currentDate: true } });
     const club = await db.clubSave.findFirstOrThrow({
       where: { saveId, isManaged: true },
-      select: { id: true, clubId: true, budget: true, wageBudget: true, reputation: true },
+      select: { id: true, clubId: true, budget: true, reputation: true },
     });
-    const { _sum } = await db.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } });
-    return { save, club, payroll: _sum.wage ?? 0, windowOpen: transferWindowAt(save.currentDate) !== null };
+    return { save, club, windowOpen: transferWindowAt(save.currentDate) !== null };
   }
 
   async function boughtThisWindow(saveId: string, clubId: string, date: Date): Promise<Set<string>> {
@@ -130,20 +131,20 @@ function referenceImplementation(db: typeof prismaClient, getManagedLineup: type
   async function loadSaleMarket(saveId: string): Promise<ReferenceSaleMarket> {
     const clubs = await db.clubSave.findMany({
       where: { saveId, isManaged: false },
-      select: { id: true, clubId: true, budget: true, wageBudget: true, reputation: true, club: { select: { slug: true, name: true } } },
+      select: { id: true, clubId: true, budget: true, reputation: true, club: { select: { slug: true, name: true } } },
     });
-    const payrolls = await db.playerSave.groupBy({
+    const squads = await db.playerSave.groupBy({
       by: ["clubSaveId"],
-      where: { saveId, clubSaveId: { not: null } },
-      _sum: { wage: true },
+      where: { saveId, clubSaveId: { not: null }, retired: false },
+      _count: { _all: true },
     });
-    const payrollByClub = new Map(payrolls.map((row) => [row.clubSaveId, row._sum.wage ?? 0]));
+    const sizeByClub = new Map(squads.map((row) => [row.clubSaveId, row._count._all]));
     return {
       bidders: clubs.map((candidate) => ({
         slug: candidate.club.slug,
         reputation: candidate.reputation,
         budget: candidate.budget,
-        wageRoom: candidate.wageBudget - (payrollByClub.get(candidate.id) ?? 0),
+        squadSize: sizeByClub.get(candidate.id) ?? 0,
       })),
       clubBySlug: new Map(clubs.map((candidate) => [candidate.club.slug, candidate])),
     };
@@ -191,7 +192,7 @@ function referenceImplementation(db: typeof prismaClient, getManagedLineup: type
         return [
           player.id,
           {
-            renewalMinimumWage: evaluateRenewal(referenceOfferPlayer(player, save.currentDate), 0).minimumWage,
+            renewalMinimumWage: renewalWage(referenceOfferPlayer(player, save.currentDate)),
             releaseCost: referenceReleaseCompensation(player, save.currentDate),
             sale,
             academyUntil: null,
@@ -205,7 +206,7 @@ function referenceImplementation(db: typeof prismaClient, getManagedLineup: type
   const byKey = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
   async function getMarketSales(saveId: string): Promise<MarketSales> {
-    const [{ lineup, missingStarters }, terms, save, club] = await Promise.all([
+    const [{ keptOffSales }, terms, save, club] = await Promise.all([
       getManagedLineup(saveId),
       quoteSquad(saveId),
       db.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
@@ -214,9 +215,9 @@ function referenceImplementation(db: typeof prismaClient, getManagedLineup: type
         select: { id: true, club: { select: { primaryColor: true, secondaryColor: true } } },
       }),
     ]);
-    const eleven = [...lineup.starters.map(({ player }) => player), ...missingStarters].map((player) => player.id);
+    // The eleven kept off the sales: since the simplification, the line-up's own (ManagedLineup.keptOffSales, § 3.4).
     const players = await db.playerSave.findMany({
-      where: { saveId, clubSaveId: club.id, playerKey: { notIn: eleven } },
+      where: { saveId, clubSaveId: club.id, playerKey: { notIn: keptOffSales } },
       select: {
         id: true,
         playerKey: true,
@@ -262,10 +263,11 @@ const SAVES = {
 type SaveName = keyof typeof SAVES;
 
 // Against DATABASE_URL, on four throwaway saves: the AI offers for the managed club's players (quoteSquad, the Sell tab
-// of getMarketSales, the sale itself) are those of commit 829e62a, though the AI clubs are now read as far as the bids
-// go. No player bought or signed free here is quoted in a later window: the resale cap, newer (resaleCap,
-// resale-cap.test.ts), leaves these offers as they were. The tests run in order, and each moves its own save on. Skipped
-// without DATABASE_URL; modules are imported lazily because the client throws without it.
+// of getMarketSales, the sale itself) are those of commit 829e62a under the simplification's bidders (no wage room, no
+// club at 30 players), though the AI clubs are now read as far as the bids go. No player bought or signed free here is
+// quoted in a later window: the resale cap, newer (resaleCap, resale-cap.test.ts), leaves these offers as they were. The
+// tests run in order, and each moves its own save on. Skipped without DATABASE_URL; modules are imported lazily because
+// the client throws without it.
 describe.skipIf(process.env.DATABASE_URL === undefined)("AI offers for the managed club's players", () => {
   let modules:
     | {
@@ -376,13 +378,33 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("AI offers for the manag
     expect([...none.values()].map(({ sale }) => sale)).toEqual([...none.values()].map(() => ({ ok: false, reason: "no_offer" })));
   }, 120_000);
 
-  it("are the same when the most reputed clubs have no wage room", async () => {
-    const { db } = loaded();
+  it("are the same when the most reputed clubs have 30 players, whatever the wage budgets", async () => {
+    const { db, transfers } = loaded();
     const saveId = saveIdOf("bottom");
-    // They are passed over without a draw: the walks go down to the clubs reputed under 70.
+    // No wage room counts any more: clubs without any bid as before.
     await db.clubSave.updateMany({ where: { saveId, isManaged: false, reputation: { gte: 70 } }, data: { wageBudget: 0 } });
+    // The eight most reputed filled to 30 players by free agents: passed over without a draw.
+    const full = await db.clubSave.findMany({
+      where: { saveId, isManaged: false },
+      orderBy: [{ reputation: "desc" }, { id: "asc" }],
+      take: 8,
+      select: { id: true, club: { select: { slug: true, name: true } } },
+    });
+    for (const club of full) {
+      const size = await db.playerSave.count({ where: { saveId, clubSaveId: club.id, retired: false } });
+      const fillers = await db.playerSave.findMany({
+        where: transfers.freeAgentWhere(saveId),
+        orderBy: { playerKey: "asc" },
+        take: SQUAD_LIMIT - size,
+        select: { id: true },
+      });
+      expect(fillers).toHaveLength(SQUAD_LIMIT - size);
+      await db.playerSave.updateMany({ where: { saveId, id: { in: fillers.map(({ id }) => id) } }, data: { clubSaveId: club.id } });
+    }
     const quotes = await expectAsBefore(saveId);
+    const fullNames = new Set(full.map(({ club }) => displayClubName(club)));
     expect(offers(quotes)).toBeGreaterThan(0);
+    expect([...quotes.values()].filter(({ sale }) => sale.ok && fullNames.has(sale.buyerName))).toEqual([]);
     await expectSoldAsQuoted(saveId, quotes);
   }, 120_000);
 

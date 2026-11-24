@@ -1,5 +1,6 @@
 import * as z from "zod";
 import type { Prisma, PrismaClient } from "../generated/prisma/client";
+import { SQUAD_LIMIT } from "../engine/balance";
 import { NAME_BANK } from "../engine/names";
 import type { Position } from "../engine/positions";
 import {
@@ -69,6 +70,7 @@ type ShopContext = {
   budget: number;
   wageBudget: number;
   payroll: number;
+  squadSize: number; // the managed club's players under contract: a promising youth needs a place under SQUAD_LIMIT
   reputation: number;
   slug: string;
   country: string;
@@ -84,6 +86,8 @@ async function shopContext(db: Db, saveId: string): Promise<ShopContext> {
            c."id" AS "clubSaveId", c."budget", c."wageBudget", c."reputation", cl."slug", cl."country", co."tier",
            (SELECT coalesce(sum(p."wage"), 0)::int FROM "PlayerSave" p
             WHERE p."saveId" = s."id" AND p."clubSaveId" = c."id") AS payroll,
+           (SELECT count(*)::int FROM "PlayerSave" p
+            WHERE p."saveId" = s."id" AND p."clubSaveId" = c."id" AND NOT p."retired") AS "squadSize",
            (SELECT b."dotation" FROM "SeasonBudget" b JOIN "Season" se ON se."id" = b."seasonId"
             WHERE b."saveId" = s."id" ORDER BY se."startYear" DESC LIMIT 1) AS dotation
     FROM "Save" s
@@ -161,7 +165,7 @@ export type CareerItemView = {
 /** A player of the managed club express care can heal sooner. */
 export type CareCandidate = { id: string; name: string; position: Position; overall: number; daysLeft: number; daysAfter: number };
 
-/** The promising youth a line would bring, and whether the wage budget pays him. */
+/** The promising youth a line would bring. */
 export type YouthCandidate = {
   line: YouthLine;
   firstName: string;
@@ -169,8 +173,10 @@ export type YouthCandidate = {
   position: Position;
   overall: number;
   potential: number;
-  wage: number; // euros per season
-  fits: boolean; // under the wage budget's margin
+  wage: number; // euros per season, written with his contract
+  // Always true: no wage budget refuses him since the simplification (docs/design/simplification.md § 1.1), only a full
+  // squad, which refuses the item itself (squad_full). Kept until the Rewards screen drops its wage lines.
+  fits: boolean;
 };
 
 export type ShopView = {
@@ -182,7 +188,8 @@ export type ShopView = {
   items: CareerItemView[];
   budget: number; // euros: the managed club's transfer budget now
   topUp: number; // euros the budget top-up adds
-  wageRoom: number; // euros per season left under the wage budget
+  wageRoom: number; // euros per season left under the wage budget: no limit any more, kept until the screen drops it
+  squadSize: number; // the managed club's players under contract: a promising youth takes a place, SQUAD_LIMIT at most
   belowFull: number; // players under full fitness, whom a camp would help
   care: CareCandidate[];
   youth: YouthCandidate[];
@@ -204,6 +211,7 @@ export async function getShop(saveId: string, db: PrismaClient = prisma, withYou
     budget: context.budget,
     topUp: 0,
     wageRoom: context.wageBudget - context.payroll,
+    squadSize: context.squadSize,
     belowFull: 0,
     care: [],
     youth: [],
@@ -227,9 +235,8 @@ export async function getShop(saveId: string, db: PrismaClient = prisma, withYou
     }))
     .sort((a, b) => b.overall - a.overall || a.name.localeCompare(b.name));
   const belowFull = squad.filter((player) => player.fitness < campFitness()).length;
-  const wageRoom = context.wageBudget - context.payroll;
   const youthIndex = boughtOf(purchases, "PROMISING_YOUTH", context.startYear).career + 1;
-  const youth = (withYouth ? YOUTH_LINES : []).map((line) => {
+  const youth = (withYouth ? YOUTH_LINES : []).map((line): YouthCandidate => {
     const player = youthFor(context, squad, line, youthIndex);
     return {
       line,
@@ -239,7 +246,7 @@ export async function getShop(saveId: string, db: PrismaClient = prisma, withYou
       overall: player.overall,
       potential: player.potential,
       wage: player.wage,
-      fits: player.wage <= wageRoom,
+      fits: true,
     };
   });
   const items = CAREER_ITEMS.map((item): CareerItemView => {
@@ -258,8 +265,8 @@ export async function getShop(saveId: string, db: PrismaClient = prisma, withYou
               ? "full_fitness"
               : item === "EXPRESS_CARE" && care.length === 0
                 ? "not_injured"
-                : item === "PROMISING_YOUTH" && withYouth && youth.every(({ fits }) => !fits)
-                  ? "wage_budget"
+                : item === "PROMISING_YOUTH" && context.squadSize >= SQUAD_LIMIT
+                  ? "squad_full"
                   : null;
     return {
       item,
@@ -269,7 +276,7 @@ export async function getShop(saveId: string, db: PrismaClient = prisma, withYou
       refusal,
     };
   });
-  return { ...empty, items, topUp: budgetTopUp(context.dotation ?? 0), wageRoom, belowFull, care, youth };
+  return { ...empty, items, topUp: budgetTopUp(context.dotation ?? 0), belowFull, care, youth };
 }
 
 /** What the screens offer from the shop elsewhere: express care on an injured player's sheet, a camp in the line-up. */
@@ -297,7 +304,7 @@ export type CareerPurchase =
 
 export type PurchaseOutcome =
   | { ok: true; price: number; tokens: number; effect: PurchaseEffect | null; repeated: boolean }
-  | { ok: false; reason: PurchaseRefusal; price: number; tokens: number; wage?: number; wageRoom?: number };
+  | { ok: false; reason: PurchaseRefusal; price: number; tokens: number };
 
 /** Buys a career item, once for a request: the same request again gets the first's result, nothing more paid. */
 export async function buyCareerItem(saveId: string, purchase: CareerPurchase, db: PrismaClient = prisma): Promise<PurchaseOutcome> {
@@ -305,13 +312,7 @@ export async function buyCareerItem(saveId: string, purchase: CareerPurchase, db
   return db.$transaction(async (tx) => {
     await lockSave(tx, saveId);
     const context = await shopContext(tx, saveId);
-    const refuse = (reason: PurchaseRefusal, figures: { wage?: number; wageRoom?: number } = {}): PurchaseOutcome => ({
-      ok: false,
-      reason,
-      price,
-      tokens: context.tokens,
-      ...figures,
-    });
+    const refuse = (reason: PurchaseRefusal): PurchaseOutcome => ({ ok: false, reason, price, tokens: context.tokens });
     if (context.ownerId === null || context.challenge) {
       return refuse("challenge");
     }
@@ -378,12 +379,12 @@ export async function buyCareerItem(saveId: string, purchase: CareerPurchase, db
         break;
       }
       case "PROMISING_YOUTH": {
+        // He takes a place: none at SQUAD_LIMIT (docs/design/simplification.md § 1.4). His wage limits nothing.
+        if (context.squadSize >= SQUAD_LIMIT) {
+          return refuse("squad_full");
+        }
         const squad = await squadOf(tx, saveId, context.clubSaveId);
         const { key, ...youth } = youthFor(context, squad, purchase.line, bought.career + 1);
-        const wageRoom = context.wageBudget - context.payroll;
-        if (youth.wage > wageRoom) {
-          return refuse("wage_budget", { wage: youth.wage, wageRoom });
-        }
         await tx.playerSave.create({ data: { ...youth, saveId, playerKey: key, clubSaveId: context.clubSaveId } });
         effect = { kind: "youth", playerKey: key, line: purchase.line, position: youth.position, contractUntil: youth.contractUntil.toISOString() };
         break;

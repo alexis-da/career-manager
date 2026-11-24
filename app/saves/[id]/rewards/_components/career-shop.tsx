@@ -43,12 +43,10 @@ export function PriceTag({ price }: { price: number }) {
 }
 
 /** Why an item cannot be bought now, in words. */
-function refusalText(refusal: PurchaseRefusal, price: number, shop: ShopView, t: Translator<"rewards.shop">, locale: Locale): string {
+function refusalText(refusal: PurchaseRefusal, price: number, shop: ShopView, t: Translator<"rewards.shop">): string {
   switch (refusal) {
     case "tokens":
       return t("refusals.tokens", { missing: price - shop.tokens });
-    case "wage_budget":
-      return t("refusals.wageBudgetAny", { wageRoom: formatMoney(Math.max(0, shop.wageRoom), locale) });
     default:
       return t(`refusals.${refusal}`);
   }
@@ -103,7 +101,7 @@ function ShopItem({
         </div>
         {refusal !== null && refusal !== "live" && (
           <p data-testid="shop-refusal" className="text-xs leading-snug text-muted-foreground">
-            {refusalText(refusal, item.price, shop, t, locale)}
+            {refusalText(refusal, item.price, shop, t)}
           </p>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { PLAYER_REPUTATION_MARGIN, REPUTATION_STEP_DOWN } from "../engine/balance";
+import { PLAYER_REPUTATION_MARGIN, REPUTATION_STEP_DOWN, SQUAD_LIMIT } from "../engine/balance";
 import { displayClubName } from "../engine/club-name";
 import { marketValueFor } from "../engine/economy";
 import { RATING_MAX, RATING_MIN, type AttributeName } from "../engine/generation";
@@ -7,12 +7,8 @@ import {
   entryBound,
   entryRules,
   firstOf,
-  gemBirthDateFloor,
-  highestWagePaid,
   isEligible,
-  isReachable,
   isSettled,
-  lowestOverallIn,
   MARKET_ENTRIES,
   proposeSignings,
   settlingFloor,
@@ -22,7 +18,6 @@ import {
   type MarketEntry,
   type Proposal,
   type ProposalTag,
-  type RankedEntry,
   type WeakSpot,
 } from "../engine/market-proposals";
 import type { Position } from "../engine/positions";
@@ -32,7 +27,7 @@ import { ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { prisma } from "./client";
 import { getManagedLineup } from "./lineup";
-import { freeAgentWhere, quoteFor } from "./transfers";
+import { freeAgentWhere, quoteFor, squadSizeOf } from "./transfers";
 
 export type MarketProposal = {
   id: string; // PlayerSave.id
@@ -45,8 +40,9 @@ export type MarketProposal = {
   potential: number;
   clubName: string | null; // null: a free agent
   clubColors: ClubColors | null;
-  askingPrice: number; // euros; 0 for a free agent
-  askedWage: number; // lowest wage he accepts, euros per season
+  // Euros signing him takes from the budget: his club's asking price, or a free agent's signing bonus (TransferQuote).
+  askingPrice: number;
+  askedWage: number; // lowest wage he accepts, euros per season: written with his contract, never a condition
   marketValue: number; // euros
   attributes: Record<AttributeName, number>;
   slot: Position; // where he would play in the eleven
@@ -57,9 +53,16 @@ export type MarketProposal = {
 export type MarketProposals = {
   weakSpot: WeakSpot | null;
   entries: Record<MarketEntry, MarketProposal[]>;
-  // The wage room alone keeps the entry's players out (proposeSignings); Needs then proposes those it still pays.
+  // Always false: no wage room keeps anyone out since the simplification (docs/design/simplification.md § 1.1). Kept
+  // until the buying screen drops its wage panel.
   wageBound: Record<MarketEntry, boolean>;
+  // The managed club has SQUAD_LIMIT players under contract or more: it signs nobody (squad_full), though the entries,
+  // computed as ever, stay readable.
+  squadFull: boolean;
 };
+
+/** No entry is ever wage-bound any more (MarketProposals.wageBound). */
+const NEVER_WAGE_BOUND: Readonly<Record<MarketEntry, boolean>> = { needs: false, gems: false, bargains: false, stars: false };
 
 /** What choosing takes for a player of the market: the rest is read for the few chosen. */
 const ROW_SELECT = {
@@ -98,10 +101,11 @@ const VIEW_SELECT = {
 type Row = Prisma.PlayerSaveGetPayload<{ select: typeof ROW_SELECT }>;
 type ViewRow = Prisma.PlayerSaveGetPayload<{ select: typeof VIEW_SELECT }>;
 
-type Candidate = MarketCandidate & { id: string };
+/** A player of the market as proposeSignings weighs him, with his asked wage for the screen. */
+type Candidate = MarketCandidate & { id: string; askedWage: number };
 
-/** The managed club as a buyer, on the save's current date. */
-type Buyer = MarketBuyer & { clubSaveId: string; currentDate: Date };
+/** The managed club as a buyer, on the save's current date, with its players under contract. */
+type Buyer = MarketBuyer & { clubSaveId: string; currentDate: Date; squadSize: number };
 
 /** Players a search reads in its first batch, then twice as many in each next one, up to MAX_BATCH. */
 const FIRST_BATCH = 32;
@@ -155,22 +159,21 @@ function toMarketProposal({ candidate, slot, impact, tag }: Proposal<Candidate>,
   };
 }
 
-/** The managed club's reputation and money, and the save's date: what a player's terms are weighed against. */
+/** The managed club's reputation, money and squad, and the save's date: what a player's terms are weighed against. */
 async function buyerOf(saveId: string): Promise<Buyer> {
   const [save, club] = await Promise.all([
     prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } }),
     prisma.clubSave.findFirstOrThrow({
       where: { saveId, isManaged: true },
-      select: { id: true, reputation: true, budget: true, wageBudget: true },
+      select: { id: true, reputation: true, budget: true },
     }),
   ]);
-  const { _sum } = await prisma.playerSave.aggregate({ where: { saveId, clubSaveId: club.id }, _sum: { wage: true } });
   return {
     clubSaveId: club.id,
     currentDate: save.currentDate,
     reputation: club.reputation,
     budget: club.budget,
-    wageRoom: club.wageBudget - (_sum.wage ?? 0),
+    squadSize: await squadSizeOf(prisma, saveId, club.id),
   };
 }
 
@@ -251,49 +254,13 @@ function openSearch(where: Prisma.PlayerSaveWhereInput, field: SearchField, edge
 }
 
 /**
- * The first player of `where` that `takes` accepts, the lowest rated first, from `lowest` up: where the cheapest of a
- * kind shows. A first batch in the order of the index on (saveId, overall), then whole values upwards from its last
- * one, MAX_LEVELS at a time at most. Undefined when no player has it.
- */
-async function lowestRatedOf<T>(
-  where: Prisma.PlayerSaveWhereInput,
-  lowest: number,
-  takes: (rows: readonly Row[]) => T | undefined,
-): Promise<T | undefined> {
-  const from = (value: number): Prisma.PlayerSaveWhereInput => (value <= RATING_MIN ? {} : { overall: { gte: value } });
-  const first = await prisma.playerSave.findMany({
-    where: { AND: [where, from(lowest)] },
-    orderBy: { overall: "asc" },
-    take: FIRST_BATCH,
-    select: ROW_SELECT,
-  });
-  const found = takes(first);
-  const last = first.at(-1);
-  if (found !== undefined || last === undefined || first.length < FIRST_BATCH) {
-    return found;
-  }
-  // The last batch takes anything above.
-  for (let value = last.overall, levels = 1; ; value += levels, levels = Math.min(MAX_LEVELS, levels * 2)) {
-    const above = value + levels > RATING_MAX;
-    const rows = await prisma.playerSave.findMany({
-      where: { AND: [where, from(value), above ? {} : { overall: { lt: value + levels } }] },
-      select: ROW_SELECT,
-    });
-    const found = takes(rows);
-    if (found !== undefined || above) {
-      return found;
-    }
-  }
-}
-
-/**
  * The players the buying screen can propose, as few as proposeSignings needs to give what it would give with every
- * player of the save: the four entries' first ones, Needs' « affordable » ones when the wage room alone empties it, and
- * a player each entry would take with room enough, when it takes none. Free agents are few: all are read. Players of
- * the AI clubs whose wage the wage room pays are read by rating, the highest first, and by potential for Gems, until no
- * one left can enter an entry's first ones (entryBound), and never under the value at which, once they are as many as
- * the entry keeps, they are certain (settlingFloor). The queries keep exactly the players who would accept the managed
- * club and whose wage it pays; prices are checked here. Read only.
+ * player of the save: the four entries' first ones. Free agents are few: all are read. Players of the AI clubs are read
+ * by rating, the highest first, and by potential for Gems, until no one left can enter an entry's first ones
+ * (entryBound), and never under the value at which, once they are as many as the entry keeps, they are certain
+ * (settlingFloor). The queries keep exactly the players who would accept the managed club, whatever their wage (no wage
+ * room since the simplification, docs/design/simplification.md § 1.1); prices, a free agent's signing bonus included,
+ * are checked here. Read only.
  */
 async function chooseRows(saveId: string, buyer: Buyer, weakSpot: WeakSpot | null): Promise<Row[]> {
   const rules = entryRules(weakSpot);
@@ -316,31 +283,26 @@ async function chooseRows(saveId: string, buyer: Buyer, weakSpot: WeakSpot | nul
   // the reputation a player asks of a buyer (quoteFor) accepts the managed club exactly when his exact one does.
   const mostReputedClub = { isManaged: false, reputation: buyer.reputation + REPUTATION_STEP_DOWN };
 
-  // Every player read, once, whichever search read him: the reachable ones, and the eligible ones among them.
-  const known = new Map<string, { row: Row; candidate: Candidate }>();
-  const reachable: Candidate[] = [];
+  // Every player read, once, whichever search read him, and the eligible ones among them.
+  const known = new Map<string, Row>();
   const eligible: Candidate[] = [];
-  const add = (rows: readonly Row[]): Candidate[] =>
-    rows.map((row) => {
-      const seen = known.get(row.id);
-      if (seen !== undefined) {
-        return seen.candidate;
+  const add = (rows: readonly Row[]): void => {
+    for (const row of rows) {
+      if (known.has(row.id)) {
+        continue;
       }
       const candidate = toCandidate(row, row.clubSaveId === null ? null : mostReputedClub, buyer.currentDate);
-      known.set(row.id, { row, candidate });
-      if (isReachable(candidate, buyer)) {
-        reachable.push(candidate);
-        if (isEligible(candidate, buyer)) {
-          eligible.push(candidate);
-        }
+      known.set(row.id, row);
+      if (isEligible(candidate, buyer)) {
+        eligible.push(candidate);
       }
-      return candidate;
-    });
+    }
+  };
   add(freeAgents);
 
-  const settled = (entry: RankedEntry, search: Search): boolean =>
+  const settled = (entry: MarketEntry, search: Search): boolean =>
     search.exhausted || isSettled(rules[entry], firstOf(eligible, rules[entry]), entryBound(entry, weakSpot, search.edge));
-  const settle = async (search: Search, entries: readonly RankedEntry[]): Promise<void> => {
+  const settle = async (search: Search, entries: readonly MarketEntry[]): Promise<void> => {
     for (let size = FIRST_BATCH; ; size = Math.min(size * 2, MAX_BATCH)) {
       const open = entries.filter((entry) => !settled(entry, search));
       if (open.length === 0) {
@@ -355,54 +317,25 @@ async function chooseRows(saveId: string, buyer: Buyer, weakSpot: WeakSpot | nul
     }
   };
 
-  // Those whose asked wage the wage room pays (exact), by rating and by potential.
-  const paid = { ...accepting, wage: { lte: highestWagePaid(buyer.wageRoom) } } satisfies Prisma.PlayerSaveWhereInput;
-  const byRating = openSearch(paid, "overall", highestRating);
+  // By rating and by potential.
   await Promise.all([
-    settle(byRating, ["stars", "needs", "bargains"]),
-    settle(openSearch(paid, "potential", Infinity), ["gems"]),
+    settle(openSearch(accepting, "overall", highestRating), ["stars", "needs", "bargains"]),
+    settle(openSearch(accepting, "potential", Infinity), ["gems"]),
   ]);
 
-  /**
-   * A player the entry would take with room enough for any wage: a free agent, or a player of the AI clubs, the lowest
-   * rated first, the cheapest (the young only, for Gems).
-   */
-  const witnessOf = async (entry: MarketEntry): Promise<Candidate | undefined> => {
-    const lowest = lowestOverallIn(entry, weakSpot);
-    const free = reachable.find(rules[entry].takes);
-    if (free !== undefined || lowest === Infinity) {
-      return free;
-    }
-    const where = entry === "gems" ? { ...accepting, birthDate: { gt: gemBirthDateFloor(buyer.currentDate) } } : accepting;
-    return lowestRatedOf(where, lowest, (rows) =>
-      add(rows).find((candidate) => isReachable(candidate, buyer) && rules[entry].takes(candidate)),
-    );
-  };
-  // An entry the eligible players leave empty is wage-bound when someone reachable would enter it.
-  const witnesses = await Promise.all(
-    MARKET_ENTRIES.map(async (entry) => (eligible.some(rules[entry].takes) ? undefined : witnessOf(entry))),
-  );
-  const wageBoundNeeds = witnesses[MARKET_ENTRIES.indexOf("needs")] !== undefined;
-  if (wageBoundNeeds) {
-    await settle(byRating, ["affordable"]);
-  }
-
-  const kept: RankedEntry[] = wageBoundNeeds ? ["affordable", ...MARKET_ENTRIES] : [...MARKET_ENTRIES];
-  const chosen = new Set([
-    ...kept.flatMap((entry) => firstOf(eligible, rules[entry]).map(({ id }) => id)),
-    ...witnesses.flatMap((witness) => (witness === undefined ? [] : [witness.id])),
-  ]);
-  return [...chosen].map((id) => getOrThrow(known, id, "chosen player").row);
+  const chosen = new Set(MARKET_ENTRIES.flatMap((entry) => firstOf(eligible, rules[entry]).map(({ id }) => id)));
+  return [...chosen].map((id) => getOrThrow(known, id, "chosen player"));
 }
 
 /**
  * What the buying screen proposes today, among the players of the AI clubs and the free agents: proposeSignings on the
- * few players chooseRows reads, each with his exact terms, from his club. Read only.
+ * few players chooseRows reads, each with his exact terms, from his club; and whether the squad is full. Read only.
  */
 export async function getMarketProposals(saveId: string): Promise<MarketProposals> {
-  const [buyer, { formation, lineup }] = await Promise.all([buyerOf(saveId), getManagedLineup(saveId)]);
-  // Its slots, an empty one where no available player is left: the weak spot first, and a slot to play in.
-  const eleven = elevenOf(formation, lineup.starters);
+  const [buyer, { formation, weakSpotLineup }] = await Promise.all([buyerOf(saveId), getManagedLineup(saveId)]);
+  // Its slots, an empty one where no available player is left: the weak spot first, and a slot to play in. Read on the
+  // eleven the market weighs (ManagedLineup.weakSpotLineup, docs/design/simplification.md § 3.4).
+  const eleven = elevenOf(formation, weakSpotLineup.starters);
   const rows = await chooseRows(saveId, buyer, weakSpotOf(eleven));
   const views = await prisma.playerSave.findMany({
     where: { saveId, id: { in: rows.map(({ id }) => id) } },
@@ -411,7 +344,7 @@ export async function getMarketProposals(saveId: string): Promise<MarketProposal
   const viewById = new Map(views.map((view) => [view.id, view]));
   const viewOf = (id: string): ViewRow => getOrThrow(viewById, id, "chosen player");
 
-  const { weakSpot, entries, wageBound } = proposeSignings(
+  const { weakSpot, entries } = proposeSignings(
     eleven,
     rows.map((row) => toCandidate(row, viewOf(row.id).clubSave, buyer.currentDate)),
     buyer,
@@ -426,6 +359,7 @@ export async function getMarketProposals(saveId: string): Promise<MarketProposal
       bargains: toViews(entries.bargains),
       stars: toViews(entries.stars),
     },
-    wageBound,
+    wageBound: { ...NEVER_WAGE_BOUND },
+    squadFull: buyer.squadSize >= SQUAD_LIMIT,
   };
 }

@@ -1,17 +1,10 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { SQUAD_LIMIT } from "../engine/balance";
 import { displayClubName } from "../engine/club-name";
-import { marketValueFor } from "../engine/economy";
-import {
-  elevenOf,
-  isReachable,
-  MARKET_ENTRIES,
-  proposeSignings,
-  weakSpotOf,
-  type MarketCandidate,
-  type Proposal,
-} from "../engine/market-proposals";
-import { positionGroup, ratingAt, secondaryPositions, type Position } from "../engine/positions";
+import { marketValueFor, signingBonus } from "../engine/economy";
+import { elevenOf, MARKET_ENTRIES, proposeSignings, type MarketCandidate, type Proposal } from "../engine/market-proposals";
+import { positionGroup, secondaryPositions, type Position } from "../engine/positions";
 import type { WorldVersion } from "../engine/world-version";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf } from "../lib/color";
@@ -26,10 +19,13 @@ import type * as TransfersModule from "./transfers";
 // getMarketProposals reads a few hundred players, by rating and potential, until no one left can change what it
 // proposes. Proof that it proposes exactly what reading every player of the save gives: the implementation it replaced,
 // as it stood at commit 829e62a, copied here (its database part: every player of the AI clubs and every free agent,
-// quoted one by one), gives them all to proposeSignings, against the new one on several saves, clubs, seeds and worlds,
-// at creation and after matchdays, with the wage room and the budget of the managed club cut, its reputation at both
-// ends, a slot left empty and a slot held out of line. Runs against DATABASE_URL, on throwaway saves; skipped without it.
-// Modules are imported lazily because the client throws without DATABASE_URL.
+// quoted one by one, a free agent at his signing bonus), gives them all to proposeSignings, against the new one on
+// several saves, clubs, seeds and worlds, at creation and after matchdays, with the budget of the managed club cut, its
+// wage budget at nothing, its reputation at both ends, a slot left empty and a slot held out of line. Since the
+// simplification (docs/design/simplification.md § 1.1), the wage room limits nothing: its cases, the « affordable » players
+// of a wage-bound Needs and an entry the room empties, are gone with it; one shows instead that a wage budget at nothing
+// changes no proposal. Runs against DATABASE_URL, on throwaway saves; skipped without it. Modules are imported lazily
+// because the client throws without DATABASE_URL.
 
 // ------------------------------------------------------------------ the reference: getMarketProposals at 829e62a
 
@@ -61,7 +57,7 @@ const VIEW_SELECT = {
 
 type CandidateRow = Prisma.PlayerSaveGetPayload<{ select: typeof CANDIDATE_SELECT }>;
 type ViewRow = Prisma.PlayerSaveGetPayload<{ select: typeof VIEW_SELECT }>;
-type Candidate = MarketCandidate & { id: string };
+type Candidate = MarketCandidate & { id: string; askedWage: number };
 
 type Modules = {
   db: typeof prismaClient;
@@ -131,7 +127,7 @@ function toMarketProposal({ candidate, slot, impact, tag }: Proposal<Candidate>,
 /** What the reference weighed: the managed club as a buyer, its eleven, and every player of the market. */
 async function referenceInputs(saveId: string) {
   const { db, lineups, market, transfers } = modules();
-  const [overview, { formation, lineup }, clubPlayers, freeAgents] = await Promise.all([
+  const [overview, { formation, weakSpotLineup }, clubPlayers, freeAgents] = await Promise.all([
     market.getMarketOverview(saveId),
     lineups.getManagedLineup(saveId),
     db.playerSave.findMany({ where: { saveId, clubSave: { saveId, isManaged: false } }, select: CANDIDATE_SELECT }),
@@ -139,14 +135,15 @@ async function referenceInputs(saveId: string) {
   ]);
   return {
     buyer: overview,
-    eleven: elevenOf(formation, lineup.starters),
+    // The eleven the market weighs (docs/design/simplification.md § 3.4).
+    eleven: elevenOf(formation, weakSpotLineup.starters),
     candidates: [...clubPlayers, ...freeAgents].map((row) => toCandidate(row, overview.currentDate)),
   };
 }
 
 async function referenceProposals(saveId: string): Promise<MarketProposals> {
   const { buyer, eleven, candidates } = await referenceInputs(saveId);
-  const { weakSpot, entries, wageBound } = proposeSignings(eleven, candidates, buyer);
+  const { weakSpot, entries } = proposeSignings(eleven, candidates, buyer);
   const proposed = MARKET_ENTRIES.flatMap((entry) => entries[entry].map(({ candidate }) => candidate.id));
   const rows = await modules().db.playerSave.findMany({ where: { saveId, id: { in: [...new Set(proposed)] } }, select: VIEW_SELECT });
   const byId = new Map(rows.map((row) => [row.id, row]));
@@ -155,7 +152,9 @@ async function referenceProposals(saveId: string): Promise<MarketProposals> {
   return {
     weakSpot,
     entries: { needs: views(entries.needs), gems: views(entries.gems), bargains: views(entries.bargains), stars: views(entries.stars) },
-    wageBound,
+    // No entry is wage-bound any more, and the squad is full at SQUAD_LIMIT players (getMarketOverview counts them).
+    wageBound: { needs: false, gems: false, bargains: false, stars: false },
+    squadFull: buyer.squadSize >= SQUAD_LIMIT,
   };
 }
 
@@ -238,26 +237,6 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals agai
     }
   };
 
-  /**
-   * A wage room that pays nobody who would improve the weak spot, but someone else: just under the lowest wage asked by
-   * those who would improve it, reachable on price and reputation.
-   */
-  const affordableRoom = async (saveId: string): Promise<number> => {
-    const { buyer, eleven, candidates } = await referenceInputs(saveId);
-    const weakSpot = weakSpotOf(eleven);
-    if (weakSpot === null) {
-      throw new Error("No weak spot");
-    }
-    const reachable = candidates.filter((candidate) => isReachable(candidate, buyer));
-    const improving = reachable.filter(
-      ({ playerKey, position, overall }) => Math.round(ratingAt({ id: playerKey, position, overall }, weakSpot.position)) > weakSpot.rating,
-    );
-    expect(improving.length).toBeGreaterThan(0);
-    const room = Math.min(...improving.map((candidate) => candidate.askedWage)) - 1;
-    expect(reachable.some((candidate) => candidate.askedWage <= room)).toBe(true);
-    return room;
-  };
-
   beforeAll(async () => {
     const [{ prisma }, { getMarketProposals }, lineups, market, transfers, { createSave }, { createTestOwner }] =
       await Promise.all([
@@ -293,45 +272,40 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals agai
     }
   }, 60_000);
 
-  it.each(["top", "second"])(
-    "proposes the same « affordable » players when the wage room pays nobody who would improve the weak spot (%s)",
-    async (key) => {
-      const saveId = saveOf(key);
-      const room = await affordableRoom(saveId);
-      await withManagedClub(saveId, ({ payroll }) => ({ wageBudget: payroll + room }), async () => {
-        const { entries, wageBound } = await expectSame(saveId);
-
-        expect(wageBound.needs).toBe(true);
-        expect(entries.needs.length).toBeGreaterThan(0);
-        expect(entries.needs.every(({ tag }) => tag === "affordable")).toBe(true);
-      });
-    },
-    60_000,
-  );
-
-  it.each(["top", "bottom"])("proposes the same when the wage room pays nobody at all (%s)", async (key) => {
+  it.each(["top", "bottom", "second"])("proposes the same, and as much, with a wage budget at nothing (%s)", async (key) => {
     const saveId = saveOf(key);
-    await withManagedClub(saveId, ({ payroll }) => ({ wageBudget: payroll - 1 }), async () => {
-      const { entries, wageBound } = await expectSame(saveId);
-
-      for (const entry of MARKET_ENTRIES) {
-        expect(entries[entry], entry).toEqual([]);
-      }
-      expect(Object.values(wageBound)).toContain(true);
+    const before = await expectSame(saveId);
+    // Far below the payroll: it was a wage room paying nobody. It limits nothing any more.
+    await withManagedClub(saveId, () => ({ wageBudget: 0 }), async () => {
+      expect(await expectSame(saveId)).toEqual(before);
     });
   }, 60_000);
 
   it.each([
-    ["top", 0],
     ["bottom", 300_000],
-    ["second", 50_000],
-  ] as const)("proposes the same with a small budget (%s, %i €)", async (key, budget) => {
+    ["second", 500_000],
+  ] as const)("proposes the same with a small budget (%s, %i €), free agents at their signing bonus", async (key, budget) => {
     const saveId = saveOf(key);
     await withManagedClub(saveId, () => ({ budget }), async () => {
       const { entries } = await expectSame(saveId);
+      const freeAgents = MARKET_ENTRIES.flatMap((entry) => entries[entry]).filter(({ clubName }) => clubName === null);
 
       expect(entries.stars.length).toBeGreaterThan(0);
       expect(entries.stars.every(({ askingPrice }) => askingPrice <= budget)).toBe(true);
+      // The free agents proposed cost their signing bonus, which the budget pays.
+      expect(freeAgents.length).toBeGreaterThan(0);
+      expect(freeAgents.filter(({ askingPrice, marketValue }) => askingPrice !== signingBonus(marketValue))).toEqual([]);
+    });
+  }, 60_000);
+
+  it("proposes nobody without a budget: every signing costs something, a free agent his bonus", async () => {
+    const saveId = saveOf("top");
+    await withManagedClub(saveId, () => ({ budget: 0 }), async () => {
+      const { entries } = await expectSame(saveId);
+
+      for (const entry of MARKET_ENTRIES) {
+        expect(entries[entry], entry).toEqual([]);
+      }
     });
   }, 60_000);
 
@@ -384,9 +358,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketProposals agai
       expect(await playNextMatchday(saveId)).not.toBeNull();
     }
 
-    await expectSame(saveId);
+    const after = await expectSame(saveId);
     await withManagedClub(saveId, ({ payroll }) => ({ wageBudget: payroll + 150_000 }), async () => {
-      await expectSame(saveId);
+      expect(await expectSame(saveId)).toEqual(after);
     });
   }, 180_000);
 });

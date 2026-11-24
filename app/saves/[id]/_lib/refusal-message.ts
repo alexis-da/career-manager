@@ -8,9 +8,8 @@ import { formatDate, formatMoney } from "@/src/lib/format";
 export type RefusalContext = {
   target?: "squad" | "market"; // a player of the managed club, or one it wants to sign
   fee?: number; // euros offered
-  wage?: number; // euros per season offered
+  bonus?: number; // euros: the signing bonus of a free agent, which the budget does not pay
   budget?: number; // euros the managed club can spend
-  wageRoom?: number; // euros per season left under its wage budget
   clubName?: string; // the selling club
   askingPrice?: number; // euros it asks
   minimumWage?: number; // euros per season the player asks
@@ -36,13 +35,14 @@ export function refusalMessage(
     case "bought_this_window":
       return t("boughtThisWindow");
     case "insufficient_budget":
+      if (context.bonus !== undefined) {
+        return t("insufficientBudgetBonus", { bonus: money(context.bonus) });
+      }
       return context.fee !== undefined && context.budget !== undefined
         ? t("insufficientBudgetFor", { fee: money(context.fee), budget: money(context.budget) })
         : t("insufficientBudget");
-    case "wage_budget_exceeded":
-      return context.wage !== undefined && context.wageRoom !== undefined
-        ? t("wageBudgetExceededBy", { wage: money(context.wage), wageRoom: money(Math.max(0, context.wageRoom)) })
-        : t("wageBudgetExceeded");
+    case "squad_full":
+      return t("squadFull");
     case "club_refused": {
       const club = context.clubName ?? t("sellingClub");
       return context.askingPrice === undefined

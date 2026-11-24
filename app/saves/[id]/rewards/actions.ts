@@ -36,13 +36,10 @@ export type WearInput = z.input<typeof wearSchema>;
 export type RewardsActionResult = { ok: boolean; message: string; tokens: number | null };
 
 /** A refusal as the player reads it, its figures included. */
-function refusalOf(outcome: Extract<PurchaseOutcome, { ok: false }>, t: Translator<"rewards">, locale: Locale): string {
-  const money = (euros: number): string => formatMoney(euros, locale);
+function refusalOf(outcome: Extract<PurchaseOutcome, { ok: false }>, t: Translator<"rewards">): string {
   switch (outcome.reason) {
     case "tokens":
       return t("shop.refusals.tokens", { missing: Math.max(1, outcome.price - outcome.tokens) });
-    case "wage_budget":
-      return t("shop.refusals.wage_budget", { wage: money(outcome.wage ?? 0), wageRoom: money(Math.max(0, outcome.wageRoom ?? 0)) });
     default:
       return t(`shop.refusals.${outcome.reason}`);
   }
@@ -105,7 +102,7 @@ export async function buyAction(saveId: string, input: PurchaseInput): Promise<R
         ? await buyCosmetic(id, purchase.requestId, purchase.cosmetic)
         : await buyCareerItem(id, purchase);
   if (!outcome.ok) {
-    return { ok: false, message: refusalOf(outcome, t, locale), tokens: outcome.tokens };
+    return { ok: false, message: refusalOf(outcome, t), tokens: outcome.tokens };
   }
   // The squad, the budget, the fitness and the header change with a career's item; the tokens everywhere they show.
   revalidatePath(`/saves/${id}`, "layout");

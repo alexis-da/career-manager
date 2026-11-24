@@ -277,12 +277,31 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("createSave", () => {
     const tableOf = (club: (typeof clubs)[number]): number =>
       clubFinances(club.club.initialRank, countOf.get(club.competitionId) ?? NaN, competitionTier(club.competition.tier)).wageBudget;
 
+    // Still computed, though no signing is refused by it any more: it breaks the ties of equal reputations
+    // (docs/design/simplification.md § 1.2).
     for (const club of clubs) {
       expect(club.wageBudget).toBe(wageBudgetFor(payrollOf.get(club.id) ?? NaN, WAGE_BUDGET_MARGIN, tableOf(club)));
     }
     // A real limit: the payroll, not the table, gives almost every club its wage budget.
     expect(clubs.filter((club) => club.wageBudget < tableOf(club)).length).toBeGreaterThan(clubs.length * 0.9);
     expect(dotation.wageBudget).toBe(clubs.find((club) => club.isManaged)?.wageBudget);
+  });
+
+  it("pays no signing bonus at the creation: nobody signs, every budget is its table's", async () => {
+    // A worldVersion 1 save: no European competition credits a participation prize at the creation.
+    const [saveId] = saveIds;
+    const clubs = await database().clubSave.findMany({
+      where: { saveId },
+      select: { budget: true, competitionId: true, competition: { select: { tier: true } }, club: { select: { initialRank: true } } },
+    });
+    const countOf = new Map([...Map.groupBy(clubs, (club) => club.competitionId)].map(([id, members]) => [id, members.length]));
+
+    expect(await database().transfer.count({ where: { saveId, type: "FREE", toClubId: { not: null } } })).toBe(0);
+    for (const club of clubs) {
+      expect(club.budget).toBe(
+        clubFinances(club.club.initialRank, countOf.get(club.competitionId) ?? NaN, competitionTier(club.competition.tier)).budget,
+      );
+    }
   });
 
   it("opens the national cups of a worldVersion 2 save as the game creates one, with their preliminary rounds, none in a worldVersion 1 save", async () => {

@@ -1,12 +1,11 @@
 import * as z from "zod";
-import { RELEASE_COMPENSATION_SHARE, SALE_MAX_BIDDERS } from "../engine/balance";
+import { RELEASE_COMPENSATION_SHARE, SALE_MAX_BIDDERS, SQUAD_LIMIT } from "../engine/balance";
 import { displayClubName } from "../engine/club-name";
-import { contractEndDate } from "../engine/economy";
+import { contractEndDate, marketValueFor, renewalWage, signingBonus } from "../engine/economy";
 import {
   askingPrice,
   biddingOrder,
   evaluateOffer,
-  evaluateRenewal,
   minimumReputation,
   minimumWage,
   resaleCap,
@@ -38,10 +37,12 @@ const feeSchema = z.number().int().min(0).max(MAX_DATABASE_INT);
 const wageSchema = z.number().int().min(1).max(MAX_DATABASE_INT);
 const yearsSchema = z.number().int().min(1).max(5);
 
+// The wage is optional (docs/design/simplification.md § 1.1): without it, the player's asked wage, the one he always gets
+// at least. The screens still send one until they lose their wage fields.
 export const playerActionSchema = z.object({ saveId: idSchema, playerSaveId: idSchema });
-export const makeTransferOfferSchema = playerActionSchema.extend({ fee: feeSchema, wage: wageSchema, years: yearsSchema });
-export const signFreeAgentSchema = playerActionSchema.extend({ wage: wageSchema, years: yearsSchema });
-export const renewContractSchema = playerActionSchema.extend({ wage: wageSchema, years: yearsSchema });
+export const makeTransferOfferSchema = playerActionSchema.extend({ fee: feeSchema, wage: wageSchema.optional(), years: yearsSchema });
+export const signFreeAgentSchema = playerActionSchema.extend({ wage: wageSchema.optional(), years: yearsSchema });
+export const renewContractSchema = playerActionSchema.extend({ wage: wageSchema.optional(), years: yearsSchema });
 export const releasePlayerSchema = playerActionSchema;
 export const sellPlayerSchema = playerActionSchema;
 
@@ -54,10 +55,10 @@ export type TransferRefusal =
   | "window_closed"
   | "not_available"
   | "bought_this_window"
-  | "insufficient_budget"
-  | "wage_budget_exceeded"
+  | "insufficient_budget" // a fee, or a free agent's signing bonus, above the budget; a release's compensation too
+  | "squad_full" // a purchase or a free signing while the squad has SQUAD_LIMIT players already (§ 1.4)
   | "club_refused"
-  | "player_refused"
+  | "player_refused" // the club's reputation is too low for him: the only reason a player refuses (OfferRefusal)
   | "no_offer"
   | "academy" // a promising youth of the shop, on his first contract: neither sold nor released (src/db/shop.ts)
   | "match_in_progress"; // a sale while a match waits live: its line-up may hold the player (sellPlayer)
@@ -65,17 +66,20 @@ export type TransferRefusal =
 export type TransferOutcome =
   | {
       ok: true;
-      fee: number; // transfer fee, or compensation paid for a release; euros
+      fee: number; // euros: the transfer fee, a free agent's signing bonus, or the compensation paid for a release
       budgetChange: number; // change of the managed club's budget
       payrollChange: number; // change of the managed club's wages per season
+      wage: number; // euros per season: the player's wage afterwards, his new contract's when he signs or extends
       clubSaveId: string | null; // the player's club afterwards
       contractUntil: Date | null;
     }
   | { ok: false; reason: TransferRefusal; refusals: OfferRefusal[] };
 
 export type TransferQuote = {
-  askingPrice: number; // euros; 0 for a free agent or a player of the managed club
-  minimumWage: number; // euros per season the player accepts, renewal included
+  // Euros the managed club pays to sign him, out of its budget: his club's asking price; for a free agent, his signing
+  // bonus (signingBonus of his market value today, docs/design/simplification.md § 1.3); 0 for a player of the managed club.
+  askingPrice: number;
+  minimumWage: number; // euros per season the player gets, at least, renewal included: what an offer without a wage pays
   minimumReputation: number; // the lowest reputation of a club he joins; 0 for a player of the managed club
 };
 
@@ -160,15 +164,17 @@ async function managedContext(tx: Tx, saveId: string) {
   });
   const club = await tx.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
-    select: { id: true, clubId: true, budget: true, wageBudget: true, reputation: true },
+    select: { id: true, clubId: true, budget: true, reputation: true },
   });
   return { save, club, windowOpen: transferWindowAt(save.currentDate) !== null };
 }
 
-/** The wages of a club's players, euros per season. */
-async function payrollOf(tx: Tx, saveId: string, clubSaveId: string): Promise<number> {
-  const { _sum } = await tx.playerSave.aggregate({ where: { saveId, clubSaveId }, _sum: { wage: true } });
-  return _sum.wage ?? 0;
+/**
+ * The players under contract at a club, retired ones never (a retired player has no club anyway): what SQUAD_LIMIT counts
+ * (docs/design/simplification.md § 1.4). By the index on (saveId, clubSaveId, retired).
+ */
+export async function squadSizeOf(db: Tx, saveId: string, clubSaveId: string): Promise<number> {
+  return db.playerSave.count({ where: { saveId, clubSaveId, retired: false } });
 }
 
 /**
@@ -222,14 +228,15 @@ const ABOVE_ANY_REPUTATION = 100;
  * The AI clubs that follow, in bidding order, those already read (every club reputed `below` or more): the first
  * `count` of those reputed `floor` or more, and the others of the reputation of the last one, so that biddingOrder,
  * never the database's collation, orders the clubs of a reputation. Fewer than `count`: none is left. Each comes with
- * its wage room, its wage budget less its payroll, read for these clubs only.
+ * its squad size, its players under contract, read for these clubs only: one at SQUAD_LIMIT bids for nobody
+ * (walkSaleBids). No wage room counts any more (docs/design/simplification.md § 1.5).
  *
  * Raw SQL for what Prisma cannot say: the join to Club by primary key, one Club row per club read (a findMany selecting
  * the club reads the whole Club table for them), and WITH TIES, the rest of the last reputation in the same query.
  */
 async function readBidders(tx: Tx, saveId: string, below: number, count: number, floor: number): Promise<Bidder[]> {
-  const clubs = await tx.$queryRaw<(Omit<Bidder, "wageRoom"> & { wageBudget: number })[]>`
-    SELECT cs."id", cs."clubId", cs."budget", cs."wageBudget", cs."reputation", c."slug", c."name"
+  const clubs = await tx.$queryRaw<Omit<Bidder, "squadSize">[]>`
+    SELECT cs."id", cs."clubId", cs."budget", cs."reputation", c."slug", c."name"
     FROM "ClubSave" cs
     JOIN "Club" c ON c."id" = cs."clubId"
     WHERE cs."saveId" = ${saveId} AND NOT cs."isManaged" AND cs."reputation" >= ${floor} AND cs."reputation" < ${below}
@@ -238,15 +245,13 @@ async function readBidders(tx: Tx, saveId: string, below: number, count: number,
   if (clubs.length === 0) {
     return [];
   }
-  const payrolls = await tx.playerSave.groupBy({
+  const squads = await tx.playerSave.groupBy({
     by: ["clubSaveId"],
-    where: { saveId, clubSaveId: { in: clubs.map((club) => club.id) } },
-    _sum: { wage: true },
+    where: { saveId, clubSaveId: { in: clubs.map((club) => club.id) }, retired: false },
+    _count: { _all: true },
   });
-  const payrollByClub = new Map(payrolls.map((row) => [row.clubSaveId, row._sum.wage ?? 0]));
-  return clubs
-    .map(({ wageBudget, ...club }) => ({ ...club, wageRoom: wageBudget - (payrollByClub.get(club.id) ?? 0) }))
-    .sort(biddingOrder);
+  const sizeByClub = new Map(squads.map((row) => [row.clubSaveId, row._count._all]));
+  return clubs.map((club) => ({ ...club, squadSize: sizeByClub.get(club.id) ?? 0 })).sort(biddingOrder);
 }
 
 /**
@@ -294,9 +299,9 @@ async function bestSaleBids(
 }
 
 /**
- * Terms of a player on a date, from his club: nothing to pay and his free-agent wage without a club, his renewal
+ * Terms of a player on a date, from his club: his signing bonus and his free-agent wage without a club, his renewal
  * wage at the managed club, his club's asking price and his raise elsewhere, and the reputation he asks of a club. Pure:
- * the market lists and quoteTransfer share it.
+ * the market lists, the proposals and quoteTransfer share it.
  */
 export function quoteFor(
   player: QuotedPlayer,
@@ -305,10 +310,14 @@ export function quoteFor(
 ): TransferQuote {
   const terms = offerPlayer(player, date);
   if (club === null) {
-    return { askingPrice: 0, minimumWage: minimumWage(terms, null), minimumReputation: minimumReputation(terms, null) };
+    return {
+      askingPrice: signingBonus(marketValueFor(terms)),
+      minimumWage: minimumWage(terms, null),
+      minimumReputation: minimumReputation(terms, null),
+    };
   }
   if (club.isManaged) {
-    return { askingPrice: 0, minimumWage: evaluateRenewal(terms, 0).minimumWage, minimumReputation: 0 };
+    return { askingPrice: 0, minimumWage: renewalWage(terms), minimumReputation: 0 };
   }
   const selling = { reputation: club.reputation };
   return {
@@ -318,7 +327,7 @@ export function quoteFor(
   };
 }
 
-/** Terms a player would accept today: the asking price of his club and his minimum wage. Read only. */
+/** Terms a player would accept today: the asking price of his club (a free agent's bonus) and his minimum wage. Read only. */
 export async function quoteTransfer(input: PlayerActionInput): Promise<TransferQuote> {
   const { saveId, playerSaveId } = playerActionSchema.parse(input);
   const [save, player] = await Promise.all([
@@ -387,7 +396,7 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
       return [
         player.id,
         {
-          renewalMinimumWage: evaluateRenewal(offerPlayer(player, save.currentDate), 0).minimumWage,
+          renewalMinimumWage: renewalWage(offerPlayer(player, save.currentDate)),
           releaseCost: releaseCompensation(player, save.currentDate),
           sale,
           academyUntil: academy.get(player.playerKey) ?? null,
@@ -397,10 +406,16 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
   );
 }
 
-/** Offer from the managed club for a player of an AI club: answered at once by the club and the player. */
+/**
+ * Offer from the managed club for a player of an AI club: answered at once by the club and the player. Refused while the
+ * squad has SQUAD_LIMIT players; the player joins for the wage offered, at least the one he asks (the asked one without).
+ */
 export async function makeTransferOffer(input: MakeTransferOfferInput): Promise<TransferOutcome> {
-  const { saveId, playerSaveId, fee, wage, years } = makeTransferOfferSchema.parse(input);
+  const { saveId, playerSaveId, fee, wage: offeredWage, years } = makeTransferOfferSchema.parse(input);
   return prisma.$transaction(async (tx) => {
+    // The save locked first, as a sale or a purchase in the shop locks it: two signings at once never take the squad
+    // past SQUAD_LIMIT, nor the budget below what they cost.
+    await lockSave(tx, saveId);
     const { save, club, windowOpen } = await managedContext(tx, saveId);
     if (!windowOpen) {
       return refused("window_closed");
@@ -412,18 +427,17 @@ export async function makeTransferOffer(input: MakeTransferOfferInput): Promise<
     if (player === null || player.clubSave === null || player.clubSave.id === club.id) {
       return refused("not_available");
     }
+    if ((await squadSizeOf(tx, saveId, club.id)) >= SQUAD_LIMIT) {
+      return refused("squad_full");
+    }
     if (fee > club.budget) {
       return refused("insufficient_budget");
-    }
-    if ((await payrollOf(tx, saveId, club.id)) + wage > club.wageBudget) {
-      return refused("wage_budget_exceeded");
     }
     const evaluation = evaluateOffer(
       offerPlayer(player, save.currentDate),
       { reputation: player.clubSave.reputation },
       { reputation: club.reputation },
       fee,
-      wage,
     );
     if (!evaluation.clubAccepts) {
       return refused("club_refused", evaluation.refusals);
@@ -432,6 +446,7 @@ export async function makeTransferOffer(input: MakeTransferOfferInput): Promise<
       return refused("player_refused", evaluation.refusals);
     }
 
+    const wage = Math.max(offeredWage ?? 0, evaluation.minimumWage);
     const contractUntil = contractEndDate(save.currentDate, years);
     await tx.playerSave.update({ where: { id: player.id, saveId }, data: { clubSaveId: club.id, contractUntil, wage } });
     await tx.clubSave.update({ where: { id: club.id, saveId }, data: { budget: { decrement: fee } } });
@@ -447,14 +462,21 @@ export async function makeTransferOffer(input: MakeTransferOfferInput): Promise<
         date: save.currentDate,
       },
     });
-    return { ok: true, fee, budgetChange: -fee, payrollChange: wage, clubSaveId: club.id, contractUntil };
+    return { ok: true, fee, budgetChange: -fee, payrollChange: wage, wage, clubSaveId: club.id, contractUntil };
   }, TRANSACTION_OPTIONS);
 }
 
-/** Signs a free agent for the managed club, without a fee. */
+/**
+ * Signs a free agent for the managed club: no fee, his signing bonus instead (signingBonus of his market value today,
+ * docs/design/simplification.md § 1.3), debited from the budget and written as the fee of the FREE transfer, which
+ * « Bonne gestion » counts as a purchase. Refused while the squad has SQUAD_LIMIT players, or when the budget does not
+ * pay the bonus; he joins for the wage offered, at least the one he asks (the asked one without).
+ */
 export async function signFreeAgent(input: SignFreeAgentInput): Promise<TransferOutcome> {
-  const { saveId, playerSaveId, wage, years } = signFreeAgentSchema.parse(input);
+  const { saveId, playerSaveId, wage: offeredWage, years } = signFreeAgentSchema.parse(input);
   return prisma.$transaction(async (tx) => {
+    // Locked as makeTransferOffer is: the squad's count and the bonus checked against what is there.
+    await lockSave(tx, saveId);
     const { save, club, windowOpen } = await managedContext(tx, saveId);
     if (!windowOpen) {
       return refused("window_closed");
@@ -466,26 +488,37 @@ export async function signFreeAgent(input: SignFreeAgentInput): Promise<Transfer
     if (player === null) {
       return refused("not_available");
     }
-    if ((await payrollOf(tx, saveId, club.id)) + wage > club.wageBudget) {
-      return refused("wage_budget_exceeded");
+    if ((await squadSizeOf(tx, saveId, club.id)) >= SQUAD_LIMIT) {
+      return refused("squad_full");
     }
-    const evaluation = evaluateOffer(offerPlayer(player, save.currentDate), null, { reputation: club.reputation }, 0, wage);
+    const terms = offerPlayer(player, save.currentDate);
+    const bonus = signingBonus(marketValueFor(terms));
+    if (bonus > club.budget) {
+      return refused("insufficient_budget");
+    }
+    const evaluation = evaluateOffer(terms, null, { reputation: club.reputation }, 0);
     if (!evaluation.playerAccepts) {
       return refused("player_refused", evaluation.refusals);
     }
 
+    const wage = Math.max(offeredWage ?? 0, evaluation.minimumWage);
     const contractUntil = contractEndDate(save.currentDate, years);
     await tx.playerSave.update({ where: { id: player.id, saveId }, data: { clubSaveId: club.id, contractUntil, wage } });
+    await tx.clubSave.update({ where: { id: club.id, saveId }, data: { budget: { decrement: bonus } } });
     await tx.transfer.create({
-      data: { saveId, playerSaveId: player.id, fromClubId: null, toClubId: club.clubId, fee: 0, type: "FREE", date: save.currentDate },
+      data: { saveId, playerSaveId: player.id, fromClubId: null, toClubId: club.clubId, fee: bonus, type: "FREE", date: save.currentDate },
     });
-    return { ok: true, fee: 0, budgetChange: 0, payrollChange: wage, clubSaveId: club.id, contractUntil };
+    return { ok: true, fee: bonus, budgetChange: -bonus, payrollChange: wage, wage, clubSaveId: club.id, contractUntil };
   }, TRANSACTION_OPTIONS);
 }
 
-/** Extends the contract of a player of the managed club: new length from today and new wage, no transfer. */
+/**
+ * Extends the contract of a player of the managed club: new length from today and new wage, no transfer. Never refused
+ * for the wage (docs/design/simplification.md § 1.1): he extends for the wage offered, at least his floor (renewalWage),
+ * his floor without one.
+ */
 export async function renewContract(input: RenewContractInput): Promise<TransferOutcome> {
-  const { saveId, playerSaveId, wage, years } = renewContractSchema.parse(input);
+  const { saveId, playerSaveId, wage: offeredWage, years } = renewContractSchema.parse(input);
   return prisma.$transaction(async (tx) => {
     const { save, club, windowOpen } = await managedContext(tx, saveId);
     if (!windowOpen) {
@@ -495,16 +528,11 @@ export async function renewContract(input: RenewContractInput): Promise<Transfer
     if (player === null) {
       return refused("not_available");
     }
-    if ((await payrollOf(tx, saveId, club.id)) - player.wage + wage > club.wageBudget) {
-      return refused("wage_budget_exceeded");
-    }
-    if (!evaluateRenewal(offerPlayer(player, save.currentDate), wage).accepted) {
-      return refused("player_refused", ["wage_too_low"]);
-    }
 
+    const wage = Math.max(offeredWage ?? 0, renewalWage(offerPlayer(player, save.currentDate)));
     const contractUntil = contractEndDate(save.currentDate, years);
     await tx.playerSave.update({ where: { id: player.id, saveId }, data: { contractUntil, wage } });
-    return { ok: true, fee: 0, budgetChange: 0, payrollChange: wage - player.wage, clubSaveId: club.id, contractUntil };
+    return { ok: true, fee: 0, budgetChange: 0, payrollChange: wage - player.wage, wage, clubSaveId: club.id, contractUntil };
   }, TRANSACTION_OPTIONS);
 }
 
@@ -541,6 +569,7 @@ export async function releasePlayer(input: PlayerActionInput): Promise<TransferO
       fee: compensation,
       budgetChange: -compensation,
       payrollChange: -player.wage,
+      wage: player.wage,
       clubSaveId: null,
       contractUntil: null,
     };
@@ -607,6 +636,7 @@ export async function sellPlayer(input: PlayerActionInput): Promise<TransferOutc
       fee: bid.fee,
       budgetChange: bid.fee,
       payrollChange: -player.wage,
+      wage: bid.wage,
       clubSaveId: buyer.id,
       contractUntil,
     };

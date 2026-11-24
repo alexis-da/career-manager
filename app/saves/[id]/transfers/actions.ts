@@ -31,10 +31,10 @@ async function translators() {
   return { t, tRefusals, locale };
 }
 
-/** The refusal with the figures behind it: budget, wage room, the selling club's price, the player's wage. */
+/** The refusal with the figures behind it: budget, the selling club's price or a free agent's signing bonus. */
 async function explainRefusal(
   outcome: Refused,
-  offer: { saveId: string; playerSaveId: string; wage: number; fee?: number },
+  offer: { saveId: string; playerSaveId: string; fee?: number },
   t: Translator<"refusals">,
   locale: Locale,
 ): Promise<ActionResult> {
@@ -44,9 +44,9 @@ async function explainRefusal(
     message: refusalMessage(outcome.reason, t, locale, outcome.refusals, {
       target: "market",
       fee: offer.fee,
-      wage: offer.wage,
+      // A free agent's price is his signing bonus (TransferQuote.askingPrice).
+      bonus: facts.clubName === null ? facts.quote.askingPrice : undefined,
       budget: facts.budget,
-      wageRoom: facts.wageRoom,
       clubName: facts.clubName ?? undefined,
       askingPrice: facts.quote.askingPrice,
       minimumWage: facts.quote.minimumWage,
@@ -67,7 +67,7 @@ export async function signFreeAgentAction(input: SignFreeAgentInput): Promise<Ac
     return explainRefusal(outcome, parsed.data, tRefusals, locale);
   }
   revalidatePath(`/saves/${parsed.data.saveId}`, "layout");
-  const wage = formatMoney(parsed.data.wage, locale);
+  const wage = formatMoney(outcome.wage, locale);
   return {
     ok: true,
     message:
@@ -90,7 +90,7 @@ export async function makeTransferOfferAction(input: MakeTransferOfferInput): Pr
   }
   revalidatePath(`/saves/${parsed.data.saveId}`, "layout");
   const fee = formatMoney(outcome.fee, locale);
-  const wage = formatMoney(parsed.data.wage, locale);
+  const wage = formatMoney(outcome.wage, locale);
   return {
     ok: true,
     message:
