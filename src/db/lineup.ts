@@ -3,10 +3,12 @@ import { cache } from "react";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../engine/formations";
 import type { AttributeName } from "../engine/generation";
 import { DEFAULT_INSTRUCTION, INSTRUCTIONS, type Instruction } from "../engine/instructions";
+import { FULL_FITNESS } from "../engine/balance";
 import {
   BENCH_SIZE,
   isAvailable,
   managedLineup,
+  selectAssistantLineup,
   selectLineup,
   youthCandidate,
   type Lineup,
@@ -200,7 +202,8 @@ export type ManagedLineup = {
   // best available player at each slot, as without a saved line-up before him (selectLineup: nobody rested, no Jeunesse).
   weakSpotLineup: Lineup<ClubLineupPlayer>;
   // The players kept off the sales list (getMarketSales), by key: the player's eleven, his saved starters out of the next
-  // match included; the assistant's way, his eleven with the whole squad available (§ 3.4), an injured starter with it.
+  // match included; the assistant's way, his eleven with the whole squad available and fresh (§ 3.4), an injured starter
+  // with it, and the Jeunesse objective's young player who starts (§ 3.5), the starter he replaces then on the bench.
   keptOffSales: string[];
 };
 
@@ -321,14 +324,14 @@ export const getManagedLineup = cache(async (saveId: string): Promise<ManagedLin
   const lineup = managedLineup(editor.formation, editor.saved, editor.players, byAssistant ? { youth: editor.youth ?? null } : null);
   if (byAssistant) {
     const positions = formationPositions(editor.formation);
-    const everyone = editor.players.map((player) => ({ ...player, injured: false, suspended: false }));
+    const everyone = editor.players.map((player) => ({ ...player, injured: false, suspended: false, fitness: FULL_FITNESS }));
     return {
       formation: editor.formation,
       byAssistant,
       lineup,
       missingStarters: [],
       weakSpotLineup: selectLineup(editor.players, positions),
-      keptOffSales: selectLineup(everyone, positions).starters.map(({ player }) => player.id),
+      keptOffSales: selectAssistantLineup(everyone, positions, editor.youth ?? null).starters.map(({ player }) => player.id),
     };
   }
   const byKey = new Map(editor.players.map((player) => [player.id, player]));

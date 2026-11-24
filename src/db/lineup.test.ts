@@ -140,7 +140,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("who makes the managed c
     expect(managed).toMatchObject({ byAssistant: true, missingStarters: [] });
     expect(managed.lineup).toEqual(selectAssistantLineup(editor.players, positions, editor.youth ?? null));
     expect(managed.weakSpotLineup).toEqual(selectLineup(editor.players, positions));
-    expect(managed.keptOffSales).toEqual(selectLineup(editor.players, positions).starters.map(({ player }) => player.id));
+    // Kept off the sales: his eleven with everyone available and fresh, the Jeunesse objective's young player in it.
+    const everyone = editor.players.map((player) => ({ ...player, injured: false, suspended: false, fitness: 100 }));
+    expect(managed.keptOffSales).toEqual(selectAssistantLineup(everyone, positions, editor.youth ?? null).starters.map(({ player }) => player.id));
   });
 
   it("reads, before the season's first match, the optional objective its assistant will choose then: Jeunesse when proposed", async () => {
