@@ -40,6 +40,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the missions of the day
     goalsFor: 0,
     coached: false,
     starters: [],
+    players: [],
     ...overrides,
   });
 
@@ -288,7 +289,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the missions of the day
     expect((await missions.getDailyMissions(saveId, date))?.changeUsed).toBe(true);
   });
 
-  it("starts a youngster: a starter of 21 or younger at the match's date, never an older one", async () => {
+  it("plays a youngster: a player of 21 or younger at the match's date who played, never an older one", async () => {
     const { db, matchday } = loaded();
     const { currentDate } = await db.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
     const managed = await db.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });

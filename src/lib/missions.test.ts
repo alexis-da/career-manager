@@ -40,9 +40,10 @@ const facts = (figures: Partial<MatchFacts> = {}): MatchFacts => ({
   goalsFor: 0,
   coached: false,
   starters: [],
+  players: [],
   ...figures,
 });
-const match = (figures: Partial<MatchFacts> = {}, youthStarted: boolean | null = null): MissionMove => ({ kind: "match", facts: facts(figures), youthStarted });
+const match = (figures: Partial<MatchFacts> = {}, youthPlayed: boolean | null = null): MissionMove => ({ kind: "match", facts: facts(figures), youthPlayed });
 
 describe("the pools of the three missions", () => {
   it("share no mission, hold every one, weigh 100 each, and keep the hard ones live, most of the medium ones", () => {
@@ -114,8 +115,21 @@ describe("the missions of the day", () => {
   }, DRAWING_MS);
 });
 
+describe("the line-up mission, since the assistant makes the line-up", () => {
+  it("is never drawn nor proposed as a change, yet keeps its tier", () => {
+    for (const user of USERS.slice(0, 8)) {
+      for (const day of DAYS.slice(0, 40)) {
+        const easy = dailyMissionKind(user, day, "EASY");
+        expect(easy).not.toBe("SAVE_LINEUP");
+        expect(changedMissionKind(user, day, "EASY", easy)).not.toBe("SAVE_LINEUP");
+      }
+    }
+    expect(tierOf("SAVE_LINEUP")).toBe("EASY");
+  }, DRAWING_MS);
+});
+
 describe("a move's step toward a mission", () => {
-  it("counts a match, a goal, a youngster started and a line-up saved for the easy ones", () => {
+  it("counts a match, a goal, a youngster who played and a line-up saved for the easy ones", () => {
     expect(missionStep("PLAY_MATCH", match())).toBe(1);
     expect(missionStep("PLAY_MATCH", { kind: "lineup" })).toBe(0);
     expect(missionStep("PLAY_MATCHES", match({ live: true }))).toBe(1);
@@ -175,7 +189,7 @@ describe("a finished match's facts", () => {
     ...figures,
   });
 
-  it("says a win, the goals, a clean sheet, a change of the player's in a live match, and the starting eleven", () => {
+  it("says a win, the goals, a clean sheet, a change of the player's in a live match, the starting eleven and who played", () => {
     expect(matchFacts(result({ homeGoals: 2 }), "home", true, true)).toEqual({
       live: true,
       won: true,
@@ -183,6 +197,7 @@ describe("a finished match's facts", () => {
       goalsFor: 2,
       coached: true,
       starters: ["h1", "h2"],
+      players: ["h1", "h2", "h3"],
     });
     expect(matchFacts(result({ homeGoals: 2, awayGoals: 1 }), "away", false, true)).toMatchObject({ won: false, goalsFor: 1, coached: false });
   });

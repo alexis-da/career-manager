@@ -36,12 +36,15 @@ export type MissionTier = (typeof MISSION_TIERS)[number];
  * or two, the medium ones 70 % live, the hard ones all live. The pools never share a mission.
  */
 export const MISSION_POOLS: Readonly<Record<MissionTier, readonly (readonly [MissionKind, number])[]>> = {
+  // SAVE_LINEUP never drawn since the assistant makes the line-up (docs/design/simplification.md § 9): saving one's own
+  // would take it from him. Weight 0, first of its pool (weightedIndex's rounding falls back on the last one): it keeps
+  // its tier, for a mission of the day already drawn and for /admin.
   EASY: [
-    ["PLAY_MATCH", 25],
-    ["PLAY_MATCHES", 20],
-    ["SCORE", 20],
-    ["SAVE_LINEUP", 20],
-    ["START_YOUTH", 15],
+    ["SAVE_LINEUP", 0],
+    ["PLAY_MATCH", 30],
+    ["PLAY_MATCHES", 25],
+    ["SCORE", 25],
+    ["START_YOUTH", 20],
   ],
   MEDIUM: [
     ["PLAY_LIVE", 25],
@@ -174,15 +177,17 @@ export type MatchFacts = {
   goalsFor: number; // extra time included, the shoot-out's aside
   coached: boolean; // live, with a substitution of the player's (TeamLive.manual)
   starters: string[]; // the managed club's starting eleven, by player key
+  players: string[]; // every player of the managed club who played, starters and substitutes, by player key
 };
 
 /**
- * A move of the player in a career but a challenge one: a match of the managed club played to its end (`youthStarted`:
- * a starter of YOUTH_MAX_AGE or younger at its date, looked up only for START_YOUTH, null otherwise); at a pause of a
- * live match, a substitution, an instruction or a choice event's decision of theirs; a line-up saved.
+ * A move of the player in a career but a challenge one: a match of the managed club played to its end (`youthPlayed`: a
+ * player of YOUTH_MAX_AGE or younger at its date played in it, from the start or coming on, looked up only for
+ * START_YOUTH, null otherwise); at a pause of a live match, a substitution, an instruction or a choice event's decision of
+ * theirs; a line-up saved.
  */
 export type MissionMove =
-  | { kind: "match"; facts: MatchFacts; youthStarted: boolean | null }
+  | { kind: "match"; facts: MatchFacts; youthPlayed: boolean | null }
   | { kind: "substitution" }
   | { kind: "instruction" }
   | { kind: "decision" }
@@ -200,8 +205,10 @@ export function missionStep(kind: MissionKind, move: MissionMove): number {
       return match !== null && match.goalsFor >= 1 ? 1 : 0;
     case "SAVE_LINEUP":
       return move.kind === "lineup" ? 1 : 0;
+    // « Fais jouer un joueur de 21 ans ou moins » since the assistant makes the line-up (§ 9): a substitution at a
+    // pause of a live match does it, its key unchanged.
     case "START_YOUTH":
-      return move.kind === "match" && move.youthStarted === true ? 1 : 0;
+      return move.kind === "match" && move.youthPlayed === true ? 1 : 0;
     case "PLAY_LIVE":
       return live ? 1 : 0;
     case "LIVE_SUBSTITUTION":
@@ -249,6 +256,7 @@ export function matchFacts(result: MatchResult, side: Side, live: boolean, coach
     goalsFor: goals[side],
     coached: live && coached,
     starters: result.appearances.filter((appearance) => appearance.side === side && appearance.from === 0).map((appearance) => appearance.playerId),
+    players: result.appearances.filter((appearance) => appearance.side === side).map((appearance) => appearance.playerId),
   };
 }
 

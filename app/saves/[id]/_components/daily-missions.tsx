@@ -63,7 +63,9 @@ const ICONS: Readonly<Record<MissionKind, LucideIcon>> = {
 };
 
 /** The missions done on the line-up's screen: the card leads there. */
-const LINEUP_MISSIONS: readonly MissionKind[] = ["START_YOUTH", "SAVE_LINEUP"];
+// A youth now played from the start or coming on, the line-up the assistant's: only a line-up mission drawn before still
+// leads to it.
+const LINEUP_MISSIONS: readonly MissionKind[] = ["SAVE_LINEUP"];
 
 /** A way on from the card: 44 px high on a phone, never a full orange. */
 const CARD_LINK = "text-sm font-semibold text-(--club) hover:text-(--club-hover) max-sm:inline-flex max-sm:min-h-11 max-sm:items-center";

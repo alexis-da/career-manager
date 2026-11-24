@@ -4,11 +4,11 @@
     "done": "done",
     "squad": {
       "title": "See your squad",
-      "hint": "Meet your players, their ratings and their wages."
+      "hint": "Meet your players, their ratings and their fitness."
     },
     "lineup": {
       "title": "Pick your line-up",
-      "hint": "Your eleven is already set: change it or keep it."
+      "hint": "Your assistant already picks your eleven: choose your formation, or pick it yourself."
     },
     "match": {
       "title": "Play your first match",
@@ -20,7 +20,7 @@
     "tips": {
       "rating": "A rating, from 1 to 99, sums up a player's current level. Potential (Pot.) is the estimated ceiling they can reach.",
       "secondary": "The small outlined badges are a player's secondary positions: they play there at {percent}% of their rating, and less well elsewhere.",
-      "money": "The transfer budget pays for signings. The wage bill adds up a season's wages: any deal that takes it over its limit is refused.",
+      "money": "The transfer budget pays for signings and a free agent's signing bonus. Your squad has 30 players at most.",
       "simulation": "“{button}” plays several matchdays in one go, with no live match, and gives you the summary."
     }
   }

@@ -4,11 +4,11 @@
     "done": "fait",
     "squad": {
       "title": "Voir l'effectif",
-      "hint": "Découvre tes joueurs, leur note et leur salaire."
+      "hint": "Découvre tes joueurs, leur note et leur condition."
     },
     "lineup": {
       "title": "Choisir ta composition",
-      "hint": "Ton onze est déjà aligné : change-le ou garde-le."
+      "hint": "Ton adjoint aligne déjà ton onze : choisis ton dispositif, ou fais-le toi-même."
     },
     "match": {
       "title": "Jouer le premier match",
@@ -20,7 +20,7 @@
     "tips": {
       "rating": "La note, de 1 à 99, résume le niveau actuel d'un joueur. Le potentiel (Pot.) est le plafond estimé qu'il peut atteindre.",
       "secondary": "Les petits badges entourés sont les postes secondaires d'un joueur : il y joue à {percent} % de sa note, moins bien ailleurs.",
-      "money": "Le budget transferts paie les achats. La masse salariale additionne les salaires d'une saison : toute signature qui dépasse son plafond est refusée.",
+      "money": "Le budget transferts paie les achats et la prime d'un joueur libre. Ton effectif compte 30 joueurs au plus.",
       "simulation": "« {button} » joue plusieurs journées d'un coup, sans direct, et te donne le bilan."
     }
   }

@@ -228,22 +228,22 @@ export async function getMissionStreak(saveId: string, now: Date, db: PrismaClie
   return { ...streakOn(latest, day, shield), shield };
 }
 
-/** The moves as the missions read them: a match's starters of YOUTH_MAX_AGE or younger looked up only when asked. */
+/** The moves as the missions read them: whether a player of YOUTH_MAX_AGE or younger played, looked up only when asked. */
 async function movesOf(db: Db, saveId: string, moves: PlayedMoves, youth: boolean): Promise<MissionMove[]> {
   const result: MissionMove[] = [];
   if (moves.match !== null && moves.match !== undefined) {
     const { facts, date } = moves.match;
-    let youthStarted: boolean | null = null;
-    if (youth && facts.starters.length > 0) {
-      const [{ started }] = await db.$queryRaw<{ started: boolean }[]>`
+    let youthPlayed: boolean | null = null;
+    if (youth && facts.players.length > 0) {
+      const [{ played }] = await db.$queryRaw<{ played: boolean }[]>`
         SELECT EXISTS (
           SELECT 1 FROM "PlayerSave"
-          WHERE "saveId" = ${saveId} AND "playerKey" IN (${Prisma.join(facts.starters)})
+          WHERE "saveId" = ${saveId} AND "playerKey" IN (${Prisma.join(facts.players)})
             AND "birthDate" > ${date}::timestamp - make_interval(years => ${YOUTH_MAX_AGE + 1}::int)
-        ) AS started`;
-      youthStarted = started;
+        ) AS played`;
+      youthPlayed = played;
     }
-    result.push({ kind: "match", facts, youthStarted });
+    result.push({ kind: "match", facts, youthPlayed });
   }
   if (moves.substitution === true) {
     result.push({ kind: "substitution" });
