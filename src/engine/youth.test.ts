@@ -5,7 +5,7 @@ import { YOUTH_OVERALL_BY_TIER, YOUTH_OVERALL_MAX, YOUTH_OVERALL_MIN, YOUTH_POTE
 import { ATTRIBUTE_NAMES, RATING_MAX, RATING_MIN } from "./generation";
 import { squadTemplate, type Position } from "./positions";
 import { NAME_BANK } from "./names";
-import { generateYouthPlayer, youthPlayerKey, youthPositions, youthRngSeed } from "./youth";
+import { generateYouthPlayer, youthIntakeYear, youthPlayerKey, youthPositions, youthRngSeed } from "./youth";
 import { seasonStartDate } from "./world";
 
 const START_YEAR = 2025;
@@ -139,5 +139,13 @@ describe("generateYouthPlayer in a second division club", () => {
 
   it("keeps a second division club's young players below a first division leader's", () => {
     expect(mean(secondBatch(60).map((player) => player.overall))).toBeLessThan(mean(batch(90).map((player) => player.overall)));
+  });
+});
+
+describe("youthIntakeYear", () => {
+  it("reads the season of a young player of the academy from his key, and nothing from any other key", () => {
+    expect(youthIntakeYear(youthPlayerKey(2027, "rc-lens", 3))).toBe(2027);
+    expect(youthIntakeYear("rc-lens#12")).toBeNull();
+    expect(youthIntakeYear("shop-youth:1")).toBeNull();
   });
 });

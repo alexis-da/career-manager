@@ -9,6 +9,7 @@
  * available before the simplification »; against the game after it, a mode whose hook is still stubbed here is refused
  * too, so that nothing is ever measured half-way.
  */
+import { getSaleProposals } from "../src/db/sale-proposals";
 import { sellPlayer } from "../src/db/transfers";
 import * as balance from "../src/engine/balance";
 import { Prisma } from "../src/generated/prisma/client";
@@ -30,15 +31,9 @@ export function simplificationLanded(): boolean {
   return "SQUAD_LIMIT" in balance || "lineupByAssistant" in Prisma.SaveScalarFieldEnum;
 }
 
+// The mark of a hook's stub, which threw when called until the game provided the hook. Every hook is now the game's
+// own function (24/11): the frozen copy of this file in the baseline's worktree still has its stubs.
 const STUB = Symbol("stub");
-
-/** A hook's stub, until the game provides it: it throws when called, and says its name. */
-function stub<Args extends unknown[], Result>(name: string): ((...args: Args) => Promise<Result>) & { readonly [STUB]: string } {
-  const call: (...args: Args) => Promise<Result> = async () => {
-    throw new NotAvailableBeforeSimplification(name);
-  };
-  return Object.assign(call, { [STUB]: name });
-}
 
 /** Whether a hook is still its stub here. */
 export function isStub(hook: unknown): boolean {
@@ -67,18 +62,16 @@ export function requireHook(hook: unknown, mode: string): void {
 /**
  * HOOK setLineupByAssistant (§ 3.3, Save.lineupByAssistant): who fields the managed club's eleven before each match, its
  * assistant (true, a new career's default after the change) or the player (false: his saved line-up, selectLineup when
- * he saved none). Today's game knows the player's mode alone, which the script plays without asking anything. Wire it to
- * the game's function behind the « Composition » setting of Club → Réglages, without its action's checks: e.g.
- *   export { setLineupByAssistant } from "../src/db/assistant-settings";
+ * he saved none). The game's function behind the « Composition » setting of Club → Réglages, without its action's checks.
  */
-export const setLineupByAssistant = stub<[saveId: string, byAssistant: boolean], void>("setLineupByAssistant");
+export { setLineupByAssistant } from "../src/db/assistant-settings";
 
 /**
  * HOOK setContractsByAssistant (§ 2.3, Save.contractsByAssistant): who decides the managed club's contracts ending on
  * 30 June at each transition, its assistant (true, the default after the change) or the player (false: each of them
- * leaves free, as in today's game). Wire it to the game's function behind the « Contrats » setting, as above.
+ * leaves free, as in today's game). The game's function behind the « Contrats » setting, as above.
  */
-export const setContractsByAssistant = stub<[saveId: string, byAssistant: boolean], void>("setContractsByAssistant");
+export { setContractsByAssistant } from "../src/db/assistant-settings";
 
 /** What an assistant did to the managed club's contracts at a transition (§ 2.1): its renewals, releases and signings. */
 export type ContractMoves = { renewals: number; releases: number; signings: number };
@@ -93,25 +86,27 @@ export const contractMovesOf: (saveId: string, startYear: number) => Promise<Con
 
 // ------------------------------------------------------------------ Sales proposed by the assistant (§ 5)
 
-/** A sale the managed club's assistant proposes (§ 5.1): the player, and the best offer for him in euros. */
-export type ProposedSale = { playerSaveId: string; offer: number };
+/** A sale the managed club's assistant proposes (§ 5.1): the player, the best offer for him in euros, and its club (ClubSave.id). */
+export type ProposedSale = { playerSaveId: string; offer: number; buyerId: string };
 
 /**
- * HOOK saleProposalsOf (§ 5.1, « saleProposals » of § 14): the sales the managed club's assistant proposes at the save's
- * current date, the best offer first, as « Ton adjoint propose » shows them (three at most, a player kept never again
- * before the window's end); none outside a window. Wire it to the game's reader once it exists, e.g.:
- *   export async function saleProposalsOf(saveId: string): Promise<ProposedSale[]> {
- *     return (await getSaleProposals(saveId)).map((proposal) => ({ playerSaveId: proposal.playerSaveId, offer: proposal.fee }));
- *   }
+ * HOOK saleProposalsOf (§ 5.1): the sales the managed club's assistant proposes at the save's current date, the best
+ * offer first, as « Ton adjoint propose » shows them (three at most, a player kept never again before the window's end);
+ * none outside a window. The game's reader, getSaleProposals (src/db/sale-proposals.ts).
  */
-export const saleProposalsOf = stub<[saveId: string], ProposedSale[]>("saleProposalsOf");
+export async function saleProposalsOf(saveId: string): Promise<ProposedSale[]> {
+  return (await getSaleProposals(saveId)).proposals.map((proposal) => ({
+    playerSaveId: proposal.id,
+    offer: proposal.offer.fee,
+    buyerId: proposal.offer.buyerId,
+  }));
+}
 
 /**
- * HOOK acceptProposedSale (§ 5.2, the sale of acceptSaleProposalAction): sells a proposed player at once. Today's sale
- * until the game has one of its own for the proposals: sellPlayer, which sells him to the best AI bid, the offer the
- * proposal shows (the game's will also refuse when that offer changed since it was read).
+ * HOOK acceptProposedSale (§ 5.2, the sale of acceptSaleProposalAction): sells a proposed player at once, at the offer the
+ * proposal shows, or not at all when it changed since it was read (another sale emptied a budget).
  */
 export async function acceptProposedSale(saveId: string, sale: ProposedSale): Promise<{ ok: boolean; fee: number }> {
-  const outcome = await sellPlayer({ saveId, playerSaveId: sale.playerSaveId });
+  const outcome = await sellPlayer({ saveId, playerSaveId: sale.playerSaveId, expected: { fee: sale.offer, buyerId: sale.buyerId } });
   return outcome.ok ? { ok: true, fee: outcome.fee } : { ok: false, fee: 0 };
 }

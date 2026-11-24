@@ -16,6 +16,7 @@ const REASONS: TransferRefusal[] = [
   "bought_this_window",
   "academy",
   "match_in_progress",
+  "offer_changed",
 ];
 
 /** The refusal as a player reads it in a language, French unless told otherwise. */
@@ -82,6 +83,12 @@ describe("refusalMessage", () => {
     expect(message("squad_full", [], {}, "en")).toBe(
       "Your squad already has 30 players, the maximum: sell or release one before signing another.",
     );
+  });
+
+  it("says a proposed sale's offer changed, and the offer now, in both languages", () => {
+    const changedOffer = { fee: 3_100_000, buyerName: "Brest" };
+    expect(message("offer_changed", [], { changedOffer })).toBe("L'offre a changé : Brest propose maintenant 3,1 M€. Rien n'est vendu.");
+    expect(message("offer_changed", [], { changedOffer }, "en")).toBe("The offer has changed: Brest now offers €3.1m. Nothing was sold.");
   });
 
   it("names the selling club in general terms when it is not known", () => {

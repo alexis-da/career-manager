@@ -51,6 +51,12 @@
         "already-chosen": "This season's objective has already been chosen: it can't be changed.",
         "season-started": "Your first match of the season has been played: the objective can no longer be chosen."
       }
+    },
+    "saleProposals": {
+      "invalid": "Unknown sale: reload the page.",
+      "sold": "{player} sold to {club} for {fee}.",
+      "kept": "{player} stays: your assistant won't propose him again before the window closes.",
+      "keepRefused": "Nothing to keep: the window is closed, or the player has left your squad."
     }
   },
   "refusals": {
@@ -61,6 +67,8 @@
     "boughtThisWindow": "You've only just signed him in this window: he can't leave before the next one.",
     "academy": "Promising youngster: he can be neither sold nor released during his first contract.",
     "matchInProgress": "Your match is waiting to resume: play it out before selling a player.",
+    "offerChanged": "The offer has changed: nothing was sold, look at the new one before deciding.",
+    "offerChangedTo": "The offer has changed: {club} now offers {fee}. Nothing was sold.",
     "insufficientBudget": "Insufficient budget: your transfer budget doesn't cover this deal.",
     "insufficientBudgetFor": "Insufficient budget: the fee of {fee} exceeds your transfer budget of {budget}.",
     "insufficientBudgetBonus": "Your budget doesn't cover his signing bonus ({bonus}).",

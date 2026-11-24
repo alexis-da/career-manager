@@ -1,3 +1,4 @@
+import { cache } from "react";
 import * as z from "zod";
 import { RELEASE_COMPENSATION_SHARE, SALE_MAX_BIDDERS, SQUAD_LIMIT } from "../engine/balance";
 import { displayClubName } from "../engine/club-name";
@@ -44,12 +45,14 @@ export const makeTransferOfferSchema = playerActionSchema.extend({ fee: feeSchem
 export const signFreeAgentSchema = playerActionSchema.extend({ wage: wageSchema.optional(), years: yearsSchema });
 export const renewContractSchema = playerActionSchema.extend({ wage: wageSchema.optional(), years: yearsSchema });
 export const releasePlayerSchema = playerActionSchema;
-export const sellPlayerSchema = playerActionSchema;
+// A proposed sale (docs/design/simplification.md § 5.2) names the offer its card showed: sold only at that offer.
+export const sellPlayerSchema = playerActionSchema.extend({ expected: z.object({ fee: feeSchema, buyerId: idSchema }).optional() });
 
 export type PlayerActionInput = z.input<typeof playerActionSchema>;
 export type MakeTransferOfferInput = z.input<typeof makeTransferOfferSchema>;
 export type SignFreeAgentInput = z.input<typeof signFreeAgentSchema>;
 export type RenewContractInput = z.input<typeof renewContractSchema>;
+export type SellPlayerInput = z.input<typeof sellPlayerSchema>;
 
 export type TransferRefusal =
   | "window_closed"
@@ -61,7 +64,8 @@ export type TransferRefusal =
   | "player_refused" // the club's reputation is too low for him: the only reason a player refuses (OfferRefusal)
   | "no_offer"
   | "academy" // a promising youth of the shop, on his first contract: neither sold nor released (src/db/shop.ts)
-  | "match_in_progress"; // a sale while a match waits live: its line-up may hold the player (sellPlayer)
+  | "match_in_progress" // a sale while a match waits live: its line-up may hold the player (sellPlayer)
+  | "offer_changed"; // a proposed sale whose best offer is no longer the one its card showed: nothing is sold
 
 export type TransferOutcome =
   | {
@@ -73,7 +77,8 @@ export type TransferOutcome =
       clubSaveId: string | null; // the player's club afterwards
       contractUntil: Date | null;
     }
-  | { ok: false; reason: TransferRefusal; refusals: OfferRefusal[] };
+  // changedOffer: with offer_changed, the best offer now, which the card shows next.
+  | { ok: false; reason: TransferRefusal; refusals: OfferRefusal[]; changedOffer?: { fee: number; buyerName: string } };
 
 export type TransferQuote = {
   // Euros the managed club pays to sign him, out of its budget: his club's asking price; for a free agent, his signing
@@ -340,11 +345,23 @@ export async function quoteTransfer(input: PlayerActionInput): Promise<TransferQ
   return quoteFor(player, player.clubSave, save.currentDate);
 }
 
+/** quoteSquad, with the club behind each offer (ClubSave.id), keyed by PlayerSave.id like the terms. */
+export type SquadQuotes = { terms: Map<string, ContractTerms>; buyers: Map<string, string> };
+
 /**
  * Renewal wage, release cost and best sale offer of every player of the managed club today, keyed by
  * PlayerSave.id. Read only: the actions compute the same terms again when they run.
  */
 export async function quoteSquad(saveId: string): Promise<Map<string, ContractTerms>> {
+  return (await quoteSquadWithBuyers(saveId)).terms;
+}
+
+/**
+ * quoteSquad and the buyer of each offer, which a proposed sale names when it is accepted (getSaleProposals,
+ * src/db/sale-proposals.ts). Read once per request (React's cache: the Vendre tab reads its rows and its proposals);
+ * outside a server render, at each call.
+ */
+export const quoteSquadWithBuyers = cache(async (saveId: string): Promise<SquadQuotes> => {
   const { save, club, windowOpen } = await managedContext(prisma, saveId);
   const players = await prisma.playerSave.findMany({
     where: { saveId, clubSaveId: club.id },
@@ -370,8 +387,14 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
     .map((player) => ({ player, cap: resaleCap(arrivalsOf(player), offerPlayer(player, save.currentDate), save.currentDate) }));
   const caps = new Map(onSale.map(({ player, cap }) => [player.id, cap]));
   const bids = windowOpen ? await bestSaleBids(prisma, saveId, save, club, onSale) : new Map<string, BestBid | null>();
+  const buyers = new Map<string, string>();
+  for (const [playerSaveId, best] of bids) {
+    if (best !== null) {
+      buyers.set(playerSaveId, best.buyer.id);
+    }
+  }
 
-  return new Map(
+  const terms = new Map(
     players.map((player) => {
       let sale: SaleQuote = { ok: false, reason: "window_closed" };
       if (academy.has(player.playerKey)) {
@@ -404,7 +427,8 @@ export async function quoteSquad(saveId: string): Promise<Map<string, ContractTe
       ];
     }),
   );
-}
+  return { terms, buyers };
+});
 
 /**
  * Offer from the managed club for a player of an AI club: answered at once by the club and the player. Refused while the
@@ -580,8 +604,8 @@ export async function releasePlayer(input: PlayerActionInput): Promise<TransferO
  * Puts a player of the managed club on sale and accepts the best AI bid at once, unless he arrived in this window; in
  * the year after he arrived, that bid is at most his resale cap (resaleCap). The fee quoteSquad shows.
  */
-export async function sellPlayer(input: PlayerActionInput): Promise<TransferOutcome> {
-  const { saveId, playerSaveId } = sellPlayerSchema.parse(input);
+export async function sellPlayer(input: SellPlayerInput): Promise<TransferOutcome> {
+  const { saveId, playerSaveId, expected } = sellPlayerSchema.parse(input);
   return prisma.$transaction(async (tx) => {
     // The save locked first, as a matchday or a step of the live match locks it: a sale waits for the one under way, then
     // reads the squad and the budgets it left (docs/design/simplification.md § 5.2).
@@ -613,6 +637,10 @@ export async function sellPlayer(input: PlayerActionInput): Promise<TransferOutc
     }
 
     const { bid, buyer } = best;
+    // A proposed sale is made at the offer its card showed, or not at all: another sale may have emptied a budget since.
+    if (expected !== undefined && (buyer.id !== expected.buyerId || bid.fee !== expected.fee)) {
+      return { ok: false, reason: "offer_changed", refusals: [], changedOffer: { fee: bid.fee, buyerName: displayClubName(buyer) } };
+    }
     const contractUntil = contractEndDate(save.currentDate, bid.years);
     await tx.playerSave.update({
       where: { id: player.id, saveId },

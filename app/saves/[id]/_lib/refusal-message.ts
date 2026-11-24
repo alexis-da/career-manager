@@ -14,6 +14,7 @@ export type RefusalContext = {
   askingPrice?: number; // euros it asks
   minimumWage?: number; // euros per season the player asks
   nextWindowOpensOn?: Date;
+  changedOffer?: { fee: number; buyerName: string }; // a proposed sale's best offer now (TransferOutcome.changedOffer)
 };
 
 /** The reason an action was refused, as the player of the game should read it, in their language. */
@@ -55,6 +56,10 @@ export function refusalMessage(
       return t("academy");
     case "match_in_progress":
       return t("matchInProgress");
+    case "offer_changed":
+      return context.changedOffer === undefined
+        ? t("offerChanged")
+        : t("offerChangedTo", { club: context.changedOffer.buyerName, fee: money(context.changedOffer.fee) });
     case "player_refused":
       if (refusals.includes("club_reputation_too_low")) {
         return t("playerRefusedReputation");

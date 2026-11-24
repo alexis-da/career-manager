@@ -109,6 +109,23 @@ export async function readArchivedSeasonsOfClub(
   return rows.map((row) => ({ seasonId: row.seasonId, startYear: row.season.startYear, season: decodeSeason(encodedOf(row)) }));
 }
 
+/**
+ * The save's archived seasons of a start year: the ids of every one of them, whose rows (if any remain) are never read,
+ * and those whose clubs include a club, decoded with their statistics.
+ */
+export async function readArchivedYear(
+  db: Db,
+  saveId: string,
+  startYear: number,
+  clubSaveId: string,
+): Promise<{ archivedIds: string[]; ofClub: DecodedSeason[] }> {
+  const archived = await db.seasonArchive.findMany({ where: { saveId, season: { startYear } }, select: { seasonId: true, clubSaveIds: true } });
+  const ofClubIds = archived.filter((row) => row.clubSaveIds.includes(clubSaveId)).map((row) => row.seasonId);
+  const rows =
+    ofClubIds.length === 0 ? [] : await db.seasonArchive.findMany({ where: { saveId, seasonId: { in: ofClubIds } }, select: WITH_STATS_SELECT });
+  return { archivedIds: archived.map((row) => row.seasonId), ofClub: rows.map((row) => decodeSeason(encodedOf(row))) };
+}
+
 /** The matches the managed club played in the save's archived seasons: counted when the season was archived. */
 export async function archivedManagedMatches(db: Db, saveId: string): Promise<number> {
   const { _sum } = await db.seasonArchive.aggregate({ where: { saveId }, _sum: { managedPlayed: true } });

@@ -68,6 +68,15 @@ export function youthKeyPrefix(startYear: number): string {
   return `youth:${startYear}:`;
 }
 
+/**
+ * The season whose preseason brought a young player of the academy to his club, read from his key (youthPlayerKey); null
+ * for any other player. He joined it on that season's first day.
+ */
+export function youthIntakeYear(playerKey: string): number | null {
+  const match = /^youth:(\d{4}):/.exec(playerKey);
+  return match === null ? null : Number(match[1]);
+}
+
 /** Stable key of a young player in the save, used for seeds and tie-breaks like `slug#squadSlot`. */
 export function youthPlayerKey(startYear: number, clubSlug: string, index: number): string {
   return `${youthKeyPrefix(startYear)}${clubSlug}:${index}`;

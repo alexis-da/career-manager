@@ -1,5 +1,6 @@
 import { PROSPECT_MAX_AGE, SQUAD_STANDARD_SIZE } from "./balance";
 import { selectLineup, type Formation, type LineupCandidate } from "./lineup";
+import { seasonStartDate, seasonStartYear, transferWindowAt } from "./world";
 
 // The sales the assistant proposes in a transfer window (docs/design/simplification.md § 5.1): the players of the managed
 // club who never play, whom he does not need and a club would buy, a few at a time. Pure: the caller reads the squad, the
@@ -18,6 +19,23 @@ export const SALE_PROPOSAL_GOALKEEPERS_KEPT = 3;
 export const SALE_PROPOSAL_MIN_GOALKEEPERS = 2;
 /** The proposals shown at once, the best offers first. */
 export const SALE_PROPOSALS_SHOWN = 3;
+
+/**
+ * The reference period of a window's proposals: in a winter window, the season in progress; in a summer window, the
+ * season completed before it, the new one having barely begun. `start` is its first day: a player who joined the club
+ * after it has no figures of the club's for the whole period.
+ */
+export type SaleProposalPeriod = { startYear: number; start: Date; inProgress: boolean };
+
+/** The reference period of the proposals on a date, or null outside a transfer window: nothing is proposed then. */
+export function saleProposalPeriod(date: Date): SaleProposalPeriod | null {
+  const window = transferWindowAt(date);
+  if (window === null) {
+    return null;
+  }
+  const startYear = window === "winter" ? seasonStartYear(date) : seasonStartYear(date) - 1;
+  return { startYear, start: seasonStartDate(startYear), inProgress: window === "winter" };
+}
 
 /** A player of the managed club as the proposals weigh him. */
 export type SaleCandidate = LineupCandidate & {

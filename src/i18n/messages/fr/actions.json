@@ -51,6 +51,12 @@
         "already-chosen": "L'objectif de la saison est déjà choisi : il ne se change plus.",
         "season-started": "Ton premier match de la saison est joué : le choix de l'objectif est fermé."
       }
+    },
+    "saleProposals": {
+      "invalid": "Vente inconnue : recharge la page.",
+      "sold": "{player} vendu à {club} pour {fee}.",
+      "kept": "{player} reste : ton adjoint ne le proposera plus avant la fin du mercato.",
+      "keepRefused": "Rien à garder : le mercato est fermé, ou le joueur a quitté ton effectif."
     }
   },
   "refusals": {
@@ -61,6 +67,8 @@
     "boughtThisWindow": "Tu viens de le recruter à ce mercato : il ne peut pas repartir avant le prochain.",
     "academy": "Jeune prometteur : ni vente ni libération pendant son premier contrat.",
     "matchInProgress": "Ton match attend la reprise : joue la suite avant de vendre un joueur.",
+    "offerChanged": "L'offre a changé : rien n'est vendu, regarde la nouvelle avant de décider.",
+    "offerChangedTo": "L'offre a changé : {club} propose maintenant {fee}. Rien n'est vendu.",
     "insufficientBudget": "Budget insuffisant : ton budget transferts ne couvre pas cette opération.",
     "insufficientBudgetFor": "Budget insuffisant : l'indemnité de {fee} dépasse ton budget transferts de {budget}.",
     "insufficientBudgetBonus": "Ton budget ne paie pas sa prime à la signature ({bonus}).",

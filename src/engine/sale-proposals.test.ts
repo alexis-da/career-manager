@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Position } from "./positions";
 import { DEFAULT_FORMATION } from "./lineup";
-import { saleProposals, SALE_PROPOSALS_SHOWN, type SaleCandidate } from "./sale-proposals";
+import { saleProposalPeriod, saleProposals, SALE_PROPOSALS_SHOWN, type SaleCandidate } from "./sale-proposals";
 
 const DATE = new Date(Date.UTC(2027, 0, 12));
 const MATCHES = 24; // official matches of the club in the period: 10 % of its minutes is 216
@@ -102,5 +102,27 @@ describe("the sales the assistant proposes", () => {
     // 23 players: one sale leaves 22, a second would leave 21.
     const short = withPlayers(never).filter(({ id }) => id !== "b5" && id !== "b6");
     expect(proposed(short)).toEqual(["b10"]);
+  });
+});
+
+describe("saleProposalPeriod", () => {
+  const day = (iso: string): Date => new Date(`${iso}T00:00:00.000Z`);
+
+  it("weighs the season in progress in a winter window, from its first day", () => {
+    expect(saleProposalPeriod(day("2027-01-01"))).toEqual({ startYear: 2026, start: day("2026-07-01"), inProgress: true });
+    expect(saleProposalPeriod(day("2027-01-31"))).toEqual({ startYear: 2026, start: day("2026-07-01"), inProgress: true });
+  });
+
+  it("weighs the completed season in a summer window, the new one having barely begun", () => {
+    expect(saleProposalPeriod(day("2027-07-01"))).toEqual({ startYear: 2026, start: day("2026-07-01"), inProgress: false });
+    expect(saleProposalPeriod(day("2027-08-31"))).toEqual({ startYear: 2026, start: day("2026-07-01"), inProgress: false });
+    // A career's first summer: a season before the career, without any match of the club, which proposes nothing.
+    expect(saleProposalPeriod(day("2026-07-01"))?.startYear).toBe(2025);
+  });
+
+  it("proposes nothing outside a window", () => {
+    expect(saleProposalPeriod(day("2027-02-01"))).toBeNull();
+    expect(saleProposalPeriod(day("2026-12-31"))).toBeNull();
+    expect(saleProposalPeriod(day("2027-06-30"))).toBeNull();
   });
 });
