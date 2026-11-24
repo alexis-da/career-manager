@@ -61,5 +61,32 @@
       "ios": "Touche Partager, puis « Sur l'écran d'accueil ».",
       "other": "Dans le menu de ton navigateur, choisis « Installer l'appli » ou « Ajouter à l'écran d'accueil »."
     }
+  },
+  "assistantSettings": {
+    "title": "Ton adjoint s'occupe de",
+    "lineup": {
+      "label": "Composition",
+      "on": "Il aligne le meilleur onze avant chaque match, dans ton dispositif.",
+      "off": "Tu fais ton onze : il ne remplace qu'un blessé ou un suspendu."
+    },
+    "contracts": {
+      "label": "Contrats",
+      "on": "Il prolonge les joueurs utiles et laisse partir les autres.",
+      "off": "Tu décides des contrats : sans prolongation, un joueur part libre en fin de saison."
+    },
+    "done": {
+      "lineup": {
+        "assistant": "Ton adjoint fait la composition.",
+        "player": "Tu fais la composition."
+      },
+      "contracts": {
+        "assistant": "Ton adjoint s'occupe des contrats.",
+        "player": "Tu t'occupes des contrats."
+      }
+    },
+    "refusals": {
+      "invalid": "Ce réglage n'existe pas.",
+      "live": "Ton match attend la reprise : joue la suite avant de changer ce réglage."
+    }
   }
 }

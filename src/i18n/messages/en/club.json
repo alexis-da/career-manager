@@ -61,5 +61,32 @@
       "ios": "Tap Share, then “Add to Home Screen”.",
       "other": "In your browser's menu, choose “Install app” or “Add to Home screen”."
     }
+  },
+  "assistantSettings": {
+    "title": "Your assistant takes care of",
+    "lineup": {
+      "label": "Line-up",
+      "on": "He fields the best eleven before every match, in your formation.",
+      "off": "You pick your eleven: he only replaces an injured or suspended player."
+    },
+    "contracts": {
+      "label": "Contracts",
+      "on": "He renews the useful players and lets the others go.",
+      "off": "You decide on contracts: without an extension, a player leaves on a free at the end of the season."
+    },
+    "done": {
+      "lineup": {
+        "assistant": "Your assistant picks the line-up.",
+        "player": "You pick the line-up."
+      },
+      "contracts": {
+        "assistant": "Your assistant takes care of contracts.",
+        "player": "You take care of contracts."
+      }
+    },
+    "refusals": {
+      "invalid": "This setting does not exist.",
+      "live": "Your match is waiting to resume: play it out before changing this setting."
+    }
   }
 }

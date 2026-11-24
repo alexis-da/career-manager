@@ -5,6 +5,7 @@ import { ResumeLinkCopy } from "@/app/_components/in-app-actions";
 import { LanguageSwitcher } from "@/app/_components/language-switcher";
 import { signOutAction } from "@/app/actions";
 import type { CurrentUser } from "@/src/auth/current-user";
+import type { AssistantSettings as AssistantSettingsView } from "@/src/db/assistant-settings";
 import { publicPath } from "@/src/i18n/public-pages";
 import { maxSavesFor } from "@/src/lib/limits";
 import type { StreakView } from "@/src/lib/missions";
@@ -12,6 +13,7 @@ import type { TutorialSettingState } from "@/src/lib/tutorial";
 import { cn } from "@/src/lib/utils";
 import { Panel } from "@/src/components/panel";
 import { StreakChip } from "../../_components/mission-chips";
+import { AssistantSettings } from "./assistant-settings";
 import { CLUB_CARD_LINK, ClubCardTitle } from "./club-card";
 import { InstallApp } from "./install-app";
 import { TutorialSetting } from "./tutorial-setting";
@@ -72,24 +74,32 @@ function MissionStreak({ streak }: { streak: StreakView }) {
 type ClubSettingsProps = {
   user: CurrentUser;
   ownedSaves: number;
+  assistant?: { saveId: string; settings: AssistantSettingsView } | null; // what the career leaves to the assistant
   streak?: StreakView | null; // the player's daily missions, none in a challenge save
   tutorial?: { saveId: string; state: TutorialSettingState } | null; // the tutorial this save follows, if it does
   className?: string;
 };
 
 /**
- * The player's settings: language, account, saves used, the daily missions' streak, the first career's tutorial, the
- * installable game and privacy.
+ * The player's settings: first what the career leaves to the assistant (docs/design/simplification.md § 6.8), then
+ * language, account, saves used, the daily missions' streak, the first career's tutorial, the installable game and
+ * privacy. Its anchor, `#reglages`, is where the dashboard's announcement leads.
  */
-export function ClubSettings({ user, ownedSaves, streak = null, tutorial = null, className }: ClubSettingsProps) {
+export function ClubSettings({ user, ownedSaves, assistant = null, streak = null, tutorial = null, className }: ClubSettingsProps) {
   const t = useTranslations("settings");
   const tLanguage = useTranslations("language");
   const tFooter = useTranslations("footer");
   // The public pages it leads to, in the save's language.
   const locale = useLocale();
   return (
-    <Panel aria-labelledby="club-settings-title" data-testid="club-settings" className={cn("flex flex-col gap-4", className)}>
+    <Panel
+      id="reglages"
+      aria-labelledby="club-settings-title"
+      data-testid="club-settings"
+      className={cn("flex scroll-mt-4 flex-col gap-4", className)}
+    >
       <ClubCardTitle id="club-settings-title">{t("title")}</ClubCardTitle>
+      {assistant !== null && <AssistantSettings saveId={assistant.saveId} settings={assistant.settings} />}
       <div className={ROW}>
         <p className={NAME}>{tLanguage("label")}</p>
         <LanguageSwitcher segmented />

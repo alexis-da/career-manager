@@ -62,5 +62,17 @@
   "accountBanner": {
     "label": "Compte",
     "message": "Crée un compte pour ne pas perdre ta carrière"
+  },
+  "assistantNotice": {
+    "label": "Nouveau : ton adjoint",
+    "title": "Ton adjoint prend le relais",
+    "money": "Plus de plafond salarial : ton budget est ta seule limite. Un joueur libre coûte une prime à la signature, et ton effectif compte 30 joueurs au plus.",
+    "lineupAssistant": "J'aligne le onze avant chaque match, dans ton dispositif.",
+    "lineupPlayer": "Ta composition enregistrée reste la tienne : rends-moi la main quand tu veux.",
+    "contractsAssistant": "Je prolonge tes joueurs utiles, et je te préviens avant de laisser partir un titulaire.",
+    "contractsPlayer": "Les contrats restent entre tes mains.",
+    "sales": "Au mercato, je te propose de vendre ceux qui ne jouent pas.",
+    "settings": "Régler l'adjoint",
+    "close": "Compris"
   }
 }

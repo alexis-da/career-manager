@@ -233,10 +233,25 @@ async function writeSave(data: SaveData, timer: PhaseTimer): Promise<{ id: strin
         clubCountByCompetition.set(club.competitionId, (clubCountByCompetition.get(club.competitionId) ?? 0) + 1);
       }
 
+      // The assistant makes the line-up of a new career (docs/design/simplification.md § 3): a career from before the
+      // setting keeps it null. Its announcement closed at once: a new career was never told of anything else.
       const save = await tx.save.create({
-        data: { name, managerName, seed, ownerId, worldVersion, currentDate: WORLD_START_DATE, challengeId: challenge?.id ?? null, breaksFrom, cyclesFrom, winterBreakFrom },
+        data: {
+          name,
+          managerName,
+          seed,
+          ownerId,
+          worldVersion,
+          currentDate: WORLD_START_DATE,
+          challengeId: challenge?.id ?? null,
+          breaksFrom,
+          cyclesFrom,
+          winterBreakFrom,
+          lineupByAssistant: true,
+        },
         select: { id: true, seed: true, currentDate: true },
       });
+      await tx.$executeRaw`UPDATE "Save" SET "assistantNoticeAt" = now() WHERE "id" = ${save.id}`;
       if (challenge !== null) {
         // Right after the save: a creation for the same user and week at the same time waits on this row's unique
         // index, then fails here, before writing its world.

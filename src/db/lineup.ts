@@ -67,6 +67,19 @@ export function parseSavedLineup(value: unknown): SavedLineup | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * Who makes the managed club's line-up (docs/design/simplification.md § 3.3): the career's setting once it has one
+ * (Save.lineupByAssistant: true at a new career's creation, or the player's choice); for a career from before it, the
+ * player while his club has a line-up saved with its starters, the assistant otherwise: a line-up he saved stays his.
+ */
+export function lineupByAssistantOf(setting: boolean | null, savedLineup: unknown): boolean {
+  if (setting !== null) {
+    return setting;
+  }
+  const saved = parseSavedLineup(savedLineup);
+  return saved === null || saved.starters.length === 0;
+}
+
 /** A player on a pitch: the managed club's before its next match or at a break, or an opponent's. */
 export type LineupPlayer = LineupCandidate & {
   firstName: string;

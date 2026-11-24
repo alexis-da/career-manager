@@ -2,6 +2,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
 import { after } from "next/server";
 import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
+import { getAssistantSettings } from "@/src/db/assistant-settings";
 import { getChallengeBanner } from "@/src/db/challenge-view";
 import { prisma } from "@/src/db/client";
 import { getManagerName } from "@/src/db/club";
@@ -21,6 +22,7 @@ import { formatWeekdayDayMonth } from "@/src/lib/format";
 import { dashboardStep, dayOnePlace, firstDayCalm, pendingWrites, tutorialReveal } from "@/src/lib/tutorial";
 import { InAppNotice } from "@/app/_components/in-app-notice";
 import { AccountBanner } from "./_components/account-banner";
+import { AssistantNotice } from "./_components/assistant-notice";
 import { ChallengeCard } from "./_components/challenge-banner";
 import { LastMatchCard } from "./_components/dashboard-last-match";
 import { DashboardObjectives } from "./_components/dashboard-objectives";
@@ -68,7 +70,7 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
   // The first career's tutorial (docs/design/tutoriel.md): the calm of its first day reads neither missions nor objectives.
   const tutorial = await getSaveTutorial(id);
   const calm = tutorial !== null && firstDayCalm(tutorial, now);
-  const [dashboard, lineup, opponent, user, challenge, firstSteps, objectives, missions, internationalBreak, coach, coachTodos] = await Promise.all([
+  const [dashboard, lineup, opponent, user, challenge, firstSteps, objectives, missions, internationalBreak, coach, coachTodos, assistant] = await Promise.all([
     getDashboard(id),
     getManagedLineup(id),
     getOpponentPreview(id),
@@ -84,6 +86,8 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
     coachesNation(id),
     // A federation's offer, his list before his break or tournament, the end of his mission: lines of « À faire ».
     getCoachTodos(id),
+    // What the career leaves to the assistant, and whether it was told (docs/design/simplification.md § 7).
+    getAssistantSettings(id),
   ]);
   // A national coach's game also goes through his breaks and his summer tournament: the hero follows it as the sidebar's
   // card does (getSaveHeader), his next match at stake first, his match waiting live (« /live/nation »), his tournament
@@ -197,6 +201,8 @@ export default async function DashboardPage({ params }: PageProps<"/saves/[id]">
           />
         )}
         {bubble?.place === "hero" && laterBubble}
+        {/* Once in a career from before the simplification, right under the hero: what the assistant now does in it. */}
+        {assistant.noticeOpen && <AssistantNotice saveId={id} settings={assistant} className={WIDE} />}
         {/* A challenge save's first actions: a career has the tutorial, or a player who knows the game. */}
         {!firstMatchPlayed && challenge !== null && (
           <FirstActionsPanel

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
+import { getAssistantSettings } from "@/src/db/assistant-settings";
 import { ensureCurrentChallenge } from "@/src/db/challenge";
 import { getChallengePage } from "@/src/db/challenge-view";
 import { getClubFinances, getManagerName, getSeasonPrizes } from "@/src/db/club";
@@ -45,7 +46,7 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
   const [challenge, tutorial] = await Promise.all([ensureCurrentChallenge(now), getSaveTutorial(id)]);
   // The tutorial shows the missions' streak with the missions, and the challenge from its second day.
   const reveal = tutorialReveal(tutorial, { now, matchesPlayed: 0 });
-  const [t, tCosmetics, managerName, finances, prizes, view, objectives, { seasons }, ownedSaves, streak, worn, matchesPlayed] = await Promise.all([
+  const [t, tCosmetics, managerName, finances, prizes, view, objectives, { seasons }, ownedSaves, streak, worn, matchesPlayed, assistant] = await Promise.all([
     getTranslations("club"),
     getTranslations("rewards.cosmetics"),
     getManagerName(id),
@@ -58,6 +59,7 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
     reveal.missions ? getMissionStreak(id, now) : null,
     getWornCosmetics(user.id),
     tutorial === null ? 0 : managedMatchesPlayed(id, 1),
+    getAssistantSettings(id),
   ]);
   // The manager's title and featured badge (missions v2): the collection's, the rookie's by default.
   const title = isCosmeticId(worn.title) ? worn.title : (DEFAULT_COSMETIC.TITLE ?? "title-rookie");
@@ -96,6 +98,7 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
         <ClubSettings
           user={user}
           ownedSaves={ownedSaves}
+          assistant={{ saveId: id, settings: assistant }}
           streak={streak}
           tutorial={tutorial === null ? null : { saveId: id, state: tutorialSetting(tutorial, { now, matchesPlayed }) }}
         />

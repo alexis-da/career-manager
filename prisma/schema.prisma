@@ -373,6 +373,12 @@ model Save {
   liveInternationalId  String? // le match de sa sélection en suspens (N4b) ; sans clé étrangère, comme liveFixtureId
   cyclesFrom           Int? // première saison du premier cycle d'éliminatoires (deux saisons, puis un tournoi d'été) : la première saison avec trêves d'une partie créée depuis, ou la suivante d'une partie d'avant ; null sans sélections
   winterBreakFrom      Int? // première saison avec trêve hivernale (championnats d'Espagne, d'Italie, d'Allemagne et de France sans match du 21 décembre au 3 janvier, l'Angleterre jouant) : la première saison avec trêves d'une partie créée depuis, ou la suivante d'une partie d'avant ; null pour une partie 1, une partie du défi, ou une partie d'avant jusqu'à sa saison suivante
+  // Réglages de l'adjoint (docs/design/simplification.md) : la composition (null pour une carrière d'avant : le mode joueur
+  // si le club dirigé a une composition enregistrée, l'adjoint sinon ; true à la création), les contrats, et l'annonce
+  // fermée (posée à la création d'une carrière, qui ne l'a jamais)
+  lineupByAssistant    Boolean?
+  contractsByAssistant Boolean              @default(true)
+  assistantNoticeAt    DateTime?
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   clubSaves            ClubSave[]
@@ -609,6 +615,10 @@ model PlayerSave {
   marketValue            Int                 @default(0) // euros
   wage                   Int                 @default(0) // euros par saison
   contractUntil          DateTime?
+  // Le choix du joueur pour un contrat qui finit cette saison, appliqué au passage (« RENEW » ou « LEAVE », validé par
+  // Zod) ; null : la règle de l'adjoint, ou un départ libre quand le joueur garde les contrats (docs/design/simplification.md)
+  contractChoice         String?
+  saleKeptUntil          DateTime? // une vente proposée par l'adjoint que le joueur a gardée : plus proposée avant cette date (la fin du mercato)
   stats                  PlayerSeasonStats[]
   transfers              Transfer[]
   events                 MatchEvent[]        @relation("MatchEventPlayer")
@@ -801,7 +811,8 @@ model SeasonBudget {
   coefficient    Int // centièmes : 100 sans objectifs, 70 à 140 selon ceux de la saison écoulée
   carryOver      Int // euros : la moitié du budget non dépensé de la saison écoulée ; 0 à la création
   budget         Int // euros : dotation × coefficient + report, le budget de transferts donné
-  wageBudget     Int // euros par saison : le plafond salarial, recalculé comme la dotation, sans coefficient
+  wageBudget     Int // euros par saison : le plafond salarial, recalculé comme la dotation, sans coefficient ; plus lu par aucun écran (docs/design/simplification.md § 1.2)
+  contractMoves  Json? // ce que l'adjoint a fait des contrats au passage qui ouvre la saison : prolongés, partis, recrues (validé par Zod) ; null à la création ou avant la règle
 
   @@index([saveId])
 }

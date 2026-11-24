@@ -62,5 +62,17 @@
   "accountBanner": {
     "label": "Account",
     "message": "Create an account so you don't lose your career"
+  },
+  "assistantNotice": {
+    "label": "New: your assistant",
+    "title": "Your assistant takes over",
+    "money": "No more wage cap: your budget is your only limit. A free agent costs a signing bonus, and your squad has 30 players at most.",
+    "lineupAssistant": "I pick the eleven before every match, in your formation.",
+    "lineupPlayer": "Your saved line-up stays yours: hand it back to me whenever you like.",
+    "contractsAssistant": "I renew your useful players, and I'll warn you before letting a starter go.",
+    "contractsPlayer": "Contracts stay in your hands.",
+    "sales": "In the transfer window, I'll suggest selling the players who don't play.",
+    "settings": "Set up your assistant",
+    "close": "Got it"
   }
 }
