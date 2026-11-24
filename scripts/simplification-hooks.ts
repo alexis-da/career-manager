@@ -9,6 +9,8 @@
  * available before the simplification »; against the game after it, a mode whose hook is still stubbed here is refused
  * too, so that nothing is ever measured half-way.
  */
+import { prisma } from "../src/db/client";
+import { parseContractMoves } from "../src/db/contracts";
 import { getSaleProposals } from "../src/db/sale-proposals";
 import { sellPlayer } from "../src/db/transfers";
 import * as balance from "../src/engine/balance";
@@ -77,12 +79,17 @@ export { setContractsByAssistant } from "../src/db/assistant-settings";
 export type ContractMoves = { renewals: number; releases: number; signings: number };
 
 /**
- * HOOK contractMovesOf (§ 2.1, SeasonBudget.contractMoves): what the game's assistant did to the managed club's contracts
- * at the transition that opened a season, when that transition's preseason does not say it (PreseasonSummary.managed).
- * Null until the game keeps them: today only the measurement option of advanceToNextSeason (assistantContracts) has an
- * assistant, and its preseason says what it did. Wire it to a reader of SeasonBudget.contractMoves once it exists.
+ * HOOK contractMovesOf (§ 2.1, SeasonBudget.contractMoves): what the turn that opened a season did to the managed club's
+ * contracts, when its preseason does not say it (PreseasonSummary.managed, given in assistant mode only): its renewals and
+ * its signings, kept on the season's dotation (src/db/contracts.ts). No release: the assistant never breaks a running
+ * contract, and a contract's end is a departure, which the transition counts (SeasonTransition.freeAgents). Null for a
+ * season opened without them (a save's first).
  */
-export const contractMovesOf: (saveId: string, startYear: number) => Promise<ContractMoves | null> = async () => null;
+export async function contractMovesOf(saveId: string, startYear: number): Promise<ContractMoves | null> {
+  const row = await prisma.seasonBudget.findFirst({ where: { saveId, season: { startYear } }, select: { contractMoves: true } });
+  const moves = parseContractMoves(row?.contractMoves ?? null);
+  return moves === null ? null : { renewals: moves.renewed.length, releases: 0, signings: moves.signed.length };
+}
 
 // ------------------------------------------------------------------ Sales proposed by the assistant (§ 5)
 
