@@ -16,6 +16,8 @@ import { ClubSettings } from "./club-settings";
 // The buttons alone are rendered here: a Server Action needs a request.
 vi.mock("@/app/actions", () => ({ setLanguageAction: vi.fn(), signInWithGoogleAction: vi.fn(), signOutAction: vi.fn() }));
 vi.mock("@/app/saves/[id]/tutorial/actions", () => ({ resumeTutorialAction: vi.fn(), skipTutorialAction: vi.fn(), tutorialStepAction: vi.fn() }));
+vi.mock("@/app/saves/[id]/club/actions", () => ({ setAssistantSettingAction: vi.fn(), closeAssistantNoticeAction: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const render = (card: ReactNode, locale?: Locale): string => renderToStaticMarkup(inLanguage(card, locale));
 

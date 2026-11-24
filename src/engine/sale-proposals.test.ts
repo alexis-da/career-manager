@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Position } from "./generation";
+import type { Position } from "./positions";
 import { DEFAULT_FORMATION } from "./lineup";
 import { saleProposals, SALE_PROPOSALS_SHOWN, type SaleCandidate } from "./sale-proposals";
 
