@@ -970,9 +970,9 @@ test("writes a transfer in words, and no glyph on the squad, the line-up and the
   await expect(rowsOf(page).first()).toBeVisible();
   await expectNoGlyph(page);
 
-  await rowsOf(page)
-    .filter({ has: page.getByText(signed, { exact: true }) })
-    .click();
+  const signedRow = rowsOf(page).filter({ has: page.getByText(signed, { exact: true }) });
+  const signedKey = await signedRow.getAttribute("data-player-key");
+  await signedRow.click();
   await expect(sheetNameOf(page)).toHaveText(signed);
   await expect(sheetOf(page).getByTestId("player-sheet-transfers")).toContainText(new RegExp(`Transfert : .+ vers ${LYON}, `));
   await expect(sheetOf(page).getByTestId("sell-player")).toBeDisabled();
@@ -983,12 +983,20 @@ test("writes a transfer in words, and no glyph on the squad, the line-up and the
   await expect(sheetOf(page)).toBeVisible();
   await expectNoGlyph(page);
 
-  // His sheet in the column, then an empty slot: a drawing, and a word.
-  await linesOf(page).filter({ hasText: signed }).click();
+  // His sheet in the column, from his line, or from his slot when the assistant fields him (he fills the weak spot), then
+  // an empty slot: a drawing, and a word.
+  const reserve = linesOf(page).filter({ hasText: signed });
+  const fielded = page.locator(`[data-testid="pitch-slot"][data-slot-player-key="${signedKey}"]`);
+  // His slot, selected by the click that opens his sheet, is the one emptied then; otherwise a forward's.
+  const fieldedAt = (await reserve.count()) > 0 ? null : await fielded.getAttribute("data-slot-index");
+  await (fieldedAt === null ? reserve : fielded).click();
+  await expect(sheetNameOf(page)).toHaveText(signed);
   await expect(sheetOf(page).getByTestId("player-sheet-transfers")).toBeVisible();
   await expectNoGlyph(page);
-  const slot = slotAt(page, FORWARD_SLOT);
-  await slot.click();
+  const slot = slotAt(page, fieldedAt === null ? FORWARD_SLOT : Number(fieldedAt));
+  if (fieldedAt === null) {
+    await slot.click();
+  }
   await page.getByTestId("lineup-send-to-bench").click();
   await expect(slot.locator("[data-slot-player]")).toHaveText("Vide");
   await expect(slot.locator("svg")).toBeVisible();

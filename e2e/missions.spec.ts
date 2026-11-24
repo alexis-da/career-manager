@@ -108,13 +108,12 @@ test.describe("on a phone, in French", () => {
 test.describe("on a computer, in English", () => {
   test.use({ viewport: COMPUTER, locale: "en-GB" });
 
-  test("leads a youngster's mission to the line-up, buys and wears a title and a streak shield", async ({ page }) => {
+  test("tells a youngster's mission, buys and wears a title and a streak shield", async ({ page }) => {
     test.setTimeout(180_000);
     const userId = await createAnonymousUser(new Date());
     try {
       await signInAs(page, userId);
       await createSave(page, `E2E missions EN ${Date.now()}`, LYON);
-      const saveId = saveIdOf(page);
       await setTodaysMissions(userId, { EASY: { kind: "START_YOUTH" }, MEDIUM: { kind: "WIN" }, HARD: { kind: "LIVE_CLEAN_SHEET" } });
       await giveTokens(userId, 400);
       await page.reload();
@@ -122,15 +121,15 @@ test.describe("on a computer, in English", () => {
 
       const card = page.getByTestId("daily-missions");
       const youth = card.locator('[data-testid="mission-task"][data-tier="EASY"]');
-      await expect(youth.getByTestId("mission-title")).toHaveText("Start a player aged 21 or under");
-      await expect(youth).toContainText("Put him in your eleven, then play the match.");
+      // Any appearance counts, a substitution in a live match too (docs/design/simplification.md § 9): no way to the line-up.
+      await expect(youth.getByTestId("mission-title")).toHaveText("Play a player aged 21 or under");
+      await expect(youth).toContainText("Bring him on during a live match.");
+      await expect(youth.getByTestId("mission-lineup")).toHaveCount(0);
       await expect(card.getByTestId("mission-streak-line")).toHaveText("One mission today starts your streak.");
       await expect(card.getByTestId("mission-streak")).toHaveCount(0);
       await expect(card.getByTestId("mission-tokens")).toHaveAttribute("data-tokens", "400");
       // Across the page, under the hero and the small table.
       expect((await boxOf(card)).width).toBeGreaterThan((await boxOf(page.getByTestId("dashboard-next-match"))).width);
-      await youth.getByTestId("mission-lineup").click();
-      await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/lineup$`));
 
       // The Rewards tab, in English: a title bought, then worn; the shield bought, kept in reserve.
       await openScreen(page, "rewards");

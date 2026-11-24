@@ -205,7 +205,11 @@ async function expectClubScreen(page: Page): Promise<void> {
   await expect(season).toHaveAttribute("href", new RegExp(`^/saves/${demo}/seasons/[^/]+$`));
 
   const settings = page.getByTestId("club-settings");
-  await expect(settings.getByRole("heading")).toHaveText("Réglages");
+  await expect(settings.getByRole("heading", { level: 2 })).toHaveText("Réglages");
+  // What its assistant takes care of comes first (docs/design/simplification.md § 2.3, § 3.3): its two switches.
+  await expect(settings.getByRole("heading", { level: 3 }).first()).toHaveText("Ton adjoint s'occupe de");
+  await expect(settings.getByTestId("settings-assistant-lineup")).toHaveAttribute("role", "switch");
+  await expect(settings.getByTestId("settings-assistant-contracts")).toHaveAttribute("role", "switch");
   await expect(settings.getByTestId("language-fr")).toHaveAttribute("aria-pressed", "true");
   await expect(settings.getByTestId("language-en")).toHaveAttribute("aria-pressed", "false");
   await expect(settings.getByTestId("settings-account")).toBeVisible();
@@ -513,7 +517,8 @@ test.describe("in English, at 390 px", () => {
         "The board never sacks its manager: a failure only cuts the next budget.",
       );
     }
-    await expect(page.getByTestId("club-settings").getByRole("heading")).toHaveText("Settings");
+    await expect(page.getByTestId("club-settings").getByRole("heading", { level: 2 })).toHaveText("Settings");
+    await expect(page.getByTestId("club-settings").getByRole("heading", { level: 3 }).first()).toHaveText("Your assistant takes care of");
     await expect(page.getByTestId("settings-saves")).toContainText("1 of 1 used");
     await expect(page.getByTestId("settings-change-save")).toHaveText("Switch career");
     await expectNoSidewaysScroll(page, "club");
