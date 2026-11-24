@@ -724,9 +724,13 @@ carte Objectifs (`DashboardObjectives`, `dashboard-objectives`, toute la largeur
 objectif, son état en pastille, `objective-status`, et son chiffre ; la confiance du président ; tant que le choix est
 ouvert, la case de l'objectif au choix mène à l'écran de début de saison, `dashboard-objectives-choose` ; « Voir le
 détail » mène à l'onglet Club, `#objectifs`), « À
-faire » (`DashboardTodo`, du plus pressant au reste : titulaires blessés, titulaires suspendus, autres blessés, joueurs à
-4 jaunes, meilleure offre reçue, point faible, contrats, gardiens, effectif ; toute la ligne est un lien, sauf « Effectif
-complet » ; l'offre et le point faible seulement après le premier match du club, `firstMatchPlayed`), le dernier match
+faire » (`DashboardTodo`, dans l'ordre de `TODO_PRIORITY`, `app/saves/[id]/_lib/todo-priority.ts`, pur et testé : gardiens,
+titulaires blessés, titulaires suspendus, offre de fédération, contrats, meilleure offre reçue, effectif réduit, titulaires
+fatigués avant l'Europe, trêves et liste du sélectionneur, joueurs à 4 jaunes (2 en Europe), autres blessés, point faible,
+fin de mission, effectif complet ; les trois premières lignes (`TODOS_SHOWN`), les autres repliées derrière « Voir tout · N
+de plus », un `<details>` natif qui s'ouvre sur place sans requête, `dashboard-alerts-more` ; toute la ligne est un lien,
+sauf « Effectif complet » ; l'offre et le point faible seulement après le premier match du club, `firstMatchPlayed`, le point
+faible pendant un mercato seulement), le dernier match
 (`LastMatchCard`, après le premier match seulement, avec le mot de l'adjoint après une défaite) et la carte du défi. **Avant
 le premier match du club** (chantier « première session », 12/11) : dans une partie de défi, ses trois premières actions dans
 leur propre panneau juste sous le héros, à toutes les largeurs (`FirstActionsPanel`, `dashboard-first-steps`) ; dans une
@@ -734,7 +738,7 @@ carrière, la bulle de bienvenue du tutoriel quand elle le suit (règle « Tutor
 aucune bulle des premiers pas ni carte du dernier match. Juste après (le héros, ou ce panneau quand il y est), toute la largeur : les missions du jour (règle « Missions
 du jour, jetons et récompenses »), sauf dans une partie de défi. Dans le navigateur d'une appli, l'avis des navigateurs intégrés en tête (règle « Navigateurs intégrés et
 lien de reprise »). Aucune offre hors mercato ni avant le premier match (`getMarketSales` non lu), le point faible n'est
-jamais une alerte. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
+jamais une alerte, et hors mercato il n'y a rien à en faire. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
 couvre l'écran à 390 et 1280 px.
 
 **Premiers pas.** Création d'une partie : « Choisis ton défi » au-dessus de trois cartes de club, le nom du manager et
@@ -969,14 +973,17 @@ par note à ce poste, les blessés et suspendus après ; note au poste, libellé
 joueur ou échange deux titulaires (`placeInSlot`), et le glisser-déposer reste ; `lineup-open-sheet` et
 `lineup-send-to-bench` avec le joueur du poste ; sans poste sélectionné, une ligne ouvre la fiche. Choix du dispositif
 (`FormationPicker`, `formation-picker`) : un bouton qui dit son libellé (`lineup-formation`, `data-formation`) ouvre une
-feuille depuis le pied de l'écran sous 1024 px, à droite au-dessus : les trois meilleurs pour l'effectif
-(`formation-best`, classés par `rankFormations` comme un club IA, points attendus face à l'adversaire moyen de la
-division, `LineupEditor.tier`), puis les dix-sept par famille, 4, 3 et 5 défenseurs (`formation-choice`), chacun avec
-son libellé, son profil et ses points attendus, l'actuel marqué ; choisir garde les joueurs à leur place quand ils y
-tiennent (`switchFormation`) et ferme la feuille. Panneau du dispositif
-(`FormationPanel`, zone de messages `lineup-plan`) : le profil en mots et en barres (`formationProfile`), l'attaque et la
-défense du onze à côté de celles de l'adversaire (règle « Composition et consigne de départ ») et, déplié, le comparatif
-des dix-sept dispositifs, écart au centième, le meilleur signalé, « Choisir » l'appliquant avec le onze de l'adjoint ; la
+feuille depuis le pied de l'écran sous 1024 px, à droite au-dessus : les trois conseillés pour l'effectif
+(`formation-best`, `BEST_FORMATIONS`, classés par `rankFormations` comme un club IA, points attendus face à l'adversaire
+moyen de la division, `LineupEditor.tier`), l'actuel juste dessous quand il n'en est pas (`formation-current`), puis
+« Voir tous les dispositifs · 14 » (`formation-show-all`, `aria-expanded`), qui déplie sur place les quatorze autres par
+famille, 4, 3 et 5 défenseurs (`formation-choice`), chacun avec son libellé, son profil et ses points attendus, l'actuel
+marqué ; choisir garde les joueurs à leur place quand ils y tiennent (`switchFormation`) et ferme la feuille. Panneau du
+dispositif (`FormationPanel`, zone de messages `lineup-plan`) : le profil en mots et en barres (`formationProfile`),
+l'attaque et la défense du onze à côté de celles de l'adversaire (règle « Composition et consigne de départ ») et, déplié,
+le comparatif des dix-sept dispositifs, du meilleur écart au centième au moins bon, les trois premiers puis « Voir les 14
+autres » (`formation-compare-more` ; sans adversaire, les dix-sept dans l'ordre des noms), le meilleur signalé, « Choisir »
+l'appliquant avec le onze de l'adjoint ; la
 consigne de départ (`StartingInstruction`) : une bascule, ce qu'elle fait au match, le principe en une phrase et la règle
 de l'adjoint ; dans l'état de l'éditeur, enregistrée avec lui. Statut (`lineup-status`) : « Modifications non
 enregistrées », « Composition enregistrée », ou sans composition jamais enregistrée « Onze automatique · pas encore
@@ -984,7 +991,8 @@ enregistré » (le match joue alors `selectLineup`). Un texte qui dit « Clique 
 (`PointerText`, variantes `pointer-fine:` / `pointer-coarse:`, deux clés de message `click` / `touch`). Fiche (`PlayerSheet`, partagée avec le marché avancé, `?player=`) : tête sur le bleu vif, initiales
 (`playerInitials`, le visage reste partout ailleurs), note et poste en grand, saison, barres, contrat, transferts ; Prolonger
 orange, secondaire dans la Composition, dont l'orange est « Enregistrer » (`primary`) ; une vente impossible se lit dans le
-pied, `sell-player` désactivé (`player-sale-refusal`). Sur toute l'entrée, l'action de jeu de la colonne est secondaire
+pied, `sell-player` désactivé (`player-sale-refusal`). « Sans prolongation, il partira libre en fin de saison » ne se dit
+que d'un joueur du club dirigé (`player-leaving-free`, `PlayerProfile.managed`) : un club IA décide des contrats des siens. Sur toute l'entrée, l'action de jeu de la colonne est secondaire
 (`OWN_ORANGE_ACTION`). `e2e/team.spec.ts` couvre ces écrans à 1280, 1100, 768, 390 et 360 px.
 
 **Marché.** Deux écrans sous l'entrée Marché. `/transfers` : budget (et marge salariale à partir de 1024 px), bascule
@@ -1018,7 +1026,9 @@ jusqu'à la veille du même jour un an après sa dernière arrivée, la meilleur
 `src/engine/transfer-ai.ts`) : 110 % du prix payé pour un joueur acheté (`RESALE_CAP_FEE_PERCENT`), 50 % de sa valeur
 du jour pour un joueur libre (`RESALE_CAP_VALUE_PERCENT`, `balance.ts`), à l'euro inférieur. Le plafond ne tire rien : les clubs qui
 enchérissent, leurs salaires et leurs contrats sont ceux d'avant, seules les offres au-dessus y descendent, et le plus
-réputé de ceux qui l'offrent fait la meilleure ; ce qu'affichent Vendre et la fiche est ce que `sellPlayer` paie. Vendre
+réputé de ceux qui l'offrent fait la meilleure ; ce qu'affichent Vendre et la fiche est ce que `sellPlayer` paie. Une vente
+verrouille la partie (`lockSave`, comme une journée ou une étape du direct) et se refuse quand un match attend en direct
+(`match_in_progress`, `refusals.matchInProgress`) : son état garde la composition, où le joueur peut être. Vendre
 (carte, liste, offre de l'onglet Acheter) et le pied de la fiche le disent en une phrase (`SaleQuote.resaleCap`,
 `market-sale-resale-cap`, `player-resale-cap` : « Arrivé il y a moins d'un an : les clubs ne paieront pas beaucoup plus
 que ton prix d'achat », « … pas plus de la moitié de sa valeur » pour un joueur libre). Les ventes des clubs IA n'en ont

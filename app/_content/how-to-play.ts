@@ -56,7 +56,7 @@ export const GUIDE: GuideSection[] = [
         "Dans ta première carrière, ton adjoint t'accompagne jusqu'à la fin de ce premier match, puis revient les jours suivants, deux étapes par jour au plus : une phrase à chaque étape, le bon bouton mis en avant, et c'est toi qui joues. **Passer le tutoriel** le passe d'un coup ; tu le reprends dans **Club**, **Réglages**.",
         "Choisis la vitesse, **x1**, **x2** ou **x4**. **Pause à la 15e** (puis 30e, 60e, 75e) arrête le match pour changer ton équipe. À la **Mi-temps**, le match s'arrête seul. **Aller à la mi-temps** puis **Aller au résultat** jouent la suite d'un coup, ton adjoint décidant pour toi.",
         "Pas envie de regarder ? **Simuler** joue sans direct jusqu'à la date choisie, puis te donne le bilan.",
-        "À la fin, **Continuer** te ramène à l'**Accueil** : **Dernier résultat**, **Voir la feuille de match**, le classement et **À faire**, ce qui t'attend.",
+        "À la fin, **Continuer** te ramène à l'**Accueil** : **Dernier résultat**, **Voir la feuille de match**, le classement et **À faire** : les trois choses qui t'attendent le plus, **Voir tout** pour le reste.",
       ],
     },
     en: {
@@ -66,7 +66,7 @@ export const GUIDE: GuideSection[] = [
         "In your first career, your assistant is by your side until the end of this first match, then comes back on the following days, two steps a day at most: one sentence at each step, the right button highlighted, and you do the playing. **Skip the tutorial** skips it at once; pick it up again in **Club**, **Settings**.",
         "Pick a speed, **x1**, **x2** or **x4**. **Pause at 15’** (then 30’, 60’, 75’) stops the match so you can change your team. At **Half-time** the match stops by itself. **Go to half-time** then **Go to the result** play on in one go, with your assistant deciding for you.",
         "Rather not watch? **Simulate** plays on without the live match up to the date you choose, then gives you a summary.",
-        "At full time, **Continue** takes you back to **Home**: **Last result**, **See the match report**, the table and **To do**, whatever needs your attention.",
+        "At full time, **Continue** takes you back to **Home**: **Last result**, **See the match report**, the table and **To do**: the three things that most need your attention, **See all** for the rest.",
       ],
     },
   },
@@ -106,7 +106,7 @@ export const GUIDE: GuideSection[] = [
     fr: {
       title: "La composition",
       blocks: [
-        "Sous **Équipe**, **Composition** fixe ton onze. Ouvre ton dispositif, **4-3-3 sentinelle** au départ, pour voir les 17, les trois meilleurs pour ton effectif en tête.",
+        "Sous **Équipe**, **Composition** fixe ton onze. Ouvre ton dispositif, **4-3-3 sentinelle** au départ : les trois conseillés pour ton effectif d'abord, les quatorze autres derrière **Voir tous les dispositifs**.",
         "Choisis un poste pour voir ses candidats, classés par note à ce poste et étiquetés **À son poste**, **Poste secondaire**, **Dépanne** ou **Hors poste**.",
         "**Composition automatique** aligne le onze de ton adjoint, sans blessé ni suspendu. Choisis ta **Consigne de départ**, **Attaquer**, **Équilibré** ou **Fermer**, puis touche **Enregistrer**.",
         "La **Condition** baisse sur le terrain et remonte de 5 points par jour ; sous 70, gare aux blessures. Un rouge suspend pour le match suivant, un 5e jaune pour le prochain de la compétition.",
@@ -115,7 +115,7 @@ export const GUIDE: GuideSection[] = [
     en: {
       title: "Your line-up",
       blocks: [
-        "Under **Squad**, **Line-up** sets your eleven. Open your formation, **4-3-3 holding** to begin with, to see all 17, with the three best for your squad at the top.",
+        "Under **Squad**, **Line-up** sets your eleven. Open your formation, **4-3-3 holding** to begin with: the three recommended for your squad first, the other fourteen behind **See all formations**.",
         "Select a position to see its candidates, ranked by their rating there and labelled **Natural position**, **Secondary position**, **Filling in** or **Out of position**.",
         "**Automatic line-up** fields your assistant's eleven, with no injured or suspended players. Pick your **Starting instruction**, **Attack**, **Balanced** or **Sit back**, then press **Save**.",
         "**Fitness** drops on the pitch and comes back by 5 points a day; below 70, injuries become likelier. A red card means a ban for the next match, a 5th yellow a ban for the competition's next match.",

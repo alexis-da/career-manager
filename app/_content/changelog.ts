@@ -21,6 +21,27 @@ export const CHANGELOG_LABELS = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-24",
+    fr: {
+      title: "Moins d'alertes, dispositifs plus simples",
+      items: [
+        "« À faire », sur l'Accueil, ne montre plus que les trois choses les plus importantes, un gardien qui manque ou un titulaire absent d'abord ; « Voir tout » déplie le reste.",
+        "Ton point faible n'y apparaît plus que pendant le mercato, quand tu peux le combler.",
+        "Le choix du dispositif commence par les trois conseillés pour ton effectif ; les quatorze autres attendent derrière « Voir tous les dispositifs ». Le comparatif de la Composition range aussi les dispositifs du meilleur au moins bon contre ton prochain adversaire, les trois premiers d'abord.",
+        "Corrigé : pendant qu'un match attend sa reprise en direct, tu ne peux plus vendre un joueur, qui pouvait être sur le terrain ; et la fiche d'un joueur d'un autre club ne dit plus à tort qu'il partira libre en fin de saison.",
+      ],
+    },
+    en: {
+      title: "Fewer alerts, simpler formations",
+      items: [
+        "“To do”, on Home, now shows only the three most important things, a missing goalkeeper or an absent starter first; “See all” opens the rest.",
+        "Your weak spot only shows there during the transfer window, when you can do something about it.",
+        "Choosing a formation starts with the three recommended for your squad; the other fourteen wait behind “See all formations”. The Line-up comparison also ranks formations from best to worst against your next opponent, the top three first.",
+        "Fixed: while a match is waiting to resume live, you can no longer sell a player who might be on the pitch; and another club's player's card no longer wrongly says he will leave on a free at the end of the season.",
+      ],
+    },
+  },
+  {
     date: "2026-11-23",
     fr: {
       title: "Équilibrage : penalty, échauffourée, trêve hivernale",
