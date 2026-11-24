@@ -78,6 +78,7 @@ export type PlayerProfile = {
   contractUntil: Date | null;
   injuredUntil: Date | null; // only while still injured at the current date
   contractExpiring: boolean; // the contract ends with the current season
+  managed: boolean; // a player of the managed club: an AI club decides its own players' contracts
   arrivedThisSeason: boolean; // young player who joined at this season's preseason
   attributes: Record<AttributeName, number>;
   seasonStats: SeasonStatsView;
@@ -212,6 +213,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       contractUntil: player.contractUntil,
       injuredUntil: player.injuredUntil !== null && player.injuredUntil > save.currentDate ? player.injuredUntil : null,
       contractExpiring: player.contractUntil !== null && player.contractUntil <= lastContractDay,
+      managed,
       arrivedThisSeason: player.playerKey.startsWith(youthPrefix),
       attributes: {
         pace: player.pace,

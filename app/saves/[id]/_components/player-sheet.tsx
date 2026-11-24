@@ -240,7 +240,12 @@ export function PlayerSheet({ profile, startYear, footer, onClose, pinned = fals
               )}
               <ContractLine label={t("marketValue")}>{formatMoney(profile.marketValue, locale)}</ContractLine>
             </dl>
-            {profile.contractExpiring && <p className="text-xs text-warning">{t("leavingFree")}</p>}
+            {/* Only the managed club's players leave on a free without an extension: an AI club renews its own (planSquad). */}
+            {profile.managed && profile.contractExpiring && (
+              <p data-testid="player-leaving-free" className="text-xs text-warning">
+                {t("leavingFree")}
+              </p>
+            )}
           </section>
 
           {profile.transfers.length > 0 && (

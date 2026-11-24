@@ -60,6 +60,7 @@
     "notAvailableSquad": "Ce joueur ne fait plus partie de ton effectif.",
     "boughtThisWindow": "Tu viens de le recruter à ce mercato : il ne peut pas repartir avant le prochain.",
     "academy": "Jeune prometteur : ni vente ni libération pendant son premier contrat.",
+    "matchInProgress": "Ton match attend la reprise : joue la suite avant de vendre un joueur.",
     "insufficientBudget": "Budget insuffisant : ton budget transferts ne couvre pas cette opération.",
     "insufficientBudgetFor": "Budget insuffisant : l'indemnité de {fee} dépasse ton budget transferts de {budget}.",
     "wageBudgetExceeded": "Masse salariale dépassée : ce salaire ferait dépasser ton budget salarial.",

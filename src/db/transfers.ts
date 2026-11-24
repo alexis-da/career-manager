@@ -26,6 +26,7 @@ import { addYears, ageInYears } from "../lib/dates";
 import { getOrThrow } from "../lib/maps";
 import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
+import { liveMatchOf, lockSave } from "./matchday";
 import { academyLocks } from "./shop";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
@@ -58,7 +59,8 @@ export type TransferRefusal =
   | "club_refused"
   | "player_refused"
   | "no_offer"
-  | "academy"; // a promising youth of the shop, on his first contract: neither sold nor released (src/db/shop.ts)
+  | "academy" // a promising youth of the shop, on his first contract: neither sold nor released (src/db/shop.ts)
+  | "match_in_progress"; // a sale while a match waits live: its line-up may hold the player (sellPlayer)
 
 export type TransferOutcome =
   | {
@@ -152,7 +154,10 @@ const releaseCompensation = (player: PlayerRow, date: Date): number =>
   Math.round(player.wage * offerPlayer(player, date).seasonsLeft * RELEASE_COMPENSATION_SHARE);
 
 async function managedContext(tx: Tx, saveId: string) {
-  const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { seed: true, currentDate: true } });
+  const save = await tx.save.findUniqueOrThrow({
+    where: { id: saveId },
+    select: { seed: true, currentDate: true, liveFixtureId: true, liveInternationalId: true },
+  });
   const club = await tx.clubSave.findFirstOrThrow({
     where: { saveId, isManaged: true },
     select: { id: true, clubId: true, budget: true, wageBudget: true, reputation: true },
@@ -549,9 +554,16 @@ export async function releasePlayer(input: PlayerActionInput): Promise<TransferO
 export async function sellPlayer(input: PlayerActionInput): Promise<TransferOutcome> {
   const { saveId, playerSaveId } = sellPlayerSchema.parse(input);
   return prisma.$transaction(async (tx) => {
+    // The save locked first, as a matchday or a step of the live match locks it: a sale waits for the one under way, then
+    // reads the squad and the budgets it left (docs/design/simplification.md § 5.2).
+    await lockSave(tx, saveId);
     const { save, club, windowOpen } = await managedContext(tx, saveId);
     if (!windowOpen) {
       return refused("window_closed");
+    }
+    // A match waiting live keeps its line-up in its state: the player may be on its pitch or its bench.
+    if (liveMatchOf(save) !== null) {
+      return refused("match_in_progress");
     }
     const player = await tx.playerSave.findFirst({ where: { id: playerSaveId, saveId, clubSaveId: club.id }, select: PLAYER_SELECT });
     if (player === null) {

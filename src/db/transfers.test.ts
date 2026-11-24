@@ -158,6 +158,28 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("transfers of the manage
     expect(outcomes[1]).toEqual(outcomes[0]);
   });
 
+  it("refuses a sale while a match waits live, and changes nothing", async () => {
+    const [saveId] = saveIds;
+    const player = await rankedPlayer(saveId, MANAGED_SLUG, 12);
+    const before = await clubState(saveId, MANAGED_SLUG);
+    const transfersBefore = await database().transfer.count({ where: { saveId } });
+    // Any id: the sale only reads whether a match waits (Save.liveFixtureId has no foreign key).
+    await database().save.update({ where: { id: saveId }, data: { liveFixtureId: "test-live-fixture" } });
+    try {
+      expect(await api().sellPlayer({ saveId, playerSaveId: player.id })).toEqual({
+        ok: false,
+        reason: "match_in_progress",
+        refusals: [],
+      });
+      expect(await clubState(saveId, MANAGED_SLUG)).toEqual(before);
+      expect(await database().transfer.count({ where: { saveId } })).toBe(transfersBefore);
+      const after = await database().playerSave.findUniqueOrThrow({ where: { id: player.id }, select: { clubSaveId: true } });
+      expect(after.clubSaveId).toBe(player.clubSaveId);
+    } finally {
+      await database().save.update({ where: { id: saveId }, data: { liveFixtureId: null } });
+    }
+  });
+
   it("buys a player when the club and the player accept, moving budgets and wages by the right amounts", async () => {
     const [saveId] = saveIds;
     const player = await rankedPlayer(saveId, SELLER_SLUG, 8);
