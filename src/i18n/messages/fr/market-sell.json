@@ -19,6 +19,17 @@
     "resaleCap": {
       "purchase": "Arrivé il y a moins d'un an : les clubs ne paieront pas beaucoup plus que ton prix d'achat.",
       "free": "Arrivé libre il y a moins d'un an : les clubs ne paieront pas plus de la moitié de sa valeur."
+    },
+    "proposals": {
+      "title": "Ton adjoint propose",
+      "details": "{position} · {age} ans",
+      "played": "{starts, plural, =0 {Aucune titularisation} one {# titularisation} other {# titularisations}}, {minutes, plural, one {# minute} other {# minutes}} {period, select, season {cette saison} other {la saison dernière}}",
+      "none": "Aucun match {period, select, season {cette saison} other {la saison dernière}}",
+      "unneeded": "ni titulaire ni remplaçant pour ton adjoint",
+      "offer": "{club} propose {fee} (vaut {value})",
+      "sell": "Vendre · {fee}",
+      "selling": "Vente…",
+      "keep": "Garder"
     }
   }
 }

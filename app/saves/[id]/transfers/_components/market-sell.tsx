@@ -9,24 +9,13 @@ import { cn } from "@/src/lib/utils";
 import { SellPlayerDialog } from "../../_components/contract-actions";
 import { Panel } from "@/src/components/panel";
 import { refusalMessage } from "../../_lib/refusal-message";
+import { OfferSentence } from "./offer-sentence";
 
 /** A sale that is not the screen's main action. `dark:` too: the outline button sets its border and fill under it. */
 const OUTLINED_SALE =
   "border-(--club) font-bold text-(--club) hover:text-(--club-hover) dark:border-(--club) dark:bg-transparent dark:hover:bg-(--club)/10";
 
 const fullName = (row: SaleRow): string => `${row.firstName} ${row.lastName}`;
-
-/** An offer's sentence, its amount in bold. The messages stay plain text: src/i18n/messages.test.ts formats them so. */
-function OfferSentence({ text, amount }: { text: string; amount: string }) {
-  const start = text.indexOf(amount);
-  return (
-    <>
-      {text.slice(0, start)}
-      <strong className="whitespace-nowrap">{amount}</strong>
-      {text.slice(start + amount.length)}
-    </>
-  );
-}
 
 /** Why no club pays much more for a player who joined less than a year ago (resaleCap); nothing for another. */
 function ResaleCapNote({ sale, className }: { sale: SaleQuote; className: string }) {
@@ -49,9 +38,20 @@ function SellButton({ saveId, row, primary = false, className }: { saveId: strin
 
 /**
  * The best offer for a player: the blue card at the head of « Vendre », or the small card beside the proposals of
- * « Acheter » on a computer. Nothing for a row without an offer.
+ * « Acheter » on a computer. Nothing for a row without an offer. `primary`: its sale is the screen's orange, which the
+ * assistant's proposals take when they are there (docs/design/simplification.md § 5.2).
  */
-export function SaleOfferCard({ saveId, row, variant }: { saveId: string; row: SaleRow; variant: "lead" | "side" }): ReactNode {
+export function SaleOfferCard({
+  saveId,
+  row,
+  variant,
+  primary = true,
+}: {
+  saveId: string;
+  row: SaleRow;
+  variant: "lead" | "side";
+  primary?: boolean;
+}): ReactNode {
   const t = useTranslations("marketSell");
   const tPositions = useTranslations("positions");
   const locale = useLocale();
@@ -106,7 +106,12 @@ export function SaleOfferCard({ saveId, row, variant }: { saveId: string; row: S
         <OfferSentence text={t("lead.offer", { club: sale.buyerName, fee, value })} amount={fee} />
       </p>
       <ResaleCapNote sale={sale} className="text-sm leading-snug text-on-blue" />
-      <SellButton saveId={saveId} row={row} primary className="h-13 w-full font-heading text-[1.375rem] lg:w-auto lg:self-end lg:px-10" />
+      <SellButton
+        saveId={saveId}
+        row={row}
+        primary={primary}
+        className={cn("h-13 w-full font-heading text-[1.375rem] lg:w-auto lg:self-end lg:px-10", !primary && OUTLINED_SALE)}
+      />
     </Panel>
   );
 }
@@ -157,12 +162,27 @@ function SaleListRow({ saveId, row, windowOpen }: { saveId: string; row: SaleRow
 
 /**
  * « Vendre »: no club comes to the manager, so the tab offers what the market would pay today for the players out of
- * the eleven, the best offer first. While the window is closed the rows say nothing: the page has the note.
+ * the eleven, the best offer first. While the window is closed the rows say nothing: the page has the note. At its
+ * head, the sales the assistant proposes (« Ton adjoint propose », SaleProposalsSection, which the page gives: its
+ * actions are a client's), their players out of the rows below, the first card's « Vendre » the screen's orange; the
+ * best offer's card then outlined.
  */
-export function MarketSell({ saveId, sales, windowOpen }: { saveId: string; sales: MarketSales; windowOpen: boolean }): ReactNode {
+export function MarketSell({
+  saveId,
+  sales,
+  windowOpen,
+  proposals,
+}: {
+  saveId: string;
+  sales: MarketSales;
+  windowOpen: boolean;
+  proposals?: { ids: readonly string[]; cards: ReactNode };
+}): ReactNode {
   const t = useTranslations("marketSell");
-  const lead = sales.rows.find((row) => row.terms.sale.ok);
-  const others = sales.rows.filter((row) => row !== lead);
+  const proposed = new Set(proposals?.ids ?? []);
+  const rows = sales.rows.filter((row) => !proposed.has(row.id));
+  const lead = rows.find((row) => row.terms.sale.ok);
+  const others = rows.filter((row) => row !== lead);
   return (
     <div data-testid="market-sell" className="space-y-4">
       {sales.rows.length === 0 && (
@@ -170,7 +190,8 @@ export function MarketSell({ saveId, sales, windowOpen }: { saveId: string; sale
           <p className="text-muted-foreground">{t("empty")}</p>
         </Panel>
       )}
-      {lead !== undefined && <SaleOfferCard saveId={saveId} row={lead} variant="lead" />}
+      {proposals?.cards}
+      {lead !== undefined && <SaleOfferCard saveId={saveId} row={lead} variant="lead" primary={proposed.size === 0} />}
       {others.length > 0 && (
         <section aria-labelledby="market-sell-list" className="space-y-2">
           <h2 id="market-sell-list" className="font-heading text-xl">

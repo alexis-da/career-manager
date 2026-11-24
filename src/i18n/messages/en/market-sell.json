@@ -19,6 +19,17 @@
     "resaleCap": {
       "purchase": "Joined less than a year ago: clubs won't pay much more than you paid for him.",
       "free": "Joined on a free less than a year ago: clubs won't pay more than half his value."
+    },
+    "proposals": {
+      "title": "Your assistant suggests",
+      "details": "{position} · age {age}",
+      "played": "{starts, plural, =0 {No starts} one {# start} other {# starts}}, {minutes, plural, one {# minute} other {# minutes}} {period, select, season {this season} other {last season}}",
+      "none": "No matches {period, select, season {this season} other {last season}}",
+      "unneeded": "neither a starter nor a substitute for your assistant",
+      "offer": "{club} offers {fee} (worth {value})",
+      "sell": "Sell · {fee}",
+      "selling": "Selling…",
+      "keep": "Keep"
     }
   }
 }
