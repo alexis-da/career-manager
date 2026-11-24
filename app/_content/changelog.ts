@@ -21,6 +21,29 @@ export const CHANGELOG_LABELS = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-12-07",
+    fr: {
+      title: "Ton adjoint s'occupe du quotidien",
+      items: [
+        "Plus de plafond salarial : ton budget transferts est ta seule limite. Un joueur libre ne coûte pas d'indemnité, mais une prime à la signature, le quart de sa valeur ; ton effectif compte 30 joueurs au plus. Les salaires disparaissent des écrans.",
+        "Ton adjoint aligne le onze avant chaque match, dans ton dispositif, en reposant les fatigués. Change un joueur et le onze devient le tien ; « Rendre la main à l'adjoint » le lui rend. Une composition déjà enregistrée reste la tienne.",
+        "Il s'occupe aussi des contrats : en fin de saison, il prolonge tes joueurs utiles et laisse partir les autres, et te prévient dans « À faire » avant de laisser partir un titulaire. Sur la fiche d'un joueur en fin de contrat, tu peux décider toi-même.",
+        "Au mercato, il te propose de vendre ceux qui ne jouent pas, en tête de l'onglet Vendre : « Vendre » les cède aussitôt à l'offre affichée, « Garder » les écarte jusqu'à la fin du mercato.",
+        "Tout se règle dans Club, Réglages, sous « Ton adjoint s'occupe de ». La mission « Enregistre ta composition » disparaît, et « Titularise un joueur de 21 ans ou moins » devient « Fais jouer un joueur de 21 ans ou moins » : une entrée en jeu suffit.",
+      ],
+    },
+    en: {
+      title: "Your assistant takes care of the day-to-day",
+      items: [
+        "No more wage cap: your transfer budget is your only limit. A free agent costs no fee but a signing bonus, a quarter of his value; your squad holds 30 players at most. Wages are gone from the screens.",
+        "Your assistant fields the eleven before every match, in your formation, resting tired players. Change a player and the eleven becomes yours; “Hand back to your assistant” gives it back. A line-up you had already saved stays yours.",
+        "He also takes care of contracts: at the end of the season, he renews your useful players and lets the others go, and warns you in “To do” before letting a starter go. On the sheet of a player whose contract is ending, you can decide yourself.",
+        "In the transfer window, he suggests selling those who never play, at the top of the Sell tab: “Sell” lets them go at once at the offer shown, “Keep” sets them aside until the window closes.",
+        "It's all in Club, Settings, under “Your assistant takes care of”. The “Save your line-up” mission is gone, and “Start a player aged 21 or under” becomes “Play a player aged 21 or under”: coming on is enough.",
+      ],
+    },
+  },
+  {
     date: "2026-11-24",
     fr: {
       title: "Moins d'alertes, dispositifs plus simples",
