@@ -1157,3 +1157,138 @@ la page d'accueil sont refaites, en français et en anglais, en noms fictifs.
   - l'aide `pickFormation` d'`e2e/helpers.ts`, qui devra déplier « Voir tous » ;
   - les jumeaux `cup-final-save.mts` et `europe-final-save.mts`, dont les finales sont épinglées sans composition
     enregistrée : à relancer, leur score peut changer si un finaliste est sous 75.
+
+---
+
+## 15. Mesures (24/11)
+
+**Comment** : chaque mesure deux fois, mêmes graines, sur une base locale dédiée, jamais `latewinner_dev`.
+- **Référence** : le jeu d'avant le chantier, relevé à `a5cbbdb` (main de la mise en ligne 1 et les seuls scripts de
+  mesure), base `latewinner_simpl_base`.
+- **Chantier** : à `4923fcb` pour les saisons et l'adjoint, à `46cbe8a` pour l'équilibrage et le poids, base
+  `latewinner_simpl_after`.
+- **Six cibles** : la référence est la mesure du 23/11, moteur inchangé depuis.
+
+### 15.1 Six cibles et blessures européennes
+
+`npm run measure:balance -- --seeds=6 --seasons=3` : 67 644 matchs de championnat.
+
+| Cible | Référence (23/11) | Chantier |
+|---|---|---|
+| Buts par match | 2,66 | 2,66 |
+| Nuls | 25,1 % | 25,1 % |
+| Victoires à domicile | 43,9 % | 43,8 % |
+| Écart 1er − dernier | 52,7 | 52,7 |
+| Forme du onze en fin de saison | 31,0 à 75,8 | 31,2 à 74,5 |
+| Le plus faible gagne (écart ≥ 1) | 24,1 % | 24,1 % |
+| Blessures, Coupe des Lauriers / autres clubs de D1 | 1,28 | 1,29 |
+| Blessures, Coupe des Fanions / autres clubs de D1 | 1,23 | 1,23 |
+| CPU d'une date de partie 2 (moyenne · médiane) | 184 · 172 ms | 155 · 156 ms |
+| Création d'une partie 2 | environ 4 s | 2,9 à 3,5 s |
+
+Toutes les cibles tiennent, sans écart sensible (± 0,02 but, ± 0,5 point). Les blessures européennes restent sous 1,3.
+Le CPU ne fait pas mieux par le chantier : c'est une autre journée de mesure, sans régression.
+
+### 15.2 Clubs IA, cinq saisons
+
+`npm run measure:seasons -- --seasons=5` : six saisons d'une partie 2 de la démo, Lyon passif, contrats à l'adjoint.
+
+| | Référence | Chantier |
+|---|---|---|
+| Effectif des clubs IA, D1 (min · médiane · max) | 24 · 25 · 25 | 24 · 25 · 25 |
+| Effectif des clubs IA, D2 (min · médiane · max) | 23 · 25 · 25 | 23 · 25 · 25 |
+| Effectifs de clubs IA au-delà de 25 · à 30 (sur 2 167) | 0 · 0 | 0 · 0 |
+| Joueurs libres signés par les clubs IA, 6 présaisons | 178, note moyenne 65,9 | 198, note moyenne 66,3 |
+| Primes payées par les clubs IA | — | 213,9 M€ |
+| Part de la dotation payée en primes, moyenne par saison | — | D1 0,3 à 1,7 %, D2 1,1 à 3,8 % |
+| Budget médian D1 au 1er juillet → fin, S2 · S4 | 38,4 → 40,2 · 38,8 → 40,6 M€ | 38,4 → 40,1 · 37,4 → 38,4 M€ |
+| Budget médian D2 au 1er juillet → fin, S2 · S4 | 6,3 → 6,4 · 5,8 → 5,8 M€ | 6,0 → 6,1 · 5,6 → 5,9 M€ |
+| Effectif de Lyon au 1er juillet, S1 à S6 | 25, 25, 24, 24, 25, 25 | 25, 25, 23, 22, 24, 25 |
+
+- **Effectifs** : la cible tient, de 20 à 25 joueurs comme avant, aucun club IA à 30.
+- **Joueurs libres** : 11 % de recrues en plus, de note un peu meilleure. Elles comblent des départs : le plafond n'en
+  arrête plus aucune.
+- **Primes** :
+  - les dotations sont inchangées ; un club IA y prend en moyenne 1 à 4 % ;
+  - un club du bas de tableau qui perd beaucoup de joueurs paie jusqu'à 85 % (D1) et 95 % (D2) de la sienne. Il
+    reconstruit son effectif, et repart de sa dotation la saison suivante.
+
+### 15.3 Le club dirigé passif
+
+`npm run measure:assistant -- --seasons=3 --lineup=game --contracts=game --sales=game` : jumeaux de Lyon, graine de la
+démo, 3 saisons.
+
+**Composition** : jumeau A, `selectLineup` (le meilleur onze, sans repos) ; jumeau B, le onze de l'adjoint du jeu. Les
+deux avec les contrats de l'adjoint.
+
+| Moyennes par saison | A | B |
+|---|---|---|
+| Points par match | 1,79 | 1,80 |
+| Rang | 4,7 | 4,3 |
+| Blessures (jours) | 7,3 (158 j) | 7,3 (150 j) |
+| Titulaires sous 75 au coup d'envoi | 13 % | 1 % |
+| Minutes des 21 ans ou moins | 3 526 | 3 853 |
+
+La cible tient : B est au moins aussi bon que A (+0,01 point par match), avec autant de blessures, 8 jours d'absence de
+moins et presque plus de titulaires fatigués. Ses jeunes jouent 327 minutes de plus par saison. C'est le résultat de la
+référence, où B jouait le même onze reposé, enregistré à la main.
+
+**Contrats** :
+
+| Effectif au 1er juillet, S1 à S4 | Référence | Chantier |
+|---|---|---|
+| Personne ne décide (le jeu d'avant) | 25, 24, 19, 10 | 25, 24, 19, 10 |
+| L'adjoint décide | 25, 25, 24, 24 (option de mesure, `planSquad`) | 25, 25, 23, 22 (la règle du jeu) |
+
+- **L'effectif ne fond plus** : de 22 à 25 joueurs chaque été, contre 10 au troisième été sans personne.
+- **Ce que fait l'adjoint** : 1, 3, puis 9 prolongations ; 1, 1, puis 3 départs en fin de contrat ; aucune recrue (jamais
+  sous 20 joueurs).
+
+**Club gourmand** : à chaque été, les meilleurs joueurs libres que le budget paie, jusqu'à 30, contre un jumeau passif.
+
+| | Libres signés | Primes | Onze au 1er juillet | Points par match | Rang |
+|---|---|---|---|---|---|
+| Brentford (D1), référence sous le plafond | 19 | — | +1,9 | +0,06 | −2,3 |
+| Brentford (D1), chantier | 11 | 14,8 M€ | +1,5 | +0,06 | −1,7 |
+| Ajaccio (D2), référence sous le plafond | 17 | — | +2,8 | +0,20 | −2,7 |
+| Ajaccio (D2), chantier | 7 | 4,9 M€ | +2,0 | +0,14 | −2,3 |
+
+Le gain reste réel mais borné : les 30 joueurs et la prime mordent. La prime de 25 % (§ 13, point 1) est gardée.
+
+**Ventes proposées** (le jumeau les accepte toutes) :
+
+| Mercato | Proposées | Offre / valeur | Titulaires ou remplaçants proposés | Effectif avant → après |
+|---|---|---|---|---|
+| Été S1 (création) | 0 | — | 0 | 25 → 25 |
+| Hiver S1 | 3 | 0,94 | 0 | 25 → 22 |
+| Été S2 | 0 | — | 0 | 24 → 24 |
+| Hiver S2 | 1 | 1,13 | 0 | 24 → 23 |
+| Été S3 | 0 | — | 0 | 21 → 21 |
+| Hiver S3 | 0 | — | 0 | 21 → 21 |
+
+- **Cible tenue** : de 0 à 3 par mercato, jamais un titulaire, 22 joueurs au moins après une vente.
+- **Bilan** : 4 ventes en tout, pour 14,3 M€.
+- **Effectif de 21 à l'été S3** : il vient des fins de contrat du passage de saison, pas d'une vente. Il reste au-dessus du
+  plancher de l'adjoint (20).
+
+### 15.4 Poids d'une carrière
+
+`npm run measure:weight -- --seasons=3` : une partie 2 de Lyon, chacune seule dans une base vide (`latewinner_simpl_wbase`
+pour la référence, `latewinner_simpl_wafter` pour le chantier).
+
+| Mo (compacts · réels) | Création | Après 1 saison | Après 2 saisons | Après 3 saisons |
+|---|---|---|---|---|
+| Référence | 6,46 · 7,10 | 12,34 · 15,48 | 18,10 · 21,64 | 23,95 · 25,78 |
+| Chantier | 6,46 · 7,10 | 12,34 · 16,91 | 18,10 · 21,84 | 23,95 · 25,96 |
+
+- **Données** : identiques, 39 506 lignes après trois saisons contre 39 515. Les six colonnes ne pèsent rien, et aucune
+  ligne n'est ajoutée par match.
+- **Espace réel** : il diffère de 0,2 Mo sur trois saisons, selon le moment où passe l'autovacuum. La cible tient.
+
+### 15.5 Ce que les contrôles ont trouvé
+
+- **Liste de l'onglet Vendre** (`46cbe8a`, E2E du marché) : en mode adjoint, le onze tenu hors des ventes ignorait la
+  règle Jeunesse. Le jeune titularisé y était proposé à la vente, et le titulaire qu'il remplace en était écarté. Ce onze
+  est maintenant celui de l'adjoint lui-même, tout l'effectif disponible et frais.
+- **Parties de démo de `latewinner_test`** : celles du 6 et du 18/11 dataient d'avant le chantier. Elles sont refaites :
+  la CI les construit de zéro, et Vitest comme la suite lente passent sur les nouvelles.

@@ -26,6 +26,7 @@ npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (créat
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (-- --seasons=3 : trois saisons de chaque graine, le premier tournoi d'été compris ; base locale seulement) : six cibles, clubs européens, condition et blessures par pays et par mois (trêve hivernale), CPU par journée, penaltys et échauffourées sur de vrais effectifs (-- --lineups-out=f.json garde leurs onze ; -- --choices-from=f.json les mesure seuls, sans base)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
 npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs, Europe (qualifiés, condition et charge des clubs européens, saison par saison), sélections (trêves, appelés, blessures, force des 14 nations, CPU) et tournois d'été (condition au premier match, crédibilité sur 50 cycles) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
+npm run measure:assistant # l'adjoint (chantier « simplification ») : jumeaux d'une partie 2, sa composition contre le meilleur onze sans repos, ses contrats contre aucun, un club « gourmand » de joueurs libres et ses ventes proposées (-- --seasons=3 --lineup=game --contracts=game --sales=game ; base locale seulement)
 npm run measure:coach  # sélectionneur : CPU d'une trêve dirigée contre une trêve sans lui, d'un match de sélection en direct et d'un tournoi joué par étapes en juin, deux jumeaux d'une partie 2 (-- --seasons=2 --nation=POR ; base locale seulement)
 npm run measure:history # coût d'un affichage de l'onglet Histoire : requêtes et CPU, à froid et en cache, d'une carrière archivée de 5 et 10 saisons (-- --seasons=10 --at=5,10 ; base locale seulement)
 npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json, --archive : saisons terminées archivées, --no-europe : sans compétition européenne, pour comparer ; base locale dédiée et vide)
@@ -104,7 +105,8 @@ sous 70, son risque de blessure croît. Les clubs IA sortent le titulaire le plu
 au repos un joueur sous 75 quand un reposé vaut au plus 5 points de moins à son poste, 2 de plus par point de condition sous
 75 (`maxRotationGap` : 7 à 74, 15 à 70, 25 à 65 ; `selectRestedLineup`, `src/engine/lineup.ts`, depuis le 17/11 : à 5 points
 fixes, les clubs européens, dont le banc décroche de leur onze au fil des saisons, laissaient 12 % puis 25 % de leurs
-titulaires d'octobre sous 75, 1 à 4 % depuis) ; le club dirigé garde sa composition. L'état du direct garde la fitness de chaque joueur (100 pour une pause d'avant). Les écrans montrent
+titulaires d'octobre sous 75, 1 à 4 % depuis) ; le club dirigé joue la composition de son joueur, ou, en mode adjoint, le
+même onze reposé (règle « Simplification »). L'état du direct garde la fitness de chaque joueur (100 pour une pause d'avant). Les écrans montrent
 la fitness au coup d'envoi du prochain match du club (`fitnessAtKickOff`, `src/db/fitness-view.ts`), le panneau Coaching
 celle de la reprise ; vert dès 90, ambre sous 75, rouge sous 70 (`app/saves/[id]/_lib/fitness.ts`). Le moral reste dans le
 moteur, neutre, et n'est affiché nulle part.
@@ -216,9 +218,11 @@ sur 200 effectifs tirés).
 l'attaque et la défense du onze qui jouerait (`resolveLineup` de son état, `EditorPlayer` : attributs, forme, moral,
 fitness au prochain match), à côté de celles du onze probable du prochain adversaire (`OpponentPreview.strength`), et
 compare les dix-sept dispositifs avec la composition de l'adjoint dans chacun, le meilleur étant le plus grand écart de buts
-attendu contre lui, les deux Équilibré. « Composition automatique » est celle de l'adjoint (`automaticState`,
-`selectRestedLineup` : sans blessé ni suspendu, un fatigué sous 75 reposé quand un reposé vaut au plus 5 points de moins
-à son poste, 2 de plus par point de condition sous 75, `maxRotationGap`) ; sans composition enregistrée, le match joue toujours `selectLineup`. Consigne de départ (Attaquer,
+attendu contre lui, les deux Équilibré. La composition de l'adjoint (`automaticState`, « Composition automatique » de
+l'éditeur du sélectionneur, le seul qui l'a encore ; `selectRestedLineup` : sans blessé ni suspendu, un fatigué sous 75
+reposé quand un reposé vaut au plus 5 points de moins à son poste, 2 de plus par point de condition sous 75,
+`maxRotationGap`) est celle que joue le club dirigé en mode adjoint (règle « Simplification ») ; en mode joueur sans
+composition enregistrée, le match joue `selectLineup`. Consigne de départ (Attaquer,
 Équilibré, Fermer) : choisie dans la composition, enregistrée avec elle dans `ClubSave.lineup` (`instruction`,
 facultative, Équilibré sans elle, aucune migration), jouée par le club dirigé au coup d'envoi, simulé comme en direct
 (`Lineup.instruction`, `TeamLive.startingInstruction`, absente pour Équilibré : l'état et le match d'avant) ; la règle de
@@ -227,13 +231,62 @@ l'a donnée (`TeamLive.instructions`, `InstructionSpan`, `src/engine/instruction
 événement ; `MatchModifiers.givenBy` ; `instructionSourceAt`), lue par le direct. Effet mesuré par `npm run
 measure:balance -- --starting-only` : petit, Fermer rapportant à l'outsider, Attaquer au seul net favori.
 
+**Simplification (chantier « simplification », 24/11, mise en ligne du 7/12).** Cahier `docs/design/simplification.md`,
+validé le 24/11 : un jeu plus casual, où l'adjoint s'occupe du quotidien. **Argent** : le budget transferts est la seule
+limite, aucune porte de salaire (achat, joueur libre, prolongation, propositions du marché, jeune prometteur) ;
+`PlayerSave.wage` reste écrit à chaque contrat mais n'est montré nulle part, et ne sert qu'au coût d'une libération
+(`releaseCompensation`) et, par `ClubSave.wageBudget` (toujours calculé, jamais affiché), à départager deux réputations
+égales (`reputationRanks`). Un joueur libre coûte une prime à la signature (`signingBonus`, `economy.ts` : 25 % de sa valeur
+du jour, arrondie aux 10 000 € au-dessus, 50 000 € au moins, `SIGNING_BONUS_SHARE`, `SIGNING_BONUS_MIN`), payée sur le
+budget et écrite comme indemnité de sa ligne `FREE` (le `TransferQuote.askingPrice` d'un libre) ; refus
+`insufficient_budget` avec sa prime (`RefusalContext.bonus`). Trente joueurs au plus (`SQUAD_LIMIT`, `balance.ts`) :
+achat, signature et jeune prometteur refusés à 30 (`squad_full`), ventes et libérations jamais, les jeunes de l'intersaison
+aux seules places libres ; un club IA à 30 n'enchérit plus ; `planWageSales` est retirée, `planSquad` signe à la prime sur
+son budget. Achats et signatures verrouillent la partie (`lockSave`). **Composition** (`Save.lineupByAssistant`, migration
+d'ajout `…_simplification` : vrai à la création ; null pour une carrière d'avant, lu par `lineupByAssistantOf`,
+`src/db/lineup.ts` : le joueur s'il a une composition enregistrée, l'adjoint sinon) : en mode adjoint, le club dirigé joue
+avant chaque match le onze reposé des clubs IA dans le dispositif de son joueur, avec sa consigne de départ
+(`managedLineup`, `src/engine/lineup.ts`) ; l'objectif Jeunesse choisi, le meilleur 21 ans ou moins titularisé en
+championnat s'il vaut au plus 4 points de moins que le titulaire (`YOUTH_STARTER_MAX_GAP`), jusqu'à 15 titularisations.
+Enregistrer une composition passe en mode joueur ; « Rendre la main à l'adjoint » ramène l'adjoint. **Contrats**
+(`Save.contractsByAssistant`, vrai par défaut, carrières d'avant comprises) : au passage de saison (présaison,
+`runPreseasonInTransaction`, avant les jeunes et les clubs IA), un contrat du club dirigé qui finit le 30 juin suit le choix
+de son joueur (`PlayerSave.contractChoice`, RENEW ou LEAVE, posé sur la fiche par `setContractChoiceAction`, effacé par un
+nouveau contrat, une vente, une libération et au passage), sinon, en mode adjoint, la règle des clubs IA
+(`contractOutcomes`, `decideContracts`, `src/engine/assistant-contracts.ts` : `wantsToKeep` contre `squadStandard`, et le
+rôle que les joueurs libres ne combleraient pas), sinon il part libre ; prolongé à `renewalWage` (le plus haut de son
+salaire et de celui de sa note), pour une durée tirée du flux du club (`squadPlanRngSeed`). L'adjoint ne casse jamais un
+contrat en cours et ne recrute (`assistantSignings`) que sous 20 joueurs ou 2 gardiens, à la prime, jamais un joueur qu'il
+vient de laisser partir. Ce qu'il a fait est gardé sur la dotation de la saison (`SeasonBudget.contractMoves`, Json validé
+par Zod, `contractMovesSchema`, `src/db/contracts.ts`) et montré au début de saison. Du 1er janvier au 30 juin, « À faire »
+prévient seulement quand il compte laisser partir un titulaire (`important-contracts`, `importantPlayers` : le onze de
+`selectLineup` avec tout l'effectif disponible) ; en mode joueur, `expiring-contracts` comme avant. **Ventes proposées**
+(`getSaleProposals`, `src/db/sale-proposals.ts` ; règle pure `saleProposals`, `src/engine/sale-proposals.ts`) : pendant un
+mercato, 3 joueurs au plus, la meilleure offre d'abord, qui ne jouent pas sur la période de référence
+(`saleProposalPeriod` : la saison en cours l'hiver, la saison terminée l'été, lue dans son archive quand elle en a une,
+`readArchivedYear` ; 2 titularisations et 10 % des minutes du club au plus, sur 10 matchs officiels du club au moins), au
+club toute la période (aucune arrivée depuis son premier jour, ni un jeune d'une intersaison suivante, `youthIntakeYear`),
+ni dans le onze ni sur le banc que l'adjoint alignerait avec tout l'effectif, ni l'un des 3 meilleurs gardiens, ni un
+espoir, ni un jeune prometteur, ni sous la limite de revente, avec une offre, l'effectif gardant 22 joueurs et 2 gardiens.
+« Vendre · 3,4 M€ » vend aussitôt à l'offre de la carte (`acceptSaleProposalAction`,
+`app/saves/[id]/transfers/sale-proposal-actions.ts` : `sellPlayer` avec `expected` ; un autre acheteur ou un autre montant,
+rien n'est vendu, `offer_changed` et l'offre du moment) ; « Garder » l'écarte jusqu'à la fin du mercato
+(`PlayerSave.saleKeptUntil`, `keepSaleProposal`). Les offres sont celles de `quoteSquadWithBuyers`, lu une fois par
+requête et partagé avec `quoteSquad`. **Réglages** : Club → Réglages, « Ton adjoint s'occupe de »
+(`settings-assistant-lineup`, `settings-assistant-contracts`, sous `lockSave`, refusés pendant un direct) ; une carrière
+d'avant a une fois l'annonce de l'Accueil (`assistant-notice`, `Save.assistantNoticeAt`, posé à la création d'une carrière
+neuve). Missions : « Enregistre ta composition » (`SAVE_LINEUP`) reste au poids 0, en tête de son tirage, pour une mission
+déjà tirée ; « Fais jouer un joueur de 21 ans ou moins » (`START_YOUTH`) compte une entrée en jeu (`MatchFacts.players`).
+Mesures (24/11, cahier § 15) : `npm run measure:assistant` et les sections k, l et m de `npm run measure:seasons`
+(effectifs, joueurs libres, primes).
+
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
 première division vérifiée après chaque changement (`match.test.ts`, chaque club dans le dispositif qu'il choisit :
 2,5 à 2,8 buts, 42 à 46 % à domicile, 23 à 27 % de nuls, Bayern bat Monza plus de 75 fois sur 100) ; celle de deuxième
 est épinglée dans `match-d2.slow.test.ts`, les deux sur une saison avec forme dans `match-season.test.ts`. Jeunes :
-réputation et note lues dans la plage de la division du club (`YOUTH_OVERALL_BY_TIER`). Un club IA au-dessus de sa masse salariale vend en
-présaison ses joueurs les mieux payés à d'autres clubs IA, jamais sous 80 % de leur valeur (`planWageSales`).
+réputation et note lues dans la plage de la division du club (`YOUTH_OVERALL_BY_TIER`). Aucun club IA ne vend à un autre
+depuis la simplification : sa vente forcée au-dessus de sa masse salariale (`planWageSales`) ne s'est jamais déclenchée.
 
 **Montées et descentes (parties 2 seulement).** À chaque `advanceToNextSeason`, dans sa transaction : les classements
 finaux (même ordre que le classement affiché), puis `applyPromotionRelegation` (`src/engine/promotion.ts`, pure) avec
@@ -263,8 +316,9 @@ club. Puis, avant la présaison, chaque club reçoit sa dotation
 (`applySeasonFinances`, `seasonFinances`, `economy.ts`) : le budget de création (`clubFinances`) à son nouveau rang de
 réputation dans sa nouvelle division, × son coefficient, + pour le seul club dirigé la moitié de son budget non dépensé
 (`BUDGET_CARRY_OVER_SHARE`, ventes et primes comprises) : un club IA repart chaque saison de sa dotation, que son budget
-jamais dépensé doublerait sinon. Son plafond salarial est une vraie limite : sa masse salariale de fin de saison, lue
-avant tout départ (`payrollsOf`), × 1,20 (`WAGE_BUDGET_MARGIN`), entre la moitié (`WAGE_BUDGET_FLOOR_SHARE`,
+jamais dépensé doublerait sinon. Son plafond salarial ne limite plus rien (règle « Simplification ») : il reste calculé,
+pour départager deux réputations égales, sa masse salariale de fin de saison, lue avant tout départ (`payrollsOf`), × 1,20
+(`WAGE_BUDGET_MARGIN`), entre la moitié (`WAGE_BUDGET_FLOOR_SHARE`,
 `wageBudgetFloor`) et la totalité de celui de la table à son nouveau rang (`clubFinances`, `wageBudgetFor`) : un club
 qui a beaucoup vendu ou perdu ses fins de contrat peut reconstruire ; pour le club dirigé, la marge suit son
 coefficient, de × 1,10 à 70 à × 1,30 à 140 (`managedWageMargin`, `MANAGED_WAGE_MARGIN_RANGE`). À la création de même,
@@ -626,7 +680,7 @@ tier)`, `changedFrom`) et `MissionDay` (le jour du joueur : `done`, `countedAt` 
 troisième, `streak`, `best`, `cycles`, `changedAt`, `shieldedAt`), migration d'ajout `…_missions_v2`. Chaque palier tire de
 son pool (`MISSION_POOLS`, `src/lib/missions.ts`, pur ; pools disjoints) par son flux `mission:{joueur}:{jour}:{palier}`,
 jamais la mission de la veille (`dailyMissionKind`, `DRAW_LOOKBACK_DAYS` 30) : facile (jouer un match, 3 matchs, marquer,
-enregistrer sa composition, titulariser un joueur de 21 ans ou moins), moyenne (match en direct, changement ou consigne du
+faire jouer un joueur de 21 ans ou moins ; enregistrer sa composition au poids 0 depuis la simplification), moyenne (match en direct, changement ou consigne du
 joueur à une pause, décision du joueur sur une carte d'événement, victoire, cage inviolée), difficile (victoire en direct,
 avec un changement du joueur, deux buts en direct, cage inviolée en direct). Quinze missions (`MISSION_KINDS`, gardées par
 leur nom : **ne jamais en renommer une**), les huit de la v1 d'abord. **« Changer de mission »** : une fois par jour et par
@@ -654,7 +708,7 @@ la demande (`ShopPurchase`, un double envoi rend le premier résultat) : stage d
 5 par saison, un par date), soin express 60 (jours restants d'un blessé divisés par deux, dès 4 jours, 3 par saison),
 rallonge 200 (5 % de la dotation, `SeasonBudget`, au moins 100 000 €, 1 par saison), jeune prometteur 350 (17 ans, sommet
 de la plage des jeunes de sa division + 3, potentiel + 25 à 30, la ligne au choix du joueur, `generatePromisingYouth`, flux
-`{graine}:shop-youth:{n}`, clé `shop-youth:{n}`, contrat de 3 saisons **compté dans le plafond salarial**, 1 par saison et 3
+`{graine}:shop-youth:{n}`, clé `shop-youth:{n}`, contrat de 3 saisons, une place de l'effectif (refusé à 30), 1 par saison et 3
 par carrière) ; **un jeune prometteur ne se vend ni ne se libère pendant son premier contrat** (`academyLocks`, refus
 `academy` de `quoteSquad`, `sellPlayer`, `releasePlayer`) ; au joueur, le protège-série 50 et les cosmétiques en vente (titres
 250, cadres 400). **Collection** (`src/lib/cosmetics.ts`, identifiants **jamais renommés**) : titres, badges et cadres, gagnés
@@ -711,7 +765,7 @@ il a tout l'écran, sans ligne du club ni barre de navigation (`data-live-page`,
 sortie est `live-exit`, sa barre ses commandes.
 
 **Accueil d'une partie.** L'entrée Accueil (`nav-dashboard`), le titre de la page reste « Tableau de bord » (masqué
-visuellement sous 1024 px) : budget, salaires et mercato en pastilles (`DashboardPills`), bandeau du compte, puis une
+visuellement sous 1024 px) : budget et mercato en pastilles (`DashboardPills`), bandeau du compte, puis une
 grille d'une colonne sous `lg`, deux à partir de `lg`, trois à partir de `xl`. Le héros bleu (`NextMatchHero`,
 `dashboard-next-match`) : la date, le lieu et la compétition du prochain match, les deux clubs (rang et points ; note
 moyenne et forme à partir de 1024 px), « Jouer le match » (`GameActions` avec `hero`, seule action orange pleine de
@@ -719,25 +773,29 @@ l'écran, même `next-match`, « Jouer la journée » dans une partie 1), « Pr�
 secondaires, le onze et « Voir l'adversaire ». Match en suspens : « Match en cours — reprendre » seul ; saison finie :
 « Passer à la saison suivante » seul, et la carte de la colonne, vide, disparaît (`lg:empty:hidden`). Sa colonne de droite à partir de `xl`, en fin de page sur téléphone : le
 mini-classement (`DashboardTable`, `tableAround`, six lignes autour du club, rang, club et points). Puis quatre tuiles
-(`DashboardTiles` : classement et mouvement, points et différence, forme, effectif ; « — » avant le premier match), la
+(`DashboardTiles` : classement et mouvement, points et différence, forme, effectif « 26 joueurs sur 30 », en ambre à 30 ;
+« — » avant le premier match), la
 carte Objectifs (`DashboardObjectives`, `dashboard-objectives`, toute la largeur, dans une partie qui en a : chaque
 objectif, son état en pastille, `objective-status`, et son chiffre ; la confiance du président ; tant que le choix est
 ouvert, la case de l'objectif au choix mène à l'écran de début de saison, `dashboard-objectives-choose` ; « Voir le
 détail » mène à l'onglet Club, `#objectifs`), « À
 faire » (`DashboardTodo`, dans l'ordre de `TODO_PRIORITY`, `app/saves/[id]/_lib/todo-priority.ts`, pur et testé : gardiens,
-titulaires blessés, titulaires suspendus, offre de fédération, contrats, meilleure offre reçue, effectif réduit, titulaires
-fatigués avant l'Europe, trêves et liste du sélectionneur, joueurs à 4 jaunes (2 en Europe), autres blessés, point faible,
-fin de mission, effectif complet ; les trois premières lignes (`TODOS_SHOWN`), les autres repliées derrière « Voir tout · N
-de plus », un `<details>` natif qui s'ouvre sur place sans requête, `dashboard-alerts-more` ; toute la ligne est un lien,
-sauf « Effectif complet » ; l'offre et le point faible seulement après le premier match du club, `firstMatchPlayed`, le point
-faible pendant un mercato seulement), le dernier match
+titulaires blessés et suspendus (mode joueur : l'adjoint remplace les siens), offre de fédération, contrats (les titulaires
+que l'adjoint compte laisser partir, `important-contracts`, ou tous en mode joueur), ventes proposées (`sale-proposals` :
+« Ton adjoint propose 2 ventes · Ils ne jouent pas · 6,1 M€ », vers Vendre), effectif plein pendant un mercato
+(`squad-full`), effectif réduit, titulaires fatigués avant l'Europe (mode joueur), trêves et liste du sélectionneur,
+joueurs à 4 jaunes (2 en Europe), autres blessés, point faible, fin de mission ; les trois premières lignes
+(`TODOS_SHOWN`), les autres repliées derrière « Voir tout · N de plus », un `<details>` natif qui s'ouvre sur place sans
+requête, `dashboard-alerts-more` ; toute la ligne est un lien, sauf la fin de mission ; sans ligne, « Rien à faire : ton
+adjoint s'occupe du reste. » (`alert-none`) ; les ventes proposées et le point faible seulement après le premier match du
+club, `firstMatchPlayed`, le point faible pendant un mercato seulement), le dernier match
 (`LastMatchCard`, après le premier match seulement, avec le mot de l'adjoint après une défaite) et la carte du défi. **Avant
 le premier match du club** (chantier « première session », 12/11) : dans une partie de défi, ses trois premières actions dans
 leur propre panneau juste sous le héros, à toutes les largeurs (`FirstActionsPanel`, `dashboard-first-steps`) ; dans une
 carrière, la bulle de bienvenue du tutoriel quand elle le suit (règle « Tutoriel de la première carrière »), rien sinon ;
 aucune bulle des premiers pas ni carte du dernier match. Juste après (le héros, ou ce panneau quand il y est), toute la largeur : les missions du jour (règle « Missions
 du jour, jetons et récompenses »), sauf dans une partie de défi. Dans le navigateur d'une appli, l'avis des navigateurs intégrés en tête (règle « Navigateurs intégrés et
-lien de reprise »). Aucune offre hors mercato ni avant le premier match (`getMarketSales` non lu), le point faible n'est
+lien de reprise »). Aucune vente proposée hors mercato ni avant le premier match (`getSaleProposals` non lu), le point faible n'est
 jamais une alerte, et hors mercato il n'y a rien à en faire. Les titulaires n'y sont plus : Composition les a. `e2e/dashboard.spec.ts`
 couvre l'écran à 390 et 1280 px.
 
@@ -826,7 +884,7 @@ jour UTC qui suit le « À demain » (`laterDay`), l'Accueil pousse une étape �
 `missions` (leur carte), `market` (mercato ouvert, premier match joué : l'entrée Marché cerclée, son geste l'arrivée sur le
 Marché, où la seconde bulle cercle « Recruter » de la proposition de « Mes besoins », `marketScreenStep`, `doneOnShow`), `break` (trêve à
 venir, `hero-break`), `europe` et `cup` (le prochain match du club), `fitness` (un titulaire sous 75 au coup d'envoi :
-« Préparer » cerclé), `objectives` (leur carte), `simulate` (deux matchs joués), `judged` (la confiance, dès le 5e match),
+« Préparer » cerclé ; en mode joueur seulement, close `ADAPTED` sans bulle quand l'adjoint fait le onze et repose lui-même), `objectives` (leur carte), `simulate` (deux matchs joués), `judged` (la confiance, dès le 5e match),
 `lineup` (poussée par « Préparer » au jour 3) ; chaque bulle par `dashboardBubbleOf`, sous le héros ou au-dessus des objectifs
 dont elle parle. Étapes d'écran, hors du compte du jour (`SCREEN_STEPS`, `screenStep`) : `squad` à l'ouverture de l'Effectif
 (première ligne cerclée, une fiche ouverte son geste), `lineup` à celle de la Composition (le poste du point faible du onze
@@ -953,9 +1011,10 @@ demandé.
 
 **Équipe.** Effectif (`/squad`, `SquadTable`) : sous 1024 px, des cartes, une seule table en DOM : tuile note et poste, âge,
 nationalité, jauge de forme, condition (cœur et chiffre, aucune pour un blessé ni un suspendu), états (`PlayerBadges`), les trois tris
-rapides à la place de l'en-tête ; au-dessus, le tableau, ses colonnes suivant sa place (`@container` : sans Pot. ni Salaire
-sous 928 px, sans Valeur, Contrat ni Condition sous 672 px, à côté de la fiche ; la Condition, triable, a un cœur pour
-en-tête). États : blessé, suspendu, à 4 jaunes (règle « Suspensions »). Composition (`/lineup`, `LineupEditor`, `LineupSquad`) :
+rapides à la place de l'en-tête ; au-dessus, le tableau, ses colonnes suivant sa place (`@container` : sans Pot. sous
+928 px, sans Valeur, Contrat ni Condition sous 672 px, à côté de la fiche ; la Condition, triable, a un cœur pour
+en-tête), aucun salaire ; le résumé dit « 27 joueurs sur 30 », en ambre à 30. États : blessé, suspendu, à 4 jaunes
+(règle « Suspensions »). Composition (`/lineup`, `LineupEditor`, `LineupSquad`) :
 sous 1024 px, terrain, résumé, banc, le panneau du dispositif et la consigne de départ, puis la liste ; à partir de 1024 px,
 ce panneau sous le choix du dispositif, puis de 1024 à 1279 px l'effectif compact à gauche du terrain et la fiche en
 surimpression, à partir de 1280 px l'effectif, le terrain et la fiche sur une page, `pinned`, jamais vide : le titulaire
@@ -985,18 +1044,25 @@ le comparatif des dix-sept dispositifs, du meilleur écart au centième au moins
 autres » (`formation-compare-more` ; sans adversaire, les dix-sept dans l'ordre des noms), le meilleur signalé, « Choisir »
 l'appliquant avec le onze de l'adjoint ; la
 consigne de départ (`StartingInstruction`) : une bascule, ce qu'elle fait au match, le principe en une phrase et la règle
-de l'adjoint ; dans l'état de l'éditeur, enregistrée avec lui. Statut (`lineup-status`) : « Modifications non
-enregistrées », « Composition enregistrée », ou sans composition jamais enregistrée « Onze automatique · pas encore
-enregistré » (le match joue alors `selectLineup`). Un texte qui dit « Clique » à la souris dit « Touche » au doigt
+de l'adjoint ; dans l'état de l'éditeur, enregistrée avec lui. Statut (`lineup-status`, `data-mode`) : « Onze de ton
+adjoint · il le refait avant chaque match » (mode adjoint, son panneau `lineup-assistant` au-dessus, les reposés nommés,
+`lineup-rested` ; dispositif et consigne enregistrés aussitôt, `saveLineupPlanAction`), « Ton onze · modifications non
+enregistrées » au premier geste (« Annuler », `lineup-cancel`), « Ton onze · enregistré » (« Rendre la main à l'adjoint »,
+`lineup-hand-back`) ; en mode joueur sans composition jamais enregistrée, « Onze automatique · pas encore enregistré »
+(le match joue alors `selectLineup`). Un texte qui dit « Clique » à la souris dit « Touche » au doigt
 (`PointerText`, variantes `pointer-fine:` / `pointer-coarse:`, deux clés de message `click` / `touch`). Fiche (`PlayerSheet`, partagée avec le marché avancé, `?player=`) : tête sur le bleu vif, initiales
-(`playerInitials`, le visage reste partout ailleurs), note et poste en grand, saison, barres, contrat, transferts ; Prolonger
-orange, secondaire dans la Composition, dont l'orange est « Enregistrer » (`primary`) ; une vente impossible se lit dans le
-pied, `sell-player` désactivé (`player-sale-refusal`). « Sans prolongation, il partira libre en fin de saison » ne se dit
-que d'un joueur du club dirigé (`player-leaving-free`, `PlayerProfile.managed`) : un club IA décide des contrats des siens. Sur toute l'entrée, l'action de jeu de la colonne est secondaire
+(`playerInitials`, le visage reste partout ailleurs), note et poste en grand, saison, barres, contrat sans salaire,
+transferts ; « Prolonger maintenant » pendant un mercato (la durée seule, au salaire `renewalWage`) orange, secondaire dans la
+Composition, dont l'orange est « Enregistrer » (`primary`) ; une vente impossible se lit dans le pied, `sell-player`
+désactivé (`player-sale-refusal`). Le sort d'un contrat qui finit cette saison ne se dit que d'un joueur du club dirigé
+(`player-leaving-free`, `PlayerProfile.managed` : un club IA décide des contrats des siens), selon le mode et son choix
+(`contractIntention` : « Ton adjoint le prolongera en fin de saison », « … le laissera partir libre … », « Il sera
+prolongé … », « Sans prolongation, il partira libre … »), et la fiche offre le choix à toute date (`player-contract-choice` :
+« Ton adjoint décide », avec ce qu'il fera, « Le prolonger », « Le laisser partir »). Sur toute l'entrée, l'action de jeu de la colonne est secondaire
 (`OWN_ORANGE_ACTION`). `e2e/team.spec.ts` couvre ces écrans à 1280, 1100, 768, 390 et 360 px.
 
-**Marché.** Deux écrans sous l'entrée Marché. `/transfers` : budget (et marge salariale à partir de 1024 px), bascule
-Acheter / Vendre · N offres (`?tab=sell`). Acheter : quatre entrées (Mes besoins, Pépites, Bonnes affaires, Stars),
+**Marché.** Deux écrans sous l'entrée Marché. `/transfers` : budget et « Effectif 27/30 » (`[data-summary="squad"]`, en
+ambre à 30), bascule Acheter / Vendre · N offres, ou « Vendre · N proposées » quand l'adjoint en propose (`?tab=sell`). Acheter : quatre entrées (Mes besoins, Pépites, Bonnes affaires, Stars),
 `proposeSignings` (`src/engine/market-proposals.ts`, pur, sans hasard) et `getMarketProposals`
 (`src/db/market-proposals.ts`). Le point faible (`weakSpotOf` sur `elevenOf`, le onze du dispositif) est d'abord un
 poste vide, que plus aucun joueur disponible ne peut tenir (blessés et suspendus compris), noté 0 : quiconque peut y jouer
@@ -1004,19 +1070,19 @@ l'améliore ; puis un poste tenu hors poste (ni à son poste, ni à un poste sec
 le moins bien noté d'entre eux ; puis le titulaire à la note la plus basse à son poste ; le premier du dispositif à
 égalité. « À faire » et l'introduction de Mes besoins disent lequel (`WeakSpot.reason` : `empty`, `outOfLine`,
 `lowest`). Une proposition n'est que d'un joueur qui accepterait (`quoteFor` donne `minimumReputation`, comparée à la
-réputation du club dirigé) et que le club peut payer (prix sous le budget, salaire sous la marge) : 10 par entrée, une
-à la fois, « Passer » sans mémoire ; à partir de `xl`, les trois suivantes (« Repérés pour toi ») et la meilleure offre
-(`SaleOfferCard`). Une entrée que la seule marge salariale vide (`wageBound` : avec assez de marge, elle proposerait
-quelqu'un) le dit : Mes besoins propose alors les joueurs que la marge paie encore au poste du point faible, même moins
-bien notés, le meilleur à ce poste d'abord, marqués « Dans tes moyens » (`affordableAt`, étiquette `affordable`), son introduction donnant la
-marge ; sans personne dans ses moyens, une entrée montre à la place d'une liste vide la marge restante (ou le dépassement
-du plafond) et les trois façons d'en retrouver : vendre (vers l'onglet Vendre), libérer un contrat depuis la fiche
-(vers l'effectif), attendre la saison prochaine et son plafond recalculé (`WageLimit`, `market-wage-limit`).
-« Recruter » ouvre une confirmation (prix, salaire, durée, budget restant) et passe par `makeTransferOfferAction` ou
-`signFreeAgentAction` au prix et au salaire minimaux, `DEFAULT_CONTRACT_LENGTH` saisons, `evaluateOffer` inchangé, puis
-« Signé ! ». Vendre : il n'y a pas d'offres reçues ni de bouton Refuser, rien à enregistrer : `getMarketSales`
-(`src/db/market-sales.ts`) liste les joueurs hors du onze, un titulaire blessé restant du onze, avec la meilleure offre
-IA de `quoteSquad` ; le compteur compte ces offres. Écran avancé (`/transfers/advanced`, liens « Marché complet » et
+réputation du club dirigé) et que le club peut payer (son prix, ou la prime d'un joueur libre, « Prime à la signature »,
+sous le budget) : 10 par entrée, une à la fois, « Passer » sans mémoire, « Contrat de 3 saisons » ; à partir de `xl`, les
+trois suivantes (« Repérés pour toi ») et la meilleure offre (`SaleOfferCard`). À 30 joueurs, la carte « Effectif plein »
+(`market-squad-full`) au-dessus des propositions, qui restent lisibles, « Recruter » inactif, ses liens vers Vendre (« Voir
+les ventes proposées » quand il y en a) et l'effectif. « Recruter » ouvre une confirmation (prix ou prime à la signature,
+durée, budget restant, « Effectif · 28 sur 30 ») et passe par `makeTransferOfferAction` ou `signFreeAgentAction` au prix
+minimal, au salaire que le joueur demande (jamais montré), `DEFAULT_CONTRACT_LENGTH` saisons, `evaluateOffer` inchangé,
+puis « Signé ! ». Vendre : il n'y a pas d'offres reçues ni de bouton Refuser, rien à enregistrer ; en tête, « Ton adjoint
+propose » (`market-sale-proposals`, une carte `market-sale-proposal` par vente proposée, règle « Simplification » : le
+joueur, ses titularisations et minutes de la période, l'offre et sa valeur, « Vendre · 3,4 M€ », l'orange de l'écran pour
+la première, et « Garder ») ; puis `getMarketSales` (`src/db/market-sales.ts`) liste les autres joueurs hors du onze, un
+titulaire blessé restant du onze, avec la meilleure offre IA de `quoteSquad`, sa carte de tête en secondaire quand
+l'adjoint propose ; le compteur compte ces offres. Écran avancé (`/transfers/advanced`, liens « Marché complet » et
 « Détails du contrat · ajuster l'offre ») : filtres, joueurs libres, mouvements (le visage du joueur comme dans les autres
 listes, aux couleurs du club qu'il rejoint, neutre pour une libération ou une retraite), fiche et dialogues de toujours ; un
 joueur qui refuserait le club pour sa réputation le dit dans la fiche et le dialogue, l'envoi désactivé. Un joueur arrivé
@@ -1043,14 +1109,13 @@ sous-estime d'un facteur 25 les joueurs d'un club, et il les relit tous pour une
 `getMarketOverview` sont lus une fois par requête (`cache` de React, sans effet hors d'un rendu serveur) ; `managedMatchesAhead` lit les matchs du club par son id ; l'en-tête de la partie cherche
 son prochain match et les matchs restants à partir de sa date (une date se joue entière). Offres de Vendre (`quoteSquad`,
 `bestSaleBids`) : les clubs IA dans l'ordre des enchères, par lots de réputations entières (`readBidders`, `FETCH FIRST …
-WITH TIES`), et la masse salariale des seuls clubs atteints ; `walkSaleBids` tire comme `saleBids`
+WITH TIES`), et l'effectif des seuls clubs atteints (un club à 30 n'enchérit pas) ; `walkSaleBids` tire comme `saleBids`
 (`sale-quotes.test.ts` compare à l'implémentation d'avant, sur quatre parties). Propositions (`getMarketProposals`,
-`chooseRows`) : les joueurs libres en entier ; ceux des clubs IA qui accepteraient le club et dont la marge paie le
-salaire (filtres exacts en base, le prix vérifié ici), par note pour Stars, Mes besoins et Bonnes affaires, par potentiel
+`chooseRows`) : les joueurs libres en entier ; ceux des clubs IA qui accepteraient le club (filtre exact en base, le prix
+vérifié ici), par note pour Stars, Mes besoins et Bonnes affaires, par potentiel
 pour Pépites, un lot puis des valeurs entières, jusqu'à ce qu'aucun joueur restant ne puisse entrer dans les dix premiers
 d'une entrée (bornes pures du moteur : `entryBound`, `settlingFloor`, règles `entryRules` et `firstOf`, celles de
-`proposeSignings`) ; une entrée vide cherche un joueur qu'elle prendrait avec assez de marge (`wageBound`)
-(`market-proposals-equivalence.test.ts` compare à l'implémentation d'avant). Joueurs des clubs IA (`listClubPlayers`) :
+`proposeSignings`) (`market-proposals-equivalence.test.ts` compare à l'implémentation d'avant). Joueurs des clubs IA (`listClubPlayers`) :
 la base filtre (l'âge exactement, `earliestBirthForMaxAge`), compte et pagine par note ; le prix, calculé ici, ne
 départage que les joueurs de même note ; un poste secondaire, un prix maximal ou le tri par prix lisent tous les
 candidats (`market-lists.test.ts` compare chaque page à l'ancienne liste). Les tableaux de l'écran avancé
@@ -1156,10 +1221,10 @@ procédure de restauration dans `docs/restauration.md`, aucune copie des donnée
 **Club.** Quatre onglets, Club, Défi, Histoire et Récompenses (règle « Missions du jour, jetons et récompenses ») ; l'action
 de jeu de la colonne y est secondaire (`OWN_ORANGE_ACTION`). Club (`/club`) : pastille du manager (`club-manager`, saisons
 terminées + 1, le titre porté et le badge mis en avant, `club-manager-title`) ; finances en lecture seule (`getClubFinances`,
-`src/db/club.ts` : budget en grand, masse salariale en barre, marge ou dépassement, puis le détail de la dernière dotation,
+`src/db/club.ts` : budget en grand, aucun salaire, puis le détail de la dernière dotation,
 `ClubFinances.dotation` lue dans `SeasonBudget`, `club-dotation` : dotation et rang de réputation dans la division,
-objectifs de la saison passée (bonus, malus, ou ni l'un ni l'autre, × coefficient), report, budget de la saison, plafond
-salarial ; « Budget de départ » la première saison, rien pour une partie d'avant la dotation ; puis les primes reçues de la
+objectifs de la saison passée (bonus, malus, ou ni l'un ni l'autre, × coefficient), report, budget de la saison ;
+« Budget de départ » la première saison, rien pour une partie d'avant la dotation ; puis les primes reçues de la
 saison en cours, `club-prizes` (`getSeasonPrizes`, `SeasonPrizes` : primes européennes, participation comprise,
 `club-prizes-europe`, et de la coupe, `club-prizes-cup`, chacune nommée par sa compétition, en `data-amount` ; recalculées
 des matchs joués par les fonctions qui les créditent, `europePrizesOf` et `cupPrizesOf`, sans colonne ni migration ; rien
@@ -1170,7 +1235,7 @@ entraîneur ; tant que le choix est ouvert, les trois propositions et « Choisir
 saison) ; défi sur le bleu vif (où en est le joueur, tête du classement à partir de `lg`, « Voir le défi », seul
 orange plein de l'écran) ; les trois dernières saisons, et, à partir de `lg`, l'aperçu de la dernière carte et ses boutons
 (`HonoursCardActions` ne les monte pas en dessous : un téléphone ne télécharge pas le PNG) ; Réglages (`ClubSettings` :
-langue, compte, parties utilisées sur la limite, changer de partie, série des missions du jour et record hors partie de défi,
+ce dont s'occupe l'adjoint (règle « Simplification »), langue, compte, parties utilisées sur la limite, changer de partie, série des missions du jour et record hors partie de défi,
 confidentialité). Défi (`/saves/[id]/challenge`) : l'écran
 de la page publique (`ChallengeScreen`, `app/challenge/_components`), quelle que soit la partie ouverte. Tête sur le bleu vif
 (semaine et fin, `formatParisWeekdayTime`), carte « Ta partie » (`ownChallenge`, pur : journées, score une fois soumis et
@@ -1245,7 +1310,9 @@ buteurs de chaque match, cartons, remplacements, décisions) n'est lu nulle part
 onglet), `season-start` : la saison ; « La direction t'accorde X » (`season-start-budget`, le budget de la dotation de la
 saison, `SeasonBudget` lu par `getClubFinances`) et son détail : dotation et rang de réputation dans la division, objectifs
 de la saison passée et leur apport au coefficient (`getLastClosedObjectives`), report, total ; « Budget de départ » la
-première saison ; puis le plafond salarial, la masse et la marge. Ensuite les objectifs (`getSeasonObjectives`) : les
+première saison ; puis, après un passage de saison, ce qu'a fait l'adjoint à l'intersaison (`season-start-assistant`, lu
+dans `SeasonBudget.contractMoves`, `getSeasonContractMoves` : prolongés, partis, recrues et leur prime, jeunes, « Effectif :
+25 joueurs sur 30 »). Ensuite les objectifs (`getSeasonObjectives`) : les
 imposés, avec ce qui les dépasse, et le choix parmi les trois proposés, en cartes radio (`objective-choice`), celui de
 l'adjoint présélectionné et signalé (« Sans choix avant ton premier match, ton adjoint choisira… ») ; « Valider mon
 objectif » (`objective-validate`, seule action orange de l'écran, `chooseObjectiveAction` : `requireOwnedSave`, Zod, refus
@@ -1745,6 +1812,7 @@ prisma/
 scripts/              # measure-save-size.ts (npm run measure:size), measure-balance.ts (npm run measure:balance), measure-d2-balance.ts (npm run measure:divisions),
                       # measure-seasons.ts (npm run measure:seasons), measure-career-weight.ts (npm run measure:weight),
                       # measure-history.ts (npm run measure:history), measure-national-coach.ts (npm run measure:coach),
+                      # measure-assistant.ts (npm run measure:assistant) et ses crochets, simplification-hooks.ts,
                       # measure-career-countries.ts (npx tsx : le poids d'une carrière et ses écritures par pays),
                       # generate-reference-migration.ts
 ```
