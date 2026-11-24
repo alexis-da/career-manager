@@ -21,6 +21,7 @@
     "measure:weight": "tsx scripts/measure-career-weight.ts",
     "measure:history": "tsx scripts/measure-history.ts",
     "measure:coach": "tsx scripts/measure-national-coach.ts",
+    "measure:assistant": "tsx scripts/measure-assistant.ts",
     "test:slow": "vitest run --config vitest.slow.config.mts",
     "test:e2e": "tsx scripts/e2e-reset.ts && playwright test",
     "test:e2e:quick": "tsx scripts/e2e-reset.ts && playwright test e2e/game-loop.spec.ts e2e/live-choices.spec.ts e2e/market.spec.ts e2e/seo.spec.ts e2e/admin.spec.ts"

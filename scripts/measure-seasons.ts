@@ -18,7 +18,11 @@
  * qualifies again and who goes down, the budgets and reputations of their clubs against the other first division clubs,
  * the European objective by reputation third, the knockout ties, and the fitness of the starters of the European clubs at
  * kick-off against the other first division clubs' (each date's AI lineups read before it is played, as
- * measure:balance reads them).
+ * measure:balance reads them). For the chantier « simplification » (docs/design/simplification.md § 11), measured
+ * before it and after it with the same seeds: the squads' sizes at each season's start and end (k); the free agents of
+ * each 1 July, the pool its preseason left and the free agents it signed, by the AI clubs and by the managed club, with
+ * their signing fees (l); and the share of each AI club's dotation its preseason spent on those fees (m), none before
+ * the signing bonus.
  *
  * --out writes the markdown there and the raw records beside it (the same name, .json), for later analyses;
  * --from reads such a JSON instead of playing, to print the report again without the database. The twin and its
@@ -51,7 +55,9 @@ import { createSave } from "../src/db/saves";
 import { advanceToNextSeason, type SeasonTransition } from "../src/db/season";
 import { parseFormation } from "../src/db/lineup";
 import { getStandings } from "../src/db/standings";
+import type { PreseasonSummary } from "../src/db/preseason";
 import { DEMO_CLUB_SLUG, DEMO_SEED } from "../src/db/test-support";
+import { freeAgentWhere } from "../src/db/transfers";
 import { europeObjective, europeReputationBonus, EUROPE_LEAGUE_ROUNDS, EUROPE_STAGES, type EuropeCode } from "../src/engine/europe";
 import { recoveredFitness } from "../src/engine/fitness";
 import {
@@ -66,6 +72,7 @@ import {
   RANKING_COEFFICIENT,
   REPUTATION_TARGET_SHARE,
   ROTATION_FITNESS,
+  SQUAD_SIZE_MAX,
   WAGE_BUDGET_FLOOR_SHARE,
   WAGE_BUDGET_MARGIN,
 } from "../src/engine/balance";
@@ -114,6 +121,9 @@ const DAY_MS = 86_400_000;
 const SIGNING_AGE = 25;
 const ELEVEN = 11;
 
+/** The simplification's squad limit (docs/design/simplification.md § 1.4): the squads at it or above, counted in k. */
+const SQUAD_LIMIT = 30;
+
 /** The divisions whose top, middle and bottom clubs (a) follows. */
 const FOLLOWED_DIVISIONS = ["fr.1", "fr.2"] as const;
 
@@ -155,6 +165,21 @@ type ClubStart = ClubState & {
   europeParticipation?: number; // its European competition's participation, credited at the opening after the dotation; 0 without
   cupEntry?: number | null; // the cup round it enters at: 1 in the preliminary round, 2 exempt; null without a cup
   expected?: { scored: number; conceded: number }; // its league goals expected over the season (expectedSeasonGoals)
+  // The free agents its preseason signed (FREE transfers from no club, dated the season's first day) and their fees, the
+  // signing bonuses of the simplification (none before it); absent from records from before them (sections l and m).
+  freeSignings?: number;
+  freeSigningFees?: number;
+};
+
+/** A free agent of a season's 1 July, as section l reads him: his overall, his age that day, his value, his fee. */
+type FreeAgentSigning = { overall: number; age: number; value: number; fee: number };
+
+/** The free agents of a season's 1 July, its preseason played (section l). */
+type FreeAgentRecord = {
+  // Without a club once the preseason is over: their overalls, and the best of them (overall, then value, then key).
+  left: { overalls: number[]; best: { overall: number; age: number; value: number } | null };
+  ai: FreeAgentSigning[]; // the free agents the preseason signed for AI clubs
+  managed: FreeAgentSigning[]; // for the managed club (its assistant, when it manages its contracts)
 };
 
 /** A club at a season's end: every fixture played, the transition still to come. */
@@ -266,6 +291,7 @@ type SeasonSnapshot = {
   knockout?: KnockoutRecord[];
   fitness?: FitnessRecord;
   tournament?: TournamentRecord; // the summer tournament its transition played; absent from records from before them
+  freeAgents?: FreeAgentRecord; // its 1 July's free agents (section l); absent from records from before them
 };
 
 /** Full runs of a cycle (qualifiers and tournament) played from one state, for the credibility of the winners (§ 11). */
@@ -399,6 +425,7 @@ type ClubSeason = {
   tableWageBudget: number; // the creation's wage budget at its rank: its wage budget's ceiling, and twice its floor
   payroll: number;
   squadSize: number; // its players at the start, after the preseason
+  freeSigningFees: number | null; // what its preseason paid for free agents (section m); null in records from before
   wageRoom: number;
   signing: Signing;
   end: ClubSeasonEnd | null; // null for the season the last transition opened
@@ -517,13 +544,73 @@ async function feesByClub(saveId: string, from: Date, to: Date): Promise<{ recei
   return { received, paid };
 }
 
-/** The season's start: every club, the preseason's fees, and the managed club's SeasonBudget. */
-async function recordStart(saveId: string): Promise<{ startYear: number; clubs: ClubStart[]; managedBudget: ManagedBudget | null }> {
+/**
+ * The free agents of a season's 1 July once its preseason is over (section l): those it left without a club, and those
+ * it signed, FREE transfers from no club dated that day (for the first season, the creation's preseason), for the AI
+ * clubs and for the managed club, with their fees; and each club's signings and fees (by Club.id, as Transfer has it).
+ * Overall and value as the transition left them, on the day of the preseason that signed them.
+ */
+async function freeAgentsOf(
+  saveId: string,
+  firstDay: Date,
+  clubs: readonly ClubState[],
+): Promise<{ record: FreeAgentRecord; byClub: Map<string, { count: number; fees: number }> }> {
+  const left = await prisma.playerSave.findMany({
+    where: freeAgentWhere(saveId),
+    select: { playerKey: true, overall: true, birthDate: true, marketValue: true },
+  });
+  const [best] = [...left].sort(
+    (a, b) => b.overall - a.overall || b.marketValue - a.marketValue || (a.playerKey < b.playerKey ? -1 : a.playerKey > b.playerKey ? 1 : 0),
+  );
+  const signings = await prisma.transfer.findMany({
+    where: { saveId, type: "FREE", fromClubId: null, toClubId: { not: null }, date: { gte: firstDay, lt: new Date(firstDay.getTime() + DAY_MS) } },
+    select: { playerSaveId: true, toClubId: true, fee: true },
+  });
+  const signed = new Map(
+    (
+      await prisma.playerSave.findMany({
+        where: { saveId, id: { in: signings.map((row) => row.playerSaveId) } },
+        select: { id: true, overall: true, birthDate: true, marketValue: true },
+      })
+    ).map((row) => [row.id, row]),
+  );
+  const managedClubId = clubs.find((club) => club.managed)?.clubId;
+  const record: FreeAgentRecord = {
+    left: {
+      overalls: left.map((player) => player.overall),
+      best: best === undefined ? null : { overall: best.overall, age: ageInYears(best.birthDate, firstDay), value: best.marketValue },
+    },
+    ai: [],
+    managed: [],
+  };
+  const byClub = new Map<string, { count: number; fees: number }>();
+  for (const { playerSaveId, toClubId, fee } of signings) {
+    if (toClubId === null) {
+      continue; // the query asks for a club; the check tells TypeScript
+    }
+    const player = getOrThrow(signed, playerSaveId, "free agent signed");
+    (toClubId === managedClubId ? record.managed : record.ai).push({
+      overall: player.overall,
+      age: ageInYears(player.birthDate, firstDay),
+      value: player.marketValue,
+      fee,
+    });
+    const club = byClub.get(toClubId) ?? { count: 0, fees: 0 };
+    byClub.set(toClubId, { count: club.count + 1, fees: club.fees + fee });
+  }
+  return { record, byClub };
+}
+
+/** The season's start: every club, the preseason's fees, the managed club's SeasonBudget, and its 1 July's free agents. */
+async function recordStart(
+  saveId: string,
+): Promise<{ startYear: number; clubs: ClubStart[]; managedBudget: ManagedBudget | null; freeAgents: FreeAgentRecord }> {
   const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true } });
   const startYear = seasonStartYear(save.currentDate);
   const firstDay = seasonStartDate(startYear);
   const clubs = await readClubs(saveId);
   const fees = await feesByClub(saveId, firstDay, new Date(firstDay.getTime() + DAY_MS));
+  const freeAgents = await freeAgentsOf(saveId, firstDay, clubs);
   const budgets = await prisma.seasonBudget.findMany({
     where: { saveId, season: { startYear } },
     select: {
@@ -550,8 +637,11 @@ async function recordStart(saveId: string): Promise<{ startYear: number; clubs: 
       europeParticipation: participation.get(club.slug) ?? 0,
       cupEntry: cupEntries(club),
       expected: getOrThrow(expected, club.clubSaveId, "expected goals"),
+      freeSignings: freeAgents.byClub.get(club.clubId)?.count ?? 0,
+      freeSigningFees: freeAgents.byClub.get(club.clubId)?.fees ?? 0,
     })),
     managedBudget: budgets[0] ?? null,
+    freeAgents: freeAgents.record,
   };
 }
 
@@ -1034,9 +1124,10 @@ async function playSeasons(saveId: string, seasons: number): Promise<SeasonSnaps
       knockout,
       fitness,
       tournament,
+      freeAgents: start.freeAgents,
     });
     console.log(
-      `  season ${season} (${seasonLabel(start.startYear)}): ${playSeconds} s, ${transition.moves} clubs promoted or relegated, ${transition.preseason.wageSales} wage sales`,
+      `  season ${season} (${seasonLabel(start.startYear)}): ${playSeconds} s, ${transition.moves} clubs promoted or relegated, ${wageSalesOf(transition.preseason)} wage sales`,
     );
     start = await recordStart(saveId);
   }
@@ -1048,8 +1139,17 @@ async function playSeasons(saveId: string, seasons: number): Promise<SeasonSnaps
     end: null,
     playSeconds: null,
     transition: null,
+    freeAgents: start.freeAgents,
   });
   return snapshots;
+}
+
+/**
+ * The preseason's sales of AI clubs above their wage budget (planWageSales), which the simplification removes (§ 1.5):
+ * 0 once its summary no longer counts them, so that this script reads the game after the change as before it.
+ */
+function wageSalesOf(preseason: PreseasonSummary): number {
+  return "wageSales" in preseason ? Number(preseason.wageSales) : 0;
 }
 
 // ------------------------------------------------------------------ Derived seasons
@@ -1203,6 +1303,7 @@ function derive(snapshots: readonly SeasonSnapshot[]): ClubSeason[] {
         tableWageBudget: clubFinances(previous === undefined ? club.initialRank : dotationRank, club.clubCount, club.tier).wageBudget,
         payroll: club.payroll,
         squadSize: club.squadSize,
+        freeSigningFees: club.freeSigningFees ?? null,
         wageRoom,
         signing: typicalSigning(club.topElevenMedian, club.budget, wageRoom),
         end: end === undefined ? null : seasonEnd(club, end, nextStart.get(club.clubSaveId)),
@@ -1349,7 +1450,7 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
       .filter((snapshot) => snapshot.transition !== null)
       .map(
         (snapshot) =>
-          `${seasonHeader(snapshot)} : ${snapshot.playSeconds ?? "?"} s, ${snapshot.transition?.moves ?? 0} montées et descentes, ${snapshot.transition?.preseason.wageSales ?? 0} ventes pour masse salariale à la présaison suivante.`,
+          `${seasonHeader(snapshot)} : ${snapshot.playSeconds ?? "?"} s, ${snapshot.transition?.moves ?? 0} montées et descentes, ${snapshot.transition === null ? 0 : wageSalesOf(snapshot.transition.preseason)} ventes pour masse salariale à la présaison suivante.`,
       )
       .join(" "),
   );
@@ -1748,6 +1849,9 @@ function report(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[
   sections.push(...europeSections(snapshots, rows));
   sections.push(...nationsSections(snapshots, rows));
   sections.push(...tournamentSections(snapshots));
+  sections.push(...squadSizeSections(snapshots));
+  sections.push(...freeAgentSections(snapshots));
+  sections.push(...signingBonusSections(snapshots, rows));
   return sections.join("\n\n");
 }
 
@@ -2323,6 +2427,155 @@ function tournamentSections(snapshots: readonly SeasonSnapshot[]): string[] {
     `### Crédibilité : ${CREDIBILITY_RUNS} cycles complets (éliminatoires et tournoi) depuis l'état de juin, pour chaque tournoi`,
     "Cible : les cinq grandes, le Brésil, l'Argentine et le Portugal font environ 80 % des titres, aucune nation plus de 30 %.",
     table(["Tournoi", "Huit grandes", "Plus titrée", "Vainqueurs"], credibilityRows),
+  ];
+}
+
+// ------------------------------------------------------------------ Squads, free agents and signing bonuses (simplification)
+
+/**
+ * k. The squads' sizes (docs/design/simplification.md § 1.4, § 11): the AI clubs' by division at each season's start
+ * (1 July, its preseason played) and end (every fixture played, the transition still to come), their smallest, median
+ * and largest, how many have more than SQUAD_SIZE_MAX players and how many SQUAD_LIMIT or more; the managed club's.
+ */
+function squadSizeSections(snapshots: readonly SeasonSnapshot[]): string[] {
+  const aiSizes = (clubs: readonly ClubState[], tier: CompetitionTier): number[] =>
+    clubs.filter((club) => !club.managed && club.tier === tier).map((club) => club.squadSize);
+  const cells = (sizes: readonly number[]): string[] =>
+    sizes.length === 0
+      ? ["—", "—", "—"]
+      : [
+          `${Math.min(...sizes)} · ${fixed(median(sizes), 1)} · ${Math.max(...sizes)}`,
+          String(sizes.filter((size) => size > SQUAD_SIZE_MAX).length),
+          String(sizes.filter((size) => size >= SQUAD_LIMIT).length),
+        ];
+  const line = (label: string, clubs: readonly ClubState[]): string[] => [
+    label,
+    ...cells(aiSizes(clubs, 1)),
+    ...cells(aiSizes(clubs, 2)),
+    String(clubs.find((club) => club.managed)?.squadSize ?? "—"),
+  ];
+  const moments = snapshots.flatMap((snapshot) => [
+    { label: `${seasonHeader(snapshot)}, début`, clubs: snapshot.start },
+    ...(snapshot.end === null ? [] : [{ label: `${seasonHeader(snapshot)}, fin`, clubs: snapshot.end }]),
+  ]);
+  const all = moments.flatMap(({ clubs }) => clubs.filter((club) => !club.managed).map((club) => club.squadSize));
+  const sizeHeaders = (tier: number): string[] => [`D${tier} : min · médiane · max`, `> ${SQUAD_SIZE_MAX}`, `≥ ${SQUAD_LIMIT}`];
+  return [
+    "## k. Effectifs (chantier « simplification »)",
+    [
+      "Joueurs sous contrat de chaque club IA, par division : au début de chaque saison (le 1er juillet, sa présaison jouée)",
+      "et à sa fin (tous ses matchs joués, avant le passage de saison) ; le plus petit, la médiane et le plus grand, les",
+      `clubs au-delà de ${SQUAD_SIZE_MAX} joueurs et ceux à ${SQUAD_LIMIT} ou plus, la limite de la simplification ; puis`,
+      `l'effectif du club dirigé. Cible du cahier : de 20 à ${SQUAD_SIZE_MAX} joueurs comme aujourd'hui, aucun à ${SQUAD_LIMIT}.`,
+    ].join(" "),
+    table(["Moment", ...sizeHeaders(1), ...sizeHeaders(2), "Club dirigé"], moments.map(({ label, clubs }) => line(label, clubs))),
+    [
+      `Sur les ${moments.length} relevés : ${all.filter((size) => size > SQUAD_SIZE_MAX).length} effectifs de clubs IA au-delà`,
+      `de ${SQUAD_SIZE_MAX} joueurs, ${all.filter((size) => size >= SQUAD_LIMIT).length} à ${SQUAD_LIMIT} ou plus (sur ${all.length}).`,
+    ].join(" "),
+  ];
+}
+
+/** A preseason's free signings in a cell: how many, their mean and best overall, their fees. */
+function signingsCell(signings: readonly FreeAgentSigning[]): string {
+  if (signings.length === 0) {
+    return "0";
+  }
+  const overalls = signings.map((signing) => signing.overall);
+  return `${signings.length} · ${fixed(mean(overalls), 1)} · ${Math.max(...overalls)} · ${millions(sumOf(signings.map((signing) => signing.fee)))}`;
+}
+
+/**
+ * l. The free agents of each 1 July (§ 1.3, § 11): the pool its preseason left without a club, its median overall and
+ * its best; the free agents the preseason signed for the AI clubs and for the managed club, their overalls and their
+ * fees (the signing bonuses, none before the simplification); and the pool it drew from, those left and those signed.
+ */
+function freeAgentSections(snapshots: readonly SeasonSnapshot[]): string[] {
+  const recorded = snapshots.flatMap((snapshot) => (snapshot.freeAgents === undefined ? [] : [{ snapshot, record: snapshot.freeAgents }]));
+  if (recorded.length === 0) {
+    return [];
+  }
+  const lines = recorded.map(({ snapshot, record }) => {
+    const { best } = record.left;
+    const offered = [...record.left.overalls, ...record.ai.map((signing) => signing.overall), ...record.managed.map((signing) => signing.overall)];
+    return [
+      seasonHeader(snapshot),
+      String(record.left.overalls.length),
+      fixed(median(record.left.overalls), 1),
+      best === null ? "—" : `${best.overall} · ${best.age} ans · ${millions(best.value)}`,
+      signingsCell(record.ai),
+      signingsCell(record.managed),
+      `${offered.length} · ${fixed(median(offered), 1)}`,
+    ];
+  });
+  const signedAi = recorded.flatMap(({ record }) => record.ai);
+  // The signings read from the day's transfers against those the transition opening the season counted.
+  const checked = recorded.flatMap(({ snapshot, record }) => {
+    const opening = snapshots.find((candidate) => candidate.season === snapshot.season - 1)?.transition;
+    return opening === null || opening === undefined ? [] : [opening.preseason.signings === record.ai.length + record.managed.length];
+  });
+  return [
+    "## l. Joueurs libres du 1er juillet (chantier « simplification »)",
+    [
+      "Au 1er juillet de chaque saison, sa présaison jouée (S1 : celle de la création) : les joueurs libres qu'elle laisse",
+      "sans club (sans les retraités), leur note médiane et le meilleur d'entre eux (note, âge, valeur en M€) ; les joueurs",
+      "libres qu'elle a signés (transferts FREE sans club d'origine, datés de ce jour), pour les clubs IA et pour le club",
+      "dirigé (son adjoint, quand il gère ses contrats) : nombre · note moyenne · meilleure note · primes payées (M€, aucune",
+      "avant la prime à la signature) ; puis le vivier où elle a puisé, restés et signés : nombre · note médiane. Cible du",
+      "cahier : autant de recrues qu'aujourd'hui (elles comblent des départs), leur note comparée.",
+    ].join(" "),
+    table(
+      ["1er juillet", "Restés libres", "Note médiane", "Meilleur resté libre", "Signés par les clubs IA", "Signés par le club dirigé", "Vivier de la présaison"],
+      lines,
+    ),
+    [
+      `Sur les ${recorded.length} présaisons : ${signedAi.length} joueurs libres signés par les clubs IA, note moyenne`,
+      `${fixed(mean(signedAi.map((signing) => signing.overall)), 1)}, ${millions(sumOf(signedAi.map((signing) => signing.fee)))} M€ de primes.`,
+      `Vérification : signés relevés (transferts du jour) = signés comptés par le passage de saison (preseason.signings)`,
+      `pour ${checked.filter((same) => same).length} / ${checked.length} présaisons.`,
+    ].join(" "),
+  ];
+}
+
+/**
+ * m. The share of each AI club's dotation its preseason spent on the free agents' signing fees (§ 1.3, § 11), by division
+ * and reputation third: the fees against the budget its board gave it before the preseason (its budget on 1 July less
+ * the preseason's transfer balance and the European participation: the creation's at S1). Then its budget on 1 July
+ * and at the season's end. None spent before the signing bonus.
+ */
+function signingBonusSections(snapshots: readonly SeasonSnapshot[], rows: readonly ClubSeason[]): string[] {
+  const measured = rows.filter((row) => row.freeSigningFees !== null);
+  if (measured.length === 0) {
+    return [];
+  }
+  const given = (row: ClubSeason): number => row.budget - row.preseasonBalance - row.europeParticipation;
+  const shareOf = (row: ClubSeason): number => (row.freeSigningFees ?? 0) / given(row);
+  const headers = ["Groupe", ...snapshots.map(seasonHeader)];
+  const managed = measured.filter((row) => row.managed).sort((a, b) => a.season - b.season);
+  return [
+    "## m. Primes à la signature des joueurs libres (clubs IA, présaison)",
+    [
+      "Part de la dotation de chaque club IA payée en primes de joueurs libres à sa présaison : les primes (indemnités des",
+      "transferts FREE de ce jour) sur le budget que la direction lui a donné avant la présaison (son budget du 1er juillet",
+      "moins le solde des transferts de la présaison et la participation européenne ; à S1, celui de la création). Cellule :",
+      "part moyenne (min–max) · somme des primes du groupe en M€. Aucune avant la prime à la signature.",
+    ].join(" "),
+    table(
+      headers,
+      pivot(measured, snapshots, (members) => {
+        const shares = members.map(shareOf);
+        return `${fixed(100 * mean(shares), 1)} % (${fixed(100 * Math.min(...shares), 1)}–${fixed(100 * Math.max(...shares), 1)}) · ${millions(sumOf(members.map((row) => row.freeSigningFees ?? 0)))}`;
+      }),
+    ),
+    `Club dirigé : ${managed.map((row) => `${seasonHeader(row)} ${millions(row.freeSigningFees ?? 0)} M€ (${fixed(100 * shareOf(row), 1)} %)`).join(", ")}.`,
+    "### Budget des clubs IA au 1er juillet (après la présaison) → en fin de saison : médiane (M€)",
+    table(
+      headers,
+      pivot(rows, snapshots, (members) => {
+        const ends = members.flatMap((row) => (row.end === null ? [] : [row.end.budget]));
+        return `${millions(median(members.map((row) => row.budget)))} → ${ends.length === 0 ? "—" : millions(median(ends))}`;
+      }),
+    ),
   ];
 }
 
