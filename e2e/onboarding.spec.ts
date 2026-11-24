@@ -85,7 +85,8 @@ for (const journey of JOURNEYS) {
         await expect(page.getByText(journey.skipped)).toBeVisible();
         await expect(page.getByTestId("dashboard-budget")).toBeVisible();
 
-        // No last result's card before the first match, no tip, no offer nor weak spot, and no rank yet.
+        // No last result's card before the first match, no tip, no offer nor weak spot (not even behind « Voir tout »: the
+        // lines are counted in the page, folded or not), and no rank yet.
         await expect(page.getByTestId("dashboard-last-result")).toHaveCount(0);
         await expect(page.locator('[data-testid^="tip-"]')).toHaveCount(0);
         await expect(page.getByTestId("alert-offers")).toHaveCount(0);

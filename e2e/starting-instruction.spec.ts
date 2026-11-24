@@ -3,8 +3,8 @@ import { FORMATION_NAMES } from "../src/engine/formations";
 import { createSave, deleteSave, expectOrangeActions, openScreen } from "./helpers";
 
 // The lineup's formation panel and starting instruction, on a Lyon of the seed « g6-start »: the eleven's strengths
-// beside the next opponent's, the seventeen formations compared and one picked, then Fermer chosen and saved with the
-// lineup, and the next match started live with it, which its score card says.
+// beside the next opponent's, the seventeen formations compared, best first, and one picked, then Fermer chosen and saved
+// with the lineup, and the next match started live with it, which its score card says.
 
 const LYON = "Olympique Lyonnais";
 const SEED = "g6-start";
@@ -59,18 +59,30 @@ test("compares the formations, saves a starting instruction with the lineup, and
   const opponent = await figuresOf(page.getByTestId("opponent-strength"));
   expect(opponent.attack).toBeGreaterThan(40);
 
-  // Every formation, each with its automatic eleven, one flagged the best against him, the current one marked.
+  // Every formation, each with its automatic eleven, best first against him, the best flagged, the current one marked:
+  // the first three shown, the fourteen others behind a button that unfolds them in place.
   const toggle = page.getByTestId("formation-compare-toggle");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   const options = page.getByTestId("formation-option");
   await expect(options).toHaveCount(FORMATION_NAMES.length);
+  await expect(options.first()).toHaveAttribute("data-best", "true");
   await expect(page.locator('[data-testid="formation-option"][data-best="true"]')).toHaveCount(1);
   await expect(page.locator('[data-testid="formation-option"][aria-current="true"]')).toHaveAttribute("data-formation", "4-3-3");
+  const visibleOptions = page.locator('[data-testid="formation-option"]:visible');
+  await expect(visibleOptions).toHaveCount(3);
+  const more = page.getByTestId("formation-compare-more");
+  await expect(more).toHaveText(`Voir les ${FORMATION_NAMES.length - 3} autres`);
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await more.click();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await expect(visibleOptions).toHaveCount(FORMATION_NAMES.length);
 
-  // The 5-3-2 picked: its eleven in the formation, and the figures its row gave, defending more than the 4-3-3.
+  // The 5-3-2 picked, among the others unless it is one of the three: its eleven in the formation, and the figures its row
+  // gave, defending more than the 4-3-3.
   const fiveThreeTwo = page.locator('[data-testid="formation-option"][data-formation="5-3-2"]');
+  await expect(fiveThreeTwo).toBeVisible();
   const row = await figuresOf(fiveThreeTwo);
   await fiveThreeTwo.getByTestId("formation-apply").click();
   await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "5-3-2");

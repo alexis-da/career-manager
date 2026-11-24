@@ -20,6 +20,7 @@
     "likelyEleven": "Likely eleven in a {formation}",
     "compare": {
       "toggle": "Compare the {count} formations",
+      "more": "{count, plural, one {See the other one} other {See the other #}}",
       "intro": "Each formation with its automatic line-up.",
       "gap": "Margin: goals expected for, minus against, in the next match.",
       "formation": "Formation",

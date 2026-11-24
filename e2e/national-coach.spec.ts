@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { parse } from "dotenv";
 import { createAnonymousUser, deleteUsers, signedUserCookie, USER_COOKIE } from "./db";
-import { expectNoSidewaysScroll, waitForReact } from "./helpers";
+import { expectNoSidewaysScroll, openTodo, waitForReact } from "./helpers";
 
 // The national coach (docs/design/selections.md § 5, N4 and N4b), on worldVersion 2 twins of the demo save at the start
 // of their first season (e2e/coach-save.mts): the federation of Portugal's offer on the season's start screen, accepted;
@@ -74,11 +74,12 @@ test("prepares his first break: his assistant's list confirmed in one go, then c
   test.setTimeout(420_000);
   const { saveId, userId } = await coachSave(page, baseURL, "coach");
   try {
-    // The dashboard leads to his match at stake, before his club's next one; « À faire » has his list.
+    // The dashboard leads to his match at stake, before his club's next one; « À faire » has his list, after the break's
+    // call-ups of his club's players: maybe behind « Voir tout ».
     await page.goto(`/saves/${saveId}`);
     const hero = page.getByTestId("dashboard-next-match");
     await expect(hero.getByTestId("hero-national")).toHaveAttribute("data-nation", "POR");
-    await expect(page.getByTestId("alert-coach-call-up")).toBeVisible();
+    await expect((await openTodo(page)).getByTestId("alert-coach-call-up")).toBeVisible();
 
     // His tab: his assistant's list, confirmed in one go.
     await page.goto(`/saves/${saveId}/nation`);

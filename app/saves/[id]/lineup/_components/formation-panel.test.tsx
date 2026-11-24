@@ -7,12 +7,13 @@ import { FORMATION_NAMES, formationPositions, type FormationName } from "@/src/e
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "@/src/engine/generation";
 import { selectRestedLineup, type Lineup } from "@/src/engine/lineup";
 import { POSITIONS, type Position } from "@/src/engine/positions";
-import { compareFormations, formationStrength } from "@/src/engine/strength";
+import { compareFormations, formationStrength, type FormationOption } from "@/src/engine/strength";
 import type { Locale } from "@/src/i18n/locale";
 import { inLanguage } from "@/src/i18n/test-intl";
 import { formatHundredths } from "@/src/lib/format";
 import { signedFigure } from "../_lib/formation-profile";
 import { FormationPanel, type PanelOpponent } from "./formation-panel";
+import { BEST_FORMATIONS } from "./formation-picker";
 
 // A static render keeps no handler: here a button keeps its own, by its name, for a test to press it.
 const pressed = vi.hoisted(() => new Map<string, () => void>());
@@ -95,6 +96,28 @@ const attributeOf = (tag: string, name: string): string | undefined => new RegEx
 /** The comparison's rows, whole. */
 const rowsOf = (markup: string): string[] => markup.match(/<tr [^>]*data-testid="formation-option"[\s\S]*?<\/tr>/g) ?? [];
 
+const formationOf = (row: string): string => attributeOf(row, "data-formation") ?? "";
+
+/** Each formation's place in FORMATION_NAMES, which orders the equals. */
+const ORDER = new Map<string, number>(FORMATION_NAMES.map((name, index) => [name, index]));
+
+/** How many the comparison folds: every formation but the best three. */
+const OTHERS = FORMATION_NAMES.length - BEST_FORMATIONS;
+
+/**
+ * The comparison at its button: what comes before the rows it unfolds (the rows shown at once, then the button), the
+ * button, the opening tag of the unfolded rows' body, and those rows.
+ */
+function foldedComparison(markup: string): { before: string; button: string; body: string; unfolded: string[] } {
+  const button = /<button [^>]*data-testid="formation-compare-more"[^>]*>[\s\S]*?<\/button>/.exec(markup)?.[0] ?? "";
+  const start = markup.indexOf(`<tbody id="${attributeOf(button, "aria-controls") ?? ""}"`);
+  if (button === "" || start < 0) {
+    throw new Error("The comparison folds nothing");
+  }
+  const after = markup.slice(start);
+  return { before: markup.slice(0, start), button, body: /^<tbody[^>]*>/.exec(after)?.[0] ?? "", unfolded: rowsOf(after) };
+}
+
 describe("the formation panel of the lineup", () => {
   it("says the formation's profile in words, with the true minus and the French spaces, and shows it in bars", () => {
     expect(render()).toContain("Plus offensif : +3 % en attaque, −3 % en défense");
@@ -129,17 +152,24 @@ describe("the formation panel of the lineup", () => {
     expect(markup).toContain("Onze prévu en 4-4-2 à plat");
   });
 
-  it("compares the seventeen formations with their automatic elevens, folded, and flags the engine's best", () => {
+  it("compares the seventeen formations with their automatic elevens, folded, best first, and flags the engine's best", () => {
     const markup = render();
     const { options, best } = compareFormations(PLAYERS, { strength: OPPONENT.strength, atHome: OPPONENT.atHome });
     const rows = rowsOf(markup);
+    const optionOf = (row: string): FormationOption => {
+      const option = options.find(({ formation }) => formation === formationOf(row));
+      if (option === undefined) {
+        throw new Error(`No formation ${formationOf(row)}`);
+      }
+      return option;
+    };
 
     expect(tagsWith(markup, 'data-testid="formation-compare-toggle"')[0]).toContain('aria-expanded="false"');
     expect(markup).toContain(`Comparer les ${FORMATION_NAMES.length} dispositifs`);
     expect(tagsWith(markup, 'data-testid="formation-compare"')[0]).toContain("hidden");
-    expect(rows.map((row) => attributeOf(row, "data-formation"))).toEqual([...FORMATION_NAMES]);
-    rows.forEach((row, index) => {
-      const { strength, goalDifference } = options[index];
+    expect(rows.map(formationOf).sort()).toEqual([...FORMATION_NAMES].sort());
+    rows.forEach((row) => {
+      const { strength, goalDifference } = optionOf(row);
       expect(attributeOf(row, "data-attack")).toBe(String(Math.round(strength.attack)));
       expect(attributeOf(row, "data-defense")).toBe(String(Math.round(strength.defense)));
       // Signed, to a hundredth, in the player's language.
@@ -147,10 +177,42 @@ describe("the formation panel of the lineup", () => {
       expect(margin).toMatch(/^[+−]?\d,\d\d$/);
       expect(row).toContain(`>${margin}</td>`);
     });
+
+    // Best first against the opponent: the margins never rise, equals in the order of FORMATION_NAMES.
+    const margins = rows.map((row) => optionOf(row).goalDifference ?? NaN);
+    rows.slice(1).forEach((row, index) => {
+      expect(margins[index + 1], formationOf(row)).toBeLessThanOrEqual(margins[index]);
+      if (margins[index + 1] === margins[index]) {
+        expect(ORDER.get(formationOf(row))).toBeGreaterThan(ORDER.get(formationOf(rows[index])) ?? Infinity);
+      }
+    });
+    // Not the order of the names: this squad's margins sort them otherwise.
+    expect(rows.map(formationOf)).not.toEqual([...FORMATION_NAMES]);
     expect(best).not.toBeNull();
-    expect(rows.filter((row) => row.includes('data-best="true"')).map((row) => attributeOf(row, "data-formation"))).toEqual([best]);
+    expect(formationOf(rows[0])).toBe(best);
+    expect(rows.filter((row) => row.includes('data-best="true"')).map(formationOf)).toEqual([best]);
     expect(markup.match(/Meilleur/g)).toHaveLength(1);
     expect(markup).toContain("Écart : buts attendus pour, moins contre, au prochain match.");
+  });
+
+  it("shows the best three, then a button that unfolds the fourteen others in place", () => {
+    const markup = render();
+    const { before, button, body, unfolded } = foldedComparison(markup);
+    const shown = rowsOf(before);
+
+    expect(shown).toHaveLength(BEST_FORMATIONS);
+    expect(shown.map(formationOf)).toEqual(rowsOf(markup).slice(0, BEST_FORMATIONS).map(formationOf));
+    expect(shown[0]).toContain('data-best="true"');
+    // The button under them, folded, which says how many it unfolds.
+    expect(before.indexOf('data-testid="formation-compare-more"')).toBeGreaterThan(before.lastIndexOf('data-testid="formation-option"'));
+    expect(attributeOf(button, "aria-expanded")).toBe("false");
+    expect(button).toContain(`Voir les ${OTHERS} autres`);
+    expect(OTHERS).toBe(14);
+    // The others right after it, in the same table, hidden until it is pressed: each with its figures and its choice.
+    expect(body).toContain('hidden=""');
+    expect(unfolded).toHaveLength(OTHERS);
+    expect(unfolded.map(formationOf)).toEqual(rowsOf(markup).slice(BEST_FORMATIONS).map(formationOf));
+    expect(unfolded.every((row) => (row.match(/<td/g) ?? []).length === 4)).toBe(true);
   });
 
   it("marks the current formation, and picks any other", () => {
@@ -169,15 +231,17 @@ describe("the formation panel of the lineup", () => {
     expect(onApply).toHaveBeenCalledWith("5-3-2");
   });
 
-  it("without a next match, shows the eleven alone, and no margin nor best", () => {
+  it("without a next match, shows the eleven alone, and no margin nor best: the seventeen in their order, none folded", () => {
     const markup = render({ opponent: null });
 
     expect(markup).toContain('data-testid="formation-strength"');
     expect(markup).not.toContain('data-testid="opponent-strength"');
     expect(markup).not.toContain("Écart");
     expect(markup).not.toContain('data-best="true"');
-    expect(rowsOf(markup)).toHaveLength(FORMATION_NAMES.length);
+    expect(rowsOf(markup).map(formationOf)).toEqual([...FORMATION_NAMES]);
     expect(rowsOf(markup).every((row) => (row.match(/<td/g) ?? []).length === 3)).toBe(true);
+    expect(markup).not.toContain('data-testid="formation-compare-more"');
+    expect(markup.match(/<tbody/g)).toHaveLength(1);
   });
 
   it("speaks English", () => {
@@ -187,5 +251,6 @@ describe("the formation panel of the lineup", () => {
       expect(markup).toContain(text);
     }
     expect(markup).toContain('aria-label="Pick the 5-3-2"');
+    expect(foldedComparison(markup).button).toContain(`See the other ${OTHERS}`);
   });
 });

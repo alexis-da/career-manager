@@ -256,15 +256,45 @@ const ENTRY_OF_TAB: Partial<Record<SaveScreen, "team" | "match" | "club">> = {
 };
 
 /**
- * Picks the lineup's formation, as a player does: the formation's button, then the formation in its family in the sheet
- * that opens, which closes. The button says the formation by its label, and keeps its name in data-formation.
+ * Picks the lineup's formation, as a player does: the formation's button, then the formation in the sheet that opens,
+ * which closes: among the three recommended, or the current one under them, or else in its family, once « Voir tous les
+ * dispositifs » has unfolded the others. The button says the formation by its label, and keeps its name in data-formation.
  */
 export async function pickFormation(page: Page, formation: string): Promise<void> {
   await page.getByTestId("lineup-formation").click();
   const picker = page.getByTestId("formation-picker");
-  await picker.locator(`[data-testid="formation-choice"][data-formation="${formation}"]`).click();
+  // The sheet's rows come all at once: the first recommended in sight, the current one's row is there too.
+  await expect(picker.getByTestId("formation-best").first()).toBeVisible();
+  const shown = picker.locator(
+    `[data-testid="formation-best"][data-formation="${formation}"], [data-testid="formation-current"][data-formation="${formation}"]`,
+  );
+  if ((await shown.count()) > 0) {
+    await shown.click();
+  } else {
+    const showAll = picker.getByTestId("formation-show-all");
+    if ((await showAll.getAttribute("aria-expanded")) !== "true") {
+      await showAll.click();
+    }
+    await picker.locator(`[data-testid="formation-choice"][data-formation="${formation}"]`).click();
+  }
   await expect(picker).toBeHidden();
   await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", formation);
+}
+
+/**
+ * « À faire » with all its lines in view: its first three always are, the others behind « Voir tout · N de plus », a
+ * native disclosure (`dashboard-alerts-more`), opened here when there is one: a click opens it even before the page's
+ * script has run.
+ */
+export async function openTodo(page: Page): Promise<Locator> {
+  const alerts = page.getByTestId("dashboard-alerts");
+  await expect(alerts).toBeVisible();
+  const folded = alerts.locator("details:not([open])");
+  if ((await folded.count()) > 0) {
+    await alerts.getByTestId("dashboard-alerts-more").click();
+  }
+  await expect(folded).toHaveCount(0);
+  return alerts;
 }
 
 /** Opens a screen of a save from its navigation: its entry, then its tab when it is one, or the market's link. */

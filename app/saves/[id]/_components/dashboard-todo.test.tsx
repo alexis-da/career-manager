@@ -17,11 +17,11 @@ const SAVE = "/saves/save-1";
 
 type Club = { players?: number; goalkeepers?: number };
 
-/** What the list reads of a dashboard, a full squad by default: the rest is the other cards'. */
+/** What the list reads of a dashboard, a full squad and a transfer window open by default: the rest is the other cards'. */
 const dashboardWith = (
   { players = 22, goalkeepers = 3 }: Club,
-  rest: Partial<Pick<Dashboard, "injured" | "bookingRisks" | "expiringContracts">> = {},
-) => ({ club: { players, goalkeepers }, injured: [], bookingRisks: [], expiringContracts: [], ...rest }) as Dashboard;
+  rest: Partial<Pick<Dashboard, "injured" | "bookingRisks" | "expiringContracts" | "windowOpen">> = {},
+) => ({ club: { players, goalkeepers }, injured: [], bookingRisks: [], expiringContracts: [], windowOpen: true, ...rest }) as Dashboard;
 
 const starter = (lastName: string, position: Position, overall: number): ClubLineupPlayer => ({
   id: lastName,
@@ -136,8 +136,30 @@ const idsOf = (markup: string) => lines(markup).map(({ id }) => id);
 const tilesOf = (markup: string): string[] =>
   [...markup.matchAll(/<span aria-hidden="true" class="grid size-9 [^"]*rounded-md ([^"]+)"><svg/g)].map(([, classes]) => classes);
 
+/** The tiles' colours by their lines' ids. */
+const tilesById = (markup: string): Record<string, string> => {
+  const tiles = tilesOf(markup);
+  return Object.fromEntries(idsOf(markup).map((id, index): [string, string] => [id, tiles[index]]));
+};
+
+/** The list's markup in two: the lines shown at once, then its disclosure, « Voir tout » and the lines it folds. */
+const partsOf = (markup: string): { shown: string; folded: string } => {
+  const at = markup.indexOf("<details");
+  return at === -1 ? { shown: markup, folded: "" } : { shown: markup.slice(0, at), folded: markup.slice(at) };
+};
+
+/** « Voir tout »: its opening tag, and what it says folded, then open; null without one. */
+const moreOf = (markup: string): { tag: string; folded: string; open: string } | null => {
+  const summary = /(<summary data-testid="dashboard-alerts-more"[^>]*>)(.*?)<\/summary>/.exec(markup);
+  if (summary === null) {
+    return null;
+  }
+  const [folded, open] = [...summary[2].matchAll(/<span class="[^"]*">([^<]*)<\/span>/g)].map(([, text]) => text);
+  return { tag: summary[1], folded, open };
+};
+
 describe("the dashboard's to-do list", () => {
-  it("lists everything to do in its order, each line a link to where it gets done", () => {
+  it("lists everything to do, the most important first, each line a link to where it gets done", () => {
     const markup = render({
       dashboard: dashboardWith(
         { players: 17, goalkeepers: 1 },
@@ -164,6 +186,7 @@ describe("the dashboard's to-do list", () => {
     expect(markup).toContain('data-testid="dashboard-alerts"');
     expect(markup).toContain("À faire");
     expect(lines(markup)).toEqual([
+      { id: "goalkeepers", href: `${SAVE}/squad`, text: "Un seul gardien sous contrat 2 gardiens sont nécessaires pour faire tourner l'équipe." },
       {
         id: "injured-starters",
         href: `${SAVE}/lineup`,
@@ -174,19 +197,84 @@ describe("the dashboard's to-do list", () => {
         href: `${SAVE}/lineup`,
         text: "Un titulaire est suspendu J. Garnier : remplacement automatique au prochain match.",
       },
-      { id: "injured", href: `${SAVE}/squad`, text: "2 blessés K. Roux, retour 12 nov. ; L. Petit, retour 1er déc." },
+      { id: "expiring-contracts", href: `${SAVE}/squad`, text: "5 contrats expirent le 30 juin A. Faure, B. Girard, C. Henry et 2 autres" },
+      { id: "offers", href: `${SAVE}/transfers?tab=sell`, text: "Rhône FC propose 1,3 M€ pour Yann Lemoine 2 offres pour tes remplaçants" },
+      { id: "small-squad", href: `${SAVE}/squad`, text: "Effectif réduit 17 joueurs sous contrat, 18 au minimum." },
       {
         id: "booking-risks",
         href: `${SAVE}/lineup`,
         text: "2 joueurs à 4 jaunes M. Dupont, N. Lebrun (coupe) : un jaune de plus vaut une suspension.",
       },
-      { id: "offers", href: `${SAVE}/transfers?tab=sell`, text: "Rhône FC propose 1,3 M€ pour Yann Lemoine 2 offres pour tes remplaçants" },
+      { id: "injured", href: `${SAVE}/squad`, text: "2 blessés K. Roux, retour 12 nov. ; L. Petit, retour 1er déc." },
       { id: "weak-spot", href: `${SAVE}/transfers`, text: "Ton point faible : arrière gauche Note 58 · voir le marché" },
-      { id: "expiring-contracts", href: `${SAVE}/squad`, text: "5 contrats expirent le 30 juin A. Faure, B. Girard, C. Henry et 2 autres" },
-      { id: "goalkeepers", href: `${SAVE}/squad`, text: "Un seul gardien sous contrat 2 gardiens sont nécessaires pour faire tourner l'équipe." },
-      { id: "small-squad", href: `${SAVE}/squad`, text: "Effectif réduit 17 joueurs sous contrat, 18 au minimum." },
     ]);
     expect(markup.match(/data-testid="alert-action"/g)).toHaveLength(9);
+    // Three of them at once, the six others behind « Voir tout »: links all the same, in the page.
+    const { shown, folded } = partsOf(markup);
+    expect(idsOf(shown)).toEqual(["goalkeepers", "injured-starters", "suspended-starters"]);
+    expect(shown.match(/data-testid="alert-action"/g)).toHaveLength(3);
+    expect(idsOf(folded)).toEqual(["expiring-contracts", "offers", "small-squad", "booking-risks", "injured", "weak-spot"]);
+    expect(moreOf(markup)).toMatchObject({ folded: "Voir tout · 6 de plus", open: "Voir moins" });
+  });
+
+  it("ranks the lines by importance, never by where they come from: a missing goalkeeper before the weak spot", () => {
+    const lineup = lineupOf([starter("Noir", "LB", 58)]);
+
+    expect(idsOf(render({ dashboard: dashboardWith({ goalkeepers: 1 }), lineup }))).toEqual(["goalkeepers", "weak-spot"]);
+    expect(idsOf(render({ dashboard: dashboardWith({ goalkeepers: 0 }), lineup }, "en"))).toEqual(["goalkeepers", "weak-spot"]);
+    // A thin squad before the injured, the injured before the weak spot.
+    const injured = [{ name: "K. Roux", until: new Date(Date.UTC(2026, 10, 12)) }];
+    expect(idsOf(render({ dashboard: dashboardWith({ players: 17, goalkeepers: 2 }, { injured }), lineup }))).toEqual([
+      "small-squad",
+      "injured",
+      "weak-spot",
+    ]);
+  });
+
+  it("shows three lines, the others folded in the page behind « Voir tout · N de plus », and nothing to unfold for three", () => {
+    const fourLines = {
+      dashboard: dashboardWith({}, { bookingRisks: [{ name: "M. Dupont", competitions: ["LEAGUE"] }] }),
+      lineup: lineupOf([], [injuredStarter("Morel"), suspendedStarter("Garnier")]),
+    };
+    const four = render(fourLines);
+    const { shown, folded } = partsOf(four);
+
+    expect(idsOf(shown)).toEqual(["injured-starters", "suspended-starters", "booking-risks"]);
+    expect(idsOf(folded)).toEqual(["full-squad"]);
+    expect(moreOf(four)).toMatchObject({ folded: "Voir tout · 1 de plus", open: "Voir moins" });
+    // Folded, never left out: a native disclosure, closed, that opens in place without a request.
+    expect(folded).toMatch(/^<details class="group\/todo"><summary data-testid="dashboard-alerts-more"/);
+    expect(four.match(/<details/g)).toHaveLength(1);
+    // Secondary, a thumb high on a phone: never the screen's full orange.
+    const tag = moreOf(four)?.tag ?? "";
+    expect(tag).toContain("max-sm:min-h-11");
+    expect(tag).toContain("text-(--club)");
+    expect(tag).not.toMatch(/\bbg-/);
+    expect(moreOf(render(fourLines, "en"))).toMatchObject({ folded: "See all · 1 more", open: "See less" });
+
+    // Three lines, or fewer: all of them at once, no « Voir tout ».
+    const three = render({
+      dashboard: dashboardWith({ goalkeepers: 0 }, { expiringContracts: ["A. Faure"] }),
+      lineup: lineupOf([starter("Noir", "LB", 58)]),
+    });
+    expect(idsOf(three)).toEqual(["goalkeepers", "expiring-contracts", "weak-spot"]);
+    expect(three).not.toContain("<details");
+    expect(moreOf(three)).toBeNull();
+    expect(moreOf(render({ dashboard: dashboardWith({}), lineup: NO_ELEVEN }))).toBeNull();
+  });
+
+  it("leaves the weak spot to a transfer window: out of one, nothing can be done about it", () => {
+    const lineup = lineupOf([starter("Noir", "LB", 58)]);
+    const closed = dashboardWith({}, { windowOpen: false });
+
+    expect(idsOf(render({ dashboard: dashboardWith({}), lineup }))).toEqual(["weak-spot", "full-squad"]);
+    expect(idsOf(render({ dashboard: closed, lineup }))).toEqual(["full-squad"]);
+    expect(idsOf(render({ dashboard: closed, lineup }, "en"))).toEqual(["full-squad"]);
+    // Not even an empty slot, the most pressing of weak spots; the rest of the list as it is.
+    expect(idsOf(render({ dashboard: closed, lineup: lineupWithout(["ST", "LW"]) }))).toEqual(["full-squad"]);
+    const shortOfGoalkeepers = dashboardWith({ goalkeepers: 1 }, { windowOpen: false });
+    const hurt = lineupOf([starter("Noir", "LB", 58)], [injuredStarter("Morel")]);
+    expect(idsOf(render({ dashboard: shortOfGoalkeepers, lineup: hurt }))).toEqual(["goalkeepers", "injured-starters"]);
   });
 
   it("colours each tile by its line's severity, and never cuts a text", () => {
@@ -195,8 +283,8 @@ describe("the dashboard's to-do list", () => {
       lineup: lineupOf([starter("Noir", "LB", 58)]),
     });
 
-    expect(idsOf(markup)).toEqual(["weak-spot", "expiring-contracts", "goalkeepers"]);
-    expect(tilesOf(markup)).toEqual(["bg-secondary", "bg-warning/15 text-warning", "bg-loss/15 text-loss"]);
+    expect(idsOf(markup)).toEqual(["goalkeepers", "expiring-contracts", "weak-spot"]);
+    expect(tilesOf(markup)).toEqual(["bg-loss/15 text-loss", "bg-warning/15 text-warning", "bg-secondary"]);
     expect(markup).not.toContain("truncate");
   });
 
@@ -305,7 +393,7 @@ describe("the dashboard's to-do list", () => {
     expect(idsOf(render({ ...props, firstMatchPlayed: false }))).toEqual(["injured-starters", "expiring-contracts", "small-squad"]);
     expect(idsOf(render({ ...props, firstMatchPlayed: false }, "en"))).toEqual(["injured-starters", "expiring-contracts", "small-squad"]);
     // Once it is played, both come back, in their places.
-    expect(idsOf(render(props))).toEqual(["injured-starters", "offers", "weak-spot", "expiring-contracts", "small-squad"]);
+    expect(idsOf(render(props))).toEqual(["injured-starters", "expiring-contracts", "offers", "small-squad", "weak-spot"]);
   });
 
   it("shows the first row with an offer, and nothing without one or out of a window", () => {
@@ -316,7 +404,8 @@ describe("the dashboard's to-do list", () => {
       "Rhône FC propose 850 k€ pour Yann Lemoine 1 offre pour tes remplaçants",
     );
     expect(idsOf(render({ dashboard, lineup: NO_ELEVEN, sales: salesOf(saleRow("Vidal", NO_OFFER)) }))).toEqual(["full-squad"]);
-    expect(idsOf(render({ dashboard, lineup: NO_ELEVEN, sales: null }))).toEqual(["full-squad"]);
+    // Out of a window, the page reads no sales.
+    expect(idsOf(render({ dashboard: dashboardWith({}, { windowOpen: false }), lineup: NO_ELEVEN, sales: null }))).toEqual(["full-squad"]);
   });
 
   it("speaks British English", () => {
@@ -343,16 +432,17 @@ describe("the dashboard's to-do list", () => {
 
     expect(markup).toContain("To do");
     expect(lines(markup).map(({ text }) => text)).toEqual([
+      "No goalkeeper under contract 2 goalkeepers are needed to keep the team going.",
       "A starter is injured J. Morel: replaced automatically in the next match.",
       "2 starters are suspended J. Garnier, J. Henry: replaced automatically in the next match.",
-      "1 injured K. Roux, back 12 Nov",
-      "3 players on 4 yellow cards M. Dupont, N. Lebrun (cup), O. Marchal (league and cup): one more booking means a suspension.",
-      "Rhône FC offers €77.2m for Yann Lemoine 2 offers for your substitutes",
-      "Your weak spot: left back Rated 58 · see the market",
       "1 contract expires on 30 June A. Faure",
-      "No goalkeeper under contract 2 goalkeepers are needed to keep the team going.",
+      "Rhône FC offers €77.2m for Yann Lemoine 2 offers for your substitutes",
       "Thin squad 17 players under contract, 18 minimum.",
+      "3 players on 4 yellow cards M. Dupont, N. Lebrun (cup), O. Marchal (league and cup): one more booking means a suspension.",
+      "1 injured K. Roux, back 12 Nov",
+      "Your weak spot: left back Rated 58 · see the market",
     ]);
+    expect(moreOf(markup)).toMatchObject({ folded: "See all · 6 more", open: "See less" });
     expect(lines(render({ dashboard: dashboardWith({}), lineup: NO_ELEVEN }, "en"))[0].text).toBe(
       "Full squad 22 players, 3 goalkeepers — nothing to report",
     );
@@ -469,7 +559,7 @@ describe("the dashboard's to-do list", () => {
     expect(idsOf(render({ dashboard: dashboardWith({}), lineup: lineupOf([]) }))).not.toContain("international-callups");
   });
 
-  it("puts the national coach's lines after the players out or at risk, before the market: an offer, his list, his mission's end", () => {
+  it("ranks the national coach's lines: an offer to answer right after the starters out, his list with the breaks', his mission's end late", () => {
     const first = new Date(Date.UTC(2026, 9, 9));
     const last = new Date(Date.UTC(2026, 9, 13));
     const markup = render({
@@ -485,12 +575,12 @@ describe("the dashboard's to-do list", () => {
 
     expect(idsOf(markup)).toEqual([
       "injured-starters",
-      "booking-risks",
       "coach-offer",
-      "coach-call-up",
-      "coach-ended",
       "offers",
+      "coach-call-up",
+      "booking-risks",
       "weak-spot",
+      "coach-ended",
       "full-squad",
     ]);
     expect(lines(markup).filter(({ id }) => id.startsWith("coach-"))).toEqual([
@@ -511,7 +601,12 @@ describe("the dashboard's to-do list", () => {
       },
     ]);
     // An offer to weigh in amber, his list ready in green (never blocking), a mission over in neutral.
-    expect(tilesOf(markup).slice(2, 5)).toEqual(["bg-warning/15 text-warning", "bg-win/15 text-win", "bg-secondary"]);
+    const tiles = tilesById(markup);
+    expect([tiles["coach-offer"], tiles["coach-call-up"], tiles["coach-ended"]]).toEqual([
+      "bg-warning/15 text-warning",
+      "bg-win/15 text-win",
+      "bg-secondary",
+    ]);
   });
 
   it("names two offers together, a summer tournament's list by the tournament, and speaks British English", () => {

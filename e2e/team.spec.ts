@@ -36,6 +36,9 @@ const SHEET_WIDTH = 400;
 /** A phone's thumb: the height and the width of a target, under 640 px. */
 const THUMB = 44;
 
+/** The formations the formation's sheet recommends for the squad, above the others it folds. */
+const RECOMMENDED = 3;
+
 /** Written by no screen of the team: the sorts' arrows, the sheet's cross and the transfers' arrow are drawn, or words. */
 const GLYPHS = /[▲▼✕→]/u;
 
@@ -67,6 +70,7 @@ const PHONES = [
       substitute: /^Remplaçant 1 : /,
       notSaved: "Onze automatique · pas encore enregistré",
       unsaved: "Modifications non enregistrées",
+      showAll: "Voir tous les dispositifs · 14",
     },
   },
   {
@@ -81,6 +85,7 @@ const PHONES = [
       substitute: /^Substitute 1: /,
       notSaved: "Automatic eleven · not saved yet",
       unsaved: "Unsaved changes",
+      showAll: "See all formations · 14",
     },
   },
 ];
@@ -441,6 +446,26 @@ for (const { name, locale, viewport, says } of PHONES) {
       await expect(candidates).toHaveCount(0);
       await expect(sheet).toHaveCount(0);
       await expectNoSidewaysScroll(page, "a reserve placed");
+
+      // The formation's sheet: the three recommended for the squad, the others behind a button that unfolds them in
+      // place, every row a thumb's target; a row picked closes it.
+      await formation.tap();
+      const picker = page.getByTestId("formation-picker");
+      await expect(picker.getByTestId("formation-best")).toHaveCount(RECOMMENDED);
+      const showAll = picker.getByTestId("formation-show-all");
+      await expect(showAll).toHaveText(says.showAll);
+      await expect(showAll).toHaveAttribute("aria-expanded", "false");
+      await expect(picker.getByTestId("formation-choice").first()).toBeHidden();
+      await expectThumbTarget(showAll);
+      await showAll.tap();
+      await expect(showAll).toHaveAttribute("aria-expanded", "true");
+      await expect(picker.locator('[data-testid="formation-choice"]:visible')).toHaveCount(FORMATION_NAMES.length - RECOMMENDED);
+      const rows = picker.locator('[data-testid="formation-best"], [data-testid="formation-current"], [data-testid="formation-choice"]');
+      for (const row of await rows.all()) {
+        await expectThumbTarget(row);
+      }
+      await picker.getByTestId("formation-best").first().tap();
+      await expect(picker).toBeHidden();
 
       // Each formation has its eleven, within a pitch as wide as the screen allows, picked in its sheet.
       for (const shape of FORMATION_NAMES) {

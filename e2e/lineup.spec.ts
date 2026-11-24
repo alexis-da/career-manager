@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { FORMATION_NAMES } from "../src/engine/formations";
 import { createSave, deleteSave, openScreen, pickFormation } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
@@ -29,6 +30,27 @@ test("switches to a 4-4-2, brings a substitute on, saves, and finds both after a
     const formation = page.getByTestId("lineup-formation");
     await expect(formation).toHaveAttribute("data-formation", "4-3-3");
     await expect(formation).toHaveText("4-3-3 sentinelle");
+
+    // Its sheet: the three recommended for the squad, the 4-3-3 under them unless it is one of them, then the fourteen
+    // others behind a button that unfolds them in place, by family, none of the three again.
+    await formation.click();
+    const picker = page.getByTestId("formation-picker");
+    const recommended = picker.getByTestId("formation-best");
+    await expect(recommended).toHaveCount(3);
+    const best = await recommended.evaluateAll((rows) => rows.map((row) => row.getAttribute("data-formation")));
+    await expect(picker.getByTestId("formation-current")).toHaveCount(best.includes("4-3-3") ? 0 : 1);
+    const showAll = picker.getByTestId("formation-show-all");
+    await expect(showAll).toHaveText(`Voir tous les dispositifs · ${FORMATION_NAMES.length - 3}`);
+    await expect(showAll).toHaveAttribute("aria-expanded", "false");
+    const others = picker.getByTestId("formation-choice");
+    await expect(others.first()).toBeHidden();
+    await showAll.click();
+    await expect(showAll).toHaveAttribute("aria-expanded", "true");
+    await expect(picker.locator('[data-testid="formation-choice"]:visible')).toHaveCount(FORMATION_NAMES.length - 3);
+    const unfolded = await others.evaluateAll((rows) => rows.map((row) => row.getAttribute("data-formation")));
+    expect(new Set([...best, ...unfolded]).size).toBe(FORMATION_NAMES.length);
+    await page.keyboard.press("Escape");
+    await expect(picker).toBeHidden();
 
     await pickFormation(page, "4-4-2");
     await expect(formation).toHaveText("4-4-2 à plat");

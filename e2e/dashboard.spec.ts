@@ -9,6 +9,7 @@ import {
   expectUncovered,
   fullOrangeActions,
   openScreen,
+  openTodo,
   saveHeader,
   saveIdOf,
   textOf,
@@ -207,7 +208,7 @@ test("lays a new career's missions right under the hero, and leaves the last mat
   expect(Math.abs(box.x + box.width - (table.x + table.width))).toBeLessThanOrEqual(1);
 
   // No card of a last match: « Aucun match joué » would say nothing. No tip, no offer, no weak spot before the first
-  // match.
+  // match, not even behind « Voir tout »: the lines are counted in the page, folded or not.
   await expect(page.getByTestId("dashboard-last-result")).toHaveCount(0);
   await expect(page.locator('[data-testid^="tip-"]')).toHaveCount(0);
   const alerts = page.getByTestId("dashboard-alerts");
@@ -372,8 +373,10 @@ test("once the first match is played, sends the weak spot to the market and, the
 }) => {
   await openDashboard(page);
 
-  // The market says the same of the same spot.
-  const weakSpot = page.getByTestId("dashboard-alerts").getByTestId("alert-weak-spot");
+  // The market says the same of the same spot. The weak spot comes late in « À faire », maybe behind « Voir tout »: the
+  // list opened first.
+  const weakSpot = (await openTodo(page)).getByTestId("alert-weak-spot");
+  await expect(weakSpot).toBeVisible();
   await expect(weakSpot).toHaveText(WEAK_SPOT);
   const [, position, rating] = WEAK_SPOT.exec(await textOf(weakSpot)) ?? [];
   await weakSpot.getByTestId("alert-action").click();
@@ -382,7 +385,8 @@ test("once the first match is played, sends the weak spot to the market and, the
 
   // The sales open on the offer the line gives, and count as many.
   await openScreen(page, "dashboard");
-  const offers = page.getByTestId("dashboard-alerts").getByTestId("alert-offers");
+  const offers = (await openTodo(page)).getByTestId("alert-offers");
+  await expect(offers).toBeVisible();
   await expect(offers).toHaveText(BEST_OFFER);
   const [, buyer, fee, player, count] = BEST_OFFER.exec(await textOf(offers)) ?? [];
   await offers.getByTestId("alert-action").click();
@@ -395,7 +399,7 @@ test("once the first match is played, sends the weak spot to the market and, the
 });
 
 // Last: nothing is left to play after it.
-test("leads only to the next season once this one is over, with no offer to show out of the window", async ({ page }) => {
+test("leads only to the next season once this one is over, with neither an offer nor the weak spot out of the window", async ({ page }) => {
   // The rest of the season, simulated.
   test.setTimeout(240_000);
   await openDashboard(page);
@@ -424,7 +428,10 @@ test("leads only to the next season once this one is over, with no offer to show
     await expect(outcome).toHaveAttribute("data-status", /^(ACHIEVED|EXCEEDED|MISSED)$/);
   }
 
+  // The window closed, nothing of the market's in « À faire », folded or not: the weak spot is only where to look while
+  // one is open.
   await expect(page.getByTestId("dashboard-window")).toHaveText("Fenêtre fermée jusqu'au 1er juil.");
-  await expect(page.getByTestId("alert-weak-spot").getByTestId("alert-action")).toHaveAttribute("href", `/saves/${saveId}/transfers`);
+  await expect(page.getByTestId("dashboard-alerts")).toBeVisible();
+  await expect(page.getByTestId("alert-weak-spot")).toHaveCount(0);
   await expect(page.getByTestId("alert-offers")).toHaveCount(0);
 });

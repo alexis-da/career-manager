@@ -1,6 +1,7 @@
 import {
   BandageIcon,
   BatteryLowIcon,
+  ChevronDownIcon,
   ChevronRightIcon,
   ClipboardListIcon,
   FileClockIcon,
@@ -30,6 +31,7 @@ import type { Locale } from "@/src/i18n/locale";
 import type { Translator } from "@/src/i18n/translator";
 import { formatDayMonth, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
+import { byPriority, TODOS_SHOWN, type TodoId } from "../_lib/todo-priority";
 import { dayRange, nationIn, nationsIn, tournamentName } from "./coach-names";
 
 /** Below this many players under contract, the list warns. */
@@ -41,24 +43,7 @@ const NAMES_SHOWN = 3;
 type Severity = "danger" | "warning" | "ok" | "neutral";
 
 type Todo = {
-  id:
-    | "injured-starters"
-    | "suspended-starters"
-    | "tired-starters"
-    | "international-returns"
-    | "injured"
-    | "international-callups"
-    | "booking-risks"
-    | "europe-booking-risks"
-    | "coach-offer"
-    | "coach-call-up"
-    | "coach-ended"
-    | "offers"
-    | "weak-spot"
-    | "expiring-contracts"
-    | "goalkeepers"
-    | "small-squad"
-    | "full-squad";
+  id: TodoId; // its rank in the list is TODO_PRIORITY's
   severity: Severity;
   icon: ComponentType<{ className?: string }>; // a lucide icon, or the referee's card
   title: string;
@@ -220,6 +205,7 @@ function weakSpotDetail({ reason, rating }: WeakSpot, t: Translator<"dashboardTo
   }
 }
 
+/** Everything the list has to say, in its order of priority (TODO_PRIORITY), whatever the order it is found in here. */
 function todosOf(
   { saveId, dashboard, lineup, sales, firstMatchPlayed, internationalBreak }: DashboardTodoProps,
   t: Translator<"dashboardTodo">,
@@ -367,7 +353,7 @@ function todosOf(
     });
   }
 
-  // The national coach's, after the club's players out or at risk, before the market.
+  // The national coach's: a federation's offer, his list, his mission's end.
   todos.push(...coachLines);
 
   // The market's lines once the club has played: a new manager meets his squad before its buyers and its weak spot.
@@ -389,8 +375,8 @@ function todosOf(
   }
 
   // Every eleven has a weak spot, an empty slot or one held out of line first, the market's: never an alert, only where
-  // to look next.
-  const weakSpot = firstMatchPlayed ? weakSpotOf(elevenOf(lineup.formation, lineup.lineup.starters)) : null;
+  // to look next, and only while a transfer window is open: out of one, nothing can be done about it.
+  const weakSpot = firstMatchPlayed && dashboard.windowOpen ? weakSpotOf(elevenOf(lineup.formation, lineup.lineup.starters)) : null;
   if (weakSpot !== null) {
     todos.push({
       id: "weak-spot",
@@ -442,7 +428,7 @@ function todosOf(
       detail: t("fullSquadDetail", { players: club.players, goalkeepers: club.goalkeepers }),
     });
   }
-  return todos;
+  return byPriority(todos);
 }
 
 /** A line of the list, whole on a phone: its text wraps, and all of it is the link to where the thing gets done. */
@@ -473,10 +459,29 @@ function TodoRow({ severity, icon: Icon, title, detail, href }: Omit<Todo, "id">
   );
 }
 
+/** Lines of the list, one item each, « alert-{id} ». */
+function TodoItems({ todos, className }: { todos: readonly Todo[]; className?: string }) {
+  return (
+    <ul className={cn("space-y-2.5", className)}>
+      {todos.map(({ id, ...todo }) => (
+        <li key={id} data-testid={`alert-${id}`}>
+          <TodoRow {...todo} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** « Voir tout · 2 de plus »: secondary, as the dashboard's other links, a thumb high on a phone, no marker of its own. */
+const MORE =
+  "flex w-fit cursor-pointer list-none items-center gap-1 rounded-md text-sm font-semibold text-(--club) outline-none hover:text-(--club-hover) focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:min-h-11 [&::-webkit-details-marker]:hidden";
+
 /**
- * What the dashboard asks of the manager, the most pressing first: the starters out of the next match, injured then
- * suspended, the other injured, the players one booking from a suspension, the national coach's lines, offers, the weak
- * spot (these two once the club has played), then the squad's state.
+ * What the dashboard asks of the manager, the most important first (TODO_PRIORITY, docs/design/simplification.md § 4.1):
+ * a missing goalkeeper, the starters out of the next match, a federation's offer, the contracts, the best offer, a thin
+ * squad, then the European match and the breaks ahead, the bookings, the injured, the weak spot, a mission's end and the
+ * squad's state. The market's lines wait for the club's first match, the weak spot for a transfer window. Three lines at
+ * once, the others behind « Voir tout ».
  */
 export function DashboardTodo({ className, ...props }: DashboardTodoProps): ReactNode {
   const t = useTranslations("dashboardTodo");
@@ -492,18 +497,26 @@ export function DashboardTodo({ className, ...props }: DashboardTodoProps): Reac
     { t, tCoach, tNations, tWorld },
     locale,
   );
+  const todos = todosOf(props, t, tPositions, locale, coachLines);
+  const more = todos.slice(TODOS_SHOWN);
   return (
     <section aria-labelledby="dashboard-todo" data-testid="dashboard-alerts" className={cn("space-y-2.5", className)}>
       <h2 id="dashboard-todo" className="font-heading text-xl">
         {t("title")}
       </h2>
-      <ul className="space-y-2.5">
-        {todosOf(props, t, tPositions, locale, coachLines).map(({ id, ...todo }) => (
-          <li key={id} data-testid={`alert-${id}`}>
-            <TodoRow {...todo} />
-          </li>
-        ))}
-      </ul>
+      <TodoItems todos={todos.slice(0, TODOS_SHOWN)} />
+      {/* The others in the page, folded: a native disclosure, which opens in place without a request, even before the
+          page's script has run, and whose summary says to assistive technologies whether it is open. */}
+      {more.length > 0 && (
+        <details className="group/todo">
+          <summary data-testid="dashboard-alerts-more" className={MORE}>
+            <span className="group-open/todo:hidden">{t("seeAll", { count: more.length })}</span>
+            <span className="hidden group-open/todo:inline">{t("seeLess")}</span>
+            <ChevronDownIcon aria-hidden className="size-4 shrink-0 transition-transform group-open/todo:rotate-180" />
+          </summary>
+          <TodoItems todos={more} className="mt-2.5" />
+        </details>
+      )}
     </section>
   );
 }

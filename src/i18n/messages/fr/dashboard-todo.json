@@ -1,6 +1,8 @@
 {
   "dashboardTodo": {
     "title": "À faire",
+    "seeAll": "Voir tout · {count} de plus",
+    "seeLess": "Voir moins",
     "injuredStarters": "{count, plural, one {Un titulaire est blessé} other {# titulaires sont blessés}}",
     "injuredStartersDetail": "{players} : remplacement automatique au prochain match.",
     "suspendedStarters": "{count, plural, one {Un titulaire est suspendu} other {# titulaires sont suspendus}}",

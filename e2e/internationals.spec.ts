@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createSave, deleteSave, expectNoSidewaysScroll, openScreen, saveIdOf } from "./helpers";
+import { createSave, deleteSave, expectNoSidewaysScroll, openScreen, openTodo, saveIdOf } from "./helpers";
 
 // The national teams (docs/design/selections.md, N1 and N2): the first international break of a new save, as the
 // manager lives it. The week before, its call-ups in « À faire », the hero and the squad; « Passer la trêve » plays it as
@@ -33,11 +33,13 @@ test("plays the first international break of a new save as a step of its own: wh
     await dialog.getByRole("button", { name: "Continuer" }).click();
     await page.goto(`/saves/${saveId}`);
 
-    // The week before: the hero says the break comes first, the main action plays it, « À faire » names the players called.
+    // The week before: the hero says the break comes first, the main action plays it, « À faire » names the players called
+    // (after the market's lines while the window is open: maybe behind « Voir tout »).
     await expect(page.getByTestId("hero-break")).toHaveAttribute("data-state", "upcoming");
     await expect(page.getByTestId("hero-break")).toContainText(/Trêve internationale du 4 sept\. au 8 sept\. avant ce match · \d+ de tes joueurs appelés?/);
     await expect(heroOf(page).getByTestId("next-match")).toHaveText("Passer la trêve");
-    const callUps = page.getByTestId("alert-international-callups");
+    const callUps = (await openTodo(page)).getByTestId("alert-international-callups");
+    await expect(callUps).toBeVisible();
     await expect(callUps).toContainText(/Trêve du 4 sept\. au 8 sept\. : \d+ joueurs? appelés? en sélection/);
     await expectNoSidewaysScroll(page, "dashboard before the break, 1280");
 
@@ -55,7 +57,9 @@ test("plays the first international break of a new save as a step of its own: wh
     await expect(page.getByTestId("hero-break")).toHaveAttribute("data-state", "back", { timeout: 60_000 });
     await expect(page.getByTestId("hero-break")).toHaveText("Après la trêve internationale");
     await expect(heroOf(page).getByTestId("next-match")).toHaveText("Jouer le match");
-    await expect(page.getByTestId("alert-international-returns")).toContainText(/^Retour de sélection : /);
+    const returns = (await openTodo(page)).getByTestId("alert-international-returns");
+    await expect(returns).toBeVisible();
+    await expect(returns).toContainText(/^Retour de sélection : /);
     await expect(page.getByTestId("header-date")).toHaveText("mar. 8 sept. 2026");
 
     // The sheet of a player called who played: his caps now. One left on his nation's bench has none to show, nor any

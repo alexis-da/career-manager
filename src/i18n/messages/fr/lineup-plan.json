@@ -20,6 +20,7 @@
     "likelyEleven": "Onze prévu en {formation}",
     "compare": {
       "toggle": "Comparer les {count} dispositifs",
+      "more": "{count, plural, one {Voir l'autre} other {Voir les # autres}}",
       "intro": "Chaque dispositif avec sa composition automatique.",
       "gap": "Écart : buts attendus pour, moins contre, au prochain match.",
       "formation": "Dispositif",

@@ -7,10 +7,11 @@ import { Button } from "@/src/components/ui/button";
 import type { EditorPlayer } from "@/src/db/lineup";
 import { FORMATION_NAMES, type FormationName } from "@/src/engine/formations";
 import type { Lineup } from "@/src/engine/lineup";
-import { compareFormations, formationStrength, type TeamStrength } from "@/src/engine/strength";
+import { compareFormations, formationStrength, type FormationOption, type TeamStrength } from "@/src/engine/strength";
 import { formatHundredths } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
 import { formationProfile, profileBarWidth, signedFigure } from "../_lib/formation-profile";
+import { BEST_FORMATIONS } from "./formation-picker";
 
 /** The ends of a strength bar: the elevens of the game lie between, so that a change of a few points shows. */
 const STRENGTH_BAR_MIN = 40;
@@ -23,6 +24,10 @@ const HEAD = "eyebrow px-1 pb-1.5 text-left font-semibold";
 
 /** A figure of the comparison. */
 const FIGURE = "px-1 text-right font-heading font-bold tabular-nums";
+
+/** A button that unfolds part of the panel: in the orange of a way on, never a full orange action; 44 px high on a phone. */
+const DISCLOSURE =
+  "flex cursor-pointer items-center gap-1 rounded-md text-sm font-semibold text-(--club) outline-none hover:text-(--club-hover) focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:min-h-11";
 
 /** The next opponent as the panel compares him: his likely eleven, and where the match is played. */
 export type PanelOpponent = {
@@ -44,6 +49,14 @@ type FormationPanelProps = {
 
 /** Attack and defense as the screen shows them: whole. */
 const rounded = ({ attack, defense }: TeamStrength): TeamStrength => ({ attack: Math.round(attack), defense: Math.round(defense) });
+
+/**
+ * The formations compared, best first against the next opponent: by the goals each expects to score more than it
+ * concedes, equals in the order of FORMATION_NAMES (a stable sort, whose first is compareFormations' best). Without an
+ * opponent, nothing to rank them by: that order.
+ */
+const byMargin = (options: readonly FormationOption[]): FormationOption[] =>
+  [...options].sort((a, b) => (b.goalDifference ?? 0) - (a.goalDifference ?? 0));
 
 /** The bar's filled share, as a CSS width to a tenth of a percent. */
 function strengthWidth(value: number): string {
@@ -127,14 +140,17 @@ function FigureHead({ short, full }: { short: string; full: string }) {
  * Under the lineup's formation: its profile in words and bars, the attack and defense of the eleven the match would play
  * (formationStrength, the engine's: positions, familiarity, form and morale, fitness), recomputed at each change, beside
  * the next opponent's likely eleven; and, unfolded, the seventeen formations compared with their automatic elevens
- * (compareFormations), the best against the opponent flagged, each one to pick. Its columns follow the room it is given.
+ * (compareFormations), best first against the opponent, the best flagged: the first three, then a button that unfolds
+ * the fourteen others in place; each one to pick. Its columns follow the room it is given.
  */
 export function FormationPanel({ formation, eleven, players, opponent, onApply }: FormationPanelProps) {
   const t = useTranslations("formationPanel");
   const tFormations = useTranslations("formations");
   const locale = useLocale();
   const [comparing, setComparing] = useState(false);
+  const [more, setMore] = useState(false);
   const comparisonId = useId();
+  const othersId = useId();
   const profile = formationProfile(formation);
   const strength = rounded(formationStrength(eleven, formation));
   // Each formation's automatic eleven: the editor's changes leave the comparison as it is.
@@ -142,9 +158,64 @@ export function FormationPanel({ formation, eleven, players, opponent, onApply }
     () => compareFormations(players, opponent === null ? null : { strength: opponent.strength, atHome: opponent.atHome }),
     [players, opponent],
   );
+  const ranked = useMemo(() => byMargin(comparison.options), [comparison]);
+  // The best three against the opponent, the others folded under them; without an opponent, no best: all of them.
+  const shown = opponent === null ? ranked : ranked.slice(0, BEST_FORMATIONS);
+  const others = ranked.slice(shown.length);
   // To a hundredth, signed as shown (a margin that rounds to nothing has no sign): to a tenth, the best often looks no
   // better than the next one.
   const margin = (goals: number): string => signedFigure(Math.round(goals * 100) / 100, (size) => formatHundredths(size, locale));
+
+  const optionRow = (option: FormationOption) => {
+    const current = option.formation === formation;
+    const best = option.formation === comparison.best;
+    const figures = rounded(option.strength);
+    return (
+      <tr
+        key={option.formation}
+        data-testid="formation-option"
+        data-formation={option.formation}
+        data-best={best}
+        data-attack={figures.attack}
+        data-defense={figures.defense}
+        aria-current={current || undefined}
+        // One height with a button or without: its 28 px (44 px under 640 px) and margins.
+        className={cn("h-9 border-t max-sm:h-13", current && "bg-secondary")}
+      >
+        <th scope="row" className="py-1 pr-1 pl-1.5 text-left font-normal">
+          {/* The flag under the formation when the row is narrow, rather than a wider row. */}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="font-heading text-base font-bold">{tFormations(`label.${option.formation}`)}</span>
+            {best && (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-win">
+                <StarIcon aria-hidden className="size-3.5 fill-current" />
+                {t("compare.best")}
+              </span>
+            )}
+          </span>
+        </th>
+        <td className={FIGURE}>{figures.attack}</td>
+        <td className={FIGURE}>{figures.defense}</td>
+        {option.goalDifference !== null && <td className={FIGURE}>{margin(option.goalDifference)}</td>}
+        <td className="py-1 pr-1.5 pl-1 text-right">
+          {current ? (
+            <span className="text-xs font-semibold text-muted-foreground">{t("compare.current")}</span>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="px-2"
+              onClick={() => onApply(option.formation)}
+              aria-label={t("compare.applyLabel", { formation: tFormations(`label.${option.formation}`) })}
+              data-testid="formation-apply"
+            >
+              {t("compare.apply")}
+            </Button>
+          )}
+        </td>
+      </tr>
+    );
+  };
 
   return (
     <section aria-label={t("title")} data-testid="formation-panel" className="@container rounded-card bg-card p-4 sm:p-5">
@@ -192,7 +263,7 @@ export function FormationPanel({ formation, eleven, players, opponent, onApply }
         aria-controls={comparisonId}
         onClick={() => setComparing(!comparing)}
         data-testid="formation-compare-toggle"
-        className="mt-4 flex cursor-pointer items-center gap-1 rounded-md text-sm font-semibold text-(--club) outline-none hover:text-(--club-hover) focus-visible:ring-3 focus-visible:ring-ring/50 max-sm:min-h-11"
+        className={cn("mt-4", DISCLOSURE)}
       >
         {t("compare.toggle", { count: FORMATION_NAMES.length })}
         <ChevronDownIcon aria-hidden className={cn("size-4 transition-transform", comparing && "rotate-180")} />
@@ -223,57 +294,31 @@ export function FormationPanel({ formation, eleven, players, opponent, onApply }
             </tr>
           </thead>
           <tbody>
-            {comparison.options.map((option) => {
-              const current = option.formation === formation;
-              const best = option.formation === comparison.best;
-              const figures = rounded(option.strength);
-              return (
-                <tr
-                  key={option.formation}
-                  data-testid="formation-option"
-                  data-formation={option.formation}
-                  data-best={best}
-                  data-attack={figures.attack}
-                  data-defense={figures.defense}
-                  aria-current={current || undefined}
-                  // One height with a button or without: its 28 px (44 px under 640 px) and margins.
-                  className={cn("h-9 border-t max-sm:h-13", current && "bg-secondary")}
-                >
-                  <th scope="row" className="py-1 pr-1 pl-1.5 text-left font-normal">
-                    {/* The flag under the formation when the row is narrow, rather than a wider row. */}
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="font-heading text-base font-bold">{tFormations(`label.${option.formation}`)}</span>
-                      {best && (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-win">
-                          <StarIcon aria-hidden className="size-3.5 fill-current" />
-                          {t("compare.best")}
-                        </span>
-                      )}
-                    </span>
-                  </th>
-                  <td className={FIGURE}>{figures.attack}</td>
-                  <td className={FIGURE}>{figures.defense}</td>
-                  {option.goalDifference !== null && <td className={FIGURE}>{margin(option.goalDifference)}</td>}
-                  <td className="py-1 pr-1.5 pl-1 text-right">
-                    {current ? (
-                      <span className="text-xs font-semibold text-muted-foreground">{t("compare.current")}</span>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="px-2"
-                        onClick={() => onApply(option.formation)}
-                        aria-label={t("compare.applyLabel", { formation: tFormations(`label.${option.formation}`) })}
-                        data-testid="formation-apply"
-                      >
-                        {t("compare.apply")}
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {shown.map(optionRow)}
+            {others.length > 0 && (
+              // Between the best and the others, as high as a row: what it unfolds comes right after it, in the same columns.
+              <tr className="h-9 border-t max-sm:h-13">
+                <td colSpan={opponent === null ? 4 : 5} className="py-1 pl-1.5">
+                  <button
+                    type="button"
+                    aria-expanded={more}
+                    aria-controls={othersId}
+                    onClick={() => setMore(!more)}
+                    data-testid="formation-compare-more"
+                    className={DISCLOSURE}
+                  >
+                    {t("compare.more", { count: others.length })}
+                    <ChevronDownIcon aria-hidden className={cn("size-4 transition-transform", more && "rotate-180")} />
+                  </button>
+                </td>
+              </tr>
+            )}
           </tbody>
+          {others.length > 0 && (
+            <tbody id={othersId} hidden={!more}>
+              {others.map(optionRow)}
+            </tbody>
+          )}
         </table>
       </div>
     </section>
