@@ -1,6 +1,6 @@
 // The « How to play » guide (app/how-to-play, app/fr/comment-jouer), in French and English: from the creation of a career
-// to its first match, then the market, the line-up, the match events, the objectives, the European competitions, the
-// weekly challenge and the daily missions. In a
+// to its first match, then the market, the line-up, what the assistant takes care of, the match events, the objectives,
+// the European competitions, the weekly challenge and the daily missions. In a
 // string, **…** marks a label of the game's screens, as they read, shown in bold (GuideText, app/_components/documents).
 export type GuideBlock = string | string[]; // a paragraph, or the items of a list
 export type GuideText = { title: string; blocks: GuideBlock[] };
@@ -82,8 +82,8 @@ export const GUIDE: GuideSection[] = [
           "**Bonnes affaires** : moins chers que leur valeur",
           "**Stars** : les meilleurs, prêts à venir",
         ],
-        "**Passer** montre le suivant, **Recruter** puis **Confirmer** le signe. Tous acceptent ton club et tiennent dans ton budget transferts et ta marge salariale, ce qui reste sous ton plafond.",
-        "**Vendre** montre ce que les autres clubs offrent pour tes remplaçants. Tout se traite au mercato, du 1er juillet au 31 août, puis en janvier. **Marché complet : filtres, joueurs libres, mouvements** ouvre le reste.",
+        "**Passer** montre le suivant, **Recruter** puis **Confirmer** le signe. Tous acceptent ton club et tiennent dans ton budget transferts, ta seule limite : un joueur libre ne coûte pas d'indemnité, mais une **Prime à la signature**. Ton effectif compte 30 joueurs au plus.",
+        "Sous **Vendre**, **Ton adjoint propose** de vendre ceux qui ne jouent pas : **Vendre** les cède aussitôt à l'offre affichée, **Garder** les écarte jusqu'à la fin du mercato. Dessous, ce que les autres clubs offrent pour tes autres remplaçants. Tout se traite au mercato, du 1er juillet au 31 août, puis en janvier. **Marché complet : filtres, joueurs libres, mouvements** ouvre le reste.",
       ],
     },
     en: {
@@ -96,8 +96,8 @@ export const GUIDE: GuideSection[] = [
           "**Bargains**: cheaper than they're worth",
           "**Stars**: the best, ready to join you",
         ],
-        "**Pass** shows the next one, **Sign** then **Confirm** seals the deal. They would all join your club and fit your transfer budget and your wage room, what is left under your wage cap.",
-        "The **Sell** tab shows what other clubs offer for your substitutes. It all happens in the transfer window, from 1 July to 31 August, then in January. **Full market: filters, free agents, moves** opens the rest.",
+        "**Pass** shows the next one, **Sign** then **Confirm** seals the deal. They would all join your club and fit your transfer budget, your only limit: a free agent costs no fee, but a **Signing bonus**. Your squad holds 30 players at most.",
+        "Under **Sell**, **Your assistant suggests** selling those who never play: **Sell** lets them go at once at the offer shown, **Keep** sets them aside until the window closes. Below, what other clubs offer for your other substitutes. It all happens in the transfer window, from 1 July to 31 August, then in January. **Full market: filters, free agents, moves** opens the rest.",
       ],
     },
   },
@@ -106,19 +106,44 @@ export const GUIDE: GuideSection[] = [
     fr: {
       title: "La composition",
       blocks: [
-        "Sous **Équipe**, **Composition** fixe ton onze. Ouvre ton dispositif, **4-3-3 sentinelle** au départ : les trois conseillés pour ton effectif d'abord, les quatorze autres derrière **Voir tous les dispositifs**.",
-        "Choisis un poste pour voir ses candidats, classés par note à ce poste et étiquetés **À son poste**, **Poste secondaire**, **Dépanne** ou **Hors poste**.",
-        "**Composition automatique** aligne le onze de ton adjoint, sans blessé ni suspendu. Choisis ta **Consigne de départ**, **Attaquer**, **Équilibré** ou **Fermer**, puis touche **Enregistrer**.",
+        "Sous **Équipe**, **Composition** montre ton onze. Ton adjoint l'aligne avant chaque match, dans ton dispositif : les meilleurs selon la condition, les blessures et les suspensions. Ouvre ton dispositif, **4-3-3 sentinelle** au départ : les trois conseillés pour ton effectif d'abord, les quatorze autres derrière **Voir tous les dispositifs**.",
+        "Choisis un poste pour voir ses candidats, classés par note à ce poste et étiquetés **À son poste**, **Poste secondaire**, **Dépanne** ou **Hors poste**. Place un joueur et le onze devient le tien : **Enregistrer** le garde, ton adjoint ne remplaçant plus qu'un blessé ou un suspendu ; **Rendre la main à l'adjoint** le lui rend.",
+        "Choisis aussi ta **Consigne de départ** : **Attaquer**, **Équilibré** ou **Fermer**.",
         "La **Condition** baisse sur le terrain et remonte de 5 points par jour ; sous 70, gare aux blessures. Un rouge suspend pour le match suivant, un 5e jaune pour le prochain de la compétition.",
       ],
     },
     en: {
       title: "Your line-up",
       blocks: [
-        "Under **Squad**, **Line-up** sets your eleven. Open your formation, **4-3-3 holding** to begin with: the three recommended for your squad first, the other fourteen behind **See all formations**.",
-        "Select a position to see its candidates, ranked by their rating there and labelled **Natural position**, **Secondary position**, **Filling in** or **Out of position**.",
-        "**Automatic line-up** fields your assistant's eleven, with no injured or suspended players. Pick your **Starting instruction**, **Attack**, **Balanced** or **Sit back**, then press **Save**.",
+        "Under **Squad**, **Line-up** shows your eleven. Your assistant fields it before every match, in your formation: the best players given fitness, injuries and suspensions. Open your formation, **4-3-3 holding** to begin with: the three recommended for your squad first, the other fourteen behind **See all formations**.",
+        "Select a position to see its candidates, ranked by their rating there and labelled **Natural position**, **Secondary position**, **Filling in** or **Out of position**. Place a player and the eleven becomes yours: **Save** keeps it, your assistant then only replacing an injured or suspended player; **Hand back to your assistant** gives it back to him.",
+        "Pick your **Starting instruction** too: **Attack**, **Balanced** or **Sit back**.",
         "**Fitness** drops on the pitch and comes back by 5 points a day; below 70, injuries become likelier. A red card means a ban for the next match, a 5th yellow a ban for the competition's next match.",
+      ],
+    },
+  },
+  {
+    id: "assistant",
+    fr: {
+      title: "Ton adjoint",
+      blocks: [
+        "Ton adjoint s'occupe du quotidien de ton club, et te rend la main quand tu veux, dans **Club**, **Réglages**, sous **Ton adjoint s'occupe de** :",
+        [
+          "**Composition** : il aligne le meilleur onze avant chaque match, dans ton dispositif",
+          "**Contrats** : en fin de saison, il prolonge les joueurs utiles et laisse partir les autres ; avant de laisser partir un titulaire, il te prévient dans **À faire**",
+        ],
+        "Sur la fiche d'un joueur en fin de contrat, tu choisis toi-même : **Le prolonger** ou **Le laisser partir**. Au mercato, ton adjoint te propose aussi de vendre ceux qui ne jouent pas, sous **Marché**, **Vendre**.",
+      ],
+    },
+    en: {
+      title: "Your assistant",
+      blocks: [
+        "Your assistant takes care of your club's day-to-day, and hands it back whenever you like, in **Club**, **Settings**, under **Your assistant takes care of**:",
+        [
+          "**Line-up**: he fields the best eleven before every match, in your formation",
+          "**Contracts**: at the end of the season, he renews the useful players and lets the others go; before letting a starter go, he warns you in **To do**",
+        ],
+        "On the sheet of a player whose contract is ending, you decide yourself: **Extend him** or **Let him go**. In the transfer window, your assistant also suggests selling those who never play, under **Market**, **Sell**.",
       ],
     },
   },

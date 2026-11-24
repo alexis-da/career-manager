@@ -13,7 +13,7 @@
       },
       "lineup": {
         "title": "Compose ton équipe",
-        "text": "{formations} dispositifs, la note de chaque joueur à chaque poste et la consigne de départ de ton équipe : attaquer, équilibré ou fermer."
+        "text": "Ton adjoint aligne le onze dans ton dispositif, ou fais-le toi-même : {formations} dispositifs, la note de chaque joueur à chaque poste et la consigne de départ, attaquer, équilibré ou fermer."
       },
       "live": {
         "title": "Des matchs en direct, avec des choix",
@@ -21,7 +21,7 @@
       },
       "market": {
         "title": "Le marché des transferts",
-        "text": "Le jeu repère ton point faible et te propose des joueurs dans tes moyens. Recrute, vends, et garde ta masse salariale sous son plafond."
+        "text": "Le jeu repère ton point faible et te propose des joueurs que ton budget paie. Ton adjoint, lui, te propose de vendre ceux qui ne jouent pas."
       },
       "objectives": {
         "title": "Les objectifs de la saison",
@@ -37,7 +37,7 @@
       "label": "Captures d'écran du jeu sur téléphone",
       "lineup": {
         "caption": "Compose ton équipe",
-        "alt": "Écran de composition sur téléphone : le onze sur le terrain, chaque joueur avec sa note au poste."
+        "alt": "Écran de composition sur téléphone : le onze que l'adjoint aligne sur le terrain, chaque joueur avec sa note au poste."
       },
       "live": {
         "caption": "Décide pendant le match",
@@ -45,7 +45,7 @@
       },
       "market": {
         "caption": "Recrute à bon prix",
-        "alt": "Marché des transferts sur téléphone : l'onglet Bonnes affaires propose un joueur libre, milieu central noté 70, sans indemnité de transfert, avec ses meilleurs attributs, son salaire et un contrat de trois saisons."
+        "alt": "Marché des transferts sur téléphone : l'onglet Bonnes affaires propose un joueur libre, milieu gauche noté 70, sans indemnité de transfert, avec ses meilleurs attributs, sa prime à la signature et un contrat de trois saisons."
       }
     },
     "challenge": {

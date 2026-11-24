@@ -13,7 +13,7 @@
       },
       "lineup": {
         "title": "Pick your line-up",
-        "text": "{formations} formations, every player's rating in every position and the instruction your team starts with: attack, balanced or sit back."
+        "text": "Your assistant fields the eleven in your formation, or pick it yourself: {formations} formations, every player's rating in every position and the instruction your team starts with: attack, balanced or sit back."
       },
       "live": {
         "title": "Live matches with choices",
@@ -21,7 +21,7 @@
       },
       "market": {
         "title": "The transfer market",
-        "text": "The game spots your weak spot and suggests players you can afford. Sign, sell and keep your wage bill under its ceiling."
+        "text": "The game spots your weak spot and suggests players your budget can pay for. Your assistant suggests selling those who never play."
       },
       "objectives": {
         "title": "Season objectives",
@@ -37,7 +37,7 @@
       "label": "Screenshots of the game on a phone",
       "lineup": {
         "caption": "Pick your line-up",
-        "alt": "The line-up screen on a phone: the eleven on the pitch, each player with their rating in their position."
+        "alt": "The line-up screen on a phone: the eleven the assistant fields on the pitch, each player with their rating in their position."
       },
       "live": {
         "caption": "Make the call during the match",
@@ -45,7 +45,7 @@
       },
       "market": {
         "caption": "Sign players at the right price",
-        "alt": "The transfer market on a phone: the Bargains tab suggests a free agent, a central midfielder rated 70, with no transfer fee, their best attributes, their wage and a three-season contract."
+        "alt": "The transfer market on a phone: the Bargains tab suggests a free agent, a left midfielder rated 70, with no transfer fee, their best attributes, their signing bonus and a three-season contract."
       }
     },
     "challenge": {
