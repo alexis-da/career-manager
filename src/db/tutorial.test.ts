@@ -224,6 +224,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the first career's tuto
       calledUp: 0,
       nextMatch: "league" as const,
       tiredStarter: false,
+      lineupByAssistant: false,
       judged: false,
       objectives: true,
       europe: false,

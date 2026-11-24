@@ -118,6 +118,7 @@ export type LaterContext = {
   calledUp: number; // the club's players called up for that break
   nextMatch: "league" | "cup" | "europe" | null;
   tiredStarter: boolean; // a starter of the eleven under ROTATION_FITNESS at the next kick-off
+  lineupByAssistant: boolean; // the assistant makes the line-up and rests the tired himself (docs/design/simplification.md § 8)
   judged: boolean; // no longer « Trop tôt pour juger »
   objectives: boolean;
   europe: boolean;
@@ -337,7 +338,7 @@ const LATER_ORDER: readonly { step: LaterStep; due: (progress: TutorialProgress,
   { step: "break", due: (_progress, later) => later.breakUpcoming },
   { step: "europe", due: (_progress, later) => later.nextMatch === "europe" },
   { step: "cup", due: (_progress, later) => later.nextMatch === "cup" },
-  { step: "fitness", due: (_progress, later) => later.tiredStarter },
+  { step: "fitness", due: (_progress, later) => later.tiredStarter && !later.lineupByAssistant },
   { step: "objectives", due: (progress, later) => later.objectives && seenStep(progress, "missions") },
   { step: "simulate", due: (_progress, _later, _day, matches) => matches >= 2 },
   { step: "judged", due: (progress, later) => later.judged && seenStep(progress, "objectives") },
@@ -448,8 +449,10 @@ function laterClosure(progress: TutorialProgress, step: TutorialStepKey, later: 
       return shown && !later.windowOpen;
     case "cup":
       return shown && later.nextMatch !== "cup";
+    // Nothing to do for a tired starter while the assistant makes the line-up: he rests him (simplification § 8). Closed
+    // at once, shown or not, or it would wait to the tutorial's end and expire it.
     case "fitness":
-      return shown && !later.tiredStarter;
+      return later.lineupByAssistant || (shown && !later.tiredStarter);
     default:
       return false;
   }

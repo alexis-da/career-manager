@@ -301,6 +301,7 @@ describe("scenario 2: the following days", () => {
     calledUp: 0,
     nextMatch: "league",
     tiredStarter: false,
+    lineupByAssistant: false,
     judged: false,
     objectives: true,
     europe: true,
@@ -324,6 +325,9 @@ describe("scenario 2: the following days", () => {
     expect(dashboardStep(v2(steps), { now: DAY2, matchesPlayed: 1, later: { ...LATER, nextMatch: "europe" } })).toBe("europe");
     expect(dashboardStep(v2(steps), { now: DAY2, matchesPlayed: 1, later: { ...LATER, nextMatch: "cup" } })).toBe("cup");
     expect(dashboardStep(v2(steps), { now: DAY2, matchesPlayed: 1, later: { ...LATER, tiredStarter: true } })).toBe("fitness");
+    // Never while the assistant makes the line-up: he rests a tired starter himself (docs/design/simplification.md § 8).
+    const resting = { ...LATER, tiredStarter: true, lineupByAssistant: true };
+    expect(dashboardStep(v2(steps), { now: DAY2, matchesPlayed: 1, later: resting })).toBe("objectives");
     // Then the objectives, the simulation after two matches, the judgement once the board judges, the line-up from day 3.
     expect(dashboardStep(v2(steps), { now: DAY2, matchesPlayed: 1, later: LATER })).toBe("objectives");
     const more = { ...steps, objectives: closed() };
@@ -449,6 +453,14 @@ describe("scenario 2: the following days", () => {
       { step: "fitness", outcome: "ADAPTED" },
     ]);
     expect(pendingWrites(v2(), { ...context, later: gone }, away).closures).toEqual([]);
+    // Nothing for a tired starter while the assistant makes the line-up: closed at once, shown or not, a tired starter or not.
+    for (const tiredStarter of [true, false]) {
+      const assistant = { ...LATER, windowOpen: false, nextMatch: "league" as const, tiredStarter, lineupByAssistant: true };
+      expect(pendingWrites(v2(), { ...context, later: assistant }, away).closures).toEqual([{ step: "fitness", outcome: "ADAPTED" }]);
+      expect(pendingWrites(v2({ fitness: shown() }), { ...context, later: assistant }, away).closures).toEqual([
+        { step: "fitness", outcome: "ADAPTED" },
+      ]);
+    }
     // Without what the dashboard knows, nothing of the kind.
     expect(pendingWrites(v2(shownSteps), context, away).closures).toEqual([]);
   });
@@ -500,7 +512,6 @@ describe("the assistant's lines", () => {
     competition: "C",
     player: "P",
     fitness: 70,
-    automatic: "A",
     todo: "T",
   };
   const KEYS = [
@@ -518,6 +529,7 @@ describe("the assistant's lines", () => {
     "objectivesOwn",
     "lineupPick",
     "lineupPush",
+    "lineupPushAssistant",
     "simulate",
     "break",
     "breakNone",

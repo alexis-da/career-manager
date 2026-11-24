@@ -46,6 +46,7 @@ export function laterContextOf({ dashboard, lineup, objectives, internationalBre
     calledUp: internationalBreak?.state === "upcoming" ? internationalBreak.players.length : 0,
     nextMatch: next === null ? null : next.cup ? "cup" : isEuropeCode(next.competitionCode) ? "europe" : "league",
     tiredStarter: tiredStarterOf(lineup) !== null,
+    lineupByAssistant: lineup.byAssistant,
     judged: objectives !== null && !objectives.early,
     objectives: objectives !== null,
     europe: objectives?.objectives.some(({ kind }) => kind === "EUROPE") ?? false,
@@ -100,7 +101,8 @@ export function dashboardBubbleOf(
       };
     case "market": {
       const closes = transferWindowCloseDate(dashboard.currentDate);
-      const weakSpot = weakSpotOf(elevenOf(lineup.formation, lineup.lineup.starters));
+      // The weak spot the market reads (§ 3.4 of docs/design/simplification.md): never the assistant's rested eleven.
+      const weakSpot = weakSpotOf(elevenOf(lineup.formation, lineup.weakSpotLineup.starters));
       return {
         text: t.tutorial("steps.market", {
           date: closes === null ? "" : formatDayMonth(closes, locale),
@@ -165,7 +167,6 @@ export function dashboardBubbleOf(
         text: t.tutorial("steps.fitness", {
           player: `${tired.firstName.charAt(0)}. ${tired.lastName}`,
           fitness: Math.round(tired.fitness),
-          automatic: t.lineup("automatic"),
         }),
         target: PREPARE,
         gotIt: false,
@@ -183,7 +184,13 @@ export function dashboardBubbleOf(
       };
     case "lineup":
       // Its screen never opened by the third day: pushed by « Préparer », its bubble then shown on the line-up itself.
-      return { text: t.tutorial("steps.lineupPush", { prepare: t.hero("prepare") }), target: PREPARE, gotIt: false, place: "hero" };
+      // The assistant's eleven or the player's own: how he makes it, or who can play where.
+      return {
+        text: t.tutorial(lineup.byAssistant ? "steps.lineupPushAssistant" : "steps.lineupPush", { prepare: t.hero("prepare") }),
+        target: PREPARE,
+        gotIt: false,
+        place: "hero",
+      };
     case "farewell":
       return { text: t.tutorial("steps.farewell", { todo: t.todo("title") }), gotIt: true, place: "hero" };
     default:

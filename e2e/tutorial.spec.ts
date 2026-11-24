@@ -263,7 +263,7 @@ test.describe("the following days, in French on a phone", () => {
       await expect(page).toHaveURL(new RegExp(`/saves/${saveId}/transfers$`));
       await expect(bubble(page)).toHaveAttribute("data-step", "market");
       await expect(bubble(page).getByTestId("tutorial-text")).toHaveText(
-        "Voici un joueur pour ton point faible, dans tes moyens. « Recruter » s'il te convient, « Passer » pour le suivant.",
+        "Voici un joueur pour ton point faible, que ton budget paie. « Recruter » s'il te convient, « Passer » pour le suivant.",
       );
       await expect(page.getByTestId("market-proposal").getByTestId("market-recruit")).toHaveAttribute("data-tutorial-target", "");
       await expectUncovered(page.getByTestId("market-recruit"));

@@ -32,20 +32,18 @@ const dashboardOf = (next: { competitionCode: string; cup: boolean } | null, cha
     nextMatch: next === null ? null : { fixture: next },
   }) as unknown as Dashboard;
 
-/** A line-up whose starters have the given fitness at the next kick-off. */
-const lineupOf = (fitness: readonly number[]) =>
-  ({
-    formation: "4-3-3",
-    lineup: {
-      starters: fitness.map((value, index) => ({
-        player: { firstName: "Karim", lastName: `Diallo${index}`, fitness: value, injured: false, suspended: false },
-        slot: "CM",
-        index,
-      })),
-      bench: [],
-    },
-    missingStarters: [],
-  }) as unknown as ManagedLineup;
+/** A line-up whose starters have the given fitness at the next kick-off, made by the player unless told otherwise. */
+const lineupOf = (fitness: readonly number[], byAssistant = false) => {
+  const lineup = {
+    starters: fitness.map((value, index) => ({
+      player: { firstName: "Karim", lastName: `Diallo${index}`, fitness: value, injured: false, suspended: false },
+      slot: "CM",
+      index,
+    })),
+    bench: [],
+  };
+  return { formation: "4-3-3", lineup, weakSpotLineup: lineup, byAssistant, missingStarters: [] } as unknown as ManagedLineup;
+};
 
 const objectivesOf = (changes: Partial<SeasonObjectivesView> = {}) =>
   ({ startYear: 2026, objectives: [], choiceOpen: false, confidence: 50, early: true, over: false, ...changes }) as SeasonObjectivesView;
@@ -67,6 +65,7 @@ describe("laterContextOf", () => {
       calledUp: 2,
       nextMatch: "europe",
       tiredStarter: true,
+      lineupByAssistant: false,
       judged: true,
       objectives: true,
       europe: true,
@@ -80,6 +79,8 @@ describe("laterContextOf", () => {
     const back = { state: "back", from: new Date(), to: new Date(), players: [{}] } as unknown as ManagedBreak;
     const league = laterContextOf({ dashboard: dashboardOf(LEAGUE), lineup: lineupOf([75]), objectives: objectivesOf(), internationalBreak: back });
     expect(league).toMatchObject({ nextMatch: "league", breakUpcoming: false, calledUp: 0, tiredStarter: false, judged: false });
+    const assistant = laterContextOf({ dashboard: dashboardOf(LEAGUE), lineup: lineupOf([70], true), objectives: null, internationalBreak: null });
+    expect(assistant).toMatchObject({ tiredStarter: true, lineupByAssistant: true });
   });
 });
 
@@ -116,8 +117,16 @@ describe("dashboardBubbleOf", () => {
     const tired = dashboardBubbleOf("fitness", { ...reads, lineup: lineupOf([88, 71.6]) }, translators("fr"), "fr");
     expect(tired).toMatchObject({ target: '[data-testid="dashboard-next-match"] [data-testid="dashboard-lineup"]', gotIt: false, place: "hero" });
     expect(tired?.text).toBe(
-      "K. Diallo1 est fatigué (72) : il jouera moins bien et peut se blesser. Repose-le, ou touche « Composition automatique ».",
+      "K. Diallo1 est fatigué (72) : il jouera moins bien et peut se blesser. Repose-le, ou rends-moi la main : je fais tourner l'effectif.",
     );
+  });
+
+  it("pushes the line-up through « Préparer »: how the assistant makes the eleven, or who can play where", () => {
+    const own = dashboardBubbleOf("lineup", reads, translators("fr"), "fr");
+    expect(own).toMatchObject({ target: '[data-testid="dashboard-next-match"] [data-testid="dashboard-lineup"]', gotIt: false, place: "hero" });
+    expect(own?.text).toContain("qui peut jouer à chaque poste");
+    const assistant = dashboardBubbleOf("lineup", { ...reads, lineup: lineupOf([90], true) }, translators("en"), "en");
+    expect(assistant?.text).toBe("Before your next match, open “Prepare”: I'll show you how I make your eleven.");
   });
 
   it("says how many players a break takes, or that it takes none", () => {
