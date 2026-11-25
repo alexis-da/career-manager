@@ -49,6 +49,10 @@
       "refusals": {
         "invalid": "Dispositif ou consigne inconnus.",
         "player": "Ta composition a changé dans un autre onglet : c'est maintenant toi qui fais ton onze."
+      },
+      "policy": {
+        "label": "Consigne : {policy}",
+        "change": "Changer"
       }
     },
     "saveFailed": "L'enregistrement a échoué. Réessaie.",

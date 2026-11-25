@@ -48,6 +48,7 @@ import {
   swapSlots,
   type EditorState,
 } from "../_lib/editor-moves";
+import { AssistantPolicyLine } from "./assistant-policy-line";
 import { FormationPanel, type PanelOpponent } from "./formation-panel";
 import { FormationPicker } from "./formation-picker";
 import { LineupSquad, SlotRating } from "./lineup-squad";
@@ -773,6 +774,7 @@ function LineupEditor({
         <Panel data-testid="lineup-assistant" className="space-y-1.5 p-4 sm:p-5">
           <PanelTitle>{t("assistant.title")}</PanelTitle>
           <p className="text-sm">{t("assistant.about")}</p>
+          <AssistantPolicyLine saveId={saveId} policy={editor.policy} />
           {rested.length > 0 && (
             <p data-testid="lineup-rested" className="text-sm text-muted-foreground">
               {t("assistant.rested", {

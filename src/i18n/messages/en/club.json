@@ -70,6 +70,19 @@
       "on": "He renews the useful players and lets the others go.",
       "off": "You decide on contracts: without an extension, a player leaves on a free at the end of the season."
     },
+    "policy": {
+      "title": "His brief",
+      "BEST": {
+        "label": "Best eleven",
+        "about": "The strongest players, rested. He renews the useful ones."
+      },
+      "YOUTH": {
+        "label": "Give youth a chance",
+        "about": "Your players aged 21 or under play in the league when the gap is small; he renews your prospects."
+      },
+      "inactive": "Your assistant handles neither your eleven nor your contracts: his brief will wait until you hand one back to him.",
+      "done": "Your assistant's brief: {policy}."
+    },
     "done": {
       "lineup": {
         "assistant": "Your assistant picks the line-up.",

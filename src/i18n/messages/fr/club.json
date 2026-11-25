@@ -70,6 +70,19 @@
       "on": "Il prolonge les joueurs utiles et laisse partir les autres.",
       "off": "Tu décides des contrats : sans prolongation, un joueur part libre en fin de saison."
     },
+    "policy": {
+      "title": "Sa consigne",
+      "BEST": {
+        "label": "Meilleur onze",
+        "about": "Les plus forts, reposés. Il prolonge les joueurs utiles."
+      },
+      "YOUTH": {
+        "label": "Lancer les jeunes",
+        "about": "Tes 21 ans et moins jouent en championnat si l'écart est faible ; il prolonge tes espoirs."
+      },
+      "inactive": "Ton adjoint ne fait ni ton onze ni tes contrats : sa consigne attendra que tu lui en rendes un.",
+      "done": "Consigne de ton adjoint : {policy}."
+    },
     "done": {
       "lineup": {
         "assistant": "Ton adjoint fait la composition.",

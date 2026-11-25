@@ -61,18 +61,28 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the assistant's setting
     await db?.$disconnect();
   }, 120_000);
 
-  it("gives a new career the assistant's line-up and contracts, its announcement already closed", async () => {
+  it("gives a new career the assistant's line-up and contracts, « Meilleur onze », its announcement already closed", async () => {
     const save = await database().save.findUniqueOrThrow({ where: { id: saveId }, select: { lineupByAssistant: true, assistantNoticeAt: true } });
     expect(save.lineupByAssistant).toBe(true);
     expect(save.assistantNoticeAt).not.toBeNull();
-    expect(await api().getAssistantSettings(saveId)).toEqual({ lineupByAssistant: true, contractsByAssistant: true, noticeOpen: false });
+    expect(await api().getAssistantSettings(saveId)).toEqual({
+      lineupByAssistant: true,
+      contractsByAssistant: true,
+      policy: "BEST",
+      noticeOpen: false,
+    });
   });
 
   it("reads a career from before the setting by its saved line-up, and announces the change to it once", async () => {
     const managed = await database().clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
     await database().save.update({ where: { id: saveId }, data: { lineupByAssistant: null, assistantNoticeAt: null } });
     await database().clubSave.update({ where: { id: managed.id, saveId }, data: { lineup: SAVED } });
-    expect(await api().getAssistantSettings(saveId)).toEqual({ lineupByAssistant: false, contractsByAssistant: true, noticeOpen: true });
+    expect(await api().getAssistantSettings(saveId)).toEqual({
+      lineupByAssistant: false,
+      contractsByAssistant: true,
+      policy: "BEST",
+      noticeOpen: true,
+    });
 
     await database().clubSave.update({ where: { id: managed.id, saveId }, data: { lineup: { starters: [], benchOrder: [], instruction: "ATTACK" } } });
     expect((await api().getAssistantSettings(saveId)).lineupByAssistant).toBe(true);
@@ -104,5 +114,27 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("the assistant's setting
     await api().setLineupByAssistant(saveId, true);
     await api().setContractsByAssistant(saveId, true);
     expect(await api().getAssistantSettings(saveId)).toMatchObject({ lineupByAssistant: true, contractsByAssistant: true });
+  });
+
+  it("chooses his policy, kept while he takes care of nothing, and refuses it while a match waits live", async () => {
+    await api().setAssistantPolicy(saveId, "YOUTH");
+    expect((await api().getAssistantSettings(saveId)).policy).toBe("YOUTH");
+    // The player keeps both: the policy waits, unchanged.
+    await api().setLineupByAssistant(saveId, false);
+    await api().setContractsByAssistant(saveId, false);
+    expect(await api().getAssistantSettings(saveId)).toMatchObject({ lineupByAssistant: false, contractsByAssistant: false, policy: "YOUTH" });
+
+    await database().save.update({ where: { id: saveId }, data: { liveFixtureId: "test-live-fixture" } });
+    try {
+      await expect(api().setAssistantPolicy(saveId, "BEST")).rejects.toBeInstanceOf(api().AssistantSettingsError);
+      expect((await api().getAssistantSettings(saveId)).policy).toBe("YOUTH");
+    } finally {
+      await database().save.update({ where: { id: saveId }, data: { liveFixtureId: null } });
+    }
+
+    await api().setAssistantPolicy(saveId, "BEST");
+    await api().setLineupByAssistant(saveId, true);
+    await api().setContractsByAssistant(saveId, true);
+    expect(await api().getAssistantSettings(saveId)).toMatchObject({ lineupByAssistant: true, contractsByAssistant: true, policy: "BEST" });
   });
 });

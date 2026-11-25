@@ -49,6 +49,10 @@
       "refusals": {
         "invalid": "Unknown formation or instruction.",
         "player": "Your line-up was changed in another tab: you now pick your own eleven."
+      },
+      "policy": {
+        "label": "Brief: {policy}",
+        "change": "Change"
       }
     },
     "saveFailed": "Saving failed. Try again.",

@@ -8,11 +8,12 @@ import { AssistantNotice } from "./assistant-notice";
 // The Server Actions need a request, and the switches a router: the buttons alone are rendered here.
 vi.mock("../club/actions", () => ({
   closeAssistantNoticeAction: vi.fn(),
+  setAssistantPolicyAction: vi.fn(),
   setAssistantSettingAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
-const ASSISTANT: Settings = { lineupByAssistant: true, contractsByAssistant: true, noticeOpen: true };
+const ASSISTANT: Settings = { lineupByAssistant: true, contractsByAssistant: true, policy: "BEST", noticeOpen: true };
 
 describe("AssistantNotice", () => {
   it("tells a career what the assistant now does, and leads to his settings", () => {
@@ -50,5 +51,46 @@ describe("AssistantSettings", () => {
     expect(html).toContain("Tu décides des contrats : sans prolongation, un joueur part libre en fin de saison.");
     expect((html.match(/role="switch"/g) ?? []).length).toBe(2);
     expect(html).toContain('aria-checked="false"');
+  });
+
+  /** The policy's radios, by value: the tag of each. */
+  const radiosOf = (html: string): Record<string, string> =>
+    Object.fromEntries((html.match(/<input[^>]*name="assistant-policy"[^>]*>/g) ?? []).map((tag) => [/value="(\w+)"/.exec(tag)?.[1], tag]));
+
+  it("offers his two policies under the switches, the chosen one checked, each saying what it does", () => {
+    const html = renderToStaticMarkup(inLanguage(<AssistantSettings saveId="save-1" settings={{ ...ASSISTANT, policy: "YOUTH" }} />));
+    const radios = radiosOf(html);
+
+    expect(html).toContain('data-testid="settings-assistant-policy"');
+    expect(html).toContain('data-active="true"');
+    expect(html).toContain("Sa consigne");
+    expect(html).toContain('data-testid="settings-assistant-policy-best"');
+    expect(html).toContain("Les plus forts, reposés. Il prolonge les joueurs utiles.");
+    expect(html).toContain('data-testid="settings-assistant-policy-youth"');
+    expect(html).toContain("Tes 21 ans et moins jouent en championnat si l&#x27;écart est faible ; il prolonge tes espoirs.");
+    expect(Object.keys(radios)).toEqual(["BEST", "YOUTH"]);
+    expect(radios.YOUTH).toContain('checked=""');
+    expect(radios.BEST).not.toContain("checked");
+    expect(html).not.toContain('data-testid="settings-assistant-policy-inactive"');
+    // The switches first: the policy only works on what they leave to him.
+    expect(html.indexOf("settings-assistant-contracts")).toBeLessThan(html.indexOf("settings-assistant-policy"));
+  });
+
+  it("greys his policy while the player keeps both the line-up and the contracts, and says why, in both languages", () => {
+    const own: Settings = { ...ASSISTANT, lineupByAssistant: false, contractsByAssistant: false };
+    const fr = renderToStaticMarkup(inLanguage(<AssistantSettings saveId="save-1" settings={own} />));
+    expect(fr).toMatch(/<fieldset disabled=""[^>]*data-testid="settings-assistant-policy"[^>]*data-active="false"/);
+    expect(fr).toContain("Ton adjoint ne fait ni ton onze ni tes contrats : sa consigne attendra que tu lui en rendes un.");
+    expect(radiosOf(fr).BEST).toContain('checked=""');
+
+    const en = renderToStaticMarkup(inLanguage(<AssistantSettings saveId="save-1" settings={own} />, "en"));
+    expect(en).toContain("His brief");
+    expect(en).toContain("Best eleven");
+    expect(en).toContain("Give youth a chance");
+    expect(en).toContain("Your assistant handles neither your eleven nor your contracts");
+    // One of them back to him: the policy works again.
+    const contracts = renderToStaticMarkup(inLanguage(<AssistantSettings saveId="save-1" settings={{ ...own, contractsByAssistant: true }} />));
+    expect(contracts).toContain('data-active="true"');
+    expect(contracts).not.toContain("sa consigne attendra");
   });
 });
