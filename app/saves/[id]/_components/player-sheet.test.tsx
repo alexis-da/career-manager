@@ -65,6 +65,94 @@ const render = (managed: boolean, locale: "fr" | "en" = "fr", contract: Contract
 const leavingOf = (markup: string): string | null =>
   /data-testid="player-leaving-free"[^>]*>([^<]*)</.exec(markup)?.[1]?.replaceAll("&#x27;", "'") ?? null;
 
+/** A player of 20 rated 71 for a potential of 82, at the managed club or at an AI club, his progression as given. */
+const progressing = (managed: boolean, progression: PlayerProfile["progression"], ratings: { overall: number; potential: number } = { overall: 71, potential: 82 }): PlayerProfile => ({
+  ...profile(managed),
+  age: 20,
+  ...ratings,
+  progression,
+});
+
+const renderSheet = (player: PlayerProfile, locale: "fr" | "en" = "fr"): string =>
+  renderToStaticMarkup(inLanguage(<PlayerSheet profile={player} startYear={2028} footer={null} onClose={() => undefined} />, locale));
+
+/** The sheet's « Progression », null without it. */
+const progressionOf = (markup: string): string | null => /<section[^>]*data-testid="player-sheet-progression"[\s\S]*?<\/section>/.exec(markup)?.[0] ?? null;
+
+/** A markup's text, without its tags, its spaces as one; French thin spaces kept. */
+const textOf = (markup: string): string =>
+  markup
+    .replace(/<[^>]+>/g, " ")
+    .replaceAll("&#x27;", "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** The French thousands' separator. */
+const THIN_SPACE = String.fromCharCode(0x202f);
+
+/** His seasons at the club: two completed, then this one. */
+const HISTORY = [
+  { startYear: 2026, overall: 63, potential: null },
+  { startYear: 2027, overall: 67, potential: 82 },
+  { startYear: 2028, overall: 71, potential: 82 },
+];
+
+describe("the sheet's progression", () => {
+  const growing = { last: 4, outlook: { leagueMinutes: 1240, growth: { expected: 3, idle: 1, starter: 7 }, decline: null }, history: HISTORY };
+
+  it("draws a young player's curve at the club, his room, and the summer his league minutes bring with its two bounds", () => {
+    const section = progressionOf(renderSheet(progressing(true, growing))) ?? "";
+    const text = textOf(section);
+    expect(section).toContain('data-testid="player-progression-curve" data-points="3"');
+    expect(section).toMatch(/data-testid="player-last-progression" data-change="4"/);
+    expect(text).toContain("l'été dernier");
+    expect(text).toContain("Potentiel 82 · marge 11");
+    expect(text).toContain("Cet été, environ +3");
+    expect(text).toContain("Sans jouer : +1 · titulaire : +7");
+    expect(section).toMatch(/data-testid="player-league-minutes" data-minutes="1240"/);
+    // Thousands in French, a narrow no-break space: the section's own markup, before textOf makes it a space.
+    expect(section).toContain(`1${THIN_SPACE}240 min`);
+    expect(section).toContain(`Au-delà de 2${THIN_SPACE}250 minutes de championnat, il ne va pas plus vite.`);
+    // Its points for the screen readers, the curve an image.
+    expect(section).toContain('role="img" aria-label="Note à ton club, saison par saison : 2026-27 : 63, 2027-28 : 67, 2028-29 : 71"');
+
+    const english = textOf(progressionOf(renderSheet(progressing(true, growing), "en")) ?? "");
+    expect(english).toContain("Potential 82 · room 11");
+    expect(english).toContain("This summer, about +3");
+    expect(english).toContain("Without playing: +1 · as a starter: +7");
+    expect(english).toContain("Beyond 2,250 league minutes, he will not improve any faster.");
+  });
+
+  it("draws no curve under two points, nor any drawing for a career's first season", () => {
+    const first = { last: null, outlook: growing.outlook, history: HISTORY.slice(-1) };
+    const section = progressionOf(renderSheet(progressing(true, first))) ?? "";
+    expect(section).not.toContain("player-progression-curve");
+    expect(section).not.toContain("<svg");
+    expect(section).not.toContain("player-last-progression");
+    expect(textOf(section)).toContain("Cet été, environ +3");
+  });
+
+  it("gives a player past 30 the decline his age brings, and no growth", () => {
+    const veteran = { last: -1, outlook: { leagueMinutes: 2000, growth: null, decline: -2 }, history: [] };
+    const section = progressionOf(renderSheet(progressing(true, veteran, { overall: 70, potential: 70 }))) ?? "";
+    expect(section).toMatch(/data-testid="player-sheet-decline" data-change="-2"/);
+    expect(textOf(section)).toContain("Cet été, environ −2");
+    expect(textOf(section)).toContain("Passé 30 ans, la note baisse chaque été");
+    expect(textOf(section)).toContain("Potentiel 70 · atteint");
+    expect(section).not.toContain("player-sheet-summer");
+  });
+
+  it("gives an AI club's player his summer passed alone, a lead to sign him, and nothing without it", () => {
+    const section = progressionOf(renderSheet(progressing(false, { last: 3, outlook: null, history: [] }))) ?? "";
+    expect(section).toMatch(/data-testid="player-last-progression" data-change="3"/);
+    expect(section).not.toContain("player-sheet-potential");
+    expect(section).not.toContain("player-sheet-summer");
+    expect(section).not.toContain("player-progression-curve");
+    expect(progressionOf(renderSheet(progressing(false, { last: null, outlook: null, history: [] })))).toBeNull();
+    expect(progressionOf(renderSheet(progressing(false, { last: 0, outlook: null, history: [] })))).toBeNull();
+  });
+});
+
 describe("PlayerSheet", () => {
   it("shows no wage: the contract's end and the market value only", () => {
     for (const managed of [true, false]) {

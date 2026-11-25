@@ -43,6 +43,10 @@ export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad
         </h1>
         <SquadSummary players={squad.players.length} goalkeepers={goalkeepers} />
       </div>
+      {/* What makes the summer's « ↑ » and « prévu »: league minutes (docs/design/effectif-adjoint.md § 3.2). */}
+      <p className="text-sm text-muted-foreground" data-testid="squad-help">
+        {t("help")}
+      </p>
       {!squad.windowOpen && (
         <p className="text-xs text-muted-foreground" data-testid="squad-window-closed">
           {t("windowClosed")}

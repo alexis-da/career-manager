@@ -132,5 +132,25 @@
     "until": "Until {date}",
     "invalidAmount": "Invalid amount",
     "windowClosed": "Transfer window closed: {actions} will resume on {date}."
+  },
+  "progression": {
+    "title": "Progress",
+    "last": "Last summer: {change}",
+    "lastSummer": "last summer",
+    "expected": "{change} expected",
+    "expectedTitle": "This summer, about {change} if he keeps up his league rhythm",
+    "about": "≈ {change}",
+    "minutes": "{minutes, number} min",
+    "gaugeLabel": "{minutes, number} league minutes this season, full effect at {full, number}",
+    "curveTitle": "Rating · at your club",
+    "curveLabel": "Rating at your club, season by season: {points}",
+    "curvePoint": "{season}: {overall}",
+    "potential": "Potential {potential} · room {room}",
+    "potentialReached": "Potential {potential} · reached",
+    "summer": "This summer, about {change}",
+    "league": "League",
+    "bounds": "Without playing: {idle} · as a starter: {starter}",
+    "fullEffect": "Beyond {full, number} league minutes, he will not improve any faster.",
+    "decline": "After 30, the rating drops every summer, whatever the playing time."
   }
 }

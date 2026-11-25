@@ -132,5 +132,25 @@
     "until": "Jusqu'au {date}",
     "invalidAmount": "Montant invalide",
     "windowClosed": "Mercato fermé : {actions} reprendront le {date}."
+  },
+  "progression": {
+    "title": "Progression",
+    "last": "L'été dernier : {change}",
+    "lastSummer": "l'été dernier",
+    "expected": "{change} prévu",
+    "expectedTitle": "Cet été, environ {change}, s'il garde son rythme en championnat",
+    "about": "≈ {change}",
+    "minutes": "{minutes, number} min",
+    "gaugeLabel": "{minutes, number} minutes de championnat cette saison, plein effet à {full, number}",
+    "curveTitle": "Note · à ton club",
+    "curveLabel": "Note à ton club, saison par saison : {points}",
+    "curvePoint": "{season} : {overall}",
+    "potential": "Potentiel {potential} · marge {room}",
+    "potentialReached": "Potentiel {potential} · atteint",
+    "summer": "Cet été, environ {change}",
+    "league": "Championnat",
+    "bounds": "Sans jouer : {idle} · titulaire : {starter}",
+    "fullEffect": "Au-delà de {full, number} minutes de championnat, il ne va pas plus vite.",
+    "decline": "Passé 30 ans, la note baisse chaque été, quel que soit le temps de jeu."
   }
 }

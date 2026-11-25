@@ -17,6 +17,7 @@ import { SecondaryPositionBadges } from "./position-badge";
 import { AttributeBars } from "./attribute-bars";
 import { ContractChoiceField } from "./contract-actions";
 import { PlayerBadges } from "./player-badges";
+import { PlayerProgression } from "./player-progression";
 
 function transferLabel(transfer: TransferHistoryItem, t: Translator<"player">, locale: Locale): string {
   const from = transfer.fromClubName ?? "?";
@@ -236,6 +237,8 @@ export function PlayerSheet({ profile, startYear, footer, onClose, pinned = fals
               })}
             </p>
           </section>
+
+          <PlayerProgression profile={profile} />
 
           <InternationalLine profile={profile} />
 

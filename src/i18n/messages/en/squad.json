@@ -4,6 +4,13 @@
     "playersOf": "{count, plural, one {player} other {players}} of {limit}",
     "goalkeepers": "{count, plural, one {goalkeeper} other {goalkeepers}}",
     "windowClosed": "Transfer window closed: extensions, releases and sales will wait until it reopens.",
+    "help": "Your players improve each summer, all the more if they play league matches.",
+    "young": {
+      "toggle": "Under-21s · {count}",
+      "title": "Players aged 21 and under only",
+      "intro": "Players aged 21 and under. Full effect at {full, number} league minutes; nothing more beyond.",
+      "potential": "potential {potential}"
+    },
     "sortLabel": "Sort the squad",
     "presets": {
       "position": "By position",
@@ -15,16 +22,20 @@
       "name": "Player",
       "age": "Age",
       "overall": "Rating",
+      "expectedProgression": "This summer",
       "potential": "Pot.",
       "form": "Form",
       "fitness": "Fitness",
       "marketValue": "Value",
+      "leagueMinutes": "Minutes",
       "contractUntil": "Contract",
       "status": "Status"
     },
     "columnTitles": {
+      "expectedProgression": "Expected progress this summer, if he keeps up his league rhythm",
       "potential": "Potential",
-      "fitness": "Fitness at the next match"
+      "fitness": "Fitness at the next match",
+      "leagueMinutes": "League minutes this season: full effect at 2,250"
     },
     "ageShort": "{age} yrs",
     "formTitle": "Form {form}",

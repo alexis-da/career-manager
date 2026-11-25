@@ -4,6 +4,13 @@
     "playersOf": "{count, plural, one {joueur} other {joueurs}} sur {limit}",
     "goalkeepers": "{count, plural, one {gardien} other {gardiens}}",
     "windowClosed": "Mercato fermé : prolongations, libérations et ventes attendront sa réouverture.",
+    "help": "Tes joueurs progressent l'été, d'autant plus qu'ils jouent en championnat.",
+    "young": {
+      "toggle": "Jeunes · {count}",
+      "title": "Les 21 ans et moins seuls",
+      "intro": "Les 21 ans et moins. Plein effet à {full, number} minutes de championnat ; au-delà, rien de plus.",
+      "potential": "potentiel {potential}"
+    },
     "sortLabel": "Tri de l'effectif",
     "presets": {
       "position": "Par poste",
@@ -15,16 +22,20 @@
       "name": "Joueur",
       "age": "Âge",
       "overall": "Note",
+      "expectedProgression": "Cet été",
       "potential": "Pot.",
       "form": "Forme",
       "fitness": "Condition",
       "marketValue": "Valeur",
+      "leagueMinutes": "Minutes",
       "contractUntil": "Contrat",
       "status": "Statut"
     },
     "columnTitles": {
+      "expectedProgression": "Progression attendue cet été, s'il garde son rythme en championnat",
       "potential": "Potentiel",
-      "fitness": "Condition au prochain match"
+      "fitness": "Condition au prochain match",
+      "leagueMinutes": "Minutes de championnat cette saison : plein effet à 2 250"
     },
     "ageShort": "{age} ans",
     "formTitle": "Forme {form}",
