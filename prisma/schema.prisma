@@ -379,6 +379,9 @@ model Save {
   lineupByAssistant    Boolean?
   contractsByAssistant Boolean              @default(true)
   assistantNoticeAt    DateTime?
+  // Sa consigne (docs/design/effectif-adjoint.md § 2), pour ce dont il s'occupe : « Meilleur onze » (BEST, le jeu d'avant
+  // elle, toute carrière par défaut) ou « Lancer les jeunes » (YOUTH)
+  assistantPolicy      AssistantPolicy      @default(BEST)
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   clubSaves            ClubSave[]
@@ -1073,4 +1076,11 @@ enum CosmeticSource {
   STREAK
   SHOP
   ACHIEVEMENT
+}
+
+/// La consigne de l'adjoint d'une carrière (Save.assistantPolicy, docs/design/effectif-adjoint.md § 2), pour la
+/// composition et les contrats dont il s'occupe. Une valeur est gardée avec chaque carrière : ne jamais en renommer une.
+enum AssistantPolicy {
+  BEST // « Meilleur onze » : le jeu d'avant la consigne
+  YOUTH // « Lancer les jeunes »
 }
