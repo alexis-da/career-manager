@@ -1,53 +1,87 @@
 import { useTranslations } from "next-intl";
+import { Fragment, type CSSProperties } from "react";
 import type { PlayerProfile } from "@/src/db/players";
 import type { ProgressionPoint } from "@/src/db/progression-view";
 import { seasonLabel } from "@/src/engine/world";
+import { cn } from "@/src/lib/utils";
 import { CURVE_BOX, curveLayout, FULL_GROWTH_MINUTES, signedChange } from "../_lib/progression";
 import { LastProgression, LeagueMinutesGauge } from "./progression";
 
 /**
  * His rating season by season at the club: a point per completed season whose relevé has him, then this one, the
- * potential known in dashes above. An image for the screen readers, its points in its label. Never under two points.
+ * potential known in dashes above. Its lines stretch to the sheet's width; its points and figures are drawn over them
+ * at their own size, as legible in the 228 px of the line-up's sheet as in a phone's. An image for the screen readers,
+ * its points in its label. Never under two points.
  */
 function ProgressionCurve({ points }: { points: readonly ProgressionPoint[] }) {
   const t = useTranslations("progression");
   const { width, height } = CURVE_BOX;
   const { ratings, potentials, labelled } = curveLayout(points);
   const path = (marks: readonly { x: number; y: number }[]): string => marks.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const at = ({ x, y }: { x: number; y: number }): CSSProperties => ({ left: `${(x / width) * 100}%`, top: `${(y / height) * 100}%` });
   const label = t("curveLabel", {
     points: points.map((point) => t("curvePoint", { season: seasonLabel(point.startYear), overall: point.overall })).join(", "),
   });
   return (
-    <svg
-      role="img"
-      aria-label={label}
-      viewBox={`0 0 ${width} ${height}`}
-      className="block h-auto w-full overflow-visible"
-      data-testid="player-progression-curve"
-      data-points={points.length}
-    >
-      <line x1={0} x2={width} y1={height - 22} y2={height - 22} className="stroke-border" strokeWidth={1} />
-      {potentials.length > 1 && (
-        <polyline points={path(potentials)} fill="none" className="stroke-muted-foreground" strokeWidth={1.5} strokeDasharray="4 4" />
-      )}
-      <polyline points={path(ratings)} fill="none" className="stroke-highlight" strokeWidth={2.5} strokeLinejoin="round" />
+    <div role="img" aria-label={label} data-testid="player-progression-curve" data-points={points.length} className="relative h-30">
+      <svg aria-hidden viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
+        <line x1={0} x2={width} y1={height - 22} y2={height - 22} className="stroke-border" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        {potentials.length > 1 && (
+          <polyline
+            points={path(potentials)}
+            fill="none"
+            className="stroke-muted-foreground"
+            strokeWidth={1.5}
+            strokeDasharray="4 4"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+        <polyline
+          points={path(ratings)}
+          fill="none"
+          className="stroke-highlight"
+          strokeWidth={2.5}
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
       {ratings.map((mark, index) => {
         const last = index === ratings.length - 1;
         return (
-          <g key={mark.startYear}>
-            <circle cx={mark.x} cy={mark.y} r={last ? 5 : 4} className={last ? "fill-highlight" : "fill-background stroke-highlight"} strokeWidth={2} />
-            <text x={mark.x} y={mark.y - 10} textAnchor="middle" className="fill-foreground font-heading text-[15px]">
+          <Fragment key={mark.startYear}>
+            <span
+              aria-hidden
+              style={at(mark)}
+              className={cn(
+                "absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-highlight",
+                last ? "size-3 bg-highlight" : "size-2.5 bg-background",
+              )}
+            />
+            {/* On the section's ground: the potential's dashes, just above, never cross a figure. */}
+            <span
+              aria-hidden
+              style={at(mark)}
+              className="absolute -translate-x-1/2 translate-y-[calc(-100%-0.4rem)] rounded-sm bg-background px-0.5 font-heading text-base leading-none"
+            >
               {mark.value}
-            </text>
+            </span>
+            {/* The ends against the edges, the others under their point. */}
             {labelled.includes(index) && (
-              <text x={mark.x} y={height - 6} textAnchor="middle" className="fill-muted-foreground text-[11px] tabular-nums">
+              <span
+                aria-hidden
+                style={index === 0 ? { left: 0 } : last ? { right: 0 } : { left: at(mark).left }}
+                className={cn(
+                  "absolute bottom-0 text-[0.6875rem] leading-none text-muted-foreground tabular-nums",
+                  index > 0 && !last && "-translate-x-1/2",
+                )}
+              >
                 {seasonLabel(mark.startYear)}
-              </text>
+              </span>
             )}
-          </g>
+          </Fragment>
         );
       })}
-    </svg>
+    </div>
   );
 }
 

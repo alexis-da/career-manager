@@ -98,9 +98,9 @@ const NOT_IN_YOUNG_CARD = "max-lg:hidden";
  * Under lg, the rows are cards, each a grid of one line whose cells overlap. On the left, the position and rating cells
  * make the blue tile. In the middle, the name spans three narrow columns and the rest of the width; the age, nationality
  * and form stand in those columns at the foot of the line, and the fitness at the start of the rest, in the room the
- * name's button keeps under its text: a target of 44 px that leaves the card as low as the tile. On the right, the status
- * badges. The other columns are in the sheet. The ring is inset: the table's frame scrolls, and clips what passes a card's
- * edge.
+ * name's button keeps under its text: a target of 44 px that leaves the card as low as the tile. On the right, the summer
+ * passed and the status badges. A second line under the name only for the summer to come (CARD_THIRD_LINE). The other
+ * columns are in the sheet. The ring is inset: the table's frame scrolls, and clips what passes a card's edge.
  */
 const CARD_ROW =
   "max-lg:grid max-lg:h-auto max-lg:grid-cols-[3.25rem_auto_auto_auto_minmax(auto,1fr)_auto] max-lg:items-center max-lg:gap-x-1 max-lg:rounded-lg max-lg:border-0 max-lg:px-3.5 max-lg:py-2.5 max-lg:hover:ring-1 max-lg:hover:ring-(--club)/60 max-lg:hover:ring-inset";
