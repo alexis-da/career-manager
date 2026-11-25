@@ -1,7 +1,9 @@
 # Every Sunday, and by hand (Actions → Weekly → Run workflow): the whole end-to-end suite (Playwright) and the slow
 # tests (Vitest, npm run test:slow), on main, each job with its own throwaway PostgreSQL, as in ci.yml, whose fake
-# values these are. A week without a new commit on main tests nothing new: the scheduled run stops at its gate when
-# main's head has already been through this workflow. A run by hand always tests.
+# values these are. The end-to-end job runs Vitest first, as ci.yml does: the database tests create the demo save that
+# several end-to-end tests read (ensureDemoSave, then e2e/db.ts's demoSaveId), and a fresh database has none. A week
+# without a new commit on main tests nothing new: the scheduled run stops at its gate when main's head has already been
+# through this workflow. A run by hand always tests.
 name: Weekly
 
 on:
@@ -80,6 +82,8 @@ jobs:
       - uses: ./.github/actions/test-database
         with:
           postgres: ${{ job.services.postgres.id }}
+      - name: Unit and database tests (Vitest), which create the demo save the end-to-end tests read
+        run: npm run test
       - uses: ./.github/actions/playwright
       - name: Whole end-to-end suite (Playwright)
         run: npx playwright test

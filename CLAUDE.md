@@ -1130,8 +1130,10 @@ reste dans les fichiers, et sert aux lignes suivantes, de toutes les parties).
 `main` et à chaque pull request (une branche sans pull request n'est pas testée), en un seul job, « Types, lint, Vitest,
 quick E2E » : `next typegen` (sans quoi un dépôt neuf n'a ni `PageProps` ni `LayoutProps`), `tsc`, lint,
 `npm run test`, puis `npm run test:e2e:quick` ; un second job installerait tout et remplirait une seconde base.
-`weekly.yml`, le dimanche à 01:30 UTC et à la demande : toute la suite E2E et `npm run test:slow`, deux jobs. Chaque job
-tourne sur `ubuntu-24.04` (image fixée dans tous les workflows, jamais `ubuntu-latest`, qui change sans prévenir) et a son
+`weekly.yml`, le dimanche à 01:30 UTC et à la demande : toute la suite E2E, après `npm run test` comme la CI (les tests
+en base créent la partie de démo que plusieurs E2E lisent, `ensureDemoSave`, qu'une base neuve n'a pas : sans eux, ces
+E2E échouent), et `npm run test:slow`, deux jobs. Chaque job tourne sur `ubuntu-24.04` (image fixée dans tous les
+workflows, jamais `ubuntu-latest`, qui change sans prévenir) et a son
 PostgreSQL 17 jetable (service du job, sur localhost, sans durabilité : `fsync`, `synchronous_commit` et
 `full_page_writes` à off), migré depuis zéro puis rempli par le seed (actions composites `.github/actions/prepare`,
 `test-database`, `playwright`, Chromium gardé en cache par version de Playwright). Ses valeurs, factices, sont écrites
@@ -1144,9 +1146,10 @@ compte GitHub (Free : 12 $ inclus, environ 2 000 minutes Linux), que la maintena
 les workflows s'arrêtent jusqu'au mois suivant, purge et défi compris. Cible : moins de la moitié. D'où la porte de
 chaque workflow (`gate`) : `main` avancée en avance rapide sur la tête d'une pull request verte (le même commit) ne la
 reteste pas ; une semaine sans nouveau commit sur `main` ne lance rien. Un push plus récent sur une pull request annule
-son passage en cours. Estimation du 09/11 (mesures locales × 1,5 à 2 pour un runner à 2 vCPU) : environ 16 minutes par
-passage de la CI, 1 par porte, 53 par semaine testée ; avec 35 mises en ligne par mois, environ 890 minutes, 45 % du
-quota, maintenance comprise (65). Sur GitHub (`CI`), Playwright relance une fois un test en échec et garde sa capture
+son passage en cours. Estimation du 09/11 (mesures locales × 1,5 à 2 pour un runner à 2 vCPU), le Vitest du weekly
+ajouté le 25/11 (2 min 42 s dans la CI) : environ 16 minutes par passage de la CI, 1 par porte, 56 par semaine testée ;
+avec 35 mises en ligne par mois, environ 900 minutes, 45 % du quota, maintenance comprise (65). Sur GitHub (`CI`),
+Playwright relance une fois un test en échec et garde sa capture
 dans un rapport HTML, artefact de 7 jours. Sauvegardes : instantané hebdomadaire programmé dans la console Neon,
 procédure de restauration dans `docs/restauration.md`, aucune copie des données hors de Neon.
 

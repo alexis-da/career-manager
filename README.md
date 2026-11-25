@@ -120,8 +120,8 @@ n'utiliser que sciemment.
   marché, les pages publiques et le SEO, `/admin`). `main` avancée en avance rapide sur la tête d'une pull request
   verte n'est pas testée une seconde fois.
 - `.github/workflows/weekly.yml`, le dimanche à 01:30 UTC et à la demande (Actions → Weekly → Run workflow) : toute la
-  suite E2E (`npx playwright test`) et la suite lente (`npm run test:slow`). Une semaine sans nouveau commit sur `main`
-  ne teste rien de plus.
+  suite E2E (`npx playwright test`), après Vitest (`npm run test`, qui crée la partie de démo que plusieurs E2E lisent),
+  et la suite lente (`npm run test:slow`). Une semaine sans nouveau commit sur `main` ne teste rien de plus.
 - Chaque job a sa base PostgreSQL 17 jetable (un service du job, sur localhost), migrée depuis zéro puis remplie par le
   seed, sur un runner `ubuntu-24.04`. Les valeurs sont factices et écrites dans le workflow : aucun secret du dépôt
   n'est lu, et l'adresse de Neon n'existe nulle part dans GitHub.
