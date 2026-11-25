@@ -256,9 +256,21 @@ const ENTRY_OF_TAB: Partial<Record<SaveScreen, "team" | "match" | "club">> = {
 };
 
 /**
+ * Waits until every gesture made on the line-up is saved (docs/design/effectif-adjoint.md § 1): nothing on its way,
+ * waiting its turn or lost (`data-busy`), the status line saying so. A gesture shows at once, its save a moment later:
+ * a reload or a match before it would read the line-up of before.
+ */
+export async function expectLineupSaved(page: Page): Promise<void> {
+  const status = page.getByTestId("lineup-status");
+  await expect(status).toHaveAttribute("data-busy", "false");
+  await expect(status).toHaveAttribute("data-save", /^(saved|automatic)$/);
+}
+
+/**
  * Picks the lineup's formation, as a player does: the formation's button, then the formation in the sheet that opens,
  * which closes: among the three recommended, or the current one under them, or else in its family, once « Voir tous les
  * dispositifs » has unfolded the others. The button says the formation by its label, and keeps its name in data-formation.
+ * Then its save, which every gesture makes at once: nothing left on its way.
  */
 export async function pickFormation(page: Page, formation: string): Promise<void> {
   await page.getByTestId("lineup-formation").click();
@@ -279,6 +291,7 @@ export async function pickFormation(page: Page, formation: string): Promise<void
   }
   await expect(picker).toBeHidden();
   await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", formation);
+  await expect(page.getByTestId("lineup-status")).toHaveAttribute("data-busy", "false");
 }
 
 /**

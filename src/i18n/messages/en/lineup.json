@@ -18,16 +18,25 @@
       "points": "{points} pts/match"
     },
     "automatic": "Automatic line-up",
-    "unsaved": "Unsaved changes",
-    "saved": "Line-up saved",
-    "notSaved": "Automatic eleven · not saved yet",
+    "notSaved": "Automatic eleven · saved at your first change",
     "status": {
       "assistant": "Your assistant's eleven · he picks it again before every match",
-      "draft": "Your eleven · unsaved changes",
-      "saved": "Your eleven · saved. Your assistant only replaces an injured or suspended player."
+      "saved": "Your line-up · saved",
+      "saving": "Your line-up · saving…",
+      "incomplete": "{count, plural, one {Empty position} other {# empty positions}}: pick a player to save it",
+      "failed": "Not saved: no connection",
+      "conflict": "Changed in another tab"
     },
     "cancel": "Cancel",
     "handBack": "Hand back to your assistant",
+    "retry": "Try again",
+    "reload": "Show the latest",
+    "tookHand": "It's your line-up now: your assistant won't change it, except to replace an injured or suspended player.",
+    "live": {
+      "title": "Live match",
+      "about": "Your line-up is locked until the final whistle. For this match, make your changes in the live Coaching panel.",
+      "resume": "Resume the match"
+    },
     "assistant": {
       "title": "Your assistant picks the eleven",
       "about": "Before every match, he picks the best players on fitness, injuries and suspensions, in your formation.",
@@ -37,18 +46,13 @@
         "touch": "Tap a player to make your own eleven: your assistant will no longer change it.",
         "click": "Click a player to make your own eleven: your assistant will no longer change it."
       },
-      "formationSaved": "Formation saved: your assistant fields his eleven in the {formation}",
-      "instructionSaved": "Starting instruction saved: {instruction}",
       "refusals": {
         "invalid": "Unknown formation or instruction.",
-        "player": "You pick your own eleven: save it to change its formation or instruction."
+        "player": "Your line-up was changed in another tab: you now pick your own eleven."
       }
     },
-    "saving": "Saving…",
-    "save": "Save",
-    "incompleteRefused": "Incomplete eleven: {count, plural, one {# position is empty} other {# positions are empty}}. Put a player in every position or use “{complete}”.",
     "saveFailed": "Saving failed. Try again.",
-    "incomplete": "Incomplete eleven: {count, plural, one {# empty position} other {# empty positions}} to fill before saving.",
+    "incomplete": "Incomplete eleven: {count, plural, one {# empty position} other {# empty positions}}.",
     "injuredStarter": "{count, plural, one {An injured starter} other {# injured starters}} will be replaced automatically at kick-off.",
     "suspendedStarter": "{count, plural, one {A suspended starter} other {# suspended starters}} will be replaced automatically at kick-off.",
     "complete": "Fill automatically",

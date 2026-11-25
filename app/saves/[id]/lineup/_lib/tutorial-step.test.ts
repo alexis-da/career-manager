@@ -1,20 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { testTranslator } from "@/src/i18n/test-intl";
-import { FORMATION_TARGET, lineupBubbleOf, SAVE_TARGET } from "./tutorial-step";
+import { FORMATION_TARGET, lineupBubbleOf } from "./tutorial-step";
 
 describe("the tutorial's step of the line-up", () => {
   it("rings the formation while the assistant makes the eleven, its sheet opened its move, nothing to save after it", () => {
-    expect(lineupBubbleOf(true, true, -1)).toEqual({ text: "lineupAssistant", target: FORMATION_TARGET, doneOn: FORMATION_TARGET, followUp: false });
+    expect(lineupBubbleOf(true, true, -1)).toEqual({ text: "lineupAssistant", target: FORMATION_TARGET, doneOn: FORMATION_TARGET });
     // His way, the weak spot is not the step's: the formation all the same.
     expect(lineupBubbleOf(true, true, 4)?.target).toBe('[data-testid="lineup-formation"]');
   });
 
-  it("rings the weak spot's slot while the player makes it, then « Enregistrer », as before the assistant", () => {
+  it("rings the weak spot's slot while the player makes it, a slot touched its move: every gesture is saved at once", () => {
     expect(lineupBubbleOf(true, false, 4)).toEqual({
       text: "lineup",
       target: '[data-testid="pitch-slot"][data-slot-index="4"]',
-      doneOn: `[data-testid="pitch-slot"], ${SAVE_TARGET}`,
-      followUp: true,
+      doneOn: '[data-testid="pitch-slot"]',
     });
     expect(lineupBubbleOf(true, false, -1)).toBeNull();
   });

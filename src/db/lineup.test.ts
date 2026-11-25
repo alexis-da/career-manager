@@ -179,9 +179,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("who makes the managed c
     const before = { starters: [{ slot: 0, playerKey: "gone" }], benchOrder: ["gone-too"] };
     await database().clubSave.updateMany({ where: { saveId, isManaged: true }, data: { lineup: before } });
 
-    expect(await saveLineupPlan(saveId, { formation: "3-5-2", instruction: "DEFEND" })).toEqual({ formation: true, instruction: true });
-    expect(await saveLineupPlan(saveId, { formation: "3-5-2", instruction: "ATTACK" })).toEqual({ formation: false, instruction: true });
-    expect(await saveLineupPlan(saveId, { formation: "4-4-2", instruction: "ATTACK" })).toEqual({ formation: true, instruction: false });
+    // Each gives back what is now saved, what the editor expects with its next save.
+    expect(await saveLineupPlan(saveId, { formation: "3-5-2", instruction: "DEFEND" })).toEqual({ ...before, instruction: "DEFEND" });
+    expect(await saveLineupPlan(saveId, { formation: "3-5-2", instruction: "ATTACK" })).toEqual({ ...before, instruction: "ATTACK" });
+    expect(await saveLineupPlan(saveId, { formation: "4-4-2", instruction: "ATTACK" })).toEqual({ ...before, instruction: "ATTACK" });
     expect(await clubRow()).toEqual({ formation: "4-4-2", lineup: { ...before, instruction: "ATTACK" } });
     expect(await settingOf()).toBe(true);
     const editor = await getLineupEditor(saveId);
@@ -189,7 +190,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("who makes the managed c
   });
 
   it("takes the line-up from the assistant once the player saves his, which plays then, and refuses him a plan", async () => {
-    const { getLineupEditor, getManagedLineup, LineupPlanError, saveLineupPlan, saveManagedLineup } = await import("./lineup");
+    const { getLineupEditor, getManagedLineup, LineupPlanError, parseSavedLineup, saveLineupPlan, saveManagedLineup } = await import("./lineup");
     const { players } = await getLineupEditor(saveId);
     const picked = selectLineup(players, formationPositions("3-5-2"));
     const saved: SavedLineup = {
@@ -197,7 +198,9 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("who makes the managed c
       benchOrder: picked.bench.map(({ id }) => id),
       instruction: "DEFEND",
     };
-    await saveManagedLineup(saveId, { formation: "3-5-2", lineup: saved });
+    // What the editor read: the assistant's way, the plan of the test before.
+    const expected = { formation: "4-4-2" as const, lineup: parseSavedLineup((await clubRow()).lineup), byAssistant: true };
+    expect(await saveManagedLineup(saveId, { formation: "3-5-2", lineup: saved, expected })).toBe("saved");
 
     expect(await settingOf()).toBe(false);
     const managed = await getManagedLineup(saveId);
@@ -207,6 +210,52 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("who makes the managed c
     expect(managed.keptOffSales).toEqual(saved.starters.map(({ playerKey }) => playerKey));
     await expect(saveLineupPlan(saveId, { formation: "4-3-3", instruction: "BALANCED" })).rejects.toBeInstanceOf(LineupPlanError);
     expect(await clubRow()).toMatchObject({ formation: "3-5-2", lineup: saved });
+  });
+
+  it("saves each gesture of the editor once, against what it read: a resend, another tab, a player gone, a match live", async () => {
+    const { LineupLiveError, LineupPlayerNotInSquadError, liveMatchesOf, parseSavedLineup, saveLineupPlan, saveManagedLineup } = await import(
+      "./lineup"
+    );
+    const db = database();
+    const saved = parseSavedLineup((await clubRow()).lineup);
+    if (saved === null) {
+      throw new Error("The test before saves the player's line-up");
+    }
+    const expected = { formation: "3-5-2" as const, lineup: saved, byAssistant: false };
+    // A gesture: the starting instruction changed, the bench reordered.
+    const gesture: SavedLineup = { ...saved, benchOrder: [...saved.benchOrder].reverse(), instruction: "ATTACK" };
+
+    expect(await saveManagedLineup(saveId, { formation: "3-5-2", lineup: gesture, expected })).toBe("saved");
+    expect(await clubRow()).toEqual({ formation: "3-5-2", lineup: gesture });
+    // Sent again, the answer lost on the way: already what is saved, nothing written.
+    expect(await saveManagedLineup(saveId, { formation: "3-5-2", lineup: gesture, expected })).toBe("unchanged");
+    // From a tab that still believes the line-up of before: refused, nothing overwritten unseen.
+    const other: SavedLineup = { ...gesture, instruction: "DEFEND" };
+    expect(await saveManagedLineup(saveId, { formation: "3-5-2", lineup: other, expected })).toBe("conflict");
+    expect(await clubRow()).toEqual({ formation: "3-5-2", lineup: gesture });
+    // Another tab gave the line-up back to the assistant: the next gesture of this one is refused the same.
+    await db.save.update({ where: { id: saveId }, data: { lineupByAssistant: true } });
+    const current = { formation: "3-5-2" as const, lineup: gesture, byAssistant: false };
+    expect(await saveManagedLineup(saveId, { formation: "3-5-2", lineup: other, expected: current })).toBe("conflict");
+    await db.save.update({ where: { id: saveId }, data: { lineupByAssistant: false } });
+    // A player sold or released in another tab: refused, nothing written.
+    const gone: SavedLineup = { ...gesture, benchOrder: [...gesture.benchOrder, "nobody#1"] };
+    await expect(saveManagedLineup(saveId, { formation: "3-5-2", lineup: gone, expected: current })).rejects.toBeInstanceOf(
+      LineupPlayerNotInSquadError,
+    );
+
+    // A match waiting live: its line-up is the match's until the final whistle, neither saved nor planned.
+    const fixture = await db.fixture.findFirstOrThrow({ where: { saveId }, select: { id: true } });
+    await db.save.update({ where: { id: saveId }, data: { liveFixtureId: fixture.id } });
+    try {
+      expect(await liveMatchesOf(saveId)).toEqual({ fixtureId: fixture.id, internationalId: null });
+      await expect(saveManagedLineup(saveId, { formation: "3-5-2", lineup: other, expected: current })).rejects.toBeInstanceOf(LineupLiveError);
+      await expect(saveLineupPlan(saveId, { formation: "4-3-3", instruction: "BALANCED" })).rejects.toBeInstanceOf(LineupLiveError);
+    } finally {
+      await db.save.update({ where: { id: saveId }, data: { liveFixtureId: null } });
+    }
+    expect(await liveMatchesOf(saveId)).toEqual({ fixtureId: null, internationalId: null });
+    expect(await clubRow()).toEqual({ formation: "3-5-2", lineup: gesture });
   });
 
   it("leaves a career from before the setting its saved line-up's way: the player's with starters, the assistant's without", async () => {
@@ -219,7 +268,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("who makes the managed c
     expect(managed.byAssistant).toBe(true);
     expect(managed.lineup.instruction).toBe("DEFEND");
     // A plan saved then keeps it so, the setting untouched.
-    expect(await saveLineupPlan(saveId, { formation: "4-3-3", instruction: "BALANCED" })).toEqual({ formation: true, instruction: true });
+    expect(await saveLineupPlan(saveId, { formation: "4-3-3", instruction: "BALANCED" })).toEqual({
+      starters: [],
+      benchOrder: [],
+      instruction: "BALANCED",
+    });
     expect(await settingOf()).toBeNull();
     expect((await getManagedLineup(saveId)).byAssistant).toBe(true);
   });

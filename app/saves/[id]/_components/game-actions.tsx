@@ -29,8 +29,14 @@ const SIMULATION_TARGETS: Exclude<SimulationTarget, { kind: "date" }>[] = [
   { kind: "season-end" },
 ];
 
-/** One full orange action a screen: these entries have their own, « Recruter », « Enregistrer », « Jouer le défi », « Partager ». */
+/** One full orange action a screen: these entries have their own, « Recruter », « Prolonger », « Jouer le défi », « Partager ». */
 const OWN_ORANGE_ACTION: ReadonlySet<Section["key"]> = new Set(["team", "transfers", "club"]);
+
+/**
+ * The line-up screens, the club's and the national coach's, have no orange of their own since every gesture is saved
+ * at once (docs/design/effectif-adjoint.md § 1.9): the game's action takes it back there, compose then play.
+ */
+const LINEUP_PATHS: ReadonlySet<string> = new Set(["/lineup", "/nation/lineup"]);
 
 /** A secondary action on the blue of the sidebar's card: outlined there. */
 const ON_BLUE = "lg:dark:border-on-blue/60 lg:dark:bg-transparent lg:dark:hover:bg-on-blue/10";
@@ -168,7 +174,8 @@ export function GameActions({
       }
     });
 
-  const variant = OWN_ORANGE_ACTION.has(sectionAt(pathname.slice(`/saves/${saveId}`.length)).key) ? "outline" : "club";
+  const screen = pathname.slice(`/saves/${saveId}`.length);
+  const variant = OWN_ORANGE_ACTION.has(sectionAt(screen).key) && !LINEUP_PATHS.has(screen) ? "outline" : "club";
   const className = hero
     ? HERO_MAIN
     : cn(

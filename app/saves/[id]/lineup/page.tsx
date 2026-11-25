@@ -2,7 +2,7 @@ import { DumbbellIcon } from "lucide-react";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
-import { getLineupEditor } from "@/src/db/lineup";
+import { getLineupEditor, liveMatchesOf } from "@/src/db/lineup";
 import { getOpponentPreview } from "@/src/db/opponent";
 import { getShopShortcuts } from "@/src/db/shop";
 import { getSquadView } from "@/src/db/squad";
@@ -20,7 +20,7 @@ import { TutorialBubble } from "../_components/tutorial/tutorial-bubble";
 import { showsFirstActions, showsTip } from "../_lib/first-steps";
 import { getSaveTutorial } from "../_lib/tutorial";
 import { LineupScreen } from "./_components/lineup-editor";
-import { lineupBubbleOf, SAVE_TARGET } from "./_lib/tutorial-step";
+import { lineupBubbleOf } from "./_lib/tutorial-step";
 
 export const dynamic = "force-dynamic";
 
@@ -38,13 +38,14 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
     getTranslations("tutorial"),
     getLocale(),
   ]);
-  const [editor, squad, opponent, firstSteps, shortcuts, tutorial] = await Promise.all([
+  const [editor, squad, opponent, firstSteps, shortcuts, tutorial, live] = await Promise.all([
     getLineupEditor(id),
     getSquadView(id),
     getOpponentPreview(id),
     getFirstSteps(id),
     getShopShortcuts(id),
     getSaveTutorial(id),
+    liveMatchesOf(id),
   ]);
   // The tutorial's step of the line-up, at its opening (scenario 2). Not simulation code: its day is real time. While the
   // assistant makes the line-up (docs/design/simplification.md § 8), on the formation, the player's own choice; else on
@@ -97,7 +98,6 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
           place={null}
           target={bubble.target}
           doneOn={bubble.doneOn}
-          followUp={bubble.followUp ? { text: tTutorial("steps.lineupPick", { save: t("save") }), target: SAVE_TARGET } : undefined}
         />
       ) : (
         !tipsReplaced(tutorial, new Date()) && showsTip("secondary", firstSteps) && <FirstStepTip saveId={id} tip="secondary" />
@@ -113,6 +113,8 @@ export default async function LineupPage({ params }: PageProps<"/saves/[id]/line
             : { name: opponent.clubName, formation: opponent.formation, strength: opponent.strength, atHome: opponent.atHome }
         }
         care={shortcuts.care}
+        // A match of the club waiting live: the screen read only until its final whistle (effectif-adjoint.md § 1.7).
+        liveHref={live.fixtureId === null ? null : `/saves/${id}/live`}
       />
     </div>
   );

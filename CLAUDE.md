@@ -248,7 +248,8 @@ d'ajout `…_simplification` : vrai à la création ; null pour une carrière d'
 avant chaque match le onze reposé des clubs IA dans le dispositif de son joueur, avec sa consigne de départ
 (`managedLineup`, `src/engine/lineup.ts`) ; l'objectif Jeunesse choisi, le meilleur 21 ans ou moins titularisé en
 championnat s'il vaut au plus 4 points de moins que le titulaire (`YOUTH_STARTER_MAX_GAP`), jusqu'à 15 titularisations.
-Enregistrer une composition passe en mode joueur ; « Rendre la main à l'adjoint » ramène l'adjoint. **Contrats**
+Le premier geste sur un joueur passe en mode joueur, enregistré aussitôt (règle « Composition enregistrée seule ») ;
+« Rendre la main à l'adjoint » ramène l'adjoint. **Contrats**
 (`Save.contractsByAssistant`, vrai par défaut, carrières d'avant comprises) : au passage de saison (présaison,
 `runPreseasonInTransaction`, avant les jeunes et les clubs IA), un contrat du club dirigé qui finit le 30 juin suit le choix
 de son joueur (`PlayerSave.contractChoice`, RENEW ou LEAVE, posé sur la fiche par `setContractChoiceAction`, effacé par un
@@ -275,10 +276,40 @@ rien n'est vendu, `offer_changed` et l'offre du moment) ; « Garder » l'écarte
 requête et partagé avec `quoteSquad`. **Réglages** : Club → Réglages, « Ton adjoint s'occupe de »
 (`settings-assistant-lineup`, `settings-assistant-contracts`, sous `lockSave`, refusés pendant un direct) ; une carrière
 d'avant a une fois l'annonce de l'Accueil (`assistant-notice`, `Save.assistantNoticeAt`, posé à la création d'une carrière
-neuve). Missions : « Enregistre ta composition » (`SAVE_LINEUP`) reste au poids 0, en tête de son tirage, pour une mission
-déjà tirée ; « Fais jouer un joueur de 21 ans ou moins » (`START_YOUTH`) compte une entrée en jeu (`MatchFacts.players`).
+neuve). Missions : « Enregistre ta composition » (`SAVE_LINEUP`) reste au poids 0, en tête de son tirage, et n'est plus
+comptée depuis la composition enregistrée seule ; « Fais jouer un joueur de 21 ans ou moins » (`START_YOUTH`) compte une entrée en jeu (`MatchFacts.players`).
 Mesures (24/11, cahier § 15) : `npm run measure:assistant` et les sections k, l et m de `npm run measure:seasons`
 (effectifs, joueurs libres, primes).
+
+**Composition enregistrée seule (chantier « effectif et adjoint », § 1, 25/11).** Cahier `docs/design/effectif-adjoint.md`,
+validé le 25/11. Aucun bouton « Enregistrer » : chaque geste complet de l'éditeur (placer, échanger, envoyer au banc puis
+remplir, ordonner le banc, dispositif, consigne de départ) est enregistré aussitôt, sans délai d'attente : Next exécute les
+Server Actions d'un client l'une après l'autre, et « Jouer le match » touché après un geste joue le onze affiché. La file
+est pure (`app/saves/[id]/lineup/_lib/save-queue.ts`, testée) : un enregistrement en route à la fois, le dernier état en
+attente à la place des précédents, un onze incomplet jamais envoyé (« Poste vide : choisis un joueur pour l'enregistrer »),
+un échec réseau réessayé à 2, 5 puis 15 s (`RETRY_DELAYS_MS`) avant « Pas enregistrée : pas de réseau · Réessayer »
+(`lineup-retry`), « … · enregistrement… » après 400 ms sans réponse seulement, et le navigateur qui demande avant de quitter
+la page tant qu'un geste n'est pas enregistré (`beforeunload`). En mode adjoint, dispositif et consigne lui restent
+(`saveLineupPlanAction`, point 1.A) ; le premier geste sur un joueur prend la main (`saveLineupAction`), qu'un encart dit
+une fois (`lineup-took-hand`, avec « Rendre la main à l'adjoint ») ; « Annuler » (`lineup-cancel`) revient geste par geste
+sur ceux de la visite, celui qui a pris la main la rendant. Chaque enregistrement porte ce que l'onglet croit enregistré
+(`expected` : dispositif, composition, mode ; `sameAsExpected`, `sameSavedLineup`, `src/db/lineup.ts`), comparé dans la
+transaction, la partie verrouillée (`LINEUP_TRANSACTION` : 15 s pour une connexion, 60 s en tout, derrière une date qui se
+joue) : `saved`, `unchanged` (un renvoi) ou `conflict` (« Changée dans un autre onglet · Voir la dernière »,
+`lineup-reload` : l'éditeur repart de la page relue, rien d'écrasé), sans migration ; un joueur parti ailleurs
+(`not-in-squad`) recharge la composition. Ni toast ni `revalidatePath` : la ligne d'état le dit (`lineup-status`,
+`data-save` : `saved`, `saving`, `incomplete`, `failed`, `conflict`, `automatic` ; `data-busy` ; `role="alert"` pour
+un échec ou un conflit), et l'écran fait relire la partie en partant (`router.refresh()` de `LineupScreen`, après un
+enregistrement seulement). La mission « Enregistre ta composition » n'est plus comptée. Pendant un direct en attente
+(`liveMatchesOf` : `Save.liveFixtureId`, `liveInternationalId`), la Composition est en lecture seule (`lineup-live`,
+« Match en direct », le reste `inert` ; « Reprendre le match », `lineup-live-resume`, en orange sous 1024 px, la colonne
+au-dessus) et le serveur refuse (`LineupLiveError`, raison « live »). L'éditeur du sélectionneur suit les mêmes règles
+(`saveCoachLineup` avec `expected`, point 1.F). Sans « Enregistrer », l'orange de la Composition est l'action de jeu de la
+colonne (`LINEUP_PATHS`, `game-actions.tsx`) : composer, puis jouer. Tests : `save-queue.test.ts`,
+`lineup-editor.test.tsx`, `lineup.test.ts` (renvoi, conflit, joueur parti, direct), `e2e/lineup-autosave.spec.ts` (deux
+onglets, réseau coupé, départ juste après un geste, lecture seule d'un direct à 1280, 390 et 360 px) ; un E2E attend la fin
+des enregistrements (`expectLineupSaved`, `e2e/helpers.ts`), et une partie partagée rend la main à l'adjoint
+(`resetLineup`, `e2e/db.ts`).
 
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
@@ -688,7 +719,7 @@ joueur, sur une mission pas commencée (`changeMission`, `changedMissionKind`, f
 la veille). **Aucune simulation de plus** : la progression est marquée au moment du pas, **après** la transaction de
 `playNextMatchday` (`MatchdaySummary.managed.facts`, `matchFacts` : victoire, cage inviolée, buts, titulaires) ou
 d'`advanceLiveMatch` (changement, consigne ou décision du joueur à cette pause ; le match à sa fin, `coached` d'après
-`TeamLive.manual`), et de `saveLineupAction` (`lineup`), par `recordMissionMoves(db, saveId, PlayedMoves)`
+`TeamLive.manual`), par `recordMissionMoves(db, saveId, PlayedMoves)`
 (`src/db/missions.ts`) : une requête lit le jour, à l'horloge de la base, et les trois missions ; rien n'est écrit quand le
 pas n'en avance aucune ; un échec est journalisé, jamais lancé. **Jetons** (`User.tokens`, CHECK ≥ 0, et le journal
 `TokenEntry`, une ligne par gain ou dépense, clé unique `(userId, key)` : `mission:{jour}:{palier}`, `all-three:{jour}`,
@@ -888,8 +919,8 @@ venir, `hero-break`), `europe` et `cup` (le prochain match du club), `fitness` (
 `lineup` (poussée par « Préparer » au jour 3) ; chaque bulle par `dashboardBubbleOf`, sous le héros ou au-dessus des objectifs
 dont elle parle. Étapes d'écran, hors du compte du jour (`SCREEN_STEPS`, `screenStep`) : `squad` à l'ouverture de l'Effectif
 (première ligne cerclée, une fiche ouverte son geste), `lineup` à celle de la Composition (le poste du point faible du onze
-cerclé, `weakSpotIndexOf`, `src/engine/market-proposals.ts` ; un poste touché son geste, puis « Enregistrer » cerclé,
-`followUp`) ; tant que le tutoriel d'un scénario 2 tourne et une fois fini, ses étapes remplacent les bulles `rating`,
+cerclé, `weakSpotIndexOf`, `src/engine/market-proposals.ts` ; un poste touché son geste, enregistré aussitôt comme tout
+geste) ; tant que le tutoriel d'un scénario 2 tourne et une fois fini, ses étapes remplacent les bulles `rating`,
 `secondary`, `money` et `simulation` (`tipsReplaced`) ; passé, fusionné ou expiré, elles reviennent avec tout le reste. Ce que le calme cachait revient avec son étape (`tutorialReveal`, l'étape montrée
 sur l'écran même comprise) : l'argent avec `market` (ou au jour 3 mercato fermé), missions, Récompenses, série et ligne de
 « À demain » avec `missions`, objectifs avec `objectives` ou `judged`, défi dès le jour 2, onglets Sélections, Europe et Coupe
@@ -1044,22 +1075,23 @@ le comparatif des dix-sept dispositifs, du meilleur écart au centième au moins
 autres » (`formation-compare-more` ; sans adversaire, les dix-sept dans l'ordre des noms), le meilleur signalé, « Choisir »
 l'appliquant avec le onze de l'adjoint ; la
 consigne de départ (`StartingInstruction`) : une bascule, ce qu'elle fait au match, le principe en une phrase et la règle
-de l'adjoint ; dans l'état de l'éditeur, enregistrée avec lui. Statut (`lineup-status`, `data-mode`) : « Onze de ton
-adjoint · il le refait avant chaque match » (mode adjoint, son panneau `lineup-assistant` au-dessus, les reposés nommés,
-`lineup-rested` ; dispositif et consigne enregistrés aussitôt, `saveLineupPlanAction`), « Ton onze · modifications non
-enregistrées » au premier geste (« Annuler », `lineup-cancel`), « Ton onze · enregistré » (« Rendre la main à l'adjoint »,
-`lineup-hand-back`) ; en mode joueur sans composition jamais enregistrée, « Onze automatique · pas encore enregistré »
-(le match joue alors `selectLineup`). Un texte qui dit « Clique » à la souris dit « Touche » au doigt
+de l'adjoint ; dans l'état de l'éditeur, enregistrée avec lui. Statut (`lineup-status`, `data-mode`, `data-save`, règle
+« Composition enregistrée seule ») : « Onze de ton adjoint · il le refait avant chaque match » (mode adjoint, son panneau
+`lineup-assistant` au-dessus, les reposés nommés, `lineup-rested` ; dispositif et consigne enregistrés aussitôt,
+`saveLineupPlanAction`), « Ta composition · enregistrée » dès le premier geste sur un joueur (« Annuler », `lineup-cancel` ;
+« Rendre la main à l'adjoint », `lineup-hand-back`) ; en mode joueur sans composition jamais enregistrée, « Onze
+automatique · enregistré à ton premier changement » (le match joue alors `selectLineup`). Un texte qui dit « Clique » à la souris dit « Touche » au doigt
 (`PointerText`, variantes `pointer-fine:` / `pointer-coarse:`, deux clés de message `click` / `touch`). Fiche (`PlayerSheet`, partagée avec le marché avancé, `?player=`) : tête sur le bleu vif, initiales
 (`playerInitials`, le visage reste partout ailleurs), note et poste en grand, saison, barres, contrat sans salaire,
 transferts ; « Prolonger maintenant » pendant un mercato (la durée seule, au salaire `renewalWage`) orange, secondaire dans la
-Composition, dont l'orange est « Enregistrer » (`primary`) ; une vente impossible se lit dans le pied, `sell-player`
+Composition (`primary`), dont l'orange est l'action de jeu de la colonne ; une vente impossible se lit dans le pied, `sell-player`
 désactivé (`player-sale-refusal`). Le sort d'un contrat qui finit cette saison ne se dit que d'un joueur du club dirigé
 (`player-leaving-free`, `PlayerProfile.managed` : un club IA décide des contrats des siens), selon le mode et son choix
 (`contractIntention` : « Ton adjoint le prolongera en fin de saison », « … le laissera partir libre … », « Il sera
 prolongé … », « Sans prolongation, il partira libre … »), et la fiche offre le choix à toute date (`player-contract-choice` :
-« Ton adjoint décide », avec ce qu'il fera, « Le prolonger », « Le laisser partir »). Sur toute l'entrée, l'action de jeu de la colonne est secondaire
-(`OWN_ORANGE_ACTION`). `e2e/team.spec.ts` couvre ces écrans à 1280, 1100, 768, 390 et 360 px.
+« Ton adjoint décide », avec ce qu'il fera, « Le prolonger », « Le laisser partir »). Sur l'Effectif, l'action de jeu de la
+colonne est secondaire (`OWN_ORANGE_ACTION`) ; sur la Composition, la sienne et celle du sélectionneur, elle est l'orange de
+l'écran (`LINEUP_PATHS`, règle « Composition enregistrée seule »). `e2e/team.spec.ts` couvre ces écrans à 1280, 1100, 768, 390 et 360 px.
 
 **Marché.** Deux écrans sous l'entrée Marché. `/transfers` : budget et « Effectif 27/30 » (`[data-summary="squad"]`, en
 ambre à 30), bascule Acheter / Vendre · N offres, ou « Vendre · N proposées » quand l'adjoint en propose (`?tab=sell`). Acheter : quatre entrées (Mes besoins, Pépites, Bonnes affaires, Stars),
@@ -1650,8 +1682,8 @@ teintent pas l'interface : `--club` est l'orange, partout ; le club se montre pa
 `src/lib/club-initials.ts`), jamais par un écusson, et ses couleurs ne restent que sur les maillots des visages et sur la
 carte PNG (`clubAccentsOn`). Une seule action orange pleine
 par écran (`variant="club"`), tenue écran par écran au fil des étapes de la refonte : sur l'Accueil, celle du héros, la
-colonne n'en ayant aucune, sur le direct, celle de ses commandes ou du panneau, sur Équipe, « Enregistrer » ou
-« Prolonger », sous Club, « Voir le défi », la reprise ou « Jouer le défi », « Partager » ou « Enregistrer l'image », hors partie, « Lancer ma carrière ». Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
+colonne n'en ayant aucune, sur le direct, celle de ses commandes ou du panneau, sur Équipe, « Prolonger » ou, sur la
+Composition, l'action de jeu de la colonne, sous Club, « Voir le défi », la reprise ou « Jouer le défi », « Partager » ou « Enregistrer l'image », hors partie, « Lancer ma carrière ». Couleurs de résultat, d'alerte et de poste fixes, quel que soit le club (`--win`, `--draw`,
 `--loss`, `--warning`, `--info`, `--position-*`). Titres et chiffres en Barlow Condensed 800 italique (le fichier de
 `src/assets/fonts`, chargé par `next/font/local`, une seule graisse), en majuscules par la règle `.font-heading` de
 `globals.css` (`normal-case` là où des unités et des ordinaux doivent garder leur casse : « 16e », « €11.4m ») ; texte
@@ -1767,8 +1799,10 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # de sélection en direct jusqu'à son résultat ;
                       # live.spec.ts : le direct et le panneau Coaching ; live-choices.spec.ts : un direct avec une
                       # décision du joueur, un changement et un arrêt demandé ; team.spec.ts : Effectif, Composition et fiche ;
-                      # lineup-candidates.spec.ts : le changement en un toucher sur téléphone ; starting-instruction.spec.ts :
-                      # le panneau du dispositif et la consigne de départ, de la composition au direct ;
+                      # lineup-candidates.spec.ts : le changement en un toucher sur téléphone ; lineup-autosave.spec.ts :
+                      # la composition enregistrée seule (deux onglets, réseau coupé, départ juste après un geste,
+                      # direct) ; starting-instruction.spec.ts : le panneau du dispositif et la consigne de départ, de la
+                      # composition au direct ;
                       # club.spec.ts : Club, son défi, ses réglages, l'histoire de la carrière et le bilan d'une saison ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;

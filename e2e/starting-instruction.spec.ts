@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { FORMATION_NAMES } from "../src/engine/formations";
-import { createSave, deleteSave, expectOrangeActions, openScreen } from "./helpers";
+import { createSave, deleteSave, expectLineupSaved, expectOrangeActions, openScreen } from "./helpers";
 
 // The lineup's formation panel and starting instruction, on a Lyon of the seed « g6-start »: the eleven's strengths
 // beside the next opponent's, the seventeen formations compared, best first, and one picked, then Fermer chosen, each
@@ -92,7 +92,7 @@ test("compares the formations, saves a formation and a starting instruction at o
   const row = await figuresOf(fiveThreeTwo);
   await fiveThreeTwo.getByTestId("formation-apply").click();
   await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "5-3-2");
-  await expect(page.getByText("Dispositif enregistré : ton adjoint aligne son onze en 5-3-2")).toBeVisible();
+  await expectLineupSaved(page);
   await expect(mine).toHaveAttribute("data-attack", String(row.attack));
   await expect(mine).toHaveAttribute("data-defense", String(row.defense));
   await expect(page.getByTestId("formation-profile")).toHaveText(/^Très défensif/);
@@ -103,13 +103,15 @@ test("compares the formations, saves a formation and a starting instruction at o
   await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "5-3-2");
   await expect(instruction(page, "BALANCED").radio).toBeChecked();
 
-  // Fermer chosen: what it does says so; saved at once too, the screen without an orange of its own.
+  // Fermer chosen: what it does says so; saved at once too, no toast, the status line saying it. The screen's orange is
+  // the sidebar's « Prochain match »: compose, then play (docs/design/effectif-adjoint.md § 1.9).
   await instruction(page, "DEFEND").label.click();
   await expect(instruction(page, "DEFEND").radio).toBeChecked();
-  await expect(page.getByText("Consigne de départ enregistrée : Fermer")).toBeVisible();
+  await expectLineupSaved(page);
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
   await expect(page.getByTestId("starting-instruction-about")).toContainText("moins de buts des deux côtés");
   await expect(status).toHaveText(ASSISTANT_STATUS);
-  await expectOrangeActions(page, []);
+  await expectOrangeActions(page, ["next-match"]);
 
   // Found again after a reload, with the formation, the assistant's eleven still.
   await page.reload();

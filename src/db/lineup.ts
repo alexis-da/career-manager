@@ -26,6 +26,7 @@ import { prisma } from "./client";
 import { DISCIPLINE_SELECT, disciplineStatus, type DisciplineStatus } from "./discipline-view";
 import { fitnessAtKickOff } from "./fitness-view";
 import { managedMatchesAhead } from "./players";
+import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -51,9 +52,25 @@ export const LINEUP_ISSUES = ["incomplete", "duplicate-slot", "duplicate-player"
 
 export type LineupIssue = (typeof LINEUP_ISSUES)[number];
 
-/** A lineup sent by the manager: the stored shape, all 11 slots filled, each slot and each player once. */
+/**
+ * What the editor sending a line-up believes is saved (docs/design/effectif-adjoint.md § 1.5): the formation, the
+ * saved line-up as it read it, and for a club who made it then. The save compares it with what is saved, so that a line-up
+ * changed in another tab is never overwritten unseen.
+ */
+export const expectedLineupSchema = z.object({
+  formation: formationSchema,
+  lineup: savedLineupSchema.nullable(),
+  byAssistant: z.boolean().optional(),
+});
+
+export type ExpectedLineup = z.output<typeof expectedLineupSchema>;
+
+/**
+ * A lineup sent by the manager: the stored shape, all 11 slots filled, each slot and each player once; with what the
+ * editor believes saved, the save is refused when it is not (`conflict`).
+ */
 export const lineupInputSchema = z
-  .object({ formation: formationSchema, lineup: savedLineupSchema })
+  .object({ formation: formationSchema, lineup: savedLineupSchema, expected: expectedLineupSchema.optional() })
   .refine(({ lineup }) => lineup.starters.length === SLOT_COUNT, { message: "incomplete" satisfies LineupIssue })
   .refine(({ lineup }) => new Set(lineup.starters.map((starter) => starter.slot)).size === lineup.starters.length, {
     message: "duplicate-slot" satisfies LineupIssue,
@@ -356,6 +373,86 @@ export class LineupPlayerNotInSquadError extends Error {
   }
 }
 
+/**
+ * A line-up save refused while a match of the club waits live (docs/design/effectif-adjoint.md § 1.7): the paused match
+ * keeps its own team, and the line-up screen is read only until its final whistle.
+ */
+export class LineupLiveError extends Error {
+  constructor() {
+    super("A match of the managed club waits live: its line-up is not saved");
+    this.name = "LineupLiveError";
+  }
+}
+
+/**
+ * What a line-up save did (docs/design/effectif-adjoint.md § 1.5): `saved`; `unchanged`, the line-up sent already the
+ * saved one (a save sent again after a lost answer); `conflict`, the saved line-up no longer the one the editor read
+ * (another tab), nothing written.
+ */
+export type LineupSaveOutcome = "saved" | "unchanged" | "conflict";
+
+/**
+ * What a line-up save action answers its editor: the save done (or already done), or why not, worded for the manager. A
+ * `conflict` or a player gone (`not-in-squad`) has the editor start again from what is saved; `live`, a match waiting,
+ * makes the screen read only.
+ */
+export type LineupSaveResult =
+  | { ok: true; outcome: "saved" | "unchanged" }
+  | { ok: false; reason: "invalid" | "conflict" | "not-in-squad" | "live"; message: string };
+
+/**
+ * What a formation or starting instruction saved at once answers, while the assistant makes the line-up: the line-up now
+ * saved, which the editor sends as what it expects with its next save; or why not.
+ */
+export type LineupPlanResult = { ok: true; saved: SavedLineup } | { ok: false; reason: "invalid" | "player" | "live"; message: string };
+
+/**
+ * The matches waiting live, if one does: the club's (Save.liveFixtureId) and the national coach's
+ * (Save.liveInternationalId). The line-up screen of the one waiting is read only until its final whistle.
+ */
+export async function liveMatchesOf(saveId: string): Promise<{ fixtureId: string | null; internationalId: string | null }> {
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { liveFixtureId: true, liveInternationalId: true } });
+  return { fixtureId: save.liveFixtureId, internationalId: save.liveInternationalId };
+}
+
+/**
+ * As long as a matchday's transaction may run (TRANSACTION_TIMEOUT_MS, src/db/matchday.ts, not imported: it imports this
+ * module): a line-up save waits behind a date being played instead of failing.
+ */
+const LINEUP_SAVE_TIMEOUT_MS = 60_000;
+
+/** The options of the line-up's writes, which wait for the save's lock: a connection, then a matchday. */
+export const LINEUP_TRANSACTION = { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: LINEUP_SAVE_TIMEOUT_MS };
+
+/** A saved line-up as it is compared: its starters by slot, its bench in order, Équilibré when it has no instruction. */
+function lineupKey(lineup: SavedLineup | null): string {
+  if (lineup === null) {
+    return "null";
+  }
+  return JSON.stringify({
+    starters: [...lineup.starters].sort((a, b) => a.slot - b.slot).map(({ slot, playerKey }) => [slot, playerKey]),
+    bench: lineup.benchOrder,
+    instruction: lineup.instruction ?? DEFAULT_INSTRUCTION,
+  });
+}
+
+/** Whether two saved line-ups field the same eleven, bench and starting instruction. */
+export function sameSavedLineup(a: SavedLineup | null, b: SavedLineup | null): boolean {
+  return lineupKey(a) === lineupKey(b);
+}
+
+/** What is saved of a line-up, as an editor compares it with what it read (ExpectedLineup). */
+export type CurrentLineup = { formation: FormationName; lineup: SavedLineup | null; byAssistant?: boolean };
+
+/** Whether the editor read what is saved: formation and line-up, and who makes it when the editor tells. */
+export function sameAsExpected(expected: ExpectedLineup, current: CurrentLineup): boolean {
+  return (
+    expected.formation === current.formation &&
+    sameSavedLineup(expected.lineup, current.lineup) &&
+    (expected.byAssistant === undefined || expected.byAssistant === current.byAssistant)
+  );
+}
+
 /** Locks the save's row until the transaction ends, as a matchday does (lockSave): a write and a kick-off never cross. */
 async function lockSaveRow(tx: Prisma.TransactionClient, saveId: string): Promise<void> {
   await tx.$queryRaw`SELECT "id" FROM "Save" WHERE "id" = ${saveId} FOR UPDATE`;
@@ -363,28 +460,44 @@ async function lockSaveRow(tx: Prisma.TransactionClient, saveId: string): Promis
 
 /**
  * Saves the managed club's formation and lineup, every player of its squad, and takes the line-up from the assistant
- * (docs/design/simplification.md § 3.3): from then on, the match plays it.
+ * (docs/design/simplification.md § 3.3): from then on, the match plays it. Each gesture of the editor sends one
+ * (docs/design/effectif-adjoint.md § 1): in one transaction, the save locked, it is refused while a match waits live
+ * (LineupLiveError), says `unchanged` for the line-up already saved, `conflict` when the editor's `expected` is no longer
+ * what is saved, and checks the players against the squad (LineupPlayerNotInSquadError) before writing.
  */
-export async function saveManagedLineup(saveId: string, input: LineupInput): Promise<void> {
-  const club = await managedClub(saveId);
-  const squad = await prisma.playerSave.findMany({
-    where: { saveId, clubSaveId: club.id },
-    select: { playerKey: true },
-  });
-  const keys = new Set(squad.map((player) => player.playerKey));
-  for (const playerKey of [...input.lineup.starters.map((starter) => starter.playerKey), ...input.lineup.benchOrder]) {
-    if (!keys.has(playerKey)) {
-      throw new LineupPlayerNotInSquadError(playerKey);
-    }
-  }
-  await prisma.$transaction(async (tx) => {
+export async function saveManagedLineup(saveId: string, input: LineupInput): Promise<LineupSaveOutcome> {
+  return prisma.$transaction(async (tx) => {
     await lockSaveRow(tx, saveId);
-    await tx.clubSave.updateMany({
-      where: { id: club.id, saveId },
-      data: { formation: input.formation, lineup: input.lineup },
-    });
-    await tx.save.update({ where: { id: saveId }, data: { lineupByAssistant: false }, select: { id: true } });
-  });
+    const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { lineupByAssistant: true, liveFixtureId: true } });
+    if (save.liveFixtureId !== null) {
+      throw new LineupLiveError();
+    }
+    const club = await tx.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true, formation: true, lineup: true } });
+    const current: CurrentLineup = {
+      formation: parseFormation(club.formation),
+      lineup: parseSavedLineup(club.lineup),
+      byAssistant: lineupByAssistantOf(save.lineupByAssistant, club.lineup),
+    };
+    if (!current.byAssistant && current.formation === input.formation && sameSavedLineup(current.lineup, input.lineup)) {
+      return "unchanged";
+    }
+    if (input.expected !== undefined && !sameAsExpected(input.expected, current)) {
+      return "conflict";
+    }
+    const squad = await tx.playerSave.findMany({ where: { saveId, clubSaveId: club.id }, select: { playerKey: true } });
+    const keys = new Set(squad.map((player) => player.playerKey));
+    for (const playerKey of [...input.lineup.starters.map((starter) => starter.playerKey), ...input.lineup.benchOrder]) {
+      if (!keys.has(playerKey)) {
+        throw new LineupPlayerNotInSquadError(playerKey);
+      }
+    }
+    const lineup: SavedLineup = { starters: input.lineup.starters, benchOrder: input.lineup.benchOrder, instruction: input.lineup.instruction };
+    await tx.clubSave.updateMany({ where: { id: club.id, saveId }, data: { formation: input.formation, lineup } });
+    if (save.lineupByAssistant !== false) {
+      await tx.save.update({ where: { id: saveId }, data: { lineupByAssistant: false }, select: { id: true } });
+    }
+    return "saved";
+  }, LINEUP_TRANSACTION);
 }
 
 /** What the assistant's way of the line-up lets the player choose (§ 3.2): his formation and his starting instruction. */
@@ -404,12 +517,16 @@ export class LineupPlanError extends Error {
  * Saves at once the formation and the starting instruction of a club whose assistant makes the line-up
  * (docs/design/simplification.md § 3.2): ClubSave.formation, and the instruction in ClubSave.lineup, whose starters and
  * bench, saved before if they were, are kept as they are, unread. The assistant keeps the line-up. Refused once the
- * player makes it (LineupPlanError). Says what changed.
+ * player makes it (LineupPlanError), and while a match waits live (LineupLiveError). Gives what is now saved, which the
+ * editor sends as what it expects with its next save (docs/design/effectif-adjoint.md § 1.5).
  */
-export async function saveLineupPlan(saveId: string, plan: LineupPlan): Promise<{ formation: boolean; instruction: boolean }> {
+export async function saveLineupPlan(saveId: string, plan: LineupPlan): Promise<SavedLineup> {
   return prisma.$transaction(async (tx) => {
     await lockSaveRow(tx, saveId);
-    const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { lineupByAssistant: true } });
+    const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { lineupByAssistant: true, liveFixtureId: true } });
+    if (save.liveFixtureId !== null) {
+      throw new LineupLiveError();
+    }
     const club = await tx.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true, formation: true, lineup: true } });
     if (!lineupByAssistantOf(save.lineupByAssistant, club.lineup)) {
       throw new LineupPlanError("player");
@@ -417,9 +534,6 @@ export async function saveLineupPlan(saveId: string, plan: LineupPlan): Promise<
     const saved = parseSavedLineup(club.lineup);
     const lineup: SavedLineup = { starters: saved?.starters ?? [], benchOrder: saved?.benchOrder ?? [], instruction: plan.instruction };
     await tx.clubSave.updateMany({ where: { id: club.id, saveId }, data: { formation: plan.formation, lineup } });
-    return {
-      formation: parseFormation(club.formation) !== plan.formation,
-      instruction: (saved?.instruction ?? DEFAULT_INSTRUCTION) !== plan.instruction,
-    };
-  });
+    return lineup;
+  }, LINEUP_TRANSACTION);
 }

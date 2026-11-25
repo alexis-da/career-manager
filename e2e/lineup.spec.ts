@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { FORMATION_NAMES } from "../src/engine/formations";
-import { createSave, deleteSave, openScreen, pickFormation } from "./helpers";
+import { createSave, deleteSave, expectLineupSaved, openScreen, pickFormation } from "./helpers";
 
 const LYON = "Olympique Lyonnais";
 
@@ -18,7 +18,12 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-test("switches to a 4-4-2 for the assistant, brings a substitute on, saves, finds both after a reload, and hands it back", async ({ page }) => {
+/** The status line while the assistant makes the eleven. */
+const ASSISTANT = "Onze de ton adjoint · il le refait avant chaque match";
+
+test("switches to a 4-4-2 for the assistant, brings a substitute on, both saved at once, undoes, finds them after a reload, hands it back", async ({
+  page,
+}) => {
   // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
   const name = `E2E ${Date.now()}`;
   saveName = name;
@@ -52,19 +57,22 @@ test("switches to a 4-4-2 for the assistant, brings a substitute on, saves, find
     await page.keyboard.press("Escape");
     await expect(picker).toBeHidden();
 
-    // The assistant makes a new career's eleven: the formation picked is saved at once, his eleven in it, his still.
+    // The assistant makes a new career's eleven: the formation picked is saved at once, his eleven in it, his still. No
+    // button to save, no toast: the status line says it.
     const status = page.getByTestId("lineup-status");
-    await expect(status).toHaveText("Onze de ton adjoint · il le refait avant chaque match");
+    await expect(status).toHaveText(ASSISTANT);
     await pickFormation(page, "4-4-2");
     await expect(formation).toHaveText("4-4-2 à plat");
-    await expect(page.getByText("Dispositif enregistré : ton adjoint aligne son onze en 4-4-2 à plat")).toBeVisible();
-    await expect(status).toHaveText("Onze de ton adjoint · il le refait avant chaque match");
+    await expectLineupSaved(page);
+    await expect(status).toHaveText(ASSISTANT);
+    await expect(status).toHaveAttribute("data-mode", "assistant");
     await expect(page.getByTestId("lineup-save")).toHaveCount(0);
+    await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
     await page.reload();
     await expect(formation).toHaveAttribute("data-formation", "4-4-2");
-    await expect(status).toHaveText("Onze de ton adjoint · il le refait avant chaque match");
+    await expect(status).toHaveText(ASSISTANT);
 
-    // A substitute brought on: a draft of the player's own eleven.
+    // A substitute brought on: saved at once, the line-up taken from the assistant, which a card says once.
     const slot = page.locator(`[data-slot-index="${STRIKER_SLOT}"]`);
     // By key, not by name: Lyon has three Martins, and two of them can sit on the bench.
     const starterKey = (await slot.getAttribute("data-slot-player-key")) ?? "";
@@ -77,30 +85,37 @@ test("switches to a 4-4-2 for the assistant, brings a substitute on, saves, find
     await expect(slot).toHaveAttribute("data-slot-player-key", substituteKey);
     // The replaced starter is now among the substitutes.
     await expect(page.locator(`[data-bench="true"][data-player-key="${starterKey}"]`)).toHaveCount(1);
-    await expect(status).toHaveText("Ton onze · modifications non enregistrées");
+    await expectLineupSaved(page);
+    await expect(status).toHaveText("Ta composition · enregistrée");
+    await expect(status).toHaveAttribute("data-mode", "player");
+    const tookHand = page.getByTestId("lineup-took-hand");
+    await expect(tookHand).toContainText("C'est ta composition : ton adjoint ne la changera plus, sauf pour un blessé ou un suspendu.");
+    await expect(tookHand.getByTestId("lineup-hand-back")).toBeVisible();
+    await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
 
-    // « Annuler » goes back to the assistant's eleven; the same gesture again, then « Enregistrer »: his own from then on.
+    // « Annuler » goes back one gesture: the one that took the line-up gives it back to the assistant, his eleven again.
     await page.getByTestId("lineup-cancel").click();
+    await expect(page.getByText("Ton adjoint fait la composition.")).toBeVisible();
+    await expect(status).toHaveText(ASSISTANT);
     await expect(slot).toHaveAttribute("data-slot-player-key", starterKey);
-    await expect(status).toHaveText("Onze de ton adjoint · il le refait avant chaque match");
+    await expect(tookHand).toHaveCount(0);
+
+    // The same gesture again, then a reload: his own from then on, the card said once, at the gesture.
     await slot.click();
     await page.locator(`[data-testid="lineup-candidate"][data-player-key="${substituteKey}"]`).first().click();
     await expect(slot).toHaveAttribute("data-slot-player-key", substituteKey);
-
-    await page.getByRole("button", { name: "Enregistrer" }).click();
-    await expect(page.getByText("Composition en 4-4-2 à plat enregistrée.")).toBeVisible();
-    await expect(status).toHaveText("Ton onze · enregistré. Ton adjoint ne remplace qu'un blessé ou un suspendu.");
-    await expect(page.getByTestId("lineup-hand-back")).toBeVisible();
-
+    await expectLineupSaved(page);
     await page.reload();
     await expect(page.getByTestId("lineup-formation")).toHaveAttribute("data-formation", "4-4-2");
     await expect(page.locator(`[data-slot-index="${STRIKER_SLOT}"]`)).toHaveAttribute("data-slot-player-key", substituteKey);
     await expect(page.locator(`[data-player-key="${substituteKey}"]`)).toHaveCount(0);
+    await expect(status).toHaveText("Ta composition · enregistrée");
+    await expect(tookHand).toHaveCount(0);
 
     // Handed back to the assistant: his eleven again, the saved one kept, unread.
     await page.getByTestId("lineup-hand-back").click();
     await expect(page.getByText("Ton adjoint fait la composition.")).toBeVisible();
-    await expect(status).toHaveText("Onze de ton adjoint · il le refait avant chaque match");
+    await expect(status).toHaveText(ASSISTANT);
     await expect(page.locator(`[data-slot-index="${STRIKER_SLOT}"]`)).toHaveAttribute("data-slot-player-key", starterKey);
     await expect(page.getByTestId("lineup-assistant")).toBeVisible();
   } finally {
@@ -110,7 +125,7 @@ test("switches to a 4-4-2 for the assistant, brings a substitute on, saves, find
   }
 });
 
-test("drags a substitute onto a slot and a starter to the bench, refuses an incomplete eleven, then saves", async ({ page }) => {
+test("drags a substitute onto a slot and a starter to the bench, keeps an incomplete eleven unsaved, then saves it complete", async ({ page }) => {
   // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
   const name = `E2E ${Date.now()}`;
   saveName = name;
@@ -131,24 +146,27 @@ test("drags a substitute onto a slot and a starter to the bench, refuses an inco
     await substitute.dragTo(striker);
     await expect(striker).toHaveAttribute("data-slot-player-key", substituteKey);
     await expect(page.locator(`[data-player-key="${strikerKey}"]`)).toHaveAttribute("data-bench", "true");
+    const status = page.getByTestId("lineup-status");
+    await expectLineupSaved(page);
+    await expect(status).toHaveText("Ta composition · enregistrée");
 
-    // A starter dragged onto the bench leaves the eleven: his slot stays empty.
+    // A starter dragged onto the bench leaves the eleven: his slot stays empty, and nothing is sent while it is.
     const centreBackKey = (await centreBack.getAttribute("data-slot-player-key")) ?? "";
     await centreBack.dragTo(bench);
     await expect(centreBack.locator("[data-slot-player]")).toHaveText("Vide");
     await expect(page.locator(`[data-player-key="${centreBackKey}"]`)).toHaveAttribute("data-bench", "true");
+    await expect(status).toHaveText("Poste vide : choisis un joueur pour l'enregistrer");
+    await expect(status).toHaveAttribute("data-save", "incomplete");
+    await expect(status).toHaveAttribute("data-busy", "false");
+    await expect(page.getByTestId("lineup-warning")).toContainText("Onze incomplet : 1 poste vide.");
 
-    await page.getByRole("button", { name: "Enregistrer" }).click();
-    await expect(page.getByText(/^Onze incomplet : 1 poste est vide/)).toBeVisible();
-
-    // A reserve dragged onto the empty slot completes the eleven.
+    // A reserve dragged onto the empty slot completes the eleven: saved then.
     const reserve = page.locator('[data-bench="false"]').first();
     const reserveKey = (await reserve.getAttribute("data-player-key")) ?? "";
     await reserve.dragTo(centreBack);
     await expect(centreBack).toHaveAttribute("data-slot-player-key", reserveKey);
-
-    await page.getByRole("button", { name: "Enregistrer" }).click();
-    await expect(page.getByText("Composition en 4-3-3 sentinelle enregistrée.")).toBeVisible();
+    await expectLineupSaved(page);
+    await expect(status).toHaveText("Ta composition · enregistrée");
 
     await page.reload();
     await expect(page.locator('[data-slot-index="9"]')).toHaveAttribute("data-slot-player-key", substituteKey);

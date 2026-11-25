@@ -31,8 +31,8 @@ function inFixedBar(element: HTMLElement): boolean {
   return false;
 }
 
-/** Where the bubble stands: its step's line, then the follow-up once its move is made, then gone. */
-type Phase = "step" | "follow" | "gone";
+/** Where the bubble stands: its step's line, then gone. */
+type Phase = "step" | "gone";
 
 type TutorialBubbleProps = {
   saveId: string;
@@ -43,7 +43,6 @@ type TutorialBubbleProps = {
   gotIt?: boolean; // « Compris »: for a step without a move of its own on the screen, or once its move is made
   doneOn?: string; // a click on what matches it is the step's move, whatever it opens
   doneOnShow?: boolean; // the step's move is made by arriving on this screen: done as it shows
-  followUp?: { text: ReactNode; target?: string }; // what the assistant says once the move is made, with « Compris »
   live?: boolean; // on the match live, under lg: above its controls rather than the save's navigation
   onClosed?: (how: "pass" | "done" | "skip") => void; // passed, understood or the tutorial skipped: the page's own
   className?: string;
@@ -55,8 +54,8 @@ type TutorialBubbleProps = {
  * puts it, by its target. Its target is ringed, the screen still usable, and scrolled to once if the bubble would cover
  * it; nothing moves with reduced motion. Its line describes its target; the focus is never moved; Escape passes the step
  * when no sheet is open. Shown once a mount: the server counts it. Its move is the player's: « Compris » where the step
- * has none of its own, a click on what `doneOn` names, or the screen reached (`doneOnShow`); a follow-up may then say what
- * comes next. Nothing orange: « Passer l'étape », « Passer le tutoriel » and « Compris ».
+ * has none of its own, a click on what `doneOn` names, or the screen reached (`doneOnShow`). Nothing orange: « Passer
+ * l'étape », « Passer le tutoriel » and « Compris ».
  */
 export function TutorialBubble({
   saveId,
@@ -67,7 +66,6 @@ export function TutorialBubble({
   gotIt = false,
   doneOn,
   doneOnShow = false,
-  followUp,
   live = false,
   onClosed,
   className,
@@ -78,9 +76,8 @@ export function TutorialBubble({
   const shown = useRef(false);
   const bubble = useRef<HTMLElement>(null);
   const lineId = useId();
-  // Its move made (doneOnShow, the follow-up): nothing more to send, « Compris » only hides it.
-  const settled = doneOnShow || phase === "follow";
-  const ringed = phase === "follow" ? followUp?.target : target;
+  // Its move made as it shows (doneOnShow): nothing more to send, « Compris » only hides it.
+  const settled = doneOnShow;
 
   // Shown once a mount: twice without its move, it comes no more. Reached, the screen is the move.
   useEffect(() => {
@@ -114,10 +111,10 @@ export function TutorialBubble({
 
   // The target ringed and described by the line; scrolled to the screen's upper third, once, if the bubble would hide it.
   useEffect(() => {
-    if (phase === "gone" || ringed === undefined) {
+    if (phase === "gone" || target === undefined) {
       return;
     }
-    const element = document.querySelector<HTMLElement>(ringed);
+    const element = document.querySelector<HTMLElement>(target);
     if (element === null) {
       return;
     }
@@ -141,7 +138,7 @@ export function TutorialBubble({
         element.setAttribute("aria-describedby", described);
       }
     };
-  }, [phase, ringed, lineId]);
+  }, [phase, target, lineId]);
 
   const close = (event: "pass" | "done") => {
     setPhase("gone");
@@ -169,7 +166,7 @@ export function TutorialBubble({
     return () => window.removeEventListener("keydown", onKey);
   }, [phase]);
 
-  // A click on what the step speaks of is its move: done, then its follow-up if it has one.
+  // A click on what the step speaks of is its move: done, and the bubble goes.
   useEffect(() => {
     if (phase !== "step" || doneOn === undefined || doneOnShow) {
       return;
@@ -177,17 +174,13 @@ export function TutorialBubble({
     const onClick = (event: MouseEvent) => {
       if (event.target instanceof Element && event.target.closest(doneOn) !== null) {
         send([{ step, event: "done" }]);
-        // A move made on what the follow-up would point at (« Enregistrer » at once) leaves nothing to follow.
-        const followed = followUp !== undefined && (followUp.target === undefined || event.target.closest(followUp.target) === null);
-        setPhase(followed ? "follow" : "gone");
-        if (!followed) {
-          onClosed?.("done");
-        }
+        setPhase("gone");
+        onClosed?.("done");
       }
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [phase, doneOn, doneOnShow, followUp, send, step, onClosed]);
+  }, [phase, doneOn, doneOnShow, send, step, onClosed]);
 
   if (phase === "gone") {
     return null;
@@ -226,7 +219,7 @@ export function TutorialBubble({
         )}
       </p>
       <p id={lineId} data-testid="tutorial-text" className="mt-1.5 text-[0.9375rem] leading-snug">
-        {phase === "follow" && followUp !== undefined ? followUp.text : text}
+        {text}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-x-4">
         {(gotIt || settled) && (

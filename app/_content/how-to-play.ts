@@ -107,7 +107,7 @@ export const GUIDE: GuideSection[] = [
       title: "La composition",
       blocks: [
         "Sous **Équipe**, **Composition** montre ton onze. Ton adjoint l'aligne avant chaque match, dans ton dispositif : les meilleurs selon la condition, les blessures et les suspensions. Ouvre ton dispositif, **4-3-3 sentinelle** au départ : les trois conseillés pour ton effectif d'abord, les quatorze autres derrière **Voir tous les dispositifs**.",
-        "Choisis un poste pour voir ses candidats, classés par note à ce poste et étiquetés **À son poste**, **Poste secondaire**, **Dépanne** ou **Hors poste**. Place un joueur et le onze devient le tien : **Enregistrer** le garde, ton adjoint ne remplaçant plus qu'un blessé ou un suspendu ; **Rendre la main à l'adjoint** le lui rend.",
+        "Choisis un poste pour voir ses candidats, classés par note à ce poste et étiquetés **À son poste**, **Poste secondaire**, **Dépanne** ou **Hors poste**. Place un joueur et le onze devient le tien, enregistré à chaque geste, sans bouton : ton adjoint ne remplace plus qu'un blessé ou un suspendu. **Annuler** revient au geste d'avant ; **Rendre la main à l'adjoint** le lui rend. Pendant un match en direct, ta composition est figée : tes changements se font dans le **Coaching**.",
         "Choisis aussi ta **Consigne de départ** : **Attaquer**, **Équilibré** ou **Fermer**.",
         "La **Condition** baisse sur le terrain et remonte de 5 points par jour ; sous 70, gare aux blessures. Un rouge suspend pour le match suivant, un 5e jaune pour le prochain de la compétition.",
       ],
@@ -116,7 +116,7 @@ export const GUIDE: GuideSection[] = [
       title: "Your line-up",
       blocks: [
         "Under **Squad**, **Line-up** shows your eleven. Your assistant fields it before every match, in your formation: the best players given fitness, injuries and suspensions. Open your formation, **4-3-3 holding** to begin with: the three recommended for your squad first, the other fourteen behind **See all formations**.",
-        "Select a position to see its candidates, ranked by their rating there and labelled **Natural position**, **Secondary position**, **Filling in** or **Out of position**. Place a player and the eleven becomes yours: **Save** keeps it, your assistant then only replacing an injured or suspended player; **Hand back to your assistant** gives it back to him.",
+        "Select a position to see its candidates, ranked by their rating there and labelled **Natural position**, **Secondary position**, **Filling in** or **Out of position**. Place a player and the eleven becomes yours, saved with every move, no button needed: your assistant then only replaces an injured or suspended player. **Cancel** undoes your last move; **Hand back to your assistant** gives it back to him. During a live match your line-up is locked: make your changes in **Coaching**.",
         "Pick your **Starting instruction** too: **Attack**, **Balanced** or **Sit back**.",
         "**Fitness** drops on the pitch and comes back by 5 points a day; below 70, injuries become likelier. A red card means a ban for the next match, a 5th yellow a ban for the competition's next match.",
       ],

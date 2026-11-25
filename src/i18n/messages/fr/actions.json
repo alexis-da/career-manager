@@ -25,8 +25,9 @@
         "duplicate-slot": "Un poste est attribué deux fois.",
         "duplicate-player": "Un joueur figure deux fois dans la composition."
       },
-      "notInSquad": "Un joueur de la composition ne fait plus partie de l'effectif. Recharge la page.",
-      "saved": "Composition en {formation} enregistrée."
+      "notInSquad": "Un joueur n'est plus à ton club : ta composition a été rechargée.",
+      "conflict": "Ta composition a changé dans un autre onglet.",
+      "live": "Un match en direct attend sa reprise : ta composition reste celle de ce match jusqu'au coup de sifflet final."
     },
     "contracts": {
       "invalid": "Proposition invalide : la durée va de 1 à 5 saisons.",

@@ -312,6 +312,18 @@ export async function shiftTutorialDays(saveId: string, days: number): Promise<v
 }
 
 /**
+ * Gives a save's line-up back to its assistant, as a new career has it (docs/design/simplification.md § 3): his eleven
+ * in the 4-3-3, nothing of the player's saved. Every gesture on the line-up is saved at once
+ * (docs/design/effectif-adjoint.md § 1): tests sharing a save start from the same line-up with this.
+ */
+export async function resetLineup(saveId: string): Promise<void> {
+  await withTestDatabase(async (client) => {
+    await client.query(`UPDATE "Save" SET "lineupByAssistant" = true WHERE "id" = $1`, [saveId]);
+    await client.query(`UPDATE "ClubSave" SET "formation" = '4-3-3', "lineup" = NULL WHERE "saveId" = $1 AND "isManaged"`, [saveId]);
+  });
+}
+
+/**
  * Moves a save to another day without playing the days in between, for a screen that reads no more than the date: the
  * market once its window has closed. Their fixtures stay unplayed: a test that does this plays nothing afterwards.
  */

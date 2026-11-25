@@ -1,18 +1,18 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createSave, deleteSave, expectNoSidewaysScroll, expectThumbTarget, openScreen } from "./helpers";
+import { createSave, deleteSave, expectLineupSaved, expectNoSidewaysScroll, expectThumbTarget, openScreen } from "./helpers";
 
 // A change made on a phone, 390 × 844: a slot touched opens its candidates over the page, best rated at the slot first,
-// each with how he fits it; one touch places a player from outside the eleven, another exchanges two starters, and the
-// line-up keeps both once saved, the player's own from then on (docs/design/simplification.md § 3.3).
+// each with how he fits it; one touch places a player from outside the eleven, another exchanges two starters, each
+// saved at once, the line-up the player's own from the first (docs/design/simplification.md § 3.3,
+// docs/design/effectif-adjoint.md § 1).
 
 const LYON = "Olympique Lyonnais";
 const PHONE = { width: 390, height: 844 };
 
-/** The line-up's status: the assistant's eleven, the player's draft, then his own saved one. */
+/** The line-up's status: the assistant's eleven, then the player's own, saved at each gesture. */
 const STATUS = {
   assistant: "Onze de ton adjoint · il le refait avant chaque match",
-  draft: "Ton onze · modifications non enregistrées",
-  saved: "Ton onze · enregistré. Ton adjoint ne remplace qu'un blessé ou un suspendu.",
+  saved: "Ta composition · enregistrée",
 };
 
 /** Slots of the 4-3-3: GK, RB, CB, CB, LB, CDM, CM, CM, RW, ST, LW. */
@@ -125,10 +125,13 @@ test("lists a slot's candidates over the page, places a reserve and exchanges tw
     await expect(striker).toHaveAttribute("aria-pressed", "false");
     await expect(sheet).toHaveCount(0);
     await expect(page.locator(`[data-bench-player-key="${outgoing}"]`)).toHaveCount(1);
-    // A gesture on a player: a draft of his own, « Enregistrer » and « Annuler » under it, thumbs' targets.
-    await expect(page.getByTestId("lineup-status")).toHaveText(STATUS.draft);
-    await expectThumbTarget(page.getByTestId("lineup-save"));
+    // A gesture on a player: saved at once, the line-up his own from then on. « Annuler » under the status, and the card
+    // that says it once with the way back to the assistant, thumbs' targets; nothing to save.
+    await expectLineupSaved(page);
+    await expect(page.getByTestId("lineup-status")).toHaveText(STATUS.saved);
+    await expect(page.getByTestId("lineup-save")).toHaveCount(0);
     await expectThumbTarget(page.getByTestId("lineup-cancel"));
+    await expectThumbTarget(page.getByTestId("lineup-took-hand").getByTestId("lineup-hand-back"));
     await expectNoSidewaysScroll(page, "a reserve placed");
 
     // The left wing's slot: the newcomer is among its candidates as the starter he now is, and one touch on him exchanges
@@ -158,9 +161,9 @@ test("lists a slot's candidates over the page, places a reserve and exchanges tw
     await expect(sheet).toHaveCount(0);
     await expect(wing).toHaveAttribute("aria-pressed", "false");
 
-    // Saved, his own from then on, and found again after a reload, the assistant's card gone, the way back to him there.
+    // Both saved, his own, and found again after a reload, the assistant's card gone, the way back to him there.
     const changed = await elevenOf(page);
-    await page.getByTestId("lineup-save").tap();
+    await expectLineupSaved(page);
     await expect(page.getByTestId("lineup-status")).toHaveText(STATUS.saved);
     await page.reload();
     await expect(slotAt(page, LEFT_WING_SLOT)).toHaveAttribute("data-slot-player-key", reserve.key);
@@ -169,6 +172,7 @@ test("lists a slot's candidates over the page, places a reserve and exchanges tw
     await expect(page.getByTestId("lineup-status")).toHaveText(STATUS.saved);
     await expect(page.getByTestId("lineup-assistant")).toHaveCount(0);
     await expect(page.getByTestId("lineup-save")).toHaveCount(0);
+    await expect(page.getByTestId("lineup-took-hand")).toHaveCount(0);
     await expectThumbTarget(page.getByTestId("lineup-hand-back"));
     await expectNoSidewaysScroll(page, "his own line-up saved");
   } finally {

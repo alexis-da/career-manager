@@ -3,10 +3,19 @@ import { isNationCode, nationByCode, type NationCode } from "../engine/nations";
 import { seasonStartYear } from "../engine/world";
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "./client";
+import { sameAsExpected, sameSavedLineup, type ExpectedLineup, type LineupSaveOutcome } from "./lineup";
 import { lockSave, TRANSACTION_MAX_WAIT_MS, TRANSACTION_TIMEOUT_MS } from "./matchday";
 import { endSpell, objectiveFor, offersStillOpen } from "./national-missions";
 import { readReserves } from "./nations";
-import { callUpOpen, coachSaveOf, COACH_SAVE_SELECT, currentNationalSession, nationPool, type CoachLineup } from "./national-team";
+import {
+  callUpOpen,
+  coachSaveOf,
+  COACH_SAVE_SELECT,
+  currentNationalSession,
+  nationPool,
+  readCoachLineup,
+  type CoachLineup,
+} from "./national-team";
 
 // The national coach's own moves (docs/design/selections.md § 5): accepting or declining a federation's offer, leaving
 // his post between two breaks, leaving the friendlies to his assistant, his list of 23 and his lineup. Each locks the save.
@@ -108,9 +117,13 @@ export async function setNationFriendlies(saveId: string, delegated: boolean): P
 }
 
 
-/** Saves the coach's lineup for his nation (« Enregistrer »), refused while his match waits live. */
-export async function saveCoachLineup(saveId: string, lineup: CoachLineup): Promise<void> {
-  await prisma.$transaction(
+/**
+ * Saves the coach's lineup for his nation, refused while his match waits live. Each gesture of the editor sends one, as a
+ * club's (docs/design/effectif-adjoint.md § 1, point 1.F): `unchanged` for the line-up already saved, `conflict` when the
+ * editor's `expected` is no longer what is saved, nothing written then.
+ */
+export async function saveCoachLineup(saveId: string, lineup: CoachLineup, expected?: ExpectedLineup): Promise<LineupSaveOutcome> {
+  return prisma.$transaction(
     async (tx) => {
       await lockSave(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({ where: { id: saveId }, select: { nationCode: true, liveInternationalId: true } });
@@ -119,6 +132,15 @@ export async function saveCoachLineup(saveId: string, lineup: CoachLineup): Prom
       }
       if (save.liveInternationalId !== null) {
         throw new NationalCoachError("live");
+      }
+      const current = await readCoachLineup(tx, saveId, save.nationCode);
+      if (current !== null && current.formation === lineup.formation && sameSavedLineup(current.lineup, lineup.lineup)) {
+        return "unchanged";
+      }
+      // Without a saved line-up, the editor read none: its formation was only the assistant's.
+      const asRead = expected === undefined || (current === null ? expected.lineup === null : sameAsExpected(expected, current));
+      if (!asRead) {
+        return "conflict";
       }
       // Players of his nation only, of our clubs or of its reserve: a key of anyone else is refused, as the club refuses
       // a player who is not of its squad.
@@ -136,6 +158,7 @@ export async function saveCoachLineup(saveId: string, lineup: CoachLineup): Prom
         where: { saveId_code: { saveId, code: save.nationCode } },
         data: { lineup: JSON.parse(JSON.stringify(lineup)) as Prisma.InputJsonValue },
       });
+      return "saved" as const;
     },
     TRANSACTION,
   );

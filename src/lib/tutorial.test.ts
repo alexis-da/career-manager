@@ -527,7 +527,6 @@ describe("the assistant's lines", () => {
     "marketProposal",
     "objectives",
     "objectivesOwn",
-    "lineupPick",
     "lineupPush",
     "lineupPushAssistant",
     "simulate",

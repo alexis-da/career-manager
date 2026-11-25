@@ -18,16 +18,25 @@
       "points": "{points} pt/match"
     },
     "automatic": "Composition automatique",
-    "unsaved": "Modifications non enregistrées",
-    "saved": "Composition enregistrée",
-    "notSaved": "Onze automatique · pas encore enregistré",
+    "notSaved": "Onze automatique · enregistré à ton premier changement",
     "status": {
       "assistant": "Onze de ton adjoint · il le refait avant chaque match",
-      "draft": "Ton onze · modifications non enregistrées",
-      "saved": "Ton onze · enregistré. Ton adjoint ne remplace qu'un blessé ou un suspendu."
+      "saved": "Ta composition · enregistrée",
+      "saving": "Ta composition · enregistrement…",
+      "incomplete": "{count, plural, one {Poste vide} other {# postes vides}} : choisis un joueur pour l'enregistrer",
+      "failed": "Pas enregistrée : pas de réseau",
+      "conflict": "Changée dans un autre onglet"
     },
     "cancel": "Annuler",
     "handBack": "Rendre la main à l'adjoint",
+    "retry": "Réessayer",
+    "reload": "Voir la dernière",
+    "tookHand": "C'est ta composition : ton adjoint ne la changera plus, sauf pour un blessé ou un suspendu.",
+    "live": {
+      "title": "Match en direct",
+      "about": "Ta composition est figée jusqu'au coup de sifflet final. Pour ce match, fais tes changements dans le Coaching du direct.",
+      "resume": "Reprendre le match"
+    },
     "assistant": {
       "title": "Ton adjoint aligne le onze",
       "about": "Avant chaque match, il prend les meilleurs selon la condition, les blessures et les suspensions, dans ton dispositif.",
@@ -37,18 +46,13 @@
         "touch": "Touche un joueur pour faire ton onze : ton adjoint ne le changera plus.",
         "click": "Clique sur un joueur pour faire ton onze : ton adjoint ne le changera plus."
       },
-      "formationSaved": "Dispositif enregistré : ton adjoint aligne son onze en {formation}",
-      "instructionSaved": "Consigne de départ enregistrée : {instruction}",
       "refusals": {
         "invalid": "Dispositif ou consigne inconnus.",
-        "player": "Tu fais ton onze toi-même : enregistre-le pour changer son dispositif ou sa consigne."
+        "player": "Ta composition a changé dans un autre onglet : c'est maintenant toi qui fais ton onze."
       }
     },
-    "saving": "Enregistrement…",
-    "save": "Enregistrer",
-    "incompleteRefused": "Onze incomplet : {count, plural, one {# poste est vide} other {# postes sont vides}}. Place un joueur sur chaque poste ou utilise « {complete} ».",
     "saveFailed": "L'enregistrement a échoué. Réessaie.",
-    "incomplete": "Onze incomplet : {count, plural, one {# poste vide} other {# postes vides}}, à remplir avant d'enregistrer.",
+    "incomplete": "Onze incomplet : {count, plural, one {# poste vide} other {# postes vides}}.",
     "injuredStarter": "{count, plural, one {Un titulaire blessé sera remplacé} other {# titulaires blessés seront remplacés}} automatiquement au coup d'envoi.",
     "suspendedStarter": "{count, plural, one {Un titulaire suspendu sera remplacé} other {# titulaires suspendus seront remplacés}} automatiquement au coup d'envoi.",
     "complete": "Compléter automatiquement",

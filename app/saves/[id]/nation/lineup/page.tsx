@@ -5,6 +5,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import Link from "@/src/components/link";
 import { Panel } from "@/src/components/panel";
+import { liveMatchesOf } from "@/src/db/lineup";
 import { coachesNation, getCoachLineupEditor } from "@/src/db/national-view";
 import { formatShortDate } from "@/src/lib/format";
 import { LineupScreen } from "../../lineup/_components/lineup-editor";
@@ -30,11 +31,12 @@ export default async function NationalLineupPage({ params }: { params: Promise<{
   if ((await coachesNation(id)) === null) {
     notFound();
   }
-  const [t, tWorld, locale, editor] = await Promise.all([
+  const [t, tWorld, locale, editor, live] = await Promise.all([
     getTranslations("nationalLineup"),
     getTranslations("world"),
     getLocale(),
     getCoachLineupEditor(id),
+    liveMatchesOf(id),
   ]);
 
   return (
@@ -64,13 +66,15 @@ export default async function NationalLineupPage({ params }: { params: Promise<{
           <p className="text-sm text-muted-foreground">{t("empty")}</p>
         </Panel>
       ) : (
-        // « Enregistrer » is the page's only orange: the column's game action is secondary under Équipe.
+        // Every gesture saved at once, no button (docs/design/effectif-adjoint.md § 1, point 1.F); read only while his
+        // match waits live.
         <LineupScreen
           saveId={id}
           editor={editor}
           opponent={null}
           saveAction={saveCoachLineupAction}
           unsaved="assistant"
+          liveHref={live.internationalId === null ? null : `/saves/${id}/live/nation?m=${live.internationalId}`}
           texts={{
             selectHint: { touch: t("selectHint.touch"), click: t("selectHint.click") },
             pickerAbout: t("pickerAbout"),

@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import * as z from "zod";
 import { requireOwnedSave } from "@/src/auth/current-user";
-import { lineupInputSchema, lineupIssueOf } from "@/src/db/lineup";
+import { lineupInputSchema, lineupIssueOf, type LineupSaveResult } from "@/src/db/lineup";
 import { NoMatchInProgressError, PauseMismatchError } from "@/src/db/live-match";
 import {
   acceptCoachOffer,
@@ -139,26 +139,30 @@ export async function saveCoachCallUpAction(saveId: string, keys: string[]): Pro
   return { ok: true, message: t("done.callUp") };
 }
 
-/** « Enregistrer » in his lineup editor: his formation, eleven, bench and starting instruction for his nation. */
-export async function saveCoachLineupAction(saveId: string, input: unknown): Promise<ActionResult> {
+/**
+ * His nation's line-up (formation, eleven, bench and starting instruction), sent by the editor after each gesture as a
+ * club's (docs/design/effectif-adjoint.md § 1, point 1.F): no page read again, the editor's status line says it; a
+ * conflict, a player out of his nation or his match waiting live is told to the editor.
+ */
+export async function saveCoachLineupAction(saveId: string, input: unknown): Promise<LineupSaveResult> {
   const { id } = await requireOwnedSave(saveIdSchema.parse(saveId));
-  const [t, tLineup] = [await getTranslations("nationalTeam"), await getTranslations("actions.lineup")];
+  const tLineup = await getTranslations("actions.lineup");
   const parsed = lineupInputSchema.safeParse(input);
   if (!parsed.success) {
     const issue = lineupIssueOf(parsed.error);
-    return { ok: false, message: issue === null ? tLineup("invalid") : tLineup(`issues.${issue}`) };
+    return { ok: false, reason: "invalid", message: issue === null ? tLineup("invalid") : tLineup(`issues.${issue}`) };
   }
   try {
-    await saveCoachLineup(id, { formation: parsed.data.formation, lineup: parsed.data.lineup });
+    const outcome = await saveCoachLineup(id, { formation: parsed.data.formation, lineup: parsed.data.lineup }, parsed.data.expected);
+    return outcome === "conflict" ? { ok: false, reason: "conflict", message: tLineup("conflict") } : { ok: true, outcome };
   } catch (error) {
-    const refused = await refusal(error);
-    if (refused !== null) {
-      return refused;
+    if (error instanceof NationalCoachError) {
+      const t = await getTranslations("nationalTeam.refusals");
+      const reason = error.reason === "live" ? "live" : error.reason === "lineup" ? "not-in-squad" : "invalid";
+      return { ok: false, reason, message: t(error.reason) };
     }
     throw error;
   }
-  revalidatePath(`/saves/${id}/nation`, "layout");
-  return { ok: true, message: t("done.lineup") };
 }
 
 // ------------------------------------------------------------------ His match live (N4b)
