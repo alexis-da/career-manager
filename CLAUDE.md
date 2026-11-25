@@ -1211,10 +1211,10 @@ compte GitHub (Free : 12 $ inclus, environ 2 000 minutes Linux), que la maintena
 les workflows s'arrêtent jusqu'au mois suivant, purge et défi compris. Cible : moins de la moitié. D'où la porte de
 chaque workflow (`gate`) : `main` avancée en avance rapide sur la tête d'une pull request verte (le même commit) ne la
 reteste pas ; une semaine sans nouveau commit sur `main` ne lance rien. Un push plus récent sur une pull request annule
-son passage en cours. Estimation du 09/11 (mesures locales × 1,5 à 2 pour un runner à 2 vCPU), le Vitest du weekly
-ajouté le 25/11 (2 min 42 s dans la CI) : environ 16 minutes par passage de la CI, 1 par porte, 56 par semaine testée ;
-avec 35 mises en ligne par mois, environ 900 minutes, 45 % du quota, maintenance comprise (65). Sur GitHub (`CI`),
-Playwright relance une fois un test en échec et garde sa capture
+son passage en cours. Durées réelles lues sur GitHub le 25/11, chaque job facturé à la minute supérieure : environ
+8 minutes par passage de la CI (8 à 19, une fois 24, du 9 au 24/11), 1 par porte, 48 par semaine testée (E2E 27,
+Vitest compris, suite lente 20) ; avec 35 mises en ligne par mois, environ 600 à 750 minutes, 30 à 38 % du quota,
+maintenance comprise (65). Sur GitHub (`CI`), Playwright relance une fois un test en échec et garde sa capture
 dans un rapport HTML, artefact de 7 jours. Sauvegardes : instantané hebdomadaire programmé dans la console Neon,
 procédure de restauration dans `docs/restauration.md`, aucune copie des données hors de Neon.
 
