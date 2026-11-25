@@ -30,6 +30,27 @@ export function progressionRngSeed(saveSeed: string, startYear: number, playerKe
 }
 
 /**
+ * The change of a player's overall a season's turn gives on average, without its draw: the growth of his room (potential
+ * above overall) at his age and minutes, less his age's decline. `age` is his age at the start of the next season, as
+ * progressPlayer's, and `minutesPlayed` his league minutes of the season. What the squad shows of the summer to come
+ * (docs/design/effectif-adjoint.md § 3.2), never the turn's result: its draw stays hidden, seeded with the retirement's.
+ */
+export function expectedProgression(player: { overall: number; potential: number }, age: number, minutesPlayed: number): number {
+  const growthRoom = Math.max(0, player.potential - player.overall);
+  const growth =
+    growthRoom * interpolate(GROWTH_SHARE_BY_AGE, age) * interpolate(GROWTH_BY_MINUTES, minutesPlayed);
+  return growth - interpolate(DECLINE_BY_AGE, age);
+}
+
+/**
+ * A player's league minutes at the season's end if he keeps his rhythm: his minutes so far, prorated to the league
+ * matches of his club's season over those it has played. 0 before its first: no rhythm yet.
+ */
+export function projectedLeagueMinutes(minutes: number, clubMatchesPlayed: number, clubMatches: number): number {
+  return clubMatchesPlayed <= 0 ? 0 : (minutes * Math.max(clubMatches, clubMatchesPlayed)) / clubMatchesPlayed;
+}
+
+/**
  * Attributes after a season. Players grow toward their potential according to their age and minutes
  * played, decline after 30 (physical attributes first), and every season has a seeded random share.
  * `age` is the player's age at the start of the next season.
@@ -40,10 +61,8 @@ export function progressPlayer(
   minutesPlayed: number,
   rng: Rng,
 ): PlayerAttributes {
-  const growthRoom = Math.max(0, player.potential - player.overall);
-  const growth =
-    growthRoom * interpolate(GROWTH_SHARE_BY_AGE, age) * interpolate(GROWTH_BY_MINUTES, minutesPlayed);
-  const change = growth - interpolate(DECLINE_BY_AGE, age) + centeredSpread(rng) * PROGRESSION_SPREAD;
+  // The same operations, in the same order, as before expectedProgression: a save replays its seasons to the bit.
+  const change = expectedProgression(player, age, minutesPlayed) + centeredSpread(rng) * PROGRESSION_SPREAD;
 
   const attributes = {} as Record<AttributeName, number>; // every key is filled by the loop below
   for (const name of ATTRIBUTE_NAMES) {
