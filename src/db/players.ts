@@ -2,7 +2,7 @@ import type { ContractChoice, ContractIntention } from "../engine/assistant-cont
 import { displayClubName } from "../engine/club-name";
 import type { AttributeName } from "../engine/generation";
 import type { Position } from "../engine/positions";
-import { seasonEndDate, seasonStartYear } from "../engine/world";
+import { seasonEndDate, seasonStartDate, seasonStartYear } from "../engine/world";
 import { youthKeyPrefix } from "../engine/youth";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
@@ -14,6 +14,8 @@ import { parseTitleKey, type TournamentCode } from "../engine/tournaments";
 import { getManagedBreak, internationalInjuries } from "./nations-view";
 import { DISCIPLINE_SELECT, disciplineStatus, matchesAhead, type DisciplineStatus, type MatchesAhead } from "./discipline-view";
 import { fitnessAtKickOff } from "./fitness-view";
+import { progressionHistory, summerOutlook, type PlayerProgression } from "./progression-view";
+import { parseSeasonHighlights } from "./season-highlights";
 
 /**
  * What the managed club still has to play: its next match, its day and competition, null once it has none left, and the
@@ -89,8 +91,11 @@ export type PlayerProfile = {
   contractIntention: ContractIntention | null;
   assistantIntention: ContractIntention | null;
   arrivedThisSeason: boolean; // young player who joined at this season's preseason
+  // The summer passed and, for a player of the managed club, the summer to come and his rating season by season at the
+  // club (docs/design/effectif-adjoint.md § 3): the squad's « 71 ↑+4 » and « +3 expected », the sheet's curve.
+  progression: PlayerProgression;
   attributes: Record<AttributeName, number>;
-  seasonStats: SeasonStatsView;
+  seasonStats: SeasonStatsView; // every competition's
   transfers: TransferHistoryItem[]; // most recent first
   // His national team (docs/design/selections.md): caps and goals over his career; for a player of the managed club, the
   // break his nation calls him for (from the club's last match before it) and the injury he came back with from one.
@@ -139,7 +144,9 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       nationality: true,
       birthDate: true,
       position: true,
+      clubSaveId: true,
       overall: true,
+      previousOverall: true,
       potential: true,
       pace: true,
       shooting: true,
@@ -187,7 +194,14 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
     ? await managedContractForecasts(saveId, { startYear, byAssistant: save.contractsByAssistant })
     : null;
 
-  const [stats, transfers] = await Promise.all([
+  // Their progression (docs/design/effectif-adjoint.md § 3), for the managed club's players only: their league minutes of
+  // the season, every club's, as the season's turn counts them (the cup and Europe never); their club's league matches
+  // of the season, played and in all, to prorate them; its completed seasons' highlights (SeasonResult), the curve's points.
+  const managedIds = players.flatMap((player) => (player.clubSave?.isManaged === true ? [player.id] : []));
+  const managedClubSaveId = players.find((player) => player.clubSave?.isManaged === true)?.clubSaveId ?? null;
+  const ofTheLeague = { startYear, competition: { kind: "LEAGUE" as const } };
+
+  const [stats, transfers, leagueStats, clubLeagueFixtures, results] = await Promise.all([
     prisma.playerSeasonStats.groupBy({
       by: ["playerSaveId"],
       where: { saveId, playerSaveId: { in: playerIds }, season: { startYear } },
@@ -198,7 +212,49 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       orderBy: [{ date: "desc" }, { id: "desc" }],
       select: { id: true, playerSaveId: true, date: true, type: true, fee: true, fromClubId: true, toClubId: true },
     }),
+    managedIds.length === 0
+      ? []
+      : prisma.playerSeasonStats.groupBy({
+          by: ["playerSaveId"],
+          where: { saveId, playerSaveId: { in: managedIds }, season: ofTheLeague },
+          _sum: { minutes: true },
+        }),
+    // By the club's id, on the home and away indexes.
+    managedClubSaveId === null
+      ? []
+      : prisma.fixture.findMany({
+          where: { saveId, OR: [{ homeClubSaveId: managedClubSaveId }, { awayClubSaveId: managedClubSaveId }], season: ofTheLeague },
+          select: { played: true },
+        }),
+    managedIds.length === 0
+      ? []
+      : prisma.seasonResult.findMany({ where: { saveId }, select: { highlights: true, season: { select: { startYear: true } } } }),
   ]);
+  const leagueMinutesOf = new Map(leagueStats.map((row) => [row.playerSaveId, row._sum.minutes ?? 0]));
+  const clubLeague = { played: clubLeagueFixtures.filter((fixture) => fixture.played).length, matches: clubLeagueFixtures.length };
+  const highlightSeasons = results.flatMap((result) => {
+    const highlights = parseSeasonHighlights(result.highlights);
+    return highlights === null ? [] : [{ startYear: result.season.startYear, squad: highlights.squad }];
+  });
+  // Until a career turns a season with previousOverall, its last season's highlights give the managed club's players their
+  // rating of before: those who ended it at the club.
+  const lastHighlights = highlightSeasons.find((season) => season.startYear === startYear - 1);
+  const nextFirstJuly = seasonStartDate(startYear + 1);
+
+  const progressionOf = (player: (typeof players)[number], managed: boolean): PlayerProgression => {
+    const previous =
+      player.previousOverall ??
+      (managed ? (lastHighlights?.squad.find((squadPlayer) => squadPlayer.playerKey === player.playerKey)?.overall ?? null) : null);
+    return {
+      last: previous === null ? null : player.overall - previous,
+      outlook: managed
+        ? summerOutlook(player, ageInYears(player.birthDate, nextFirstJuly), leagueMinutesOf.get(player.id) ?? 0, clubLeague)
+        : null,
+      history: managed
+        ? progressionHistory(player.playerKey, highlightSeasons, { startYear, overall: player.overall, potential: player.potential })
+        : [],
+    };
+  };
 
   const clubIds = [...new Set(transfers.flatMap((transfer) => [transfer.fromClubId, transfer.toClubId]))].filter(
     (id): id is string => id !== null,
@@ -240,6 +296,7 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       contractIntention: forecast?.outcome.intention ?? null,
       assistantIntention: forecast?.assistant ?? null,
       arrivedThisSeason: player.playerKey.startsWith(youthPrefix),
+      progression: progressionOf(player, managed),
       attributes: {
         pace: player.pace,
         shooting: player.shooting,

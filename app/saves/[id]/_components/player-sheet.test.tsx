@@ -48,6 +48,7 @@ const profile = (managed: boolean, contract: Contract = {}): PlayerProfile => ({
   contractIntention: managed ? "leave" : null,
   assistantIntention: managed ? "leave" : null,
   arrivedThisSeason: false,
+  progression: { last: null, outlook: null, history: [] },
   attributes: { pace: 70, shooting: 70, passing: 70, dribbling: 70, defending: 70, physical: 70, goalkeeping: 1 },
   seasonStats: { appearances: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
   transfers: [],
