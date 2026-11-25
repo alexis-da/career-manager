@@ -1005,6 +1005,8 @@ jusqu'au 31 août) :
      - la partie verrouillée pendant une vente ;
      - la fiche d'un joueur d'un club IA, qui dit à tort « partira libre ».
 2. **Tout le reste**, d'un bloc, le lundi 7/12 s'il est prêt et vérifié, sinon le lundi 14/12, après 00:00 UTC.
+   Avancée au mercredi 25/11 (décision du 25/11) : les deux parties du défi de la semaine 48 étaient finies et classées,
+   aucune en cours, et une mise en ligne ne changeait aucun résultat.
 
 ---
 

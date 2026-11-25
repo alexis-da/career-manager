@@ -231,7 +231,7 @@ l'a donnée (`TeamLive.instructions`, `InstructionSpan`, `src/engine/instruction
 événement ; `MatchModifiers.givenBy` ; `instructionSourceAt`), lue par le direct. Effet mesuré par `npm run
 measure:balance -- --starting-only` : petit, Fermer rapportant à l'outsider, Attaquer au seul net favori.
 
-**Simplification (chantier « simplification », 24/11, mise en ligne du 7/12).** Cahier `docs/design/simplification.md`,
+**Simplification (chantier « simplification », 24/11, mise en ligne du 25/11).** Cahier `docs/design/simplification.md`,
 validé le 24/11 : un jeu plus casual, où l'adjoint s'occupe du quotidien. **Argent** : le budget transferts est la seule
 limite, aucune porte de salaire (achat, joueur libre, prolongation, propositions du marché, jeune prometteur) ;
 `PlayerSave.wage` reste écrit à chaque contrat mais n'est montré nulle part, et ne sert qu'au coût d'une libération
