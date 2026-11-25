@@ -1,6 +1,7 @@
 # Chantier « effectif et adjoint » : composition enregistrée seule, consignes, évolution des joueurs
 
-Cahier rédigé le 25/11/2026, **à valider**. Rien n'est codé. Les faits viennent du code au 25/11 (`acecbfb`, la
+Cahier rédigé le 25/11/2026, **validé le 25/11** avec les recommandations du § 6 et trois précisions (« Décisions
+d'Alexis »). Les faits viennent du code au 25/11 (`acecbfb`, la
 simplification en ligne) ; les chiffres, de règles d'essai jouées par un script de mesure hors du dépôt, sur des bases
 locales (§ 5). Les noms des maquettes sont inventés.
 
@@ -23,6 +24,23 @@ décider.
 3. **Évolution des joueurs dans l'Effectif** : la progression sur chaque ligne (« 68 ↑+3 »), la courbe de la note sur la
    fiche, les jeunes qui progressent. Migration d'ajout ou calcul depuis l'existant, et l'effet sur le poids d'une
    carrière (§ 3).
+
+## Décisions d'Alexis (25/11)
+
+Le cahier est validé avec les recommandations du § 6, et ces précisions :
+
+1. **1.A** : le dispositif et la consigne de départ ne retirent pas la main à l'adjoint.
+2. **Consignes** : deux seulement, « Meilleur onze » (par défaut) et « Lancer les jeunes » réglée comme mesuré (10
+   points d'écart, trois jeunes par match). Pas de « Faire tourner l'effectif ».
+3. **Évolution** : en plus de la progression de l'été (« 71 ↑+4 ») et de la courbe de la fiche, chaque ligne de
+   l'Effectif d'un joueur qui a encore une marge montre la progression attendue cet été d'après ses minutes de
+   championnat (« ↗ +3 prévu »), mise à jour après chaque match. Même calcul que la vue « Jeunes », sans changer le
+   moteur. Une phrase d'aide dit que jouer en championnat fait progresser (§ 3.2, § 3.4).
+4. **Construction** sur la branche `effectif-adjoint`, avec la méthode habituelle (migrations d'ajout et leur SQL, tsc,
+   lint, Vitest, suite lente, E2E complets, build, une suite à la fois), une entrée des Nouveautés, le guide et le
+   tutoriel mis à jour.
+5. **Mise en ligne** : rien de poussé avant le rapport des 24 h de la simplification. Ensuite, n'importe quel jour,
+   après un rapport et l'accord d'Alexis.
 
 ## Contraintes
 
@@ -586,8 +604,19 @@ Le détail des quinze clubs est en annexe.
 ### 3.2 Ce que montre l'écran
 
 - **Sur chaque ligne de l'Effectif**, dans la case de la note : « 71 ↑+4 », la progression de l'été. Vert vers le haut,
-  rouge vers le bas, rien à 0. Un joueur arrivé cet été affiche « Nouveau » : il n'a pas de note de la saison passée à
-  ton club. Sur téléphone, à droite du nom ; la tuile de 44 px (poste et note) n'a pas la place.
+  rouge vers le bas, rien à 0. Un joueur acheté l'été montre la progression qu'il a faite à son ancien club. Un jeune de
+  l'intersaison n'en a pas : il garde le badge « Jeune » d'aujourd'hui. Sur téléphone, « ↑+4 » est à droite du nom ;
+  la tuile de 44 px (poste et note) n'a pas la place.
+- **Sur chaque ligne aussi, la progression prévue** (décision 3) : « ↗ +3 prévu », pour un joueur qui a encore une
+  marge (potentiel au-dessus de la note, moins de 29 ans au 1er juillet suivant).
+  - Le calcul est celui de la vue « Jeunes » : la formule du § 0.1 sans le tirage, avec ses minutes de championnat
+    prolongées à son rythme jusqu'à la fin de la saison (au prorata des matchs de championnat que le club a joués).
+  - Elle change après chaque match du club, sans toucher au moteur : l'écran relit les minutes.
+  - Rien quand elle arrondit à 0, ni pour un joueur sans marge (le déclin d'un trentenaire n'est pas « prévu » ici).
+  - Sur téléphone, une troisième ligne de la carte ; au-dessus de 672 px, une colonne « Cet été », triable, avec la note
+    et la forme dans le tableau à côté de la fiche.
+- **Une phrase d'aide**, sous le résumé de l'Effectif : « Tes joueurs progressent l'été, d'autant plus qu'ils jouent en
+  championnat. »
 - **Une vue « Jeunes · 6 »**, qui filtre : un quatrième tri sur téléphone, une bascule au-dessus du tableau. On y voit :
   - les 21 ans et moins, seuls ;
   - pour chacun, la jauge de ses minutes de championnat, pleine à 2 250 ;
@@ -611,7 +640,7 @@ Le détail des quinze clubs est en annexe.
 | Ce qu'on montre | Sans migration | Avec une migration d'ajout | Poids |
 |---|---|---|---|
 | « ↑+4 » sur chaque ligne | le relevé de la saison passée : joueurs du club dirigé à sa fin seulement ; rien avant le premier passage de saison après le 18/11 | `PlayerSave.previousOverall` (Int, null), écrit par l'`UPDATE` du passage de saison (`season.ts:231`), qui touche déjà chaque joueur : tous les joueurs, clubs IA compris | sans : 0 ; avec : ≈ 20 Ko par carrière, une fois (5 000 lignes × 4 octets), aucune écriture de plus, aucun index |
-| Vue « Jeunes » | âge, marge, minutes de championnat de la saison : un filtre de compétition de plus dans la lecture existante | — | 0 |
+| Vue « Jeunes » et « ↗ +3 prévu » sur chaque ligne | âge, marge, minutes de championnat de la saison et matchs de championnat joués par le club : un filtre de compétition de plus dans la lecture existante, une requête de plus | — | 0 |
 | Courbe de la fiche | les relevés de chaque saison terminée : la note, joueurs du club dirigé | une histoire de tous les joueurs | sans : 0 ; avec : 1,2 à 1,5 Mo par saison en lignes, ≈ 170 Ko en tableaux compacts (une carrière archivée prend ≈ 0,76 Mo par saison) |
 | Potentiel sur la courbe | — | `potential` ajouté au relevé (champ facultatif, sans changer sa version) | ≈ 0,4 Ko par saison |
 
@@ -627,25 +656,34 @@ Effet sur le poids d'une carrière : ≈ 20 Ko une fois, et 0,4 Ko par saison.
 ### 3.4 Écrans
 
 ```
-390 px, Équipe → Effectif, cartes : la progression de l'été sur chaque ligne
+390 px, Équipe → Effectif, cartes : l'été passé et l'été qui vient
 ┌──────────────────────────────────────────┐
 │ EFFECTIF · 26 joueurs sur 30             │
+│ Tes joueurs progressent l'été, d'autant  │  ← la phrase d'aide
+│ plus qu'ils jouent en championnat.       │
 │ [■ Poste ■] [ Note ] [ Contrats ]        │  ← les trois tris d'aujourd'hui (libellés abrégés ici)
-│ [ Jeunes · 6 ]                           │  ← nouveau : les 21 ans et moins seuls (carte suivante)
+│ [ Jeunes · 6 ]                           │  ← les 21 ans et moins seuls (maquette suivante)
 │ ┌──────────────────────────────────────┐ │
-│ │ [MC 71] Malo Garnier          ↑+4    │ │  ← la progression de l'été, en vert
+│ │ [MC 71] Malo Garnier          ↑+4    │ │  ← l'été passé, en vert
 │ │         19 ans · FRA · ▲ · ♥ 92      │ │
+│ │         ↗ +3 prévu                   │ │  ← l'été qui vient, d'après ses minutes de championnat ; change après chaque match
 │ └──────────────────────────────────────┘ │
 │ ┌──────────────────────────────────────┐ │
-│ │ [MD 70] Enzo Perrin           ↓−1    │ │  ← 31 ans : le déclin, en rouge
+│ │ [AG 69] Yanis Bekri           ↑+6    │ │
+│ │         20 ans · MAR · ▲ · ♥ 88      │ │
+│ │         ↗ +2 prévu                   │ │
+│ └──────────────────────────────────────┘ │
+│ ┌──────────────────────────────────────┐ │
+│ │ [MD 70] Enzo Perrin           ↓−1    │ │  ← 31 ans : le déclin, en rouge ; plus de marge, rien de prévu
 │ │         31 ans · FRA · ► · ♥ 90      │ │
 │ └──────────────────────────────────────┘ │
 │ ┌──────────────────────────────────────┐ │
-│ │ [DC 63] Noé Lemaire       Nouveau    │ │  ← arrivé cet été : pas de note de la saison passée
+│ │ [DC 63] Noé Lemaire     [Jeune]      │ │  ← jeune de l'intersaison : pas de note l'été passé ; le badge d'aujourd'hui
 │ │         18 ans · FRA · ► · ♥ 100     │ │
+│ │         ↗ +2 prévu                   │ │
 │ └──────────────────────────────────────┘ │
 │ ┌──────────────────────────────────────┐ │
-│ │ [G 76]  Sacha Vidal                  │ │  ← rien à 0, ni quand la note ne bouge pas
+│ │ [G 76]  Sacha Vidal                  │ │  ← 28 ans : ni progression l'été passé, ni marge
 │ │         28 ans · ESP · ▼ · ♥ 100     │ │
 │ └──────────────────────────────────────┘ │
 ├──────────────────────────────────────────┤
@@ -684,14 +722,18 @@ Effet sur le poids d'une carrière : ≈ 20 Ko une fois, et 0,4 Ko par saison.
 ```
 1280 px, Équipe → Effectif, le tableau (fiche fermée)
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Poste  Joueur          Âge  Note      Pot.  Forme  Condition  Valeur    Contrat                        │
-│ MC     Malo Garnier     19  71 ↑+4    82    ▲      ♥ 92       9,8 M€    2029                           │  ← « ↑+4 » dans la case de la note : aucune colonne de plus
-│ MD     Enzo Perrin      31  70 ↓−1    70    ►      ♥ 90       2,3 M€    2027                           │
-│ DC     Noé Lemaire      18  63 Nouv.  84    ►      ♥ 100      4,2 M€    2029                           │
-│ G      Sacha Vidal      28  76        76    ▼      ♥ 100     12,5 M€    2030                           │
-│ [ Jeunes · 6 ] : les 21 ans et moins ; « Championnat » et « Cet été »                                  │
-│   à la place de « Valeur » et « Contrat ».                                                             │
-│ À côté de la fiche (536 px) : Poste, Joueur, Âge, Note (avec ↑), Forme, comme aujourd'hui.             │
+│ EFFECTIF · 26 joueurs sur 30                                                                           │
+│ Tes joueurs progressent l'été, d'autant plus qu'ils jouent en championnat.                             │  ← la phrase d'aide, sous le résumé
+│                                                                                                        │
+│ Poste  Joueur          Âge  Note      Cet été     Pot.  Forme  Condition  Valeur    Contrat            │  ← « Cet été » : triable
+│ MC     Malo Garnier     19  71 ↑+4    ↗ +3 prévu  82    ▲      ♥ 92       9,8 M€    2029               │
+│ AG     Yanis Bekri      20  69 ↑+6    ↗ +2 prévu  80    ▲      ♥ 88       7,1 M€    2028               │
+│ MD     Enzo Perrin      31  70 ↓−1                70    ►      ♥ 90       2,3 M€    2027               │
+│ DC     Noé Lemaire      18  63        ↗ +2 prévu  84    ►      ♥ 100      4,2 M€    2029  [Jeune]      │
+│ G      Sacha Vidal      28  76                    76    ▼      ♥ 100     12,5 M€    2030               │
+│                                                                                                        │
+│ [ Jeunes · 6 ] : les 21 ans et moins ; la jauge des minutes de championnat à la place de « Valeur ».   │
+│ À côté de la fiche (536 px) : Poste, Joueur, Âge, Note (avec ↑), Cet été, Forme.                       │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -726,6 +768,8 @@ Effet sur le poids d'une carrière : ≈ 20 Ko une fois, et 0,4 Ko par saison.
 - **3.C La vue « Jeunes »**, avec la jauge et « ≈ +3 cet été » : je la recommande.
 - **3.D La courbe** par les relevés, avec le potentiel ajouté au relevé : je la recommande, sans histoire de tous les
   joueurs.
+- **3.F « ↗ +3 prévu » sur chaque ligne** (décision 3 du 25/11) : la vue « Jeunes » étendue à tout joueur qui a une
+  marge, une phrase d'aide sous le résumé.
 - **3.E Faire progresser en cours de saison** (au 1er janvier par exemple), pour que « depuis le début de la saison »
   ait un sens : je ne le recommande pas.
   - Il change le moteur pour tous les clubs : six cibles, clubs IA et défi à mesurer de nouveau.
@@ -790,6 +834,8 @@ Effet sur le poids d'une carrière : ≈ 20 Ko une fois, et 0,4 Ko par saison.
 
 ## 6. Points à trancher, récapitulatif
 
+Tout est validé le 25/11 tel quel, avec les précisions des décisions d'Alexis (3.F en plus).
+
 | Point | Ma recommandation |
 |---|---|
 | 1.A Dispositif et consigne de départ prennent la main | non, comme aujourd'hui |
@@ -808,6 +854,7 @@ Effet sur le poids d'une carrière : ≈ 20 Ko une fois, et 0,4 Ko par saison.
 | 3.C Vue « Jeunes » | oui : jauge des minutes et « ≈ +3 cet été » |
 | 3.D Courbe | par les relevés de fin de saison, potentiel ajouté au relevé |
 | 3.E Progression en cours de saison | non |
+| 3.F « ↗ +3 prévu » sur chaque ligne | oui (décision 3 du 25/11), avec la phrase d'aide |
 
 ## 7. Ordre de construction et tests
 
