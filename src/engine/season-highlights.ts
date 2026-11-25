@@ -39,7 +39,12 @@ export type HighlightHatTrick = {
   opponentClubSaveId: string;
 };
 
-export type HighlightSquadPlayer = { playerKey: string; overall: number; value: number };
+/**
+ * A player of the squad at the season's end, before the turn's progression: his rating, his value and his potential, the
+ * sheet's curve (docs/design/effectif-adjoint.md § 3.3). The potential is absent from a season closed before 25/11: a
+ * field of its own, the format kept.
+ */
+export type HighlightSquadPlayer = { playerKey: string; overall: number; value: number; potential?: number };
 
 /**
  * A summer tournament won by players of the managed club, in the winner's squad (docs/design/selections.md § 9.9): written

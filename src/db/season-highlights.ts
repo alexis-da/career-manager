@@ -15,7 +15,13 @@ const hatTrickSchema = z.object({
   round: z.number().int(),
   opponentClubSaveId: z.string(),
 });
-const squadPlayerSchema = z.object({ playerKey: z.string(), overall: z.number().int(), value: z.number().int() });
+// The potential since 25/11 (docs/design/effectif-adjoint.md § 3.3): a relevé of before has none, and stays read.
+const squadPlayerSchema = z.object({
+  playerKey: z.string(),
+  overall: z.number().int(),
+  value: z.number().int(),
+  potential: z.number().int().optional(),
+});
 const titleSchema = z.object({
   tournament: z.enum(["int.eu", "int.world"]),
   year: z.number().int(),
@@ -71,7 +77,10 @@ export async function seasonHighlightsOf(tx: Db, saveId: string, managedId: stri
   );
   const named = [...new Set(goals.flatMap((goal) => (goal.assisterId === null ? [goal.scorerId] : [goal.scorerId, goal.assisterId])))];
   const players = await tx.playerSave.findMany({ where: { saveId, id: { in: named } }, select: { id: true, playerKey: true, firstName: true, lastName: true } });
-  const squad = await tx.playerSave.findMany({ where: { saveId, clubSaveId: managedId }, select: { playerKey: true, overall: true, marketValue: true } });
+  const squad = await tx.playerSave.findMany({
+    where: { saveId, clubSaveId: managedId },
+    select: { playerKey: true, overall: true, potential: true, marketValue: true },
+  });
   const { budget } = await tx.clubSave.findUniqueOrThrow({ where: { id: managedId, saveId }, select: { budget: true } });
   return seasonHighlights({
     budget,
@@ -84,6 +93,6 @@ export async function seasonHighlightsOf(tx: Db, saveId: string, managedId: stri
       opponentClubSaveId: fixture.homeClubSaveId === managedId ? fixture.awayClubSaveId : fixture.homeClubSaveId,
     })),
     players: players.map((player) => ({ id: player.id, playerKey: player.playerKey, name: `${player.firstName} ${player.lastName}` })),
-    squad: squad.map((player) => ({ playerKey: player.playerKey, overall: player.overall, value: player.marketValue })),
+    squad: squad.map((player) => ({ playerKey: player.playerKey, overall: player.overall, value: player.marketValue, potential: player.potential })),
   });
 }

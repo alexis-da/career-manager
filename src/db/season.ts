@@ -227,13 +227,16 @@ export async function advanceToNextSeason(saveId: string, options: SeasonTransit
       }
 
       // Dates go through ISO strings: a Date parameter would be sent in the server's local time zone. In batches: a
-      // statement takes 65 535 parameters at most, and a worldVersion 2 save has some 5 000 players of 13 each.
+      // statement takes 65 535 parameters at most, and a worldVersion 2 save has some 5 000 players of 13 each. Every
+      // player progressed keeps his overall of before, the squad's « 71 ↑+4 » (docs/design/effectif-adjoint.md § 3): SET
+      // reads the row as it was, p."overall" is the old one.
       for (const batch of chunk(updates, UPDATE_BATCH_SIZE)) {
         await tx.$executeRaw`
           UPDATE "PlayerSave" AS p
           SET "clubSaveId" = v."clubSaveId",
               "retired" = v."retired",
               "contractUntil" = v."contractUntil",
+              "previousOverall" = p."overall",
               "overall" = v."overall",
               "potential" = v."potential",
               "pace" = v."pace",
