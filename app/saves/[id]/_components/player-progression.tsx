@@ -99,6 +99,7 @@ export function PlayerProgression({ profile }: { profile: Pick<PlayerProfile, "o
   }
   const room = Math.max(0, profile.potential - profile.overall);
   const growth = outlook?.growth ?? null;
+  const decline = outlook?.decline ?? null;
   return (
     <section aria-label={t("title")} data-testid="player-sheet-progression" className="space-y-3 rounded-lg bg-background p-3.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -124,12 +125,12 @@ export function PlayerProgression({ profile }: { profile: Pick<PlayerProfile, "o
         </p>
       )}
 
-      {growth !== null && growth.starter > 0 && (
+      {outlook !== null && growth !== null && growth.starter > 0 && (
         <div data-testid="player-sheet-summer" data-change={growth.expected} className="space-y-1.5">
           <p className="font-heading text-xl leading-none">{t("summer", { change: signedChange(growth.expected) })}</p>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
             <span className="text-muted-foreground">{t("league")}</span>
-            <LeagueMinutesGauge minutes={outlook?.leagueMinutes ?? 0} barClassName="w-24" />
+            <LeagueMinutesGauge minutes={outlook.leagueMinutes} barClassName="w-24" />
           </p>
           <p data-testid="player-sheet-bounds" className="text-xs text-muted-foreground tabular-nums">
             {t("bounds", { idle: signedChange(growth.idle), starter: signedChange(growth.starter) })}
@@ -138,9 +139,9 @@ export function PlayerProgression({ profile }: { profile: Pick<PlayerProfile, "o
         </div>
       )}
 
-      {outlook?.decline !== null && outlook?.decline !== undefined && (
-        <div data-testid="player-sheet-decline" data-change={outlook.decline} className="space-y-1.5">
-          <p className="font-heading text-xl leading-none">{t("summer", { change: signedChange(outlook.decline) })}</p>
+      {decline !== null && (
+        <div data-testid="player-sheet-decline" data-change={decline} className="space-y-1.5">
+          <p className="font-heading text-xl leading-none">{t("summer", { change: signedChange(decline) })}</p>
           <p className="text-xs text-muted-foreground">{t("decline")}</p>
         </div>
       )}
