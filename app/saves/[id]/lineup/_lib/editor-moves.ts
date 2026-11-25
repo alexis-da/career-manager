@@ -1,7 +1,7 @@
 import { ROTATION_FITNESS } from "@/src/engine/balance";
 import { formationPositions, type FormationName } from "@/src/engine/formations";
 import type { Instruction } from "@/src/engine/instructions";
-import { BENCH_SIZE, selectAssistantLineup, selectLineup, type LineupCandidate, type YouthStarter } from "@/src/engine/lineup";
+import { BENCH_SIZE, selectAssistantLineup, selectLineup, type AssistantYouth, type LineupCandidate } from "@/src/engine/lineup";
 
 /** The lineup being edited: a player key per slot (null when empty), the substitutes in order, the starting instruction. */
 export type EditorState = {
@@ -59,14 +59,15 @@ export function sendSlotToBench(state: EditorState, slot: number): EditorState {
 /**
  * The assistant's eleven in a formation, as AI clubs pick theirs (selectRestedLineup): the best player of each slot, the
  * injured and the suspended left out, a tired one (under ROTATION_FITNESS) rested where a rested one is hardly worse
- * there; the bench his too. A club's assistant also starts the Jeunesse objective's young player of its next league match
- * (`youth`, selectAssistantLineup: docs/design/simplification.md § 3.5): the very eleven the match plays.
+ * there; the bench his too. A club's assistant also starts young players in its next match when it is a league one
+ * (`youth`, selectAssistantLineup): the Jeunesse objective's (docs/design/simplification.md § 3.5), and under « Lancer les
+ * jeunes » the club's (docs/design/effectif-adjoint.md § 2.2): the very eleven the match plays.
  */
 export function automaticState(
   state: EditorState,
   formation: FormationName,
   players: readonly (LineupCandidate & { fitness: number })[],
-  youth: YouthStarter | null = null,
+  youth: AssistantYouth | null = null,
 ): EditorState {
   const lineup = selectAssistantLineup(players, formationPositions(formation), youth);
   const starters: (string | null)[] = formationPositions(formation).map(() => null);

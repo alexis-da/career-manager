@@ -182,6 +182,81 @@ describe("decideContracts", () => {
   });
 });
 
+// « Lancer les jeunes » (docs/design/effectif-adjoint.md § 2.2): the same squad of 70s, its standard 70, and contracts ending
+// on 30 June around the policy's two bars: a prospect's potential at the standard minus 3, and 30 to 32-year-olds kept
+// from the standard minus 2 instead of 5.
+describe("the contracts under « Lancer les jeunes »", () => {
+  const CASES = [
+    player("hopeful", "ST", 58, { age: 23, potential: 67, contractExpiring: true }), // 23, potential at the standard − 3
+    player("short", "ST", 58, { age: 23, potential: 66, contractExpiring: true }), // one point below
+    player("late", "ST", 58, { age: 24, potential: 75, contractExpiring: true }), // past the prospects' age
+    player("thirty", "CM", 67, { age: 30, contractExpiring: true }), // 3 below the standard: kept until the policy
+    player("ready", "CM", 68, { age: 32, contractExpiring: true }), // the standard − 2: kept either way
+    player("young-ish", "CB", 66, { age: 29, contractExpiring: true }), // under 30: the standard − 5, as before
+    player("old", "CB", 69, { age: 33, contractExpiring: true }), // past 32: the standard itself, as before
+  ];
+  const squad = [...squadOf("regular", 70), ...CASES];
+  const intentions = (policy?: "BEST" | "YOUTH", byRole: readonly number[] = PLENTY) =>
+    Object.fromEntries([...contractOutcomes(squad, byRole, true, policy)].map(([id, outcome]) => [id, outcome.intention]));
+
+  it("renews the prospects whose potential reaches the standard minus 3, and asks 30 to 32-year-olds the standard minus 2", () => {
+    expect(squadStandard(squad)).toBe(70);
+    expect(intentions("YOUTH")).toEqual({
+      hopeful: "renew",
+      short: "leave",
+      late: "leave",
+      thirty: "leave",
+      ready: "renew",
+      "young-ish": "renew",
+      old: "leave",
+    });
+    // « Meilleur onze », the default, as before the policies: the prospect's bar the standard, the margin 5 until 32.
+    expect(intentions("BEST")).toEqual({
+      hopeful: "leave",
+      short: "leave",
+      late: "leave",
+      thirty: "renew",
+      ready: "renew",
+      "young-ish": "renew",
+      old: "leave",
+    });
+    expect(intentions()).toEqual(intentions("BEST"));
+  });
+
+  it("still keeps a player let go whose role the free agents could not fill, and his player's own choice first", () => {
+    // Without its regular midfielders nor a free one, the thirty-year-old is kept, as an AI club keeps a player its role needs.
+    const midfield = countByRole([{ position: "CM" }]).indexOf(1);
+    const noMidfielder = PLENTY.map((count, role) => (role === midfield ? 0 : count));
+    const thin = squad.filter((member) => !(member.position === "CM" && member.id.startsWith("regular")));
+    expect(squadStandard(thin)).toBe(70);
+    expect(contractOutcomes(thin, noMidfielder, true, "YOUTH").get("thirty")).toEqual({ intention: "renew", by: "assistant" });
+    expect(contractOutcomes(thin, PLENTY, true, "YOUTH").get("thirty")).toEqual({ intention: "leave", by: "assistant" });
+
+    const chosen = squad.map((member) => (member.id === "hopeful" ? { ...member, choice: "LEAVE" as const } : member));
+    expect(contractOutcomes(chosen, PLENTY, true, "YOUTH").get("hopeful")).toEqual({ intention: "leave", by: "player" });
+    // Nothing of it while the player keeps the contracts.
+    expect(contractOutcomes(squad, PLENTY, false, "YOUTH").get("hopeful")).toEqual({ intention: "leave", by: "default" });
+  });
+
+  it("tells it ahead as the turn decides it, with the same draws", () => {
+    const forecasts = contractForecasts(squad, PLENTY, true, "YOUTH");
+    expect(forecasts.get("hopeful")).toEqual({ outcome: { intention: "renew", by: "assistant" }, assistant: "renew" });
+    expect(forecasts.get("thirty")).toEqual({ outcome: { intention: "leave", by: "assistant" }, assistant: "leave" });
+    // His player's choice, and what the assistant would do without it, the policy's way.
+    const chosen = squad.map((member) => (member.id === "thirty" ? { ...member, choice: "RENEW" as const } : member));
+    expect(contractForecasts(chosen, PLENTY, true, "YOUTH").get("thirty")).toEqual({
+      outcome: { intention: "renew", by: "player" },
+      assistant: "leave",
+    });
+
+    const decisions = decideContracts(squad, PLENTY, true, makeRng("policy"), "YOUTH");
+    expect(decisions.map((decision) => [decision.playerId, decision.type])).toEqual(
+      [...contractOutcomes(squad, PLENTY, true, "YOUTH")].map(([id, outcome]) => [id, outcome.intention]),
+    );
+    expect(decideContracts(squad, PLENTY, true, makeRng("policy"))).toEqual(decideContracts(squad, PLENTY, true, makeRng("policy"), "BEST"));
+  });
+});
+
 describe("assistantSignings", () => {
   const RICH = { budget: 500_000_000, reputation: 99 };
   const free = (id: string, position: Position, overall: number, age = 27): RosterPlayer => ({

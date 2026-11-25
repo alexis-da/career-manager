@@ -166,7 +166,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("who makes the managed c
       create: { saveId, seasonId: season.id, kind: "YOUTH", imposed: false, target: YOUTH_OBJECTIVE_STARTS },
       update: {},
     });
-    expect((await getLineupEditor(saveId)).youth).toEqual({ id: candidate?.id, leagueStarts: 0 });
+    expect((await getLineupEditor(saveId)).youth).toEqual({ policy: "BEST", starter: { id: candidate?.id, leagueStarts: 0 }, prospects: [] });
 
     // Another one chosen by the player: no Jeunesse.
     await db.seasonObjective.updateMany({ where: { saveId, seasonId: season.id, imposed: false, kind: { not: "YOUTH" } }, data: { chosen: true } });

@@ -65,7 +65,7 @@ describe("the automatic eleven", () => {
   it("starts the Jeunesse objective's young player, as the club's match plays its assistant's eleven", () => {
     // A centre-back of 78 at his own position, two points below the first one: the assistant starts him there.
     const players = [...squad(), { id: "young", position: "CB" as const, overall: 78, injured: false, fitness: 100 }];
-    const youth = { id: "young", leagueStarts: 0 };
+    const youth = { policy: "BEST" as const, starter: { id: "young", leagueStarts: 0 }, prospects: [] };
     const next = automaticState(state, "4-3-3", players, youth);
     const lineup = selectAssistantLineup(players, formationPositions("4-3-3"), youth);
 

@@ -1002,6 +1002,27 @@ export const RENEWAL_MAX_AGE = 32;
 /** Players up to this age are also renewed when their potential reaches the squad standard. */
 export const PROSPECT_MAX_AGE = 23;
 
+// ------------------------------------------------------------------ « Lancer les jeunes », the assistant's policy
+// docs/design/effectif-adjoint.md § 2, measured on fifteen clubs over three seasons each (§ 2.3), against « Meilleur onze »:
+// its young players played three times as many league minutes (1 083 a season against 364) and progressed 58 % faster,
+// for a cost in points no measure told from noise (−0.014 a match, standard error 0.019). The managed club's only.
+
+/** Its young players: this old or younger on 1 July of the season… */
+export const YOUTH_POLICY_MAX_AGE = 21;
+/** …with this much growth room at least (potential − overall)… */
+export const YOUTH_POLICY_MIN_ROOM = 5;
+/** …and fewer league starts in the season than this: 2 250 minutes, past which playing adds nothing (GROWTH_BY_MINUTES). */
+export const YOUTH_POLICY_STARTS = 25;
+/** At most this many of them start a league match, available and rested (ROTATION_FITNESS or more)… */
+export const YOUTH_POLICY_PER_MATCH = 3;
+/** …each at a slot of his positions where he is rated at most this much below its starter. */
+export const YOUTH_POLICY_MAX_RATING_GAP = 10;
+/** Its contracts: a prospect (PROSPECT_MAX_AGE or younger) is also renewed when his potential reaches the standard minus this… */
+export const YOUTH_POLICY_PROSPECT_MARGIN = 3;
+/** …and a player from this age to RENEWAL_MAX_AGE must be rated the standard minus this, not minus RENEWAL_RATING_MARGIN. */
+export const YOUTH_POLICY_VETERAN_AGE = 30;
+export const YOUTH_POLICY_VETERAN_MARGIN = 2;
+
 // ------------------------------------------------------------------ Youth arrivals and leaving the world
 
 /** Young players joining every club at each preseason. */

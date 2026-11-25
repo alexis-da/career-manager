@@ -4,7 +4,8 @@ import { disciplineAfterMatch, isSuspended, type CompetitionKind, type Disciplin
 import { fitnessAfterMatch, recoveredFitness } from "../engine/fitness";
 import { chooseFormation, monthlyFormation, type KeptFormation } from "../engine/formation-choice";
 import type { FormationName } from "../engine/formations";
-import { autoFilledSlots, managedLineup, type Lineup, type SquadPlayer, type YouthStarter } from "../engine/lineup";
+import type { AssistantPolicy } from "../engine/assistant-policy";
+import { autoFilledSlots, managedLineup, type AssistantYouth, type Lineup, type SquadPlayer } from "../engine/lineup";
 import { isKnockoutRound, isNeutralRound } from "../engine/europe";
 import {
   cupMatchRngSeed,
@@ -44,7 +45,7 @@ import { checkCoachQualification } from "./national-missions";
 import { coachSaveOf, COACH_SAVE_SELECT, currentNationalSession, playNationalStep, type NationalStepMode } from "./national-team";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 import { serializeLiveState } from "./live-state";
-import { lineupByAssistantOf, parseFormation, parseSavedLineup, youthStarterOf } from "./lineup";
+import { assistantYouthOf, lineupByAssistantOf, parseFormation, parseSavedLineup } from "./lineup";
 
 // A matchday writes a few thousand rows, in a handful of bulk statements.
 // Re-exported for live-match.ts, which shares the matchday transaction settings.
@@ -200,10 +201,11 @@ export function aiLineupOf(
 }
 
 /**
- * Who makes the managed club's line-up for a match (docs/design/simplification.md § 3): its assistant, with the Jeunesse
- * objective's young player of a league match (§ 3.5) when there is one, or its player (`assistant` null).
+ * Who makes the managed club's line-up for a match (docs/design/simplification.md § 3): its assistant, with what he knows
+ * of the club's young players for a league match (AssistantYouth: the Jeunesse objective's, § 3.5, and those his policy
+ * « Lancer les jeunes » may start) when any, or its player (`assistant` null).
  */
-type ManagedMode = { assistant: { youth: YouthStarter | null } | null };
+type ManagedMode = { assistant: { youth: AssistantYouth | null } | null };
 
 /**
  * The managed club plays its assistant's eleven in its formation, or its player's saved lineup, completed automatically
@@ -231,33 +233,37 @@ function lineupOf(
 /**
  * Who makes the managed club's line-up on a date it plays (docs/design/simplification.md § 3): its career's setting
  * (lineupByAssistantOf: for a career from before it, its saved line-up decides), and for a league match by its
- * assistant, the Jeunesse objective's young player (youthStarterOf: one read at most, none without a player young enough).
+ * assistant, what he knows of its young players (assistantYouthOf, with his policy: the Jeunesse objective's young
+ * player, one read at most, none without a player young enough; under « Lancer les jeunes », one read more of the young
+ * players' league starts). A cup or European match: the rested eleven, whatever the policy.
  */
 async function managedModeOf(
   tx: Transaction,
   saveId: string,
-  setting: boolean | null,
+  save: { lineupByAssistant: boolean | null; assistantPolicy: AssistantPolicy },
   fixtures: readonly { seasonId: string; season: FixtureSeason; homeClubSave: Team; awayClubSave: Team }[],
   squad: readonly SquadPlayer[],
-  births: readonly { playerKey: string; birthDate: Date }[],
+  births: readonly { playerKey: string; birthDate: Date; potential: number }[],
   stateByKey: ReadonlyMap<string, PlayerState>,
 ): Promise<ManagedMode> {
   const fixture = fixtures.find((candidate) => candidate.homeClubSave.isManaged || candidate.awayClubSave.isManaged);
   const team = fixture === undefined ? undefined : fixture.homeClubSave.isManaged ? fixture.homeClubSave : fixture.awayClubSave;
-  if (fixture === undefined || team === undefined || !lineupByAssistantOf(setting, team.lineup)) {
+  if (fixture === undefined || team === undefined || !lineupByAssistantOf(save.lineupByAssistant, team.lineup)) {
     return { assistant: null };
   }
   if (fixture.season.competition.kind !== "LEAGUE") {
     return { assistant: { youth: null } };
   }
-  const birthOf = new Map(births.map((row) => [row.playerKey, row.birthDate]));
+  const rowOf = new Map(births.map((row) => [row.playerKey, row]));
   const players = squad.flatMap((player) => {
-    const birthDate = birthOf.get(player.id);
+    const row = rowOf.get(player.id);
     const { playerSaveId } = getOrThrow(stateByKey, player.id, "player");
-    return birthDate === undefined ? [] : [{ id: player.id, playerSaveId, overall: player.overall, birthDate }];
+    return row === undefined
+      ? []
+      : [{ id: player.id, playerSaveId, overall: player.overall, potential: row.potential, birthDate: row.birthDate }];
   });
   const season = { id: fixture.seasonId, startYear: fixture.season.startYear };
-  return { assistant: { youth: await youthStarterOf(tx, saveId, season, players) } };
+  return { assistant: { youth: await assistantYouthOf(tx, saveId, season, save.assistantPolicy, players) } };
 }
 
 /** Keeps on their rows the formations AI clubs chose for the rest of the month (lineupOf), in one statement. */
@@ -636,7 +642,14 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
       await lockSave(tx, saveId);
       const save = await tx.save.findUniqueOrThrow({
         where: { id: saveId },
-        select: { ...COACH_SAVE_SELECT, liveFixtureId: true, liveInternationalId: true, challengeId: true, lineupByAssistant: true },
+        select: {
+          ...COACH_SAVE_SELECT,
+          liveFixtureId: true,
+          liveInternationalId: true,
+          challengeId: true,
+          lineupByAssistant: true,
+          assistantPolicy: true,
+        },
       });
       const waiting = liveMatchOf(save);
       if (waiting !== null) {
@@ -750,9 +763,10 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
       const managedSquad = squads.get(managedClubSaveId);
       let managedMode: ManagedMode = { assistant: null };
       if (managedSquad !== undefined) {
+        // Their potentials with them: what « Lancer les jeunes » reads of its young players (managedModeOf).
         const births = await tx.playerSave.findMany({
           where: { saveId, clubSaveId: managedClubSaveId },
-          select: { playerKey: true, birthDate: true },
+          select: { playerKey: true, birthDate: true, potential: true },
         });
         const ageOf = new Map(births.map((row) => [row.playerKey, ageInYears(row.birthDate, matchDate)]));
         squads.set(
@@ -762,7 +776,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
             return age === undefined ? player : { ...player, age };
           }),
         );
-        managedMode = await managedModeOf(tx, saveId, save.lineupByAssistant, fixtures, managedSquad, births, stateByKey);
+        managedMode = await managedModeOf(tx, saveId, save, fixtures, managedSquad, births, stateByKey);
       }
       const kept: ({ clubSaveId: string } & KeptFormation)[] = [];
 

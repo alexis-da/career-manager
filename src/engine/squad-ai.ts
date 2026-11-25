@@ -1,4 +1,5 @@
 import type { Rng } from "../lib/rng";
+import type { AssistantPolicy } from "./assistant-policy";
 import {
   MIN_GOALKEEPERS,
   PROSPECT_MAX_AGE,
@@ -8,6 +9,9 @@ import {
   SQUAD_SIZE_MIN,
   SQUAD_ROLES,
   SQUAD_STANDARD_SIZE,
+  YOUTH_POLICY_PROSPECT_MARGIN,
+  YOUTH_POLICY_VETERAN_AGE,
+  YOUTH_POLICY_VETERAN_MARGIN,
 } from "./balance";
 import { contractYears, marketValueFor, renewalWage, signingBonus, wageFor } from "./economy";
 import { roleOf, type Position } from "./positions";
@@ -67,16 +71,35 @@ export function squadStandard(players: readonly RosterPlayer[]): number {
   return best.length === 0 ? 0 : best.reduce((sum, player) => sum + player.overall, 0) / best.length;
 }
 
-const isProspect = (player: RosterPlayer, standard: number): boolean =>
-  player.age <= PROSPECT_MAX_AGE && player.potential >= standard;
+/**
+ * A prospect the club keeps: PROSPECT_MAX_AGE or younger, his potential at its standard; for the managed club whose
+ * assistant follows « Lancer les jeunes » (docs/design/effectif-adjoint.md § 2.2), at its standard minus
+ * YOUTH_POLICY_PROSPECT_MARGIN.
+ */
+const isProspect = (player: RosterPlayer, standard: number, policy: AssistantPolicy = "BEST"): boolean =>
+  player.age <= PROSPECT_MAX_AGE &&
+  player.potential >= (policy === "YOUTH" ? standard - YOUTH_POLICY_PROSPECT_MARGIN : standard);
 
-/** Whether the club wants to keep a player whose contract expires: rating, age, or potential when young. */
-export function wantsToKeep(player: RosterPlayer, standard: number): boolean {
-  if (isProspect(player, standard)) {
+/**
+ * The rating a player must have to be kept: the standard past RENEWAL_MAX_AGE, RENEWAL_RATING_MARGIN below it until then;
+ * under « Lancer les jeunes », YOUTH_POLICY_VETERAN_MARGIN below it from YOUTH_POLICY_VETERAN_AGE to RENEWAL_MAX_AGE.
+ */
+function renewalBar(age: number, standard: number, policy: AssistantPolicy): number {
+  if (age > RENEWAL_MAX_AGE) {
+    return standard;
+  }
+  return policy === "YOUTH" && age >= YOUTH_POLICY_VETERAN_AGE ? standard - YOUTH_POLICY_VETERAN_MARGIN : standard - RENEWAL_RATING_MARGIN;
+}
+
+/**
+ * Whether the club wants to keep a player whose contract expires: rating, age, or potential when young. An AI club's rule
+ * is « Meilleur onze »'s, the managed club's assistant's by default; `policy`, the one he follows (assistant-contracts.ts).
+ */
+export function wantsToKeep(player: RosterPlayer, standard: number, policy: AssistantPolicy = "BEST"): boolean {
+  if (isProspect(player, standard, policy)) {
     return true;
   }
-  const bar = player.age > RENEWAL_MAX_AGE ? standard : standard - RENEWAL_RATING_MARGIN;
-  return player.overall >= bar;
+  return player.overall >= renewalBar(player.age, standard, policy);
 }
 
 /**

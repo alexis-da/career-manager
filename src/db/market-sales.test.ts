@@ -111,7 +111,8 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("getMarketSales on the d
     // Of his eleven, those out of the next match are injured or suspended, or the one the Jeunesse objective's young
     // player starts in place of: never offered, where their stand-ins may be.
     const out = eleven.filter((key) => !fielded.includes(key));
-    const youthIn = editor.youth != null && fielded.includes(editor.youth.id) && !eleven.includes(editor.youth.id);
+    const starter = editor.youth?.starter ?? null;
+    const youthIn = starter !== null && fielded.includes(starter.id) && !eleven.includes(starter.id);
     const fit = out.filter((key) => byKey.get(key)?.injured !== true && byKey.get(key)?.suspended !== true);
     expect(fit).toHaveLength(youthIn ? 1 : 0);
   });

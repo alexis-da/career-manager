@@ -176,7 +176,7 @@ describe("the line-up its assistant makes", () => {
   it("starts the Jeunesse objective's young player as the match does", () => {
     const young = player("CB#young", "CB", 71);
     const players = [...PLAYERS, young];
-    const youth = { id: "CB#young", leagueStarts: 3 };
+    const youth = { policy: "BEST" as const, starter: { id: "CB#young", leagueStarts: 3 }, prospects: [] };
     const expected = selectAssistantLineup(players, formationPositions(FORMATION), youth).starters.map(({ player: { id } }) => id);
     const markup = renderEditor({ ...editorWith(null, true, youth), players });
 

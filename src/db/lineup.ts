@@ -3,7 +3,8 @@ import { cache } from "react";
 import { DEFAULT_FORMATION_NAME, FORMATION_NAMES, formationPositions, type FormationName } from "../engine/formations";
 import type { AttributeName } from "../engine/generation";
 import { DEFAULT_INSTRUCTION, INSTRUCTIONS, type Instruction } from "../engine/instructions";
-import { FULL_FITNESS } from "../engine/balance";
+import type { AssistantPolicy } from "../engine/assistant-policy";
+import { FULL_FITNESS, YOUTH_POLICY_MAX_AGE } from "../engine/balance";
 import {
   BENCH_SIZE,
   isAvailable,
@@ -11,9 +12,11 @@ import {
   selectAssistantLineup,
   selectLineup,
   youthCandidate,
+  type AssistantYouth,
   type Lineup,
   type LineupCandidate,
   type SavedLineup,
+  type YouthProspect,
   type YouthStarter,
 } from "../engine/lineup";
 import { assistantObjective, OPTIONAL_OBJECTIVES, type OptionalObjective } from "../engine/objectives";
@@ -119,6 +122,14 @@ export type LeagueSeasonRef = { id: string } | { competitionId: string; startYea
 
 const isOptional = (kind: string): kind is OptionalObjective => (OPTIONAL_OBJECTIVES as readonly string[]).includes(kind);
 
+/** A league season's id in a query: the one given, or the one of its competition and first year in the save. */
+function seasonIdSql(saveId: string, season: LeagueSeasonRef): Prisma.Sql {
+  return "id" in season
+    ? Prisma.sql`${season.id}`
+    : Prisma.sql`(SELECT "id" FROM "Season"
+          WHERE "saveId" = ${saveId} AND "competitionId" = ${season.competitionId} AND "startYear" = ${season.startYear})`;
+}
+
 /**
  * The Jeunesse objective's young player of a league match of the managed club (docs/design/simplification.md § 3.5): the
  * candidate given (youthCandidate, among its players), with his league starts of the season so far, when that season's
@@ -132,11 +143,7 @@ export async function readYouthStarter(
   season: LeagueSeasonRef,
   candidate: { id: string; playerSaveId: string },
 ): Promise<YouthStarter | null> {
-  const seasonId =
-    "id" in season
-      ? Prisma.sql`${season.id}`
-      : Prisma.sql`(SELECT "id" FROM "Season"
-          WHERE "saveId" = ${saveId} AND "competitionId" = ${season.competitionId} AND "startYear" = ${season.startYear})`;
+  const seasonId = seasonIdSql(saveId, season);
   const rows = await db.$queryRaw<{ kind: string; chosen: boolean; starts: number }[]>`
     SELECT o."kind"::text AS "kind", o."chosen", COALESCE(s."starts", 0)::int AS "starts"
     FROM "SeasonObjective" o
@@ -165,6 +172,53 @@ export async function youthStarterOf(
   const firstDay = seasonStartDate(season.startYear);
   const candidate = youthCandidate(players.map((player) => ({ ...player, seasonAge: ageInYears(player.birthDate, firstDay) })));
   return candidate === null ? null : readYouthStarter(db, saveId, season, candidate);
+}
+
+/**
+ * What « Lancer les jeunes » reads of the managed club's young players for a league match (docs/design/effectif-adjoint.md
+ * § 2.2), from its players (their key, PlayerSave.id, potential and birth date): each one YOUTH_POLICY_MAX_AGE or younger
+ * on 1 July of the season, his age then, his potential and his league starts of the season so far, one read for them all;
+ * nothing read without one.
+ */
+async function readYouthProspects(
+  db: Db,
+  saveId: string,
+  season: LeagueSeasonRef & { startYear: number },
+  players: readonly { id: string; playerSaveId: string; potential: number; birthDate: Date }[],
+): Promise<YouthProspect[]> {
+  const firstDay = seasonStartDate(season.startYear);
+  const young = players.flatMap((player) => {
+    const seasonAge = ageInYears(player.birthDate, firstDay);
+    return seasonAge <= YOUTH_POLICY_MAX_AGE ? [{ ...player, seasonAge }] : [];
+  });
+  if (young.length === 0) {
+    return [];
+  }
+  const rows = await db.$queryRaw<{ playerSaveId: string; starts: number }[]>`
+    SELECT "playerSaveId", "starts"::int AS "starts"
+    FROM "PlayerSeasonStats"
+    WHERE "saveId" = ${saveId} AND "seasonId" = ${seasonIdSql(saveId, season)}
+      AND "playerSaveId" IN (${Prisma.join(young.map((player) => player.playerSaveId))})`;
+  const starts = new Map(rows.map((row) => [row.playerSaveId, row.starts]));
+  return young.map(({ id, playerSaveId, potential, seasonAge }) => ({ id, seasonAge, potential, leagueStarts: starts.get(playerSaveId) ?? 0 }));
+}
+
+/**
+ * What the assistant's eleven of a league match of the managed club knows of its young players (AssistantYouth), from its
+ * players (their key, PlayerSave.id, rating, potential and birth date) and his policy (Save.assistantPolicy): the Jeunesse
+ * objective's young player (youthStarterOf) and, under « Lancer les jeunes » only, what the policy reads of the players
+ * young enough (readYouthProspects, one read more); null when neither starts anybody, the rested eleven.
+ */
+export async function assistantYouthOf(
+  db: Db,
+  saveId: string,
+  season: LeagueSeasonRef & { startYear: number },
+  policy: AssistantPolicy,
+  players: readonly { id: string; playerSaveId: string; overall: number; potential: number; birthDate: Date }[],
+): Promise<AssistantYouth | null> {
+  const starter = await youthStarterOf(db, saveId, season, players);
+  const prospects = policy === "YOUTH" ? await readYouthProspects(db, saveId, season, players) : [];
+  return starter === null && prospects.length === 0 ? null : { policy, starter, prospects };
 }
 
 /** A player on a pitch: the managed club's before its next match or at a break, or an opponent's. */
@@ -201,10 +255,13 @@ export type LineupEditor = {
   tier: CompetitionTier; // its division: the formations are ranked for its squad against that division's average opponent
   players: EditorPlayer[];
   // A club's (docs/design/simplification.md § 3): whether its assistant makes its line-up before each match, the saved
-  // one then unread; and, when he does, the Jeunesse objective's young player his eleven of the next match starts (§ 3.5),
-  // null without. A nation's editor has neither: its coach's line-up is his own, saved, or his assistant's while none is.
+  // one then unread; his policy (docs/design/effectif-adjoint.md § 2); and, when he makes it, what his eleven of the next
+  // match, a league one, knows of the club's young players (assistantYouthOf: the Jeunesse objective's, § 3.5, and those
+  // « Lancer les jeunes » may start), null without any. A nation's editor has none of them: its coach's line-up is his
+  // own, saved, or his assistant's while none is.
   byAssistant?: boolean;
-  youth?: YouthStarter | null;
+  policy?: AssistantPolicy;
+  youth?: AssistantYouth | null;
 };
 
 export type ManagedLineup = {
@@ -220,7 +277,8 @@ export type ManagedLineup = {
   weakSpotLineup: Lineup<ClubLineupPlayer>;
   // The players kept off the sales list (getMarketSales), by key: the player's eleven, his saved starters out of the next
   // match included; the assistant's way, his eleven with the whole squad available and fresh (§ 3.4), an injured starter
-  // with it, and the Jeunesse objective's young player who starts (§ 3.5), the starter he replaces then on the bench.
+  // with it, and the young players it starts (the Jeunesse objective's, § 3.5, and those of « Lancer les jeunes »), the
+  // starters they replace then on the bench.
   keptOffSales: string[];
 };
 
@@ -239,12 +297,15 @@ const managedClub = (saveId: string) =>
 
 /**
  * Everything the lineup page needs: formation, saved lineup, and the squad with injuries and fitness on the next match day,
- * suspensions for its competition; who makes the line-up, and the Jeunesse objective's young player of its assistant's
- * eleven when the next match is a league one.
+ * suspensions for its competition; who makes the line-up, his policy, and the young players of its assistant's eleven
+ * when the next match is a league one.
  */
 export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
   const [save, club] = await Promise.all([
-    prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true, lineupByAssistant: true } }),
+    prisma.save.findUniqueOrThrow({
+      where: { id: saveId },
+      select: { currentDate: true, lineupByAssistant: true, assistantPolicy: true },
+    }),
     managedClub(saveId),
   ]);
   const [ahead, rows] = await Promise.all([
@@ -260,6 +321,7 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
         birthDate: true,
         position: true,
         overall: true,
+        potential: true,
         pace: true,
         shooting: true,
         passing: true,
@@ -278,14 +340,21 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
   const matchDate = ahead.next?.date ?? save.currentDate;
   const saved = parseSavedLineup(club.lineup);
   const byAssistant = lineupByAssistantOf(save.lineupByAssistant, club.lineup);
-  // The assistant's eleven of a league match: the Jeunesse objective's young player, as the matchday reads him.
+  // The assistant's eleven of a league match: its young players, as the matchday reads them.
   const youth =
     byAssistant && ahead.next?.competition === "LEAGUE"
-      ? await youthStarterOf(
+      ? await assistantYouthOf(
           prisma,
           saveId,
           { competitionId: club.competitionId, startYear: seasonStartYear(ahead.next.date) },
-          rows.map((row) => ({ id: row.playerKey, playerSaveId: row.id, overall: row.overall, birthDate: row.birthDate })),
+          save.assistantPolicy,
+          rows.map((row) => ({
+            id: row.playerKey,
+            playerSaveId: row.id,
+            overall: row.overall,
+            potential: row.potential,
+            birthDate: row.birthDate,
+          })),
         )
       : null;
 
@@ -297,6 +366,7 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
     clubColors: clubColorsOf(club.club),
     tier: competitionTier(club.competition.tier),
     byAssistant,
+    policy: save.assistantPolicy,
     youth,
     players: rows.map((row) => {
       const discipline = disciplineStatus(row, ahead);

@@ -175,6 +175,7 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
       liveFixtureId: true,
       liveInternationalId: true,
       contractsByAssistant: true,
+      assistantPolicy: true,
     },
   });
   const club = await prisma.clubSave.findFirstOrThrow({
@@ -281,13 +282,14 @@ export async function getDashboard(saveId: string): Promise<Dashboard> {
   );
   const ages = squad.map((player) => ageInYears(player.birthDate, save.currentDate));
   // From 1 January, the important players its assistant means to let go, when he decides the contracts: the rule read on
-  // the squad and the free agents of today, in the club's formation.
+  // the squad and the free agents of today, with his policy, in the club's formation.
   const letGo =
     season === null || !secondHalf || !save.contractsByAssistant || expiring.length === 0
       ? new Set<string>()
       : await importantDepartures(saveId, squad, {
           startYear: season.startYear,
           formation: formationPositions(parseFormation(club.formation)),
+          policy: save.assistantPolicy,
         });
 
   return {

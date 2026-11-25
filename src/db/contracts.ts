@@ -7,6 +7,7 @@ import {
   type ContractForecast,
   type ManagedRosterPlayer,
 } from "../engine/assistant-contracts";
+import type { AssistantPolicy } from "../engine/assistant-policy";
 import { SQUAD_LIMIT, SQUAD_ROLES } from "../engine/balance";
 import type { Formation } from "../engine/lineup";
 import { POSITIONS, type Position } from "../engine/positions";
@@ -127,43 +128,50 @@ function rosterOf(rows: readonly ContractRuleRow[], startYear: number): ManagedR
 }
 
 /**
- * What the next turn will do with each contract of the managed club ending on 30 June, by player key (contractForecasts),
- * from its whole squad (`rows`) and the free agents of today; none read without such a contract.
+ * What the next turn will do with each contract of the managed club ending on 30 June, by player key (contractForecasts,
+ * with its assistant's policy, docs/design/effectif-adjoint.md § 2.2), from its whole squad (`rows`) and the free agents of
+ * today; none read without such a contract.
  */
 export async function forecastContracts(
   db: Db,
   saveId: string,
   rows: readonly ContractRuleRow[],
-  { startYear, byAssistant }: { startYear: number; byAssistant: boolean },
+  { startYear, byAssistant, policy }: { startYear: number; byAssistant: boolean; policy: AssistantPolicy },
 ): Promise<Map<string, ContractForecast>> {
   const roster = rosterOf(rows, startYear);
   if (!roster.some((player) => player.contractExpiring)) {
     return new Map();
   }
-  return contractForecasts(roster, await freeAgentsByRole(db, saveId), byAssistant);
+  return contractForecasts(roster, await freeAgentsByRole(db, saveId), byAssistant, policy);
 }
 
-/** forecastContracts on the managed club's squad, read here: a player's sheet, which shows one of them. */
+/**
+ * forecastContracts on the managed club's squad, read here with its assistant's policy (Save.assistantPolicy): a player's
+ * sheet, which shows one of them.
+ */
 export async function managedContractForecasts(
   saveId: string,
   options: { startYear: number; byAssistant: boolean },
 ): Promise<Map<string, ContractForecast>> {
-  const club = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true } });
+  const club = await prisma.clubSave.findFirstOrThrow({
+    where: { saveId, isManaged: true },
+    select: { id: true, save: { select: { assistantPolicy: true } } },
+  });
   const rows = await prisma.playerSave.findMany({ where: { saveId, clubSaveId: club.id }, select: CONTRACT_RULE_SELECT });
-  return forecastContracts(prisma, saveId, rows, options);
+  return forecastContracts(prisma, saveId, rows, { ...options, policy: club.save.assistantPolicy });
 }
 
 /**
  * The important players (importantPlayers, in the club's formation) whose contract ends on the coming 30 June and whom the
- * assistant means to let go (§ 2.2, point 5 of § 13): his rule does not keep them, and their player chose nothing. By
- * player key; none when the player keeps the contracts.
+ * assistant means to let go (§ 2.2, point 5 of § 13): his rule does not keep them, as his policy reads it, and their
+ * player chose nothing. By player key; none when the player keeps the contracts.
  */
 export async function importantDepartures(
   saveId: string,
   rows: readonly ContractRuleRow[],
-  { startYear, formation }: { startYear: number; formation: Formation },
+  { startYear, formation, policy }: { startYear: number; formation: Formation; policy: AssistantPolicy },
 ): Promise<Set<string>> {
-  const forecasts = await forecastContracts(prisma, saveId, rows, { startYear, byAssistant: true });
+  const forecasts = await forecastContracts(prisma, saveId, rows, { startYear, byAssistant: true, policy });
   const leaving = [...forecasts].flatMap(([key, { outcome }]) => (outcome.intention === "leave" && outcome.by === "assistant" ? [key] : []));
   if (leaving.length === 0) {
     return new Set();

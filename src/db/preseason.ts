@@ -104,7 +104,8 @@ export async function runPreseason(saveId: string): Promise<PreseasonSummary> {
  *    world (RETIREMENT transfer); the initial pool, never released, counts as released when the save started;
  * 2. the managed club's contracts ending on 30 June are decided (docs/design/simplification.md § 2.1, decideContracts):
  *    its player's choice, then its assistant's rule when he takes care of the contracts (options.assistantContracts, or
- *    the career's setting), a free departure otherwise; renewed from the club's own stream (squadPlanRngSeed), those who
+ *    the career's setting), as his policy reads it (Save.assistantPolicy, docs/design/effectif-adjoint.md § 2.2), a free
+ *    departure otherwise; renewed from the club's own stream (squadPlanRngSeed), those who
  *    leave on the market for every AI club; every choice of the save then goes back to none;
  * 3. every club, the managed one included, receives its young players, as many as the places left under SQUAD_LIMIT
  *    allow (§ 1.4): two, fewer near the limit, none at it;
@@ -125,7 +126,7 @@ export async function runPreseasonInTransaction(
 ): Promise<PreseasonSummary> {
   const save = await tx.save.findUniqueOrThrow({
     where: { id: saveId },
-    select: { seed: true, currentDate: true, contractsByAssistant: true },
+    select: { seed: true, currentDate: true, contractsByAssistant: true, assistantPolicy: true },
   });
   const date = save.currentDate;
   const startYear = seasonStartYear(date);
@@ -220,6 +221,7 @@ export async function runPreseasonInTransaction(
       countByRole(market.values()),
       byAssistant,
       managedRng,
+      save.assistantPolicy,
     );
     for (const decision of decisions) {
       const player = getOrThrow(squadByKey, decision.playerId, "squad player");

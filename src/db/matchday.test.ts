@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FITNESS_RECOVERY_PER_DAY, FULL_FITNESS, REGULATION_MINUTES, YOUTH_OBJECTIVE_STARTS } from "../engine/balance";
 import { fitnessAfter } from "../engine/fitness";
 import { formationPositions } from "../engine/formations";
-import { selectRestedLineup, type YouthStarter } from "../engine/lineup";
+import { selectRestedLineup, type AssistantYouth } from "../engine/lineup";
 import { firstMatchdayDate, WORLD_START_YEAR } from "../engine/world";
 import type { prisma as prismaClient } from "./client";
 import type { ManagedLineup } from "./lineup";
@@ -258,7 +258,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, the a
   let saveId = "";
   let managed = { id: "", seasonId: "" };
   let fielded: ManagedLineup | undefined; // getManagedLineup before the match
-  let youth: YouthStarter | null | undefined; // the line-up editor's, before the match
+  let youth: AssistantYouth | null | undefined; // the line-up editor's, before the match
   let summary: MatchdaySummary | null = null;
   let tiredKeeper = "";
   let young = ""; // the young player's key
@@ -369,7 +369,7 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, the a
     });
     const starters = fielded?.lineup.starters.map(({ player }) => player.id) ?? [];
 
-    expect(youth).toEqual({ id: young, leagueStarts: 0 });
+    expect(youth).toEqual({ policy: "BEST", starter: { id: young, leagueStarts: 0 }, prospects: [] });
     expect(fielded).toMatchObject({ formation: "4-4-2", byAssistant: true, missingStarters: [] });
     expect(fielded?.lineup.instruction).toBe("ATTACK");
     expect(starters).toHaveLength(11);
@@ -399,10 +399,10 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("playNextMatchday, the a
       select: { id: true, starts: true },
     });
     expect(row.starts).toBe(1);
-    expect((await getLineupEditor(saveId)).youth).toEqual({ id: young, leagueStarts: 1 });
+    expect((await getLineupEditor(saveId)).youth?.starter).toEqual({ id: young, leagueStarts: 1 });
 
     await db.playerSeasonStats.update({ where: { id: row.id }, data: { starts: YOUTH_OBJECTIVE_STARTS } });
-    expect((await getLineupEditor(saveId)).youth).toEqual({ id: young, leagueStarts: YOUTH_OBJECTIVE_STARTS });
+    expect((await getLineupEditor(saveId)).youth?.starter).toEqual({ id: young, leagueStarts: YOUTH_OBJECTIVE_STARTS });
     const done = await getManagedLineup(saveId);
     expect(done.lineup.starters.map(({ player }) => player.id)).not.toContain(young);
 

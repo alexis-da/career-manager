@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
-import { ROTATION_FITNESS, YOUTH_OBJECTIVE_MAX_AGE, YOUTH_OBJECTIVE_STARTS } from "./balance";
+import {
+  ROTATION_FITNESS,
+  YOUTH_OBJECTIVE_MAX_AGE,
+  YOUTH_OBJECTIVE_STARTS,
+  YOUTH_POLICY_MAX_AGE,
+  YOUTH_POLICY_MAX_RATING_GAP,
+  YOUTH_POLICY_MIN_ROOM,
+  YOUTH_POLICY_PER_MATCH,
+  YOUTH_POLICY_STARTS,
+} from "./balance";
 import { FORMATION_NAMES, formationPositions } from "./formations";
 import {
   autoFilledSlots,
@@ -8,6 +17,7 @@ import {
   BENCH_SIZE,
   changeFormation,
   DEFAULT_FORMATION,
+  isAvailable,
   managedLineup,
   maxRotationGap,
   resolveLineup,
@@ -17,9 +27,14 @@ import {
   selectRestedLineup,
   youthCandidate,
   YOUTH_STARTER_MAX_GAP,
+  type AssistantYouth,
+  type Formation,
   type Lineup,
+  type LineupSlot,
   type SavedLineup,
   type SquadPlayer,
+  type YouthProspect,
+  type YouthStarter,
 } from "./lineup";
 import { POSITIONS, ratingAt, secondaryPositions, type Position } from "./positions";
 
@@ -227,11 +242,14 @@ function benchLeftBy(players: readonly SquadPlayer[], lineup: Lineup): string[] 
   return (keeper === undefined ? left : [keeper, ...left.filter((member) => member !== keeper)]).slice(0, BENCH_SIZE).map(({ id }) => id);
 }
 
+/** What « Meilleur onze » knows of the young players of a league match: the Jeunesse objective's, if any. */
+const best = (starter: YouthStarter | null): AssistantYouth => ({ policy: "BEST", starter, prospects: [] });
+
 describe("selectAssistantLineup", () => {
   // A centre-back with no secondary position: he plays at centre-back alone.
   const youngKey = keyWith("CB", (secondary) => secondary.length === 0);
   const young = (overall: number, overrides: Partial<SquadPlayer> = {}) => player(youngKey, "CB", overall, overrides);
-  const starting = (starts: number) => ({ id: youngKey, leagueStarts: starts });
+  const starting = (starts: number): AssistantYouth => best({ id: youngKey, leagueStarts: starts });
 
   it("is the AI clubs' rested eleven, its bench with it, without the Jeunesse objective's young player", () => {
     const weary = squad.map((member) => (member.id === "cb-1" ? { ...member, fitness: 60 } : member));
@@ -239,6 +257,7 @@ describe("selectAssistantLineup", () => {
       const positions = formationPositions(formation);
       expect(selectAssistantLineup(weary, positions)).toEqual(selectRestedLineup(weary, positions));
       expect(selectAssistantLineup(weary, positions, null)).toEqual(selectRestedLineup(weary, positions));
+      expect(selectAssistantLineup(weary, positions, best(null))).toEqual(selectRestedLineup(weary, positions));
     }
   });
 
@@ -309,7 +328,7 @@ describe("selectAssistantLineup", () => {
     const players = [player("cdm-a", "CDM", 70), player("st-a", "ST", 70), player(midfielder, "CM", 70)];
     // 70 × 0.97 = 67.9 at defensive midfield: 2.1 points below its starter.
     expect(ratingAt(players[2], "CDM")).toBeCloseTo(67.9, 10);
-    const lineup = selectAssistantLineup(players, ["CDM", "ST"], { id: midfielder, leagueStarts: 0 });
+    const lineup = selectAssistantLineup(players, ["CDM", "ST"], best({ id: midfielder, leagueStarts: 0 }));
 
     expect(startersOf(lineup)).toEqual([
       ["CDM", midfielder],
@@ -324,6 +343,304 @@ describe("selectAssistantLineup", () => {
     expect(selectAssistantLineup([...players].reverse(), DEFAULT_FORMATION, starting(3))).toEqual(
       selectAssistantLineup(players, DEFAULT_FORMATION, starting(3)),
     );
+  });
+});
+
+/** `count` keys « young-{position}-N », each with the secondary positions wanted: they come from the key alone. */
+function keysWith(position: Position, count: number, wanted: (secondary: readonly Position[]) => boolean): string[] {
+  const keys: string[] = [];
+  for (let n = 0; keys.length < count && n < 10_000; n++) {
+    const key = `young-${position}-${n}`;
+    if (wanted(secondaryPositions(key, position))) {
+      keys.push(key);
+    }
+  }
+  if (keys.length < count) {
+    throw new Error(`Not ${count} keys of a ${position} drawing such secondary positions`);
+  }
+  return keys;
+}
+
+describe("selectAssistantLineup under « Lancer les jeunes »", () => {
+  // Young players with no secondary position: each plays at his own alone. The 4-3-3 of `squad`, rested: GK gk-2,
+  // RB rb-1 66, CB cb-1 71 and cb-2 68 (slots 2 and 3), LB lb-1 64 (4), CDM cdm-1 69, CM cm-1 72 (6) and cam-1 67.16 (7,
+  // 73 × 0.92), RW st-1, ST st-2 66 (9), LW lw-1.
+  const alone = (secondary: readonly Position[]): boolean => secondary.length === 0;
+  const [cbKey, cbKey2, cbKey3] = keysWith("CB", 3, alone);
+  const [cmKey] = keysWith("CM", 1, alone);
+  const [lbKey] = keysWith("LB", 1, alone);
+  const [stKey] = keysWith("ST", 1, alone);
+
+  /** A young player the policy reads: 19 on 1 July, ten points of room, no league start yet, unless told otherwise. */
+  const prospectOf = (member: SquadPlayer, overrides: Partial<YouthProspect> = {}): YouthProspect => ({
+    id: member.id,
+    seasonAge: 19,
+    potential: member.overall + 10,
+    leagueStarts: 0,
+    ...overrides,
+  });
+  const youthOf = (prospects: readonly YouthProspect[], starter: YouthStarter | null = null): AssistantYouth => ({
+    policy: "YOUTH",
+    starter,
+    prospects,
+  });
+  /** The rested eleven with some of its slots given to other players. */
+  const restedWith = (players: readonly SquadPlayer[], given: Record<number, string>): [Position, string][] =>
+    startersOf(selectRestedLineup(players)).map(([slot, id], index) => [slot, given[index] ?? id]);
+
+  const midfielder = player(cmKey, "CM", 65); // 2.16 below cam-1 at slot 7, 7 below cm-1
+  const back = player(cbKey, "CB", 63); // 5 below cb-2 at slot 3, 8 below cb-1
+  const leftBack = player(lbKey, "LB", 60); // 4 below lb-1
+  const striker = player(stKey, "ST", 58); // 8 below st-2
+  const four = [...squad, midfielder, back, leftBack, striker];
+  const fourProspects = [midfielder, back, leftBack, striker].map((member) => prospectOf(member));
+
+  it("starts three young players at most in a league match, the best rated first, each where he gives up the least", () => {
+    const lineup = selectAssistantLineup(four, DEFAULT_FORMATION, youthOf(fourProspects));
+
+    expect(startersOf(lineup)).toEqual(restedWith(four, { 3: cbKey, 4: lbKey, 7: cmKey }));
+    // The fourth, 8 points below the striker he would replace, waits: three a match.
+    expect(startersOf(lineup).map(([, id]) => id)).not.toContain(stKey);
+    // The starters they replace join the others for the bench.
+    expect(lineup.bench.map(({ id }) => id)).toEqual(benchLeftBy(four, lineup));
+    expect(lineup.bench.map(({ id }) => id)).toEqual(expect.arrayContaining(["cam-1", "cb-2"]));
+    expect(lineup.bench[0].id).toBe("gk-1");
+    expect([YOUTH_POLICY_PER_MATCH, YOUTH_POLICY_MAX_RATING_GAP, YOUTH_POLICY_MIN_ROOM, YOUTH_POLICY_STARTS, YOUTH_POLICY_MAX_AGE]).toEqual([
+      3, 10, 5, 25, 21,
+    ]);
+  });
+
+  it("starts a young player 10 points below the starter, never 11", () => {
+    const ten = player(stKey, "ST", 56);
+    expect(startersOf(selectAssistantLineup([...squad, ten], DEFAULT_FORMATION, youthOf([prospectOf(ten)])))[9]).toEqual(["ST", stKey]);
+    const eleven = player(stKey, "ST", 55);
+    const players = [...squad, eleven];
+    expect(selectAssistantLineup(players, DEFAULT_FORMATION, youthOf([prospectOf(eleven)]))).toEqual(selectRestedLineup(players));
+  });
+
+  it("starts only the young enough, with room to grow and short of 25 league starts, available and rested", () => {
+    const players = [...squad, back];
+    const fielded = (prospect: YouthProspect, member: SquadPlayer = back): boolean =>
+      startersOf(selectAssistantLineup([...squad, member], DEFAULT_FORMATION, youthOf([prospect]))).some(([, id]) => id === cbKey);
+
+    expect(fielded(prospectOf(back, { seasonAge: YOUTH_POLICY_MAX_AGE }))).toBe(true);
+    expect(fielded(prospectOf(back, { seasonAge: YOUTH_POLICY_MAX_AGE + 1 }))).toBe(false);
+    expect(fielded(prospectOf(back, { potential: back.overall + YOUTH_POLICY_MIN_ROOM }))).toBe(true);
+    expect(fielded(prospectOf(back, { potential: back.overall + YOUTH_POLICY_MIN_ROOM - 1 }))).toBe(false);
+    expect(fielded(prospectOf(back, { leagueStarts: YOUTH_POLICY_STARTS - 1 }))).toBe(true);
+    expect(fielded(prospectOf(back, { leagueStarts: YOUTH_POLICY_STARTS }))).toBe(false);
+    for (const overrides of [{ injured: true }, { suspended: true }, { fitness: ROTATION_FITNESS - 1 }]) {
+      expect(fielded(prospectOf(back), { ...back, ...overrides })).toBe(false);
+    }
+    expect(fielded(prospectOf(back), { ...back, fitness: ROTATION_FITNESS })).toBe(true);
+    // Nothing read of him: no start ahead of the rating.
+    expect(selectAssistantLineup(players, DEFAULT_FORMATION, youthOf([]))).toEqual(selectRestedLineup(players));
+  });
+
+  it("gives each slot once: the next young player takes another of his slots within the gap, or none", () => {
+    const first = player(cbKey, "CB", 66); // 2 below cb-2, 5 below cb-1
+    const second = player(cbKey2, "CB", 65); // cb-2's slot taken: 6 below cb-1
+    const third = player(cbKey3, "CB", 64); // no centre-back slot left
+    const players = [...squad, first, second, third];
+    const lineup = selectAssistantLineup(players, DEFAULT_FORMATION, youthOf([third, second, first].map((member) => prospectOf(member))));
+
+    expect(startersOf(lineup)).toEqual(restedWith(players, { 2: cbKey2, 3: cbKey }));
+    expect(lineup.bench.map(({ id }) => id)).toEqual(benchLeftBy(players, lineup));
+    expect(lineup.bench.map(({ id }) => id)).toEqual(expect.arrayContaining(["cb-1", "cb-2"]));
+  });
+
+  it("considers the Jeunesse objective's young player first, at the policy's gap, until his 15th league start", () => {
+    // 6 below cb-2: beyond the 4 points of « Meilleur onze », within the 10 of the policy; no room left to grow.
+    const objective = player(cbKey, "CB", 62);
+    const players = [...squad, objective, midfielder, leftBack, striker];
+    const prospects = [objective, midfielder, leftBack, striker].map((member) => prospectOf(member, member === objective ? { potential: 62 } : {}));
+    const starter = (starts: number): YouthStarter => ({ id: cbKey, leagueStarts: starts });
+
+    // First of the three, ahead of better rated ones: the striker waits.
+    expect(startersOf(selectAssistantLineup(players, DEFAULT_FORMATION, youthOf(prospects, starter(3))))).toEqual(
+      restedWith(players, { 3: cbKey, 4: lbKey, 7: cmKey }),
+    );
+    // His 15th league start reached, nothing for him: no room to grow, he is no young player of the policy's.
+    expect(startersOf(selectAssistantLineup(players, DEFAULT_FORMATION, youthOf(prospects, starter(YOUTH_OBJECTIVE_STARTS))))).toEqual(
+      restedWith(players, { 4: lbKey, 7: cmKey, 9: stKey }),
+    );
+    // « Meilleur onze » leaves him out: 6 points are too many there.
+    expect(selectAssistantLineup(players, DEFAULT_FORMATION, best(starter(3)))).toEqual(selectRestedLineup(players));
+  });
+
+  it("counts nothing for a young player who starts on his own: the others still come in", () => {
+    const good = player(cbKey, "CB", 70); // better than cb-2: the rested eleven has him
+    const players = [...squad, good, midfielder, leftBack, striker];
+    const lineup = selectAssistantLineup(players, DEFAULT_FORMATION, youthOf([good, midfielder, leftBack, striker].map((member) => prospectOf(member))));
+
+    expect(startersOf(selectRestedLineup(players))[3]).toEqual(["CB", cbKey]);
+    expect(startersOf(lineup)).toEqual(restedWith(players, { 4: lbKey, 7: cmKey, 9: stKey }));
+  });
+
+  it("reads none of them under « Meilleur onze », and is deterministic whatever the order of the squad and of the young", () => {
+    const starter = { id: cbKey, leagueStarts: 0 };
+    expect(selectAssistantLineup(four, DEFAULT_FORMATION, { policy: "BEST", starter: null, prospects: fourProspects })).toEqual(selectRestedLineup(four));
+    expect(selectAssistantLineup(four, DEFAULT_FORMATION, { policy: "BEST", starter, prospects: fourProspects })).toEqual(
+      selectAssistantLineup(four, DEFAULT_FORMATION, best(starter)),
+    );
+    expect(selectAssistantLineup([...four].reverse(), DEFAULT_FORMATION, youthOf([...fourProspects].reverse()))).toEqual(
+      selectAssistantLineup(four, DEFAULT_FORMATION, youthOf(fourProspects)),
+    );
+  });
+
+  it("gives the managed club's line-up its eleven, the saved instruction kept", () => {
+    const youth = youthOf(fourProspects);
+    const positions = formationPositions("4-4-2");
+
+    expect(managedLineup("4-4-2", { starters: [], benchOrder: [], instruction: "ATTACK" }, four, { youth })).toEqual({
+      ...selectAssistantLineup(four, positions, youth),
+      instruction: "ATTACK",
+    });
+    // Never the player's own eleven.
+    expect(managedLineup("4-4-2", null, four, null)).toEqual(selectLineup(four, positions));
+  });
+});
+
+// The assistant's eleven against its references, on squads drawn from a fixed seed: any position, ratings close enough to
+// tie, a third of the players tired, some injured or suspended, ages around the policy's, every amount of room and starts.
+describe("selectAssistantLineup against its references", () => {
+  const byRating = (a: SquadPlayer, b: SquadPlayer): number => b.overall - a.overall || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+  /** The bench of a lineup's starters: available players out of it, the backup goalkeeper first, then by rating. */
+  const benchOf = (players: readonly SquadPlayer[], starting: ReadonlySet<string>): SquadPlayer[] => {
+    const rest = players.filter((member) => isAvailable(member) && !starting.has(member.id)).sort(byRating);
+    const keeper = rest.find((member) => member.position === "GK");
+    return (keeper === undefined ? rest : [keeper, ...rest.filter((member) => member !== keeper)]).slice(0, BENCH_SIZE);
+  };
+
+  /** selectAssistantLineup as it was before the policies (25/11), but for its helpers: « Meilleur onze » fields its eleven. */
+  function assistantLineupBefore(squadOf: readonly SquadPlayer[], formation: Formation, youth: YouthStarter | null): Lineup {
+    const rested = selectRestedLineup(squadOf, formation);
+    if (youth === null || youth.leagueStarts >= YOUTH_OBJECTIVE_STARTS) {
+      return rested;
+    }
+    const young = squadOf.find((member) => member.id === youth.id);
+    if (young === undefined || !isAvailable(young) || young.fitness < ROTATION_FITNESS || rested.starters.some(({ player: starter }) => starter === young)) {
+      return rested;
+    }
+    const positions = [young.position, ...secondaryPositions(young.id, young.position)];
+    let replaced: LineupSlot | undefined;
+    let replacedGap = Number.POSITIVE_INFINITY;
+    for (const starter of rested.starters) {
+      if (!positions.includes(starter.slot)) {
+        continue;
+      }
+      const gap = ratingAt(starter.player, starter.slot) - ratingAt(young, starter.slot);
+      if (gap <= YOUTH_STARTER_MAX_GAP && gap < replacedGap) {
+        replaced = starter;
+        replacedGap = gap;
+      }
+    }
+    if (replaced === undefined) {
+      return rested;
+    }
+    const index = replaced.index;
+    const starters = rested.starters.map((starter) => (starter.index === index ? { ...starter, player: young } : starter));
+    return { starters, bench: benchOf(squadOf, new Set(starters.map(({ player: starter }) => starter.id))) };
+  }
+
+  /**
+   * « Lancer les jeunes » as measured (docs/design/effectif-adjoint.md § 2.3 and § 5: rule « youthplus » of the working
+   * script, never committed), its numbers written out: the game's fields its very eleven.
+   */
+  function measuredYouthLineup(players: readonly SquadPlayer[], formation: Formation, info: ReadonlyMap<string, YouthProspect>): Lineup {
+    const rested = selectRestedLineup(players, formation);
+    const assigned = new Map(rested.starters.map((starter) => [starter.index, starter]));
+    const starting = new Set(rested.starters.map((starter) => starter.player.id));
+    const given = new Set<number>();
+    const candidates = players
+      .filter((member) => {
+        const data = info.get(member.id);
+        return (
+          data !== undefined &&
+          data.seasonAge <= 21 &&
+          data.potential - member.overall >= 5 &&
+          data.leagueStarts < 25 &&
+          isAvailable(member) &&
+          member.fitness >= ROTATION_FITNESS &&
+          !starting.has(member.id)
+        );
+      })
+      .sort(byRating);
+    let youngStarts = 0;
+    for (const young of candidates) {
+      if (youngStarts >= 3) {
+        break;
+      }
+      const positions = [young.position, ...secondaryPositions(young.id, young.position)];
+      let chosen: { index: number; gap: number } | null = null;
+      for (const [index, starter] of assigned) {
+        if (given.has(index) || !positions.includes(starter.slot)) {
+          continue;
+        }
+        const gap = ratingAt(starter.player, starter.slot) - ratingAt(young, starter.slot);
+        if (gap <= 10 && (chosen === null || gap < chosen.gap || (gap === chosen.gap && index < chosen.index))) {
+          chosen = { index, gap };
+        }
+      }
+      const replaced = chosen === null ? undefined : assigned.get(chosen.index);
+      if (chosen === null || replaced === undefined) {
+        continue;
+      }
+      starting.delete(replaced.player.id);
+      starting.add(young.id);
+      assigned.set(chosen.index, { ...replaced, player: young });
+      given.add(chosen.index);
+      youngStarts++;
+    }
+    const starters = [...assigned.values()].sort((a, b) => a.index - b.index);
+    return { starters, bench: benchOf(players, starting) };
+  }
+
+  const drawn = (seed: number) => {
+    const rng = makeRng(`assistant-lineup:${seed}`);
+    const players = Array.from({ length: 12 + Math.floor(rng() * 18) }, (_, index) => {
+      const roll = rng();
+      const position = POSITIONS[Math.floor(rng() * POSITIONS.length)];
+      return player(`p${seed}-${index}`, position, 55 + Math.floor(rng() * 20), {
+        fitness: rng() < 0.33 ? 60 + Math.floor(rng() * 15) : 75 + Math.floor(rng() * 26),
+        injured: roll < 0.05,
+        suspended: roll > 0.95,
+      });
+    });
+    const prospects = players.map((member) => ({
+      id: member.id,
+      seasonAge: 17 + Math.floor(rng() * 8),
+      potential: member.overall - 2 + Math.floor(rng() * 22),
+      leagueStarts: Math.floor(rng() * 32),
+    }));
+    const pick = players[Math.floor(rng() * players.length)];
+    const starter = rng() < 0.2 ? null : { id: pick.id, leagueStarts: Math.floor(rng() * 20) };
+    const formation = formationPositions(FORMATION_NAMES[Math.floor(rng() * FORMATION_NAMES.length)]);
+    return { players, prospects, starter, formation };
+  };
+
+  it("fields under « Meilleur onze » the very eleven of the assistant before the policies, whatever the young players", () => {
+    for (let seed = 0; seed < 300; seed++) {
+      const { players, prospects, starter, formation } = drawn(seed);
+      const before = assistantLineupBefore(players, formation, starter);
+      expect(selectAssistantLineup(players, formation, best(starter))).toEqual(before);
+      expect(selectAssistantLineup(players, formation, { policy: "BEST", starter, prospects })).toEqual(before);
+    }
+  });
+
+  it("fields under « Lancer les jeunes » the very eleven of the measured rule, without a Jeunesse objective", () => {
+    let started = 0;
+    for (let seed = 0; seed < 300; seed++) {
+      const { players, prospects, formation } = drawn(seed);
+      const measured = measuredYouthLineup(players, formation, new Map(prospects.map((prospect) => [prospect.id, prospect])));
+      const lineup = selectAssistantLineup(players, formation, { policy: "YOUTH", starter: null, prospects });
+      expect(lineup).toEqual(measured);
+      const rested = selectRestedLineup(players, formation);
+      started += lineup.starters.filter((slot, index) => slot.player !== rested.starters[index]?.player).length;
+    }
+    // The draws do start young players, often.
+    expect(started).toBeGreaterThan(100);
   });
 });
 
@@ -372,7 +689,7 @@ describe("managedLineup", () => {
   it("gives the assistant's eleven the Jeunesse objective's young player", () => {
     const youngKey = keyWith("CB", (secondary) => secondary.length === 0);
     const players = [...squad, player(youngKey, "CB", 67)];
-    const youth = { id: youngKey, leagueStarts: 2 };
+    const youth = best({ id: youngKey, leagueStarts: 2 });
 
     expect(managedLineup("4-4-2", null, players, { youth })).toEqual(selectAssistantLineup(players, positions, youth));
     expect(managedLineup("4-4-2", null, players, { youth }).starters.map(({ player: starter }) => starter.id)).toContain(youngKey);

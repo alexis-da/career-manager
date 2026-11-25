@@ -1,4 +1,5 @@
 import type { Rng } from "../lib/rng";
+import type { AssistantPolicy } from "./assistant-policy";
 import { MIN_GOALKEEPERS, SQUAD_ROLES, SQUAD_SIZE_MIN } from "./balance";
 import { contractYears, marketValueFor, renewalWage, signingBonus, wageFor } from "./economy";
 import { selectLineup, type Formation } from "./lineup";
@@ -51,16 +52,20 @@ export type SigningClub = { budget: number; reputation: number };
  * expires), by player id, in the order of their value (byValue):
  * 1. his player's choice, RENEW or LEAVE;
  * 2. otherwise, when its assistant takes care of the contracts (byAssistant), the AI clubs' rule (planSquad): a useful
- *    player is renewed (wantsToKeep, against the squad's standard, squadStandard), and, as an AI club does, a player let go
- *    whose role the free agents could not fill (SQUAD_ROLES' counts) too, the best first; never one his player let go;
+ *    player is renewed (wantsToKeep, against the squad's standard, squadStandard, as his policy reads it: under « Lancer les
+ *    jeunes », more prospects kept and fewer players of 30 to 32, docs/design/effectif-adjoint.md § 2.2), and, as an AI
+ *    club does, a player let go whose role the free agents could not fill (SQUAD_ROLES' counts) too, the best first; never
+ *    one his player let go;
  * 3. otherwise he leaves free.
  * `squad` is the whole squad under contract; `freeAgentsByRole`, the free agents by role in SQUAD_ROLES' order
- * (countByRole). No draw: the screens tell it ahead, the turn decides with it.
+ * (countByRole); `policy`, the assistant's (« Meilleur onze » by default, the game before the policies). No draw: the
+ * screens tell it ahead, the turn decides with it.
  */
 export function contractOutcomes(
   squad: readonly ManagedRosterPlayer[],
   freeAgentsByRole: readonly number[],
   byAssistant: boolean,
+  policy: AssistantPolicy = "BEST",
 ): Map<string, ContractOutcome> {
   const ordered = [...squad].sort(byValue);
   const standard = squadStandard(ordered);
@@ -74,7 +79,10 @@ export function contractOutcomes(
     } else if (!byAssistant) {
       outcomes.set(player.id, { intention: "leave", by: "default" });
     } else {
-      outcomes.set(player.id, wantsToKeep(player, standard) ? { intention: "renew", by: "assistant" } : { intention: "leave", by: "assistant" });
+      outcomes.set(
+        player.id,
+        wantsToKeep(player, standard, policy) ? { intention: "renew", by: "assistant" } : { intention: "leave", by: "assistant" },
+      );
     }
   }
   if (!byAssistant) {
@@ -100,15 +108,16 @@ export function contractOutcomes(
 
 /**
  * The managed club's contracts ending on 30 June as its screens tell them, by player id: what the turn will do with each
- * (contractOutcomes), and what the assistant's rule would do without its player's choice, the others' kept; null for that
- * when its player keeps the contracts.
+ * (contractOutcomes, with the assistant's policy), and what the assistant's rule would do without its player's choice, the
+ * others' kept; null for that when its player keeps the contracts.
  */
 export function contractForecasts(
   squad: readonly ManagedRosterPlayer[],
   freeAgentsByRole: readonly number[],
   byAssistant: boolean,
+  policy: AssistantPolicy = "BEST",
 ): Map<string, ContractForecast> {
-  const outcomes = contractOutcomes(squad, freeAgentsByRole, byAssistant);
+  const outcomes = contractOutcomes(squad, freeAgentsByRole, byAssistant, policy);
   const forecasts = new Map<string, ContractForecast>();
   for (const [id, outcome] of outcomes) {
     const withoutChoice = (): ContractIntention | null =>
@@ -116,6 +125,7 @@ export function contractForecasts(
         squad.map((player) => (player.id === id ? { ...player, choice: null } : player)),
         freeAgentsByRole,
         true,
+        policy,
       ).get(id)?.intention ?? null;
     forecasts.set(id, { outcome, assistant: !byAssistant ? null : outcome.by === "player" ? withoutChoice() : outcome.intention });
   }
@@ -123,17 +133,19 @@ export function contractForecasts(
 }
 
 /**
- * The turn's decisions on the managed club's contracts ending on 30 June (contractOutcomes), the best players first: a
- * renewal at the wage an AI club's pays (renewalWage) for a length drawn as an AI club's (contractYears: 1 to 5 seasons,
- * 2 at most after 33), from `rng`, the club's own preseason stream (squadPlanRngSeed); a free departure otherwise.
+ * The turn's decisions on the managed club's contracts ending on 30 June (contractOutcomes, with the assistant's policy),
+ * the best players first: a renewal at the wage an AI club's pays (renewalWage) for a length drawn as an AI club's
+ * (contractYears: 1 to 5 seasons, 2 at most after 33), from `rng`, the club's own preseason stream (squadPlanRngSeed); a
+ * free departure otherwise. The policy adds no draw: it only decides who is renewed, as its player's choices do.
  */
 export function decideContracts(
   squad: readonly ManagedRosterPlayer[],
   freeAgentsByRole: readonly number[],
   byAssistant: boolean,
   rng: Rng,
+  policy: AssistantPolicy = "BEST",
 ): ContractDecision[] {
-  const outcomes = contractOutcomes(squad, freeAgentsByRole, byAssistant);
+  const outcomes = contractOutcomes(squad, freeAgentsByRole, byAssistant, policy);
   const decisions: ContractDecision[] = [];
   for (const player of [...squad].sort(byValue)) {
     const outcome = outcomes.get(player.id);
