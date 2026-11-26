@@ -882,6 +882,48 @@ Tout est validé le 25/11 tel quel, avec les précisions des décisions d'Alexis
 
 ---
 
+## 8. Mise en œuvre (25 et 26/11)
+
+Branche locale `effectif-adjoint` : le § 1 d'abord, puis les § 3 et § 2, construits en parallèle et repris par
+`cherry-pick` (l'historique de `main` reste linéaire).
+
+- **Migrations d'ajout** :
+  - `20261125170000_previous_overall` : `ALTER TABLE "PlayerSave" ADD COLUMN "previousOverall" INTEGER;` ;
+  - `20261125170100_assistant_policy` : `CREATE TYPE "AssistantPolicy" AS ENUM ('BEST', 'YOUTH');` puis
+    `ALTER TABLE "Save" ADD COLUMN "assistantPolicy" "AssistantPolicy" NOT NULL DEFAULT 'BEST';`.
+
+  Aucune ligne existante n'est réécrite ; le défaut constant est ajouté sans réécrire la table.
+- **§ 1, comme prévu**, avec :
+  - la file d'enregistrement pure (`save-queue.ts`), et `data-busy` sur la ligne d'état, que les E2E attendent ;
+  - un état de plus, « Onze automatique · enregistré à ton premier changement », pour le sélectionneur ou un joueur qui
+    n'a jamais enregistré sa composition ;
+  - pendant un direct, « Reprendre le match » en orange sous 1024 px ; au-dessus, la colonne a l'orange ;
+  - la suite « Enregistrer » du tutoriel retirée, et la bulle avec elle de sa « suite » (`followUp`), plus utilisée ;
+  - la coupure du réseau simulée en refusant les seules Server Actions (`page.route`, comme hors ligne), plutôt qu'en
+    mode hors ligne : le test ne coupe que les enregistrements.
+- **§ 2, choix où le cahier était ouvert** :
+  - la consigne en enum Prisma, comme les autres valeurs gardées, plutôt qu'en texte ;
+  - le jeune de l'objectif Jeunesse passe d'abord et compte parmi les trois ;
+  - les ventes proposées gardent leur règle.
+- **§ 3, choix** :
+  - « Jeunes » à l'âge affiché (21 ans et moins), « Under-21s » en anglais ;
+  - la progression arrondie loin de zéro, « prévu » dès +1 ;
+  - `progressPlayer` appelle `expectedProgression`, dans le même ordre d'opérations : une saison rejouée ne change pas.
+- **Vérification de « Lancer les jeunes » sur le jeu** (26/11, `npm run measure:assistant -- --seasons=3
+  --lineup=game --contracts=game --policy=…`, jumeau B, l'adjoint du jeu, moyennes de trois saisons) :
+
+  | Club | Consigne | Pts / match | Minutes des 21 ans et moins, le club, par saison | Progression par jeune et par saison |
+  |---|---|---|---|---|
+  | Lyon | Meilleur onze | 1,80 | 3 853 | +2,00 |
+  | Lyon | Lancer les jeunes | 1,78 | 7 215 | +2,95 |
+  | Metz | Meilleur onze | 1,63 | 1 252 | +1,52 |
+  | Metz | Lancer les jeunes | 1,68 | 7 524 | +2,71 |
+
+  Environ 1 100 minutes par jeune et par saison, toutes compétitions, et une progression de 60 % plus rapide : ce que
+  mesurait le prototype (§ 2.3 : 1 083 minutes, + 58 %). Les points restent dans le bruit d'un club seul.
+
+---
+
 ## Annexe : les quinze clubs
 
 Trois saisons de chaque jumeau, la graine de la démo. « Rangs » : en championnat, saison par saison (↑ montée,

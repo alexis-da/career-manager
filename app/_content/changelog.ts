@@ -21,6 +21,25 @@ export const CHANGELOG_LABELS = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-26",
+    fr: {
+      title: "Ta composition s'enregistre seule, tes jeunes ont leur chance",
+      items: [
+        "Plus de bouton « Enregistrer » : chaque changement de ta composition est enregistré aussitôt, et « Annuler » revient au geste d'avant. Ton premier changement d'un joueur fait du onze le tien ; « Rendre la main à l'adjoint » le lui rend. Pendant un match en direct, ta composition est figée jusqu'au coup de sifflet final : tes changements se font dans le Coaching.",
+        "Dans Club, Réglages, choisis la consigne de ton adjoint : « Meilleur onze », comme avant, ou « Lancer les jeunes » : en championnat, tes 21 ans et moins jouent quand ils valent presque le titulaire, jusqu'à trois par match, et il prolonge tes espoirs.",
+        "L'Effectif montre ce que l'été dernier a donné à chaque joueur et, sous « Cet été », ce que le prochain lui donnera s'il garde son rythme en championnat : jouer fait progresser. La vue « Jeunes » réunit tes 21 ans et moins avec leurs minutes, et la fiche d'un joueur montre sa note saison après saison.",
+      ],
+    },
+    en: {
+      title: "Your line-up saves itself, your youngsters get their chance",
+      items: [
+        "No more “Save” button: every change to your line-up is saved at once, and “Cancel” undoes your last move. Your first change to a player makes the eleven yours; “Hand back to your assistant” gives it back. During a live match, your line-up is locked until the final whistle: make your changes in Coaching.",
+        "In Club, Settings, choose your assistant's brief: “Best eleven”, as before, or “Give youth a chance”: in the league, your players aged 21 or under start when they're nearly as good as the starter, up to three a match, and he renews your prospects.",
+        "The Squad shows what last summer gave each player and, under “This summer”, what the next one will give him if he keeps up his league rhythm: playing makes players improve. The Under-21s view gathers your youngest with their minutes, and a player's sheet shows his rating season after season.",
+      ],
+    },
+  },
+  {
     date: "2026-11-25",
     fr: {
       title: "Ton adjoint s'occupe du quotidien",

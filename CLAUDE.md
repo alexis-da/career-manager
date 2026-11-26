@@ -26,7 +26,7 @@ npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (créat
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (-- --seasons=3 : trois saisons de chaque graine, le premier tournoi d'été compris ; base locale seulement) : six cibles, clubs européens, condition et blessures par pays et par mois (trêve hivernale), CPU par journée, penaltys et échauffourées sur de vrais effectifs (-- --lineups-out=f.json garde leurs onze ; -- --choices-from=f.json les mesure seuls, sans base)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
 npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs, Europe (qualifiés, condition et charge des clubs européens, saison par saison), sélections (trêves, appelés, blessures, force des 14 nations, CPU) et tournois d'été (condition au premier match, crédibilité sur 50 cycles) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
-npm run measure:assistant # l'adjoint (chantier « simplification ») : jumeaux d'une partie 2, sa composition contre le meilleur onze sans repos, ses contrats contre aucun, un club « gourmand » de joueurs libres et ses ventes proposées (-- --seasons=3 --lineup=game --contracts=game --sales=game ; base locale seulement)
+npm run measure:assistant # l'adjoint (chantier « simplification ») : jumeaux d'une partie 2, sa composition contre le meilleur onze sans repos, ses contrats contre aucun, un club « gourmand » de joueurs libres et ses ventes proposées, la progression de ses jeunes (-- --seasons=3 --lineup=game --contracts=game --sales=game ; --policy=YOUTH : sa consigne « Lancer les jeunes » ; base locale seulement)
 npm run measure:coach  # sélectionneur : CPU d'une trêve dirigée contre une trêve sans lui, d'un match de sélection en direct et d'un tournoi joué par étapes en juin, deux jumeaux d'une partie 2 (-- --seasons=2 --nation=POR ; base locale seulement)
 npm run measure:history # coût d'un affichage de l'onglet Histoire : requêtes et CPU, à froid et en cache, d'une carrière archivée de 5 et 10 saisons (-- --seasons=10 --at=5,10 ; base locale seulement)
 npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json, --archive : saisons terminées archivées, --no-europe : sans compétition européenne, pour comparer ; base locale dédiée et vide)
@@ -247,14 +247,16 @@ d'ajout `…_simplification` : vrai à la création ; null pour une carrière d'
 `src/db/lineup.ts` : le joueur s'il a une composition enregistrée, l'adjoint sinon) : en mode adjoint, le club dirigé joue
 avant chaque match le onze reposé des clubs IA dans le dispositif de son joueur, avec sa consigne de départ
 (`managedLineup`, `src/engine/lineup.ts`) ; l'objectif Jeunesse choisi, le meilleur 21 ans ou moins titularisé en
-championnat s'il vaut au plus 4 points de moins que le titulaire (`YOUTH_STARTER_MAX_GAP`), jusqu'à 15 titularisations.
+championnat s'il vaut au plus 4 points de moins que le titulaire (`YOUTH_STARTER_MAX_GAP`), jusqu'à 15 titularisations ;
+sous la consigne « Lancer les jeunes », ses jeunes aussi (règle « Consigne de l'adjoint »).
 Le premier geste sur un joueur passe en mode joueur, enregistré aussitôt (règle « Composition enregistrée seule ») ;
 « Rendre la main à l'adjoint » ramène l'adjoint. **Contrats**
 (`Save.contractsByAssistant`, vrai par défaut, carrières d'avant comprises) : au passage de saison (présaison,
 `runPreseasonInTransaction`, avant les jeunes et les clubs IA), un contrat du club dirigé qui finit le 30 juin suit le choix
 de son joueur (`PlayerSave.contractChoice`, RENEW ou LEAVE, posé sur la fiche par `setContractChoiceAction`, effacé par un
 nouveau contrat, une vente, une libération et au passage), sinon, en mode adjoint, la règle des clubs IA
-(`contractOutcomes`, `decideContracts`, `src/engine/assistant-contracts.ts` : `wantsToKeep` contre `squadStandard`, et le
+(`contractOutcomes`, `decideContracts`, `src/engine/assistant-contracts.ts` : `wantsToKeep` contre `squadStandard`, selon sa
+consigne, et le
 rôle que les joueurs libres ne combleraient pas), sinon il part libre ; prolongé à `renewalWage` (le plus haut de son
 salaire et de celui de sa note), pour une durée tirée du flux du club (`squadPlanRngSeed`). L'adjoint ne casse jamais un
 contrat en cours et ne recrute (`assistantSignings`) que sous 20 joueurs ou 2 gardiens, à la prime, jamais un joueur qu'il
@@ -277,39 +279,91 @@ requête et partagé avec `quoteSquad`. **Réglages** : Club → Réglages, « T
 (`settings-assistant-lineup`, `settings-assistant-contracts`, sous `lockSave`, refusés pendant un direct) ; une carrière
 d'avant a une fois l'annonce de l'Accueil (`assistant-notice`, `Save.assistantNoticeAt`, posé à la création d'une carrière
 neuve). Missions : « Enregistre ta composition » (`SAVE_LINEUP`) reste au poids 0, en tête de son tirage, et n'est plus
-comptée depuis la composition enregistrée seule ; « Fais jouer un joueur de 21 ans ou moins » (`START_YOUTH`) compte une entrée en jeu (`MatchFacts.players`).
+comptée depuis la composition enregistrée seule ; « Fais jouer un joueur de 21 ans ou moins » (`START_YOUTH`) compte une
+entrée en jeu (`MatchFacts.players`).
 Mesures (24/11, cahier § 15) : `npm run measure:assistant` et les sections k, l et m de `npm run measure:seasons`
 (effectifs, joueurs libres, primes).
 
-**Composition enregistrée seule (chantier « effectif et adjoint », § 1, 25/11).** Cahier `docs/design/effectif-adjoint.md`,
-validé le 25/11. Aucun bouton « Enregistrer » : chaque geste complet de l'éditeur (placer, échanger, envoyer au banc puis
-remplir, ordonner le banc, dispositif, consigne de départ) est enregistré aussitôt, sans délai d'attente : Next exécute les
-Server Actions d'un client l'une après l'autre, et « Jouer le match » touché après un geste joue le onze affiché. La file
-est pure (`app/saves/[id]/lineup/_lib/save-queue.ts`, testée) : un enregistrement en route à la fois, le dernier état en
-attente à la place des précédents, un onze incomplet jamais envoyé (« Poste vide : choisis un joueur pour l'enregistrer »),
-un échec réseau réessayé à 2, 5 puis 15 s (`RETRY_DELAYS_MS`) avant « Pas enregistrée : pas de réseau · Réessayer »
-(`lineup-retry`), « … · enregistrement… » après 400 ms sans réponse seulement, et le navigateur qui demande avant de quitter
-la page tant qu'un geste n'est pas enregistré (`beforeunload`). En mode adjoint, dispositif et consigne lui restent
-(`saveLineupPlanAction`, point 1.A) ; le premier geste sur un joueur prend la main (`saveLineupAction`), qu'un encart dit
-une fois (`lineup-took-hand`, avec « Rendre la main à l'adjoint ») ; « Annuler » (`lineup-cancel`) revient geste par geste
-sur ceux de la visite, celui qui a pris la main la rendant. Chaque enregistrement porte ce que l'onglet croit enregistré
-(`expected` : dispositif, composition, mode ; `sameAsExpected`, `sameSavedLineup`, `src/db/lineup.ts`), comparé dans la
-transaction, la partie verrouillée (`LINEUP_TRANSACTION` : 15 s pour une connexion, 60 s en tout, derrière une date qui se
-joue) : `saved`, `unchanged` (un renvoi) ou `conflict` (« Changée dans un autre onglet · Voir la dernière »,
-`lineup-reload` : l'éditeur repart de la page relue, rien d'écrasé), sans migration ; un joueur parti ailleurs
-(`not-in-squad`) recharge la composition. Ni toast ni `revalidatePath` : la ligne d'état le dit (`lineup-status`,
-`data-save` : `saved`, `saving`, `incomplete`, `failed`, `conflict`, `automatic` ; `data-busy` ; `role="alert"` pour
-un échec ou un conflit), et l'écran fait relire la partie en partant (`router.refresh()` de `LineupScreen`, après un
-enregistrement seulement). La mission « Enregistre ta composition » n'est plus comptée. Pendant un direct en attente
-(`liveMatchesOf` : `Save.liveFixtureId`, `liveInternationalId`), la Composition est en lecture seule (`lineup-live`,
-« Match en direct », le reste `inert` ; « Reprendre le match », `lineup-live-resume`, en orange sous 1024 px, la colonne
-au-dessus) et le serveur refuse (`LineupLiveError`, raison « live »). L'éditeur du sélectionneur suit les mêmes règles
-(`saveCoachLineup` avec `expected`, point 1.F). Sans « Enregistrer », l'orange de la Composition est l'action de jeu de la
-colonne (`LINEUP_PATHS`, `game-actions.tsx`) : composer, puis jouer. Tests : `save-queue.test.ts`,
-`lineup-editor.test.tsx`, `lineup.test.ts` (renvoi, conflit, joueur parti, direct), `e2e/lineup-autosave.spec.ts` (deux
-onglets, réseau coupé, départ juste après un geste, lecture seule d'un direct à 1280, 390 et 360 px) ; un E2E attend la fin
-des enregistrements (`expectLineupSaved`, `e2e/helpers.ts`), et une partie partagée rend la main à l'adjoint
-(`resetLineup`, `e2e/db.ts`).
+**Composition enregistrée seule (chantier « effectif et adjoint », § 1, 25/11).** Cahier
+`docs/design/effectif-adjoint.md`, validé le 25/11. Aucun bouton « Enregistrer » : chaque geste complet de l'éditeur
+(placer, échanger, envoyer au banc puis remplir, ordonner le banc, dispositif, consigne de départ) est enregistré
+aussitôt, sans délai d'attente : Next exécute les Server Actions d'un client l'une après l'autre, et « Jouer le match »
+touché après un geste joue le onze affiché. La file est pure (`app/saves/[id]/lineup/_lib/save-queue.ts`, testée) : un
+enregistrement en route à la fois, le dernier état en attente à la place des précédents, un onze incomplet jamais envoyé
+(« Poste vide : choisis un joueur pour l'enregistrer »), un échec réseau réessayé à 2, 5 puis 15 s (`RETRY_DELAYS_MS`)
+avant « Pas enregistrée : pas de réseau · Réessayer » (`lineup-retry`), « … · enregistrement… » après 400 ms sans
+réponse seulement, et le navigateur qui demande avant de quitter la page tant qu'un geste n'est pas enregistré
+(`beforeunload`). En mode adjoint, dispositif et consigne lui restent (`saveLineupPlanAction`, point 1.A) ; le premier
+geste sur un joueur prend la main (`saveLineupAction`), qu'un encart dit une fois (`lineup-took-hand`, avec « Rendre la
+main à l'adjoint ») ; « Annuler » (`lineup-cancel`) revient geste par geste sur ceux de la visite, celui qui a pris la
+main la rendant. Chaque enregistrement porte ce que l'onglet croit enregistré (`expected` : dispositif, composition,
+mode ; `sameAsExpected`, `sameSavedLineup`, `src/db/lineup.ts`), comparé dans la transaction, la partie verrouillée
+(`LINEUP_TRANSACTION` : 15 s pour une connexion, 60 s en tout, derrière une date qui se joue) : `saved`, `unchanged` (un
+renvoi) ou `conflict` (« Changée dans un autre onglet · Voir la dernière », `lineup-reload` : l'éditeur repart de la
+page relue, rien d'écrasé), sans migration ; un joueur parti ailleurs (`not-in-squad`) recharge la composition. Ni toast
+ni `revalidatePath` : la ligne d'état le dit (`lineup-status`, `data-save` : `saved`, `saving`, `incomplete`, `failed`,
+`conflict`, `automatic` ; `data-busy` ; `role="alert"` pour un échec ou un conflit), et l'écran fait relire la partie en
+partant (`router.refresh()` de `LineupScreen`, après un enregistrement seulement). La mission « Enregistre ta
+composition » n'est plus comptée. Pendant un direct en attente (`liveMatchesOf` : `Save.liveFixtureId`,
+`liveInternationalId`), la Composition est en lecture seule (`lineup-live`, « Match en direct », le reste `inert` ; «
+Reprendre le match », `lineup-live-resume`, en orange sous 1024 px, la colonne au-dessus) et le serveur refuse
+(`LineupLiveError`, raison « live »). L'éditeur du sélectionneur suit les mêmes règles (`saveCoachLineup` avec
+`expected`, point 1.F). Sans « Enregistrer », l'orange de la Composition est l'action de jeu de la colonne
+(`LINEUP_PATHS`, `game-actions.tsx`) : composer, puis jouer. Tests : `save-queue.test.ts`, `lineup-editor.test.tsx`,
+`lineup.test.ts` (renvoi, conflit, joueur parti, direct), `e2e/lineup-autosave.spec.ts` (deux onglets, réseau coupé,
+départ juste après un geste, lecture seule d'un direct à 1280, 390 et 360 px) ; un E2E attend la fin des enregistrements
+(`expectLineupSaved`, `e2e/helpers.ts`), et une partie partagée rend la main à l'adjoint (`resetLineup`, `e2e/db.ts`).
+
+**Consigne de l'adjoint (chantier « effectif et adjoint », § 2, 25/11).** `Save.assistantPolicy` (enum
+`AssistantPolicy`, migration d'ajout `…_assistant_policy`, `BEST` par défaut, carrières d'avant comprises ;
+`ASSISTANT_POLICIES`, `src/engine/assistant-policy.ts` ; **ne jamais renommer une valeur**) : « Meilleur onze » (`BEST`,
+le jeu d'avant elle) ou « Lancer les jeunes » (`YOUTH`). Dans Club → Réglages, « Sa consigne » sous les deux
+interrupteurs, à côté quand les Réglages ont la place (`settings-assistant-policy`, `setAssistantPolicyAction`, la
+partie verrouillée, refusée pendant un direct ; grisée et expliquée quand le joueur a repris la composition et les
+contrats), rappelée sur la carte de l'adjoint de la Composition (`lineup-assistant-policy`, « Consigne : … · Changer ›
+», vers `#reglages`). Elle ne vaut que pour ce dont l'adjoint s'occupe. **Composition** (`selectAssistantLineup` avec
+`AssistantYouth` : `policy`, `starter`, `prospects` ; `withYoungStarters`) : en championnat seulement, sous `YOUTH`,
+jusqu'à trois (`YOUTH_POLICY_PER_MATCH`) joueurs de 21 ans ou moins au 1er juillet (`YOUTH_POLICY_MAX_AGE`), à 5 points
+de marge au moins (`YOUTH_POLICY_MIN_ROOM`), sous 25 titularisations de championnat (`YOUTH_POLICY_STARTS`), disponibles
+et reposés, le mieux noté d'abord, chacun à l'un de ses postes où il vaut au plus 10 points de moins que le titulaire
+(`YOUTH_POLICY_MAX_RATING_GAP`), le plus petit écart d'abord ; le jeune de l'objectif Jeunesse d'abord, jusqu'à sa 15e
+titularisation ; coupe et Europe gardent le meilleur onze. `BEST` rejoue l'ancien code (comparé à une copie de
+l'ancienne fonction sur 300 effectifs tirés). Lu par le match (`managedModeOf`, `assistantYouthOf` : une requête de
+plus, les titularisations des jeunes, sous `YOUTH` en championnat seulement), l'éditeur (`LineupEditor.policy`,
+`youth`), l'aperçu et `keptOffSales`. **Contrats** (`wantsToKeep` avec la consigne) : sous `YOUTH`, un espoir (23 ans au
+plus) est aussi prolongé dès que son potentiel atteint le niveau − 3 (`YOUTH_POLICY_PROSPECT_MARGIN`), un joueur de 30 à
+32 ans doit valoir le niveau − 2 (`YOUTH_POLICY_VETERAN_AGE`, `YOUTH_POLICY_VETERAN_MARGIN`) au lieu de − 5 ; lu par la
+présaison, la fiche et « À faire ». Mesures du cahier (§ 2.3, 15 clubs × 3 saisons) : minutes de championnat des 21 ans
+et moins × 3 (364 → 1 083), progression + 58 %, − 0,014 ± 0,019 point par match. Vérifié sur le jeu le 26/11
+(`npm run measure:assistant -- --seasons=3 --lineup=game --contracts=game --policy=YOUTH`, cahier § 8, contre `BEST`) :
+Lyon et Metz, environ 1 100 minutes par jeune et par saison, progression par jeune + 2,95 contre + 2,00 et + 2,71 contre
++ 1,52, points par match 1,78 contre 1,80 et 1,68 contre 1,63. Tests : `src/engine/lineup.test.ts`,
+`assistant-contracts.test.ts`, `src/db/assistant-policy.test.ts`, `e2e/assistant-policy.spec.ts`.
+
+**Évolution des joueurs (chantier « effectif et adjoint », § 3, 25/11).** `PlayerSave.previousOverall` (migration
+d'ajout `…_previous_overall`, nullable) : la note d'avant la progression du dernier passage de saison, écrite par
+l'`UPDATE` des joueurs d'`advanceToNextSeason` (`"previousOverall" = p."overall"`, aucune ligne de plus) ; null pour un
+joueur arrivé depuis et tant que la partie n'a pas passé de saison (le club dirigé la lit alors dans le relevé de sa
+saison passée). Le relevé de fin de saison garde aussi le potentiel (`SeasonResult.highlights.squad[].potential`,
+facultatif, version inchangée). Moteur (`src/engine/progression.ts`, pur) : `expectedProgression`, la formule de
+`progressPlayer` sans son tirage, que celle-ci appelle désormais dans le même ordre d'opérations (`progression.test.ts`
+la compare à une copie de l'ancienne : une saison rejouée reste identique au bit près) ; `projectedLeagueMinutes`, les
+minutes de championnat prolongées au prorata des matchs de championnat du club, 0 avant le premier. Lecture
+(`PlayerProfile.progression`, `getPlayerProfiles`, `src/db/progression-view.ts`) : `last` (« ↑+4 ») et, pour le seul
+club dirigé, `outlook` (minutes de championnat de la saison, progression attendue arrondie loin de zéro, bornes « sans
+jouer » et « titulaire », ou le déclin) et `history` (la courbe, par les relevés) : trois requêtes de plus, seulement
+quand la liste a des joueurs du club dirigé. **Effectif** : « 71 ↑+4 » sur la note (`player-last-progression`), la
+colonne « Cet été », triable (« ↗ +3 prévu », `player-expected-progression`, dès +1 ; la 3e ligne d'une carte sur
+téléphone), la phrase d'aide (`squad-help` : « Tes joueurs progressent l'été, d'autant plus qu'ils jouent en
+championnat. »), et la vue « Jeunes · N » (`squad-young-toggle`, les 21 ans et moins à l'âge affiché,
+`squad-young-intro` : la jauge des minutes à la place de la valeur, `player-league-minutes`, « potentiel 82 », « 1 240
+min · ≈ +3 »). **Fiche** (`player-sheet-progression`) : la courbe (`player-progression-curve`, dès deux points), «
+Potentiel 82 · marge 5 », « Cet été, environ +3 » avec la jauge et ses bornes, ou le déclin dès 31 ans au 1er juillet
+suivant ; pour un joueur d'un club IA, son seul « ↑+3 ». Flèches dessinées, jamais des glyphes ; zones `squad` et
+`player-sheet` (espace `progression`). Une carrière passée avant cette version n'a pas de « ↑ » pour les joueurs des
+clubs IA avant son passage suivant. Tests : `progression.test.ts`, `src/db/progression.test.ts`,
+`progression-view.test.ts`, `e2e/progression.spec.ts` (`e2e/progression-save.mts` : un jumeau 1 de la démo joué, passé,
+puis rejoué six dates) à 1280, 390 et 360 px.
 
 **Équilibrage des deux divisions.** Mesuré par `npm run measure:divisions` (six saisons d'un jumeau 2 de la démo, sur
 base locale seulement) avant tout réglage, réglé dans `balance.ts` une chose à la fois, la calibration de
@@ -1045,7 +1099,8 @@ nationalité, jauge de forme, condition (cœur et chiffre, aucune pour un bless�
 rapides à la place de l'en-tête ; au-dessus, le tableau, ses colonnes suivant sa place (`@container` : sans Pot. sous
 928 px, sans Valeur, Contrat ni Condition sous 672 px, à côté de la fiche ; la Condition, triable, a un cœur pour
 en-tête), aucun salaire ; le résumé dit « 27 joueurs sur 30 », en ambre à 30. États : blessé, suspendu, à 4 jaunes
-(règle « Suspensions »). Composition (`/lineup`, `LineupEditor`, `LineupSquad`) :
+(règle « Suspensions »). Progression de l'été passé et de l'été qui vient, vue « Jeunes » : règle « Évolution des
+joueurs ». Composition (`/lineup`, `LineupEditor`, `LineupSquad`) :
 sous 1024 px, terrain, résumé, banc, le panneau du dispositif et la consigne de départ, puis la liste ; à partir de 1024 px,
 ce panneau sous le choix du dispositif, puis de 1024 à 1279 px l'effectif compact à gauche du terrain et la fiche en
 surimpression, à partir de 1280 px l'effectif, le terrain et la fiche sur une page, `pinned`, jamais vide : le titulaire
@@ -1267,7 +1322,7 @@ entraîneur ; tant que le choix est ouvert, les trois propositions et « Choisir
 saison) ; défi sur le bleu vif (où en est le joueur, tête du classement à partir de `lg`, « Voir le défi », seul
 orange plein de l'écran) ; les trois dernières saisons, et, à partir de `lg`, l'aperçu de la dernière carte et ses boutons
 (`HonoursCardActions` ne les monte pas en dessous : un téléphone ne télécharge pas le PNG) ; Réglages (`ClubSettings` :
-ce dont s'occupe l'adjoint (règle « Simplification »), langue, compte, parties utilisées sur la limite, changer de partie, série des missions du jour et record hors partie de défi,
+ce dont s'occupe l'adjoint (règle « Simplification ») et sa consigne (règle « Consigne de l'adjoint »), langue, compte, parties utilisées sur la limite, changer de partie, série des missions du jour et record hors partie de défi,
 confidentialité). Défi (`/saves/[id]/challenge`) : l'écran
 de la page publique (`ChallengeScreen`, `app/challenge/_components`), quelle que soit la partie ouverte. Tête sur le bleu vif
 (semaine et fin, `formatParisWeekdayTime`), carte « Ta partie » (`ownChallenge`, pur : journées, score une fois soumis et
@@ -1804,6 +1859,8 @@ e2e/                  # tests Playwright (npm run test:e2e) ; english.spec.ts : 
                       # direct) ; starting-instruction.spec.ts : le panneau du dispositif et la consigne de départ, de la
                       # composition au direct ;
                       # club.spec.ts : Club, son défi, ses réglages, l'histoire de la carrière et le bilan d'une saison ;
+                      # assistant-policy.spec.ts : la consigne de l'adjoint, des Réglages à la Composition ;
+                      # progression.spec.ts : l'évolution des joueurs dans l'Effectif, la vue « Jeunes » et la fiche ;
                       # mobile.spec.ts : le parcours sur téléphone (390 × 844), jamais plus large que l'écran ;
                       # navigation.spec.ts : les cinq entrées et leurs onglets, à 390 et 1280 px ;
                       # home.spec.ts : l'accueil, le choix du club et les pages hors partie ;
