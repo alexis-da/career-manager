@@ -226,7 +226,7 @@ for (const { name, locale, viewport, labels, teamHome, matchHome, expectLayout }
 test.describe("the game's actions, on a computer", () => {
   test.use({ viewport: COMPUTER });
 
-  test("are in the sidebar's card but on the dashboard, whose hero alone has them, and leave the orange to the team, the market and Club", async ({
+  test("are in the sidebar's card but on the dashboard, whose hero alone has them, and leave the orange to the squad, the market and Club", async ({
     page,
     context,
   }) => {
@@ -251,15 +251,18 @@ test.describe("the game's actions, on a computer", () => {
       await expect(page.getByTestId("save-nav").getByTestId("next-match")).toHaveCount(0);
       await expect(page.getByRole("main").getByTestId("next-match")).toHaveCount(0);
 
-      // Under Team and on the market, the orange is their own action's: the sidebar's button steps back, the same one.
-      for (const [screen, title] of [
-        ["squad", "squad-title"],
-        ["lineup", "lineup-title"],
+      // On the squad and the market, the orange is their own action's: the sidebar's button steps back, the same one. The
+      // line-up has none of its own, every gesture saved at once: the sidebar's keeps it, compose then play
+      // (docs/design/effectif-adjoint.md § 1.9).
+      for (const [screen, title, orange] of [
+        ["squad", "squad-title", false],
+        ["lineup", "lineup-title", true],
       ] as const) {
         await openScreen(page, screen);
         await expect(page.getByTestId(title)).toBeVisible();
         await expect(sidebar.getByTestId("next-match")).toHaveText("Prochain match");
-        await expect(sidebar.getByTestId("next-match")).not.toHaveCSS("background-color", ACTION_ORANGE);
+        const nextMatch = expect(sidebar.getByTestId("next-match"));
+        await (orange ? nextMatch : nextMatch.not).toHaveCSS("background-color", ACTION_ORANGE);
         await expect(page.getByTestId("next-match")).toHaveCount(1);
       }
       await openScreen(page, "transfers");
