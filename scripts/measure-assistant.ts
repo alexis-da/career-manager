@@ -1,8 +1,8 @@
 /**
  * The assistant of the chantier « simplification » (docs/design/simplification.md § 11), on twins of a worldVersion 2
  * save: npm run measure:assistant -- [--seasons=N] [--seed=S] [--club=slug] [--lineup=rested|game|select]
- * [--contracts=option|game] [--sales=off|game] [--greedy-clubs=slugA,slugB] [--sections=composition,contracts,greedy,sales]
- * [--out=file.md] [--from=file.json].
+ * [--contracts=option|game] [--sales=off|game] [--policy=BEST|YOUTH] [--greedy-clubs=slugA,slugB]
+ * [--sections=composition,contracts,greedy,sales] [--out=file.md] [--from=file.json].
  *
  * Every twin has the same seed (the demo's unless --seed) and a throwaway owner of its own, and plays N seasons (default
  * 3) date by date as « Simuler » plays them (playNextMatchday: every match in full, the assistant deciding the choice
@@ -12,7 +12,8 @@
  *   club, the eleven and bench selectRestedLineup fields in its formation, as AI clubs pick theirs, saved as the player
  *   saves his; after the change (--lineup=game), the game's own assistant. Both with the assistant's contracts. Points per
  *   league match, rank, goals, cup and European runs, injuries, starters under ROTATION_FITNESS at kick-off, minutes of
- *   the players aged 21 or less, and the Jeunesse objective when it was the season's.
+ *   the players aged 21 or less, their progression at the season's turn, and the Jeunesse objective when it was the
+ *   season's.
  * - « Contrats »: two twins playing selectLineup, the managed club's contracts left to end (today's game) or decided by
  *   its assistant: squad on 1 July, contracts ended, renewals, releases and signings, final rank.
  * - « Club gourmand »: for two clubs (--greedy-clubs; by default the first division club of England ranked 10th by
@@ -22,6 +23,10 @@
  *   « Recruter » does; against a passive twin of the same club: squad, best eleven, rank, budget, fees paid.
  * - « Ventes proposées » (--sales=game, the game after the change only): at each window, the sales the assistant
  *   proposes, their offers against their values, all accepted, and what they do to the budget and the squad.
+ *
+ * --policy (docs/design/effectif-adjoint.md § 2, § 7): every twin's assistant follows « Meilleur onze » (BEST, the
+ * default, the game before the policies) or « Lancer les jeunes » (YOUTH), for the line-up and the contracts he takes
+ * care of; run the same seeds with each and compare twin B (--lineup=game --contracts=game) of the two reports.
  *
  * Run with the same seeds before the change and after it. What the game will only have after it goes through
  * scripts/simplification-hooks.ts: against today's game, such a mode throws « not available before the
@@ -35,12 +40,14 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { prisma } from "../src/db/client";
 import { assertLocalDatabase, isLocalDatabase } from "../src/db/database-url";
 import { fitnessAtKickOff } from "../src/db/fitness-view";
+import { setAssistantPolicy } from "../src/db/assistant-settings";
 import { getLineupEditor, parseFormation, saveManagedLineup } from "../src/db/lineup";
 import { playNextMatchday } from "../src/db/matchday";
 import { createSave } from "../src/db/saves";
 import { advanceToNextSeason, type SeasonTransition } from "../src/db/season";
 import { createTestOwner, DEMO_CLUB_SLUG, DEMO_SEED, TEST_OWNER_PREFIX } from "../src/db/test-support";
 import { freeAgentWhere, quoteTransfer, signFreeAgent, type TransferQuote } from "../src/db/transfers";
+import { ASSISTANT_POLICIES, DEFAULT_ASSISTANT_POLICY, type AssistantPolicy } from "../src/engine/assistant-policy";
 import { ROTATION_FITNESS, YOUTH_OBJECTIVE_MAX_AGE, YOUTH_OBJECTIVE_STARTS } from "../src/engine/balance";
 import { formationPositions } from "../src/engine/formations";
 import { averageStarterRating, selectLineup, selectRestedLineup } from "../src/engine/lineup";
@@ -106,6 +113,7 @@ type Options = {
   lineup: LineupMode; // twin B's, and the sales twin's; twin A always plays selectLineup
   contracts: ContractsMode; // the measurement option of advanceToNextSeason (today), or the save's setting (after)
   sales: SalesMode;
+  policy: AssistantPolicy; // every twin's assistant's (Save.assistantPolicy)
   greedyClubs: string[] | null; // null: DEFAULT_GREEDY_CLUBS
   sections: Section[];
   out: string | undefined;
@@ -119,6 +127,7 @@ type TwinSpec = {
   assistantContracts: boolean;
   greedy: boolean; // signs the best free agents it can at each summer window's opening
   sales: boolean; // accepts every sale its assistant proposes
+  policy: AssistantPolicy; // its assistant's, for the line-up and the contracts he takes care of
 };
 
 /** A twin being played. */
@@ -126,7 +135,7 @@ type Twin = { key: string; spec: TwinSpec; saveId: string; clubSaveId: string; c
 
 /** Twins with the same spec are one: the composition's twin A is the contracts' twin with the assistant, for instance. */
 const twinKey = (spec: TwinSpec): string =>
-  `${spec.club} · ${spec.lineup} · contrats ${spec.assistantContracts ? "adjoint" : "joueur"}${spec.greedy ? " · gourmand" : ""}${spec.sales ? " · ventes" : ""}`;
+  `${spec.club} · ${spec.lineup} · contrats ${spec.assistantContracts ? "adjoint" : "joueur"}${spec.greedy ? " · gourmand" : ""}${spec.sales ? " · ventes" : ""}${spec.policy === DEFAULT_ASSISTANT_POLICY ? "" : ` · consigne ${spec.policy}`}`;
 
 function parseOptions(argv: readonly string[]): Options {
   const value = (name: string): string | undefined => argv.find((arg) => arg.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -165,6 +174,7 @@ function parseOptions(argv: readonly string[]): Options {
     lineup: oneOf("lineup", LINEUP_MODES, "rested"),
     contracts: oneOf("contracts", CONTRACTS_MODES, "option"),
     sales: oneOf("sales", SALES_MODES, "off"),
+    policy: oneOf("policy", ASSISTANT_POLICIES, DEFAULT_ASSISTANT_POLICY),
     greedyClubs,
     sections: sections === null ? [...SECTIONS] : SECTIONS.filter((section) => sections.includes(section)),
     out: value("out"),
@@ -175,7 +185,7 @@ function parseOptions(argv: readonly string[]): Options {
 /** The twins the sections need, one per distinct spec, and which twin plays each role of the report. */
 function twinPlan(options: Options, greedySlugs: readonly string[]): { twins: { key: string; spec: TwinSpec }[]; roles: Record<string, string> } {
   const wanted: [string, TwinSpec][] = [];
-  const own = { club: options.club, greedy: false, sales: false };
+  const own = { club: options.club, greedy: false, sales: false, policy: options.policy };
   if (options.sections.includes("composition")) {
     wanted.push(["composition-A", { ...own, lineup: "select", assistantContracts: true }]);
     wanted.push(["composition-B", { ...own, lineup: options.lineup, assistantContracts: true }]);
@@ -186,8 +196,9 @@ function twinPlan(options: Options, greedySlugs: readonly string[]): { twins: { 
   }
   if (options.sections.includes("greedy")) {
     for (const club of greedySlugs) {
-      wanted.push([`greedy:${club}`, { club, lineup: "select", assistantContracts: true, greedy: true, sales: false }]);
-      wanted.push([`passive:${club}`, { club, lineup: "select", assistantContracts: true, greedy: false, sales: false }]);
+      const greedySpec = { club, lineup: "select", assistantContracts: true, sales: false, policy: options.policy } as const;
+      wanted.push([`greedy:${club}`, { ...greedySpec, greedy: true }]);
+      wanted.push([`passive:${club}`, { ...greedySpec, greedy: false }]);
     }
   }
   if (options.sections.includes("sales") && options.sales === "game") {
@@ -239,6 +250,9 @@ async function applyModes(saveId: string, spec: TwinSpec, options: Options): Pro
   }
   if (options.contracts === "game") {
     await setContractsByAssistant(saveId, spec.assistantContracts);
+  }
+  if (spec.policy !== DEFAULT_ASSISTANT_POLICY) {
+    await setAssistantPolicy(saveId, spec.policy);
   }
 }
 
@@ -326,7 +340,9 @@ type PlayRecord = {
 /** A season over, every match played, its transition still to come. */
 type EndRecord = ClubRecord &
   PlayRecord & {
-    youth: { players: number; minutes: number; clubMinutes: number; bestLeagueStarts: number }; // aged 21 or less on 1 July
+    // Aged 21 or less on 1 July: how many, their minutes, the club's, the most league starts of one of them, and who
+    // they are (PlayerSave.id), whose progression the season's turn then gives (readYouthGrowth).
+    youth: { players: number; minutes: number; clubMinutes: number; bestLeagueStarts: number; ids?: string[] };
     feesPaid: number; // transfer fees and signing fees the club paid over the season, its 1 July included
   };
 
@@ -343,7 +359,10 @@ type ClosedRecord = {
   objectives: { kind: string; imposed: boolean; chosen: boolean; byAssistant: boolean; outcome: string | null }[];
 };
 
-type SeasonRecord = { season: number; start: StartRecord; end: EndRecord; closed: ClosedRecord };
+/** The progression its turn gave the season's young players (EndRecord.youth.ids), wherever they went: how many, in all. */
+type GrowthRecord = { players: number; total: number };
+
+type SeasonRecord = { season: number; start: StartRecord; end: EndRecord; closed: ClosedRecord; growth?: GrowthRecord };
 
 type TwinRecord = { key: string; spec: TwinSpec; seasons: SeasonRecord[]; next: StartRecord; minutes: number };
 
@@ -353,7 +372,7 @@ type Records = {
   seed: string;
   club: string;
   seasons: number;
-  modes: { lineup: LineupMode; contracts: ContractsMode; sales: SalesMode };
+  modes: { lineup: LineupMode; contracts: ContractsMode; sales: SalesMode; policy?: AssistantPolicy };
   landed: boolean; // the game had the simplification
   sections: Section[];
   greedyClubs: GreedyClub[];
@@ -671,9 +690,22 @@ async function readEnd(twin: Twin, startYear: number): Promise<Omit<EndRecord, k
       minutes: youngStats.reduce((sum, row) => sum + row.minutes, 0),
       clubMinutes: stats.reduce((sum, row) => sum + row.minutes, 0),
       bestLeagueStarts: Math.max(0, ...youngStats.filter((row) => league.has(row.seasonId)).map((row) => row.starts)),
+      ids: [...young],
     },
     feesPaid: paid._sum.fee ?? 0,
   };
+}
+
+/**
+ * The progression the season's turn gave its young players (PlayerSave.previousOverall, the overall before it,
+ * docs/design/effectif-adjoint.md § 3), wherever they are now, the retired included.
+ */
+async function readYouthGrowth(saveId: string, ids: readonly string[]): Promise<GrowthRecord> {
+  const players = await prisma.playerSave.findMany({
+    where: { saveId, id: { in: [...ids] }, previousOverall: { not: null } },
+    select: { overall: true, previousOverall: true },
+  });
+  return { players: players.length, total: sumOf(players.map((player) => player.overall - (player.previousOverall ?? player.overall))) };
 }
 
 /** What the transition closing a season wrote of the managed club's: its result (SeasonResult) and its objectives. */
@@ -739,7 +771,8 @@ async function runTwin(key: string, spec: TwinSpec, options: Options): Promise<T
       const end = { ...(await readEnd(twin, start.startYear)), ...play };
       const transition = await advance(saveId, spec, options);
       const closed = await readClosed(saveId, start.startYear);
-      seasons.push({ season, start, end, closed });
+      const growth = await readYouthGrowth(saveId, end.youth.ids ?? []);
+      seasons.push({ season, start, end, closed, growth });
       console.log(`  ${key}, S${season} (${seasonLabel(start.startYear)}): ${play.seconds} s, rank ${closed.rank}, squad ${start.squad} → ${end.squad}`);
       start = await openSeason(twin, transition);
     }
@@ -843,7 +876,7 @@ async function simulate(options: Options): Promise<Records> {
       seed: options.seed,
       club: options.club,
       seasons: options.seasons,
-      modes: { lineup: options.lineup, contracts: options.contracts, sales: options.sales },
+      modes: { lineup: options.lineup, contracts: options.contracts, sales: options.sales, policy: options.policy },
       landed: simplificationLanded(),
       sections: options.sections,
       greedyClubs: greedy,
@@ -888,6 +921,10 @@ const OBJECTIVE_NAMES: Readonly<Record<string, string>> = {
   FINANCES: "Bonne gestion",
 };
 const OUTCOME_NAMES: Readonly<Record<string, string>> = { EXCEEDED: "dépassé", ACHIEVED: "atteint", MISSED: "manqué" };
+const POLICY_NAMES: Readonly<Record<AssistantPolicy, string>> = {
+  BEST: "« Meilleur onze » (BEST, le jeu d'avant les consignes)",
+  YOUTH: "« Lancer les jeunes » (YOUTH)",
+};
 const LINEUP_NAMES: Readonly<Record<LineupMode, string>> = {
   select: "selectLineup, aucune composition enregistrée (le meilleur onze, sans repos)",
   rested: "le onze reposé des clubs IA (selectRestedLineup dans son dispositif), enregistré avant chaque match",
@@ -929,7 +966,9 @@ function compositionSection(records: Records): string[] {
     ["A", a],
     ["B", b],
   ] as const;
-  const seasonCells = (label: string, { season, start, end, closed }: SeasonRecord): string[] => {
+  const growthText = (growth: GrowthRecord | undefined): string =>
+    growth === undefined || growth.players === 0 ? "—" : `${signed(growth.total / growth.players, 2)} (${growth.players})`;
+  const seasonCells = (label: string, { season, start, end, closed, growth }: SeasonRecord): string[] => {
     const injuries = injuriesOf(end);
     return [
       seasonName(season, start.startYear),
@@ -944,6 +983,7 @@ function compositionSection(records: Records): string[] {
       `${percent(end.tired, end.starters)} (${end.tired}/${end.starters})`,
       `${end.youth.minutes} (${percent(end.youth.minutes, end.youth.clubMinutes)})`,
       String(end.youth.bestLeagueStarts),
+      growthText(growth),
       youthText(closed),
     ];
   };
@@ -969,6 +1009,9 @@ function compositionSection(records: Records): string[] {
       tired: sumOf(seasons.map(({ end }) => end.tired)),
       starters: sumOf(seasons.map(({ end }) => end.starters)),
       youthMinutes: mean(seasons.map(({ end }) => end.youth.minutes)),
+      // Per young player and per season: every turn's progression over every young player it counted.
+      youthGrowth:
+        sumOf(seasons.map(({ growth }) => growth?.total ?? 0)) / Math.max(1, sumOf(seasons.map(({ growth }) => growth?.players ?? 0))),
       youthChosen: youth.length,
       youthMet: youth.filter((outcome) => outcome === "ACHIEVED" || outcome === "EXCEEDED").length,
     };
@@ -982,6 +1025,7 @@ function compositionSection(records: Records): string[] {
     `${fixed(t.injuries, 1)} (${fixed(t.days, 0)} j)`,
     percent(t.tired, t.starters),
     fixed(t.youthMinutes, 0),
+    signed(t.youthGrowth, 2),
     `${t.youthMet} / ${t.youthChosen}`,
   ];
   const unexpected = sumOf([a, b].flatMap((twin) => twin.seasons.map(({ end }) => end.unexpected)));
@@ -989,12 +1033,14 @@ function compositionSection(records: Records): string[] {
     "## Composition : le club dirigé passif, son onze par l'adjoint",
     [
       `Club ${records.club}. Jumeau A : ${LINEUP_NAMES.select}. Jumeau B : ${LINEUP_NAMES[b.spec.lineup]}.`,
+      `Consigne de l'adjoint : ${POLICY_NAMES[records.modes.policy ?? DEFAULT_ASSISTANT_POLICY]}.`,
       `${a.key === b.key ? "Les deux jumeaux n'en font qu'un (--lineup=select). " : ""}Les deux : contrats à l'adjoint, aucune`,
       "action du joueur. Pts / match : points par match de championnat ; buts : championnat, pour · contre ; blessures :",
       "nouvelles blessures des joueurs du club, matchs et trêves (en sélection), et les jours d'absence qu'elles donnent ;",
       `titulaires sous ${ROTATION_FITNESS} : titularisations de tous ses matchs à moins de ${ROTATION_FITNESS} de condition au coup`,
       `d'envoi ; minutes des ${YOUTH_OBJECTIVE_MAX_AGE} ans ou moins au 1er juillet, toutes compétitions (part des minutes du`,
-      `club) ; titularisations en championnat du meilleur d'entre eux (Jeunesse : ${YOUTH_OBJECTIVE_STARTS}) ; Jeunesse : son`,
+      `club) ; titularisations en championnat du meilleur d'entre eux (Jeunesse : ${YOUTH_OBJECTIVE_STARTS}) ; progression : la`,
+      "note qu'ils gagnent au passage de saison, en moyenne par jeune (combien) ; Jeunesse : son",
       "issue quand c'était l'objectif choisi de la saison. Cible du cahier : B au moins aussi bon que A, moins de blessures et",
       "de titulaires fatigués.",
     ].join(" "),
@@ -1012,20 +1058,32 @@ function compositionSection(records: Records): string[] {
         `Titulaires sous ${ROTATION_FITNESS}`,
         `Minutes des ${YOUTH_OBJECTIVE_MAX_AGE} ans ou moins`,
         "Titularisations du meilleur jeune",
+        "Progression des jeunes",
         "Jeunesse",
       ],
       rows,
     ),
     `### Sur ${records.seasons} saisons (moyennes par saison)`,
     table(
-      ["Jumeau", "Pts / match", "Rang", "Buts pour · contre", "Blessures (jours)", `Titulaires sous ${ROTATION_FITNESS}`, `Minutes des ${YOUTH_OBJECTIVE_MAX_AGE} ans ou moins`, "Jeunesse tenue / choisie"],
+      [
+        "Jumeau",
+        "Pts / match",
+        "Rang",
+        "Buts pour · contre",
+        "Blessures (jours)",
+        `Titulaires sous ${ROTATION_FITNESS}`,
+        `Minutes des ${YOUTH_OBJECTIVE_MAX_AGE} ans ou moins`,
+        "Progression par jeune",
+        "Jeunesse tenue / choisie",
+      ],
       [summaryRow("A", ta), summaryRow("B", tb)],
     ),
     [
       `B − A : ${signed(tb.points - ta.points, 2)} point par match, ${signed(tb.rank - ta.rank, 1)} place au rang moyen,`,
       `${signed(tb.injuries - ta.injuries, 1)} blessure par saison (${signed(tb.days - ta.days, 0)} jours),`,
       `${signed(tb.starters === 0 || ta.starters === 0 ? Number.NaN : (100 * tb.tired) / tb.starters - (100 * ta.tired) / ta.starters, 1)} points de titulaires sous ${ROTATION_FITNESS},`,
-      `${signed(tb.youthMinutes - ta.youthMinutes, 0)} minutes des jeunes par saison.`,
+      `${signed(tb.youthMinutes - ta.youthMinutes, 0)} minutes des jeunes par saison, ${signed(tb.youthGrowth - ta.youthGrowth, 2)} de`,
+      "progression par jeune et par saison.",
       unexpected === 0 ? "" : `Attention : ${unexpected} étapes n'ont pas joué ce que le script attendait.`,
     ]
       .filter((part) => part !== "")
