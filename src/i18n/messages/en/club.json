@@ -78,10 +78,16 @@
       },
       "YOUTH": {
         "label": "Give youth a chance",
-        "about": "Your players aged 21 or under play in the league when the gap is small; he renews your prospects."
+        "about": "Your players aged 21 or under start in the league when the gap is small, and two come on on the hour; he renews your prospects."
       },
       "inactive": "Your assistant handles neither your eleven nor your contracts: his brief will wait until you hand one back to him.",
-      "done": "Your assistant's brief: {policy}."
+      "done": "Your assistant's brief: {policy}.",
+      "launches": "He will bring on: {players}",
+      "launchesByMarks": "your choice",
+      "launchesByAssistant": "the most potential",
+      "launchesNone": "He will bring no one on: no outfield player aged 21 or under with room to grow.",
+      "launchesByPlayer": "You pick the line-up: he brings no one on.",
+      "launchesChoose": "Choose"
     },
     "done": {
       "lineup": {

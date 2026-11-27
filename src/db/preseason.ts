@@ -15,6 +15,7 @@ import { makeRng } from "../lib/rng";
 import { prisma } from "./client";
 import { contractChoiceOf, type ContractMoves } from "./contracts";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
+import { keepValidYouthLaunches } from "./youth-launches";
 
 // A preseason reads every player of the save and writes a few thousand rows in bulk statements.
 const TRANSACTION_TIMEOUT_MS = 120_000;
@@ -405,6 +406,8 @@ export async function runPreseasonInTransaction(
       )}) AS v("id", "clubSaveId", "contractUntil", "wage")
       WHERE p."id" = v."id" AND p."saveId" = ${saveId}`;
   }
+  // The young players marked « Le lancer » gone free, retired, or past 21 on this 1 July drop out of the marks.
+  await keepValidYouthLaunches(tx, saveId, startYear);
 
   return summary;
 }

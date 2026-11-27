@@ -19,8 +19,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getTranslations("squad"))("title") };
 }
 
-export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad">) {
+export default async function SquadPage({ params, searchParams }: PageProps<"/saves/[id]/squad">) {
   const { id } = await params;
+  // « ?vue=jeunes », from « Il lancera » of Club → Réglages: the « Jeunes » view open at once.
+  const { vue } = await searchParams;
+  const youngView = (Array.isArray(vue) ? vue[0] : vue) === "jeunes";
   // Another player's save, or one that does not exist: 404, before anything is read.
   await requireOwnedSave(id);
   const [t, tTutorial] = await Promise.all([getTranslations("squad"), getTranslations("tutorial")]);
@@ -79,6 +82,7 @@ export default async function SquadPage({ params }: PageProps<"/saves/[id]/squad
         windowOpen={squad.windowOpen}
         nextWindowOpensOn={squad.nextWindowOpensOn}
         care={shortcuts.care}
+        youngView={youngView}
       />
     </div>
   );

@@ -9,7 +9,9 @@
       "toggle": "Jeunes · {count}",
       "title": "Les 21 ans et moins seuls",
       "intro": "Les 21 ans et moins. Plein effet à {full, number} minutes de championnat ; au-delà, rien de plus.",
-      "potential": "potentiel {potential}"
+      "potential": "potentiel {potential}",
+      "launchColumn": "Lancer",
+      "launches": "« Le lancer » : en championnat, ton adjoint fait entrer à la 60e les jeunes que tu marques quand ils ne démarrent pas ({marks} sur {max}) ; sans marque, les deux plus gros potentiels."
     },
     "sortLabel": "Tri de l'effectif",
     "presets": {

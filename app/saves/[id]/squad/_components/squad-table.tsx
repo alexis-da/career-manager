@@ -3,12 +3,14 @@
 import { ChevronDownIcon, ChevronUpIcon, HeartPulseIcon, type LucideIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState, type ReactNode } from "react";
+import Link from "@/src/components/link";
 import { PlayerFace } from "@/src/components/player-face";
 import { TABLE_CELL, TABLE_HEAD, TABLE_ROW } from "@/src/components/table-styles";
 import { Button } from "@/src/components/ui/button";
 import { HoverCardTrigger } from "@/src/components/ui/hover-card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/src/components/ui/table";
 import type { SquadPlayerView } from "@/src/db/squad";
+import { YOUTH_ENTRY_MAX_TARGETS } from "@/src/engine/balance";
 import { HOVER_POINTER_QUERY, useMediaQuery } from "@/src/hooks/use-media-query";
 import { formatDate, formatMoney } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
@@ -18,6 +20,7 @@ import { FitnessGauge } from "../../_components/fitness-gauge";
 import { hasPlayerBadges, PlayerBadges } from "../../_components/player-badges";
 import { PlayerSheet } from "../../_components/player-sheet";
 import { ExpectedProgression, LastProgression, LeagueMinutesGauge } from "../../_components/progression";
+import { useYouthLaunches, YouthLaunchToggle } from "../../_components/youth-launch";
 import { nationalityCode, nationalityName } from "../../_lib/nationalities";
 import { POSITION_ORDER, positionTextClass } from "../../_lib/positions";
 import { FULL_GROWTH_MINUTES, isYoung, shownExpected } from "../../_lib/progression";
@@ -84,12 +87,20 @@ const COLUMNS: Column[] = [
   { key: "contractUntil", align: "left", firstDirection: "asc", needs: NEEDS_672 },
 ];
 
-/** The « Jeunes » view's: their league minutes' gauge in the value's place, the most played first. */
-const YOUNG_COLUMNS: Column[] = COLUMNS.map((column) =>
-  column.key === "marketValue"
-    ? { key: "leagueMinutes", title: "leagueMinutes", align: "left", firstDirection: "desc", needs: NEEDS_672 }
-    : column,
-);
+/**
+ * The « Jeunes » view's: their league minutes' gauge in the value's place, the most played first; « Le lancer » in the
+ * contract's (docs/design/effectif-adjoint.md § 9), which the sheet still gives. The form leaves under 928 px, as it
+ * leaves their cards: the toggle's room at 1024 px, and beside the sheet.
+ */
+const YOUNG_COLUMNS: Column[] = COLUMNS.flatMap((column): Column[] => {
+  if (column.key === "marketValue") {
+    return [{ key: "leagueMinutes", title: "leagueMinutes", align: "left", firstDirection: "desc", needs: NEEDS_672 }];
+  }
+  if (column.key === "form") {
+    return [{ ...column, needs: NEEDS_928 }];
+  }
+  return column.key === "contractUntil" ? [] : [column];
+});
 
 /** The 21-year-olds and younger's cells of a card: room for the potential and the gauge, none for the rest of the foot. */
 const NOT_IN_YOUNG_CARD = "max-lg:hidden";
@@ -111,6 +122,9 @@ const CARD_SEPARATOR = "max-lg:before:mr-1 max-lg:before:content-['·']";
 
 /** A card's third line, under the age: the summer to come, or the « Jeunes » view's gauge. From the name to the right edge. */
 const CARD_THIRD_LINE = "max-lg:col-span-5 max-lg:col-start-2 max-lg:row-start-2 max-lg:flex max-lg:items-center max-lg:p-0 max-lg:pt-1.5 max-lg:text-[0.8125rem]";
+
+/** The « Jeunes » view's « Le lancer », a card's last line, under the gauge. */
+const CARD_LAUNCH_LINE = "max-lg:col-span-5 max-lg:col-start-2 max-lg:row-start-3 max-lg:flex max-lg:p-0 max-lg:pt-2";
 
 /**
  * Under lg, the sorting shortcuts stand in for the header row: pills of equal width, at a thumb's height, on two lines if
@@ -200,23 +214,39 @@ type SquadTableProps = {
   windowOpen: boolean;
   nextWindowOpensOn: Date;
   care?: ShopShortcuts["care"]; // express care in the shop, for the sheet of an injured player
+  youngView?: boolean; // the « Jeunes » view open at first (?vue=jeunes)
 };
 
-export function SquadTable({ saveId, header, players, currentDate, startYear, windowOpen, nextWindowOpensOn, care = null }: SquadTableProps) {
+export function SquadTable({
+  saveId,
+  header,
+  players,
+  currentDate,
+  startYear,
+  windowOpen,
+  nextWindowOpensOn,
+  care = null,
+  youngView: youngAtFirst = false,
+}: SquadTableProps) {
   const t = useTranslations("squad");
+  const tLaunch = useTranslations("player.youthLaunch");
   const tWorld = useTranslations("world");
   const tPositions = useTranslations("positions");
   const locale = useLocale();
   const [sort, setSort] = useState<Sort>({ key: "position", direction: "asc" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // The « Jeunes » view: the 21-year-olds and younger alone, their league minutes in the value's place.
-  const [youngView, setYoungView] = useState(false);
+  const [youngView, setYoungView] = useState(youngAtFirst);
   // No card on a touch screen: a tap opens the sheet, nothing else.
   const canHover = useMediaQuery(HOVER_POINTER_QUERY);
 
   const youngCount = players.filter(isYoung).length;
   const young = youngView && youngCount > 0;
   const columns = young ? YOUNG_COLUMNS : COLUMNS;
+  // « Le lancer » (docs/design/effectif-adjoint.md § 9): the marks of every row together, and when they bring anyone on.
+  const launches = useYouthLaunches(saveId, players);
+  const launchView = players.find((player) => player.youthLaunch !== null)?.youthLaunch ?? null;
+  const launchesInactive = launchView === null ? null : launchView.policy !== "YOUTH" ? "best" : launchView.lineupByAssistant ? null : "byPlayer";
   const sorted = useMemo(() => {
     const sign = sort.direction === "asc" ? 1 : -1;
     // A copy either way: the props are not to be sorted in place.
@@ -293,6 +323,24 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
             {t("young.intro", { full: FULL_GROWTH_MINUTES })}
           </p>
         )}
+        {young && launchView !== null && (
+          <p className="text-sm text-muted-foreground" data-testid="squad-young-launches" data-marks={launches.marks.length}>
+            {t("young.launches", { marks: launches.marks.length, max: YOUTH_ENTRY_MAX_TARGETS })}
+            {launchesInactive !== null && (
+              <>
+                {" "}
+                {tLaunch(launchesInactive)}{" "}
+                <Link
+                  href={`/saves/${saveId}/club#reglages`}
+                  data-testid="squad-young-launches-settings"
+                  className="inline-flex items-center font-semibold text-highlight hover:underline max-sm:min-h-11"
+                >
+                  {tLaunch("settings")} ›
+                </Link>
+              </>
+            )}
+          </p>
+        )}
 
         <Table className="tabular-nums max-lg:block" data-testid="squad-table">
           <TableHeader className="max-lg:hidden">
@@ -334,6 +382,11 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                   </TableHead>
                 );
               })}
+              {young && (
+                <TableHead className={cn(TABLE_HEAD, TIGHT_CELL)} data-testid="squad-column-launch">
+                  {t("young.launchColumn")}
+                </TableHead>
+              )}
               <TableHead className={cn(TABLE_HEAD, TIGHT_CELL)}>
                 <span className="sr-only">{t("columns.status")}</span>
               </TableHead>
@@ -456,7 +509,9 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                     <span className="max-lg:hidden">{player.potential}</span>
                     {young && <span className="lg:hidden">{t("young.potential", { potential: player.potential })}</span>}
                   </TableCell>
-                  <TableCell className={cn(TABLE_CELL, TIGHT_CELL, CARD_FOOT, CARD_SEPARATOR, "max-lg:col-start-4", young && NOT_IN_YOUNG_CARD)}>
+                  <TableCell
+                    className={cn(TABLE_CELL, TIGHT_CELL, CARD_FOOT, CARD_SEPARATOR, "max-lg:col-start-4", young && cn(NOT_IN_YOUNG_CARD, NEEDS_928))}
+                  >
                     <FormGauge form={player.form} />
                   </TableCell>
                   {/* In the table, the figure over a short bar. In a card, which has no room for a bar at 360 px, the
@@ -500,12 +555,32 @@ export function SquadTable({ saveId, header, players, currentDate, startYear, wi
                       {formatMoney(player.marketValue, locale)}
                     </TableCell>
                   )}
-                  <TableCell
-                    data-column="contractUntil"
-                    className={cn(TABLE_CELL, TIGHT_CELL, "max-lg:hidden", NEEDS_672, player.contractExpiring && "text-warning")}
-                  >
-                    {player.contractUntil === null ? "—" : formatDate(player.contractUntil, locale)}
-                  </TableCell>
+                  {young ? (
+                    // « Le lancer », on an outfield player's row alone: a goalkeeper is never brought on for minutes.
+                    <TableCell
+                      data-column="launch"
+                      className={cn(TABLE_CELL, TIGHT_CELL, CARD_LAUNCH_LINE, player.youthLaunch === null && "max-lg:hidden")}
+                    >
+                      {player.youthLaunch !== null && (
+                        <YouthLaunchToggle
+                          name={name}
+                          marked={launches.marks.includes(player.id)}
+                          full={launches.full}
+                          pending={launches.pending}
+                          onToggle={() => launches.toggle(player)}
+                          // In a narrow table, « Ne plus le lancer » on two lines rather than past the frame.
+                          className="lg:h-auto lg:min-h-7 lg:py-1 lg:text-left lg:leading-tight lg:whitespace-normal"
+                        />
+                      )}
+                    </TableCell>
+                  ) : (
+                    <TableCell
+                      data-column="contractUntil"
+                      className={cn(TABLE_CELL, TIGHT_CELL, "max-lg:hidden", NEEDS_672, player.contractExpiring && "text-warning")}
+                    >
+                      {player.contractUntil === null ? "—" : formatDate(player.contractUntil, locale)}
+                    </TableCell>
+                  )}
                   {/* Under lg, on the card's right, one under the other, the summer passed first; nothing without them. */}
                   <TableCell
                     className={cn(

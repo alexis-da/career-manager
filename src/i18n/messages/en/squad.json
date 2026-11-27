@@ -9,7 +9,9 @@
       "toggle": "Under-21s · {count}",
       "title": "Players aged 21 and under only",
       "intro": "Players aged 21 and under. Full effect at {full, number} league minutes; nothing more beyond.",
-      "potential": "potential {potential}"
+      "potential": "potential {potential}",
+      "launchColumn": "Bring on",
+      "launches": "“Bring him on”: in the league, your assistant brings on the youngsters you mark on the hour when they don't start ({marks} of {max}); without marks, the two with the most potential."
     },
     "sortLabel": "Sort the squad",
     "presets": {

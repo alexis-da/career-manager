@@ -1,6 +1,8 @@
 import type { AssistantPolicy } from "../engine/assistant-policy";
+import { youthTargets } from "../engine/lineup";
+import { seasonStartYear } from "../engine/world";
 import { prisma } from "./client";
-import { lineupByAssistantOf } from "./lineup";
+import { assistantYouthOf, lineupByAssistantOf } from "./lineup";
 import { liveMatchOf, lockSave } from "./matchday";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
 
@@ -40,6 +42,68 @@ export async function getAssistantSettings(saveId: string): Promise<AssistantSet
     contractsByAssistant: save.contractsByAssistant,
     policy: save.assistantPolicy,
     noticeOpen: save.assistantNoticeAt === null && save.challengeId === null,
+  };
+}
+
+/**
+ * « Il lancera : X, Y » under « Lancer les jeunes » (docs/design/effectif-adjoint.md § 9): the young players his eleven
+ * brings on at the hour in the league when they do not start, the ones his manager marked « Le lancer » (`byMarks`) or
+ * his own choice; none while the player makes the line-up himself (`byPlayer`).
+ */
+export type YouthLaunchPlan =
+  | { kind: "byPlayer" }
+  | { kind: "targets"; byMarks: boolean; players: { playerKey: string; firstName: string; lastName: string }[] };
+
+/**
+ * The young players « Lancer les jeunes » brings on, as the club's next league match would read them (youthTargets on
+ * assistantYouthOf, the matchday's): available or not, an injured or suspended one left out on the day. Null under
+ * « Meilleur onze »: nothing to say, nothing read.
+ */
+export async function getYouthLaunchPlan(
+  saveId: string,
+  settings: Pick<AssistantSettings, "policy" | "lineupByAssistant">,
+): Promise<YouthLaunchPlan | null> {
+  if (settings.policy !== "YOUTH") {
+    return null;
+  }
+  if (!settings.lineupByAssistant) {
+    return { kind: "byPlayer" };
+  }
+  const save = await prisma.save.findUniqueOrThrow({ where: { id: saveId }, select: { currentDate: true, youthLaunches: true } });
+  const club = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true, competitionId: true } });
+  const players = await prisma.playerSave.findMany({
+    where: { saveId, clubSaveId: club.id },
+    select: { id: true, playerKey: true, firstName: true, lastName: true, position: true, overall: true, potential: true, birthDate: true },
+  });
+  const youth = await assistantYouthOf(
+    prisma,
+    saveId,
+    { competitionId: club.competitionId, startYear: seasonStartYear(save.currentDate) },
+    "YOUTH",
+    players.map((player) => ({
+      id: player.playerKey,
+      playerSaveId: player.id,
+      overall: player.overall,
+      potential: player.potential,
+      birthDate: player.birthDate,
+    })),
+    save.youthLaunches,
+  );
+  const targets =
+    youth === null
+      ? []
+      : youthTargets(
+          players.map((player) => ({ id: player.playerKey, position: player.position, overall: player.overall, injured: false })),
+          youth,
+        );
+  const byKey = new Map(players.map((player) => [player.playerKey, player]));
+  return {
+    kind: "targets",
+    byMarks: targets.some((key) => youth?.marked?.includes(key) === true),
+    players: targets.flatMap((key) => {
+      const player = byKey.get(key);
+      return player === undefined ? [] : [{ playerKey: key, firstName: player.firstName, lastName: player.lastName }];
+    }),
   };
 }
 

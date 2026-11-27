@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
 import { isNewVersionError } from "@/app/_lib/new-version";
-import type { AssistantSettings as Settings } from "@/src/db/assistant-settings";
+import Link from "@/src/components/link";
+import type { AssistantSettings as Settings, YouthLaunchPlan } from "@/src/db/assistant-settings";
 import { ASSISTANT_POLICIES, type AssistantPolicy } from "@/src/engine/assistant-policy";
 import { cn } from "@/src/lib/utils";
 import { setAssistantPolicyAction, setAssistantSettingAction, type AssistantSetting } from "../actions";
@@ -72,7 +73,7 @@ function SettingSwitch({ saveId, setting, byAssistant }: { saveId: string; setti
  * it does, chosen at once on the screen as a switch is turned. Greyed, and saying why, while the player keeps both the
  * line-up and the contracts: the policy waits until he hands one of them back.
  */
-function PolicyChoice({ saveId, policy, active }: { saveId: string; policy: AssistantPolicy; active: boolean }) {
+function PolicyChoice({ saveId, policy, active, plan }: { saveId: string; policy: AssistantPolicy; active: boolean; plan: YouthLaunchPlan | null }) {
   const t = useTranslations("assistantSettings.policy");
   const common = useTranslations("common");
   const router = useRouter();
@@ -148,16 +149,63 @@ function PolicyChoice({ saveId, policy, active }: { saveId: string; policy: Assi
           {t("inactive")}
         </p>
       )}
+      {/* The young players he brings on, once the page has read them under the policy chosen: none on its way. */}
+      {active && chosen === "YOUTH" && plan !== null && <YouthLaunches saveId={saveId} plan={plan} />}
     </fieldset>
+  );
+}
+
+/**
+ * « Il lancera : X, Y » under « Lancer les jeunes » (docs/design/effectif-adjoint.md § 9): the young players his eleven
+ * brings on at the hour, the manager's marks or his own choice, and the way to the squad's « Jeunes » view to choose them;
+ * none while the player makes the line-up.
+ */
+function YouthLaunches({ saveId, plan }: { saveId: string; plan: YouthLaunchPlan }) {
+  const t = useTranslations("assistantSettings.policy");
+  if (plan.kind === "byPlayer") {
+    return (
+      <p data-testid="settings-assistant-launches" data-kind="byPlayer" className="text-sm text-muted-foreground">
+        {t("launchesByPlayer")}
+      </p>
+    );
+  }
+  return (
+    <p
+      data-testid="settings-assistant-launches"
+      data-kind={plan.players.length === 0 ? "none" : "targets"}
+      data-by-marks={plan.byMarks}
+      className="text-sm text-muted-foreground"
+    >
+      {plan.players.length === 0 ? (
+        t("launchesNone")
+      ) : (
+        <>
+          <span className="font-semibold text-foreground">
+            {t("launches", { players: plan.players.map((player) => `${player.firstName} ${player.lastName}`).join(", ") })}
+          </span>
+          {/* The dot kept with the last name: a line never starts with it. */}
+          {" · "}
+          {t(plan.byMarks ? "launchesByMarks" : "launchesByAssistant")}
+        </>
+      )}{" "}
+      <Link
+        href={`/saves/${saveId}/squad?vue=jeunes`}
+        data-testid="settings-assistant-launches-choose"
+        className="inline-flex items-center font-semibold whitespace-nowrap text-highlight hover:underline max-sm:min-h-11"
+      >
+        {t("launchesChoose")} ›
+      </Link>
+    </p>
   );
 }
 
 /**
  * « Ton adjoint s'occupe de », first of the settings (docs/design/simplification.md § 6.8): the line-up before each match
  * and the contracts at the season's turn, each with its switch; then his policy in them (« Sa consigne »,
- * docs/design/effectif-adjoint.md § 2.6), beside them where the settings are wide enough, under them otherwise.
+ * docs/design/effectif-adjoint.md § 2.6), beside them where the settings are wide enough, under them otherwise, and
+ * under « Lancer les jeunes » the young players he brings on (§ 9).
  */
-export function AssistantSettings({ saveId, settings }: { saveId: string; settings: Settings }) {
+export function AssistantSettings({ saveId, settings, plan = null }: { saveId: string; settings: Settings; plan?: YouthLaunchPlan | null }) {
   const t = useTranslations("assistantSettings");
   return (
     <section aria-labelledby="settings-assistant-title" data-testid="settings-assistant" className="@container">
@@ -173,6 +221,7 @@ export function AssistantSettings({ saveId, settings }: { saveId: string; settin
           saveId={saveId}
           policy={settings.policy}
           active={settings.lineupByAssistant || settings.contractsByAssistant}
+          plan={plan}
         />
       </div>
     </section>

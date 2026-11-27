@@ -207,7 +207,8 @@ async function readYouthProspects(
  * What the assistant's eleven of a league match of the managed club knows of its young players (AssistantYouth), from its
  * players (their key, PlayerSave.id, rating, potential and birth date) and his policy (Save.assistantPolicy): the Jeunesse
  * objective's young player (youthStarterOf) and, under « Lancer les jeunes » only, what the policy reads of the players
- * young enough (readYouthProspects, one read more); null when neither starts anybody, the rested eleven.
+ * young enough (readYouthProspects, one read more) and the ones its manager marked « Le lancer » (Save.youthLaunches,
+ * docs/design/effectif-adjoint.md § 9; youthTargets keeps those who still can be); null when neither starts anybody.
  */
 export async function assistantYouthOf(
   db: Db,
@@ -215,10 +216,14 @@ export async function assistantYouthOf(
   season: LeagueSeasonRef & { startYear: number },
   policy: AssistantPolicy,
   players: readonly { id: string; playerSaveId: string; overall: number; potential: number; birthDate: Date }[],
+  marked: readonly string[] = [],
 ): Promise<AssistantYouth | null> {
   const starter = await youthStarterOf(db, saveId, season, players);
   const prospects = policy === "YOUTH" ? await readYouthProspects(db, saveId, season, players) : [];
-  return starter === null && prospects.length === 0 ? null : { policy, starter, prospects };
+  if (starter === null && prospects.length === 0) {
+    return null;
+  }
+  return policy === "YOUTH" && marked.length > 0 ? { policy, starter, prospects, marked: [...marked] } : { policy, starter, prospects };
 }
 
 /** A player on a pitch: the managed club's before its next match or at a break, or an opponent's. */
@@ -304,7 +309,7 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
   const [save, club] = await Promise.all([
     prisma.save.findUniqueOrThrow({
       where: { id: saveId },
-      select: { currentDate: true, lineupByAssistant: true, assistantPolicy: true },
+      select: { currentDate: true, lineupByAssistant: true, assistantPolicy: true, youthLaunches: true },
     }),
     managedClub(saveId),
   ]);
@@ -355,6 +360,7 @@ export async function getLineupEditor(saveId: string): Promise<LineupEditor> {
             potential: row.potential,
             birthDate: row.birthDate,
           })),
+          save.youthLaunches,
         )
       : null;
 

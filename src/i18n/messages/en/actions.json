@@ -44,6 +44,13 @@
       "choiceInvalid": "Invalid choice: extend him, let him go, or leave it to your assistant.",
       "choiceRefused": "His contract doesn't end this season: nothing to decide for him."
     },
+    "youthLaunch": {
+      "launched": "Under “Give youth a chance”, your assistant will bring him on in the league when he doesn't start.",
+      "unlaunched": "He is no longer one of the youngsters your assistant brings on.",
+      "invalid": "Invalid choice: bring him on, or stop.",
+      "notEligible": "Only an outfield player of the club aged 21 or under can be brought on.",
+      "full": "You're already bringing on three youngsters: take one off first."
+    },
     "market": {
       "invalid": "Invalid proposal: the length is 1 to 5 seasons, and the fee is a whole amount in euros.",
       "signed": "Contract signed until {until}, signing bonus of {bonus}.",

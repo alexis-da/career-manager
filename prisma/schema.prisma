@@ -382,6 +382,10 @@ model Save {
   // Sa consigne (docs/design/effectif-adjoint.md § 2), pour ce dont il s'occupe : « Meilleur onze » (BEST, le jeu d'avant
   // elle, toute carrière par défaut) ou « Lancer les jeunes » (YOUTH)
   assistantPolicy      AssistantPolicy      @default(BEST)
+  // Les jeunes que son joueur marque « Le lancer » (docs/design/effectif-adjoint.md § 9) : leurs clés (PlayerSave.playerKey),
+  // 3 au plus, dans l'ordre de ses marques, que « Lancer les jeunes » fait entrer quand ils ne démarrent pas ; un joueur
+  // parti, de plus de 21 ans au 1er juillet ou gardien en sort (src/db/youth-launches.ts)
+  youthLaunches        String[]             @default([])
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   clubSaves            ClubSave[]

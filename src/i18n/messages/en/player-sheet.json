@@ -53,6 +53,22 @@
       "leave": "Let him go",
       "failed": "Your choice could not be saved. Try again."
     },
+    "youthLaunch": {
+      "title": "Give youth a chance",
+      "launch": "Bring him on",
+      "unlaunch": "Stop bringing him on",
+      "launchName": "Bring him on: {name}",
+      "unlaunchName": "Stop bringing him on: {name}",
+      "marked": "Marked: in the league, when he doesn't start, your assistant brings him on on the hour.",
+      "unmarkedNone": "Without marks, your assistant brings on the two youngsters with the most potential on the hour. Your marks replace his choice, {max} at most.",
+      "unmarkedSome": "Your assistant brings on the youngsters you marked on the hour: {marks} of {max}.",
+      "full": "You're already bringing on {max}: take one off to bring him on.",
+      "unavailable": "Unavailable: he will come on again once he's back.",
+      "best": "His brief is “Best eleven”: he brings no one on.",
+      "byPlayer": "You pick the line-up: your assistant brings no one on.",
+      "settings": "Settings",
+      "failed": "Your mark could not be saved. Try again."
+    },
     "transfers": "Transfers",
     "transfer": {
       "transfer": "Transfer: {from} to {to}, {fee}",

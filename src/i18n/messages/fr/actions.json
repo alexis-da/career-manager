@@ -44,6 +44,13 @@
       "choiceInvalid": "Choix invalide : prolonger, laisser partir, ou laisser ton adjoint décider.",
       "choiceRefused": "Son contrat ne finit pas cette saison : rien à décider pour lui."
     },
+    "youthLaunch": {
+      "launched": "Sous « Lancer les jeunes », ton adjoint le fera entrer en championnat quand il ne démarre pas.",
+      "unlaunched": "Il ne fait plus partie des jeunes que ton adjoint lance.",
+      "invalid": "Choix invalide : le lancer, ou ne plus le lancer.",
+      "notEligible": "Seul un joueur de champ du club de 21 ans ou moins peut être lancé.",
+      "full": "Tu lances déjà trois jeunes : retires-en un d'abord."
+    },
     "market": {
       "invalid": "Proposition invalide : la durée va de 1 à 5 saisons, l'indemnité est un montant entier en euros.",
       "signed": "Contrat signé jusqu'au {until}, prime à la signature de {bonus}.",

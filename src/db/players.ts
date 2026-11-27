@@ -1,9 +1,11 @@
 import type { ContractChoice, ContractIntention } from "../engine/assistant-contracts";
+import type { AssistantPolicy } from "../engine/assistant-policy";
 import { displayClubName } from "../engine/club-name";
 import type { AttributeName } from "../engine/generation";
 import type { Position } from "../engine/positions";
 import { seasonEndDate, seasonStartDate, seasonStartYear } from "../engine/world";
 import { youthKeyPrefix } from "../engine/youth";
+import { canBeLaunched } from "../engine/youth-launches";
 import type { Prisma } from "../generated/prisma/client";
 import { clubColorsOf, type ClubColors } from "../lib/color";
 import { ageInYears } from "../lib/dates";
@@ -14,8 +16,10 @@ import { parseTitleKey, type TournamentCode } from "../engine/tournaments";
 import { getManagedBreak, internationalInjuries } from "./nations-view";
 import { DISCIPLINE_SELECT, disciplineStatus, matchesAhead, type DisciplineStatus, type MatchesAhead } from "./discipline-view";
 import { fitnessAtKickOff } from "./fitness-view";
+import { lineupByAssistantOf } from "./lineup";
 import { progressionHistory, summerOutlook, type PlayerProgression } from "./progression-view";
 import { parseSeasonHighlights } from "./season-highlights";
+import { readYouthLaunches } from "./youth-launches";
 
 /**
  * What the managed club still has to play: its next match, its day and competition, null once it has none left, and the
@@ -55,6 +59,13 @@ export type TransferHistoryItem = {
   toClubName: string | null;
 };
 
+/**
+ * « Le lancer » of a young player of the managed club (docs/design/effectif-adjoint.md § 9): whether he is marked, how many
+ * marks hold (his included, YOUTH_ENTRY_MAX_TARGETS at most), and when a mark brings him on: only under « Lancer les
+ * jeunes » (`policy`) and while the assistant makes the line-up (`lineupByAssistant`).
+ */
+export type YouthLaunchView = { marked: boolean; marks: number; policy: AssistantPolicy; lineupByAssistant: boolean };
+
 /** What the player sheet shows of a player, wherever he plays. */
 export type PlayerProfile = {
   id: string;
@@ -91,6 +102,9 @@ export type PlayerProfile = {
   contractIntention: ContractIntention | null;
   assistantIntention: ContractIntention | null;
   arrivedThisSeason: boolean; // young player who joined at this season's preseason
+  // « Le lancer » (docs/design/effectif-adjoint.md § 9), for a player of the managed club who can be marked (canBeLaunched:
+  // an outfield player 21 or younger on 1 July); null for anyone else.
+  youthLaunch: YouthLaunchView | null;
   // The summer passed and, for a player of the managed club, the summer to come and his rating season by season at the
   // club (docs/design/effectif-adjoint.md § 3): the squad's « 71 ↑+4 » and « +3 expected », the sheet's curve.
   progression: PlayerProgression;
@@ -129,10 +143,11 @@ function injuredWithOf(
 export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSaveWhereInput): Promise<PlayerProfile[]> {
   const save = await prisma.save.findUniqueOrThrow({
     where: { id: saveId },
-    select: { currentDate: true, contractsByAssistant: true },
+    select: { currentDate: true, contractsByAssistant: true, assistantPolicy: true, lineupByAssistant: true },
   });
   const startYear = seasonStartYear(save.currentDate);
   const lastContractDay = seasonEndDate(startYear);
+  const firstJuly = seasonStartDate(startYear);
 
   const players = await prisma.playerSave.findMany({
     where: { ...where, saveId },
@@ -192,6 +207,21 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
     player.contractUntil !== null && player.contractUntil <= lastContractDay;
   const forecasts = players.some((player) => player.clubSave?.isManaged === true && expiring(player))
     ? await managedContractForecasts(saveId, { startYear, byAssistant: save.contractsByAssistant })
+    : null;
+  // The young players marked « Le lancer » that still are (§ 9), and who makes the line-up (for a career from before the
+  // setting, its club's saved line-up decides), read only when a player of the managed club who can be marked is among them.
+  const launchable = (player: (typeof players)[number]): boolean =>
+    canBeLaunched({ position: player.position, seasonAge: ageInYears(player.birthDate, firstJuly) });
+  const launchContext = players.some((player) => player.clubSave?.isManaged === true && launchable(player))
+    ? {
+        marks: await readYouthLaunches(prisma, saveId),
+        lineupByAssistant:
+          save.lineupByAssistant ??
+          lineupByAssistantOf(
+            null,
+            (await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { lineup: true } })).lineup,
+          ),
+      }
     : null;
 
   // Their progression (docs/design/effectif-adjoint.md § 3), for the managed club's players only: their league minutes of
@@ -296,6 +326,15 @@ export async function getPlayerProfiles(saveId: string, where: Prisma.PlayerSave
       contractIntention: forecast?.outcome.intention ?? null,
       assistantIntention: forecast?.assistant ?? null,
       arrivedThisSeason: player.playerKey.startsWith(youthPrefix),
+      youthLaunch:
+        managed && launchContext !== null && launchable(player)
+          ? {
+              marked: launchContext.marks.includes(player.playerKey),
+              marks: launchContext.marks.length,
+              policy: save.assistantPolicy,
+              lineupByAssistant: launchContext.lineupByAssistant,
+            }
+          : null,
       progression: progressionOf(player, managed),
       attributes: {
         pace: player.pace,

@@ -53,6 +53,22 @@
       "leave": "Le laisser partir",
       "failed": "Ton choix n'a pas pu être enregistré. Réessaie."
     },
+    "youthLaunch": {
+      "title": "Lancer les jeunes",
+      "launch": "Le lancer",
+      "unlaunch": "Ne plus le lancer",
+      "launchName": "Le lancer : {name}",
+      "unlaunchName": "Ne plus le lancer : {name}",
+      "marked": "Marqué : en championnat, quand il ne démarre pas, ton adjoint le fait entrer à la 60e.",
+      "unmarkedNone": "Sans marque, ton adjoint fait entrer à la 60e les deux jeunes au plus gros potentiel. Tes marques remplacent son choix, {max} au plus.",
+      "unmarkedSome": "Ton adjoint fait entrer à la 60e les jeunes que tu as marqués : {marks} sur {max}.",
+      "full": "Tu en lances déjà {max} : retires-en un pour le lancer.",
+      "unavailable": "Indisponible : il entrera de nouveau à son retour.",
+      "best": "Sa consigne est « Meilleur onze » : il ne fait entrer personne.",
+      "byPlayer": "Tu fais la composition : ton adjoint ne fait entrer personne.",
+      "settings": "Réglages",
+      "failed": "Ta marque n'a pas pu être enregistrée. Réessaie."
+    },
     "transfers": "Transferts",
     "transfer": {
       "transfer": "Transfert : {from} vers {to}, {fee}",

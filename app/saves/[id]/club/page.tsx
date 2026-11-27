@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { getCurrentUser, requireOwnedSave } from "@/src/auth/current-user";
-import { getAssistantSettings } from "@/src/db/assistant-settings";
+import { getAssistantSettings, getYouthLaunchPlan } from "@/src/db/assistant-settings";
 import { ensureCurrentChallenge } from "@/src/db/challenge";
 import { getChallengePage } from "@/src/db/challenge-view";
 import { getClubFinances, getManagerName, getSeasonPrizes } from "@/src/db/club";
@@ -59,7 +59,8 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
     reveal.missions ? getMissionStreak(id, now) : null,
     getWornCosmetics(user.id),
     tutorial === null ? 0 : managedMatchesPlayed(id, 1),
-    getAssistantSettings(id),
+    // Under « Lancer les jeunes », the young players he brings on: read after his settings, and only then.
+    getAssistantSettings(id).then(async (settings) => ({ settings, plan: await getYouthLaunchPlan(id, settings) })),
   ]);
   // The manager's title and featured badge (missions v2): the collection's, the rookie's by default.
   const title = isCosmeticId(worn.title) ? worn.title : (DEFAULT_COSMETIC.TITLE ?? "title-rookie");
@@ -98,7 +99,7 @@ export default async function ClubPage({ params }: PageProps<"/saves/[id]/club">
         <ClubSettings
           user={user}
           ownedSaves={ownedSaves}
-          assistant={{ saveId: id, settings: assistant }}
+          assistant={{ saveId: id, settings: assistant.settings, plan: assistant.plan }}
           streak={streak}
           tutorial={tutorial === null ? null : { saveId: id, state: tutorialSetting(tutorial, { now, matchesPlayed }) }}
         />

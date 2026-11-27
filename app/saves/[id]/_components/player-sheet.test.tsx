@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { PlayerProfile } from "@/src/db/players";
+import type { PlayerProfile, YouthLaunchView } from "@/src/db/players";
 import { inLanguage } from "@/src/i18n/test-intl";
 import { contractEndKey, PlayerSheet } from "./player-sheet";
 
@@ -10,6 +10,7 @@ vi.mock("@/app/saves/[id]/squad/actions", () => ({
   renewContractAction: vi.fn(),
   sellPlayerAction: vi.fn(),
   setContractChoiceAction: vi.fn(),
+  setYouthLaunchAction: vi.fn(),
 }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
@@ -48,6 +49,7 @@ const profile = (managed: boolean, contract: Contract = {}): PlayerProfile => ({
   contractIntention: managed ? "leave" : null,
   assistantIntention: managed ? "leave" : null,
   arrivedThisSeason: false,
+  youthLaunch: null,
   progression: { last: null, outlook: null, history: [] },
   attributes: { pace: 70, shooting: 70, passing: 70, dribbling: 70, defending: 70, physical: 70, goalkeeping: 1 },
   seasonStats: { appearances: 0, minutes: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
@@ -150,6 +152,84 @@ describe("the sheet's progression", () => {
     expect(section).not.toContain("player-progression-curve");
     expect(progressionOf(renderSheet(progressing(false, { last: null, outlook: null, history: [] })))).toBeNull();
     expect(progressionOf(renderSheet(progressing(false, { last: 0, outlook: null, history: [] })))).toBeNull();
+  });
+});
+
+describe("the sheet's « Lancer les jeunes »", () => {
+  const LAUNCH: YouthLaunchView = { marked: false, marks: 0, policy: "YOUTH", lineupByAssistant: true };
+  /** A young player of the managed club, 19, his « Le lancer » as given, injured or suspended if told. */
+  const youngster = (youthLaunch: YouthLaunchView | null, out: "injured" | "suspended" | null = null): PlayerProfile => ({
+    ...profile(true, { contractExpiring: false }),
+    age: 19,
+    youthLaunch,
+    injuredUntil: out === "injured" ? new Date(Date.UTC(2026, 8, 1)) : null,
+    discipline: out === "suspended" ? { suspended: true, suspendedLater: null, bookingRisks: [], bookingRiskNextMatch: false } : null,
+  });
+  /** The section, null without it. */
+  const sectionOf = (markup: string): string | null => /<section[^>]*data-testid="player-youth-launch"[\s\S]*?<\/section>/.exec(markup)?.[0] ?? null;
+  /** The toggle's tag and its text. */
+  const toggleOf = (section: string): { tag: string; text: string } => {
+    const match = /(<button[^>]*data-testid="youth-launch-toggle"[^>]*>)([\s\S]*?)<\/button>/.exec(section);
+    return { tag: match?.[1] ?? "", text: textOf(match?.[2] ?? "") };
+  };
+
+  it("offers « Le lancer » to an unmarked young player, saying what the assistant does without marks", () => {
+    const section = sectionOf(renderSheet(youngster(LAUNCH))) ?? "";
+    expect(section).toContain('data-marked="false"');
+    expect(textOf(section)).toContain(
+      "Sans marque, ton adjoint fait entrer à la 60e les deux jeunes au plus gros potentiel. Tes marques remplacent son choix, 3 au plus.",
+    );
+    const toggle = toggleOf(section);
+    expect(toggle.text).toBe("Le lancer");
+    expect(toggle.tag).toContain('aria-label="Le lancer : Yann Martin"');
+    expect(toggle.tag).not.toContain(" disabled=\"\"");
+    expect(textOf(sectionOf(renderSheet(youngster({ ...LAUNCH, marks: 2 }))) ?? "")).toContain(
+      "Ton adjoint fait entrer à la 60e les jeunes que tu as marqués : 2 sur 3.",
+    );
+    expect(section).not.toContain("player-youth-launch-inactive");
+  });
+
+  it("offers « Ne plus le lancer » to a marked one, and refuses a fourth, saying why", () => {
+    const marked = sectionOf(renderSheet(youngster({ ...LAUNCH, marked: true, marks: 3 }))) ?? "";
+    expect(marked).toContain('data-marked="true"');
+    expect(textOf(marked)).toContain("Marqué : en championnat, quand il ne démarre pas, ton adjoint le fait entrer à la 60e.");
+    expect(toggleOf(marked).text).toBe("Ne plus le lancer");
+    expect(toggleOf(marked).tag).not.toContain(" disabled=\"\"");
+
+    const full = sectionOf(renderSheet(youngster({ ...LAUNCH, marks: 3 }))) ?? "";
+    expect(textOf(full)).toContain("Tu en lances déjà 3 : retires-en un pour le lancer.");
+    expect(toggleOf(full).tag).toContain(" disabled=\"\"");
+  });
+
+  it("says a marked player out injured or suspended comes on again once back", () => {
+    for (const out of ["injured", "suspended"] as const) {
+      expect(sectionOf(renderSheet(youngster({ ...LAUNCH, marked: true, marks: 1 }, out))), out).toContain(
+        "Indisponible : il entrera de nouveau à son retour.",
+      );
+    }
+    expect(sectionOf(renderSheet(youngster({ ...LAUNCH, marked: true, marks: 1 })))).not.toContain("player-youth-launch-unavailable");
+  });
+
+  it("says why a mark brings nobody on under « Meilleur onze » or while the player makes the line-up, with the way to the settings", () => {
+    const best = sectionOf(renderSheet(youngster({ ...LAUNCH, policy: "BEST" }))) ?? "";
+    expect(best).toContain('data-inactive="best"');
+    expect(textOf(best)).toContain("Sa consigne est « Meilleur onze » : il ne fait entrer personne. Réglages ›");
+    expect(best).toMatch(/href="\/saves\/save-1\/club#reglages"/);
+    // The mark is kept for later all the same: the toggle is there.
+    expect(toggleOf(best).text).toBe("Le lancer");
+
+    const own = sectionOf(renderSheet(youngster({ ...LAUNCH, lineupByAssistant: false }))) ?? "";
+    expect(own).toContain('data-inactive="byPlayer"');
+    expect(textOf(own)).toContain("Tu fais la composition : ton adjoint ne fait entrer personne.");
+  });
+
+  it("has nothing for anyone who cannot be marked, and speaks English", () => {
+    expect(sectionOf(renderSheet(youngster(null)))).toBeNull();
+    expect(sectionOf(render(false))).toBeNull();
+    const english = sectionOf(renderSheet(youngster({ ...LAUNCH, marked: true, marks: 1 }), "en")) ?? "";
+    expect(textOf(english)).toContain("Give youth a chance");
+    expect(textOf(english)).toContain("Marked: in the league, when he doesn't start, your assistant brings him on on the hour.");
+    expect(toggleOf(english).text).toBe("Stop bringing him on");
   });
 });
 

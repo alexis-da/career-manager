@@ -4,6 +4,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import { requireOwnedSave } from "@/src/auth/current-user";
 import { contractChoiceInputSchema, setContractChoice } from "@/src/db/contracts";
+import { setYouthLaunch, youthLaunchInputSchema } from "@/src/db/youth-launches";
 import {
   releasePlayer,
   releasePlayerSchema,
@@ -72,6 +73,27 @@ export async function setContractChoiceAction(saveId: string, playerSaveId: stri
   revalidatePath(`/saves/${parsed.data.saveId}`, "layout");
   const chosen = parsed.data.choice;
   return { ok: true, message: t(chosen !== null ? `choice.${chosen}` : outcome.byAssistant ? "choice.ASSISTANT" : "choice.DEFAULT") };
+}
+
+/**
+ * « Le lancer » / « Ne plus le lancer » (docs/design/effectif-adjoint.md § 9), on the sheet of a young player of the managed
+ * club or his line in the squad's « Jeunes » view: « Lancer les jeunes » brings him on when he does not start. At any
+ * date; refused for a player who cannot be marked, and beyond three.
+ */
+export async function setYouthLaunchAction(saveId: string, playerSaveId: string, launch: boolean): Promise<ActionResult> {
+  const t = await getTranslations("actions.youthLaunch");
+  const parsed = youthLaunchInputSchema.safeParse({ saveId, playerSaveId, launch });
+  if (!parsed.success) {
+    return { ok: false, message: t("invalid") };
+  }
+  await requireOwnedSave(parsed.data.saveId);
+  const outcome = await setYouthLaunch(parsed.data);
+  if (!outcome.ok) {
+    return { ok: false, message: t(outcome.reason === "full" ? "full" : "notEligible") };
+  }
+  // The squad, the sheets, the line-up's bench and Club → Réglages: every screen of the save that shows them.
+  revalidatePath(`/saves/${parsed.data.saveId}`, "layout");
+  return { ok: true, message: t(parsed.data.launch ? "launched" : "unlaunched") };
 }
 
 export async function releasePlayerAction(input: PlayerActionInput): Promise<ActionResult> {

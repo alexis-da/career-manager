@@ -5,7 +5,7 @@ import { ResumeLinkCopy } from "@/app/_components/in-app-actions";
 import { LanguageSwitcher } from "@/app/_components/language-switcher";
 import { signOutAction } from "@/app/actions";
 import type { CurrentUser } from "@/src/auth/current-user";
-import type { AssistantSettings as AssistantSettingsView } from "@/src/db/assistant-settings";
+import type { AssistantSettings as AssistantSettingsView, YouthLaunchPlan } from "@/src/db/assistant-settings";
 import { publicPath } from "@/src/i18n/public-pages";
 import { maxSavesFor } from "@/src/lib/limits";
 import type { StreakView } from "@/src/lib/missions";
@@ -74,7 +74,8 @@ function MissionStreak({ streak }: { streak: StreakView }) {
 type ClubSettingsProps = {
   user: CurrentUser;
   ownedSaves: number;
-  assistant?: { saveId: string; settings: AssistantSettingsView } | null; // what the career leaves to the assistant
+  // What the career leaves to the assistant, and under « Lancer les jeunes » the young players he brings on.
+  assistant?: { saveId: string; settings: AssistantSettingsView; plan?: YouthLaunchPlan | null } | null;
   streak?: StreakView | null; // the player's daily missions, none in a challenge save
   tutorial?: { saveId: string; state: TutorialSettingState } | null; // the tutorial this save follows, if it does
   className?: string;
@@ -99,7 +100,7 @@ export function ClubSettings({ user, ownedSaves, assistant = null, streak = null
       className={cn("flex scroll-mt-4 flex-col gap-4", className)}
     >
       <ClubCardTitle id="club-settings-title">{t("title")}</ClubCardTitle>
-      {assistant !== null && <AssistantSettings saveId={assistant.saveId} settings={assistant.settings} />}
+      {assistant !== null && <AssistantSettings saveId={assistant.saveId} settings={assistant.settings} plan={assistant.plan ?? null} />}
       <div className={ROW}>
         <p className={NAME}>{tLanguage("label")}</p>
         <LanguageSwitcher segmented />

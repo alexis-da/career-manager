@@ -29,6 +29,7 @@ import { prisma } from "./client";
 import { liveMatchOf, lockSave } from "./matchday";
 import { academyLocks } from "./shop";
 import { TRANSACTION_MAX_WAIT_MS } from "./transactions";
+import { forgetYouthLaunch } from "./youth-launches";
 
 const MAX_DATABASE_INT = 2_147_483_647;
 const TRANSACTION_OPTIONS = { maxWait: TRANSACTION_MAX_WAIT_MS, timeout: 30_000 };
@@ -585,6 +586,8 @@ export async function releasePlayer(input: PlayerActionInput): Promise<TransferO
     }
 
     await tx.playerSave.update({ where: { id: player.id, saveId }, data: { clubSaveId: null, contractUntil: null, contractChoice: null } });
+    // Gone free: no longer one of the young players his manager marked « Le lancer ».
+    await forgetYouthLaunch(tx, saveId, player.playerKey);
     await tx.clubSave.update({ where: { id: club.id, saveId }, data: { budget: { decrement: compensation } } });
     await tx.transfer.create({
       data: { saveId, playerSaveId: player.id, fromClubId: club.clubId, toClubId: null, fee: 0, type: "FREE", date: save.currentDate },
@@ -647,6 +650,8 @@ export async function sellPlayer(input: SellPlayerInput): Promise<TransferOutcom
       where: { id: player.id, saveId },
       data: { clubSaveId: buyer.id, contractUntil, wage: bid.wage, contractChoice: null },
     });
+    // Sold: no longer one of the young players his manager marked « Le lancer ».
+    await forgetYouthLaunch(tx, saveId, player.playerKey);
     await tx.clubSave.update({ where: { id: club.id, saveId }, data: { budget: { increment: bid.fee } } });
     await tx.clubSave.update({ where: { id: buyer.id, saveId }, data: { budget: { decrement: bid.fee } } });
     await tx.transfer.create({

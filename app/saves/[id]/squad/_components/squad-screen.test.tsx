@@ -10,8 +10,15 @@ import { PlayerCardBody } from "./player-hover-card";
 import { SquadSummary } from "./squad-summary";
 import { SquadTable } from "./squad-table";
 
-// The sheet's actions call Server Actions, which need a request: none is rendered here, the table being empty.
+// The sheet's actions call Server Actions, which need a request: none is rendered here, the table being empty. « Le
+// lancer » of the « Jeunes » view is drawn without its action, under the address of a save.
 vi.mock("@/app/saves/[id]/_components/contract-actions", () => ({ SquadPlayerActions: () => null }));
+vi.mock("@/app/saves/[id]/squad/actions", () => ({ setYouthLaunchAction: vi.fn() }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useParams: () => ({ id: "save-1" }),
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 const render = (node: ReactNode, locale: Locale = "fr"): string => renderToStaticMarkup(inLanguage(node, locale));
 
@@ -108,6 +115,7 @@ function squadPlayer(key: string, age: number, last: number | null, expected: nu
     contractIntention: null,
     assistantIntention: null,
     arrivedThisSeason: false,
+    youthLaunch: null,
     progression: {
       last,
       outlook: { leagueMinutes: 620, growth: expected === null ? null : { expected, idle: 1, starter: 4 }, decline: null },
@@ -191,6 +199,78 @@ describe("the squad's progression", () => {
     expect(table(PLAYERS, "en")).toMatch(/data-testid="squad-young-toggle"[^>]*>Under-21s · 2</);
     expect(markup).not.toContain('data-testid="squad-young-intro"');
     expect(table(PLAYERS.filter((player) => player.age > 21))).not.toContain('data-testid="squad-young-toggle"');
+  });
+});
+
+describe("« Le lancer » in the « Jeunes » view", () => {
+  const LAUNCH = { marked: false, marks: 0, policy: "YOUTH", lineupByAssistant: true } as const;
+  /** A young player, his « Le lancer » as given: null for a goalkeeper, whom nobody marks. */
+  const youngster = (key: string, launch: SquadPlayerView["youthLaunch"], position: SquadPlayerView["position"] = "CM"): SquadPlayerView => ({
+    ...squadPlayer(key, 19, null, 2),
+    position,
+    youthLaunch: launch,
+  });
+  const table = (players: SquadPlayerView[], youngView = true, locale?: Locale): string =>
+    render(
+      <SquadTable
+        saveId="save-1"
+        header={null}
+        players={players}
+        currentDate={new Date(Date.UTC(2026, 9, 1))}
+        startYear={2026}
+        windowOpen={false}
+        nextWindowOpensOn={new Date(Date.UTC(2027, 0, 1))}
+        youngView={youngView}
+      />,
+      locale,
+    );
+  /** Each row's toggle, by its player's key: its text and whether it is out of reach; none for a row without one. */
+  const togglesOf = (markup: string): Record<string, string> =>
+    Object.fromEntries(
+      markup
+        .split("<tr")
+        .filter((row) => row.includes('data-testid="squad-row"'))
+        .map((row) => {
+          const key = /data-player-key="([^"]+)"/.exec(row)?.[1] ?? "";
+          const toggle = /(<button[^>]*data-testid="youth-launch-toggle"[^>]*>)([\s\S]*?)<\/button>/.exec(row);
+          return [key, toggle === null ? "none" : `${textOfMarkup(toggle[2])}${toggle[1].includes(' disabled=""') ? " (disabled)" : ""}`];
+        }),
+    );
+
+  it("puts the toggle on each outfield young player's row in its own column, in the contract's place", () => {
+    const players = [
+      youngster("a-marked", { ...LAUNCH, marked: true, marks: 1 }),
+      youngster("b-free", { ...LAUNCH, marks: 1 }),
+      youngster("c-keeper", null, "GK"),
+    ];
+    const markup = table(players);
+    expect(togglesOf(markup)).toEqual({ "a-marked": "Ne plus le lancer", "b-free": "Le lancer", "c-keeper": "none" });
+    expect(markup).toContain('data-testid="squad-column-launch"');
+    expect(markup).not.toContain('data-testid="squad-column-contract-until"');
+    // Outside the view, the contract's column and no toggle.
+    const all = table(players, false);
+    expect(all).toContain('data-testid="squad-column-contract-until"');
+    expect(all).not.toContain('data-testid="youth-launch-toggle"');
+    expect(all).not.toContain('data-testid="squad-young-launches"');
+  });
+
+  it("counts the marks of every row together, three at most: the others' toggles out of reach", () => {
+    const marked = { ...LAUNCH, marked: true, marks: 3 };
+    const markup = table([youngster("a", marked), youngster("b", marked), youngster("c", marked), youngster("d", { ...LAUNCH, marks: 3 })]);
+    expect(togglesOf(markup)).toEqual({ a: "Ne plus le lancer", b: "Ne plus le lancer", c: "Ne plus le lancer", d: "Le lancer (disabled)" });
+    expect(markup).toMatch(/data-testid="squad-young-launches" data-marks="3"/);
+    expect(textOfMarkup(/<p[^>]*data-testid="squad-young-launches"[\s\S]*?<\/p>/.exec(markup)?.[0] ?? "")).toBe(
+      "« Le lancer » : en championnat, ton adjoint fait entrer à la 60e les jeunes que tu marques quand ils ne démarrent pas (3 sur 3) ; sans marque, les deux plus gros potentiels.",
+    );
+  });
+
+  it("says why the marks bring nobody on under « Meilleur onze », with the way to the settings, in both languages", () => {
+    const players = [youngster("a", { ...LAUNCH, policy: "BEST" })];
+    const line = (locale?: Locale) => /<p[^>]*data-testid="squad-young-launches"[\s\S]*?<\/p>/.exec(table(players, true, locale))?.[0] ?? "";
+    expect(textOfMarkup(line())).toContain("Sa consigne est « Meilleur onze » : il ne fait entrer personne. Réglages ›");
+    expect(line()).toContain('href="/saves/save-1/club#reglages"');
+    expect(textOfMarkup(line("en"))).toContain("His brief is “Best eleven”: he brings no one on. Settings ›");
+    expect(togglesOf(table(players, true, "en"))).toEqual({ a: "Bring him on" });
   });
 });
 

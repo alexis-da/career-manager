@@ -235,12 +235,13 @@ function lineupOf(
  * (lineupByAssistantOf: for a career from before it, its saved line-up decides), and for a league match by its
  * assistant, what he knows of its young players (assistantYouthOf, with his policy: the Jeunesse objective's young
  * player, one read at most, none without a player young enough; under « Lancer les jeunes », one read more of the young
- * players' league starts). A cup or European match: the rested eleven, whatever the policy.
+ * players' league starts, and the ones its manager marked « Le lancer », Save.youthLaunches). A cup or European match: the
+ * rested eleven, whatever the policy.
  */
 async function managedModeOf(
   tx: Transaction,
   saveId: string,
-  save: { lineupByAssistant: boolean | null; assistantPolicy: AssistantPolicy },
+  save: { lineupByAssistant: boolean | null; assistantPolicy: AssistantPolicy; youthLaunches: readonly string[] },
   fixtures: readonly { seasonId: string; season: FixtureSeason; homeClubSave: Team; awayClubSave: Team }[],
   squad: readonly SquadPlayer[],
   births: readonly { playerKey: string; birthDate: Date; potential: number }[],
@@ -263,7 +264,7 @@ async function managedModeOf(
       : [{ id: player.id, playerSaveId, overall: player.overall, potential: row.potential, birthDate: row.birthDate }];
   });
   const season = { id: fixture.seasonId, startYear: fixture.season.startYear };
-  return { assistant: { youth: await assistantYouthOf(tx, saveId, season, save.assistantPolicy, players) } };
+  return { assistant: { youth: await assistantYouthOf(tx, saveId, season, save.assistantPolicy, players, save.youthLaunches) } };
 }
 
 /** Keeps on their rows the formations AI clubs chose for the rest of the month (lineupOf), in one statement. */
@@ -649,6 +650,7 @@ export async function playNextMatchday(saveId: string, options: PlayNextMatchday
           challengeId: true,
           lineupByAssistant: true,
           assistantPolicy: true,
+          youthLaunches: true,
         },
       });
       const waiting = liveMatchOf(save);

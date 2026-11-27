@@ -78,10 +78,16 @@
       },
       "YOUTH": {
         "label": "Lancer les jeunes",
-        "about": "Tes 21 ans et moins jouent en championnat si l'écart est faible ; il prolonge tes espoirs."
+        "about": "Tes 21 ans et moins démarrent en championnat si l'écart est faible, et deux entrent à la 60e ; il prolonge tes espoirs."
       },
       "inactive": "Ton adjoint ne fait ni ton onze ni tes contrats : sa consigne attendra que tu lui en rendes un.",
-      "done": "Consigne de ton adjoint : {policy}."
+      "done": "Consigne de ton adjoint : {policy}.",
+      "launches": "Il lancera : {players}",
+      "launchesByMarks": "tes choix",
+      "launchesByAssistant": "les plus gros potentiels",
+      "launchesNone": "Il ne lancera personne : aucun joueur de champ de 21 ans ou moins avec de la marge.",
+      "launchesByPlayer": "Tu fais la composition : il ne fait entrer personne.",
+      "launchesChoose": "Choisir"
     },
     "done": {
       "lineup": {

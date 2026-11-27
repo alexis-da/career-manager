@@ -78,7 +78,7 @@ test("chooses « Lancer les jeunes » in the settings at 1280 and 390 px, and te
   await expect(policy).toBeVisible();
   await expect(policy).toHaveAttribute("data-active", "true");
   await expect(choiceOf(page, "best").radio).toBeChecked();
-  await expect(choiceOf(page, "youth").label).toContainText("Tes 21 ans et moins jouent en championnat si l'écart est faible");
+  await expect(choiceOf(page, "youth").label).toContainText("Tes 21 ans et moins démarrent en championnat si l'écart est faible");
   await choose(page, "youth", "Lancer les jeunes");
   // Saved: read again with the page.
   await page.reload();
@@ -120,4 +120,70 @@ test("chooses « Lancer les jeunes » in the settings at 1280 and 390 px, and te
   );
   await expect(choiceOf(page, "youth").radio).toBeChecked();
   await expectNoSidewaysScroll(page, "settings greyed");
+});
+
+/** Waits for a mark's toast, which names its player, and its page read again. */
+async function expectMarkSaved(page: Page, words: RegExp): Promise<void> {
+  await expect(page.getByText(words).last()).toBeVisible();
+}
+
+test("marks a young player « Le lancer » from the settings' « Il lancera », in the « Jeunes » view and on his sheet, at 1280 and 390 px", async ({
+  page,
+}) => {
+  // A unique name to find this save again and delete it at the end (not simulation code: the clock is fine here).
+  const name = `E2E jeunes lancés ${Date.now()}`;
+  saveName = name;
+  await createSave(page, name, LYON, SEED);
+
+  // « Lancer les jeunes » chosen: the settings name the two young players with the most potential he brings on.
+  await openSettings(page);
+  await expect(page.getByTestId("settings-assistant-launches")).toHaveCount(0);
+  await choose(page, "youth", "Lancer les jeunes");
+  const launches = page.getByTestId("settings-assistant-launches");
+  await expect(launches).toHaveAttribute("data-kind", "targets");
+  await expect(launches).toHaveAttribute("data-by-marks", "false");
+  await expect(launches).toContainText("Il lancera :");
+  await expect(launches).toContainText("les plus gros potentiels");
+
+  // « Choisir » opens the squad on its « Jeunes » view, every mark to make.
+  await launches.getByTestId("settings-assistant-launches-choose").click();
+  await expect(page).toHaveURL(/\/squad\?vue=jeunes$/);
+  await expect(page.getByTestId("squad-young-intro")).toBeVisible();
+  const count = page.getByTestId("squad-young-launches");
+  await expect(count).toHaveAttribute("data-marks", "0");
+  const row = page.getByTestId("squad-row").filter({ has: page.getByTestId("youth-launch-toggle") }).first();
+  const player = (await row.getByTestId("squad-player-open").innerText()).trim();
+  const toggle = row.getByTestId("youth-launch-toggle");
+  await expect(toggle).toHaveText("Le lancer");
+  await toggle.click();
+  await expectMarkSaved(page, /ton adjoint le fera entrer en championnat quand il ne démarre pas/);
+  await expect(toggle).toHaveAttribute("data-marked", "true");
+  await expect(toggle).toHaveText("Ne plus le lancer");
+  await expect(count).toHaveAttribute("data-marks", "1");
+
+  // His sheet says so too.
+  await row.getByTestId("squad-player-open").click();
+  const section = page.getByTestId("player-youth-launch");
+  await expect(section).toHaveAttribute("data-marked", "true");
+  await expect(section).toContainText("Marqué : en championnat, quand il ne démarre pas, ton adjoint le fait entrer à la 60e.");
+
+  // The settings now name him, the player's choice.
+  await openSettings(page);
+  await expect(launches).toHaveAttribute("data-by-marks", "true");
+  await expect(launches).toContainText(`Il lancera : ${player}`);
+  await expect(launches).toContainText("tes choix");
+
+  // 390 px: the « Jeunes » view's cards, the toggle at a thumb's size, nothing wider than the screen; the mark taken off.
+  await page.setViewportSize(PHONE);
+  await openScreen(page, "squad");
+  await page.getByTestId("squad-young-toggle").click();
+  const phoneRow = page.getByTestId("squad-row").filter({ hasText: player }).first();
+  const phoneToggle = phoneRow.getByTestId("youth-launch-toggle");
+  await expect(phoneToggle).toHaveText("Ne plus le lancer");
+  await expectThumbTarget(phoneToggle);
+  await expectNoSidewaysScroll(page, "young view");
+  await phoneToggle.click();
+  await expectMarkSaved(page, /Il ne fait plus partie des jeunes que ton adjoint lance/);
+  await expect(phoneToggle).toHaveAttribute("data-marked", "false");
+  await expect(page.getByTestId("squad-young-launches")).toHaveAttribute("data-marks", "0");
 });
