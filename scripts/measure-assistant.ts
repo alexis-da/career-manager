@@ -1,7 +1,7 @@
 /**
  * The assistant of the chantier « simplification » (docs/design/simplification.md § 11), on twins of a worldVersion 2
  * save: npm run measure:assistant -- [--seasons=N] [--seed=S] [--club=slug] [--lineup=rested|game|select]
- * [--contracts=option|game] [--sales=off|game] [--policy=BEST|YOUTH] [--greedy-clubs=slugA,slugB]
+ * [--contracts=option|game] [--sales=off|game] [--policy=BEST|YOUTH] [--targets=N] [--greedy-clubs=slugA,slugB]
  * [--sections=composition,contracts,greedy,sales] [--out=file.md] [--from=file.json].
  *
  * Every twin has the same seed (the demo's unless --seed) and a throwaway owner of its own, and plays N seasons (default
@@ -26,7 +26,10 @@
  *
  * --policy (docs/design/effectif-adjoint.md § 2, § 7): every twin's assistant follows « Meilleur onze » (BEST, the
  * default, the game before the policies) or « Lancer les jeunes » (YOUTH), for the line-up and the contracts he takes
- * care of; run the same seeds with each and compare twin B (--lineup=game --contracts=game) of the two reports.
+ * care of; run the same seeds with each and compare twin B (--lineup=game --contracts=game) of the two reports. The young
+ * players it targets on each 1 July (youthTargets, docs/design/effectif-adjoint.md § 9: the --targets with the most
+ * potential, YOUTH_ENTRY_DEFAULT_TARGETS by default) are followed under either policy: their league minutes and starts,
+ * and the progression the season's turn gives them.
  *
  * Run with the same seeds before the change and after it. What the game will only have after it goes through
  * scripts/simplification-hooks.ts: against today's game, such a mode throws « not available before the
@@ -48,9 +51,9 @@ import { advanceToNextSeason, type SeasonTransition } from "../src/db/season";
 import { createTestOwner, DEMO_CLUB_SLUG, DEMO_SEED, TEST_OWNER_PREFIX } from "../src/db/test-support";
 import { freeAgentWhere, quoteTransfer, signFreeAgent, type TransferQuote } from "../src/db/transfers";
 import { ASSISTANT_POLICIES, DEFAULT_ASSISTANT_POLICY, type AssistantPolicy } from "../src/engine/assistant-policy";
-import { ROTATION_FITNESS, YOUTH_OBJECTIVE_MAX_AGE, YOUTH_OBJECTIVE_STARTS } from "../src/engine/balance";
+import { ROTATION_FITNESS, YOUTH_ENTRY_DEFAULT_TARGETS, YOUTH_OBJECTIVE_MAX_AGE, YOUTH_OBJECTIVE_STARTS } from "../src/engine/balance";
 import { formationPositions } from "../src/engine/formations";
-import { averageStarterRating, selectLineup, selectRestedLineup } from "../src/engine/lineup";
+import { averageStarterRating, selectLineup, selectRestedLineup, youthTargets } from "../src/engine/lineup";
 import { creationReputationRanks } from "../src/engine/reputation";
 import { competitionTier } from "../src/engine/tiers";
 import { seasonLabel, seasonStartDate, seasonStartYear, transferWindowAt, transferWindowOpenDate } from "../src/engine/world";
@@ -114,6 +117,7 @@ type Options = {
   contracts: ContractsMode; // the measurement option of advanceToNextSeason (today), or the save's setting (after)
   sales: SalesMode;
   policy: AssistantPolicy; // every twin's assistant's (Save.assistantPolicy)
+  targets: number; // the young players followed on each 1 July (youthTargets), whatever the policy
   greedyClubs: string[] | null; // null: DEFAULT_GREEDY_CLUBS
   sections: Section[];
   out: string | undefined;
@@ -167,6 +171,10 @@ function parseOptions(argv: readonly string[]): Options {
   if (greedyClubs !== null && greedyClubs.length === 0) {
     throw new Error("--greedy-clubs needs at least one club slug");
   }
+  const targets = Number(value("targets") ?? YOUTH_ENTRY_DEFAULT_TARGETS);
+  if (!Number.isInteger(targets) || targets < 0) {
+    throw new Error(`--targets must be a whole number, got ${value("targets")}`);
+  }
   return {
     seasons,
     seed: value("seed") ?? DEMO_SEED,
@@ -175,6 +183,7 @@ function parseOptions(argv: readonly string[]): Options {
     contracts: oneOf("contracts", CONTRACTS_MODES, "option"),
     sales: oneOf("sales", SALES_MODES, "off"),
     policy: oneOf("policy", ASSISTANT_POLICIES, DEFAULT_ASSISTANT_POLICY),
+    targets,
     greedyClubs,
     sections: sections === null ? [...SECTIONS] : SECTIONS.filter((section) => sections.includes(section)),
     out: value("out"),
@@ -295,8 +304,11 @@ type ClubRecord = {
   eleven: number; // mean rating in their slots of selectLineup in its formation, everyone available
 };
 
-/** A season's 1 July: its preseason played, and a greedy twin's signings. */
-type StartRecord = ClubRecord & { startYear: number; contracts: ContractsRecord | null; greedy: GreedyRecord | null };
+/**
+ * A season's 1 July: its preseason played, a greedy twin's signings, and the young players « Lancer les jeunes » targets
+ * then (youthTargetsOf, whatever the twin's policy; absent from a record of before them).
+ */
+type StartRecord = ClubRecord & { startYear: number; contracts: ContractsRecord | null; greedy: GreedyRecord | null; targets?: string[] };
 
 /** New injuries and the days they keep the players out. */
 type Tally = { count: number; days: number };
@@ -362,7 +374,20 @@ type ClosedRecord = {
 /** The progression its turn gave the season's young players (EndRecord.youth.ids), wherever they went: how many, in all. */
 type GrowthRecord = { players: number; total: number };
 
-type SeasonRecord = { season: number; start: StartRecord; end: EndRecord; closed: ClosedRecord; growth?: GrowthRecord };
+/**
+ * The season of the young players targeted on its 1 July (StartRecord.targets, docs/design/effectif-adjoint.md § 9):
+ * how many, their league minutes and starts in all, and the progression its turn gave them.
+ */
+type TargetsRecord = { players: number; minutes: number; starts: number; growth: GrowthRecord };
+
+type SeasonRecord = {
+  season: number;
+  start: StartRecord;
+  end: EndRecord;
+  closed: ClosedRecord;
+  growth?: GrowthRecord;
+  targets?: TargetsRecord;
+};
 
 type TwinRecord = { key: string; spec: TwinSpec; seasons: SeasonRecord[]; next: StartRecord; minutes: number };
 
@@ -735,7 +760,7 @@ async function readClosed(saveId: string, startYear: number): Promise<ClosedReco
 }
 
 /** A season's 1 July: a greedy twin's signings first, then the club, and what the transition did to its contracts. */
-async function openSeason(twin: Twin, transition: SeasonTransition | null): Promise<StartRecord> {
+async function openSeason(twin: Twin, transition: SeasonTransition | null, targetCount: number): Promise<StartRecord> {
   const { currentDate } = await prisma.save.findUniqueOrThrow({ where: { id: twin.saveId }, select: { currentDate: true } });
   const startYear = seasonStartYear(currentDate);
   const greedy = twin.spec.greedy ? await signGreedily(twin) : null;
@@ -743,7 +768,45 @@ async function openSeason(twin: Twin, transition: SeasonTransition | null): Prom
     transition === null
       ? null
       : { ended: transition.freeAgents, moves: transition.preseason.managed ?? (await contractMovesOf(twin.saveId, startYear)) };
-  return { ...(await readClub(twin.saveId)), startYear, contracts, greedy };
+  const targets = await youthTargetsOf(twin.saveId, twin.clubSaveId, startYear, targetCount);
+  return { ...(await readClub(twin.saveId)), startYear, contracts, greedy, targets };
+}
+
+/**
+ * The young players « Lancer les jeunes » targets on a season's 1 July (youthTargets, none marked: the game's default),
+ * from the club's squad then, no league start yet, whatever the twin's policy: the ones whose minutes and progression the
+ * report follows, under « Meilleur onze » as under the policy. PlayerSave ids.
+ */
+async function youthTargetsOf(saveId: string, clubSaveId: string, startYear: number, count: number): Promise<string[]> {
+  const firstDay = seasonStartDate(startYear);
+  const players = await prisma.playerSave.findMany({
+    where: { saveId, clubSaveId },
+    select: { id: true, position: true, overall: true, potential: true, birthDate: true },
+  });
+  return youthTargets(
+    players.map((player) => ({ id: player.id, position: player.position, overall: player.overall, injured: false })),
+    {
+      policy: "YOUTH",
+      starter: null,
+      prospects: players.map((player) => ({
+        id: player.id,
+        seasonAge: ageInYears(player.birthDate, firstDay),
+        potential: player.potential,
+        leagueStarts: 0,
+      })),
+    },
+    count,
+  );
+}
+
+/** The league minutes and starts of the season's targeted young players, before its turn: their season's statistics. */
+async function readTargets(saveId: string, ids: readonly string[]): Promise<Omit<TargetsRecord, "growth">> {
+  const league = await prisma.season.findMany({ where: { saveId, completed: false, competition: { kind: "LEAGUE" } }, select: { id: true } });
+  const stats = await prisma.playerSeasonStats.findMany({
+    where: { saveId, seasonId: { in: league.map((season) => season.id) }, playerSaveId: { in: [...ids] } },
+    select: { minutes: true, starts: true },
+  });
+  return { players: ids.length, minutes: sumOf(stats.map((row) => row.minutes)), starts: sumOf(stats.map((row) => row.starts)) };
 }
 
 /** Creates a twin, plays its seasons, and deletes it with its owner. */
@@ -764,17 +827,19 @@ async function runTwin(key: string, spec: TwinSpec, options: Options): Promise<T
     await applyModes(saveId, spec, options);
     const managed = await prisma.clubSave.findFirstOrThrow({ where: { saveId, isManaged: true }, select: { id: true, clubId: true } });
     const twin: Twin = { key, spec, saveId, clubSaveId: managed.id, clubId: managed.clubId };
-    let start = await openSeason(twin, null);
+    let start = await openSeason(twin, null, options.targets);
     const seasons: SeasonRecord[] = [];
     for (let season = 1; season <= options.seasons; season++) {
       const play = await playSeason(twin);
       const end = { ...(await readEnd(twin, start.startYear)), ...play };
+      const played = await readTargets(saveId, start.targets ?? []);
       const transition = await advance(saveId, spec, options);
       const closed = await readClosed(saveId, start.startYear);
       const growth = await readYouthGrowth(saveId, end.youth.ids ?? []);
-      seasons.push({ season, start, end, closed, growth });
+      const targets = { ...played, growth: await readYouthGrowth(saveId, start.targets ?? []) };
+      seasons.push({ season, start, end, closed, growth, targets });
       console.log(`  ${key}, S${season} (${seasonLabel(start.startYear)}): ${play.seconds} s, rank ${closed.rank}, squad ${start.squad} → ${end.squad}`);
-      start = await openSeason(twin, transition);
+      start = await openSeason(twin, transition, options.targets);
     }
     return { key, spec, seasons, next: start, minutes: (performance.now() - began) / 60_000 };
   } finally {
@@ -968,7 +1033,12 @@ function compositionSection(records: Records): string[] {
   ] as const;
   const growthText = (growth: GrowthRecord | undefined): string =>
     growth === undefined || growth.players === 0 ? "—" : `${signed(growth.total / growth.players, 2)} (${growth.players})`;
-  const seasonCells = (label: string, { season, start, end, closed, growth }: SeasonRecord): string[] => {
+  // Per young player targeted: league minutes, league starts, progression at the turn (how many).
+  const targetsText = (targets: TargetsRecord | undefined): string =>
+    targets === undefined || targets.players === 0
+      ? "—"
+      : `${fixed(targets.minutes / targets.players, 0)} min · ${fixed(targets.starts / targets.players, 1)} tit. · ${growthText(targets.growth)}`;
+  const seasonCells = (label: string, { season, start, end, closed, growth, targets }: SeasonRecord): string[] => {
     const injuries = injuriesOf(end);
     return [
       seasonName(season, start.startYear),
@@ -984,6 +1054,7 @@ function compositionSection(records: Records): string[] {
       `${end.youth.minutes} (${percent(end.youth.minutes, end.youth.clubMinutes)})`,
       String(end.youth.bestLeagueStarts),
       growthText(growth),
+      targetsText(targets),
       youthText(closed),
     ];
   };
@@ -1012,6 +1083,12 @@ function compositionSection(records: Records): string[] {
       // Per young player and per season: every turn's progression over every young player it counted.
       youthGrowth:
         sumOf(seasons.map(({ growth }) => growth?.total ?? 0)) / Math.max(1, sumOf(seasons.map(({ growth }) => growth?.players ?? 0))),
+      // Per young player targeted and per season: their league minutes, and every turn's progression of theirs.
+      targetMinutes:
+        sumOf(seasons.map(({ targets }) => targets?.minutes ?? 0)) / Math.max(1, sumOf(seasons.map(({ targets }) => targets?.players ?? 0))),
+      targetGrowth:
+        sumOf(seasons.map(({ targets }) => targets?.growth.total ?? 0)) /
+        Math.max(1, sumOf(seasons.map(({ targets }) => targets?.growth.players ?? 0))),
       youthChosen: youth.length,
       youthMet: youth.filter((outcome) => outcome === "ACHIEVED" || outcome === "EXCEEDED").length,
     };
@@ -1026,6 +1103,8 @@ function compositionSection(records: Records): string[] {
     percent(t.tired, t.starters),
     fixed(t.youthMinutes, 0),
     signed(t.youthGrowth, 2),
+    fixed(t.targetMinutes, 0),
+    signed(t.targetGrowth, 2),
     `${t.youthMet} / ${t.youthChosen}`,
   ];
   const unexpected = sumOf([a, b].flatMap((twin) => twin.seasons.map(({ end }) => end.unexpected)));
@@ -1040,7 +1119,9 @@ function compositionSection(records: Records): string[] {
       `titulaires sous ${ROTATION_FITNESS} : titularisations de tous ses matchs à moins de ${ROTATION_FITNESS} de condition au coup`,
       `d'envoi ; minutes des ${YOUTH_OBJECTIVE_MAX_AGE} ans ou moins au 1er juillet, toutes compétitions (part des minutes du`,
       `club) ; titularisations en championnat du meilleur d'entre eux (Jeunesse : ${YOUTH_OBJECTIVE_STARTS}) ; progression : la`,
-      "note qu'ils gagnent au passage de saison, en moyenne par jeune (combien) ; Jeunesse : son",
+      "note qu'ils gagnent au passage de saison, en moyenne par jeune (combien) ; jeunes ciblés : ceux que « Lancer les",
+      "jeunes » cible au 1er juillet (les plus gros potentiels, --targets), sous chaque consigne, leurs minutes et",
+      "titularisations de championnat et leur progression, par jeune ; Jeunesse : son",
       "issue quand c'était l'objectif choisi de la saison. Cible du cahier : B au moins aussi bon que A, moins de blessures et",
       "de titulaires fatigués.",
     ].join(" "),
@@ -1059,6 +1140,7 @@ function compositionSection(records: Records): string[] {
         `Minutes des ${YOUTH_OBJECTIVE_MAX_AGE} ans ou moins`,
         "Titularisations du meilleur jeune",
         "Progression des jeunes",
+        "Jeunes ciblés : minutes · titul. · progression (par jeune)",
         "Jeunesse",
       ],
       rows,
@@ -1074,6 +1156,8 @@ function compositionSection(records: Records): string[] {
         `Titulaires sous ${ROTATION_FITNESS}`,
         `Minutes des ${YOUTH_OBJECTIVE_MAX_AGE} ans ou moins`,
         "Progression par jeune",
+        "Minutes de championnat par jeune ciblé",
+        "Progression par jeune ciblé",
         "Jeunesse tenue / choisie",
       ],
       [summaryRow("A", ta), summaryRow("B", tb)],
