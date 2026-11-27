@@ -924,6 +924,88 @@ Branche locale `effectif-adjoint` : le § 1 d'abord, puis les § 3 et § 2, cons
 
 ---
 
+## 9. Les jeunes ciblés de « Lancer les jeunes » (27/11, à valider)
+
+**Retour de jeu** (Alexis, 27/11) : dans un club fort, les jeunes ne jouent jamais, l'écart avec les titulaires dépassant
+toujours 10 points. Demande : des entrées garanties vers la 60e, en championnat, à un poste où ils jouent, avant les
+changements de fatigue et sans dépasser 5 changements, proposées dans le Coaching en direct ; des jeunes ciblés, « Le
+lancer » / « Ne plus le lancer » sur la fiche (3 au plus), sinon les 2 ou 3 plus gros potentiels ; la titularisation
+d'aujourd'hui gardée. La règle et les mesures avant l'écran.
+
+### 9.1 La règle
+
+Codée dans le moteur pour la mesure (branche `jeunes-entrees`), sans l'écran.
+
+- **Où** : en championnat, quand l'adjoint fait la composition, sous « Lancer les jeunes ». Coupe, Europe, sélections,
+  « Meilleur onze » et composition du joueur : rien ne change.
+- **Les jeunes ciblés** (`youthTargets`, `src/engine/lineup.ts`) :
+  - ceux que le joueur marque « Le lancer », 3 au plus (`YOUTH_ENTRY_MAX_TARGETS`), dans l'ordre de ses marques ;
+  - sans marque, les 2 plus gros potentiels (`YOUTH_ENTRY_DEFAULT_TARGETS`) parmi les jeunes que la consigne lit déjà :
+    21 ans ou moins au 1er juillet, 5 points de marge au moins, moins de 25 titularisations en championnat. À potentiel
+    égal, le mieux noté, puis l'identifiant ;
+  - jamais un gardien : on ne le fait pas entrer pour des minutes.
+- **La titularisation ne change pas** : un jeune à 10 points ou moins du titulaire démarre, jusqu'à 3 par match.
+- **L'entrée garantie** : un jeune ciblé qui ne démarre pas, disponible et reposé (75 ou plus), va sur le banc, juste
+  après le gardien remplaçant (`Lineup.youthEntries`). Il entre à la reprise de la 60e, daté de la 61e comme un
+  changement fait à une pause, en un changement du club. Il entre à son poste, sinon à un poste secondaire, à la place du
+  titulaire le plus fatigué de ce poste (`mostTiredStarter`) ; jamais à la place d'un autre jeune ciblé ni du gardien.
+  Sans titulaire à ces postes (dispositif, cartons), il n'entre pas.
+- **Avant les changements de fatigue** : de la 55e à la 60e, un changement de fatigue n'est fait que s'il laisse la place
+  aux entrées prévues. Jamais plus de 5 changements ; un blessé reste remplacé d'abord. Un changement de fatigue de la
+  55e à la 60e peut faire entrer un jeune ciblé un peu plus tôt, s'il est le meilleur remplaçant au poste libéré.
+- **En direct** : sans changement du joueur, l'adjoint fait les mêmes entrées, le match est celui de la simulation
+  (`src/engine/live.test.ts`). Dès le premier changement du joueur, l'adjoint ne fait plus les siens, entrées comprises ;
+  le Coaching les lui propose (écran à venir).
+- **Aucun nouveau tirage** : l'entrée est une décision pure, aucun flux ne bouge. Le match qui suit change, comme après
+  tout changement.
+
+### 9.2 Ce que demande l'écran
+
+- **Migration d'ajout** pour les marques « Le lancer » : `Save.youthLaunches`, la liste des joueurs marqués (3 au plus,
+  dans l'ordre), vide par défaut, sur la petite table des parties, sans aucune ligne réécrite. Un joueur parti ou trop
+  âgé est ignoré par la règle.
+- **La fiche** d'un joueur de champ du club de 21 ans ou moins : « Le lancer » / « Ne plus le lancer », refusé au-delà
+  de 3.
+- **Le Coaching** : à la mi-temps et à la pause de la 60e, l'entrée prévue en conseil de l'adjoint.
+
+### 9.3 Mesures (27/11)
+
+`npm run measure:assistant -- --seasons=3 --club=… --lineup=game --contracts=game --policy=… --targets=2`, jumeau B (l'adjoint du
+jeu), graine de la démo, trois saisons. Les mêmes deux jeunes suivis sous chaque règle : les 2 plus gros potentiels de
+`youthTargets` au 1er juillet de chaque saison. « Aujourd'hui » : « Lancer les jeunes » d'avant cette règle, rejouée avec
+`YOUTH_ENTRY_DEFAULT_TARGETS` à 0 (identique, saison par saison, à la mesure faite sur le code d'avant). Par jeune ciblé et
+par saison : minutes et titularisations de championnat, progression au passage de saison.
+
+| Club | Règle | Pts / match | Minutes | Titularisations | Progression |
+|---|---|---|---|---|---|
+| Bayern | Meilleur onze | 2,108 | 20 | 0,2 | +2,67 |
+| Bayern | Aujourd'hui | 2,108 | 64 | 0,7 | +2,67 |
+| Bayern | Entrées garanties | 2,118 | 942 | 2,0 | +4,83 |
+| Manchester City | Meilleur onze | 1,763 | 1 358 | 14,5 | +2,50 |
+| Manchester City | Aujourd'hui | 1,711 | 2 085 | 25,0 | +3,50 |
+| Manchester City | Entrées garanties | 1,763 | 2 252 | 24,5 | +4,00 |
+| Dortmund | Meilleur onze | 1,745 | 1 098 | 12,2 | +1,67 |
+| Dortmund | Aujourd'hui | 1,745 | 1 750 | 19,8 | +2,50 |
+| Dortmund | Entrées garanties | 1,755 | 1 915 | 19,7 | +3,00 |
+| Werder Brême | Meilleur onze | 1,343 | 344 | 3,3 | +2,17 |
+| Werder Brême | Aujourd'hui | 1,363 | 1 019 | 12,3 | +2,67 |
+| Werder Brême | Entrées garanties | 1,343 | 1 521 | 15,2 | +4,33 |
+
+- **Le cas du retour de jeu, le Bayern** : ses jeunes ciblés ne jouent pas aujourd'hui (64 minutes par saison, 0,7
+  titularisation) ; avec les entrées, 942 minutes, presque toutes en entrant, et une progression de +4,83 par saison au lieu
+  de +2,67.
+- **Ailleurs**, les jeunes ciblés démarraient déjà souvent (à 10 points ou moins des titulaires) ; les entrées leur
+  ajoutent 170 à 500 minutes et 0,5 à 1,7 point de progression par saison.
+- **Points** : aucun écart hors du bruit d'une graine (+0,005 point par match en moyenne sur les quatre clubs).
+- **« Meilleur onze »** : identique au jeu d'avant, saison par saison, sur les quatre jumeaux de Dortmund et de Werder
+  (mesure sur le code d'avant contre mesure sur la branche : points, buts, rangs, blessures, minutes, effectifs, budgets,
+  objectifs).
+- **Trois jeunes ciblés par défaut** (`--targets=3`, Dortmund et Werder) : 1 586 et 1 350 minutes par jeune, moins que
+  1 915 et 1 521 à deux, pour un changement de fatigue de moins par match ; points 1,784 et 1,324. Recommandation : deux
+  par défaut, trois au plus marqués à la main.
+
+---
+
 ## Annexe : les quinze clubs
 
 Trois saisons de chaque jumeau, la graine de la démo. « Rangs » : en championnat, saison par saison (↑ montée,
