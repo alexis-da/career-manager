@@ -79,6 +79,15 @@ describe("the substitutions the Coaching panel compares", () => {
     expect(comparedChange(state, rules, players, { out: "nobody", in: "b-weak" })).toMatchObject({ out: "s9", in: "b-striker" });
   });
 
+  it("opens on the young player the assistant brings on, his suggestion before the best change", () => {
+    // « Lancer les jeunes »: the weaker midfielder for the right midfielder, while the striker would do better up front.
+    const club = team({ youthEntries: [{ in: "b-weak", out: "s6" }] });
+    const state = pauseState(club);
+    const rules = pauseRules(club);
+    expect(suggestChange(state, rules, club.players)).toMatchObject({ slot: 6, out: "s6", in: "b-weak", reason: "youth" });
+    expect(comparedChange(state, rules, byKey(club.players), null)).toEqual({ slot: 6, position: "CM", out: "s6", in: "b-weak" });
+  });
+
   it("still compares the best change when none is worth a point, and nothing when none can be made", () => {
     // A weaker midfielder alone on the bench: nowhere a point better than the tired eleven.
     const weak = halfTimeTeam({ bench: ["b-weak"] });

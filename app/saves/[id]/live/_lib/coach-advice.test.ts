@@ -20,6 +20,8 @@ const RULES: HalfTimeRules = {
   substitutionsBefore: 0,
   maxSubstitutions: MAX_SUBSTITUTIONS,
   canSubstitute: true,
+  manual: false,
+  youth: { entries: [], formation: "4-3-3", starters: STARTERS },
 };
 
 const situation = (overrides: Partial<MatchSituation> = {}): MatchSituation => ({
@@ -70,6 +72,22 @@ describe("what the assistant says", () => {
     expect(line("change", { suggestion: change("s1", "b1", "fitness") }, tEnglish)).toBe(
       "B1 is fresher than S1: he would do better in this position.",
     );
+  });
+
+  it("says when the young player he brings on comes on, and leaves it to the manager once he makes his own changes", () => {
+    const youth = change("s1", "b1", "youth");
+    expect(line("change", { suggestion: youth })).toBe("À la 61e, je fais entrer B1 à la place de S1 : il a besoin de minutes.");
+    expect(line("change", { phase: "IN_PLAY", suggestion: youth })).toBe("À la reprise, je fais entrer B1 à la place de S1 : il a besoin de minutes.");
+    // His substitutions are the manager's: from an earlier pause, or from one at this pause.
+    expect(line("change", { phase: "IN_PLAY", suggestion: youth, rules: { ...RULES, manual: true } })).toBe(
+      "Fais entrer B1 à la place de S1 : il a besoin de minutes.",
+    );
+    const changed = { ...STATE, starters: STARTERS.map((key) => (key === "s4" ? "b2" : key)), bench: ["b1", "b3"], off: ["s4"], substitutions: [{ in: "b2", out: "s4" }] };
+    expect(line("change", { suggestion: youth, state: changed })).toBe("Fais entrer B1 à la place de S1 : il a besoin de minutes.");
+
+    expect(line("change", { suggestion: youth }, tEnglish)).toBe("In the 61st minute, I'll bring B1 on for S1: he needs game time.");
+    expect(line("change", { phase: "IN_PLAY", suggestion: youth }, tEnglish)).toBe("At the restart, I'll bring B1 on for S1: he needs game time.");
+    expect(line("change", { suggestion: youth, rules: { ...RULES, manual: true } }, tEnglish)).toBe("Bring B1 on for S1: he needs game time.");
   });
 
   it("says why there is no change: nobody better, none left, or nobody on the bench", () => {

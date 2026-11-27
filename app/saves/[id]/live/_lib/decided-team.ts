@@ -7,6 +7,8 @@ import { KNOCK_SHARE } from "@/src/engine/balance";
  * played on after a knock hurt; a late tactical choice's instruction given by the event, the starting one to carry on as
  * the club started. The Coaching panel opens on it after the event card and its changes go on from it, as the server
  * makes the same decision first. `change`: the substitution the decision makes, which the panel shows and cannot undo.
+ * The young players the assistant brings on at the restart (youthEntries) keep their plan up to the first one that
+ * substitution changes, brought on by it or his starter taken off: the engine plans that one and those after it again.
  */
 export function decidedTeam(
   team: HalfTimeTeam,
@@ -42,6 +44,7 @@ export function decidedTeam(
   }
   const starters = [...team.starters];
   starters[slot] = incoming;
+  const changed = team.youthEntries.findIndex((entry) => entry.in === incoming || entry.out === playerKey);
   return {
     team: {
       ...team,
@@ -50,6 +53,7 @@ export function decidedTeam(
       substitutions: team.substitutions + 1,
       // During play, the pause becomes one of the club's windows: its other substitutions go in it.
       windows: team.phase === "IN_PLAY" ? { ...team.windows, used: team.windows.used + 1, open: true } : team.windows,
+      youthEntries: changed === -1 ? team.youthEntries : team.youthEntries.slice(0, changed),
     },
     change: { out: playerKey, in: incoming },
   };

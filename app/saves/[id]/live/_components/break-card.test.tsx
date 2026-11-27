@@ -125,6 +125,9 @@ const textOf = (markup: string): string =>
 
 const buttonOf = (markup: string, testId: string): string => markup.match(new RegExp(`<button[^>]*data-testid="${testId}"[^>]*>`))?.[0] ?? "";
 
+/** The assistant's word, as the player reads it. */
+const adviceOf = (markup: string): string => textOf(markup.match(/<p[^>]*data-testid="break-advice"[^>]*>.*?<\/p>/)?.[0] ?? "");
+
 describe("the card of a break", () => {
   it("has the score between the clubs, each side's scorers and players sent off, and a word of the assistant's", () => {
     const markup = render();
@@ -148,6 +151,18 @@ describe("the card of a break", () => {
     expect(textOf(markup)).toContain("Pas encore de but.");
     expect(markup).not.toContain("data-break-mark");
     expect(textOf(markup)).toContain("Ton adjoint : « s9 est sorti blessé et ne peut pas être remplacé : on repart à dix. Plus aucun remplaçant. »");
+  });
+
+  it("says which young player the assistant brings on in the 61st minute, or that it is the manager's call once the changes are his", () => {
+    // « Lancer les jeunes »: a midfielder on the bench for the right midfielder.
+    const planned = halfTimeTeam({ bench: ["y"], youthEntries: [{ in: "y", out: "s6" }] });
+    expect(adviceOf(render({ team: planned }))).toBe("Ton adjoint : « À la 61e, je fais entrer y à la place de s6 : il a besoin de minutes. »");
+    expect(adviceOf(render({ team: { ...planned, manual: true } }))).toBe("Ton adjoint : « Fais entrer y à la place de s6 : il a besoin de minutes. »");
+    expect(adviceOf(render({ team: planned }, "en"))).toBe("Your assistant: “In the 61st minute, I'll bring y on for s6: he needs game time.”");
+    // An injured player's replacement first.
+    expect(adviceOf(render({ team: { ...planned, injured: ["s9"] } }))).toBe(
+      "Ton adjoint : « s9 est sorti blessé : sans changement de ta part, le meilleur remplaçant au poste entre. y est le mieux placé pour remplacer s9. »",
+    );
   });
 
   it("holds « Reprendre », its one orange action, under « Coaching », both out of reach as it opens; Escape and its cross close it", () => {

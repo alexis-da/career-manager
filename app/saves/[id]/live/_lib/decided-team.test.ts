@@ -16,6 +16,7 @@ const TEAM: HalfTimeTeam = {
   substitutions: 1,
   windows: { used: 1, max: MAX_SUBSTITUTION_WINDOWS, open: true },
   manual: false,
+  youthEntries: [],
   instruction: { current: "DEFEND", source: "START", assistant: "DEFEND", starting: "DEFEND" },
   formation: "4-3-3",
   starters: STARTERS,
@@ -50,6 +51,19 @@ describe("the team a decision on a choice event leaves", () => {
     expect(team.bench).toEqual(["b0"]);
     expect(team.substitutions).toBe(2);
     expect(team.windows).toEqual({ used: 2, max: MAX_SUBSTITUTION_WINDOWS, open: true });
+  });
+
+  it("keeps the plan of the young players the assistant brings on up to the first one the event's substitution changes", () => {
+    const planned = (youthEntries: HalfTimeTeam["youthEntries"], option = 0) => decidedTeam({ ...TEAM, youthEntries }, knock, option).team.youthEntries;
+    // Neither the young player nor his starter touched: the engine brings him on as planned.
+    expect(planned([{ in: "b0", out: "s3" }])).toEqual([{ in: "b0", out: "s3" }]);
+    // His starter taken off: the engine picks another one for him, and plans those after him again.
+    expect(planned([{ in: "b0", out: "s7" }, { in: "b2", out: "s3" }])).toEqual([]);
+    // Brought on by the event: those before him keep their plan, those after him are planned again.
+    expect(planned([{ in: "b0", out: "s3" }, { in: "b1", out: "s5" }])).toEqual([{ in: "b0", out: "s3" }]);
+    expect(planned([{ in: "b1", out: "s5" }, { in: "b0", out: "s3" }])).toEqual([]);
+    // Played on hurt: nobody comes on, nobody goes off.
+    expect(planned([{ in: "b0", out: "s7" }], 1)).toEqual([{ in: "b0", out: "s7" }]);
   });
 
   it("takes no window at a break: half-time and the breaks of extra time are none", () => {

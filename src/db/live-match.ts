@@ -1,4 +1,4 @@
-import { MAX_SUBSTITUTION_WINDOWS } from "../engine/balance";
+import { MAX_SUBSTITUTION_WINDOWS, MAX_SUBSTITUTIONS, YOUTH_ENTRY_MINUTE } from "../engine/balance";
 import {
   decideChoice,
   optionInstruction,
@@ -24,6 +24,7 @@ import {
   scoreOf,
   startingInstructionOf,
   windowOpenAt,
+  youthEntriesDue,
   type DecidedBy,
   type Instruction,
   type InstructionSource,
@@ -139,7 +140,8 @@ function actionsOf(state: MatchState, side: Side): Map<string, MatchActions> {
 /**
  * The managed club at a pause of its match, as the Coaching panel shows it: named after half-time, its first pause, it
  * opens at every one. The substitutions it may make there (MAX_SUBSTITUTIONS, one more from the end of regulation time;
- * during play, in a window only), the instruction it plays the next segment with, its players as they stand.
+ * during play, in a window only), the instruction it plays the next segment with, its players as they stand, and the
+ * young players its assistant brings on at the restart after YOUTH_ENTRY_MINUTE.
  */
 export type HalfTimeTeam = {
   phase: PausePhase;
@@ -148,6 +150,9 @@ export type HalfTimeTeam = {
   substitutions: number; // already made in the match
   windows: { used: number; max: number; open: boolean }; // during play; open: a substitution may be made at this pause
   manual: boolean; // its manager makes its substitutions himself: its assistant makes none any more
+  // « Lancer les jeunes »: the young players its assistant brings on at the restart after YOUTH_ENTRY_MINUTE, each for the
+  // starter he replaces, as planned at half-time and at that pause (plannedYouthEntries); none at any other, nor for a nation.
+  youthEntries: { in: string; out: string }[];
   // Who set the current one: given for the period of play by him (MANAGER) or an event, or else the assistant's rule,
   // which comes back to the starting instruction (START) when it has nothing to say.
   instruction: { current: Instruction; source: InstructionSource; assistant: Instruction; starting: Instruction };
@@ -163,6 +168,22 @@ export type HalfTimeTeam = {
 };
 
 export type Identity = { playerKey: string; firstName: string; lastName: string; birthDate: Date };
+
+/**
+ * The young players a side's assistant brings on at the restart after YOUTH_ENTRY_MINUTE (« Lancer les jeunes »), each for
+ * the starter he replaces, as the engine plans them there (youthEntriesDue), as many as substitutions remain: at half-time
+ * and at that pause only, none at any other. Planned too once its manager makes his substitutions himself, when the
+ * assistant no longer brings them on: the Coaching panel then advises them to him.
+ */
+function plannedYouthEntries(state: MatchState, side: Side, pause: LivePause): { in: string; out: string }[] {
+  if (pause.phase !== "HALF_TIME" && !(pause.phase === "IN_PLAY" && pause.minute === YOUTH_ENTRY_MINUTE)) {
+    return [];
+  }
+  const team = state[side];
+  return youthEntriesDue({ ...team, manual: undefined }, YOUTH_ENTRY_MINUTE)
+    .slice(0, Math.max(0, MAX_SUBSTITUTIONS - team.substitutions))
+    .map(({ player, out }) => ({ in: player.id, out: out.player.id }));
+}
 
 /** The managed club's side of its match at a pause, from the state the engine plays and its players' identities. */
 export function halfTimeTeamOf(
@@ -206,6 +227,7 @@ export function halfTimeTeamOf(
       open: pause.phase !== "IN_PLAY" || windowOpenAt(team, minute + 1),
     },
     manual: team.manual === true,
+    youthEntries: plannedYouthEntries(state, side, pause),
     instruction: {
       current: instructionAt(state, side),
       source: instructionSourceAt(state, side),

@@ -3,6 +3,7 @@ import { formationPositions, type FormationName } from "@/src/engine/formations"
 import { changeFormation, type LineupCandidate } from "@/src/engine/lineup";
 import { ratingAt, type Position } from "@/src/engine/positions";
 import type { Translator } from "@/src/i18n/translator";
+import { positionFit } from "../../_lib/positions";
 
 /** The gain of level, in points, from which the assistant suggests a substitution. */
 const MIN_SUGGESTED_GAIN = 1;
@@ -18,8 +19,9 @@ export type HalfTimeState = {
 
 /**
  * What the pause cannot change: who is injured, which slots are a sent-off player's, the substitutions made, how many the
- * match allows by the end of this pause (one more from the end of regulation time, before extra time), and whether one
- * may be made here at all: during play, only in a window.
+ * match allows by the end of this pause (one more from the end of regulation time, before extra time), whether one may be
+ * made here at all (during play, only in a window), whether the manager already makes them himself, and the young players
+ * the assistant plans to bring on.
  */
 export type HalfTimeRules = {
   injured: ReadonlySet<string>;
@@ -27,6 +29,10 @@ export type HalfTimeRules = {
   substitutionsBefore: number;
   maxSubstitutions: number;
   canSubstitute: boolean;
+  manual: boolean; // the manager made a substitution of his own at an earlier pause: the assistant makes none any more
+  // « Lancer les jeunes »: the young players the assistant brings on at the restart after the 60th minute, each for the
+  // starter he replaces (HalfTimeTeam.youthEntries), planned on the eleven of the pause, its formation and its slots.
+  youth: { entries: readonly { in: string; out: string }[]; formation: FormationName; starters: readonly (string | null)[] };
 };
 
 export type Move = { ok: true; state: HalfTimeState } | { ok: false; message: string };
@@ -38,6 +44,8 @@ export const pauseRules = (team: HalfTimeTeam): HalfTimeRules => ({
   substitutionsBefore: team.substitutions,
   maxSubstitutions: team.maxSubstitutions,
   canSubstitute: team.windows.open,
+  manual: team.manual,
+  youth: { entries: team.youthEntries, formation: team.formation, starters: team.starters },
 });
 
 /** The managed club at a pause before any change of its manager's: its eleven and its bench as they stand. */
@@ -51,6 +59,13 @@ export const pauseState = (team: HalfTimeTeam): HalfTimeState => ({
 
 export const substitutionsMade = (state: HalfTimeState, rules: HalfTimeRules): number =>
   rules.substitutionsBefore + state.substitutions.length;
+
+/**
+ * Whether the assistant still makes the club's substitutions after this pause: its manager has made none of his own,
+ * before it or at it; from his first one, they are all his (applyManagerChoice).
+ */
+export const assistantSubstitutes = (state: HalfTimeState, rules: HalfTimeRules): boolean =>
+  !rules.manual && state.substitutions.length === 0;
 
 /**
  * A substitute dropped on a slot: its player goes off for good and the substitute comes on. On a player who came on
@@ -134,10 +149,14 @@ type RatedCandidate = LineupCandidate & { condition: number; fitness: number; fi
 const levelAt = (player: RatedCandidate, position: Position): number => ratingAt(player, position) * player.condition;
 
 /**
- * Why the assistant suggests a change: the player going off is injured, or what weighs most in the gain, the incoming
+ * Why the assistant suggests a change: the player going off is injured, the one coming on is a young player he brings on
+ * at the restart after the 60th minute (« Lancer les jeunes »: youth), or what weighs most in the gain, the incoming
  * player's rating in the slot (level), his form, or his freshness (fitness).
  */
-export type ChangeReason = "injured" | "level" | "form" | "fitness";
+export type ChangeReason = "injured" | "youth" | "level" | "form" | "fitness";
+
+/** The reasons of a change worth its gain. */
+type GainReason = Exclude<ChangeReason, "injured" | "youth">;
 
 /** The substitution the assistant suggests. */
 export type SuggestedChange = {
@@ -154,9 +173,9 @@ export type SuggestedChange = {
  * times the fitness's: the factor that grows most from the outgoing player to the incoming one is the reason. Ties go to
  * the level, then the form: the freshness only when it outweighs both.
  */
-function mainReason(incoming: RatedCandidate, outgoing: RatedCandidate, position: Position): Exclude<ChangeReason, "injured"> {
+function mainReason(incoming: RatedCandidate, outgoing: RatedCandidate, position: Position): GainReason {
   const formOf = (player: RatedCandidate): number => player.condition / player.fitnessFactor;
-  const factors: [Exclude<ChangeReason, "injured">, number][] = [
+  const factors: [GainReason, number][] = [
     ["level", ratingAt(incoming, position) / ratingAt(outgoing, position)],
     ["form", formOf(incoming) / formOf(outgoing)],
     ["fitness", incoming.fitnessFactor / outgoing.fitnessFactor],
@@ -175,12 +194,43 @@ const comesBefore = (a: SuggestedChange, b: SuggestedChange): boolean => {
 };
 
 /**
+ * The young player the assistant brings on at the restart after the 60th minute (« Lancer les jeunes »), in place of the
+ * starter he replaces: the first of his plan still on the bench whose starter is still in the eleven, in a slot of the
+ * young player's position or of one of his secondary positions, as the engine picks it; null without one. While the
+ * assistant makes the changes, his plan holds on the eleven he made it on only: its formation or a slot changed, he plans
+ * again at the restart, whoever he then takes off. Once they are the manager's, it is advice: the starter wherever he now
+ * plays, as long as the young player plays there too.
+ */
+function youthChange(state: HalfTimeState, rules: HalfTimeRules, byKey: ReadonlyMap<string, RatedCandidate>): SuggestedChange | null {
+  const { entries, formation, starters } = rules.youth;
+  const rearranged = state.formation !== formation || state.starters.some((key, slot) => key !== starters[slot]);
+  if (rearranged && assistantSubstitutes(state, rules)) {
+    return null;
+  }
+  const positions = formationPositions(state.formation);
+  for (const entry of entries) {
+    const incoming = byKey.get(entry.in);
+    const outgoing = byKey.get(entry.out);
+    const slot = state.starters.indexOf(entry.out);
+    if (incoming === undefined || outgoing === undefined || slot === -1 || !state.bench.includes(entry.in)) {
+      continue;
+    }
+    const position = positions[slot];
+    const fit = positionFit(incoming, position);
+    if (fit === "exact" || fit === "secondary") {
+      return { slot, position, out: entry.out, in: entry.in, reason: "youth", gain: levelAt(incoming, position) - levelAt(outgoing, position) };
+    }
+  }
+  return null;
+}
+
+/**
  * The best substitution there is, however small its gain, or null: none left, none allowed at this pause, or nobody on
  * the bench. Each player on the pitch is weighed against the best substitute in his slot, but for a sent-off player's
  * slot and a player who came on at this pause, the manager's own choice. An injured player goes first, whatever the gain;
- * otherwise the largest gain, which may be nothing or less, with what weighs most in it (mainReason). Ties go to the
- * smaller key, so the input's order changes nothing. The Coaching panel's comparison opens on it when the assistant
- * suggests nothing.
+ * then a young player the assistant brings on (youthChange), whatever the gain too; otherwise the largest gain, which may
+ * be nothing or less, with what weighs most in it (mainReason). Ties go to the smaller key, so the input's order changes
+ * nothing. The Coaching panel's comparison opens on it when the assistant suggests nothing.
  */
 export function bestChange(state: HalfTimeState, rules: HalfTimeRules, players: readonly RatedCandidate[]): SuggestedChange | null {
   const byKey = new Map(players.map((player) => [player.id, player]));
@@ -213,13 +263,14 @@ export function bestChange(state: HalfTimeState, rules: HalfTimeRules, players: 
       best = change;
     }
   }
-  return best;
+  return best !== null && isInjury(best) ? best : (youthChange(state, rules, byKey) ?? best);
 }
 
 /**
  * The substitution the assistant suggests, or null: none left, none allowed at this pause, nobody on the bench, or nobody
- * worth it. The best change there is (bestChange), when its player going off is injured, whatever the gain, or when its
- * gain reaches MIN_SUGGESTED_GAIN: the best change is first an injured one, then the largest gain, so no other could pass.
+ * worth it. The best change there is (bestChange), when its player going off is injured or its player coming on a young
+ * player the assistant brings on, whatever the gain, or when its gain reaches MIN_SUGGESTED_GAIN: the best change is first
+ * an injured one, then a young player's, then the largest gain, so no other could pass.
  */
 export function suggestChange(
   state: HalfTimeState,
@@ -227,7 +278,7 @@ export function suggestChange(
   players: readonly RatedCandidate[],
 ): SuggestedChange | null {
   const best = bestChange(state, rules, players);
-  return best !== null && (isInjury(best) || best.gain >= MIN_SUGGESTED_GAIN) ? best : null;
+  return best !== null && (isInjury(best) || best.reason === "youth" || best.gain >= MIN_SUGGESTED_GAIN) ? best : null;
 }
 
 /** Two slots exchange their players: a free repositioning. A sent-off player's slot stays empty. */

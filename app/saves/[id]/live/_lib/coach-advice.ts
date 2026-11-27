@@ -1,7 +1,8 @@
+import { YOUTH_ENTRY_MINUTE } from "@/src/engine/balance";
 import type { PausePhase } from "@/src/engine/live";
 import type { Translator } from "@/src/i18n/translator";
 import { getOrThrow } from "@/src/lib/maps";
-import { substitutionsMade, type HalfTimeRules, type HalfTimeState, type SuggestedChange } from "./half-time-moves";
+import { assistantSubstitutes, substitutionsMade, type HalfTimeRules, type HalfTimeState, type SuggestedChange } from "./half-time-moves";
 
 /** What a pause looks like to the assistant, with the manager's changes so far. */
 export type MatchSituation = {
@@ -25,16 +26,30 @@ const scoreTopic = ({ phase, goalDifference }: MatchSituation) => {
   return goalDifference > 0 ? "leading" : goalDifference < 0 ? "behind" : "level";
 };
 
-/** The suggested change and its reason, what weighs most in it (suggestChange), or why there is none. */
+/**
+ * The suggested change and its reason, what weighs most in it (suggestChange), or why there is none. A young player the
+ * assistant brings on (« Lancer les jeunes ») is his own change while he makes them: at the restart after the 60th minute,
+ * the minute after it when said at half-time; once the manager makes his own, it is his call.
+ */
 function changeLine(
-  { state, suggestion, players }: MatchSituation,
+  { phase, state, rules, suggestion, players }: MatchSituation,
   substitutionsLeft: number,
   t: Translator<"halfTime">,
 ): string {
   if (suggestion !== null) {
-    const incoming = getOrThrow(players, suggestion.in, "player");
-    const outgoing = getOrThrow(players, suggestion.out, "player");
-    return t(`advice.change.${suggestion.reason}`, { in: incoming.lastName, out: outgoing.lastName });
+    const names = {
+      in: getOrThrow(players, suggestion.in, "player").lastName,
+      out: getOrThrow(players, suggestion.out, "player").lastName,
+    };
+    if (suggestion.reason !== "youth") {
+      return t(`advice.change.${suggestion.reason}`, names);
+    }
+    if (!assistantSubstitutes(state, rules)) {
+      return t("advice.change.youth.yours", names);
+    }
+    return phase === "HALF_TIME"
+      ? t("advice.change.youth.halfTime", { ...names, minute: YOUTH_ENTRY_MINUTE + 1 })
+      : t("advice.change.youth.restart", names);
   }
   if (substitutionsLeft <= 0) {
     return t("advice.change.noSubstitutionLeft");

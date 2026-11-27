@@ -27,6 +27,11 @@
       },
       "change": {
         "injured": "{in} est le mieux placé pour remplacer {out}.",
+        "youth": {
+          "halfTime": "À la {minute}e, je fais entrer {in} à la place de {out} : il a besoin de minutes.",
+          "restart": "À la reprise, je fais entrer {in} à la place de {out} : il a besoin de minutes.",
+          "yours": "Fais entrer {in} à la place de {out} : il a besoin de minutes."
+        },
         "form": "{in} est plus en forme que {out} : il ferait mieux à ce poste.",
         "fitness": "{in} est plus frais que {out} : il ferait mieux à ce poste.",
         "level": "{in} ferait mieux que {out} à ce poste.",

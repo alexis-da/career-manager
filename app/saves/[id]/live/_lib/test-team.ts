@@ -39,6 +39,7 @@ export function halfTimeTeam(overrides: Partial<HalfTimeTeam> = {}): HalfTimeTea
     substitutions: 0,
     windows: { used: 0, max: MAX_SUBSTITUTION_WINDOWS, open: true },
     manual: false,
+    youthEntries: [],
     instruction: { current: "BALANCED", source: "START", assistant: "BALANCED", starting: "BALANCED" },
     formation: "4-3-3",
     starters: [...STARTERS],

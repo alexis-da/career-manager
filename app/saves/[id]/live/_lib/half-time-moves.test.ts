@@ -6,6 +6,7 @@ import type { LineupCandidate } from "@/src/engine/lineup";
 import type { Position } from "@/src/engine/positions";
 import { testTranslator } from "@/src/i18n/test-intl";
 import {
+  assistantSubstitutes,
   cancelSubstitution,
   halfTimeChoice,
   substitute,
@@ -41,6 +42,8 @@ const rules = (overrides: Partial<HalfTimeRules> = {}): HalfTimeRules => ({
   substitutionsBefore: 0,
   maxSubstitutions: MAX_SUBSTITUTIONS,
   canSubstitute: true,
+  manual: false,
+  youth: { entries: [], formation: initial.formation, starters: initial.starters },
   ...overrides,
 });
 
@@ -318,5 +321,64 @@ describe("the change the assistant suggests", () => {
     expect(suggestChange(state, rules(), players)).toMatchObject({ out: "s1", in: "b-rb" });
     const last = applied(substitute(state, rules(), 1, "b-rb", t));
     expect(suggestChange(last, rules(), players)).toBeNull();
+  });
+});
+
+describe("the young players the assistant brings on (« Lancer les jeunes »)", () => {
+  // The squad rested, at a neutral condition: no substitute beats his starter unless a test says so.
+  const rated = (changes: Record<string, { overall?: number }> = {}) =>
+    PLAYERS.map((candidate) => ({ ...candidate, condition: 1, fitness: FULL_FITNESS, fitnessFactor: 1, ...changes[candidate.id] }));
+  // His plan: the substitute centre-back for the right centre-back, then the substitute midfielder for the right midfielder.
+  const PLAN = [
+    { in: "b-cb", out: "s2" },
+    { in: "b-cm", out: "s6" },
+  ];
+  const planned = (overrides: Partial<HalfTimeRules> = {}): HalfTimeRules =>
+    rules({ youth: { entries: PLAN, formation: initial.formation, starters: initial.starters }, ...overrides });
+
+  it("suggests the first, for the starter he replaces, whatever the gain and before any other change", () => {
+    // Rated 60, ten points under the starter, while the striker on the bench would gain 17 up front.
+    expect(suggestChange(initial, planned(), rated({ s9: { overall: 50 } }))).toEqual({
+      slot: 2,
+      position: "CB",
+      out: "s2",
+      in: "b-cb",
+      reason: "youth",
+      gain: -10,
+    });
+  });
+
+  it("replaces an injured player first", () => {
+    expect(suggestChange(initial, planned({ injured: new Set(["s1"]) }), rated())).toMatchObject({ out: "s1", in: "b-rb", reason: "injured" });
+  });
+
+  it("suggests the next one once the first has come on, then nothing once both have", () => {
+    const first = applied(substitute(initial, planned(), 2, "b-cb", t));
+    expect(suggestChange(first, planned(), rated())).toMatchObject({ slot: 6, out: "s6", in: "b-cm", reason: "youth" });
+    expect(suggestChange(applied(substitute(first, planned(), 6, "b-cm", t)), planned(), rated())).toBeNull();
+  });
+
+  it("holds his plan on the eleven he made it on while he makes the changes, and advises it once they are the manager's", () => {
+    // A starter moved, or another formation: he plans again at the restart, whoever he then takes off.
+    const swapped = applied(swapSlots(initial, planned(), 2, 3, t));
+    expect(suggestChange(swapped, planned(), rated())).toBeNull();
+    expect(suggestChange(switchFormation(initial, planned(), "4-4-2", PLAYERS), planned(), rated())?.reason).not.toBe("youth");
+    expect(suggestChange(applied(swapSlots(swapped, planned(), 2, 3, t)), planned(), rated())).toMatchObject({ out: "s2", reason: "youth" });
+    // The manager's call: his starter wherever he is, in a slot the young player plays.
+    expect(suggestChange(swapped, planned({ manual: true }), rated())).toMatchObject({ slot: 3, position: "CB", out: "s2", in: "b-cb", reason: "youth" });
+    // Up front, a centre-back plays neither at his position nor at a secondary one: the next young player.
+    const upFront = applied(swapSlots(initial, planned(), 2, 9, t));
+    expect(suggestChange(upFront, planned({ manual: true }), rated())).toMatchObject({ out: "s6", in: "b-cm", reason: "youth" });
+  });
+
+  it("suggests nothing when no substitution can be made: none left, or no window", () => {
+    expect(suggestChange(initial, planned({ substitutionsBefore: MAX_SUBSTITUTIONS }), rated())).toBeNull();
+    expect(suggestChange(initial, planned({ canSubstitute: false }), rated())).toBeNull();
+  });
+
+  it("leaves the changes to the assistant until the manager makes one, before this pause or at it", () => {
+    expect(assistantSubstitutes(initial, planned())).toBe(true);
+    expect(assistantSubstitutes(initial, planned({ manual: true }))).toBe(false);
+    expect(assistantSubstitutes(applied(substitute(initial, planned(), 9, "b-st", t)), planned())).toBe(false);
   });
 });
