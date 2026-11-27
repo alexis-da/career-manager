@@ -149,6 +149,58 @@ test("keeps a gesture made just before leaving the screen", async ({ page }) => 
   await expect(page.getByTestId("lineup-status")).toHaveText(STATUS.saved);
 });
 
+test("gives the line-up back to the assistant even when that comes back to what the page read, then saves the gestures after", async ({
+  page,
+}) => {
+  await lyonLineup(page, "rendre la main");
+  const status = page.getByTestId("lineup-status");
+  const handBack = page.getByTestId("lineup-hand-back");
+  const cancel = page.getByTestId("lineup-cancel");
+  const given = page.locator("[data-sonner-toast]").filter({ hasText: "Ton adjoint fait la composition." });
+
+  // A substitute brought on, the line-up given back: the assistant's again, the substitute's line-up kept, unread. Read
+  // again, the page starts the editor from that: the assistant's, with that line-up saved.
+  const first = await bringSubstituteOn(page);
+  await expectLineupSaved(page);
+  await handBack.click();
+  await expect(status).toHaveText(STATUS.assistant);
+  await page.reload();
+  await expect(status).toHaveText(STATUS.assistant);
+
+  // The same gesture saves the same line-up, and giving it back comes back to what the page read: the editor's key does
+  // not change, yet it starts again, in the assistant's way, given back once however fast the clicks.
+  expect(await bringSubstituteOn(page)).toBe(first);
+  await expectLineupSaved(page);
+  await expect(status).toHaveText(STATUS.saved);
+  await handBack.dblclick();
+  // A gesture right after: never lost, once the line-up is the assistant's again, taken from him and saved.
+  const second = await bringSubstituteOn(page, 1);
+  expect(second).not.toBe(first);
+  await expectLineupSaved(page);
+  await expect(status).toHaveText(STATUS.saved);
+  await expect(status).toHaveAttribute("data-mode", "player");
+  await expect(given).toHaveCount(1);
+  await page.reload();
+  expect(await strikerOf(page)).toBe(second);
+  await expect(status).toHaveText(STATUS.saved);
+
+  // Given back, read again (the assistant's, the second's line-up saved), the second's gesture again, then « Annuler »
+  // at once, its save maybe still on its way: the assistant's again, which the page read again says too.
+  await handBack.click();
+  await expect(status).toHaveText(STATUS.assistant);
+  await page.reload();
+  await expect(status).toHaveText(STATUS.assistant);
+  const starter = await strikerOf(page);
+  expect(await bringSubstituteOn(page, 1)).toBe(second);
+  await cancel.click();
+  await expect(status).toHaveText(STATUS.assistant);
+  await expect(status).toHaveAttribute("data-mode", "assistant");
+  expect(await strikerOf(page)).toBe(starter);
+  await page.reload();
+  await expect(status).toHaveText(STATUS.assistant);
+  expect(await strikerOf(page)).toBe(starter);
+});
+
 test.describe("while a match waits live", () => {
   test("is read only, the way back to the match its only orange, on a phone and on a computer", async ({ page }) => {
     await lyonLineup(page, "direct");

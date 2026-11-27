@@ -220,6 +220,12 @@ export function LineupScreen(props: LineupScreenProps) {
         setReload({ from: editor, count: reload.count });
         router.refresh();
       }}
+      onHandedBack={() => {
+        // The line-up given back: the editor starts again from the page the action read anew, whatever it holds. Its key
+        // alone may not change: the editor's own saves never read the page again, so the page given back can hold just
+        // what the editor was started from (the line-up saved then, the assistant's way).
+        setReload({ from: editor, count: reload.count });
+      }}
     />
   );
 }
@@ -229,6 +235,7 @@ type LineupEditorProps = LineupScreenProps & {
   onChoose: (key: string) => void;
   onSaved: () => void; // a save of the visit went through
   onReload: () => void; // reads the line-up anew, then starts the editor again from it
+  onHandedBack: () => void; // the line-up given back: the editor starts again from the page the action read anew
 };
 
 /** How long a save may run before the status line says so: nothing blinks on a good connection (§ 1.4). */
@@ -281,6 +288,7 @@ function LineupEditor({
   onChoose,
   onSaved,
   onReload,
+  onHandedBack,
 }: LineupEditorProps) {
   const { clubColors, players } = editor;
   const t = useTranslations("lineup");
@@ -301,6 +309,16 @@ function LineupEditor({
   const [candidatesSlot, setCandidatesSlot] = useState<number | null>(null); // the last selected: the sheet's, as it closes
   const [sheetOpen, setSheetOpen] = useState(false); // under xl: over the page, until it is closed
   const [pending, startTransition] = useTransition();
+  // « Rendre la main » on its way, then until the editor starts again: nothing to touch, no gesture lost meanwhile.
+  const [handingBack, setHandingBack] = useState(false);
+  // Whether this editor is still the screen's: one the page read again has replaced is never started again.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const sheetInColumn = useMediaQuery(SHEET_COLUMN_QUERY);
   const computer = useMediaQuery(COMPUTER_QUERY);
   // The state shown and who makes the line-up, for a drop: the drag's callback may be one of an earlier render.
@@ -596,15 +614,21 @@ function LineupEditor({
 
   /**
    * « Rendre la main à l'adjoint »: his eleven before each match again, the saved line-up kept, unread. Nothing more is
-   * sent: the page read again starts the editor over, in his way.
+   * sent, nothing can be touched: the page the action reads again starts the editor over, in his way, even when it holds
+   * what the editor was started from.
    */
   const handBack = (): void => {
     setQueue(saves.blocked(queue.current));
+    setHandingBack(true);
     startTransition(async () => {
       try {
         const result = await setAssistantSettingAction(saveId, "lineup", true);
         if (result.ok) {
           toast.success(result.message);
+          // Not this editor any more when the page read again changed what it was started from: started over already.
+          if (mounted.current) {
+            onHandedBack();
+          }
           return;
         }
         toast.error(result.message);
@@ -612,6 +636,7 @@ function LineupEditor({
         toast.error(isNewVersionError(error) ? common("newVersion") : t("saveFailed"));
       }
       // Still his: the editor goes on, what it shows sent again in case a gesture was waiting (`unchanged` otherwise).
+      setHandingBack(false);
       setQueue(saves.unblocked(queue.current));
       save(latestJob());
     });
@@ -767,7 +792,7 @@ function LineupEditor({
         </Panel>
       )}
 
-      <div inert={liveHref !== null} className={cn("space-y-4", liveHref !== null && "opacity-60")}>
+      <div inert={liveHref !== null || handingBack} className={cn("space-y-4", liveHref !== null && "opacity-60")}>
       {/* The assistant's way (docs/design/simplification.md § 6.3): what he does before each match, whom he rests now, and
           how to make one's own eleven. The same card until the first gesture on a player, which takes the line-up. */}
       {mode === "assistant" && (
