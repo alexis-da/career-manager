@@ -924,7 +924,7 @@ Branche locale `effectif-adjoint` : le § 1 d'abord, puis les § 3 et § 2, cons
 
 ---
 
-## 9. Les jeunes ciblés de « Lancer les jeunes » (27/11, à valider)
+## 9. Les jeunes ciblés de « Lancer les jeunes » (27/11, validé le 27/11)
 
 **Retour de jeu** (Alexis, 27/11) : dans un club fort, les jeunes ne jouent jamais, l'écart avec les titulaires dépassant
 toujours 10 points. Demande : des entrées garanties vers la 60e, en championnat, à un poste où ils jouent, avant les
@@ -1003,6 +1003,35 @@ par saison : minutes et titularisations de championnat, progression au passage d
 - **Trois jeunes ciblés par défaut** (`--targets=3`, Dortmund et Werder) : 1 586 et 1 350 minutes par jeune, moins que
   1 915 et 1 521 à deux, pour un changement de fatigue de moins par match ; points 1,784 et 1,324. Recommandation : deux
   par défaut, trois au plus marqués à la main.
+
+**Validé le 27/11** tel que mesuré : 2 jeunes ciblés par défaut, 3 au plus quand le joueur les marque ; la migration
+`Save.youthLaunches` d'accord. Demandé en plus : la ligne « Il lancera » des Réglages et le bouton dans la vue « Jeunes ».
+
+### 9.4 L'écran (27/11)
+
+- **Les marques** (`Save.youthLaunches`, migration d'ajout `…_youth_launches` : `ALTER TABLE "Save" ADD COLUMN
+  "youthLaunches" TEXT[] DEFAULT ARRAY[]::TEXT[]`, aucune ligne réécrite) : les `playerKey` marqués, dans l'ordre, 3 au
+  plus. Marquable : un joueur de champ du club de 21 ans ou moins au 1er juillet de la saison, comme la consigne les lit.
+  Une marque qui ne vaut plus sort de la liste : vendu ou libéré, aussitôt ; parti libre, passé à 22 ans au 1er juillet
+  ou devenu gardien, au passage de saison, et à chaque écriture de la liste. Un blessé ou un suspendu garde la sienne :
+  il n'entre pas tant qu'il est indisponible, et entre de nouveau à son retour. Une marque retirée n'est jamais refusée.
+- **La fiche** d'un tel joueur : « Lancer les jeunes », ce que fait l'adjoint (« Marqué : en championnat, quand il ne
+  démarre pas, ton adjoint le fait entrer à la 60e » ; sans marque, les deux plus gros potentiels, que les marques
+  remplacent), le bouton « Le lancer » / « Ne plus le lancer », hors d'atteinte à 3 marques ; sous « Meilleur onze » ou
+  quand le joueur fait la composition, la marque est gardée et la fiche dit pourquoi elle n'a pas d'effet, avec le lien
+  des Réglages.
+- **La vue « Jeunes » de l'Effectif** : la colonne « Lancer » à la place du contrat, le bouton sur chaque ligne de joueur
+  de champ, sous la jauge sur téléphone ; le compte des marques au-dessus (« 2 sur 3 »), les lignes comptées ensemble.
+  `?vue=jeunes` ouvre l'Effectif sur elle.
+- **Club → Réglages**, sous « Lancer les jeunes » : « Il lancera : X, Y · tes choix » (ses marques) ou « · les plus gros
+  potentiels » (son choix), ce que lirait le prochain match de championnat, et « Choisir › » vers la vue « Jeunes » ;
+  « Tu fais la composition : il ne fait entrer personne » quand le joueur fait la composition. L'aide de la consigne le
+  dit : « … et deux entrent à la 60e ».
+- **Le Coaching** : à la mi-temps (« À la 61e, je fais entrer X à la place de Y : il a besoin de minutes ») et à la pause
+  de la 60e (« À la reprise, … »), l'entrée prévue est le conseil de l'adjoint et le comparatif s'ouvre sur elle ; un
+  blessé passe d'abord. Dès un changement du joueur, l'adjoint n'en fait plus : « Fais entrer X à la place de Y ». La
+  prévision de la mi-temps peut changer avec une blessure ou un changement de fatigue de la 55e à la 60e ; celle de la 60e
+  est celle du moteur (comparée aux entrées de la 61e sur 30 graines).
 
 ---
 

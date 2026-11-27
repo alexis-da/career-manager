@@ -21,6 +21,25 @@ export const CHANGELOG_LABELS = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-27",
+    fr: {
+      title: "Tes jeunes entrent en jeu",
+      items: [
+        "Sous la consigne « Lancer les jeunes », ton adjoint fait entrer à la 60e, en championnat, deux de tes jeunes qui ne démarrent pas : ceux au plus gros potentiel. Même dans un grand club, tes espoirs jouent, et progressent plus vite.",
+        "Choisis-les toi-même : « Le lancer » sur la fiche d'un joueur de champ de 21 ans ou moins, ou dans la vue « Jeunes » de l'Effectif, trois au plus. Club, Réglages, te dit qui il lancera.",
+        "En direct, le Coaching annonce l'entrée prévue à la mi-temps et à la 60e ; si tu fais tes changements toi-même, il te la conseille.",
+      ],
+    },
+    en: {
+      title: "Your youngsters get on the pitch",
+      items: [
+        "Under the “Give youth a chance” brief, your assistant brings on two of your youngsters who don't start, on the hour in the league: those with the most potential. Even at a big club, your prospects play, and improve faster.",
+        "Choose them yourself: “Bring him on” on the sheet of an outfield player aged 21 or under, or in the Squad's Under-21s view, three at most. Club, Settings, tells you whom he will bring on.",
+        "Live, Coaching announces the planned change at half-time and on the hour; if you make your changes yourself, it advises you to make it.",
+      ],
+    },
+  },
+  {
     date: "2026-11-26",
     fr: {
       title: "Ta composition s'enregistre seule, tes jeunes ont leur chance",

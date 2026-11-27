@@ -26,7 +26,7 @@ npm run test:e2e:quick # la sélection E2E que la CI joue à chaque push (créat
 npm run measure:balance # moteur : victoires par écart de force, effet de chaque facteur, dispositifs, consignes (de départ : -- --starting-only) et fatigue, saisons d'une partie 2 (-- --seasons=3 : trois saisons de chaque graine, le premier tournoi d'été compris ; base locale seulement) : six cibles, clubs européens, condition et blessures par pays et par mois (trêve hivernale), CPU par journée, penaltys et échauffourées sur de vrais effectifs (-- --lineups-out=f.json garde leurs onze ; -- --choices-from=f.json les mesure seuls, sans base)
 npm run measure:divisions # équilibrage des deux divisions : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (base locale seulement)
 npm run measure:seasons # budgets, plafonds, réputation (son étalement), objectifs, Europe (qualifiés, condition et charge des clubs européens, saison par saison), sélections (trêves, appelés, blessures, force des 14 nations, CPU) et tournois d'été (condition au premier match, crédibilité sur 50 cycles) : six saisons d'une partie 2, l'adjoint gérant les contrats du club dirigé (-- --seed=S pour une autre graine ; base locale seulement)
-npm run measure:assistant # l'adjoint (chantier « simplification ») : jumeaux d'une partie 2, sa composition contre le meilleur onze sans repos, ses contrats contre aucun, un club « gourmand » de joueurs libres et ses ventes proposées, la progression de ses jeunes (-- --seasons=3 --lineup=game --contracts=game --sales=game ; --policy=YOUTH : sa consigne « Lancer les jeunes » ; base locale seulement)
+npm run measure:assistant # l'adjoint (chantier « simplification ») : jumeaux d'une partie 2, sa composition contre le meilleur onze sans repos, ses contrats contre aucun, un club « gourmand » de joueurs libres et ses ventes proposées, la progression de ses jeunes (-- --seasons=3 --lineup=game --contracts=game --sales=game ; --policy=YOUTH : sa consigne « Lancer les jeunes » ; --targets=N : ses jeunes ciblés, suivis ; base locale seulement)
 npm run measure:coach  # sélectionneur : CPU d'une trêve dirigée contre une trêve sans lui, d'un match de sélection en direct et d'un tournoi joué par étapes en juin, deux jumeaux d'une partie 2 (-- --seasons=2 --nation=POR ; base locale seulement)
 npm run measure:history # coût d'un affichage de l'onglet Histoire : requêtes et CPU, à froid et en cache, d'une carrière archivée de 5 et 10 saisons (-- --seasons=10 --at=5,10 ; base locale seulement)
 npm run measure:weight # poids d'une carrière table par table, à la création puis après chaque saison (-- --seasons=3 --vacuum-every=5 --out=f.json, --archive : saisons terminées archivées, --no-europe : sans compétition européenne, pour comparer ; base locale dédiée et vide)
@@ -339,6 +339,41 @@ et moins × 3 (364 → 1 083), progression + 58 %, − 0,014 ± 0,019 point par 
 Lyon et Metz, environ 1 100 minutes par jeune et par saison, progression par jeune + 2,95 contre + 2,00 et + 2,71 contre
 + 1,52, points par match 1,78 contre 1,80 et 1,68 contre 1,63. Tests : `src/engine/lineup.test.ts`,
 `assistant-contracts.test.ts`, `src/db/assistant-policy.test.ts`, `e2e/assistant-policy.spec.ts`.
+
+**Jeunes ciblés et entrées garanties (chantier « effectif et adjoint », § 9, 27/11).** Cahier § 9, règle validée le 27/11
+telle que mesurée. Sous « Lancer les jeunes », en championnat, quand l'adjoint fait la composition (coupe, Europe,
+sélections, `BEST` et composition du joueur inchangés) : ses **jeunes ciblés** (`youthTargets`, `src/engine/lineup.ts`)
+sont ceux que le joueur marque « Le lancer », 3 au plus (`YOUTH_ENTRY_MAX_TARGETS`), dans l'ordre de ses marques, sinon
+les 2 plus gros potentiels (`YOUTH_ENTRY_DEFAULT_TARGETS`) parmi ceux que la consigne lit (21 ans ou moins au 1er juillet,
+5 points de marge, moins de 25 titularisations), jamais un gardien ; la titularisation de la règle précédente ne change
+pas. Un ciblé qui ne démarre pas, disponible et reposé (75 ou plus), va sur le banc juste après le gardien remplaçant
+(`Lineup.youthEntries`, `withYouthEntries`) et entre à la reprise de la 60e (`YOUTH_ENTRY_MINUTE`, daté de la 61e, une
+fenêtre du club ; `bringYoungPlayersOn`, `src/engine/match.ts`), à son poste ou à un poste secondaire, à la place du
+titulaire le plus fatigué de ce poste (`youthEntryOut`), jamais d'un autre ciblé ni du gardien ; de la 55e à la 60e, un
+changement de fatigue n'est fait que s'il laisse la place aux entrées prévues (`youthEntriesDue`) ; jamais plus de 5
+changements ; dès le premier changement du joueur en direct (`TeamLive.manual`), plus aucune. Aucun tirage de plus :
+`BEST` et les clubs IA jouent les mêmes matchs au bit près, le direct sans changement est la simulation
+(`TeamLive.youthEntries`, gardé par l'état du direct). **Les marques** : `Save.youthLaunches` (migration d'ajout
+`…_youth_launches`, liste de `playerKey`, vide par défaut), écrites par `setYouthLaunch` (`src/db/youth-launches.ts`, la
+partie verrouillée ; refus `not-eligible` et `full`, une marque retirée jamais refusée ; `setYouthLaunchAction`) : un
+joueur de champ du club de 21 ans ou moins au 1er juillet (`canBeLaunched`, `keptYouthLaunches`,
+`src/engine/youth-launches.ts`, pur) ; un joueur vendu ou libéré sort de la liste aussitôt (`forgetYouthLaunch`), un
+parti libre, passé à 22 ans au 1er juillet ou devenu gardien au passage de saison (`keepValidYouthLaunches`, présaison)
+et à chaque écriture ; un blessé ou un suspendu y reste, laissé de côté tant qu'il est indisponible. **Écrans** : la fiche
+d'un tel joueur (`YouthLaunchField`, `player-youth-launch` avec `data-marked` et `data-inactive` « best » ou « byPlayer »,
+le bouton `youth-launch-toggle` « Le lancer » / « Ne plus le lancer », refusé au-delà de 3 ;
+`PlayerProfile.youthLaunch`, `YouthLaunchView`), la vue « Jeunes » de l'Effectif (`?vue=jeunes` l'ouvre ; la colonne
+« Lancer », `squad-column-launch`, à la place du contrat, et `squad-young-launches` avec `data-marks` : les marques de
+toutes les lignes ensemble, `useYouthLaunches`), Club → Réglages sous « Lancer les jeunes » (« Il lancera : X, Y · tes
+choix » ou « · les plus gros potentiels », `getYouthLaunchPlan`, `settings-assistant-launches` avec `data-kind` et
+`data-by-marks`, « Choisir › » vers la vue « Jeunes »), et le Coaching à la mi-temps et à la pause de la 60e
+(`HalfTimeTeam.youthEntries`, `plannedYouthEntries`, `src/db/live-match.ts` ; `bestChange` : un blessé d'abord, puis
+l'entrée prévue, raison `youth` ; « À la 61e, je fais entrer … », « À la reprise… », « Fais entrer… » une fois les
+changements du joueur). Mesures du cahier (§ 9.3, quatre clubs, trois saisons) : au Bayern, 64 → 942 minutes par jeune
+ciblé et par saison, progression + 2,67 → + 4,83 ; ailleurs 170 à 500 minutes de plus ; points dans le bruit d'une graine
+(+ 0,005 par match). Tests : `src/engine/lineup.test.ts`, `src/engine/live.test.ts`, `src/engine/youth-launches.test.ts`,
+`src/db/youth-launches.test.ts`, `app/saves/[id]/live/_lib/youth-entries.test.ts`, `half-time-moves.test.ts`,
+`e2e/assistant-policy.spec.ts`.
 
 **Évolution des joueurs (chantier « effectif et adjoint », § 3, 25/11).** `PlayerSave.previousOverall` (migration
 d'ajout `…_previous_overall`, nullable) : la note d'avant la progression du dernier passage de saison, écrite par
