@@ -1,5 +1,12 @@
 import * as z from "zod";
-import { EXTRA_TIME_SUBSTITUTIONS, FULL_FITNESS, HALF_TIME_MINUTE, MAX_SUBSTITUTIONS, REGULATION_MINUTES } from "../engine/balance";
+import {
+  EXTRA_TIME_SUBSTITUTIONS,
+  FULL_FITNESS,
+  HALF_TIME_MINUTE,
+  MAX_SUBSTITUTIONS,
+  REGULATION_MINUTES,
+  YOUTH_ENTRY_MAX_TARGETS,
+} from "../engine/balance";
 import { CHOICE_KINDS, CHOICE_OPTIONS } from "../engine/choices";
 import { FORMATION_NAMES } from "../engine/formations";
 import { INSTRUCTIONS } from "../engine/instructions";
@@ -71,6 +78,8 @@ const teamSchema = z.object({
     .array(instructionSpan)
     .max(8) // one a segment at most
     .optional(),
+  // « Lancer les jeunes »: the young players its assistant brings on at the pause after the 60th minute, until then.
+  youthEntries: z.array(playerKey).max(YOUTH_ENTRY_MAX_TARGETS).optional(),
 });
 
 const eventsSchema = z.array(

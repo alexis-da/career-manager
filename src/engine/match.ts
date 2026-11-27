@@ -46,6 +46,7 @@ import {
   SUBSTITUTION_MINUTE_MIN,
   SUBSTITUTIONS_PER_TEAM,
   YELLOW_CARDS_PER_TEAM,
+  YOUTH_ENTRY_MINUTE,
 } from "./balance";
 import type { MatchChoices, MatchDecision } from "./choices";
 import { fitnessAfter, fitnessFactor, injuryRiskFactor, wearFactor } from "./fitness";
@@ -53,7 +54,7 @@ import { DEFAULT_FORMATION_NAME, formationPositions, type FormationName } from "
 import { clampRating } from "./generation";
 import { DEFAULT_INSTRUCTION, type Instruction, type InstructionSource, type InstructionSpan } from "./instructions";
 import type { Lineup, SquadPlayer } from "./lineup";
-import { positionGroup, ratingAt, type Position } from "./positions";
+import { positionGroup, ratingAt, secondaryPositions, type Position } from "./positions";
 import { expectedGoals, formationStrength, type TeamStrength } from "./strength";
 
 export type { Instruction, InstructionSource, InstructionSpan } from "./instructions";
@@ -187,6 +188,9 @@ export type TeamLive = {
   startingInstruction?: Instruction;
   // The instructions it has played its segments with, a span at each change, and who set each; absent before kick-off.
   instructions?: InstructionSpan[];
+  // « Lancer les jeunes » (Lineup.youthEntries): the young players on its bench its assistant brings on at the pause after
+  // YOUTH_ENTRY_MINUTE, ahead of the substitutions for tiredness; absent for any other team, and once they came on.
+  youthEntries?: string[];
 };
 
 /** An incident a choice event has set for later: a named player sent off, or injured for some days, at a minute. */
@@ -469,10 +473,12 @@ function startingTeam(lineup: Lineup, formation: FormationName): TeamLive {
     booked: [],
     goals: 0,
   };
-  // Équilibré leaves the state as it always was.
-  return lineup.instruction === undefined || lineup.instruction === DEFAULT_INSTRUCTION
-    ? team
-    : { ...team, startingInstruction: lineup.instruction };
+  // Équilibré, and no young player to bring on, leave the state as it always was.
+  const instructed =
+    lineup.instruction === undefined || lineup.instruction === DEFAULT_INSTRUCTION ? team : { ...team, startingInstruction: lineup.instruction };
+  return lineup.youthEntries === undefined || lineup.youthEntries.length === 0
+    ? instructed
+    : { ...instructed, youthEntries: [...lineup.youthEntries] };
 }
 
 /**
@@ -536,6 +542,75 @@ function mostTiredStarter(onPitch: readonly PitchEntry[], minute: number): Pitch
     }
   }
   return tired;
+}
+
+/**
+ * The starter a young player brought on replaces (« Lancer les jeunes »): the most tired at his own position, else at
+ * one of his secondary positions (mostTiredStarter: outfield, on since kick-off); none at either, none.
+ */
+function youthEntryOut(pitch: readonly PitchEntry[], young: SquadPlayer, minute: number): PitchEntry | undefined {
+  const secondary = secondaryPositions(young.id, young.position);
+  return (
+    mostTiredStarter(
+      pitch.filter((entry) => entry.slot === young.position),
+      minute,
+    ) ??
+    mostTiredStarter(
+      pitch.filter((entry) => secondary.includes(entry.slot)),
+      minute,
+    )
+  );
+}
+
+/**
+ * The young players a side's assistant is to bring on at a minute (TeamLive.youthEntries), in their order: each one still
+ * on its bench, with the starter he replaces (youthEntryOut), never another of them nor one already taken. None once its
+ * manager makes his own substitutions.
+ */
+export function youthEntriesDue(team: TeamLive, minute: number): { player: SquadPlayer; out: PitchEntry }[] {
+  if (team.manual === true || team.youthEntries === undefined) {
+    return [];
+  }
+  const targets = new Set(team.youthEntries);
+  const taken = new Set<PitchEntry>();
+  const due: { player: SquadPlayer; out: PitchEntry }[] = [];
+  for (const id of team.youthEntries) {
+    const player = team.bench.find((candidate) => candidate.id === id);
+    if (player === undefined) {
+      continue;
+    }
+    const pitch = team.pitch.filter((entry) => entry.status === "ON" && !targets.has(entry.player.id) && !taken.has(entry));
+    const out = youthEntryOut(pitch, player, minute);
+    if (out !== undefined) {
+      due.push({ player, out });
+      taken.add(out);
+    }
+  }
+  return due;
+}
+
+/**
+ * « Lancer les jeunes » at the pause after YOUTH_ENTRY_MINUTE: a side's young players come on, in their order, each in
+ * place of the starter youthEntriesDue gives, dated the minute after as a change at a pause, in one of its windows, while
+ * substitutions remain. Changes the state given; its young players are no longer to bring on after it.
+ */
+function bringYoungPlayersOn(state: MatchState, side: Side): void {
+  const team = state[side];
+  if (team.youthEntries === undefined) {
+    return;
+  }
+  for (const { player, out } of youthEntriesDue(team, YOUTH_ENTRY_MINUTE)) {
+    if (team.substitutions >= MAX_SUBSTITUTIONS) {
+      break;
+    }
+    state.appearances.push(toAppearance(out, side, YOUTH_ENTRY_MINUTE));
+    team.bench.splice(team.bench.indexOf(player), 1);
+    team.substitutions++;
+    team.pitch[team.pitch.indexOf(out)] = { index: out.index, slot: out.slot, player, from: YOUTH_ENTRY_MINUTE, status: "ON" };
+    team.windows = withWindow(team.windows, YOUTH_ENTRY_MINUTE + 1);
+    state.events.push({ minute: YOUTH_ENTRY_MINUTE + 1, side, type: "SUBSTITUTION", playerId: player.id, relatedPlayerId: out.player.id });
+  }
+  delete team.youthEntries;
 }
 
 /** Bench player replacing someone in a slot: the one rated best in that slot, his fitness counted, ties broken by id. */
@@ -665,6 +740,13 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
   const mark = (event: MatchEvent): MatchEvent => (extraTime ? { ...event, period: "EXTRA_TIME" } : event);
   const state = cloneState(start);
   const teams: Record<Side, TeamLive> = { home: state.home, away: state.away };
+  // « Lancer les jeunes »: a side's young players come on at the pause after YOUTH_ENTRY_MINUTE, before this segment's
+  // strengths are worked out, as a change its manager makes there would.
+  if (first === YOUTH_ENTRY_MINUTE + 1) {
+    for (const side of SIDES) {
+      bringYoungPlayersOn(state, side);
+    }
+  }
 
   const lastMinute = segment === "s6" ? REGULATION_MINUTES + randomInt(rng, 0, MAX_STOPPAGE_MINUTES) : last;
   const played = first - 1;
@@ -831,8 +913,10 @@ export function simulateSegment(start: MatchState, matchSeed: string, segment: S
         if (team.manual === true) {
           break;
         }
+        // Room kept for the young players its assistant brings on at the pause after YOUTH_ENTRY_MINUTE: they come first.
+        const reserved = minute <= YOUTH_ENTRY_MINUTE ? youthEntriesDue(team, minute).length : 0;
         const leaving =
-          team.substitutions < substitutionLimit && team.bench.length > 0 ? mostTiredStarter(onPitch(team), minute) : undefined;
+          team.substitutions + reserved < substitutionLimit && team.bench.length > 0 ? mostTiredStarter(onPitch(team), minute) : undefined;
         if (leaving !== undefined) {
           state.appearances.push(toAppearance(leaving, side, minute, lastCounted));
           substitute(side, leaving, minute);

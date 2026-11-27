@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
-import { MAX_SUBSTITUTION_WINDOWS, POSITION_PROFILES } from "./balance";
-import { choiceEvent, decideChoice, isChoicePossible, withChoices } from "./choices";
+import { MAX_SUBSTITUTION_WINDOWS, MAX_SUBSTITUTIONS, POSITION_PROFILES, YOUTH_ENTRY_MINUTE } from "./balance";
+import { assistantChoices, choiceEvent, decideChoice, isChoicePossible, withChoices } from "./choices";
 import { DEFAULT_FORMATION_NAME, formationPositions } from "./formations";
 import { ATTRIBUTE_NAMES, clampRating, overallFor, type AttributeName } from "./generation";
 import type { Lineup, SquadPlayer } from "./lineup";
@@ -10,7 +10,11 @@ import {
   applyAutomaticHalfTime,
   HalfTimeChoiceError,
   instructionAt,
+  matchResult,
+  simulateMatch,
+  simulateSegment,
   startMatch,
+  youthEntriesDue,
   type HalfTimeChoice,
   type HalfTimeChoiceIssue,
   type MatchState,
@@ -190,5 +194,69 @@ describe("the manager at a pause between two segments", () => {
     expect(isChoicePossible("KNOCK", { ...used, home: { ...used.home, windows: [16, 31, 61] } }, "home", 60)).toBe(true);
     // His assistant's matches keep their events, as in a simulated match.
     expect(isChoicePossible("KNOCK", { ...used, home: { ...used.home, manual: undefined } }, "home", 60)).toBe(true);
+  });
+});
+
+describe("the young players its assistant brings on (« Lancer les jeunes », docs/design/effectif-adjoint.md § 9)", () => {
+  // The home side's substitute centre-back and central midfielder, to bring on.
+  const YOUNG = ["home#bench1", "home#bench4"];
+  const youthHome: Lineup = { ...HOME, youthEntries: YOUNG };
+  const seedsOf = (count: number, prefix: string): string[] => Array.from({ length: count }, (_, index) => `${prefix}:${index}`);
+
+  /** The home side's match played on to the 60th minute, segment by segment, without choice events. */
+  const at60 = (seed: string): MatchState => {
+    let state = startMatch(youthHome, AWAY);
+    while (state.played < YOUTH_ENTRY_MINUTE) {
+      state = playOn(state, "home", seed, {}, "segment");
+    }
+    return state;
+  };
+
+  it("come on at 61', each in place of the most tired starter at his position, room kept for them before", () => {
+    let both = 0;
+    for (const seed of seedsOf(60, "youth-on")) {
+      const before = at60(seed);
+      const due = youthEntriesDue(before.home, YOUTH_ENTRY_MINUTE);
+      // The tiredness substitutions of 55' to 60' left them room: the five substitutions never reached.
+      expect(before.home.substitutions + due.length).toBeLessThanOrEqual(MAX_SUBSTITUTIONS);
+      const after = simulateSegment(before, seed, "s5");
+      for (const { player, out } of due) {
+        expect(out.slot).toBe(player.position);
+        expect(after.events).toContainEqual({ minute: 61, side: "home", type: "SUBSTITUTION", playerId: player.id, relatedPlayerId: out.player.id });
+        expect(after.home.pitch.find((entry) => entry.index === out.index)).toMatchObject({ player: { id: player.id }, from: 60, status: "ON" });
+      }
+      // They alone at 61', ahead of the tiredness substitutions still to come, never more than five in all.
+      const atEntry = after.events.filter((event) => event.side === "home" && event.type === "SUBSTITUTION" && event.minute === 61);
+      expect(atEntry.filter((event) => YOUNG.includes(event.playerId))).toHaveLength(due.length);
+      expect(after.home.substitutions).toBeLessThanOrEqual(MAX_SUBSTITUTIONS);
+      expect(after.home.youthEntries).toBeUndefined();
+      both += due.length === YOUNG.length ? 1 : 0;
+    }
+    expect(both).toBeGreaterThan(40);
+  });
+
+  it("never come on for a side whose manager makes his own substitutions", () => {
+    for (const seed of seedsOf(20, "youth-manual")) {
+      const before = at60(seed);
+      const manual: MatchState = { ...before, home: { ...before.home, manual: true } };
+      expect(youthEntriesDue(manual.home, YOUTH_ENTRY_MINUTE)).toEqual([]);
+      const after = simulateSegment(manual, seed, "s5");
+      // One may have come on already, in place of a tired starter before 60': none from then.
+      const later = after.events.filter((event) => event.minute > YOUTH_ENTRY_MINUTE);
+      expect(later.filter((event) => event.type === "SUBSTITUTION" && YOUNG.includes(event.playerId))).toEqual([]);
+    }
+  });
+
+  it("are the very same live, pause after pause, as in the match simulated", () => {
+    for (const seed of seedsOf(60, "youth-live")) {
+      const simulated = simulateMatch(youthHome, AWAY, seed, undefined, false, {}, assistantChoices("home", seed));
+      for (const until of ["segment", "pause", "break"] as const) {
+        let state = withChoices(startMatch(youthHome, AWAY), "home", seed);
+        while (state.phase !== "FULL_TIME") {
+          state = playOn(state, "home", seed, {}, until);
+        }
+        expect(matchResult(state)).toEqual(simulated);
+      }
+    }
   });
 });

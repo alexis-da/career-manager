@@ -3,6 +3,8 @@ import {
   ROTATION_FITNESS,
   ROTATION_GAP_PER_FITNESS_POINT,
   ROTATION_MAX_RATING_GAP,
+  YOUTH_ENTRY_DEFAULT_TARGETS,
+  YOUTH_ENTRY_MAX_TARGETS,
   YOUTH_OBJECTIVE_MAX_AGE,
   YOUTH_OBJECTIVE_STARTS,
   YOUTH_POLICY_MAX_AGE,
@@ -49,6 +51,9 @@ export type Lineup<P extends LineupCandidate = SquadPlayer> = {
   starters: LineupSlot<P>[]; // in the order of the formation's slots
   bench: P[];
   instruction?: Instruction; // the one its club starts the match with: its manager's, saved with it; Équilibré without one
+  // « Lancer les jeunes » (selectAssistantLineup): the young players targeted who do not start, on its bench, that its
+  // assistant brings on at the pause after YOUTH_ENTRY_MINUTE, in this order; absent for any other lineup.
+  youthEntries?: readonly string[];
 };
 
 /** A lineup chosen by the manager: a player key per slot index, the substitutes in order, and his starting instruction. */
@@ -194,10 +199,16 @@ export type YouthProspect = { id: string; seasonAge: number; potential: number; 
 
 /**
  * What the assistant's eleven of a league match knows of the club's young players (selectAssistantLineup): his policy
- * (Save.assistantPolicy), the Jeunesse objective's young player (`starter`, docs/design/simplification.md § 3.5), and what
- * « Lancer les jeunes » reads of the players young enough (`prospects`), which « Meilleur onze » never reads.
+ * (Save.assistantPolicy), the Jeunesse objective's young player (`starter`, docs/design/simplification.md § 3.5), what
+ * « Lancer les jeunes » reads of the players young enough (`prospects`), and the ones its manager marked « Le lancer »
+ * (`marked`, docs/design/effectif-adjoint.md § 9; none without), which « Meilleur onze » never reads.
  */
-export type AssistantYouth = { policy: AssistantPolicy; starter: YouthStarter | null; prospects: readonly YouthProspect[] };
+export type AssistantYouth = {
+  policy: AssistantPolicy;
+  starter: YouthStarter | null;
+  prospects: readonly YouthProspect[];
+  marked?: readonly string[];
+};
 
 /**
  * The Jeunesse objective's candidate (docs/design/simplification.md § 3.5): the club's best player aged
@@ -262,7 +273,71 @@ export function selectAssistantLineup<P extends LineupCandidate & { fitness: num
     })
     .sort(byOverall);
   const candidates = [objective, ...launched].filter(ready);
-  return withYoungStarters(squad, formation, rested, candidates, YOUTH_POLICY_MAX_RATING_GAP, YOUTH_POLICY_PER_MATCH);
+  const lineup = withYoungStarters(squad, formation, rested, candidates, YOUTH_POLICY_MAX_RATING_GAP, YOUTH_POLICY_PER_MATCH);
+  return withYouthEntries(squad, lineup, youthTargets(squad, youth));
+}
+
+/**
+ * The young players « Lancer les jeunes » brings on when they do not start (docs/design/effectif-adjoint.md § 9), in the
+ * order he brings them on: those its manager marked « Le lancer », at most YOUTH_ENTRY_MAX_TARGETS, in his order; without
+ * any, the YOUTH_ENTRY_DEFAULT_TARGETS with the most potential among the club's young players as selectAssistantLineup
+ * reads them (YOUTH_POLICY_MAX_AGE or younger on 1 July, YOUTH_POLICY_MIN_ROOM of growth room or more, fewer than
+ * YOUTH_POLICY_STARTS league starts), the best rated first among equal potentials, then by id. Outfield players only: a
+ * goalkeeper is never brought on for minutes. Keys of the squad's players, available or not. `count`: the default's,
+ * which a measure may ask of its own.
+ */
+export function youthTargets<P extends LineupCandidate>(
+  squad: readonly P[],
+  youth: AssistantYouth,
+  count: number = YOUTH_ENTRY_DEFAULT_TARGETS,
+): string[] {
+  const prospects = new Map(youth.prospects.map((prospect) => [prospect.id, prospect]));
+  const young = squad.filter((player) => {
+    const prospect = prospects.get(player.id);
+    return player.position !== "GK" && prospect !== undefined && prospect.seasonAge <= YOUTH_POLICY_MAX_AGE;
+  });
+  const marked = [...new Set(youth.marked ?? [])].filter((id) => young.some((player) => player.id === id));
+  if (marked.length > 0) {
+    return marked.slice(0, YOUTH_ENTRY_MAX_TARGETS);
+  }
+  const potentialOf = (player: P): number => prospects.get(player.id)?.potential ?? 0;
+  return young
+    .filter((player) => {
+      const prospect = prospects.get(player.id);
+      return (
+        prospect !== undefined &&
+        prospect.potential - player.overall >= YOUTH_POLICY_MIN_ROOM &&
+        prospect.leagueStarts < YOUTH_POLICY_STARTS
+      );
+    })
+    .sort((a, b) => potentialOf(b) - potentialOf(a) || byOverall(a, b))
+    .slice(0, count)
+    .map((player) => player.id);
+}
+
+/**
+ * A lineup of « Lancer les jeunes » with its young players to bring on (youthTargets, docs/design/effectif-adjoint.md § 9):
+ * each one targeted who does not start, available and rested (ROTATION_FITNESS or more), on the bench, after its backup
+ * goalkeeper and before the others, whom the bench then has less room for; their keys, in that order, in youthEntries,
+ * which the match brings on at the pause after YOUTH_ENTRY_MINUTE. The lineup itself without any.
+ */
+function withYouthEntries<P extends LineupCandidate & { fitness: number }>(
+  squad: readonly P[],
+  lineup: Lineup<P>,
+  targets: readonly string[],
+): Lineup<P> {
+  const starting = new Set(lineup.starters.map(({ player }) => player));
+  const entering = targets.flatMap((id) => {
+    const player = squad.find((candidate) => candidate.id === id);
+    return player === undefined || !isAvailable(player) || player.fitness < ROTATION_FITNESS || starting.has(player) ? [] : [player];
+  });
+  if (entering.length === 0) {
+    return lineup;
+  }
+  const others = automaticBench(squad.filter((player) => isAvailable(player) && !starting.has(player) && !entering.includes(player)));
+  const goalkeeper = others[0]?.position === "GK" ? others.slice(0, 1) : [];
+  const bench = [...goalkeeper, ...entering, ...others.slice(goalkeeper.length)].slice(0, BENCH_SIZE);
+  return { ...lineup, bench, youthEntries: entering.map((player) => player.id) };
 }
 
 /**

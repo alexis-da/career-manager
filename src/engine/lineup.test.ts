@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { makeRng } from "../lib/rng";
 import {
   ROTATION_FITNESS,
+  YOUTH_ENTRY_DEFAULT_TARGETS,
+  YOUTH_ENTRY_MAX_TARGETS,
   YOUTH_OBJECTIVE_MAX_AGE,
   YOUTH_OBJECTIVE_STARTS,
   YOUTH_POLICY_MAX_AGE,
@@ -26,6 +28,7 @@ import {
   selectLineup,
   selectRestedLineup,
   youthCandidate,
+  youthTargets,
   YOUTH_STARTER_MAX_GAP,
   type AssistantYouth,
   type Formation,
@@ -415,7 +418,11 @@ describe("selectAssistantLineup under « Lancer les jeunes »", () => {
     expect(startersOf(selectAssistantLineup([...squad, ten], DEFAULT_FORMATION, youthOf([prospectOf(ten)])))[9]).toEqual(["ST", stKey]);
     const eleven = player(stKey, "ST", 55);
     const players = [...squad, eleven];
-    expect(selectAssistantLineup(players, DEFAULT_FORMATION, youthOf([prospectOf(eleven)]))).toEqual(selectRestedLineup(players));
+    const lineup = selectAssistantLineup(players, DEFAULT_FORMATION, youthOf([prospectOf(eleven)]));
+    expect(lineup.starters).toEqual(selectRestedLineup(players).starters);
+    // Brought on instead (docs/design/effectif-adjoint.md § 9): on the bench, right after its goalkeeper.
+    expect(lineup.youthEntries).toEqual([stKey]);
+    expect(lineup.bench.slice(0, 2).map(({ id }) => id)).toEqual(["gk-1", stKey]);
   });
 
   it("starts only the young enough, with room to grow and short of 25 league starts, available and rested", () => {
@@ -475,6 +482,59 @@ describe("selectAssistantLineup under « Lancer les jeunes »", () => {
 
     expect(startersOf(selectRestedLineup(players))[3]).toEqual(["CB", cbKey]);
     expect(startersOf(lineup)).toEqual(restedWith(players, { 4: lbKey, 7: cmKey, 9: stKey }));
+  });
+
+  describe("the young players brought on (docs/design/effectif-adjoint.md § 9)", () => {
+    // 11 to 13 below cb-2 (68): none of them starts.
+    const low = player(cbKey, "CB", 57);
+    const high = player(cbKey2, "CB", 56);
+    const third = player(cbKey3, "CB", 55);
+    const [gkKey] = keysWith("GK", 1, alone);
+    const keeper = player(gkKey, "GK", 50);
+    const forward = player(stKey, "ST", 50); // 16 below st-2
+    const players = [...squad, low, high, third, keeper, forward];
+    const prospects = [
+      prospectOf(low, { potential: 80 }),
+      prospectOf(high, { potential: 85 }),
+      prospectOf(third, { potential: 70 }),
+      prospectOf(keeper, { potential: 90 }), // a goalkeeper is never brought on for minutes
+      prospectOf(forward, { potential: 60 }),
+    ];
+    const marking = (marked: string[]): AssistantYouth => ({ ...youthOf(prospects), marked });
+
+    it("are the two with the most potential who do not start, on the bench right after its goalkeeper", () => {
+      const lineup = selectAssistantLineup(players, DEFAULT_FORMATION, youthOf(prospects));
+
+      expect(YOUTH_ENTRY_DEFAULT_TARGETS).toBe(2);
+      expect(youthTargets(players, youthOf(prospects))).toEqual([cbKey2, cbKey]);
+      expect(lineup.starters).toEqual(selectRestedLineup(players).starters);
+      expect(lineup.youthEntries).toEqual([cbKey2, cbKey]);
+      expect(lineup.bench.slice(0, 3).map(({ id }) => id)).toEqual(["gk-1", cbKey2, cbKey]);
+      expect(lineup.bench).toHaveLength(BENCH_SIZE);
+      // Of the young players the policy reads only: no room to grow, or 25 league starts, and he is no target.
+      const settled = [prospectOf(low, { potential: low.overall + YOUTH_POLICY_MIN_ROOM - 1 }), prospectOf(high, { leagueStarts: YOUTH_POLICY_STARTS })];
+      expect(youthTargets(players, youthOf([...settled, ...prospects.slice(2)]))).toEqual([cbKey3, stKey]);
+    });
+
+    it("are the ones marked « Le lancer » when there are, three at most, in their order, young outfield players only", () => {
+      expect(YOUTH_ENTRY_MAX_TARGETS).toBe(3);
+      expect(youthTargets(players, marking([cbKey3, "cb-1", gkKey, cbKey]))).toEqual([cbKey3, cbKey]);
+      expect(youthTargets(players, marking([stKey, cbKey3, cbKey2, cbKey]))).toEqual([stKey, cbKey3, cbKey2]);
+      expect(selectAssistantLineup(players, DEFAULT_FORMATION, marking([stKey, cbKey3])).youthEntries).toEqual([stKey, cbKey3]);
+    });
+
+    it("come on only available and rested, never when they start, and never under « Meilleur onze »", () => {
+      const without = (id: string, change: Partial<SquadPlayer>): SquadPlayer[] =>
+        players.map((member) => (member.id === id ? { ...member, ...change } : member));
+      const entries = (squadOf: readonly SquadPlayer[]) => selectAssistantLineup(squadOf, DEFAULT_FORMATION, youthOf(prospects)).youthEntries;
+
+      expect(entries(without(cbKey2, { injured: true }))).toEqual([cbKey]);
+      expect(entries(without(cbKey2, { suspended: true }))).toEqual([cbKey]);
+      expect(entries(without(cbKey, { fitness: ROTATION_FITNESS - 1 }))).toEqual([cbKey2]);
+      // Within the gap, he starts: nobody to bring on in his place.
+      expect(entries(players.map((member) => (member.id === cbKey2 ? player(cbKey2, "CB", 67) : member)))).toEqual([cbKey]);
+      expect(selectAssistantLineup(players, DEFAULT_FORMATION, { policy: "BEST", starter: null, prospects })).toEqual(selectRestedLineup(players));
+    });
   });
 
   it("reads none of them under « Meilleur onze », and is deterministic whatever the order of the squad and of the young", () => {
@@ -631,16 +691,24 @@ describe("selectAssistantLineup against its references", () => {
 
   it("fields under « Lancer les jeunes » the very eleven of the measured rule, without a Jeunesse objective", () => {
     let started = 0;
+    let entering = 0;
     for (let seed = 0; seed < 300; seed++) {
       const { players, prospects, formation } = drawn(seed);
       const measured = measuredYouthLineup(players, formation, new Map(prospects.map((prospect) => [prospect.id, prospect])));
       const lineup = selectAssistantLineup(players, formation, { policy: "YOUTH", starter: null, prospects });
-      expect(lineup).toEqual(measured);
+      // Its very eleven; its bench too, unless young players are to come on (§ 9), which the measured rule had not.
+      expect(lineup.starters).toEqual(measured.starters);
+      if (lineup.youthEntries === undefined) {
+        expect(lineup).toEqual(measured);
+      } else {
+        entering++;
+      }
       const rested = selectRestedLineup(players, formation);
       started += lineup.starters.filter((slot, index) => slot.player !== rested.starters[index]?.player).length;
     }
-    // The draws do start young players, often.
+    // The draws do start young players, often, and bring some on.
     expect(started).toBeGreaterThan(100);
+    expect(entering).toBeGreaterThan(20);
   });
 });
 

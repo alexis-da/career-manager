@@ -1022,6 +1022,16 @@ export const YOUTH_POLICY_PROSPECT_MARGIN = 3;
 /** …and a player from this age to RENEWAL_MAX_AGE must be rated the standard minus this, not minus RENEWAL_RATING_MARGIN. */
 export const YOUTH_POLICY_VETERAN_AGE = 30;
 export const YOUTH_POLICY_VETERAN_MARGIN = 2;
+/**
+ * Its young players brought on (docs/design/effectif-adjoint.md § 9): in a strong club, they are rarely within
+ * YOUTH_POLICY_MAX_RATING_GAP of a starter. Each one targeted who does not start a league match comes on at the pause
+ * after this minute, at a slot of his positions, ahead of the substitutions for tiredness.
+ */
+export const YOUTH_ENTRY_MINUTE = 60;
+/** The young players targeted when the manager marked none: those with the most potential, this many… */
+export const YOUTH_ENTRY_DEFAULT_TARGETS = 2;
+/** …and at most this many marked « Le lancer » on their sheet. */
+export const YOUTH_ENTRY_MAX_TARGETS = 3;
 
 // ------------------------------------------------------------------ Youth arrivals and leaving the world
 
