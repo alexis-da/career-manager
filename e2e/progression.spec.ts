@@ -209,11 +209,12 @@ test("shows each player's summer passed and to come, sorts by it, and has a view
   }
   expect(opened).toBe(true);
 
-  // Beside the sheet, the table keeps the position, the name, the age, the rating and its arrow, the summer and the form.
-  for (const key of ["position", "name", "age", "overall", "expected-progression", "form"]) {
+  // Beside the sheet, the table keeps the position, the name, the age, the rating and its arrow, the summer and « Le
+  // lancer » (docs/design/effectif-adjoint.md § 9): the form leaves it, as it leaves the young players' cards.
+  for (const key of ["position", "name", "age", "overall", "expected-progression", "launch"]) {
     await expect(page.getByTestId(`squad-column-${key}`)).toBeVisible();
   }
-  for (const key of ["fitness", "league-minutes", "contract-until"]) {
+  for (const key of ["form", "fitness", "league-minutes", "contract-until"]) {
     await expect(page.getByTestId(`squad-column-${key}`)).toBeHidden();
   }
   await expectNoSidewaysScroll(page, "sheet beside the young players");

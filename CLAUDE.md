@@ -363,8 +363,8 @@ et à chaque écriture ; un blessé ou un suspendu y reste, laissé de côté ta
 d'un tel joueur (`YouthLaunchField`, `player-youth-launch` avec `data-marked` et `data-inactive` « best » ou « byPlayer »,
 le bouton `youth-launch-toggle` « Le lancer » / « Ne plus le lancer », refusé au-delà de 3 ;
 `PlayerProfile.youthLaunch`, `YouthLaunchView`), la vue « Jeunes » de l'Effectif (`?vue=jeunes` l'ouvre ; la colonne
-« Lancer », `squad-column-launch`, à la place du contrat, et `squad-young-launches` avec `data-marks` : les marques de
-toutes les lignes ensemble, `useYouthLaunches`), Club → Réglages sous « Lancer les jeunes » (« Il lancera : X, Y · tes
+« Lancer », `squad-column-launch`, à la place du contrat, la forme partie sous 928 px de tableau comme de ses cartes, et
+`squad-young-launches` avec `data-marks` : les marques de toutes les lignes ensemble, `useYouthLaunches`), Club → Réglages sous « Lancer les jeunes » (« Il lancera : X, Y · tes
 choix » ou « · les plus gros potentiels », `getYouthLaunchPlan`, `settings-assistant-launches` avec `data-kind` et
 `data-by-marks`, « Choisir › » vers la vue « Jeunes »), et le Coaching à la mi-temps et à la pause de la 60e
 (`HalfTimeTeam.youthEntries`, `plannedYouthEntries`, `src/db/live-match.ts` ; `bestChange` : un blessé d'abord, puis
